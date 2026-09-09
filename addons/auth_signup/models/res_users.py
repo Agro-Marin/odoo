@@ -107,7 +107,7 @@ class ResUsers(models.Model):
             if self._get_signup_invitation_scope() != "b2c":
                 raise SignupError(_("Signup is not allowed for uninvited users"))
         if values.get("email") and self.with_context(active_test=False).search_count(
-            self._get_email_domain(values["email"]), limit=1
+            self._get_domain_email(values["email"]), limit=1
         ):
             raise UserError(
                 _("Another user is already registered using this email address.")
@@ -150,9 +150,9 @@ class ResUsers(models.Model):
         """retrieve the user corresponding to login (login or email),
         and reset their password
         """
-        users = self.search(self._get_login_domain(login))
+        users = self.search(self._get_domain_login(login))
         if not users:
-            users = self.search(self._get_email_domain(login))
+            users = self.search(self._get_domain_email(login))
         if not users:
             raise UserError(_("No account found for this login"))
         if len(users) > 1:

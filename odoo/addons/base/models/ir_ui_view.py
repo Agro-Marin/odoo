@@ -1000,10 +1000,10 @@ class IrUiView(models.Model):
 
     @api.model
     def default_view(self, model: str, view_type: str) -> int | bool:
-        return self.search(self._get_default_view_domain(model, view_type), limit=1).id
+        return self.search(self._get_domain_default_view(model, view_type), limit=1).id
 
     @api.model
-    def _get_default_view_domain(self, model: str, view_type: str) -> Domain:
+    def _get_domain_default_view(self, model: str, view_type: str) -> Domain:
         return Domain(
             [
                 ("model", "=", model),
@@ -1437,7 +1437,7 @@ class IrUiView(models.Model):
         return self.env["ir.ui.view"].browse(info["id"])
 
     @api.model
-    def _get_template_domain(self, xmlids: list[str]) -> Domain:
+    def _get_domain_template(self, xmlids: list[str]) -> Domain:
         return Domain("key", "in", xmlids)
 
     @api.model
@@ -1461,7 +1461,7 @@ class IrUiView(models.Model):
             field_names = [
                 f.name for f in IrUiView._fields.values() if f.prefetch is True
             ]
-            domain = Domain("id", "in", ids) | self._get_template_domain(xmlids)
+            domain = Domain("id", "in", ids) | self._get_domain_template(xmlids)
             views = IrUiView.search_fetch(
                 domain, field_names, order=self._get_template_order()
             )
@@ -1531,7 +1531,7 @@ class IrUiView(models.Model):
     ) -> dict[int | str, dict[str, Any]]:
         self._clear_preload_views_cache_if_needed()
 
-        cache_key = self.env["ir.qweb"]._template_cache_signature()
+        cache_key = self.env["ir.qweb"]._get_template_cache_signature()
 
         compile_batch = self.env.cr.cache.setdefault("_compile_batch_", {}).setdefault(
             cache_key, {}
@@ -1981,7 +1981,7 @@ class IrUiView(models.Model):
             elif attr == "groups":
                 node.attrib.pop("groups")
 
-    def _calendar_field_names(self, node: _Element) -> typing.Iterator[str | None]:
+    def _get_calendar_field_names(self, node: _Element) -> typing.Iterator[str | None]:
         for attr in CALENDAR_DATE_ATTRS:
             if value := node.get(attr):
                 yield value.split(".", 1)[0]
@@ -1997,7 +1997,7 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        for name in self._calendar_field_names(node):
+        for name in self._get_calendar_field_names(node):
             name_manager.add_available_field(node, name, node_info)
 
     def _postprocess_tag_calendar(
@@ -2675,14 +2675,12 @@ class IrUiView(models.Model):
                 )
 
         for attr, expr in node.items():
-            checker = _ATTRIBUTE_CHECKERS.get(attr) or self._prefix_attribute_checker(
-                attr
-            )
+            checker = _ATTRIBUTE_CHECKERS.get(attr) or self._get_attr_checker_name(attr)
             if checker is not None:
                 getattr(self, checker)(node, name_manager, attr, expr, node_info)
 
     @staticmethod
-    def _prefix_attribute_checker(attr: str) -> str | None:
+    def _get_attr_checker_name(attr: str) -> str | None:
         if attr.startswith("decoration-"):
             return "_check_attr_decoration"
         if _TOOLTIP_ATTR_RE.match(attr):

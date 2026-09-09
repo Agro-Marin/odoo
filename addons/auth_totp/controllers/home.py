@@ -52,7 +52,7 @@ class Home(web_home.Home):
             try:
                 with user._assert_can_auth(user=user.id):
                     credentials = {
-                        "type": user._mfa_type(),
+                        "type": user._get_mfa_type(),
                         "token": int(re.sub(r"\s", "", kwargs["totp_token"])),
                     }
                     user._check_credentials(credentials, {"interactive": True})

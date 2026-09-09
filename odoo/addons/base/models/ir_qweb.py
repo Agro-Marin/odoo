@@ -560,7 +560,7 @@ class IrQweb(models.AbstractModel):
         if callable(params.method):
             return params.method, None
 
-        compile_key = (params.view_ref, irQweb._template_cache_signature())
+        compile_key = (params.view_ref, irQweb._get_template_cache_signature())
         compiled = compiled_cache.get(compile_key)
         if compiled is None:
             compiled = irQweb._compile(params.view_ref)
@@ -751,15 +751,15 @@ class IrQweb(models.AbstractModel):
             "nsmap",
         ]
 
-    def _template_cache_signature(self) -> tuple:
+    def _get_template_cache_signature(self) -> tuple:
         context = self.env.context
         return tuple(
-            self._cache_signature_value(context.get(k))
+            self._get_cache_signature_value(context.get(k))
             for k in self._get_template_cache_keys()
         )
 
     @staticmethod
-    def _cache_signature_value(value: Any) -> Any:
+    def _get_cache_signature_value(value: Any) -> Any:
         if not value:
             return False
         if isinstance(value, Mapping):
@@ -815,7 +815,7 @@ class IrQweb(models.AbstractModel):
         "xml" not in tools.config["dev_mode"],
         tools.ormcache(
             "ref",
-            "self._template_cache_signature()",
+            "self._get_template_cache_signature()",
             cache="templates",
         ),
     )
@@ -826,7 +826,7 @@ class IrQweb(models.AbstractModel):
         "xml" not in tools.config["dev_mode"],
         tools.ormcache(
             "path",
-            "self._template_cache_signature()",
+            "self._get_template_cache_signature()",
             cache="templates",
         ),
     )
@@ -912,7 +912,7 @@ class IrQweb(models.AbstractModel):
         try:
             element, document, ref = self._get_template(template)
         except (ValueError, UserError) as e:
-            return (None, self._not_found_options(context, e), "not_found_template")
+            return (None, self._get_not_found_options(context, e), "not_found_template")
 
         context.pop("raise_if_not_found", None)
 
@@ -945,7 +945,7 @@ class IrQweb(models.AbstractModel):
             def_name,
         )
 
-    def _not_found_options(
+    def _get_not_found_options(
         self, context: dict[str, Any], error: Exception
     ) -> dict[str, Any]:
         options = {k: context.get(k, False) for k in self._get_template_cache_keys()}
@@ -1272,14 +1272,16 @@ class IrQweb(models.AbstractModel):
         return set(el.nsmap.items()) - set(compile_context.nsmap.items())
 
     @staticmethod
-    def _qualified_attribute_name(key: str, nsprefixmap: dict[str, str | None]) -> str:
+    def _get_qualified_attribute_name(
+        key: str, nsprefixmap: dict[str, str | None]
+    ) -> str:
         name = key.removesuffix(".translate")
         qname = etree.QName(name)
         if qname.namespace:
             return f"{nsprefixmap[qname.namespace]}:{qname.localname}"
         return name
 
-    def _ns_prefix_map(
+    def _get_ns_prefix_map(
         self, el: etree._Element, compile_context: CompileContext
     ) -> dict[str, str | None]:
         return {
@@ -1287,7 +1289,7 @@ class IrQweb(models.AbstractModel):
             for prefix, uri in chain(compile_context.nsmap.items(), el.nsmap.items())
         }
 
-    def _element_marker(self, path: str | None, xml: str | None) -> str:
+    def _get_element_marker(self, path: str | None, xml: str | None) -> str:
         return f"# element: {path!r} , {xml!r}"
 
     def _compile_format(self, expr: str) -> str:
@@ -1580,7 +1582,7 @@ class IrQweb(models.AbstractModel):
     def _compile_to_str(self, expr: Any) -> str:
         return to_text(expr)
 
-    def _directives_eval_order(self) -> list[str]:
+    def _get_directive_eval_order(self) -> list[str]:
         return [
             "elif",
             "else",
@@ -1620,11 +1622,11 @@ class IrQweb(models.AbstractModel):
         compile_context.error_path_xml[0] = compile_context.ref
         compile_context.error_path_xml[1] = path
         compile_context.error_path_xml[2] = xml
-        body = [indent_code(self._element_marker(path, xml), level)]
+        body = [indent_code(self._get_element_marker(path, xml), level)]
 
-        compile_context.directives = iter(self._directives_eval_order())
+        compile_context.directives = iter(self._get_directive_eval_order())
 
-        unqualified_el_tag, el_tag = self._tag_names(el)
+        unqualified_el_tag, el_tag = self._get_tag_names(el)
 
         if unqualified_el_tag != "t":
             el.set("t-tag-open", el_tag)
@@ -1649,7 +1651,7 @@ class IrQweb(models.AbstractModel):
             el.attrib["t-options"] = el.attrib.pop("t-call-options")
 
     @staticmethod
-    def _tag_names(el: etree._Element) -> tuple[str, str]:
+    def _get_tag_names(el: etree._Element) -> tuple[str, str]:
         if not el.nsmap:
             return el.tag, el.tag
         unqualified_el_tag = etree.QName(el.tag).localname
@@ -1660,7 +1662,7 @@ class IrQweb(models.AbstractModel):
     def _compile_static_node(
         self, el: etree._Element, compile_context: CompileContext, level: int
     ) -> list[str]:
-        unqualified_el_tag, el_tag = self._tag_names(el)
+        unqualified_el_tag, el_tag = self._get_tag_names(el)
         if not el.nsmap:
             attrib = self._post_processing_att(
                 el.tag,
@@ -1678,9 +1680,9 @@ class IrQweb(models.AbstractModel):
                 else:
                     attrib[f"xmlns:{ns_prefix}"] = ns_definition
 
-            nsprefixmap = self._ns_prefix_map(el, compile_context)
+            nsprefixmap = self._get_ns_prefix_map(el, compile_context)
             for key, value in el.attrib.items():
-                attrib[self._qualified_attribute_name(key, nsprefixmap)] = value
+                attrib[self._get_qualified_attribute_name(key, nsprefixmap)] = value
 
             attrib = self._post_processing_att(el.tag, attrib, is_static=True)
 
@@ -1855,11 +1857,11 @@ class IrQweb(models.AbstractModel):
                 code.append(indent_code(f"attrs[{key!r}] = {ns_definition!r}", level))
 
         if any(not key.startswith("t-") for key in el.attrib):
-            nsprefixmap = self._ns_prefix_map(el, compile_context)
+            nsprefixmap = self._get_ns_prefix_map(el, compile_context)
             for key in list(el.attrib):
                 if not key.startswith("t-"):
                     value = el.attrib.pop(key)
-                    name = self._qualified_attribute_name(key, nsprefixmap)
+                    name = self._get_qualified_attribute_name(key, nsprefixmap)
                     code.append(indent_code(f"attrs[{name!r}] = {value!r}", level))
 
         for key in list(el.attrib):
@@ -2043,7 +2045,7 @@ class IrQweb(models.AbstractModel):
 
         def_name = compile_context.make_name("t_set")
         def_code = [f"def {def_name}(self, values):"]
-        def_code.append(indent_code(self._element_marker(path, xml), 1))
+        def_code.append(indent_code(self._get_element_marker(path, xml), 1))
         def_code.extend(content)
         compile_context.template_functions[def_name] = def_code
 
@@ -2533,7 +2535,7 @@ class IrQweb(models.AbstractModel):
     ) -> list[str]:
         expr = el.attrib.pop("t-call")
 
-        el_tag, _prefixed = self._tag_names(el)
+        el_tag, _prefixed = self._get_tag_names(el)
         if el_tag != "t":
             raise SyntaxError(
                 f"t-call must be on a <t> element (actually on <{el_tag}>)."
@@ -2614,7 +2616,7 @@ class IrQweb(models.AbstractModel):
 
         def_name = compile_context.make_name("t_call")
         code_content = [f"def {def_name}(self, values):"]
-        code_content.append(indent_code(self._element_marker(path, xml), 1))
+        code_content.append(indent_code(self._get_element_marker(path, xml), 1))
         code_content.extend(
             self._compile_directive(el, compile_context, "inner-content", 1)
         )

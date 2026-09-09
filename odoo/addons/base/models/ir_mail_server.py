@@ -447,11 +447,11 @@ class IrMail_Server(models.Model):
             .sudo()
             .get_param_float("base.default_max_email_size", 10.0)
         )
-        advertised = self._session_max_email_size(smtp_session)
+        advertised = self._get_session_max_email_size(smtp_session)
         return min(configured, advertised) if advertised else configured
 
     @staticmethod
-    def _session_max_email_size(smtp_session: smtplib.SMTP | None) -> float | None:
+    def _get_session_max_email_size(smtp_session: smtplib.SMTP | None) -> float | None:
         size = (getattr(smtp_session, "esmtp_features", None) or {}).get("size")
         try:
             return float(size) / 1024**2 or None
@@ -584,7 +584,7 @@ class IrMail_Server(models.Model):
                         repl=repl,
                     )
                 )
-            return self._session_max_email_size(smtp)
+            return self._get_session_max_email_size(smtp)
         except UserError:
             raise
         except Exception as e:
@@ -805,7 +805,7 @@ class IrMail_Server(models.Model):
         _SESSION_CONTEXTS[connection] = context
 
     @staticmethod
-    def _session_supports_smtputf8(smtp_session: smtplib.SMTP | None) -> bool:
+    def _is_smtputf8_supported(smtp_session: smtplib.SMTP | None) -> bool:
         features = getattr(smtp_session, "esmtp_features", None)
         if features is None:
             return True
@@ -1104,13 +1104,13 @@ class IrMail_Server(models.Model):
         ):
             smtp_from = encapsulate_email(message["From"], notifications_email)
 
-        message = self._detached_copy(message)
+        message = self._copy_message_detached(message)
         self._alter_message__(message, smtp_from)
 
         if self._match_from_filter(bounce_address, from_filter):
             smtp_from = bounce_address
 
-        envelope_sender = self._envelope_sender(smtp_from)
+        envelope_sender = self._get_envelope_sender(smtp_from)
         if not envelope_sender:
             raise OutgoingEmailError(
                 _(
@@ -1122,13 +1122,13 @@ class IrMail_Server(models.Model):
             )
         smtp_from = envelope_sender
 
-        if not self._session_supports_smtputf8(smtp_session):
+        if not self._is_smtputf8_supported(smtp_session):
             self._check_ascii_envelope(smtp_from, smtp_to_list)
 
         return smtp_from, smtp_to_list, message
 
     @api.model
-    def _envelope_sender(self, address: str) -> str | None:
+    def _get_envelope_sender(self, address: str) -> str | None:
         parsed = getaddresses([address])
         if parsed and (angle_addr := parsed[0][1]):
             extracted = extract_rfc2822_addresses(angle_addr)
@@ -1160,7 +1160,7 @@ class IrMail_Server(models.Model):
             )
 
     @staticmethod
-    def _detached_copy(message: EmailMessage) -> EmailMessage:
+    def _copy_message_detached(message: EmailMessage) -> EmailMessage:
         detached = copy.copy(message)
         detached._headers = list(message._headers)
         if isinstance(message._payload, list):
@@ -1310,7 +1310,7 @@ class IrMail_Server(models.Model):
             )
             return fallbacks[0], preferred
 
-        return None, self._cli_envelope_sender(email_from, notifications_email)
+        return None, self._get_cli_envelope_sender(email_from, notifications_email)
 
     @api.model
     def _from_filter_memo(self) -> Callable[[Self], _FromFilter]:
@@ -1340,7 +1340,7 @@ class IrMail_Server(models.Model):
         ) or next((s for s in candidates if domain in index(s).domains), None)
 
     @api.model
-    def _cli_envelope_sender(
+    def _get_cli_envelope_sender(
         self, email_from: str | None, notifications_email: str | bool
     ) -> str | None:
         from_filter = self.env["ir.mail_server"]._get_default_from_filter()

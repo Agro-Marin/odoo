@@ -72,7 +72,7 @@ class AuthSignupHome(Home):
                 # Send an account creation confirmation email
                 User = request.env["res.users"]
                 user_sudo = User.sudo().search(
-                    User._get_login_domain(qcontext.get("login")),
+                    User._get_domain_login(qcontext.get("login")),
                     order=User._get_login_order(),
                     limit=1,
                 )
@@ -92,7 +92,7 @@ class AuthSignupHome(Home):
                     User.sudo()
                     .with_context(active_test=False)
                     .search_count(
-                        User._get_login_domain(qcontext.get("login")), limit=1
+                        User._get_domain_login(qcontext.get("login")), limit=1
                     )
                 ):
                     qcontext["error"] = _(

@@ -290,7 +290,7 @@ class TestIrSequenceDateRangeOverlap(TransactionCase):
         def month_bounds(seq, day):
             return day.replace(day=1), day.replace(day=28)
 
-        with patch.object(type(self.seq), "_date_range_bounds", month_bounds):
+        with patch.object(type(self.seq), "_get_date_range_bounds", month_bounds):
             self.assertEqual(self.seq.preview_next(date(2044, 5, 15)), "05/001")
             self.assertEqual(self.seq.next_by_id(date(2044, 5, 15)), "05/001")
         created = self.seq.date_range_ids

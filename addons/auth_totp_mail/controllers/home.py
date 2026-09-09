@@ -15,7 +15,7 @@ class Home(odoo.addons.auth_totp.controllers.home.Home):
         response = super().web_totp(redirect=redirect, **kwargs)
         if (
             response.status_code != 200
-            or response.qcontext["user"]._mfa_type() != "totp_mail"
+            or response.qcontext["user"]._get_mfa_type() != "totp_mail"
         ):
             # In case the response from the super is a redirection
             # or the user has another TOTP method, we return the response from the call to super.

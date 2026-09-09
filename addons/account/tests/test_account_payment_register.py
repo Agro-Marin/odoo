@@ -2726,7 +2726,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             },
             {
                 "invoices": branch_invoices + parent_invoice,
-                "selected_companies": self.env.company._accessible_branches(),
+                "selected_companies": self.env.company._get_accessible_branches(),
                 "expected_companies": self.env.company,
                 "expected_pmnt_comp": self.env.company,
                 "should_raise": False,
@@ -2740,7 +2740,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             },
             {
                 "invoices": branch_invoices,
-                "selected_companies": self.env.company._accessible_branches(),
+                "selected_companies": self.env.company._get_accessible_branches(),
                 "expected_companies": self.env.company,
                 "expected_pmnt_comp": self.env.company,
                 "should_raise": False,

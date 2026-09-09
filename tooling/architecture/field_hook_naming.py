@@ -152,8 +152,23 @@ def _returns_domain(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
             and value.func.id == "Domain"
         )
 
+    # `is_domain` accepts an EMPTY list, because `return []` is a legal domain --
+    # but an empty list is also every other empty list in the tree, so it cannot
+    # be the evidence that this method builds one. Hence the second clause: at
+    # least one return has to be POSITIVELY a domain.
+    #
+    # A `Domain(...)` call is that evidence and used not to count, which made the
+    # rule blind to the spelling this fork prefers: a method returning only
+    # `Domain([...])` -- no list literal anywhere -- satisfied `all(is_domain)`
+    # and then failed the list-literal test, so it was reported by nothing. The
+    # guard was written when a domain was a list and never revisited.
+    def is_positively_a_domain(value: ast.expr) -> bool:
+        if isinstance(value, ast.Call):
+            return True
+        return isinstance(value, ast.List | ast.Tuple) and bool(value.elts)
+
     return all(is_domain(value) for value in returns) and any(
-        isinstance(value, ast.List | ast.Tuple) and value.elts for value in returns
+        is_positively_a_domain(value) for value in returns
     )
 
 

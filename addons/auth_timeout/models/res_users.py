@@ -18,7 +18,7 @@ class ResUsers(models.Model):
         auth_methods = []
         if self.auth_passkey_key_ids:
             auth_methods.append("webauthn")
-        if mfa_type := self._mfa_type():
+        if mfa_type := self._get_mfa_type():
             auth_methods.append(mfa_type)
         auth_methods.append("password")
         return auth_methods

@@ -617,7 +617,7 @@ class AccountPayment(models.Model):
             if payment.journal_id.company_id not in payment.company_id.parent_ids:
                 payment.company_id = (
                     payment.journal_id.company_id or self.env.company
-                )._accessible_branches()[:1]
+                )._get_accessible_branches()[:1]
 
     @api.depends(
         "reconciled_invoice_ids.payment_state",

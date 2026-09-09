@@ -134,7 +134,7 @@ class IrModelFieldsSelection(models.Model):
     ) -> None:
         field_id = self.env["ir.model.fields"]._get_ids_by_name(model_name)[field_name]
 
-        cur_rows = self._existing_selection_data(model_name, field_name)
+        cur_rows = self._get_existing_selection_data(model_name, field_name)
         new_rows = {
             value: {"value": value, "name": label, "sequence": index}
             for index, (value, label) in enumerate(selection)
@@ -170,7 +170,7 @@ class IrModelFieldsSelection(models.Model):
         if rows_to_remove:
             self.browse(rows_to_remove).unlink()
 
-    def _existing_selection_data(
+    def _get_existing_selection_data(
         self, model_name: str, field_name: str
     ) -> dict[str, dict[str, Any]]:
         query = """
@@ -399,7 +399,7 @@ class IrModelFieldsSelection(models.Model):
                 continue
 
             companies = (
-                self._companies_with_stored_value(Model, field)
+                self._get_companies_with_stored_value(Model, field)
                 if field_record.company_dependent
                 else self.env.company
             )
@@ -444,7 +444,7 @@ class IrModelFieldsSelection(models.Model):
             value,
         )
 
-    def _companies_with_stored_value(self, model: Any, field: Any) -> Any:
+    def _get_companies_with_stored_value(self, model: Any, field: Any) -> Any:
         model.flush_model([field.name])
         rows = self.env.execute_query(
             SQL(

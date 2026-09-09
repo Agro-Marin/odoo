@@ -158,7 +158,7 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
     ),
     "res.company": frozenset({"root_id"}),
     "res.device.log": frozenset({"_update_device"}),
-    "res.lang": frozenset({"_get_data", "_lang_get", "get_installed"}),
+    "res.lang": frozenset({"_get_data", "_get_lang_cached", "get_installed"}),
     "res.users": frozenset(
         {
             "_get_session_token",

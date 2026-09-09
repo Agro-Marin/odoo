@@ -422,7 +422,7 @@ class IrFieldsConverter(models.AbstractModel):
         if new_val is not None:
             return new_val, []
 
-        skipped = self._policy_fallback_value(field)
+        skipped = self._get_policy_fallback_value(field)
         if skipped is not None:
             return skipped, []
         msg = self.env._(
@@ -446,7 +446,7 @@ class IrFieldsConverter(models.AbstractModel):
                 None,
             )
             if val_tag is None:
-                skipped = self._policy_fallback_value(field)
+                skipped = self._get_policy_fallback_value(field)
                 if skipped is not None:
                     return skipped, []
                 msg = self.env._(
@@ -499,7 +499,7 @@ class IrFieldsConverter(models.AbstractModel):
         try:
             return parse_number(val, int), []
         except ValueError, TypeError:
-            skipped = self._policy_fallback_value(field)
+            skipped = self._get_policy_fallback_value(field)
             if skipped is not None:
                 return skipped, []
             msg = self.env._(
@@ -518,7 +518,7 @@ class IrFieldsConverter(models.AbstractModel):
             valid = False
         if valid:
             return result, []
-        skipped = self._policy_fallback_value(field)
+        skipped = self._get_policy_fallback_value(field)
         if skipped is not None:
             return skipped, []
         msg = self.env._(
@@ -527,7 +527,7 @@ class IrFieldsConverter(models.AbstractModel):
         raise self._prepare_property_error(msg, val, property_dict)
 
     @api.model
-    def _policy_fallback_value(self, field: ConvertibleField) -> Any:
+    def _get_policy_fallback_value(self, field: ConvertibleField) -> Any:
         match self._get_policy(field):
             case ImportPolicy.SKIP_RECORD:
                 return SKIP
@@ -791,7 +791,7 @@ class IrFieldsConverter(models.AbstractModel):
         if item is not None:
             return item, []
 
-        skipped = self._policy_fallback_value(field)
+        skipped = self._get_policy_fallback_value(field)
         if skipped is not None:
             return skipped, []
         raise self._prepare_import_error(
@@ -1137,7 +1137,7 @@ class IrFieldsConverter(models.AbstractModel):
         ids, warnings = self._get_reference_ids(field, record, multi=False)
         id_ = ids[0]
         if id_ is None:
-            fallback = self._policy_fallback_value(field)
+            fallback = self._get_policy_fallback_value(field)
             return (False if fallback is None else fallback), warnings
         return id_, warnings
 

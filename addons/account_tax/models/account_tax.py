@@ -605,7 +605,7 @@ class AccountTax(models.Model):
                     )
                 if needs_markdown and (scope := scopes.get(record.tax_scope)):
                     name += wrapper % scope
-                branch = record._get_settings_company()._accessible_branches()[:1]
+                branch = record._get_settings_company()._get_accessible_branches()[:1]
                 fiscal_country = (
                     branch.account_fiscal_country_id
                     if "account_fiscal_country_id" in branch._fields
@@ -4105,7 +4105,7 @@ class AccountTax(models.Model):
         pays the per-line dict-building overhead once per call.
         """
         company = self._get_settings_company()
-        company = company._accessible_branches()[:1] or company
+        company = company._get_accessible_branches()[:1] or company
 
         currency = currency or company.currency_id
         special_mode = self._compute_all_special_mode(handle_price_include)

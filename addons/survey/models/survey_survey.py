@@ -120,7 +120,7 @@ class SurveySurvey(models.Model):
     lang_ids = fields.Many2many(
         "res.lang",
         string="Languages",
-        default=lambda self: self.env["res.lang"]._lang_get(
+        default=lambda self: self.env["res.lang"]._get_lang_cached(
             self.env.context.get("lang") or self.env["res.lang"].get_installed()[0][0]
         ),
         domain=lambda self: [

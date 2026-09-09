@@ -136,7 +136,7 @@ class TestImport(common.TransactionCase):
         with mute_logger("odoo.addons.base.models.res_lang"):
             import_tlh.import_lang()
 
-        tlh_lang = self.env["res.lang"]._lang_get("tlh")
+        tlh_lang = self.env["res.lang"]._get_lang_cached("tlh")
         self.assertTrue(tlh_lang, "The imported language was not creates")
 
         record = self.env.ref(
@@ -225,7 +225,7 @@ class TestImport(common.TransactionCase):
         with mute_logger("odoo.addons.base.models.res_lang"):
             import_tlh.import_lang()
 
-        dot_lang = self.env["res.lang"]._lang_get("dot")
+        dot_lang = self.env["res.lang"]._get_lang_cached("dot")
         self.assertTrue(dot_lang, "The imported language was not creates")
 
         record = self.env.ref(

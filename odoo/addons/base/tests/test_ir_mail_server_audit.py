@@ -605,18 +605,18 @@ class TestSmtputf8Envelope(TransactionCase):
 
     def test_session_capability_detection(self):
         self.assertTrue(
-            self.IrMailServer._session_supports_smtputf8(_Session({"smtputf8": ""})),
+            self.IrMailServer._is_smtputf8_supported(_Session({"smtputf8": ""})),
         )
         self.assertFalse(
-            self.IrMailServer._session_supports_smtputf8(_Session({"size": "10"})),
+            self.IrMailServer._is_smtputf8_supported(_Session({"size": "10"})),
         )
         self.assertFalse(
-            self.IrMailServer._session_supports_smtputf8(_Session({})),
+            self.IrMailServer._is_smtputf8_supported(_Session({})),
             "a server that spoke EHLO without SMTPUTF8 cannot carry unicode",
         )
         for unknown in (None, _Session(None)):
             self.assertTrue(
-                self.IrMailServer._session_supports_smtputf8(unknown),
+                self.IrMailServer._is_smtputf8_supported(unknown),
                 "no feature map (test mode / double): assume capable",
             )
 
@@ -1168,14 +1168,14 @@ class TestDetachedCopyIsolation(TransactionCase):
 
     def test_setting_a_header_on_the_copy_does_not_reach_the_original(self):
         original = self._multipart()
-        detached = self.IrMailServer._detached_copy(original)
+        detached = self.IrMailServer._copy_message_detached(original)
         detached["X-Injected"] = "value"
         self.assertIsNone(original["X-Injected"])
 
     def test_attaching_to_the_copy_does_not_reach_the_original(self):
         original = self._multipart()
         parts_before = len(original.get_payload())
-        detached = self.IrMailServer._detached_copy(original)
+        detached = self.IrMailServer._copy_message_detached(original)
         extra = EmailMessage(policy=email.policy.SMTP)
         extra.set_content("added by an override")
         detached.attach(extra)
@@ -1184,7 +1184,7 @@ class TestDetachedCopyIsolation(TransactionCase):
 
     def test_parts_are_shared_not_cloned(self):
         original = self._multipart()
-        detached = self.IrMailServer._detached_copy(original)
+        detached = self.IrMailServer._copy_message_detached(original)
         self.assertIs(detached.get_payload(1), original.get_payload(1))
 
     def test_prepared_message_is_byte_identical_to_in_place_preparation(self):
@@ -2106,23 +2106,23 @@ class TestEnvelopeSenderExtraction(TransactionCase):
 
     def test_a_display_name_holding_an_address_does_not_win(self):
         self.assertEqual(
-            self.IrMailServer._envelope_sender('"user@gmail.com" <notif@odoo.com>'),
+            self.IrMailServer._get_envelope_sender('"user@gmail.com" <notif@odoo.com>'),
             "notif@odoo.com",
         )
 
     def test_a_multi_mailbox_header_uses_the_first_mailbox(self):
         self.assertEqual(
-            self.IrMailServer._envelope_sender("a@example.com, c@example.net"),
+            self.IrMailServer._get_envelope_sender("a@example.com, c@example.net"),
             "a@example.com",
         )
 
     def test_a_plain_address_is_itself(self):
         self.assertEqual(
-            self.IrMailServer._envelope_sender("a@example.com"), "a@example.com"
+            self.IrMailServer._get_envelope_sender("a@example.com"), "a@example.com"
         )
 
     def test_nothing_parseable_yields_nothing(self):
-        self.assertIsNone(self.IrMailServer._envelope_sender("not an address"))
+        self.assertIsNone(self.IrMailServer._get_envelope_sender("not an address"))
 
     def test_the_envelope_follows_the_first_mailbox_end_to_end(self):
         message = self.IrMailServer._prepare_email__(

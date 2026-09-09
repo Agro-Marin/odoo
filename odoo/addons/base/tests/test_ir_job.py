@@ -252,12 +252,12 @@ class TestIrJob(TransactionCase):
         )
 
         self.assertEqual(
-            sorted(IrJob._runnable_channels(self.env.cr)),
+            sorted(IrJob._get_runnable_channels(self.env.cr)),
             ["room"],
             "'full' is at capacity, 'off' is paused, 'idle' has no pending work",
         )
         self.assertEqual(
-            IrJob._runnable_channels(self.env.cr, channels=["off"]),
+            IrJob._get_runnable_channels(self.env.cr, channels=["off"]),
             [],
             "and the worker's own channel filter still applies",
         )

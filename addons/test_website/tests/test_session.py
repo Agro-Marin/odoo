@@ -42,7 +42,9 @@ class TestWebsiteSession(HttpCaseWithUserDemo):
         self.env["website"].browse(current_website_id).domain = odoo.tests.HOST
 
         with patch.object(
-            self.env.registry["res.users"], "_mfa_url", return_value="/web/login/totp"
+            self.env.registry["res.users"],
+            "_get_mfa_url",
+            return_value="/web/login/totp",
         ):
             res = self.url_open(
                 "/web/login",

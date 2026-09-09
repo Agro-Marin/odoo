@@ -2863,7 +2863,7 @@ class MixinMailThread(models.AbstractModel):
         for data in recipients_data:
             if lang_code := data.get("lang"):
                 lang_code = (
-                    bool(self.env["res.lang"]._lang_get(lang_code)) and lang_code
+                    bool(self.env["res.lang"]._get_lang_cached(lang_code)) and lang_code
                 )
             lang_to_recipients.setdefault(
                 lang_code or force_email_lang or self.env.lang,

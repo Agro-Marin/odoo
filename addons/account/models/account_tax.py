@@ -1170,7 +1170,7 @@ class AccountTax(models.Model):
         include_caba_tags=False,
     ):
         company = self._get_settings_company()
-        company = company._accessible_branches()[:1] or company
+        company = company._get_accessible_branches()[:1] or company
 
         currency = currency or company.currency_id
         special_mode = self._compute_all_special_mode(handle_price_include)

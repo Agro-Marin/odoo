@@ -316,7 +316,7 @@ class ResLang(models.Model):
         [[field_name, field_value]] = kwargs.items()
         return self._get_active_by_field(field_name)[field_value]
 
-    def _lang_get(self, code: str) -> Self:
+    def _get_lang_cached(self, code: str) -> Self:
         return self.browse(self._get_data(code=code).id)
 
     def _get_code(self, code: str) -> str | Literal[False]:

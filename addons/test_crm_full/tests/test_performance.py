@@ -73,7 +73,7 @@ class TestCrmPerformance(CrmPerformanceCase):
     @warmup
     def test_lead_create_form_address(self):
         country_be = self.env.ref("base.be")
-        lang_be = self.env["res.lang"]._lang_get("fr_BE")
+        lang_be = self.env["res.lang"]._get_lang_cached("fr_BE")
 
         with (
             freeze_time(self.reference_now),

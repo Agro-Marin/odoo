@@ -1527,7 +1527,7 @@ class TestPrivilegeGroupSorting(common.TransactionCase):
                 "implied_ids": [Command.link(g2.id)],
             }
         )
-        result = Groups._sorted_privilege_group_ids(privilege)
+        result = Groups._get_privilege_group_ids_sorted(privilege)
         self.assertEqual(result, [g1.id, g2.id, g3.id])
         ga = Groups.create(
             {"name": "priv ga", "privilege_id": privilege.id, "sequence": 9}
@@ -1535,7 +1535,7 @@ class TestPrivilegeGroupSorting(common.TransactionCase):
         gb = Groups.create(
             {"name": "priv gb", "privilege_id": privilege.id, "sequence": 1}
         )
-        result = Groups._sorted_privilege_group_ids(privilege)
+        result = Groups._get_privilege_group_ids_sorted(privilege)
         self.assertEqual(result, [gb.id, g1.id, ga.id, g2.id, g3.id])
         hierarchy = Groups._get_view_group_hierarchy()
         self.assertEqual(hierarchy["privileges"][privilege.id]["group_ids"], result)

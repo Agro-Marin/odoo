@@ -349,7 +349,7 @@ class TestGeneratedAssetsAreCollectable(TransactionCase):
             }
         )
         Attachment = self.env["ir.attachment"]
-        domain = Attachment._generated_asset_domain()
+        domain = Attachment._get_domain_generated_assets()
         return attachment, bool(
             Attachment.sudo().search(domain & Domain("id", "=", attachment.id))
         )
@@ -2019,7 +2019,7 @@ class TestGeneratedAssetDomains(TransactionCase):
         self.env.flush_all()
 
         self.assertEqual(IrQweb._save_esm_attachment("g4.reuse", content), url)
-        servable = Attachment.search(Attachment._generated_asset_domain(url))
+        servable = Attachment.search(Attachment._get_domain_generated_assets(url))
         self.assertTrue(
             servable,
             "reuse returned a URL the serving controller would answer 404 for",
@@ -2029,13 +2029,13 @@ class TestGeneratedAssetDomains(TransactionCase):
         row = self._make("g4.one.esm.js", "/web/assets/esm/feedface/g4.one.esm.js")
         Attachment = self.env["ir.attachment"].sudo()
         self.assertEqual(
-            Attachment.search(Attachment._generated_asset_domain(row.url)),
+            Attachment.search(Attachment._get_domain_generated_assets(row.url)),
             row,
         )
         row.create_uid = self.env.ref("base.user_admin").id
         self.env.flush_all()
         self.assertFalse(
-            Attachment.search(Attachment._generated_asset_domain(row.url)),
+            Attachment.search(Attachment._get_domain_generated_assets(row.url)),
             "a row this framework did not author is not a generated asset",
         )
 
@@ -2056,14 +2056,16 @@ class TestGeneratedAssetDomains(TransactionCase):
         )
         everything = esm | sourcemap | meta | bridge | classic
 
-        generated = Attachment.sudo().search(Attachment._generated_asset_domain())
+        generated = Attachment.sudo().search(Attachment._get_domain_generated_assets())
         self.assertEqual(
             everything & generated,
             everything,
             "the broad domain must match every generated row, classic included",
         )
 
-        esm_only = Attachment.sudo().search(Attachment._esm_generated_asset_domain())
+        esm_only = Attachment.sudo().search(
+            Attachment._get_domain_esm_generated_assets()
+        )
         self.assertEqual(everything & esm_only, esm | sourcemap | meta | bridge)
         self.assertNotIn(
             classic,
@@ -3342,7 +3344,7 @@ class TestServedLibraries(TransactionCase):
             self.env["ir.attachment"]
             .sudo()
             .search(
-                self.env["ir.attachment"]._generated_asset_domain(
+                self.env["ir.attachment"]._get_domain_generated_assets(
                     url_pattern=f"{LIB_URL_PREFIX}%"
                 )
             )
@@ -3368,7 +3370,7 @@ class TestServedLibraries(TransactionCase):
         self.assertNotIn(served["chart.js"], preloads, "reached by import() only")
         self.assertTrue(all(href.startswith(LIB_URL_PREFIX) for href in preloads))
         self.assertEqual(
-            IrQweb._static_external_imports(
+            IrQweb._get_static_external_imports(
                 json.dumps(
                     {
                         "outputs": {
@@ -3396,11 +3398,11 @@ class TestServedLibraries(TransactionCase):
 
     def test_a_superseded_copy_is_collected_and_the_current_one_kept(self):
         IrQweb = self.env["ir.qweb"]
-        IrQweb._served_external_libs(debug_assets=False)
+        IrQweb._get_external_libs_served(debug_assets=False)
         Attachment = self.env["ir.attachment"].sudo()
         name = "web/static/lib/luxon/luxon.js"
         current = Attachment.search(
-            Attachment._generated_asset_domain(url_pattern=f"{LIB_URL_PREFIX}%")
+            Attachment._get_domain_generated_assets(url_pattern=f"{LIB_URL_PREFIX}%")
             & Domain("name", "=", name)
         )
         self.assertEqual(len(current), 1)
@@ -3430,7 +3432,7 @@ class TestServedLibraries(TransactionCase):
 @tagged("-at_install", "post_install", "web_assets")
 class TestServedLibrariesOverHttp(HttpCase):
     def test_the_served_copy_is_immutable_and_a_stale_unique_is_not_found(self):
-        self.env["ir.qweb"]._served_external_libs(debug_assets=False)
+        self.env["ir.qweb"]._get_external_libs_served(debug_assets=False)
         url = served_external_libs()["@odoo/owl"]
         response = self.url_open(url)
         self.assertEqual(response.status_code, 200)

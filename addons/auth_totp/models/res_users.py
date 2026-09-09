@@ -54,19 +54,19 @@ class ResUsers(models.Model):
             "totp_trusted_device_ids",
         ]
 
-    def _mfa_type(self):
-        r = super()._mfa_type()
+    def _get_mfa_type(self):
+        r = super()._get_mfa_type()
         if r is not None:
             return r
         if self.totp_enabled:
             return "totp"
         return None
 
-    def _mfa_url(self):
-        r = super()._mfa_url()
+    def _get_mfa_url(self):
+        r = super()._get_mfa_url()
         if r is not None:
             return r
-        if self._mfa_type() == "totp":
+        if self._get_mfa_type() == "totp":
             return "/web/login/totp"
         return None
 

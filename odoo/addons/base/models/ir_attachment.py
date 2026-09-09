@@ -1384,7 +1384,7 @@ class IrAttachment(models.Model):
         self.check_singleton()
         return self.type == "binary"
 
-    def _zip_detached_reader(self) -> Callable[[int], Iterator[bytes]] | None:
+    def _get_zip_detached_reader(self) -> Callable[[int], Iterator[bytes]] | None:
         return None
 
     @api.autovacuum

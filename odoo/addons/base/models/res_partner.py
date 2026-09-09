@@ -1170,7 +1170,7 @@ class ResPartner(models.Model):
                 self._commercial_sync_to_descendants(list(sync_vals))
             self._company_dependent_commercial_sync()
 
-    def _stored_company_ids(self, field_names: list[str]) -> set[int]:
+    def _get_stored_company_ids(self, field_names: list[str]) -> set[int]:
         record_ids = list({*self.ids, *self.commercial_partner_id.ids})
         if not record_ids:
             return set()
@@ -1196,7 +1196,7 @@ class ResPartner(models.Model):
         if not (fields_to_sync := self._company_dependent_commercial_fields()):
             return
 
-        if not (company_ids := self._stored_company_ids(fields_to_sync)):
+        if not (company_ids := self._get_stored_company_ids(fields_to_sync)):
             return
         other_companies = (
             self.env["res.company"].sudo().search([("id", "in", sorted(company_ids))])

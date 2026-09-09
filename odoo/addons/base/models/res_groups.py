@@ -429,7 +429,7 @@ class ResGroups(models.Model):
                     "category_id": privilege.category_id.id,
                     "description": privilege.description,
                     "placeholder": privilege.placeholder,
-                    "group_ids": self._sorted_privilege_group_ids(privilege),
+                    "group_ids": self._get_privilege_group_ids_sorted(privilege),
                 }
                 for privilege in self.env["res.groups.privilege"].search([])
             },
@@ -448,7 +448,7 @@ class ResGroups(models.Model):
         }
 
     @api.model
-    def _sorted_privilege_group_ids(self, privilege: Any) -> list[int]:
+    def _get_privilege_group_ids_sorted(self, privilege: Any) -> list[int]:
         privilege_groups = privilege.group_ids
         implied_count = {
             group.id: (

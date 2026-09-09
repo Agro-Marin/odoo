@@ -25,7 +25,7 @@ class MixinBand(models.AbstractModel):
     def _is_band(self):
         return True
 
-    def _band_scope_domain(self):
+    def _get_domain_band_scope(self):
         self.check_singleton()
         return []
 
@@ -73,10 +73,10 @@ class MixinBand(models.AbstractModel):
                 )
             if not record.active:
                 continue
-            scales[repr(record._band_scope_domain())] |= record
+            scales[repr(record._get_domain_band_scope())] |= record
 
         for records in scales.values():
-            candidates = records.search(records[0]._band_scope_domain())
+            candidates = records.search(records[0]._get_domain_band_scope())
             for record in records:
                 for other in candidates:
                     if other == record or not other._is_band():

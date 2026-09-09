@@ -47,7 +47,11 @@ class L10n_FrFecExportWizard(models.TransientModel):
 
     def _get_base_domain(self):
         domain = [
-            ("company_id", "in", tuple(self.env.company._accessible_branches().ids)),
+            (
+                "company_id",
+                "in",
+                tuple(self.env.company._get_accessible_branches().ids),
+            ),
             ("balance", "!=", 0.0),
         ]
         # For official report: only use posted entries

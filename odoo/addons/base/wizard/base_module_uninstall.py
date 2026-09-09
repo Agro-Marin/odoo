@@ -35,11 +35,11 @@ class BaseModuleUninstall(models.TransientModel):
                 lambda m: (not m.application, m.sequence)
             )
             wizard.impacted_module_ids = (
-                modules if wizard.show_all else wizard._modules_to_display(modules)
+                modules if wizard.show_all else wizard._get_modules_to_display(modules)
             )
 
     @api.model
-    def _modules_to_display(self, modules: Self) -> Self:
+    def _get_modules_to_display(self, modules: Self) -> Self:
         return modules.filtered("application")
 
     def _get_models(self) -> Any:

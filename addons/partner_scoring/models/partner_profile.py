@@ -89,7 +89,7 @@ class PartnerProfile(models.Model):
     def _scale_domain(self, company):
         return [("company_id", "in", [False, company.id])]
 
-    def _band_scope_domain(self):
+    def _get_domain_band_scope(self):
         self.check_singleton()
         if self.company_id:
             return self._scale_domain(self.company_id)

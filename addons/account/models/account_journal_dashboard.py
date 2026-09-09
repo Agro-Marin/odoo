@@ -595,7 +595,8 @@ class AccountJournal(models.Model):
             )
             currency_consistent = misc_currencies == currency
             accessible = (
-                journal.company_id.id in journal.company_id._accessible_branches().ids
+                journal.company_id.id
+                in journal.company_id._get_accessible_branches().ids
             )
             nb_direct_payments, direct_payments_balance = direct_payment_balances[
                 journal.id

@@ -167,8 +167,8 @@ class IrQweb(models.AbstractModel):
         el.set("t-att-placeholder", el.attrib.pop("t-placeholder"))
         return []
 
-    def _directives_eval_order(self):
-        directives = super()._directives_eval_order()
+    def _get_directive_eval_order(self):
+        directives = super()._get_directive_eval_order()
         index = directives.index("att") - 1
         directives.insert(index, "placeholder")
         directives.insert(index, "snippet")

@@ -489,7 +489,7 @@ class IrQwebFieldMonetary(models.AbstractModel):
         )
 
     @api.model
-    def _currency_field_names(
+    def _get_currency_field_names(
         self, record: models.BaseModel, field_name: str
     ) -> list[str]:
         field = record._fields[field_name]
@@ -515,7 +515,7 @@ class IrQwebFieldMonetary(models.AbstractModel):
     ) -> dict[str, Any]:
         options = dict(options)
         if not options.get("display_currency"):
-            for name in self._currency_field_names(record, field_name):
+            for name in self._get_currency_field_names(record, field_name):
                 currency = record[name]
                 if currency:
                     options["display_currency"] = currency
@@ -584,7 +584,7 @@ class IrQwebFieldDuration(models.AbstractModel):
                 )
 
     @api.model
-    def _timedelta_unit_seconds(self, option: str, name: str) -> int:
+    def _get_timedelta_unit_seconds(self, option: str, name: str) -> int:
         try:
             return TIMEDELTA_SECONDS_BY_UNIT[name]
         except KeyError:
@@ -598,8 +598,10 @@ class IrQwebFieldDuration(models.AbstractModel):
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         locale = babel_locale_parse(self.user_lang().code)
-        factor = self._timedelta_unit_seconds("unit", options.get("unit", "second"))
-        round_to = self._timedelta_unit_seconds("round", options.get("round", "second"))
+        factor = self._get_timedelta_unit_seconds("unit", options.get("unit", "second"))
+        round_to = self._get_timedelta_unit_seconds(
+            "round", options.get("round", "second")
+        )
 
         if options.get("digital") and round_to > 3600:
             round_to = 3600

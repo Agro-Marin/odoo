@@ -1082,11 +1082,11 @@ class ResUsers(models.Model):
         self.env["res.users.log"].sudo().create({})
 
     @api.model
-    def _get_login_domain(self, login: str) -> Domain:
+    def _get_domain_login(self, login: str) -> Domain:
         return Domain("login", "=", login)
 
     @api.model
-    def _get_email_domain(self, email: str) -> Domain:
+    def _get_domain_email(self, email: str) -> Domain:
         return Domain("email", "=ilike", tools.escape_psql(email or ""))
 
     @api.model
@@ -1101,7 +1101,7 @@ class ResUsers(models.Model):
         try:
             with self._assert_can_auth(user=login):
                 user = self.sudo().search(
-                    self._get_login_domain(login),
+                    self._get_domain_login(login),
                     order=self._get_login_order(),
                     limit=1,
                 )
@@ -1597,10 +1597,10 @@ class ResUsers(models.Model):
             datetime.datetime.now(datetime.UTC) - previous
         ) < datetime.timedelta(seconds=delay)
 
-    def _mfa_type(self) -> str | None:
+    def _get_mfa_type(self) -> str | None:
         return
 
-    def _mfa_url(self) -> str | None:
+    def _get_mfa_url(self) -> str | None:
         return
 
     @api.model

@@ -195,7 +195,7 @@ def _get_login_redirect_url(uid: int, redirect: str | None = None) -> str:
             else "/web/login_successful"
         )
 
-    url = request.env(user=uid)["res.users"].browse(uid)._mfa_url()
+    url = request.env(user=uid)["res.users"].browse(uid)._get_mfa_url()
     if not redirect or not _is_local_url(redirect):
         return url
 

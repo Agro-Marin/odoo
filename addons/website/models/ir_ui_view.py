@@ -387,8 +387,8 @@ class IrUiView(models.Model):
         )
 
     @api.model
-    def _get_template_domain(self, xmlids):
-        domain = super()._get_template_domain(xmlids)
+    def _get_domain_template(self, xmlids):
+        domain = super()._get_domain_template(xmlids)
         return domain & Domain(
             "website_id", "in", (False, self.env.context.get("website_id", False))
         )

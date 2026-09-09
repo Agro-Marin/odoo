@@ -357,7 +357,7 @@ class ShareRoute(http.Controller):
                 return None
             if stream.type == "url":
                 source = (document.shortcut_document_id or document).attachment_id
-                reader = source.sudo()._zip_detached_reader()
+                reader = source.sudo()._get_zip_detached_reader()
                 if reader is None:
                     return None
                 account(source.file_size or 0)

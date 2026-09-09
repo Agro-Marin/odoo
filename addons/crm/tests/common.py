@@ -149,8 +149,8 @@ class TestCrmCommon(TestSalesCommon, MailCase):
         base_us = cls.env.ref("base.us")
         cls.env["res.lang"]._activate_lang("fr_FR")
         cls.env["res.lang"]._activate_lang("en_US")
-        cls.lang_en = cls.env["res.lang"]._lang_get("en_US")
-        cls.lang_fr = cls.env["res.lang"]._lang_get("fr_FR")
+        cls.lang_en = cls.env["res.lang"]._get_lang_cached("en_US")
+        cls.lang_fr = cls.env["res.lang"]._get_lang_cached("fr_FR")
 
         cls.lead_1 = cls.env["crm.lead"].create(
             {

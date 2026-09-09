@@ -580,7 +580,7 @@ class IrQweb(models.AbstractModel):
         prefix = f"/web/assets/esm/{unique}/"
         IrAttachment = self.env["ir.attachment"].sudo()
         existing = IrAttachment.search(
-            IrAttachment._generated_asset_domain(url_pattern=f"{prefix}%")
+            IrAttachment._get_domain_generated_assets(url_pattern=f"{prefix}%")
         )
         present = set(existing.mapped("url"))
         vals_list = [
@@ -642,7 +642,7 @@ class IrQweb(models.AbstractModel):
         return {
             "esm_url": url,
             "specifiers": sorted(a.module_path for a in asset_bundle.native_modules),
-            "import_map": self._served_external_libs(debug_assets=False),
+            "import_map": self._get_external_libs_served(debug_assets=False),
             "template_url": None,
         }
 
@@ -669,7 +669,7 @@ class IrQweb(models.AbstractModel):
         )
         self._check_lazy_bundle_relative_imports(asset_bundle)
         native_data = asset_bundle.get_native_module_data()
-        import_map = self._served_external_libs(debug_assets=not compiled)
+        import_map = self._get_external_libs_served(debug_assets=not compiled)
         import_map.update(native_data["import_map"])
         import_map.update(native_data.get("bridge_import_map", {}))
         template_url = None
@@ -1089,7 +1089,7 @@ class IrQweb(models.AbstractModel):
         *,
         with_test_satellites: bool,
     ) -> tuple[dict[str, str], list[AssetsBundle], tuple[str, ...]]:
-        import_map = self._served_external_libs(debug_assets=False)
+        import_map = self._get_external_libs_served(debug_assets=False)
         if child_bundles is None:
             child_bundles = self._get_dynamic_child_bundles(
                 bundle, assets_params, debug_assets=False
@@ -1230,7 +1230,7 @@ class IrQweb(models.AbstractModel):
         return pre, post
 
     @staticmethod
-    def _static_external_imports(metafile: str | None) -> list[str]:
+    def _get_static_external_imports(metafile: str | None) -> list[str]:
         if not metafile:
             return []
         try:
@@ -1250,7 +1250,7 @@ class IrQweb(models.AbstractModel):
         served = self._served_external_libs_table()
         return [
             ("link", {"rel": "modulepreload", "href": import_map[spec]})
-            for spec in self._static_external_imports(metafile)
+            for spec in self._get_static_external_imports(metafile)
             if spec in served and import_map.get(spec) == served[spec]
         ]
 
@@ -1279,7 +1279,7 @@ class IrQweb(models.AbstractModel):
         debug_assets: bool,
         with_test_satellites: bool,
     ) -> tuple[dict[str, str], dict[str, str]]:
-        import_map = self._served_external_libs(debug_assets=debug_assets)
+        import_map = self._get_external_libs_served(debug_assets=debug_assets)
         import_map.update(native_data["import_map"])
 
         lazy_bundles = self._get_dynamic_child_bundles(
@@ -1428,7 +1428,7 @@ class IrQweb(models.AbstractModel):
         url = f"/web/assets/esm/{content_hash}/{bundle}.esm.js"
 
         existing = IrAttachment.sudo().search(
-            IrAttachment._generated_asset_domain(url),
+            IrAttachment._get_domain_generated_assets(url),
             limit=1,
         )
         if existing:
@@ -1534,7 +1534,7 @@ class IrQweb(models.AbstractModel):
     ) -> None:
         IrAttachment = self.env["ir.attachment"]
         existing = IrAttachment.sudo().search(
-            IrAttachment._generated_asset_domain(url),
+            IrAttachment._get_domain_generated_assets(url),
             limit=1,
         )
         if existing:
@@ -1652,7 +1652,7 @@ class IrQweb(models.AbstractModel):
         self._log_pregeneration_coverage(js_bundles)
 
         start = time.time()
-        links = list(self._served_external_libs(debug_assets=False).values())
+        links = list(self._get_external_libs_served(debug_assets=False).values())
         for bundle in sorted(js_bundles):
             asset_bundle = self._get_asset_bundle(bundle, css=False, js=True)
             if asset_bundle.has_js_content:

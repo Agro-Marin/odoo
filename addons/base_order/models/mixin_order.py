@@ -315,7 +315,7 @@ class MixinOrder(models.AbstractModel):
                     [
                         ("product_id", "in", self.line_ids.product_id.ids),
                         ("state", "=", "done"),
-                        ("company_id", "in", company._accessible_branches().ids),
+                        ("company_id", "in", company._get_accessible_branches().ids),
                     ],
                     ["product_id"],
                     ["order_id:array_agg"],
@@ -338,7 +338,7 @@ class MixinOrder(models.AbstractModel):
         action["domain"] = [
             ("state", "=", "done"),
             ("product_id", "in", self.line_ids.product_id.ids),
-            ("company_id", "in", self.company_id._accessible_branches().ids),
+            ("company_id", "in", self.company_id._get_accessible_branches().ids),
         ]
         return action
 
@@ -420,7 +420,9 @@ class MixinOrder(models.AbstractModel):
     def _check_line_ids_company_id(self):
         for order in self:
             invalid_companies = order.line_ids.product_id.company_id.filtered(
-                lambda c, order=order: order.company_id not in c._accessible_branches(),
+                lambda c, order=order: (
+                    order.company_id not in c._get_accessible_branches()
+                ),
             )
             if invalid_companies:
                 bad_products = order.line_ids.product_id.filtered(

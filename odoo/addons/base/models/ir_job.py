@@ -514,7 +514,7 @@ class IrJob(models.Model):
     ) -> tuple[str, Any, list[int]]:
         state = JobState.PENDING
         if eta is not None:
-            clock_now = self._clock_now()
+            clock_now = self._get_clock_timestamp()
             if isinstance(eta, (int, float)):
                 eta = clock_now.replace(microsecond=0) + timedelta(seconds=eta)
             if eta and eta > clock_now:
@@ -622,7 +622,7 @@ class IrJob(models.Model):
         job["defer"] = {"seconds": max(int(seconds), 0), "reason": reason or ""}
 
     @api.model
-    def _clock_now(self) -> datetime:
+    def _get_clock_timestamp(self) -> datetime:
         self.env.cr.execute("SELECT (clock_timestamp() AT TIME ZONE 'UTC')")
         return self.env.cr.fetchone()[0]
 
@@ -827,7 +827,7 @@ class IrJob(models.Model):
             _logger.error("Job %s (%s) failed", job["id"], target, exc_info=exc)
 
     @staticmethod
-    def _runnable_channels(cr, channels: list[str] | None = None) -> list[str]:
+    def _get_runnable_channels(cr, channels: list[str] | None = None) -> list[str]:
         cr.execute(
             SQL(
                 """
@@ -879,7 +879,7 @@ class IrJob(models.Model):
                         "SELECT pg_advisory_xact_lock("
                         "hashtextextended('ir_job_claim', 0))"
                     )
-                runnable = IrJob._runnable_channels(cr, channels)
+                runnable = IrJob._get_runnable_channels(cr, channels)
                 if not runnable:
                     return None
                 cr.execute(
@@ -1338,7 +1338,7 @@ class IrJob(models.Model):
         return result
 
     def _align_state_with_eta(self) -> None:
-        now = self._clock_now()
+        now = self._get_clock_timestamp()
         queued = self.filtered(lambda job: job.state in RUNNABLE_STATES)
         due = queued.filtered(lambda job: not job.eta or job.eta <= now)
         if promote := due.filtered(lambda job: job.state != JobState.PENDING):

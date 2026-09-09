@@ -31,7 +31,7 @@ class IrAttachment(models.Model):
         return res
 
     @api.model
-    def _generated_asset_domain(
+    def _get_domain_generated_assets(
         self, url: str | None = None, url_pattern: str | None = None
     ) -> Domain:
         if url:
@@ -51,8 +51,8 @@ class IrAttachment(models.Model):
         )
 
     @api.model
-    def _esm_generated_asset_domain(self) -> Domain:
-        return self._generated_asset_domain() & Domain.OR(
+    def _get_domain_esm_generated_assets(self) -> Domain:
+        return self._get_domain_generated_assets() & Domain.OR(
             [
                 [("url", "=like", f"{ESM_BRIDGES_URL_PREFIX}%")],
                 [("url", "=like", f"{ESM_LIBS_URL_PREFIX}%")],
@@ -90,7 +90,7 @@ class IrAttachment(models.Model):
             days=self._esm_bridge_gc_grace_days()
         )
         is_bridge = Domain("url", "=like", f"{ESM_BRIDGES_URL_PREFIX}%")
-        aged = self._esm_generated_asset_domain() & Domain.OR(
+        aged = self._get_domain_esm_generated_assets() & Domain.OR(
             [
                 ~is_bridge & Domain("write_date", "<", cutoff),
                 is_bridge & Domain("write_date", "<", bridge_cutoff),
@@ -139,7 +139,7 @@ class IrAttachment(models.Model):
         seen_names = set()
         live_dirs = set()
         for att in self.sudo().search_fetch(
-            self._generated_asset_domain()
+            self._get_domain_generated_assets()
             & Domain("name", "in", list(set(artifacts.mapped("name")))),
             ["name", "url"],
             order="write_date desc, id desc",
@@ -160,7 +160,7 @@ class IrAttachment(models.Model):
     @api.model
     def regenerate_assets_bundles(self) -> None:
         self._check_admin_access()
-        generated = self.search(self._generated_asset_domain())
+        generated = self.search(self._get_domain_generated_assets())
         if generated:
             generated.unlink()
         else:

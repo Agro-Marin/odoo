@@ -949,7 +949,7 @@ class Survey(http.Controller):
             return {}, {"error": _("The survey has already started.")}
 
         if "lang_code" in post:
-            lang = request.env["res.lang"]._lang_get(post["lang_code"])
+            lang = request.env["res.lang"]._get_lang_cached(post["lang_code"])
             if lang:
                 answer_sudo.lang_id = lang
         answer_sudo._mark_in_progress()
@@ -1640,8 +1640,8 @@ class Survey(http.Controller):
         supported_lang_codes = user_input_sudo.survey_id._get_supported_lang_codes()
         supported_lang_codes_set = set(supported_lang_codes)
         if lang_code in supported_lang_codes_set:
-            return ResLang._lang_get(lang_code)
-        return ResLang._lang_get(
+            return ResLang._get_lang_cached(lang_code)
+        return ResLang._get_lang_cached(
             next(
                 (
                     lang.code

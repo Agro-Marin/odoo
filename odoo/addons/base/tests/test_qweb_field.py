@@ -828,7 +828,7 @@ class TestQwebFieldMonetaryCurrencyFallback(common.TransactionCase):
 
         with patch.object(
             Monetary,
-            "_currency_field_names",
+            "_get_currency_field_names",
             lambda self, record, field_name: ["parent_id", "currency_id"],
         ):
             options = self.env["ir.qweb.field.monetary"]._record_options(
@@ -837,7 +837,7 @@ class TestQwebFieldMonetaryCurrencyFallback(common.TransactionCase):
         self.assertEqual(options["display_currency"], company.currency_id)
 
     def test_the_declared_currency_field_is_tried_first(self):
-        ranked = self.env["ir.qweb.field.monetary"]._currency_field_names(
+        ranked = self.env["ir.qweb.field.monetary"]._get_currency_field_names(
             self.env["res.company"], "id"
         )
         self.assertEqual(ranked, ["currency_id"])
@@ -872,7 +872,7 @@ class TestQwebFieldMonetaryCurrencyFallback(common.TransactionCase):
             },
         ]
         ranked = [
-            Monetary._currency_field_names(FakeRecord(fields_), "amount")
+            Monetary._get_currency_field_names(FakeRecord(fields_), "amount")
             for fields_ in shuffled
         ]
         self.assertEqual(ranked[0], ranked[1], "the order tracked the field dict")
@@ -896,7 +896,9 @@ class TestQwebFieldMonetaryCurrencyFallback(common.TransactionCase):
             }
         )
         self.assertEqual(
-            self.env["ir.qweb.field.monetary"]._currency_field_names(record, "amount"),
+            self.env["ir.qweb.field.monetary"]._get_currency_field_names(
+                record, "amount"
+            ),
             ["currency_id", "cost_currency_id"],
         )
 

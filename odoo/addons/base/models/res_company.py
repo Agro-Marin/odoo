@@ -400,7 +400,7 @@ class ResCompany(models.Model):
         ) or self.browse()
 
         res = super().write(vals)
-        invalidation_fields = self.cache_invalidation_fields()
+        invalidation_fields = self._get_cache_invalidation_fields()
         asset_invalidation_fields = {
             "font",
             "primary_color",
@@ -588,7 +588,7 @@ class ResCompany(models.Model):
         domain = super(ResCompany, newself)._search_display_name(operator, value)
         return domain & constraint
 
-    def cache_invalidation_fields(self) -> set[str]:
+    def _get_cache_invalidation_fields(self) -> set[str]:
         return {
             "active",
             "sequence",
@@ -631,7 +631,7 @@ class ResCompany(models.Model):
 
         return accessible_branch_ids
 
-    def _accessible_branches(self) -> Self:
+    def _get_accessible_branches(self) -> Self:
         return self.browse(self.__accessible_branches())
 
     def _get_field_names_delegated_to_root(self) -> list[str]:

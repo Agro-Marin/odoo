@@ -93,7 +93,7 @@ class DocumentsDocument(models.Model):
                 action
             )
             for lang, translation in action_name_translations.items():
-                if self.env["res.lang"]._lang_get(lang):
+                if self.env["res.lang"]._get_lang_cached(lang):
                     embedded_action.with_context(lang=lang).name = translation
 
         return self.get_documents_actions(folder_id)

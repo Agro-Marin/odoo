@@ -790,7 +790,7 @@ that identify compiled bundles and ESM outputs, their garbage collection with
 a grace period, and `regenerate_assets_bundles()`.
 
 **Key Methods:**
-- `_generated_asset_domain(...)` / `_esm_generated_asset_domain()` — What counts as a generated asset
+- `_get_domain_generated_assets(...)` / `_get_domain_esm_generated_assets()` — What counts as a generated asset
 - `_gc_esm_assets()` — Sweep, returns `(removed, remaining)`
 - `regenerate_assets_bundles()` — Drop and rebuild
 
@@ -1441,7 +1441,7 @@ Company hierarchy with branch support.
 
 **Key Methods:**
 - `_get_field_names_delegated_to_root()` — Fields synced from root (currency_id)
-- `_accessible_branches()` — Browse accessible branches for current user
+- `_get_accessible_branches()` — Browse accessible branches for current user
 - `_get_public_user()` — Get/create public user for company
 - `create(vals_list)` — Auto-create partner, sync delegated fields, install l10n
 - `write(vals)` — Enforce hierarchy, copy delegated fields to branches
@@ -1759,7 +1759,7 @@ of zero means open-ended.
 
 **Key Methods:**
 - `_is_band(record)` — Whether the record participates in banding
-- `_band_scope_domain()` — Domain selecting the bands this one must not overlap
+- `_get_domain_band_scope()` — Domain selecting the bands this one must not overlap
 - `_ranges_overlap(a, b)`, `_covers(value)` — Interval arithmetic
 - `_check_band()` — Constraint: non-negative lower bound, ordered bounds, no overlap
 

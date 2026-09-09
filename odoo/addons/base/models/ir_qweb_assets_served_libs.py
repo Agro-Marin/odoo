@@ -18,7 +18,7 @@ _attach_log = get_asset_logger("attach")
 class IrQweb(models.AbstractModel):
     _inherit = "ir.qweb"
 
-    def _served_external_libs(self, *, debug_assets: bool) -> dict[str, str]:
+    def _get_external_libs_served(self, *, debug_assets: bool) -> dict[str, str]:
         if debug_assets:
             return dict(self._external_libs())
         self._create_served_libs()
@@ -37,7 +37,7 @@ class IrQweb(models.AbstractModel):
         IrAttachment = self.env["ir.attachment"].sudo()
         present = set(
             IrAttachment.search_fetch(
-                IrAttachment._generated_asset_domain()
+                IrAttachment._get_domain_generated_assets()
                 & Domain("url", "in", list(files)),
                 ["url"],
             ).mapped("url")

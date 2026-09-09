@@ -1249,7 +1249,7 @@ class AccountMove(models.Model):
             if move.journal_id.company_id not in move.company_id.parent_ids:
                 move.company_id = (
                     move.journal_id.company_id or self.env.company
-                )._accessible_branches()[:1]
+                )._get_accessible_branches()[:1]
 
     @api.depends("payment_ids")
     def _compute_origin_payment_id(self):
@@ -3497,7 +3497,7 @@ class AccountMove(models.Model):
     def _onchange_partner_id(self):
         company = (
             self.journal_id.company_id or self.env.company
-        )._accessible_branches()[:1] or self.env.company
+        )._get_accessible_branches()[:1] or self.env.company
         self = self.with_company(company)
         company = company.with_company(company)
 

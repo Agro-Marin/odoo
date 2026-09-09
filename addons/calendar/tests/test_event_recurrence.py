@@ -12,7 +12,7 @@ class TestRecurrentEvents(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        lang = cls.env["res.lang"]._lang_get(cls.env.user.lang)
+        lang = cls.env["res.lang"]._get_lang_cached(cls.env.user.lang)
         lang.week_start = "1"  # Monday
 
     def assertEventDates(self, events, dates):
@@ -93,7 +93,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
         )
 
     def test_weekly_interval_2_week_start_sunday(self):
-        lang = self.env["res.lang"]._lang_get(self.env.user.lang)
+        lang = self.env["res.lang"]._get_lang_cached(self.env.user.lang)
         lang.week_start = "7"  # Sunday
 
         self.event._apply_recurrence_values(

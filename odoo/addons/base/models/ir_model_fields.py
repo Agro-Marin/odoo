@@ -247,7 +247,7 @@ class IrModelFields(models.Model):
     def _compute_related_field_id(self) -> None:
         for rec in self:
             if rec.state == "manual" and rec.related:
-                rec.related_field_id = rec._related_field()
+                rec.related_field_id = rec._get_related_target_field()
             else:
                 rec.related_field_id = False
 
@@ -313,7 +313,7 @@ class IrModelFields(models.Model):
         "Custom fields must have a name that starts with 'x_'!",
     )
 
-    def _related_field(self) -> Self:
+    def _get_related_target_field(self) -> Self:
         names = self.related.split(".")
         last = len(names) - 1
         model_name = self.model or self.model_id.model
@@ -351,7 +351,7 @@ class IrModelFields(models.Model):
     def _check_related(self) -> None:
         for rec in self:
             if rec.state == "manual" and rec.related:
-                field = rec._related_field()
+                field = rec._get_related_target_field()
                 if field.ttype != rec.ttype:
                     raise ValidationError(
                         _(
@@ -373,7 +373,7 @@ class IrModelFields(models.Model):
     def _onchange_related(self) -> dict[str, Any] | None:
         if self.related:
             try:
-                field = self._related_field()
+                field = self._get_related_target_field()
             except ValidationError as e:
                 return {"warning": {"title": _("Warning"), "message": e}}
             self.ttype = field.ttype
@@ -687,7 +687,7 @@ class IrModelFields(models.Model):
                 SQL("DROP TABLE IF EXISTS %s", SQL.identifier(rel_name))
             )
 
-    def _views_mentioning(self, field_names: list[str]) -> models.BaseModel:
+    def _get_views_mentioning(self, field_names: list[str]) -> models.BaseModel:
         if not field_names:
             return self.env["ir.ui.view"].browse()
         View = self.env["ir.ui.view"]
@@ -757,7 +757,7 @@ class IrModelFields(models.Model):
             pop_field(self.env.registry[record.model], record.name)
             for record in records
         ]
-        views = self._views_mentioning(records.mapped("name"))
+        views = self._get_views_mentioning(records.mapped("name"))
         try:
             for view in views:
                 view._check_xml()

@@ -103,7 +103,7 @@ class WebTourHttp(HttpCase):
     def test_sanity_automatic(self):
         ResUsers = self.env["res.users"]
         IrAsset = self.env["ir.asset"]
-        admin = ResUsers.search(ResUsers._get_login_domain("admin"))
+        admin = ResUsers.search(ResUsers._get_domain_login("admin"))
         admin.tour_enabled = False
 
         tour_auto_bundle = IrAsset._get_asset_paths("web_tour.automatic", {})
@@ -133,7 +133,7 @@ class WebTourHttp(HttpCase):
     def test_sanity_onboarding(self):
         IrAsset = self.env["ir.asset"]
         ResUsers = self.env["res.users"]
-        admin = ResUsers.search(ResUsers._get_login_domain("admin"))
+        admin = ResUsers.search(ResUsers._get_domain_login("admin"))
         admin.tour_enabled = False
 
         self.env["ir.ui.view"].create(

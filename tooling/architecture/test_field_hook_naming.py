@@ -454,3 +454,60 @@ class Thing(models.Model):
 def test_the_selection_attribute_is_reported_but_is_not_a_field_named_attr(tmp_path):
     assert gate.SELECTION_ATTR not in gate.ATTRS
     assert gate.SELECTION_ATTR in gate.REPORTED_ATTRS
+
+
+def test_a_method_returning_only_a_Domain_call_is_reported(tmp_path):
+    """The spelling this fork prefers, and the one the rule used to miss.
+
+    `is_domain` accepted a `Domain(...)` call all along; the positive-evidence
+    clause beside it only counted list literals, so a builder written in the
+    modern spelling satisfied the first test and failed the second.
+    """
+    found = _measure(
+        tmp_path,
+        """
+class Thing(models.Model):
+    _name = "thing"
+
+    def _selectable_domain(self):
+        return Domain([("active", "=", True)])
+""",
+    )
+    assert _kinds(found) == [("unmarked", "_selectable_domain")]
+
+
+def test_a_Domain_call_named_head_first_is_accepted(tmp_path):
+    assert (
+        _measure(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    def _get_domain_selectable(self):
+        return Domain([("active", "=", True)])
+""",
+        )
+        == []
+    )
+
+
+def test_an_empty_list_alone_is_still_not_evidence_of_a_domain(tmp_path):
+    """The guard the positive-evidence clause exists for, unchanged.
+
+    `return []` is a legal domain and also every other empty list in the tree,
+    so it cannot by itself make a method a domain builder.
+    """
+    assert (
+        _measure(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    def _whatever(self):
+        return []
+""",
+        )
+        == []
+    )

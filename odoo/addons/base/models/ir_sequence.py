@@ -489,7 +489,7 @@ class IrSequence(models.Model):
         parts.append("$")
         return "".join(parts)
 
-    def _date_range_bounds(self, date: Any) -> tuple[Any, Any]:
+    def _get_date_range_bounds(self, date: Any) -> tuple[Any, Any]:
         year = fields.Date.from_string(date).year
         return fields.Date.to_date(f"{year}-01-01"), fields.Date.to_date(
             f"{year}-12-31"
@@ -511,7 +511,7 @@ class IrSequence(models.Model):
 
     def _create_date_range_seq(self, date: Any) -> Any:
         date = fields.Date.to_date(date)
-        date_from, date_to = self._date_range_bounds(date)
+        date_from, date_to = self._get_date_range_bounds(date)
         DateRange = self.env["ir.sequence.date_range"]
         date_range = DateRange.search(
             [
@@ -642,7 +642,7 @@ class IrSequence(models.Model):
         range_date = (
             date_range.date_from
             if date_range
-            else self._date_range_bounds(fields.Date.to_date(dt))[0]
+            else self._get_date_range_bounds(fields.Date.to_date(dt))[0]
         )
         return self.with_context(
             ir_sequence_date_range=range_date,

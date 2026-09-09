@@ -40,14 +40,14 @@ class ResUsers(models.Model):
             raise ValidationError(_("You can not have two users with the same login!"))
 
     @api.model
-    def _get_login_domain(self, login):
+    def _get_domain_login(self, login):
         website = self.env["website"].get_current_website()
-        return super()._get_login_domain(login) & website.website_domain()
+        return super()._get_domain_login(login) & website.website_domain()
 
     @api.model
-    def _get_email_domain(self, email):
+    def _get_domain_email(self, email):
         website = self.env["website"].get_current_website()
-        return super()._get_email_domain(email) & website.website_domain()
+        return super()._get_domain_email(email) & website.website_domain()
 
     @api.model
     def _get_login_order(self):

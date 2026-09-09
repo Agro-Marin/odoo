@@ -48,7 +48,7 @@ class ResUsers(models.Model):
     def _notify_security_new_connection(self, auth_info):
         user = self.env(user=auth_info["uid"]).user
 
-        if request and user.email and user._mfa_type():
+        if request and user.email and user._get_mfa_type():
             # Check the `request` object to ensure that we will be able to get the
             # user information (like IP, user-agent, etc) and the cookie `td_id`.
             # (Can be unbounded if executed from a server action or a unit test.)
@@ -123,8 +123,8 @@ class ResUsers(models.Model):
             },
         }
 
-    def _mfa_type(self):
-        r = super()._mfa_type()
+    def _get_mfa_type(self):
+        r = super()._get_mfa_type()
         if r is not None:
             return r
         ICP = self.env["ir.config_parameter"].sudo()
@@ -138,16 +138,16 @@ class ResUsers(models.Model):
             return "totp_mail"
         return None
 
-    def _mfa_url(self):
-        r = super()._mfa_url()
+    def _get_mfa_url(self):
+        r = super()._get_mfa_url()
         if r is not None:
             return r
-        if self._mfa_type() == "totp_mail":
+        if self._get_mfa_type() == "totp_mail":
             return "/web/login/totp"
         return None
 
     def _is_rpc_api_key_only(self):
-        return self._mfa_type() == "totp_mail" or super()._is_rpc_api_key_only()
+        return self._get_mfa_type() == "totp_mail" or super()._is_rpc_api_key_only()
 
     def _check_credentials(self, credentials, env):
         if credentials["type"] == "totp_mail":

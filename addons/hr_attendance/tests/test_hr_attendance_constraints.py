@@ -119,7 +119,7 @@ class TestHrAttendance(TransactionCase):
     def test_time_format_attendance(self):
         self.env.user.tz = "UTC"
         self.env["res.lang"]._activate_lang("en_US")
-        lang = self.env["res.lang"]._lang_get(self.env.user.lang)
+        lang = self.env["res.lang"]._get_lang_cached(self.env.user.lang)
         lang.time_format = "%I:%M:%S %p"
         attendance_id = self.attendance.create(
             {

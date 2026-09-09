@@ -141,9 +141,9 @@ class IrAttachment(models.Model):
             )
         )
 
-    def _zip_detached_reader(self):
+    def _get_zip_detached_reader(self):
         if self.type != "cloud_storage":
-            return super()._zip_detached_reader()
+            return super()._get_zip_detached_reader()
         url = self._generate_cloud_storage_download_info()["url"]
 
         def read_blocks(block_size):

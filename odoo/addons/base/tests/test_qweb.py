@@ -1134,7 +1134,7 @@ class TestQWebBasic(TransactionCase):
         )
 
     def test_directives_eval_order_precedence(self):
-        order = self.env["ir.qweb"]._directives_eval_order()
+        order = self.env["ir.qweb"]._get_directive_eval_order()
         self.assertEqual(
             len(order), len(set(order)), "duplicate directive in eval order"
         )
@@ -3425,7 +3425,7 @@ class TestQWebHelpers(TransactionCase):
             qweb._new_namespaces(eld, self._context(nsmap={})), {(None, "urn:d")}
         )
         self.assertEqual(
-            qweb._ns_prefix_map(el, self._context(nsmap={})), {"urn:x": "x"}
+            qweb._get_ns_prefix_map(el, self._context(nsmap={})), {"urn:x": "x"}
         )
 
     def test_compile_out_target(self):
@@ -3446,7 +3446,7 @@ class TestQWebHelpers(TransactionCase):
             ("/t/div", '<div class="x"/>'),
             ("/t/div/span", '<span t-att-title="a , b" t-out="x + y"/>'),
         ):
-            marker = qweb._element_marker(path, xml)
+            marker = qweb._get_element_marker(path, xml)
             match = ELEMENT_MARKER_REGEXP.match(marker)
             self.assertIsNotNone(match)
             self.assertEqual(ast.literal_eval(match[1]), (path, xml))
@@ -3733,11 +3733,15 @@ class TestQWebCompileCacheKeys(TransactionCase):
 
     def test_signature_is_hashable_with_mapping_values(self):
         qweb = self.env["ir.qweb"]
-        a = qweb.with_context(nsmap={"h": "u1", None: "u2"})._template_cache_signature()
-        b = qweb.with_context(nsmap={None: "u2", "h": "u1"})._template_cache_signature()
+        a = qweb.with_context(
+            nsmap={"h": "u1", None: "u2"}
+        )._get_template_cache_signature()
+        b = qweb.with_context(
+            nsmap={None: "u2", "h": "u1"}
+        )._get_template_cache_signature()
         self.assertEqual(hash(a), hash(b))
         self.assertNotEqual(
-            a, qweb.with_context(nsmap={"h": "other"})._template_cache_signature()
+            a, qweb.with_context(nsmap={"h": "other"})._get_template_cache_signature()
         )
 
 

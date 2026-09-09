@@ -5,7 +5,7 @@ class TestInstallDirectiveIsDecidedPerUser(TransactionCase):
     """`t-install` must decide who sees it at render time, not at compile time.
 
     `_generate_code_cached` is an ormcache keyed on
-    `(ref, _template_cache_signature())`, and that signature carries no uid.
+    `(ref, _get_template_cache_signature())`, and that signature carries no uid.
     Reading `self.env.user.has_group('base.group_system')` while compiling
     therefore let whichever user warmed the cache decide for everyone: with an
     administrator first a plain internal user was served the module's name, id

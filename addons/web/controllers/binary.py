@@ -163,7 +163,7 @@ class Binary(http.Controller):
                 raise request.not_found()
             IrAttachment = env["ir.attachment"].sudo()
             attachment = IrAttachment.search(
-                IrAttachment._generated_asset_domain(url_pattern=url), limit=1
+                IrAttachment._get_domain_generated_assets(url_pattern=url), limit=1
             )
             if attachment:
                 stream = env["ir.binary"]._get_stream_from_record(
@@ -278,7 +278,7 @@ class Binary(http.Controller):
     def _serve_generated_esm(url: str) -> Response:
         IrAttachment = request.env["ir.attachment"].sudo()
         attachment = IrAttachment.search(
-            IrAttachment._generated_asset_domain(url),
+            IrAttachment._get_domain_generated_assets(url),
             limit=1,
             order="id desc",
         )

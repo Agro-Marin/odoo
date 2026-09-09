@@ -367,7 +367,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.env.cr.execute(
             SQL(
                 "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
-                str(self._recall_threshold()),
+                str(self._get_recall_threshold()),
             )
         )
 
@@ -395,7 +395,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.env.cr.execute(query)  # noqa: E8501  built via SQL(), no user input
         return self.env.cr.fetchall()
 
-    def _recall_threshold(self) -> float:
+    def _get_recall_threshold(self) -> float:
         return self.env["res.partner"]._get_similar_name_recall_threshold()
 
     def _get_similar_name_groups(
@@ -446,7 +446,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         return groups[:maximum_group] if maximum_group else groups
 
     @api.model
-    def _selected_groupby_fields(self) -> list[str]:
+    def _get_selected_groupby_fields(self) -> list[str]:
         group_by_prefix = "group_by_"
         return [
             field_name.removeprefix(group_by_prefix)
@@ -456,7 +456,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     @api.model
     def _compute_selected_groupby(self) -> list[str]:
-        groups = self._selected_groupby_fields()
+        groups = self._get_selected_groupby_fields()
 
         if not groups:
             raise UserError(
@@ -594,7 +594,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.check_singleton()
         groups: list[tuple[int, list[int]]] = []
 
-        if self._selected_groupby_fields() or not self.match_similar_names:
+        if self._get_selected_groupby_fields() or not self.match_similar_names:
             exact_fields = self._compute_selected_groupby()
             query = self._generate_query(exact_fields, self.maximum_group)
             self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query

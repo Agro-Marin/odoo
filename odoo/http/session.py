@@ -340,7 +340,7 @@ class Session(collections.abc.MutableMapping):
         self["pre_uid"] = pre_uid
 
         user = env["res.users"].browse(pre_uid)
-        if auth_info.get("mfa") == "skip" or not user._mfa_url():
+        if auth_info.get("mfa") == "skip" or not user._get_mfa_url():
             self.finalize_login(env)
 
         if request and request.session is self and request.db == env.registry.db_name:

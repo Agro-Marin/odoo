@@ -33,7 +33,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
         string="Company",
         index=True,
         required=True,
-        default=lambda self: self.env.company._accessible_branches()[:1],
+        default=lambda self: self.env.company._get_accessible_branches()[:1],
     )
 
     partner_id = fields.Many2one(

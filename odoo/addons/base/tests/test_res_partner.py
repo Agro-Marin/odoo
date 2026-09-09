@@ -844,13 +844,13 @@ class TestPartnerCompanyDependentSync(TransactionCase):
         self.env.flush_all()
 
         self.assertFalse(
-            contact._stored_company_ids(["barcode"]),
+            contact._get_stored_company_ids(["barcode"]),
             "no company holds a value, so none can be stale",
         )
         company.with_company(other).barcode = "HOLD-1"
         self.env.flush_all()
         self.assertEqual(
-            contact._stored_company_ids(["barcode"]),
+            contact._get_stored_company_ids(["barcode"]),
             {other.id},
             "only the company with a stored value is worth visiting",
         )

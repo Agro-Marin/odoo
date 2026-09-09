@@ -155,7 +155,7 @@ class MixinSpreadsheet(models.AbstractModel):
         The sheet name should be the same for all users to allow consistent references
         in formulas. It is translated for the user creating the spreadsheet.
         """
-        lang = self.env["res.lang"]._lang_get(self.env.user.lang)
+        lang = self.env["res.lang"]._get_lang_cached(self.env.user.lang)
         locale = lang._odoo_lang_to_spreadsheet_locale()
         return {
             "sheets": [

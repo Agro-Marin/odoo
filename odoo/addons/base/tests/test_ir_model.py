@@ -1120,10 +1120,14 @@ class TestIrModelFields(TransactionCase):
         self.env.flush_all()
 
         IrModelFields = self.env["ir.model.fields"]
-        self.assertNotIn(long_view.id, IrModelFields._views_mentioning(["x_ab"]).ids)
-        self.assertIn(long_view.id, IrModelFields._views_mentioning(["x_ab_long"]).ids)
         self.assertNotIn(
-            wildcard_bait.id, IrModelFields._views_mentioning(["x_ab_cd"]).ids
+            long_view.id, IrModelFields._get_views_mentioning(["x_ab"]).ids
+        )
+        self.assertIn(
+            long_view.id, IrModelFields._get_views_mentioning(["x_ab_long"]).ids
+        )
+        self.assertNotIn(
+            wildcard_bait.id, IrModelFields._get_views_mentioning(["x_ab_cd"]).ids
         )
 
     def test_view_scan_finds_translation_only_occurrences(self):
@@ -1163,7 +1167,7 @@ class TestIrModelFields(TransactionCase):
 
         self.assertIn(
             view.id,
-            self.env["ir.model.fields"]._views_mentioning(["x_only_fr"]).ids,
+            self.env["ir.model.fields"]._get_views_mentioning(["x_only_fr"]).ids,
         )
 
     def test_drop_column_recovers_m2m_table_name(self):

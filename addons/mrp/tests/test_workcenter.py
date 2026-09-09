@@ -33,7 +33,7 @@ class TestWorkcenterOverview(common.TestMrpCommon):
             }
         )
 
-        lang = self.env["res.lang"]._lang_get(self.env.user.lang)
+        lang = self.env["res.lang"]._get_lang_cached(self.env.user.lang)
         lang.week_start = "3"
         week_range, date_start, date_stop = (
             self.workcenter_2._get_week_range_and_first_last_days()

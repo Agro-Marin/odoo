@@ -195,7 +195,7 @@ class TestCompany(TransactionCase):
             return (
                 company.with_user(user)
                 .with_context(allowed_company_ids=allowed.ids)
-                ._accessible_branches()
+                ._get_accessible_branches()
             )
 
         self.assertEqual(branches(root, root + child + grand), root + child + grand)
