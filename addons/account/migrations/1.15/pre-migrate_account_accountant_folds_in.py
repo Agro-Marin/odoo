@@ -16,6 +16,12 @@ RENAMED = {
     "view_bank_statement_tree": "view_bank_statement_tree_reconcile",
     "view_move_line_payment_tree": "view_move_line_payment_tree_reconcile",
     "report_invoice_document": "report_invoice_document_signature",
+    # both modules declared this access rule and they are two DIFFERENT rows:
+    # account grants group_account_manager, the accountant granted
+    # group_account_user, and manager does not imply user. Dropping either
+    # one takes a grant away, so the accountant's keeps its record under an
+    # id of its own.
+    "access_account_secure_entries_wizard": "access_account_secure_entries_wizard_user",
 }
 
 
@@ -52,26 +58,6 @@ def _repoint_everything(cr):
     return cr.rowcount
 
 
-def _drop_the_duplicate_access_rule(cr):
-    # Both modules declared `access_account_secure_entries_wizard` and they are two
-    # different rows: account grants group_account_manager, account_accountant granted the
-    # broader group_account_user. Only account's survives the fold, so the other row has to
-    # go with its xmlid -- dropping only the xmlid would leave the wider grant in place,
-    # unmanaged, with nothing left to ever remove it.
-    cr.execute(
-        """
-            DELETE FROM ir_model_access a
-             USING ir_model_data d
-             WHERE d.module = %s
-               AND d.model = 'ir.model.access'
-               AND d.name = 'access_account_secure_entries_wizard'
-               AND a.id = d.res_id
-        """,
-        (MODULE,),
-    )
-    return cr.rowcount
-
-
 def _drop_the_module_row(cr):
     # account absorbed it, so the module must not sit there `installed` naming code that
     # no longer exists, nor be offered for uninstall.
@@ -100,11 +86,5 @@ def migrate(cr, version):
     _rename_then_repoint(cr)
     moved = _repoint_everything(cr)
     _rename_config_parameter(cr)
-    dropped = _drop_the_duplicate_access_rule(cr)
     _drop_the_module_row(cr)
-    _logger.info(
-        "account_accountant folded into account: %s xmlids repointed, "
-        "%s duplicate access rule(s) dropped",
-        moved,
-        dropped,
-    )
+    _logger.info("account_accountant folded into account: %s xmlids repointed", moved)
