@@ -88,8 +88,12 @@ export class SampleServer {
     /**
      * @param {string} modelName
      * @param {Record<string, any>} fields
+     * @param {Record<string, Record<string, any>>} [relatedModels] the field
+     *      descriptions `get_views` returned for the models this view reaches,
+     *      keyed by model name. Without them a relation is invented with three
+     *      fields, and every other field of it samples as `false`.
      */
-    constructor(modelName, fields) {
+    constructor(modelName, fields, relatedModels = {}) {
         this.mainModel = modelName;
         this.data = {};
         this.data[modelName] = {
@@ -104,6 +108,7 @@ export class SampleServer {
                         display_name: { type: "char" },
                         id: { type: "integer" },
                         color: { type: "integer" },
+                        ...relatedModels[field.relation],
                     },
                     records: [],
                 };
@@ -312,6 +317,13 @@ export class SampleServer {
                     record[fieldName] = false;
                 } else if (field.type === "many2one") {
                     const relModel = this.data[field.relation];
+                    if (!relModel) {
+                        // A relation's own relations are not sampled: the view
+                        // never asked for that model, so there is nothing to
+                        // read from.
+                        record[fieldName] = false;
+                        continue;
+                    }
                     const relRecord = relModel.records.find(
                         (relR) => r[fieldName] === relR.id,
                     );
@@ -543,9 +555,32 @@ export class SampleServer {
                 continue;
             }
             if (field.type === "many2one") {
+                // Answer the subfields that were asked for, as the x2many
+                // branch below does. Flattening every many2one to
+                // `{id, display_name}` silently dropped the rest of an
+                // accepted request, and no caller could tell: a view reaching
+                // a field through a many2one -- a map's partner coordinates, an
+                // arch giving a many2one a sub-view -- got sample records with
+                // that field missing rather than sampled.
+                const relFields = Object.keys(
+                    params.specification[fieldName].fields || {},
+                ).filter((relField) => relField !== "display_name");
+                const relRecords = {};
+                if (relFields.length) {
+                    const relIds = result.records
+                        .map((record) => record[fieldName] && record[fieldName][0])
+                        .filter((id) => id);
+                    for (const relRecord of this._mockRead({
+                        model: field.relation,
+                        args: [relIds, relFields],
+                    })) {
+                        relRecords[relRecord.id] = relRecord;
+                    }
+                }
                 for (const record of result.records) {
                     record[fieldName] = record[fieldName]
                         ? {
+                              ...relRecords[record[fieldName][0]],
                               id: record[fieldName][0],
                               display_name: record[fieldName][1],
                           }
@@ -755,8 +790,8 @@ SampleServer.UnimplementedRouteError = UnimplementedRouteError;
  * @param {any} orm
  * @returns {any}
  */
-export function buildSampleORM(resModel, fields, orm) {
-    const sampleServer = new SampleServer(resModel, fields);
+export function buildSampleORM(resModel, fields, orm, relatedModels) {
+    const sampleServer = new SampleServer(resModel, fields, relatedModels);
     const fakeRPC = async (/** @type {any} */ _, /** @type {any} */ params) => {
         const { args, kwargs, method, model } = params;
         const { groupby: groupBy } = kwargs;

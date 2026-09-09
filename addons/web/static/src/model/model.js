@@ -110,6 +110,21 @@ export class Model extends SignalStore {
     }
 
     /**
+     * Field descriptions the sample server cannot learn from the view.
+     *
+     * `relatedModels` describes the fields a model's *arch* names. A model
+     * that assembles its own specification can reach further -- a map asks its
+     * partner for coordinates no arch mentions -- and the sample server has no
+     * way to know those fields exist, let alone their types, so it samples
+     * them as `false`. Declaring them here is how a model says so.
+     *
+     * @returns {Record<string, Record<string, any>>} keyed by model name
+     */
+    getSampleRelatedModels() {
+        return {};
+    }
+
+    /**
      * @returns {Promise<void> | void}
      */
     settleBeforeReload() {}
@@ -274,7 +289,10 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         if (useSampleModel && !model.hasData()) {
             sampleORM =
                 sampleORM ||
-                buildSampleORM(component.props.resModel, component.props.fields, orm);
+                buildSampleORM(component.props.resModel, component.props.fields, orm, {
+                    ...component.props.relatedModels,
+                    ...model.getSampleRelatedModels(),
+                });
             model.orm = sampleORM;
             try {
                 await model.load(searchParams);

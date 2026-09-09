@@ -481,3 +481,79 @@ describe("read_progress_bar", () => {
         }
     });
 });
+
+describe("many2one specification", () => {
+    test("the subfields a many2one was asked for are answered", async () => {
+        // The x2many branch reads the specification's nested `fields` and
+        // fetches them; the many2one branch used to overwrite the value with
+        // `{ id, display_name }` and discard the rest of a request it had
+        // accepted, with no way for the caller to tell.
+        const server = new DeterministicSampleServer("res.users", fields["res.users"], {
+            "res.currency": {
+                display_name: { string: "Name", type: "char" },
+                rate: { string: "Rate", type: "float" },
+                active: { string: "Active", type: "boolean" },
+            },
+        });
+        const { records } = await server.mockRpc({
+            method: "web_search_read",
+            model: "res.users",
+            specification: {
+                display_name: {},
+                currency: { fields: { display_name: {}, rate: {}, active: {} } },
+            },
+        });
+
+        const currency = records[0].currency;
+        expect(Object.keys(currency).sort()).toEqual([
+            "active",
+            "display_name",
+            "id",
+            "rate",
+        ]);
+        expect(currency.rate).toBeWithin(0, MAX_FLOAT);
+        expect(currency.active).toBeOfType("boolean");
+    });
+
+    test("a many2one asked for nothing but its name is unchanged", async () => {
+        const server = new DeterministicSampleServer("res.users", fields["res.users"]);
+        const { records } = await server.mockRpc({
+            method: "web_search_read",
+            model: "res.users",
+            specification: {
+                display_name: {},
+                manager_id: { fields: { display_name: {} } },
+            },
+        });
+
+        expect(Object.keys(records[0].manager_id).sort()).toEqual([
+            "display_name",
+            "id",
+        ]);
+    });
+
+    test("a relation's own relations are not sampled, and do not throw", async () => {
+        // The relation's schema now comes from the view, so it can declare a
+        // many2one onto a model this server never built.
+        const server = new DeterministicSampleServer("res.users", fields["res.users"], {
+            "res.currency": {
+                display_name: { string: "Name", type: "char" },
+                country_id: {
+                    string: "Country",
+                    type: "many2one",
+                    relation: "res.country",
+                },
+            },
+        });
+        const { records } = await server.mockRpc({
+            method: "web_search_read",
+            model: "res.users",
+            specification: {
+                display_name: {},
+                currency: { fields: { display_name: {}, country_id: {} } },
+            },
+        });
+
+        expect(records[0].currency.country_id).toBe(false);
+    });
+});
