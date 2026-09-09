@@ -1144,6 +1144,44 @@ tree has moved. A figure a sentence *reasons* from -- a ratio, a split, a zero -
 stays in its sentence, as a ``Figure`` the same tool checks and ``--update
 <figure>`` refreshes on its own.
 
+**Who re-derives it, and when** ``[review]``. The block goes stale on every
+rename that touches ``odoo/`` or ``addons/``, which in a workspace where several
+people are sweeping at once is most of them, and it once stood **thirteen rows**
+stale because each of four sessions correctly established the rows were not
+theirs alone to bank. The rule that failed was *whoever lands last re-derives it*.
+**"Last" is not a state a session can observe** -- it is a claim about a boundary
+that moves the next time anybody commits, so it resolves to nobody and the block
+rots. The rule that works is checkable by the person it binds:
+
+  **Whoever moves a row after the last bank owns the next one.** Run
+  ``--check`` after committing a rename; if a row moved, re-derive it or hand it
+  to someone who will.
+
+* **Bank from a detached worktree at your own commit, never from the checkout.**
+  The tool measures whatever tree you point it at, and a shared checkout holds
+  everyone's uncommitted work, so an ``--update`` there banks other people's
+  unlanded renames as the branch's figures. §2.4.14's shelf-life rule, applied to
+  a number: the reading is true of a tree, and only a commit names one.
+* **Two correct measurements can contradict each other, which is the whole
+  argument.** Two sessions read ``heads_tail_first`` as **162** and **161** on the
+  same row, from the same gate, with no rename of that shape between them; the
+  only variable was the minute each ran it. Neither was wrong and neither was
+  about the branch.
+* **The question before banking is not "is the tree dirty" but "is anyone else
+  renaming inside this row's population".** A clean tree does not make a contested
+  row yours and a dirty one does not make an uncontested row somebody else's. A
+  figure whose population nobody else is touching is safe to bank from a dirty
+  checkout -- ``migration_scripts`` was, correctly, after one ``git status``
+  confirming no uncommitted file contributed to it.
+* **``--update`` takes row names and writes every unselected row back
+  as-stated**, so a partial bank is safe and is the right tool for one row you
+  distrust with no contest over it. Prefer the whole block when the whole block is
+  contested, which is the ordinary case here.
+* **A figure a sentence reasons from takes the sentence with it.** Draining
+  §2.4.13's nested backlog to **0** left a bullet whose grammar still called it a
+  backlog -- a stale figure one level up, and one no gate can see. Reword in the
+  same commit.
+
 .. census-table-start
 
 =======  =========================================================  ======
@@ -1164,24 +1202,24 @@ Section  Population                                                  Count
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
 §2.4.3   Non-test methods declared on a model class                 25,911
-§2.4.3   Stems spelled with two or more verbs of one family              3
+§2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            135
 §2.4.4   ``fields`` family: definitions spelled head-first             208
 §2.4.4   ``fields`` family: distinct names spelled head-first           97
-§2.4.4   ``fields`` family: definitions spelled tail-first              28
+§2.4.4   ``fields`` family: definitions spelled tail-first              30
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   130
-§2.4.4   Other heads: definitions spelled tail-first                   157
+§2.4.4   Other heads: definitions spelled tail-first                   161
 §2.4.5   ``X_to_Y`` converter definitions                               97
 §2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      5,961
+§2.4.7   ``_get_*`` definitions                                      5,992
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  7
-§2.4.7   ``_prepare_*`` definitions                                    841
+§2.4.7   ``_prepare_*`` definitions                                    845
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            39
-§2.4.8   ``_check_*`` definitions                                    1,190
+§2.4.8   ``_check_*`` definitions                                    1,191
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
@@ -1192,13 +1230,13 @@ Section  Population                                                  Count
 §2.4.11  … doing something else entirely                                22
 §2.4.11  ``_find_or_create_*`` methods                                   1
 §2.4.11  ``_get_or_create_*`` methods                                   31
-§2.4.11  ``_resolve_*`` definitions                                     39
+§2.4.11  ``_resolve_*`` definitions                                     40
 §2.4.12  ``_set_*`` definitions                                        124
-§2.4.12  ``_update_*`` definitions                                     355
+§2.4.12  ``_update_*`` definitions                                     361
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             249
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
-§2.4.12  ``_sync_*`` definitions                                        69
-§2.4.12  ``_synchronize_*`` definitions                                 13
+§2.4.12  ``_sync_*`` definitions                                        75
+§2.4.12  ``_synchronize_*`` definitions                                  7
 §2.4.12  ``_post_*`` definitions                                       137
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      353
 §2.4.13  Methods on plain classes in model files                       414
@@ -1852,12 +1890,12 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.0 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.1 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 677
+deriving and computing. The split that matters is against ``_prepare_``: 678
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 841 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 845 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -2020,8 +2058,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **362** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **265**
+**A ``bool`` return does not make a predicate** ``[review]``. **361** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **266**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -2730,19 +2768,25 @@ the message or ``None`` and lands on ``_resolve_`` (§2.4.11); ``validate_url``
 prepends a scheme and returns a URL, so it was a converter mislabelled as a check.
 **Read the return before reading the verb.**
 
-**It governs the module's own helpers too, and no gate sees them** ``[review]``.
-``naming_vocabulary.py`` implements the scope as a *class-membership* test, so two
-populations in the same files are counted by nothing: a function declared at
-**module level** under ``models/`` and ``wizard/``, and a method on a **plain
-class** declared in the same file; the census table counts both, and the classes.
-Counted over the addon trees only, since a directory test alone would sweep in
-ORM internals the vocabulary does not reach.
+**It governs the module's own helpers too, and the gate now sees them**
+``[ratchet naming]``. ``naming_vocabulary.py`` implemented the scope as a
+*class-membership* test, so two populations in the same files were counted by
+nothing: a function declared at **module level** under ``models/`` and
+``wizard/``, and a method on a **plain class** declared in the same file; the
+census table counts both, and the classes. Both are in ``measure()``'s population
+now, over the addon trees only -- a directory test alone would sweep in ORM
+internals the vocabulary does not reach, so the discriminator is a
+``__manifest__.py`` above the file, which is what makes a directory an addon and
+what the core package has none of.
 
 **A function nested inside a method is the third such population, and the
-largest** ``[gate doc_restated_counts]``. The scan reads ``tree.body`` for module
+largest** ``[gate doc_restated_counts]``. The scan read ``tree.body`` for module
 level and a class body for its methods, so a ``def`` written inside a method body
-is reached by neither test: they sit on model methods in this repository in
-greater numbers than either population above (census table). They are also the
+was reached by neither test: they sit on model methods in this repository in
+greater numbers than either population above (census table). It is in the gate's
+population now, at every depth and counted once however deeply nested -- reaching
+a closure inside a closure means walking from every function rather than from the
+module, which visits the inner one once per enclosing frame. They are also the
 cheapest names
 in the tree to repair, because a nested function is reachable from nothing
 outside the body that declares it -- no binding (§2.4.14), no override, no call
@@ -2766,11 +2810,15 @@ alone held six with no verb at all: ``fallback_loc``, ``next_move``,
 * **A closure is where a vocabulary drifts**, for the same reason it is cheap to
   fix: nothing outside the method can collide with the name, so nothing pushes
   back on a private spelling. The freedom and the drift are one fact.
-* **The backlog inside it is small, and that is the point**
-  ``[gate doc_restated_counts]``: of them, **8** open with a verb the abolished
-  table reports and **7** with a reserved one. So this population is named as a
-  discipline rather than as debt -- the cost of leaving it ungoverned is not a
-  pile of bad names today, it is that nothing stops one forming.
+* **The backlog inside it is drained, and that was always the point**
+  ``[gate doc_restated_counts]``: of them, **0** open with a verb the abolished
+  table reports and **7** with a reserved one. It was 8 and 7 when this
+  bullet was written, which is what made the population worth naming as a
+  discipline rather than as debt -- and the gate that could see it did not exist
+  yet, so the eight were swept by hand. ``naming_vocabulary.py`` measures this
+  population now, so the zero is held rather than observed: the cost of leaving
+  it ungoverned was never a pile of bad names, it was that nothing stopped one
+  forming.
 
 **A third population is nested inside the first two: the closure** ``[review]``.
 ``naming_core_vocabulary.py`` reads every ``FunctionDef`` in the core package, so
@@ -2824,10 +2872,20 @@ reporting the same count before and after, which is the argument for the
 ``[review]`` tier. Read the body of every name in an ungated file.
 
 **Two gates, and both readings of 0 mislead, differently** ``[review]``.
-``naming_vocabulary.py --roots odoo/odoo/orm`` reads **0**, and that reading is
-close to meaningless: its population is model-class methods while that package is
-overwhelmingly plain classes and module-level functions, so ``--roots`` makes a
-scope look measured that was never in the population.
+``naming_vocabulary.py --roots odoo/odoo/orm`` read **0**, and that reading was
+close to meaningless: its population was model-class methods while that package is
+overwhelmingly plain classes and module-level functions, so ``--roots`` made a
+scope look measured that was never in the population. That half is closed for the
+addon trees and deliberately left standing for core, which the sibling gate owns.
+
+**And a gate reading 0 is not evidence, which took two independent widenings to
+say with a number** ``[review]``. ``--roots addons/account`` read **0** while ten
+names in that module were wrong. Four of them needed the Payload row's assemble
+verbs to be flagged whatever their tail (§2.4.7), and **sixteen** across
+``addons/`` needed *both* that and the scope above -- an assemble verb with no
+payload suffix, declared inside a method. Each change alone reports zero of the
+sixteen. **Two tightenings agreeing on 0 is not two confirmations**; it is one
+population neither of them contained.
 ``naming_core_vocabulary.py`` holds the right population for core and also reads
 0. **The wrong gate reading 0 is the trap the flag sets** -- it answers the
 question asked without making the population the one wanted. The sharper case is
