@@ -75,6 +75,7 @@ __all__ = [
     "reshape",
     "safe_attrs",
     "similarity_ratio",
+    "split_refs",
     "str2bool",
     "street_split",
     "tag_quote",
