@@ -71,6 +71,13 @@ class TestHandlerShipping(HttpCase):
         names = self._names(self._fetch())
         self.assertNotIn("drivers/serial_blackbox_driver.py", names)
         self.assertNotIn("drivers/IngenicoDriver.py", names)
+        self.assertIn(
+            "drivers/serial_base_driver.py",
+            names,
+            "the driver framework ships to a dated box too: withholding a "
+            "module deletes its handlers on the box rather than preserving "
+            "them, and a box without iot_drivers has no drivers at all",
+        )
 
     def test_a_windows_box_is_not_sent_linux_handlers(self):
         self._box(version="W25.07")

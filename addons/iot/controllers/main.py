@@ -84,7 +84,17 @@ class IoTController(IoTBoxLookup, http.Controller):
         modules = installed | always | {"iot_drivers"}
         if re.search(r"\d{4}\.\d{2}\.\d{2}", box.version):
             modules -= in_image
-        return sorted(modules)
+
+        # `iot_drivers` ships to every box, dated image or not, and the old
+        # blocklist this replaced withheld it from dated ones. The box makes
+        # that unsafe: `download_iot_handlers` calls `delete_iot_handlers`
+        # first, which empties the whole handler directory, and only then
+        # extracts. Withholding a module therefore DELETES its handlers rather
+        # than preserving the git copy the blocklist's comment claimed to
+        # protect, and the git checkout that could restore them runs earlier in
+        # the same boot and only when the branch changed. A box that lost the
+        # driver framework this way has no drivers at all.
+        return sorted(modules | {"iot_drivers"})
 
     @http.route("/iot/get_handlers", type="http", auth="public", csrf=False)
     def get_handlers(self, identifier, auto):

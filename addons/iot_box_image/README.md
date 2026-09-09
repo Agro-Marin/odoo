@@ -30,8 +30,14 @@ degraded feature.
 Three paths in the sparse-checkout matched nothing in this fork and were dropped
 on 2026-08-08 — `addons/hw_drivers`, `addons/hw_posbox_homepage` and
 `addons/point_of_sale/tools/posbox/configuration`. Upstream's `hw_*` pair was
-consolidated into `iot_drivers`/`iot_base` here. Git ignores a pattern that
-matches nothing, so they were silent, not broken.
+consolidated into `iot_drivers` here. Git ignores a pattern that matches
+nothing, so they were silent, not broken.
+
+A fourth, `addons/iot_base`, was dropped on 2026-09-09 when that module was
+folded into `odoo/addons/iot`. It was checked out and never read: nothing under
+`iot_drivers` imports `@iot_base` or `@iot`, because the box runs the driver
+framework and not the server-side app. The replacement is no path at all rather
+than `addons/iot`.
 
 ## Where a dependency goes: apt or pip
 
