@@ -15,7 +15,7 @@ class MixinStockReplenish(models.AbstractModel):
     @api.depends("route_id")
     def _compute_show_vendor(self):
         for rec in self:
-            rec.show_vendor = rec._get_show_vendor(rec.route_id)
+            rec.show_vendor = rec._is_vendor_shown(rec.route_id)
 
-    def _get_show_vendor(self, route):
+    def _is_vendor_shown(self, route):
         return route._has_buy_rule()

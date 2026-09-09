@@ -51,7 +51,7 @@ class TestSaleService(TransactionCase):
         line_a = self._line(self.service)
         line_b = self._line(self.service)
         lines = line_a + line_b
-        names = lines.with_context(with_price_unit=True)._additional_name_per_id()
+        names = lines.with_context(with_price_unit=True)._get_additional_name_per_id()
         self.assertTrue(names[line_a.id].startswith("-"))
         self.assertTrue(names[line_b.id].startswith("-"))
 

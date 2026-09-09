@@ -96,7 +96,7 @@ class BaseOrderTestLine(models.Model):
         self.check_singleton()
         return (self.product_id.list_price, 0.0)
 
-    def _price_update_blocked(self):
+    def _is_price_update_blocked(self):
         return False
 
     def _get_fields_tracked_qty(self):

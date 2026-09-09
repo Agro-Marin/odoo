@@ -631,6 +631,7 @@ class PurchaseOrderLine(models.Model):
                     <= 0
                 ):
                     continue
+                line.order_id._add_missing_reference()
                 res = line.order_id._prepare_picking_vals()
                 picking = self.env["stock.picking"].create(res)
 

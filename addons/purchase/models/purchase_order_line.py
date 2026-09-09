@@ -168,7 +168,7 @@ class PurchaseOrderLine(models.Model):
     def _compute_product_qty(self):
         return super()._compute_product_qty()
 
-    def _product_qty_reset_triggered(self):
+    def _is_product_qty_reset_triggered(self):
         return bool(
             (self._origin.product_id and self._origin.product_id != self.product_id)
             or (self._origin.partner_id and self._origin.partner_id != self.partner_id)
@@ -850,11 +850,11 @@ class PurchaseOrderLine(models.Model):
             for inv_line in invoice_lines
         )
 
-    def _price_update_blocked(self):
+    def _is_price_update_blocked(self):
         if self.invoice_line_ids:
             return True
         if self.state == "done" and self._origin.id:
             original_currency = self._origin.currency_id
             if original_currency and original_currency != self.currency_id:
                 return True
-        return super()._price_update_blocked()
+        return super()._is_price_update_blocked()

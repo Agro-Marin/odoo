@@ -306,7 +306,7 @@ class SaleOrderLine(models.Model):
 
     @api.depends("order_id", "partner_id", "product_id")
     def _compute_display_name(self):
-        name_per_id = self._additional_name_per_id()
+        name_per_id = self._get_additional_name_per_id()
         for line in self:
             if line.sudo().partner_id.lang:
                 line = line.with_context(lang=line.order_id._get_lang())
@@ -339,7 +339,7 @@ class SaleOrderLine(models.Model):
     def _get_product_warn_field(self):
         return "sale_line_warn_msg"
 
-    def _tax_ids_include_product(self, line):
+    def _is_product_taxable(self, line):
         return line.product_type != "combo"
 
     @api.depends("product_id")
@@ -802,7 +802,7 @@ class SaleOrderLine(models.Model):
             "uomDisplayName": self.product_id.uom_id.display_name,
         }
 
-    def _additional_name_per_id(self):
+    def _get_additional_name_per_id(self):
         return {line.id: line._get_partner_display() for line in self}
 
     def compute_uom_qty(self, new_qty, stock_move, rounding=True):
@@ -1431,12 +1431,12 @@ class SaleOrderLine(models.Model):
         )
         return is_direct_child or is_indirect_child
 
-    def _price_update_blocked(self):
+    def _is_price_update_blocked(self):
         if any(aml.move_id.state != "cancel" for aml in self.invoice_line_ids):
             return True
         if self.product_id.expense_policy == "cost" and self.is_expense:
             return True
-        return super()._price_update_blocked()
+        return super()._is_price_update_blocked()
 
     def _filtered_to_check_analytic_distribution(self):
         return self.filtered(

@@ -389,6 +389,7 @@ class PurchaseOrder(models.Model):
                     lambda x: x.state not in ("done", "cancel"),
                 )
                 if not pickings:
+                    order_in_company._add_missing_reference()
                     res = order_in_company._prepare_picking_vals()
                     picking = StockPicking.with_user(SUPERUSER_ID).create(res)
                     pickings = picking
@@ -582,11 +583,13 @@ class PurchaseOrder(models.Model):
         invoice_vals["invoice_incoterm_id"] = self.incoterm_id.id
         return invoice_vals
 
-    def _prepare_picking_vals(self):
+    def _add_missing_reference(self):
         if not self.reference_ids:
             self.reference_ids = self.reference_ids.sudo().create(
                 self._prepare_reference_vals(),
             )
+
+    def _prepare_picking_vals(self):
         if not self.partner_id.property_stock_supplier.id:
             raise UserError(
                 _(

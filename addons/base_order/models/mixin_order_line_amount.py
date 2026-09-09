@@ -129,10 +129,10 @@ class MixinOrderLineAmount(models.AbstractModel):
             if line.display_type or not line.product_id:
                 line.product_qty = False
                 continue
-            if not line.product_qty or line._product_qty_reset_triggered():
+            if not line.product_qty or line._is_product_qty_reset_triggered():
                 line.product_qty = line._get_default_product_qty()
 
-    def _product_qty_reset_triggered(self):
+    def _is_product_qty_reset_triggered(self):
         return bool(
             self._origin.product_id and self._origin.product_id != self.product_id
         )
@@ -231,7 +231,7 @@ class MixinOrderLineAmount(models.AbstractModel):
         self.check_singleton()
         precision = self._get_price_precision()
 
-        if self._price_update_blocked():
+        if self._is_price_update_blocked():
             return False
 
         if force_recompute:
@@ -292,7 +292,7 @@ class MixinOrderLineAmount(models.AbstractModel):
             != 0
         )
 
-    def _price_update_blocked(self):
+    def _is_price_update_blocked(self):
         return False
 
     def _get_base_line_special_type(self):
@@ -406,7 +406,7 @@ class MixinOrderLineAmount(models.AbstractModel):
         cached_taxes = {}
         tax_field = self._get_product_tax_field()
         for line in self.filtered(lambda l: not l.display_type):
-            if not line.product_id or not line._tax_ids_include_product(line):
+            if not line.product_id or not line._is_product_taxable(line):
                 line.tax_ids = False
                 continue
             lines_by_company[line.company_id] += line
@@ -429,7 +429,7 @@ class MixinOrderLineAmount(models.AbstractModel):
                     cached_taxes[cache_key] = result
                 line.tax_ids = result
 
-    def _tax_ids_include_product(self, line):
+    def _is_product_taxable(self, line):
         return True
 
     @api.depends(
