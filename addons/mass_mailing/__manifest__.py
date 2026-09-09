@@ -165,6 +165,7 @@
             "mass_mailing/static/src/fields/**/*",
             "mass_mailing/static/src/themes/**/*",
             "mass_mailing/static/src/iframe/**/*",
+            "mass_mailing/static/src/views/**/*",
             "mass_mailing/static/src/scss/mailing_filter_widget.scss",
             "mass_mailing/static/src/scss/mass_mailing.scss",
             "mass_mailing/static/src/scss/mass_mailing_mobile.scss",
