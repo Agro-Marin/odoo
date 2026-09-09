@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import { post } from "@iot/network_utils/http";
-import { uuid } from "@web/core/utils/format/strings";
+import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { uuid } from "@web/core/utils/format/strings";
 
 export class IoTLongpolling {
     static serviceDependencies = ["notification", "orm"];

@@ -1,11 +1,11 @@
 /** @odoo-module native */
+import { readDeviceEvent } from "@iot/device_messages";
+import { printReport } from "@iot/iot_report_action";
+import { useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { formView } from "@web/views/form";
-import { _t } from "@web/core/translation";
-import { useSubEnv } from "@odoo/owl";
-import { PRINTER_MESSAGES, FDM_MESSAGES } from "@iot/network_utils/iot_http_service";
-import { printReport } from "@iot/iot_report_action";
 
 class IoTDeviceController extends formView.Controller {
     setup() {
@@ -89,21 +89,10 @@ class IoTDeviceController extends formView.Controller {
     }
 
     onDeviceEvent(event, type) {
-        const errorMessages = type === "printer" ? PRINTER_MESSAGES : FDM_MESSAGES;
-        // Parse blackbonse response
-        if (type === "fiscal_data_module") {
-            const fullErrorCode = event.message ?? event.result?.error?.errorCode;
-            const errorCode = fullErrorCode?.substring(0, 3);
-            if (FDM_MESSAGES[errorCode] && !["000", "102"].includes(errorCode)) {
-                event.message = errorCode;
-                event.status = "error";
-            }
-        }
-        const errorMessage = errorMessages[event.message] ?? event.message;
-        const defaultMessage =
-            type === "printer"
-                ? _t("Test page printed")
-                : _t("Fiscal Data Module is connected and operational");
+        const { message: errorMessage, defaultMessage } = readDeviceEvent(
+            type,
+            event,
+        );
         switch (event.status) {
             case "error":
             case "timeout":

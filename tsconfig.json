@@ -199,6 +199,7 @@
             "@industry_fsm_sale_report/*": ["../enterprise/industry_fsm_sale_report/static/src/*"],
             "@industry_fsm_stock/*": ["../enterprise/industry_fsm_stock/static/src/*"],
             "@iot/*": ["addons/iot/static/src/*"],
+            "@iot_blackbox_be/*": ["addons/iot_blackbox_be/static/src/*"],
             "@iot_drivers/*": ["addons/iot_drivers/static/src/*"],
             "@knowledge/*": ["../enterprise/knowledge/static/src/*"],
             "@l10n_account_withholding_tax/*": ["addons/l10n_account_withholding_tax/static/src/*"],

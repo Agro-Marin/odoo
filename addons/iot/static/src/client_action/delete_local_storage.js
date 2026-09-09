@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions";
-import { Component, onWillStart, useState } from "@odoo/owl";
 
 export const IOT_REPORT_PREFERENCE_LOCAL_STORAGE_KEY = "odoo-iot-linked_reports";
 

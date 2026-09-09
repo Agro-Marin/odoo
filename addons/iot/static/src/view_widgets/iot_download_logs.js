@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
-import { _t } from "@web/core/translation";
-import { Component } from "@odoo/owl";
-import { standardWidgetProps } from "@web/views/widgets";
 import { formatEndpoint } from "@iot/network_utils/http";
+import { Component } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class IoTBoxDownloadLogs extends Component {
     static template = `iot.HeaderButton`;
@@ -31,7 +31,7 @@ export class IoTBoxDownloadLogs extends Component {
                 this.ip_url + "/hw_proxy/hello",
                 "text",
             );
-            if (response == "ping") {
+            if (response === "ping") {
                 window.location = this.ip_url + "/iot_drivers/download_logs";
             } else {
                 this.doWarnFail();
@@ -49,11 +49,9 @@ export class IoTBoxDownloadLogs extends Component {
 
 export const ioTBoxDownloadLogs = {
     component: IoTBoxDownloadLogs,
-    extractProps: ({ attrs }) => {
-        return {
-            btn_name: attrs.btn_name,
-            btn_class: attrs.btn_class,
-        };
-    },
+    extractProps: ({ attrs }) => ({
+        btn_name: attrs.btn_name,
+        btn_class: attrs.btn_class,
+    }),
 };
 registry.category("view_widgets").add("iot_download_logs", ioTBoxDownloadLogs);

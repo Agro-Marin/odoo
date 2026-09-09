@@ -1,7 +1,7 @@
+import { IoTLongpolling } from "@iot/network_utils/longpolling";
 import { describe, expect, test } from "@odoo/hoot";
 import { microTick } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { IoTLongpolling } from "@iot/network_utils/longpolling";
 
 describe.current.tags("headless");
 

@@ -1,51 +1,11 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import { post } from "@iot/network_utils/http";
-import { uuid } from "@web/core/utils/format/strings";
 import { IotWebsocket } from "@iot/network_utils/iot_websocket";
+import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { uuid } from "@web/core/utils/format/strings";
+
 import { IotWebRtc } from "./iot_webrtc.js";
-
-export const PRINTER_MESSAGES = {
-    ERROR_FAILED: _t("Failed to initiate print"),
-    ERROR_OFFLINE: _t("Printer is not ready"),
-    ERROR_TIMEOUT: _t("Printing timed out"),
-    ERROR_NO_PAPER: _t("Out of paper"),
-    ERROR_UNREACHABLE: _t("Printer is unreachable"),
-    ERROR_UNKNOWN: _t("Unknown printer error occurred"),
-    WARNING_LOW_PAPER: _t("Paper is low"),
-};
-
-export const FDM_MESSAGES = {
-    "000": _t("Blackbox is running and operational"),
-    "001": _t("PIN accepted."),
-    101: _t("Fiscal Data Module memory 90% full."),
-    102: _t(
-        "Repeated request. This request was already handled by the fiscal data module.",
-    ),
-    103: _t("Operation wasn't saved on the blackbox"),
-    199: _t("Unspecified warning."),
-    201: _t("No Vat Signing Card or Vat Signing Card broken."),
-    202: _t("Please activate the Vat Signing Card with PIN."),
-    203: _t("Vat Signing Card blocked."),
-    204: _t("Invalid PIN."),
-    205: _t("Fiscal Data Module memory full."),
-    206: _t("Unknown identifier."),
-    207: _t("Invalid data in message sent to the blackbox."),
-    208: _t("Fiscal Data Module not operational. Please restart the blackbox"),
-    209: _t("Fiscal Data Module real time clock corrupt."),
-    210: _t("Vat Signing Card not compatible with Fiscal Data Module."),
-    299: _t("Unspecified error."),
-    300: _t(
-        "Blackbox responded with invalid response. Please check the cable connection and the power supply, then retry. Restart if necessary",
-    ),
-    301: _t(
-        "Blackbox did not respond to your request. This usually means it has disconnected. Please check its cable connection and its power supply. Restart if necessary.",
-    ),
-    426: _t(
-        "Blackbox driver update required. Please restart your IoT Box to update the blackbox driver.",
-    ),
-};
 
 /**
  * Class to handle IoT actions

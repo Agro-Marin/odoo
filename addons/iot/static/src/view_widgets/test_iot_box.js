@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
-import { uuid } from "@web/core/utils/format/strings";
-import { _t } from "@web/core/translation";
 import { Component } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { uuid } from "@web/core/utils/format/strings";
+import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets";
 
 export class TestIotBox extends Component {
@@ -153,11 +153,9 @@ export class TestIotBox extends Component {
 
 export const testIotBox = {
     component: TestIotBox,
-    extractProps: ({ attrs }) => {
-        return {
-            btn_name: attrs.btn_name,
-            btn_class: attrs.btn_class,
-        };
-    },
+    extractProps: ({ attrs }) => ({
+        btn_name: attrs.btn_name,
+        btn_class: attrs.btn_class,
+    }),
 };
 registry.category("view_widgets").add("test_iot_box", testIotBox);

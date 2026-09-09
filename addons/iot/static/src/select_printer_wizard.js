@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { formView, FormController } from "@web/views/form";
-import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
 import { onWillUnmount, useSubEnv } from "@odoo/owl";
+import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { FormController, formView } from "@web/views/form";
 
 export class SelectPrinterFormController extends FormController {
     setup() {

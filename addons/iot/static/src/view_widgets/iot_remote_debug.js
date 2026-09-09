@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
-import { standardWidgetProps } from "@web/views/widgets";
 import { Component, useState } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog";
+import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { Dialog } from "@web/ui/dialog";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class IoTRemoteDebug extends Component {
     static template = `iot.HeaderButton`;
@@ -89,12 +89,10 @@ export class IoTRemoteDebug extends Component {
 
 export const ioTRemoteDebug = {
     component: IoTRemoteDebug,
-    extractProps: ({ attrs }) => {
-        return {
-            btn_name: attrs.btn_name,
-            btn_class: attrs.btn_class,
-        };
-    },
+    extractProps: ({ attrs }) => ({
+        btn_name: attrs.btn_name,
+        btn_class: attrs.btn_class,
+    }),
 };
 
 export class TokenDialog extends Component {

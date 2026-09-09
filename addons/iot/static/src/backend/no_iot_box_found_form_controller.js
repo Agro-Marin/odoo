@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { discoverIotBoxes } from "@iot/client_action/discover_iot_boxes";
-import { formView, FormController } from "@web/views/form";
-import { registry } from "@web/core/registry";
 import { onMounted, onWillUnmount } from "@odoo/owl";
+import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { FormController, formView } from "@web/views/form";
 
 export class NoIoTBoxFoundFormController extends FormController {
     setup() {

@@ -1,12 +1,12 @@
 import { IotWebRtc } from "@iot/network_utils/iot_webrtc";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { EventBus } from "@odoo/owl";
 import {
     defineModels,
     makeMockEnv,
     models,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { EventBus } from "@odoo/owl";
 
 class IotChannel extends models.Model {
     get_iot_channel() {

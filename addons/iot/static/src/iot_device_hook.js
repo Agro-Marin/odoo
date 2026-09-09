@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
 import { DeviceController } from "@iot/device_controller";
 import { useEffect } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 
 /**
  * Use this hook to be able to interact with an iot device.

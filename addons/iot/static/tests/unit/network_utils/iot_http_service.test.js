@@ -1,14 +1,13 @@
+import { IotHttpService } from "@iot/network_utils/iot_http_service";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
+    defineModels,
     makeMockEnv,
     models,
-    defineModels,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { uuid } from "@web/core/utils/format/strings";
 import { browser } from "@web/core/browser/browser";
-
-import { IotHttpService } from "@iot/network_utils/iot_http_service";
+import { uuid } from "@web/core/utils/format/strings";
 
 class IotChannel extends models.Model {
     get_iot_channel() {
@@ -51,9 +50,7 @@ beforeEach(async () => {
 
     orm = new DummyOrm({ ip: "127.0.0.1", identifier: "box-123" });
     patchWithCleanup(browser, {
-        fetch: async (_url) => {
-            return true;
-        },
+        fetch: async (_url) => true,
     });
 
     // if we should receive a failed response from the IoT Box

@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-import { registry } from "@web/core/registry";
 import { browser } from "@web/core/browser/browser";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { uuid } from "@web/core/utils/format/strings";
+
 import {
     IOT_REPORT_PREFERENCE_LOCAL_STORAGE_KEY,
     setReportIdInBrowserLocalStorage,
 } from "./client_action/delete_local_storage.js";
-import { uuid } from "@web/core/utils/format/strings";
 
 /**
  * Method to print the report with the selected devices

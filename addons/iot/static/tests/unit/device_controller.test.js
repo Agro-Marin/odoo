@@ -1,5 +1,5 @@
-import { describe, expect, test } from "@odoo/hoot";
 import { DeviceController } from "@iot/device_controller";
+import { describe, expect, test } from "@odoo/hoot";
 
 describe.current.tags("headless");
 

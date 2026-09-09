@@ -52,6 +52,8 @@ const COMMUNITY_MODULES = [
     "addons/website_slides",
     // POS
     "addons/point_of_sale",
+    "addons/iot",
+    "addons/iot_blackbox_be",
     "addons/iot_drivers",
     "addons/l10n_ar_pos",
     "addons/l10n_co_pos",

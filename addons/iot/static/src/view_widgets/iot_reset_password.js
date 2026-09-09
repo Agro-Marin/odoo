@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
+import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets";
-import { Component } from "@odoo/owl";
 
 export class IoTResetPassword extends Component {
     static template = `iot.HeaderButton`;
@@ -57,11 +57,9 @@ export class IoTResetPassword extends Component {
 
 export const ioTResetPassword = {
     component: IoTResetPassword,
-    extractProps: ({ attrs }) => {
-        return {
-            btn_name: attrs.btn_name,
-            btn_class: attrs.btn_class,
-        };
-    },
+    extractProps: ({ attrs }) => ({
+        btn_name: attrs.btn_name,
+        btn_class: attrs.btn_class,
+    }),
 };
 registry.category("view_widgets").add("iot_reset_password", ioTResetPassword);

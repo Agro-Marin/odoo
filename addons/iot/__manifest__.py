@@ -25,6 +25,7 @@ their own ``iot_*`` modules, so installing one never drags an application in.
         "iot.assets_client": [
             "iot/static/src/network_utils/**/*",
             "iot/static/src/device_controller.js",
+            "iot/static/src/device_messages.js",
         ],
         "iot.assets_report": [
             "iot/static/src/iot_report_action.js",
