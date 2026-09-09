@@ -245,6 +245,9 @@ class ProductTemplate(models.Model):
         store=True,
         inverse="_inverse_default_code",
     )
+    # The four manufacturer fields, their strings and the two hook names below
+    # are OCA product-attribute's design (AGPL-3; see the note in
+    # product_product.py); the bodies are this fork's.
     manufacturer_id = fields.Many2one(
         comodel_name="res.partner",
         compute="_compute_manufacturer_info",
