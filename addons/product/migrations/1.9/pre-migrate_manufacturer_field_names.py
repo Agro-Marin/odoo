@@ -28,17 +28,55 @@ def _rename_the_column(cr):
         SELECT column_name FROM information_schema.columns
          WHERE table_name = 'res_partner' AND column_name = ANY(%s)
         """,
+        # a one-element sequence holding the list: `= ANY(%s)` takes ONE
+        # parameter, and passing the list itself makes psycopg read it as two.
         (["manufacturer", "is_manufacturer"],),
     )
     present = {name for (name,) in cr.fetchall()}
-    if "is_manufacturer" in present or "manufacturer" not in present:
+    if "manufacturer" not in present:
+        # A database that never carried the field: the registry is about to
+        # create it under the new name.
         return
+    if "is_manufacturer" in present:
+        _fold_the_stray_column(cr)
     cr.execute("ALTER TABLE res_partner RENAME COLUMN manufacturer TO is_manufacturer")
     _logger.info("renamed res_partner.manufacturer to is_manufacturer")
 
 
+def _fold_the_stray_column(cr):
+    """Both columns exist, which only a mid-rename registry load produces.
+
+    A server that loaded the renamed Python while `product` was still at its old
+    version made the ORM add `is_manufacturer` and reflect a second
+    `ir.model.fields` row for it, while this migration -- which is what removes
+    the old ones -- had not run. Every developer sharing a checkout during such a
+    window gets this state, and it is not reachable from a released tree.
+
+    The new column is NULL for every row nothing has written since, so a
+    deliberate post-rename write wins and the historical value fills the rest.
+    Folding into the OLD column and dropping the new one keeps the rename below
+    unchanged, so the recovery path is a prefix of the ordinary one rather than a
+    second way of doing it.
+    """
+    cr.execute(
+        """
+        UPDATE res_partner SET manufacturer = is_manufacturer
+         WHERE is_manufacturer IS NOT NULL
+           AND manufacturer IS DISTINCT FROM is_manufacturer
+        """
+    )
+    folded = cr.rowcount
+    cr.execute("ALTER TABLE res_partner DROP COLUMN is_manufacturer")
+    _logger.info(
+        "folded a stray res_partner.is_manufacturer column left by a mid-rename "
+        "registry load; %s row(s) took the newer value",
+        folded,
+    )
+
+
 def _rename_the_metadata_rows(cr):
     for old, new in RENAMES.items():
+        _drop_the_stray_field_rows(cr, new)
         cr.execute(
             "UPDATE ir_model_fields SET name = %s WHERE name = %s AND model = ANY(%s)",
             (new, old, MODELS),
@@ -135,6 +173,36 @@ EXPRESSION_ATTRS = (
     "domain",
     "context",
 )
+
+
+def _drop_the_stray_field_rows(cr, new):
+    """Delete an `ir.model.fields` row the registry reflected under the new name.
+
+    Same window as `_fold_the_stray_column`, one level up: the ORM reflected a
+    second row for the new name while the old one was still there, so renaming
+    onto it dies on `ir_model_fields_name_unique`. The NEW row is the accidental
+    one -- it carries no xml id and no history -- while the old row is what
+    `field_res_partner__<old>` points at and what any default, tracking value or
+    server action references. So the stray is dropped and the old row renamed,
+    which leaves every reference intact.
+
+    Two of the eleven foreign keys onto `ir_model_fields` are NO ACTION rather
+    than CASCADE -- `mail_tracking_value.field_id` and
+    `ir_act_server.link_field_id` -- so a stray that something already references
+    would raise here rather than be silently detached. Neither field is tracked
+    and neither is a server-action link, so it has not been seen; a database
+    where it happens gets a loud failure and this docstring.
+    """
+    cr.execute(
+        "DELETE FROM ir_model_fields WHERE name = %s AND model = ANY(%s)",
+        (new, MODELS),
+    )
+    if cr.rowcount:
+        _logger.info(
+            "dropped %s stray %s row(s) reflected by a mid-rename registry load",
+            cr.rowcount,
+            new,
+        )
 
 
 def _rewrite_stored_arches(cr):
