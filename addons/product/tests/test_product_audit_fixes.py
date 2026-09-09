@@ -68,10 +68,14 @@ class TestProductAuditFixes(ProductCommon):
         self.assertFalse(item.product_id)
 
     def test_settings_save_does_not_archive_pricelists_when_already_disabled(self):
+        # The toggle is a group implied on base.group_user, and that implication
+        # is what res.config.settings reads back. Dropping the group from the
+        # current user leaves the feature on, so turn it off the way the
+        # settings themselves do, before there is a pricelist to lose.
+        self.env["res.config.settings"].create(
+            {"group_product_pricelist": False}
+        ).execute()
         pricelist = self.env["product.pricelist"].create({"name": "SurvivorPL"})
-        group = self.env.ref("product.group_product_pricelist")
-        self.env.user.write({"group_ids": [Command.unlink(group.id)]})
-        self.env.invalidate_all()
 
         settings = self.env["res.config.settings"].create({})
         self.assertFalse(
