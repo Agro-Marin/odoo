@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import {
-    KanbanRecordQuickCreate,
     KanbanQuickCreateController,
+    KanbanRecordQuickCreate,
 } from "@web/views/kanban";
 
 export class BankRecQuickCreateController extends KanbanQuickCreateController {

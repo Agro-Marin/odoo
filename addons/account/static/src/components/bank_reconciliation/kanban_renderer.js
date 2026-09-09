@@ -1,18 +1,19 @@
 /** @odoo-module native */
+import { onWillDestroy, onWillStart, useState } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
+import { formatMonetary } from "@web/core/formatters";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { KanbanRenderer, kanbanView } from "@web/views/kanban";
+
+import { useBankReconciliation } from "./bank_reconciliation_service.js";
 import { BankRecChatter } from "./chatter/chatter.js";
-import { BankRecQuickCreate } from "./quick_create/quick_create.js";
+import { BankRecKanbanControlPanel } from "./control_action/control_action.js";
 import { BankRecKanbanController } from "./kanban_controller.js";
+import { BankRecQuickCreate } from "./quick_create/quick_create.js";
 import { BankRecStatementLine } from "./statement_line/statement_line.js";
 import { BankRecStatementSummary } from "./statement_summary/statement_summary.js";
-import { browser } from "@web/core/browser/browser";
-import { KanbanRenderer, kanbanView } from "@web/views/kanban";
-import { _t } from "@web/core/translation";
-import { formatMonetary } from "@web/core/formatters";
-import { useState, onWillStart, onWillDestroy } from "@odoo/owl";
-import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
-import { useBankReconciliation } from "./bank_reconciliation_service.js";
-import { BankRecKanbanControlPanel } from "./control_action/control_action.js";
 
 export class BankRecKanbanRenderer extends KanbanRenderer {
     static template = "account.BankRecKanbanRenderer";
@@ -151,8 +152,7 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
             views: [[false, "form"]],
             target: "current",
             context: {
-                form_view_ref:
-                    "account.view_bank_statement_form_bank_rec_widget",
+                form_view_ref: "account.view_bank_statement_form_bank_rec_widget",
             },
         };
 

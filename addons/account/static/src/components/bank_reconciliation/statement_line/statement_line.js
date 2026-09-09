@@ -1,14 +1,15 @@
 /** @odoo-module native */
+import { onWillStart, useEffect, useRef, useState } from "@odoo/owl";
+import { DropdownItem } from "@web/components/dropdown";
+import { formatMonetary } from "@web/core/formatters";
+import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
+import { KanbanRecord } from "@web/views/kanban";
+
+import { useBankReconciliation } from "../bank_reconciliation_service.js";
 import { BankRecButtonList } from "../button_list/button_list.js";
 import { BankRecLineToReconcile } from "../line_to_reconcile/line_to_reconcile.js";
 import { BankRecReconciledLineName } from "../reconciled_line_name/reconciled_line_name.js";
-import { DropdownItem } from "@web/components/dropdown";
-import { formatMonetary } from "@web/core/formatters";
-import { KanbanRecord } from "@web/views/kanban";
-import { user } from "@web/core/user";
-import { useService } from "@web/core/utils/hooks";
-import { onWillStart, useEffect, useState, useRef } from "@odoo/owl";
-import { useBankReconciliation } from "../bank_reconciliation_service.js";
 
 export class BankRecStatementLine extends KanbanRecord {
     static template = "account.BankRecStatementLine";
@@ -63,18 +64,15 @@ export class BankRecStatementLine extends KanbanRecord {
     // ACTION METHODS
 
     openStatementCreate() {
-        this.action.doAction(
-            "account.action_bank_statement_form_bank_rec_widget",
-            {
-                additionalContext: {
-                    split_line_id: this.recordData.id,
-                    default_journal_id: this.recordData.journal_id.id,
-                },
-                onClose: async () => {
-                    this.env.model.load();
-                },
+        this.action.doAction("account.action_bank_statement_form_bank_rec_widget", {
+            additionalContext: {
+                split_line_id: this.recordData.id,
+                default_journal_id: this.recordData.journal_id.id,
             },
-        );
+            onClose: async () => {
+                this.env.model.load();
+            },
+        });
     }
 
     openPartner() {

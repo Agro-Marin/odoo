@@ -1,8 +1,8 @@
 /** @odoo-module native */
 
+import { accountTourSteps } from "@account/js/tours/account";
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
-import { accountTourSteps } from "@account/js/tours/account";
 
 registry.category("web_tour.tours").add("account_accountant_journal_items_export", {
     url: "/web",

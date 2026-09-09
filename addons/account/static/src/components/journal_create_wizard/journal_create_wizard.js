@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
 import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions";
-import { user } from "@web/core/user";
 
 class JournalCreateWizardCard extends Component {
     static template = "account.JournalCreateWizardCard";

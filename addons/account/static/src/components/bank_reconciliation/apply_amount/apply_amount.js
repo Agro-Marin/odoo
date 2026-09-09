@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { standardFieldProps } from "@web/fields/standard_field_props";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class BankRecWidgetApplyAmountHtmlField extends Component {
     static props = standardFieldProps;

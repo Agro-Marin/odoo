@@ -1,12 +1,13 @@
 /** @odoo-module native */
+import { useChildSubEnv } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { makeActiveField } from "@web/model/relational_model";
+import { listView } from "@web/views/list";
+
 import {
     AttachmentPreviewListController,
     AttachmentPreviewListRenderer,
 } from "../../attachment_preview_list_view/attachment_preview_list_view.js";
-import { registry } from "@web/core/registry";
-import { listView } from "@web/views/list";
-import { useChildSubEnv } from "@odoo/owl";
-import { makeActiveField } from "@web/model/relational_model";
 
 export class BankRecListController extends AttachmentPreviewListController {
     setup() {

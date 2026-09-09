@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { SelectCreateDialog } from "@web/views/view_dialogs";
 import { formatMonetary } from "@web/core/formatters";
 import { useService } from "@web/core/utils/hooks";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
 
 import { DateTime } from "luxon";
 export class BankRecSelectCreateDialog extends SelectCreateDialog {
@@ -49,7 +49,7 @@ export class BankRecSelectCreateDialog extends SelectCreateDialog {
             return;
         }
 
-        let selectedLinesSum = 0;
+        let selectedLinesSum;
         // When the suspense currency differs from the company one, the remaining amount cannot be
         // computed reliably because of exchange rates. In that case, unless the selected lines all
         // share the suspense currency, we hide the remaining amount.
@@ -70,14 +70,16 @@ export class BankRecSelectCreateDialog extends SelectCreateDialog {
                 this.state.hideRemainingAmount = true;
                 return;
             } else {
-                selectedLinesSum = selectedLines.reduce((sum, line) => {
-                    return sum + line.amount_residual_currency;
-                }, 0);
+                selectedLinesSum = selectedLines.reduce(
+                    (sum, line) => sum + line.amount_residual_currency,
+                    0,
+                );
             }
         } else {
-            selectedLinesSum = selectedLines.reduce((sum, line) => {
-                return sum + line.amount_residual;
-            }, 0);
+            selectedLinesSum = selectedLines.reduce(
+                (sum, line) => sum + line.amount_residual,
+                0,
+            );
         }
         this.state.remainingAmount =
             this.suspenseAccountLine.amount_currency + selectedLinesSum;

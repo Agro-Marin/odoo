@@ -1,7 +1,7 @@
 /** @odoo-module native */
 
-import { patch } from "@web/core/utils/patch";
 import { rpc } from "@web/core/network";
+import { patch } from "@web/core/utils/patch";
 import { ExportDataDialog } from "@web/views/view_dialogs";
 
 patch(ExportDataDialog.prototype, {

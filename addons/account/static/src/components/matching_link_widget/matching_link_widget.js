@@ -1,8 +1,8 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { Component } from "@odoo/owl";
 
 class MatchingLink extends Component {
     static props = { ...standardFieldProps };
@@ -14,15 +14,12 @@ class MatchingLink extends Component {
     }
 
     async reconcile() {
-        this.action.doAction(
-            "account.action_move_line_posted_unreconciled",
-            {
-                additionalContext: {
-                    search_default_partner_id: this.props.record.data.partner_id.id,
-                    search_default_account_id: this.props.record.data.account_id.id,
-                },
+        this.action.doAction("account.action_move_line_posted_unreconciled", {
+            additionalContext: {
+                search_default_partner_id: this.props.record.data.partner_id.id,
+                search_default_account_id: this.props.record.data.account_id.id,
             },
-        );
+        });
     }
 
     async viewMatch() {

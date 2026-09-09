@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { AccountAttachmentView } from "./account_attachment_view.js";
-
+import { useChildSubEnv, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { listView, ListRenderer, ListController } from "@web/views/list";
 import { SIZES } from "@web/ui/viewport";
-import { useChildSubEnv, useState } from "@odoo/owl";
+import { ListController, ListRenderer, listView } from "@web/views/list";
+
+import { AccountAttachmentView } from "./account_attachment_view.js";
 
 export class AttachmentPreviewListController extends ListController {
     static template = "account.AttachmentPreviewListView";

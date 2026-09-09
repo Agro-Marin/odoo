@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { FormController, formView } from "@web/views/form";
-import { FormViewDialog } from "@web/views/view_dialogs";
 import { onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
+import { FormController, formView } from "@web/views/form";
+import { FormViewDialog } from "@web/views/view_dialogs";
 
 export class BankRecFormDialog extends FormViewDialog {
     setup() {

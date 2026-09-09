@@ -1,3 +1,4 @@
+import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, runAllTimers, test } from "@odoo/hoot";
 import {
     clickFieldDropdownItem,
@@ -8,7 +9,6 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { mailModels } from "@mail/../tests/mail_test_helpers";
 
 class AccountBankStatement extends models.Model {
     name = fields.Char();

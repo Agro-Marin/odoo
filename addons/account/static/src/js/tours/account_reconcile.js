@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-import { registry } from "@web/core/registry";
-import { patch } from "@web/core/utils/patch";
-import { markup } from "@odoo/owl";
 import { accountTourSteps } from "@account/js/tours/account";
+import { markup } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { patch } from "@web/core/utils/patch";
 
 patch(accountTourSteps, {
     draftBillSelector:

@@ -1,18 +1,19 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { getCurrency } from "@web/core/currency";
+import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { _t } from "@web/core/translation";
+import { floatIsZero } from "@web/core/utils/format/numbers";
+import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
+
+import { useBankReconciliation } from "../bank_reconciliation_service.js";
 import { BankRecButton } from "../button/button.js";
 import { BankRecFileUploader } from "../file_uploader/file_uploader.js";
-import { Component } from "@odoo/owl";
-import { ConfirmationDialog } from "@web/ui/dialog";
-import { Dropdown, DropdownItem } from "@web/components/dropdown";
-import { SelectCreateDialog } from "@web/views/view_dialogs";
 import { BankRecSelectCreateDialog } from "../search_dialog/search_dialog.js";
-import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
-import { _t } from "@web/core/translation";
-import { getCurrency } from "@web/core/currency";
-import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { useBankReconciliation } from "../bank_reconciliation_service.js";
-import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
-import { floatIsZero } from "@web/core/utils/format/numbers";
 
 const mediaBreakpointLarge = MEDIAS_BREAKPOINTS[SIZES.LG];
 
@@ -245,12 +246,9 @@ export class BankRecButtonList extends Component {
      */
     reconcileOnReconcileLine() {
         const context = {
-            kanban_view_ref:
-                "account.view_account_move_line_kanban_bank_rec_widget",
-            list_view_ref:
-                "account.view_account_move_line_list_bank_rec_widget",
-            search_view_ref:
-                "account.view_account_move_line_search_bank_rec_widget",
+            kanban_view_ref: "account.view_account_move_line_kanban_bank_rec_widget",
+            list_view_ref: "account.view_account_move_line_list_bank_rec_widget",
+            search_view_ref: "account.view_account_move_line_search_bank_rec_widget",
             preferred_aml_value: -this.props.suspenseAccountLine.amount_currency,
             preferred_aml_currency_id: this.props.suspenseAccountLine.currency_id.id,
             ...(this.statementLineData.partner_id

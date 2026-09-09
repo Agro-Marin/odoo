@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { EventBus, reactive, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { useService } from "@web/core/utils/hooks";
-import { registry } from "@web/core/registry";
 import { Domain } from "@web/core/domain";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 
 export class BankReconciliationService {
     constructor(env, services) {

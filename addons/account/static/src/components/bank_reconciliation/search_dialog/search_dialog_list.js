@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { ListController, ListRenderer, listView } from "@web/views/list";
-import { registry } from "@web/core/registry";
 import { useState } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { ListController, ListRenderer, listView } from "@web/views/list";
 
 export class BankRecReconcileDialogListController extends ListController {
     static template = "account.BankRecReconcileDialogListView";
@@ -17,8 +17,7 @@ export class BankRecReconcileDialogListController extends ListController {
 
 export class BankRecReconcileDialogListRenderer extends ListRenderer {
     static template = "account.BankRecReconcileDialogListRenderer";
-    static recordRowTemplate =
-        "account.BankRecReconcileDialogListRenderer.RecordRow";
+    static recordRowTemplate = "account.BankRecReconcileDialogListRenderer.RecordRow";
     static props = [...ListRenderer.props, "bankRecInfo?"];
 
     setup() {

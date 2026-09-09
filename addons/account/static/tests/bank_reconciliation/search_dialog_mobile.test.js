@@ -1,3 +1,4 @@
+import { BankRecSelectCreateDialog } from "@account/components/bank_reconciliation/search_dialog/search_dialog";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { click, keyDown, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
@@ -11,8 +12,6 @@ import {
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { WebClient } from "@web/webclient/webclient";
-
-import { BankRecSelectCreateDialog } from "@account/components/bank_reconciliation/search_dialog/search_dialog";
 
 class AccountMoveLine extends models.Model {
     move_name = fields.Char({ string: "Move Name" });

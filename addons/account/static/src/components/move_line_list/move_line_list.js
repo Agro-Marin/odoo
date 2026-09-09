@@ -1,12 +1,12 @@
 /** @odoo-module native */
+import { registry } from "@web/core/registry";
+import { makeActiveField } from "@web/model/relational_model";
+import { listView } from "@web/views/list";
+
 import {
     AttachmentPreviewListController,
     AttachmentPreviewListRenderer,
 } from "../attachment_preview_list_view/attachment_preview_list_view.js";
-
-import { registry } from "@web/core/registry";
-import { listView } from "@web/views/list";
-import { makeActiveField } from "@web/model/relational_model";
 
 export class AccountMoveLineListController extends AttachmentPreviewListController {
     get previewerStorageKey() {

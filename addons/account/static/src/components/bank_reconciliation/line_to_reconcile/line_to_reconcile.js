@@ -1,15 +1,16 @@
 /** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
-import { _t } from "@web/core/translation";
+import { TagsList } from "@web/components/tags_list";
 import { formatMonetary, formatPercentage } from "@web/core/formatters";
+import { x2ManyCommands } from "@web/core/network";
+import { _t } from "@web/core/translation";
+import { roundDecimals } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
-import { useBankReconciliation } from "../bank_reconciliation_service.js";
 import { usePopover } from "@web/ui/popover";
+
+import { useBankReconciliation } from "../bank_reconciliation_service.js";
 import { BankRecFormDialog } from "../bankrec_form_dialog/bankrec_form_dialog.js";
 import { BankRecLineInfoPopOver } from "../line_info_pop_over/line_info_pop_over.js";
-import { x2ManyCommands } from "@web/core/network";
-import { roundDecimals } from "@web/core/utils/format/numbers";
-import { TagsList } from "@web/components/tags_list";
 
 export class BankRecLineToReconcile extends Component {
     static template = "account.BankRecLineToReconcile";

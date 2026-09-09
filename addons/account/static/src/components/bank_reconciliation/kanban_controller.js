@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { useSubEnv, onWillRender, onWillDestroy } from "@odoo/owl";
-import { KanbanController } from "@web/views/kanban";
-import { makeActiveField } from "@web/model/relational_model";
-import { useService } from "@web/core/utils/hooks";
-import { useBankReconciliation } from "./bank_reconciliation_service.js";
+import { onWillDestroy, onWillRender, useSubEnv } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
+import { makeActiveField } from "@web/model/relational_model";
+import { KanbanController } from "@web/views/kanban";
+
+import { useBankReconciliation } from "./bank_reconciliation_service.js";
 
 export class BankRecKanbanController extends KanbanController {
     static template = "account.BankRecoKanbanController";

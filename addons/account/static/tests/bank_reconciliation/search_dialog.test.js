@@ -1,4 +1,4 @@
-import { luxon } from "@web/core/l10n/luxon";
+import { BankRecSelectCreateDialog } from "@account/components/bank_reconciliation/search_dialog/search_dialog";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { click, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
@@ -11,9 +11,8 @@ import {
     models,
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 import { WebClient } from "@web/webclient/webclient";
-
-import { BankRecSelectCreateDialog } from "@account/components/bank_reconciliation/search_dialog/search_dialog";
 
 class AccountMoveLine extends models.Model {
     name = fields.Char({ string: "Name" });

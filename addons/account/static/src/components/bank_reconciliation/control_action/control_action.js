@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { ActionMenus } from "@web/search/action_menus/action_menus";
-import { BankRecButton } from "../button/button.js";
-import { SelectCreateDialog } from "@web/views/view_dialogs";
-import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
-import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { useBankReconciliation } from "../bank_reconciliation_service.js";
 import { _t } from "@web/core/translation";
+import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { ActionMenus } from "@web/search/action_menus/action_menus";
+import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { SelectCreateDialog } from "@web/views/view_dialogs";
+
+import { useBankReconciliation } from "../bank_reconciliation_service.js";
+import { BankRecButton } from "../button/button.js";
 
 export class BankRecKanbanControlPanel extends ControlPanel {
     static template = "account.BankRecKanbanControlPanel";

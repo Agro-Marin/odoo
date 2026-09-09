@@ -20,13 +20,13 @@ export class BankRecStatementSummary extends Component {
         const facets = this.env.searchModel.facets;
         const searchItems = this.env.searchModel.searchItems;
         const invalidStatementFilter = Object.values(searchItems).find(
-            (i) => i.name == "invalid_statement",
+            (i) => i.name === "invalid_statement",
         );
         const invalidStatementFacet = facets.filter(
-            (i) => i.groupId == invalidStatementFilter.groupId,
+            (i) => i.groupId === invalidStatementFilter.groupId,
         );
         if (
-            invalidStatementFacet.length == 0 ||
+            invalidStatementFacet.length === 0 ||
             !invalidStatementFacet[0].values.includes(
                 invalidStatementFilter.description,
             )

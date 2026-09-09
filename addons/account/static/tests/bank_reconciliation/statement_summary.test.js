@@ -1,10 +1,9 @@
+import { BankRecStatementSummary } from "@account/components/bank_reconciliation/statement_summary/statement_summary";
+import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { mountWithCleanup, defineModels } from "@web/../tests/web_test_helpers";
-import { mailModels } from "@mail/../tests/mail_test_helpers";
-
-import { BankRecStatementSummary } from "@account/components/bank_reconciliation/statement_summary/statement_summary";
+import { defineModels, mountWithCleanup } from "@web/../tests/web_test_helpers";
 
 // Due to dependency with mail module, we have to define their models for our tests.
 defineModels(mailModels);

@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { KanbanController, KanbanRenderer, kanbanView } from "@web/views/kanban";
-import { registry } from "@web/core/registry";
 import { useState } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { KanbanController, KanbanRenderer, kanbanView } from "@web/views/kanban";
 
 export class BankRecReconcileDialogKanbanController extends KanbanController {
     static template = "account.BankRecReconcileDialogKanbanView";

@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import { useSubEnv } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+
 import {
     AccountMoveLineListController,
     AccountMoveLineListRenderer,

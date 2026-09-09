@@ -2,9 +2,9 @@
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import {
+    buildM2OFieldDescription,
     computeM2OProps,
     Many2One,
-    buildM2OFieldDescription,
     Many2OneField,
 } from "@web/fields/relational/many2one";
 
