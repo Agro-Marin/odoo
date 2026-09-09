@@ -85,8 +85,7 @@ class ResCompany(models.Model):
             dropship_picking_type = self.env["stock.picking.type"].search(
                 [
                     ("company_id", "=", company.id),
-                    ("default_location_src_id.usage", "=", "supplier"),
-                    ("default_location_dest_id.usage", "=", "customer"),
+                    ("code", "=", "dropship"),
                 ],
                 limit=1,
                 order="sequence",
