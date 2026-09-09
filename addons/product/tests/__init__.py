@@ -15,6 +15,9 @@ from . import test_combination_engine
 from . import test_product_audit_fixes
 from . import test_product_deduplication
 from . import test_product_investigation_0824
+from . import test_manufacturer_backfill
+from . import test_partner_manufacturer
+from . import test_product_manufacturer
 from . import test_product_combo
 from . import test_product_favorite
 from . import test_product_merge

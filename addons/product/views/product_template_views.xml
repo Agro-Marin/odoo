@@ -10,6 +10,7 @@
                     name="name"
                     string="Product"
                     filter_domain="['|', '|', '|', ('default_code', 'ilike', self), ('product_variant_ids.default_code', 'ilike', self),('name', 'ilike', self), ('barcode', 'ilike', self)]" />
+                <field name="manufacturer_id" />
                 <field
                     name="categ_id"
                     filter_domain="[('categ_id', 'child_of', raw_value)]" />
@@ -480,6 +481,21 @@
                                             style="max-width: 7rem;" />
                                         <field name="volume_uom_name" />
                                     </div>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Manufacturer" name="manufacturer">
+                            <group name="manufacturer">
+                                <group>
+                                    <field
+                                        name="manufacturer_id"
+                                        context="{'default_manufacturer': True}"
+                                        domain="[('manufacturer', '=', True)]" />
+                                    <field name="manufacturer_pname" />
+                                </group>
+                                <group>
+                                    <field name="manufacturer_pref" />
+                                    <field name="manufacturer_purl" widget="url" />
                                 </group>
                             </group>
                         </page>

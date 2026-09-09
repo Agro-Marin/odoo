@@ -5303,3 +5303,64 @@ msgstr ""
 #: model:ir.model.fields.selection,name:product.selection__res_config_settings__product_fuel_efficiency_in_mpg__0
 msgid "km/L"
 msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.view_partner_manufacturer_kanban
+msgid "Archive"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.actions.act_window,help:product.action_partner_manufacturers
+msgid "Create a new manufacturer"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_res_partner__manufactured_product_ids
+#: model:ir.model.fields,field_description:product.field_res_users__manufactured_product_ids
+msgid "Manufactured Products"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_product__manufacturer_id
+#: model:ir.model.fields,field_description:product.field_product_template__manufacturer_id
+#: model:ir.model.fields,field_description:product.field_res_partner__manufacturer
+#: model:ir.model.fields,field_description:product.field_res_users__manufacturer
+#: model_terms:ir.ui.view,arch_db:product.view_partner_manufacturer_form
+#: model_terms:ir.ui.view,arch_db:product.view_product_product_form_easy_edit
+#: model_terms:ir.ui.view,arch_db:product.view_product_template_form
+msgid "Manufacturer"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_product__manufacturer_pref
+#: model:ir.model.fields,field_description:product.field_product_template__manufacturer_pref
+msgid "Manufacturer Product Code"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_product__manufacturer_pname
+#: model:ir.model.fields,field_description:product.field_product_template__manufacturer_pname
+msgid "Manufacturer Product Name"
+msgstr ""
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_product_product__manufacturer_purl
+#: model:ir.model.fields,field_description:product.field_product_template__manufacturer_purl
+msgid "Manufacturer Product URL"
+msgstr ""
+
+#. module: product
+#: model:ir.actions.act_window,name:product.action_partner_manufacturers
+#: model_terms:ir.ui.view,arch_db:product.view_partner_manufacturer_list
+msgid "Manufacturers"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.view_partner_manufacturer_kanban
+msgid "PRODUCTS"
+msgstr ""
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.view_partner_manufacturer_kanban
+msgid "Restore"
+msgstr ""

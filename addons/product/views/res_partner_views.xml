@@ -14,4 +14,136 @@
         </field>
     </record>
 
+    <record id="view_partner_form_manufacturer" model="ir.ui.view">
+        <field name="name">res.partner.form.manufacturer</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form" />
+        <field name="priority" eval="100" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='options']" position="inside">
+                <span id="manufacturer_span" class="d-inline-flex">
+                    <field name="manufacturer" />
+                    <label for="manufacturer" />
+                </span>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_partner_manufacturer_search" model="ir.ui.view">
+        <field name="name">res.partner.manufacturer.search</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <separator />
+                <filter
+                    string="Archived"
+                    name="active"
+                    domain="[('active', '=', False)]" />
+            </search>
+        </field>
+    </record>
+
+    <record id="view_partner_manufacturer_list" model="ir.ui.view">
+        <field name="name">res.partner.manufacturer.list</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <list string="Manufacturers">
+                <field name="name" />
+                <field name="product_count" string="Products" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_partner_manufacturer_kanban" model="ir.ui.view">
+        <field name="name">res.partner.manufacturer.kanban</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <kanban default_order="name">
+                <field name="active" />
+                <templates>
+                    <t t-name="menu">
+                        <a role="menuitem" type="open" class="dropdown-item">Configuration</a>
+                        <a
+                            role="menuitem"
+                            type="object"
+                            name="toggle_active"
+                            class="dropdown-item">
+                            <t t-if="record.active.raw_value">Archive</t>
+                            <t t-else="">Restore</t>
+                        </a>
+                        <a role="menuitem" t-if="widget.deletable" type="delete" class="dropdown-item">Delete</a>
+                    </t>
+                    <t t-name="card" class="flex-row p-1">
+                        <aside>
+                            <field
+                                name="image_128"
+                                widget="image"
+                                options="{'img_class': 'object-fit-contain'}" />
+                        </aside>
+                        <main class="ms-2 mt-1">
+                            <field class="fw-bold fs-5" name="name" />
+                            <a
+                                type="object"
+                                name="action_view_manufacturer_products"
+                                class="mt-2 text-black">
+                                <field name="product_count" /> PRODUCTS
+                            </a>
+                        </main>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_partner_manufacturer_form" model="ir.ui.view">
+        <field name="name">res.partner.manufacturer.form</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <form string="Manufacturer">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_view_manufacturer_products"
+                            type="object"
+                            icon="fa-cubes"
+                            class="oe_stat_button"
+                            invisible="product_count == 0">
+                            <field
+                                name="product_count"
+                                widget="statinfo"
+                                string="Products" />
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field
+                                name="image_128"
+                                widget="image"
+                                class="oe_avatar float-start" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_partner_manufacturers" model="ir.actions.act_window">
+        <field name="name">Manufacturers</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_partner_manufacturer_search" />
+        <field name="domain">[('manufacturer', '=', True)]</field>
+        <field name="context">{'default_manufacturer': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new manufacturer
+            </p>
+        </field>
+        <field
+            name="view_ids"
+            eval="[             (5, 0, 0),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_partner_manufacturer_kanban')}),             (0, 0, {'view_mode': 'list', 'view_id': ref('view_partner_manufacturer_list')}),             (0, 0, {'view_mode': 'form', 'view_id': ref('view_partner_manufacturer_form')}),         ]" />
+    </record>
+
 </odoo>

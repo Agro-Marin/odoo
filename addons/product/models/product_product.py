@@ -71,6 +71,10 @@ class ProductProduct(models.Model):
         string="Customer Ref",
         compute="_compute_partner_ref",
     )
+    manufacturer_id = fields.Many2one(comodel_name="res.partner")
+    manufacturer_pname = fields.Char(string="Manufacturer Product Name")
+    manufacturer_pref = fields.Char(string="Manufacturer Product Code")
+    manufacturer_purl = fields.Char(string="Manufacturer Product URL")
 
     product_uom_ids = fields.One2many(
         comodel_name="product.uom",

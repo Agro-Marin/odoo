@@ -12,6 +12,14 @@ from odoo.tools.misc import unique
 _logger = logging.getLogger(__name__)
 PRICE_CONTEXT_KEYS = ["pricelist", "quantity", "uom", "date"]
 
+# the four fields product.template mirrors from its single variant
+MANUFACTURER_FIELDS = (
+    "manufacturer_id",
+    "manufacturer_pname",
+    "manufacturer_pref",
+    "manufacturer_purl",
+)
+
 
 class ProductTemplate(models.Model):
     _name = "product.template"
@@ -236,6 +244,30 @@ class ProductTemplate(models.Model):
         compute="_compute_default_code",
         store=True,
         inverse="_inverse_default_code",
+    )
+    manufacturer_id = fields.Many2one(
+        comodel_name="res.partner",
+        compute="_compute_manufacturer_info",
+        inverse="_inverse_manufacturer_info",
+        store=True,
+    )
+    manufacturer_pname = fields.Char(
+        string="Manufacturer Product Name",
+        compute="_compute_manufacturer_info",
+        inverse="_inverse_manufacturer_info",
+        store=True,
+    )
+    manufacturer_pref = fields.Char(
+        string="Manufacturer Product Code",
+        compute="_compute_manufacturer_info",
+        inverse="_inverse_manufacturer_info",
+        store=True,
+    )
+    manufacturer_purl = fields.Char(
+        string="Manufacturer Product URL",
+        compute="_compute_manufacturer_info",
+        inverse="_inverse_manufacturer_info",
+        store=True,
     )
 
     pricelist_rule_ids = fields.One2many(
@@ -536,6 +568,17 @@ class ProductTemplate(models.Model):
     def _compute_default_code(self):
         self._compute_template_field_from_variant_field("default_code")
 
+    @api.depends(
+        "product_variant_ids",
+        "product_variant_ids.manufacturer_id",
+        "product_variant_ids.manufacturer_pname",
+        "product_variant_ids.manufacturer_pref",
+        "product_variant_ids.manufacturer_purl",
+    )
+    def _compute_manufacturer_info(self):
+        for fname in MANUFACTURER_FIELDS:
+            self._compute_template_field_from_variant_field(fname)
+
     @api.depends("type")
     def _compute_product_tooltip(self):
         for template in self:
@@ -593,6 +636,10 @@ class ProductTemplate(models.Model):
 
     def _inverse_default_code(self):
         self._set_product_variant_field("default_code")
+
+    def _inverse_manufacturer_info(self):
+        for fname in MANUFACTURER_FIELDS:
+            self._set_product_variant_field(fname)
 
     def _inverse_import_attribute_values(self):
         raise UserError(_("This field can only be used to import products."))
@@ -1418,6 +1465,7 @@ class ProductTemplate(models.Model):
             "volume",
             "weight",
             "product_properties",
+            *MANUFACTURER_FIELDS,
         ]
 
     @api.model

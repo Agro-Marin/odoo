@@ -377,6 +377,19 @@
                                 context="{'product_variant_id': id}" />
                         </group>
                     </group>
+                <group name="manufacturer" string="Manufacturer">
+                    <group>
+                        <field
+                            name="manufacturer_id"
+                            context="{'default_manufacturer': True}"
+                            domain="[('manufacturer', '=', True)]" />
+                        <field name="manufacturer_pname" />
+                    </group>
+                    <group>
+                        <field name="manufacturer_pref" />
+                        <field name="manufacturer_purl" widget="url" />
+                    </group>
+                </group>
                 </sheet>
             </form>
         </field>

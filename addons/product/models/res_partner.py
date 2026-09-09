@@ -19,6 +19,14 @@ class ResPartner(models.Model):
         company_dependent=True,
     )
 
+    manufacturer = fields.Boolean()
+    manufactured_product_ids = fields.One2many(
+        comodel_name="product.template",
+        inverse_name="manufacturer_id",
+        string="Manufactured Products",
+    )
+    product_count = fields.Count("manufactured_product_ids", readonly=True)
+
     @api.depends_context("company", "country_code")
     @api.depends("country_id", "specific_property_product_pricelist")
     def _compute_property_product_pricelist(self):
@@ -47,3 +55,16 @@ class ResPartner(models.Model):
             *super()._synced_commercial_fields(),
             "specific_property_product_pricelist",
         ]
+
+    def action_view_manufacturer_products(self):
+        self.check_singleton()
+        return {
+            "name": self.env._("Products"),
+            "type": "ir.actions.act_window",
+            "res_model": "product.template",
+            "view_mode": "list,form",
+            "context": {
+                "search_default_manufacturer_id": self.id,
+                "default_manufacturer_id": self.id,
+            },
+        }
