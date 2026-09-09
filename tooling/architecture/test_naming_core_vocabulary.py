@@ -111,6 +111,18 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertEqual(hit[0], "assemble")
 
+    def test_a_predicate_hiding_behind_detect_is_reported(self):
+        # `detect` names neither row it can belong to, so the body picks: the
+        # six in addons/mail all returned a computed bool and became
+        # `_is_` / `_has_`. `_detect_is_bounce` is the entry's whole argument in
+        # one name -- a predicate that has to say `is` in the middle because a
+        # verb took the front.
+        for name in ("_detect_is_bounce", "_detect_loop_headers"):
+            with self.subTest(name):
+                hit = ncv.classify_name(name)
+                self.assertIsNotNone(hit, name)
+                self.assertEqual(hit[0], "synonym")
+
     def test_the_verbs_the_table_declines_to_add_stay_out(self):
         # Argued in the SYNONYMS comment, and asserted here so that adding one
         # is a decision rather than a diff nobody reads. `emit` is
@@ -321,6 +333,76 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         # line this gate deliberately does not cross.
         self.assertIsNone(ncv.classify_name("delete"))
 
+    def test_a_show_that_answers_a_question_is_a_predicate(self):
+        # §2.4.20's fourth predicate prefix. It is out of the SHARED table for a
+        # reason about that table rather than about the verb -- an `ABOLISHED`
+        # entry prints ONE canonical and this family has three -- so the rule
+        # belongs here, where the `why` is free-form and can print all three.
+        node = self.parse(
+            "def _show_discount(self):\n"
+            "    if not self:\n"
+            "        return False\n"
+            "    return self.compute_price == 'percentage'\n"
+        )
+        self.assertIsNone(ncv.classify_name("_show_discount"))
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "show-predicate")
+
+    def test_a_show_that_returns_a_truthy_operand_is_not_a_predicate(self):
+        # The Predicate row's own warning: the return TYPE is not the test. A
+        # `show_*` returning a recordset or a truthy operand is not answering a
+        # question, and sale's nested `show_line` is exactly that shape.
+        node = self.parse(
+            "def show_line(line):\n    return line.display_type and lines\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_call_to_a_predicate_is_evidence_of_a_computed_boolean(self):
+        # §2.4.3's Predicate row is a CONTRACT -- "the returned `bool` is the
+        # answer to a question about the subject" -- so a `self._is_x()` is a
+        # boolean on the vocabulary's own authority, read like `bool(...)`.
+        # Without this the `and` below fails on its first operand and the
+        # clearest member of the `_show_` family reads as a non-predicate.
+        node = self.parse(
+            "def _show_discount(self):\n"
+            "    if not self:\n"
+            "        return False\n"
+            "    return self._is_feature_enabled() and self.price == 'pct'\n"
+        )
+        self.assertTrue(ncv.answers_a_question(node))
+        self.assertEqual(ncv.classify_definition(node)[0], "show-predicate")
+
+    def test_a_call_to_something_that_is_not_a_predicate_is_not(self):
+        node = self.parse(
+            "def _show_thing(self):\n    return self._compute_it() and self.x\n"
+        )
+        self.assertFalse(ncv.answers_a_question(node))
+
+    def test_the_two_synonyms_this_sweep_added_are_reported(self):
+        # Both are §2.4.20's shape: a row of the abolished table performed under
+        # a word nobody listed, invisible to the sibling by construction.
+        for name, kind in (
+            ("_tweak_notify_recipient_groups", "synonym"),
+            ("_synchronize_crons", "synonym"),
+        ):
+            with self.subTest(name=name):
+                self.assertIsNone(nv.classify(name))
+                hit = ncv.classify_name(name)
+                self.assertIsNotNone(hit)
+                self.assertEqual(hit[0], kind)
+
+    def test_the_synchronize_entry_names_both_canonicals(self):
+        # The entry is the renamer's instruction, and this family splits: five
+        # of the workspace's eight converge on a source of truth elsewhere and
+        # are §2.4.3's reserved `_sync_`, three RETURN a values dict and are the
+        # Payload row. An entry printing `_sync_` alone would send those three
+        # to the wrong row -- the reservation losing to the synonym table.
+        canonical, why = ncv.SYNONYMS["synchronize"]
+        self.assertIn("_sync_", canonical)
+        self.assertIn("_prepare_", canonical)
+        self.assertIn("values", why)
+
     def test_a_dunder_is_not_a_naming_choice(self):
         self.assertIsNone(ncv.classify_name("__init__"))
 
@@ -517,6 +599,314 @@ class TestRealTree(unittest.TestCase):
             {item.name for item in found},
             "fetch is settled by the allowlist and is not a candidate",
         )
+
+
+class TestTheShapingRuleReadsTheReceiver(unittest.TestCase):
+    """§2.4.22: one ORM shaping call produces nothing, so it is not a producer.
+
+    Every assertion here is about a narrowing rather than about the rule, because
+    the rule is one line and the narrowings are the whole of why it reads zero in
+    core rather than reporting every read that ends in a `filtered`.
+    """
+
+    def parse(self, source: str):
+        import ast
+        import textwrap
+
+        return ast.parse(textwrap.dedent(source)).body[0]
+
+    def test_a_body_that_is_one_filtered_on_self_is_reported(self):
+        hit = ncv.classify_definition(
+            self.parse(
+                """
+                def _get_open_moves(self):
+                    return self.filtered(lambda m: m.state != "done")
+                """
+            )
+        )
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "shaping")
+        self.assertIn("_filtered_", hit[1])
+
+    def test_each_shape_asks_for_its_own_prefix(self):
+        for call, prefix in (
+            ("filtered(lambda m: m.x)", "_filtered_"),
+            ("filtered_domain([])", "_filtered_"),
+            ("sorted('date')", "_sorted_"),
+            ("grouped('partner_id')", "_grouped_"),
+            ("with_context(active_test=False)", "_with_"),
+            ("sudo()", "_with_"),
+        ):
+            hit = ncv.classify_definition(
+                self.parse(f"def _get_rows(self):\n    return self.{call}\n")
+            )
+            self.assertIsNotNone(hit, call)
+            self.assertIn(prefix, hit[1], call)
+
+    def test_the_canonical_spelling_is_not_reported(self):
+        for name, call in (
+            ("_filtered_open", "filtered(lambda m: m.x)"),
+            ("_sorted_by_date", "sorted('date')"),
+            ("_grouped_by_partner", "grouped('partner_id')"),
+            ("_with_stock_context", "with_context(x=1)"),
+        ):
+            self.assertIsNone(
+                ncv.classify_definition(
+                    self.parse(f"def {name}(self):\n    return self.{call}\n")
+                ),
+                name,
+            )
+
+    def test_a_navigation_before_the_filter_is_a_read_and_not_a_narrowing(self):
+        # §2.4.22 excludes a body returning rows the caller never held. This is
+        # `stock.move.line._get_pending_dest_moves`, which is correct as it
+        # stands: what comes back is not a subset of the receiver.
+        self.assertIsNone(
+            ncv.classify_definition(
+                self.parse(
+                    """
+                    def _get_pending_dest_moves(self):
+                        return self.move_id.move_dest_ids.filtered(lambda m: m.x)
+                    """
+                )
+            )
+        )
+
+    def test_a_with_prefixed_call_that_is_not_an_orm_envelope_is_not_reshaping(self):
+        # The measured false positive that made the envelope list explicit:
+        # assetsbundle's `minify` is `return self.with_header()` on a plain
+        # class, and what comes back is a string.
+        self.assertIsNone(
+            ncv.classify_definition(
+                self.parse("def minify(self):\n    return self.with_header()\n")
+            )
+        )
+
+    def test_more_than_one_statement_is_a_read(self):
+        self.assertIsNone(
+            ncv.classify_definition(
+                self.parse(
+                    """
+                    def _get_late_moves(self):
+                        self.env["stock.move"].flush_model()
+                        return self.filtered(lambda m: m.late)
+                    """
+                )
+            )
+        )
+
+
+class TestTheModelNounRuleReadsTheClass(unittest.TestCase):
+    """§2.4.4: a first token repeating the model is what hides the verb."""
+
+    def parse_class(self, source: str):
+        import ast
+        import textwrap
+
+        tree = ast.parse(textwrap.dedent(source))
+        return next(
+            (node, cls)
+            for cls in ast.walk(tree)
+            if isinstance(cls, ast.ClassDef)
+            for node, _ in ncv.definitions(tree)
+            if node in cls.body
+        )
+
+    MODEL = """
+        class StockWarehouse(models.Model):
+            _name = "stock.warehouse"
+
+            def _warehouse_redirect_warning(self):
+                raise UserError("no warehouse")
+        """
+
+    def test_the_models_own_noun_in_first_position_is_reported(self):
+        node, cls = self.parse_class(self.MODEL)
+        hit = ncv.classify_definition(node, cls)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "model-noun")
+        self.assertIn("warehouse", hit[1])
+
+    def test_the_same_name_off_a_model_class_is_not_reported(self):
+        # The rule's whole content is the receiver's name, so a definition with
+        # no model class behind it has nothing to repeat. This is also what a
+        # closure inside a method gets, which is why `definitions` drops the
+        # class when it descends into one.
+        node, _cls = self.parse_class(self.MODEL)
+        self.assertIsNone(ncv.classify_definition(node, None))
+
+    def test_a_verb_that_happens_to_be_in_the_model_name_is_not_reported(self):
+        # Without this the rule is a report about wizard model names: a model
+        # called `...merge...` makes every `_merge_*` on it a finding.
+        node, cls = self.parse_class(
+            """
+            class PartnerMerge(models.TransientModel):
+                _name = "base.partner.merge.automatic.wizard"
+
+                def _merge_bank_accounts(self):
+                    return True
+            """
+        )
+        self.assertIsNone(ncv.classify_definition(node, cls))
+
+    def test_an_inherited_mixin_is_a_protocol_and_not_the_models_own_name(self):
+        # §2.4.4 licenses a noun-first prefix where it names a protocol several
+        # models implement. A class carrying `_name` alongside `_inherit` is a
+        # model MIXING IN protocols, so a mixin's noun in leading position is
+        # the licensed case. Reading `_inherit` as the model's own name turned
+        # `mixin.order.merge`'s deliberate 21-name convention into 21 findings
+        # across base_order, sale and purchase.
+        node, cls = self.parse_class(
+            """
+            class SaleOrderLine(models.Model):
+                _name = "sale.order.line"
+                _inherit = ["mixin.order.line", "mixin.order.merge"]
+
+                def _merge_group_orders(self):
+                    return True
+            """
+        )
+        self.assertIsNone(ncv.classify_definition(node, cls))
+
+    def test_inherit_alone_is_the_model_this_class_extends(self):
+        # The other half, and the one the rule was written for: this fork splits
+        # a model across extension classes by seam (§2.4.13), and such a class
+        # has no `_name`. `stock.picking.type`'s dashboard is exactly this, and
+        # `_picking_count_buckets` was found on this evidence.
+        node, cls = self.parse_class(
+            """
+            class StockPickingTypeDashboard(models.Model):
+                _inherit = "stock.picking.type"
+
+                def _picking_count_buckets(self, query):
+                    return {}
+            """
+        )
+        hit = ncv.classify_definition(node, cls)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "model-noun")
+
+    def test_the_converter_idiom_names_its_source_first_by_construction(self):
+        node, cls = self.parse_class(
+            """
+            class Partner(models.Model):
+                _name = "res.partner"
+
+                def partner_to_vcard(self):
+                    return b""
+            """
+        )
+        self.assertIsNone(ncv.classify_definition(node, cls))
+
+    def test_a_multi_token_converter_is_recognised_too(self):
+        # `nv._CONVERTER_IDIOM` wants a single token on each side, so it cannot
+        # see this one; the rule carries its own test for that reason.
+        self.assertIsNone(ncv.model_noun_first("date_category_to_domain", None))
+        self.assertIsNotNone(ncv._CONVERTER_IDIOM.fullmatch("date_category_to_domain"))
+        self.assertIsNone(nv._CONVERTER_IDIOM.fullmatch("date_category_to_domain"))
+
+    def test_a_prefix_several_model_classes_declare_is_a_protocol_namespace(self):
+        # §2.4.4 licenses a noun-first prefix where it names a protocol several
+        # models implement, and gives the test: would it survive being moved to
+        # another model. Counting the declarers is that test, and it is what
+        # takes `addons/mail` from 99 findings to 13.
+        import ast
+        import textwrap
+
+        source = textwrap.dedent(
+            """
+            class MailThread(models.AbstractModel):
+                _name = "mail.thread"
+
+                def _mail_get_partners(self):
+                    return {}
+
+            class Partner(models.Model):
+                _name = "res.partner"
+
+                def _mail_get_partners(self):
+                    return {}
+            """
+        )
+        tree = ast.parse(source)
+        path = Path(__file__).with_name("__planted_mail__.py")
+        path.write_text(source, encoding="utf-8")
+        try:
+            namespaces = ncv.protocol_namespaces([path])
+        finally:
+            path.unlink()
+        self.assertIn("mail", namespaces)
+        node, cls = next(
+            (node, cls) for node, cls in ncv.definitions(tree) if cls is not None
+        )
+        self.assertIsNotNone(ncv.classify_definition(node, cls))
+        self.assertIsNone(ncv.classify_definition(node, cls, namespaces))
+
+    def test_the_rule_is_held_back_in_core_and_printed_instead(self):
+        # Core's 19 are mostly wizards whose model name IS the operation, and
+        # nobody has read them. A rule that is neither blocking nor printed has
+        # been dropped rather than deferred.
+        self.assertIn("model-noun", ncv.UNSWEPT_IN_CORE_KINDS)
+        self.assertNotIn("model-noun", ncv.CORE_ONLY_KINDS)
+
+
+class TestTheNewRulesCatchAPlantedRegression(unittest.TestCase):
+    def plant(self, source: str) -> list[ncv.Violation]:
+        import tempfile
+        import textwrap
+
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "planted.py").write_text(
+                textwrap.dedent(source), encoding="utf-8"
+            )
+            return ncv.measure(Path(tmp), addon="stock")
+
+    def test_a_shaping_body_fails_the_gate_end_to_end(self):
+        found = self.plant(
+            """
+            class StockMove(models.Model):
+                _name = "stock.move"
+
+                def _get_open_moves(self):
+                    return self.filtered(lambda m: m.state != "done")
+            """
+        )
+        self.assertEqual(
+            [(v.name, v.kind) for v in found], [("_get_open_moves", "shaping")]
+        )
+
+    def test_a_model_noun_first_name_fails_the_gate_end_to_end(self):
+        # measure() has to be building the namespace index and carrying the
+        # class down the walk; a rule that only worked through
+        # classify_definition would pass every unit test above and report
+        # nothing here.
+        found = self.plant(
+            """
+            class StockWarehouse(models.Model):
+                _name = "stock.warehouse"
+
+                def _warehouse_redirect_warning(self):
+                    raise UserError("no warehouse")
+            """
+        )
+        self.assertEqual(
+            [(v.name, v.kind) for v in found],
+            [("_warehouse_redirect_warning", "model-noun")],
+        )
+
+    def test_a_closure_inside_a_method_is_not_declared_on_the_model(self):
+        found = self.plant(
+            """
+            class StockWarehouse(models.Model):
+                _name = "stock.warehouse"
+
+                def _get_codes(self):
+                    def warehouse_code(record):
+                        return record.code
+                    return [warehouse_code(w) for w in self]
+            """
+        )
+        self.assertEqual(found, [])
 
 
 if __name__ == "__main__":

@@ -77,7 +77,9 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import sys
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -108,7 +110,97 @@ CORE = ROOT / "odoo"
 # An addon earns a row here after that sweep and not before, which is the shape
 # `GOVERNED_ADDONS` has in every other `--addon` gate: a scope nobody has read
 # measures cleanly and is pinned by nothing.
-GOVERNED_ADDONS = ("core", "stock")
+#
+# `web` is the second, and it is here for a reason `stock` did not have: the
+# sibling gate reads model classes, plus module-level and nested definitions
+# under an addon's `models/` and `wizard/`. `addons/web` is twenty-four
+# CONTROLLER files, and `nv.ADDON_HELPER_DIRS` does not name `controllers`, so
+# more than half of this addon was in no gate's population at any scope. Its
+# floor of zero was not a swept tree, it was an unread one -- §2.4.13's "the
+# wrong gate reading 0" with the population missing rather than merely thin.
+#
+# `sale` is the third, and its seven findings are the cleanest statement of what
+# the sibling gate cannot ask. `naming_vocabulary.py --roots addons/sale --count`
+# reads ZERO, and has read zero throughout: not one of the seven wears an
+# abolished token in a leading position, which is the only thing that gate
+# matches. Five were the body-reading rules -- a `_get_` that creates the product
+# it promises only to describe, a `_prepare_` that returns nothing, a `_check_`
+# that returns instead of raising, a total `_resolve_`, a `determine` synonym --
+# and two were §2.4.4's held-back kinds. A floor of zero over a population no
+# rule in that gate can reach is not a swept tree either; it is `web`'s finding
+# arriving through the rules rather than through the file list.
+# `point_of_sale` is the fourth, and it is `sale`'s finding a second time with
+# one addition of its own. `naming_vocabulary.py --roots addons/point_of_sale
+# --count` reads ZERO, and the body-reading rules found five: a `_validate_`
+# that returns two lists instead of raising, a `_check_modules_to_install` that
+# installs the modules and reports whether it did, and three producers that
+# create records under a `_get_`/`_prepare_` promising only to describe them.
+# The addition is that its ten held-back hits are the strongest case yet for
+# holding them back -- `opening control`, `closing control` and `cash control`
+# are the POS domain's own nouns for the session's open and close steps, and
+# `scan_via_proxy` is a barcode scanner. Ten candidates, zero defects, which is
+# what §2.4.4 means by a candidate list. Its row is NOT in the tuple yet and the
+# paragraph above is written for the commit that adds it -- see the rule below,
+# which is why.
+#
+# `purchase` is the fifth and is the cheapest row here, because the sweep that
+# earned it was done for another reason: nine renames across `purchase_order.py`,
+# `purchase_order_line.py` and `account_move.py`, plus the `_merge_*` family
+# arriving from `base_order` with `sale`'s. It reads 0 with the allowlist OFF and
+# 0 against the deferred kinds as well, so it needs no allowlist entry at all.
+#
+# It was nearly kept OUT over a bug, and that is the part worth recording. The
+# `model-noun` rule read `_inherit` as the model's own words, so `mixin.order.merge`
+# made `merge` a model noun on every order model mixing it in -- 21 findings
+# across `base_order`, `sale` and `purchase`, every one a member of one deliberate
+# namespace the mixin declares. From inside any single scope that reads as a
+# convention question rather than a defect: 19 under one prefix in `base_order`,
+# 2 in `sale`, 2 in `purchase`. Three sessions comparing the same finding caught
+# it; none of them measuring harder would have.
+#
+# **A SCOPE IS NOT A HARD ZERO UNTIL THE RENAMES THAT MADE IT ZERO ARE ON THE
+# BRANCH, AND THE ROW IS NOT LANDABLE UNTIL THEN EITHER.** This tuple is the
+# assertion, so it travels in the same commit as its evidence. It is not the
+# familiar "commit before you bank a floor" -- this gate has no floor, and that
+# is exactly what makes the failure silent: a row that is true of your working
+# tree and false of the branch prints nothing, where a stale doc figure at least
+# gives `doc_restated_counts.py --check` something to diff. Measured in one day:
+# `web` was true of the checkout and false of the branch until its renames
+# landed, and `point_of_sale` read 0 in the checkout and SIX in a detached
+# worktree at the tip with only these gate files copied in. Both were found by
+# somebody re-measuring in that worktree, and by nothing else -- every session
+# had correctly read every scope as 0 in the shared checkout, where everyone's
+# uncommitted renames are present and the gate will never run.
+GOVERNED_ADDONS = ("core", "stock", "web", "sale", "purchase")
+
+# `addons/mail` was swept against every rule that travels and is NOT here yet,
+# and one kind is the whole reason. Everything else the rules reach was renamed
+# in the sweep -- the `detect` predicates the entry below was written for, a
+# `locate`/`find` pair spelling one operation twice, and both `shaping`
+# findings -- and `Store.resolve_data_request` is argued into the scoped
+# allowlist against the day this row lands. What is left is `model-noun`, and
+# a count is deliberately not printed here: the rule was under active edit the
+# afternoon this was written and the reading moved three times in an hour, so
+# take it from `--addon mail` rather than from this paragraph.
+#
+# The residue is not a defect list, and two groups say why.
+#
+# MOST of it is the public `channel_*` RPC surface of `discuss.channel`
+# (`channel_join`, `channel_pin`, `channel_fetched`, `channel_rename`, ...),
+# reached by name from the discuss client. Each is a §2.4.14 binding before it
+# is a name, so it is not a rename anyone takes on a rule's say-so.
+#
+# The rest is the shape this rule's own comment already holds back from CORE
+# and does not hold back from an addon: a WIZARD whose model name IS the
+# operation. `mail.template.reset.reset_template` and
+# `mail.followers.edit.edit_followers` repeat their model's word because the
+# model was named for the verb, which is the argument that leaves core's
+# thirteen unswept -- and it does not become a different argument in `addons/`.
+#
+# So mail joins this tuple when a scope can hold back the kinds ITS population
+# has not been read against, and not before: banking it now would either take
+# renames nobody has argued or exempt them by name, which is the word list the
+# allowlist exists not to become. Swept 2026-09-09.
 
 # §2.4.4 owns the infix population and calls it a CANDIDATE list rather than a
 # defect list -- nothing mechanical can tell a verb parked behind a noun from a
@@ -164,7 +256,20 @@ CORE_ONLY_KINDS = frozenset({"infix", "infix-synonym", "trailing"})
 # groups discharged the population is zero, so the kind gates in core like every
 # other, and this set is empty rather than deleted -- the next rule written
 # against an unswept core population belongs in it.
-UNSWEPT_IN_CORE_KINDS: frozenset[str] = frozenset()
+#
+# `model-noun` is the first rule written into it, and it is `CORE_ONLY_KINDS`
+# with the sign reversed: that set holds a rule back from an ADDON scope because
+# core was swept by hand and the addon was not, and this one holds a rule back
+# from CORE because the addon was swept and core was not. §2.4.4 says a first
+# token repeating the model is what hides the verb; the rule reads 0 in
+# `addons/stock` after the renames that landed with it, and 3 in `odoo/`:
+# `ir.actions.report.report_action`, `ir.job._job_ping` and
+# `ir.module.module.module_uninstall`. Nobody has read those three, and two of
+# them are public names whose callers a Python grep cannot see (§2.4.19), so
+# each is a §2.4.4 public-surface weighing rather than a rename. `--candidates`
+# prints them, which is the whole content of holding a rule back: one that is
+# neither blocking nor printed has been dropped rather than deferred.
+UNSWEPT_IN_CORE_KINDS: frozenset[str] = frozenset({"model-noun"})
 
 # `_sources.is_test_path` calls any path with a `tests` component a test path.
 # That is right for odoo/orm/tests and its siblings and wrong for exactly one
@@ -209,12 +314,36 @@ ASSEMBLE = frozenset(
 # * `reap` and `probe` are terms of art from a layer below, on §2.4.3's
 #   "reserved, not abolished" terms: `reap` is the POSIX wait-for-a-child, and
 #   `probe` is a named subsystem in `odoo/db/`.
+# * `complete` is two operations under one word, and the measurement is what
+#   says so rather than the intuition. It reads as the Mutation row's `_fill_`
+#   -- `pos.order._complete_values_from_session` and `portal`'s
+#   `_complete_address_values` both setdefault into a caller's dict, and the
+#   first is renamed `_update_values_from_session` by hand for exactly that.
+#   But `gamification.quest.complete_step` and `_complete_quest` mean MARK AS
+#   DONE, which is a domain operation and not a row of the table at all, and
+#   `odoo/tests/case.py`'s `_complete_traceback` is a third reading. Two in
+#   core and six across `addons/` would be flagged by a `complete` row, and the
+#   canonical it printed would be wrong for at least three of them -- a synonym
+#   entry whose canonical is a coin flip is a word list again, which is what the
+#   paragraph above this list exists to refuse.
 SYNONYMS: dict[str, tuple[str, str]] = {
     "populate": ("_update_", "populating is filling -- the Mutation row"),
     "prune": ("_remove_", "pruning is purging -- the Removal row"),
     "sweep": ("_remove_", "sweeping is purging -- the Removal row"),
     "seed": ("create", "seeding is creating"),
     "scan": ("_get_ or _read_", "reading a source and returning what is in it"),
+    "detect": (
+        "_is_ / _has_, or _get_",
+        (
+            "detecting is answering a question about the subject, which is the "
+            "Predicate row, or returning what was found, which is the Read row "
+            "-- the word names neither and the body picks. `mail`'s six were "
+            "all the first, and `_detect_is_bounce` carried the Predicate "
+            "row's own prefix INSIDE its tail, which is the tell: a name that "
+            "has to say `is` in the middle is a predicate wearing a verb in "
+            "front. Free in every scope governed when it landed"
+        ),
+    ),
     "determine": (
         "_get_ or the operation itself",
         (
@@ -226,6 +355,24 @@ SYNONYMS: dict[str, tuple[str, str]] = {
     "refresh": (
         "_reset_ / _invalidate_ / _rebuild_",
         "names neither the drop nor the rebuild, which is what §2.4.17 exists to say",
+    ),
+    "tweak": (
+        "_update_",
+        "tweaking is writing to the object -- the Mutation row, hedged",
+    ),
+    "synchronize": (
+        "_sync_ where it converges, _prepare_ where it returns the values",
+        (
+            "§2.4.3 reserves `_sync_` for convergence on a source of truth "
+            "elsewhere, and the long spelling is mostly that operation -- the "
+            "census counts `_sync_*` at 76 against `_synchronize_*` at 7, which "
+            "is the duplicate report. But read the body first: three of the "
+            "eight in this workspace RETURN a values dict and write nothing "
+            "(`_synchronize_partner_values`, `_synchronize_so_line_values`, "
+            "`_synchronize_publisher_values`), which is the Payload row and not "
+            "the reservation. A `_sync_` there would be the reservation losing "
+            "to the synonym table"
+        ),
     ),
 }
 
@@ -279,6 +426,37 @@ def scan_files(root: Path | None = None) -> list[Path]:
     ]
 
 
+def definitions(
+    tree: ast.Module,
+) -> Iterator[tuple[ast.FunctionDef | ast.AsyncFunctionDef, ast.ClassDef | None]]:
+    """Every function in a module, with the model class it is declared on.
+
+    `ast.walk` was enough while every rule read a name or a body. `model-noun`
+    reads the RECEIVER's name, which lives on the enclosing class, so the walk
+    has to carry it -- and it has to lose it again inside a function, because a
+    closure nested in a method is not declared on the model. `_get_tasks`'s
+    inner helper is a local, and asking whether its first token repeats the
+    model would attribute the class's name to a function the class does not
+    declare.
+
+    A non-model class yields `None` for the same reason `model_class_nouns`
+    returns an empty set for one: `_name` / `_inherit` is what makes a leading
+    noun the model's own, and a plain class has neither.
+    """
+
+    def walk(node: ast.AST, cls: ast.ClassDef | None):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                yield from walk(child, child if nv.is_model_class(child) else None)
+            elif isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                yield child, cls
+                yield from walk(child, None)
+            else:
+                yield from walk(child, cls)
+
+    yield from walk(tree, None)
+
+
 # §2.4.3's Read row canonical is `_get_`, and its discriminator is the RETURN --
 # "the return value feeds anything else". A `collect_*` is that row exactly when
 # the value it returns is the value it produced. Where it fills a container it
@@ -293,7 +471,16 @@ def scan_files(root: Path | None = None) -> list[Path]:
 # return a value and only seven of those own it. A rule that stopped at "returns
 # something" would have demanded `_get_` from all eleven, and four of the answers
 # would have been lies.
-ACCUMULATE_VERBS = frozenset({"collect", "gather"})
+# `accumulate` is the same word as this rule's own kind name and was not in the
+# set, so the rule could not see the family it is named for. Measured before
+# adding it: SEVEN `accumulate_*` definitions in all of `addons/`, ONE flagged,
+# and none at all in core or `stock` -- so no floor moves anywhere. The six it
+# leaves alone are the argument for the body test rather than an exemption from
+# it: `pos.session._accumulate_amounts`, `_accumulate_order_payments` and
+# `_accumulate_stock_amounts` and `account.move`'s two all fill a bucket dict
+# handed in by the caller, which is the Addition row acting on somebody else's
+# object. The one it takes owns what it returns.
+ACCUMULATE_VERBS = frozenset({"collect", "gather", "accumulate"})
 
 _MUTATING_METHODS = frozenset(
     {
@@ -432,12 +619,40 @@ RETURN_CLAIM_VERBS = frozenset({"get", "prepare"})
 # every one of the 18 that dropped out was a stub of that shape.
 _COMPUTED_BOOL_CALLS = frozenset({"bool", "any", "all"})
 
+# A call to a method whose own name is a predicate is a computed boolean, on the
+# authority of §2.4.3's Predicate row: "the returned `bool` is the answer to a
+# question about the subject". That row is a CONTRACT, so the gate is entitled to
+# read a `self._is_x()` the way it reads a `bool(...)`, and the vocabulary gets
+# stronger the more of the tree obeys it.
+#
+# It is not decoration. `sale`'s `_show_discount` returns `False` on an empty
+# recordset and `self._is_discount_feature_enabled() and self.compute_price ==
+# "percentage"` otherwise -- every return boolean, one of them computed. Without
+# this the `and` fails `all(_is_boolean(...))` on its first operand and the whole
+# definition reads as a non-predicate, which is how the clearest member of the
+# `_show_` family escaped the rule written for it.
+#
+# Measured before landing, because this widens two rules at once (`bool-under-get`
+# takes it too): core 0 -> 0, stock 0 -> 0. The only definition it adds anywhere
+# is the one it was written for.
+_PREDICATE_CALL_PREFIXES = ("is_", "has_", "can_", "should_")
+
+
+def _is_predicate_call(node: ast.expr) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+    return name.lstrip("_").startswith(_PREDICATE_CALL_PREFIXES)
+
 
 def _is_computed_bool(node: ast.expr) -> bool:
     """A boolean the function worked out, not a literal it was born with."""
     if isinstance(node, ast.Compare):
         return True
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return True
+    if _is_predicate_call(node):
         return True
     if (
         isinstance(node, ast.Call)
@@ -475,6 +690,22 @@ def answers_a_question(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 RESOLVE_VERB = "resolve"
+
+# §2.4.20 calls `_show_` a fourth predicate prefix and then declines to abolish
+# it, for a reason that is about the SHARED TABLE and not about the verb: "an
+# entry prints one canonical target and this family has three". `ABOLISHED` maps
+# a verb to exactly one canonical, so `_show_` cannot be expressed there at all.
+# This gate's finding carries a free-form `why`, so it can print all three and
+# say the modality moves to the tail -- which is the whole of §2.4.20's argument,
+# and the structural reason the rule belongs on this side rather than that one.
+#
+# It is a BODY rule for the same reason `bool-under-get` is: the row's own words
+# are "the return type is not the test". A `show_*` that returns a recordset, an
+# action or a truthy operand is not answering a question, and `sale`'s nested
+# `show_line` -- which returns `line.display_type and down_payment_lines` -- is
+# exactly that. It stays unflagged, correctly, and the rule reaches only the
+# member of the family that really is a predicate.
+SHOW_VERB = "show"
 
 
 def annotates_optional(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -674,6 +905,289 @@ def performs_orm_write(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 # identity scan; renaming its middle token would be renaming the question.
 PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
 
+# §2.4.22: a method whose whole body is one ORM shaping call hands back the
+# receiver reshaped, and §2.4.3's vocabulary has no row for it -- every verb
+# there names a method that PRODUCES something, and `self.filtered(...)`,
+# `self.sorted(...)`, `self.grouped(...)` and the `with_*` family produce
+# nothing. The canonical is the ORM's own past participle, which that section
+# argues is the framework's spelling rather than a missing verb.
+#
+# Three narrowings, and every one of them is what keeps the rule off a read:
+#
+# * The receiver must be `self`. §2.4.22 excludes a body that returns rows the
+#   caller never held, and a navigation is exactly that:
+#   `stock.move.line._get_pending_dest_moves` is
+#   `self.move_id.move_dest_ids.filtered(...)` and is correctly a `_get_`,
+#   because what comes back is not a subset of the receiver.
+# * The envelope calls are NAMED rather than matched on a `with_` prefix. A
+#   prefix test reported `assetsbundle`'s `minify`, whose body is `return
+#   self.with_header()` and whose return is a string -- a plain class wrapping a
+#   plain method, and nothing to do with an ORM environment.
+# * The body must be exactly one return. A method that searches and then filters
+#   returns rows the caller never held, which is the first bullet again.
+_NARROWING_CALLS = frozenset({"filtered", "filtered_domain"})
+_ORDERING_CALLS = frozenset({"sorted"})
+_GROUPING_CALLS = frozenset({"grouped"})
+_ENVELOPE_CALLS = frozenset(
+    {"with_context", "with_company", "with_user", "with_env", "with_prefetch", "sudo"}
+)
+_SHAPING_PREFIX: dict[str, str] = {
+    **dict.fromkeys(_NARROWING_CALLS, "filtered"),
+    **dict.fromkeys(_ORDERING_CALLS, "sorted"),
+    **dict.fromkeys(_GROUPING_CALLS, "grouped"),
+    **dict.fromkeys(_ENVELOPE_CALLS, "with"),
+}
+
+
+def shaping_prefix(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
+    """The prefix §2.4.22 owes a body that is one ORM shaping call on `self`."""
+    body = [
+        n
+        for n in node.body
+        if not (
+            isinstance(n, ast.Expr)
+            and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str)
+        )
+    ]
+    if len(body) != 1 or not isinstance(body[0], ast.Return):
+        return None
+    call = body[0].value
+    if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)):
+        return None
+    receiver = call.func.value
+    if not (isinstance(receiver, ast.Name) and receiver.id == "self"):
+        return None
+    return _SHAPING_PREFIX.get(call.func.attr)
+
+
+# §2.4.4: "a first token repeating the model is what hides the verb". The model
+# qualifies every method it declares, so a leading noun naming that same model
+# buys nothing and costs `classify` its foothold -- it partitions on the first
+# token and scores `bom` for `mrp.bom._bom_find`, which carries no rule. That
+# section calls grepping a model's file for such a first token the cheapest
+# search for this defect; this is that search made blocking.
+#
+# It needs none of the namespace weighing that keeps §2.4.4's infix rule in
+# `CORE_ONLY_KINDS`. A namespace is legitimate only where it names a protocol
+# several models implement, and **a namespace that names one model is not a
+# namespace**, because it could not survive being moved to another -- so the
+# model's own tokens are the one leading noun that needs no judgement about
+# whether it is a noun.
+#
+# Two exclusions, both measured against the tree rather than argued:
+#
+# * A first token that is itself a verb is not a hiding place, whatever the
+#   model is called. `base.partner.merge.automatic.wizard._merge_bank_accounts`
+#   scores `merge` against the model's own tokens and is an ordinary
+#   verb-object name; so is `change.password.wizard.change_password`. Without
+#   this the rule is a report about wizard MODEL names, which is a different
+#   question and not this one.
+# A FINDING ON A PUBLIC METHOD IS A WIRE RENAME, NOT A LOCAL ONE, and the rule
+# cannot say so from here. `web`'s `base.document.layout.document_layout_save`
+# was this rule's first confirmation outside stock, and repairing it cost eleven
+# binding sites across two repositories -- a `<button type="object" name=...>`,
+# an `account` override, a machine-doc line, and SIX JS tour selectors spelled
+# `button[name='document_layout_save']`, which no Python gate resolves. §2.4.4's
+# own weighing applies before the rename ("a rename that cannot be completed
+# inside the workspace is not begun"), and §2.4.19's applies after it, because a
+# public name may be reached from a database column no grep can see. Two of
+# core's three findings are public for exactly this reason.
+#
+# * §2.4.5's converter idiom names its source first by construction -- "`X_to_Y`
+#   is the converter idiom, and `to` is the verb" -- so a converter on
+#   `res.partner` spelled `partner_to_vcard` opens with the model's own noun
+#   because the ordering rule for converters says to, and there is no verb
+#   hidden behind it. The test is spelled here rather than taken from
+#   `nv._CONVERTER_IDIOM`, which requires a SINGLE token on each side
+#   (`[a-z0-9]+_to_[a-z0-9]+`) and so cannot see a converter whose operand is a
+#   noun phrase. That narrowness is invisible in the census it feeds and would
+#   be a false positive here.
+_CONVERTER_IDIOM = re.compile(r"_?[a-z0-9_]+_to_[a-z0-9_]+")
+_MODEL_NOUN_VERBS = (
+    set(nv.ABOLISHED)
+    | nv.CANONICAL_VERBS
+    | nv.EXEC_VERBS
+    | set(SYNONYMS)
+    | ASSEMBLE
+    | ACCUMULATE_VERBS
+    | PREDICATE_PREFIXES
+    | set(nv.HOOK_ATTRS)
+    | {
+        "action",
+        "button",
+        "copy",
+        "create",
+        "fields",
+        "filtered",
+        "grouped",
+        "init",
+        "load",
+        "name",
+        "read",
+        "set",
+        "sorted",
+        "unlink",
+        "view",
+        "with",
+        "without",
+        "write",
+    }
+    # Verbs that appear INSIDE Odoo model names, because a wizard is named for
+    # the operation it performs: `base.language.import`, `base.module.upgrade`,
+    # `change.password.wizard`, `account.resequence.wizard`,
+    # `mail.template.reset`, `product.merge`. Without them the rule reports
+    # `import_lang` as "the model's own noun" when `import` is the verb, which
+    # is not merely a false positive -- it is a false STATEMENT, and a finding a
+    # reader cannot act on is worse than one nobody printed.
+    #
+    # `protocol_namespaces` already exempts any of these that a model NOT named
+    # for it leads a method with, so these are only the ones no such witness
+    # exists for in a scope. They are here rather than there because the witness
+    # test is scope-local and this claim is not: `import` is a verb in every
+    # tree, whether or not this one happens to contain the proof.
+    | {
+        "change",
+        "edit",
+        "export",
+        "import",
+        "install",
+        "join",
+        "merge",
+        "reconcile",
+        "rename",
+        "resequence",
+        "reset",
+        "save",
+        "send",
+        "uninstall",
+        "upgrade",
+    }
+    # The ORM's registry namespaces name no subject at all: every model is
+    # `ir.*`, `res.*`, a `mixin.*` or an addon's own word, so `ir` and `res` in
+    # leading position repeat a namespace rather than the model, and the rule
+    # has nothing to say about them.
+    | {"base", "ir", "mixin", "res"}
+)
+
+
+def leading_token(name: str) -> str:
+    return name.lstrip("_").split("_")[0]
+
+
+def model_class_nouns(cls: ast.ClassDef | None) -> frozenset[str]:
+    """The words of the model a class IS, which is not the words it inherits.
+
+    `_name` wins outright, and the distinction is the whole rule rather than a
+    detail of it. A class carrying `_name` alongside `_inherit` is a model
+    MIXING IN protocols, and §2.4.4 licenses a noun-first prefix exactly where it
+    names "a protocol several models implement" -- so a mixin's own noun in
+    leading position is the licensed case, not the defect. `sale.order` inherits
+    `mixin.order.merge`, which declares `_merge_get_eligible_orders`,
+    `_merge_group_orders`, `_merge_lines`, `_merge_finalize` and thirteen more:
+    reading `_inherit` as the model's own name made `merge` a model noun and
+    turned one deliberate 21-name convention into 21 findings, across three
+    addons, in a mixin none of them declares.
+
+    `_inherit` alone is the other case and is read: a class with no `_name` is an
+    EXTENSION of that model -- this fork splits a model across such classes by
+    seam (§2.4.13) -- so the inherited name is the name of the model it is
+    declaring methods on. `StockPickingTypeDashboard` is `_inherit =
+    "stock.picking.type"` and nothing else, and `_picking_count_buckets` was
+    found on exactly that evidence.
+    """
+    if cls is None:
+        return frozenset()
+    names: dict[str, list[str]] = {"_name": [], "_inherit": []}
+    for statement in cls.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        for target in statement.targets:
+            if not isinstance(target, ast.Name) or target.id not in names:
+                continue
+            value = statement.value
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                names[target.id].append(value.value)
+            elif isinstance(value, ast.List | ast.Tuple):
+                names[target.id] += [
+                    e.value
+                    for e in value.elts
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str)
+                ]
+    own = names["_name"] or names["_inherit"]
+    return frozenset(
+        token for name in own for token in name.replace(".", "_").split("_") if token
+    )
+
+
+def protocol_namespaces(files: list[Path]) -> frozenset[str]:
+    """Leading tokens a model that is NOT named for them also declares.
+
+    §2.4.4 licenses a noun-first prefix "only where it names a protocol several
+    models implement (`_message_*`, `_notify_*`, `_track_*`, `_portal_*`), never
+    as a per-model tidy-up", and gives the test: **would the prefix survive
+    being moved to another model**. This is that test run over the scope, and
+    the answer is yes exactly when some model whose own name does not contain
+    the token has already moved it there.
+
+    Written that way it discharges a second question with the same evidence, and
+    that is why it is one function rather than two. A token used in leading
+    position by a model that is not named for it is either a protocol
+    (`_mail_get_partners` on `res.partner`) or an ordinary verb that happens to
+    appear in another model's name (`_merge_bank_accounts` on
+    `base.partner.merge.automatic.wizard`, where `merge` leads methods on models
+    with no `merge` in them). Both are exempt and neither needs telling apart --
+    which is worth saying, because the alternative was a hand-written list of
+    English verbs, and §2.4.20 spends a section on what a word list costs.
+
+    Three properties, every one of them the conservative direction:
+
+    * It is scope-local. A protocol declared in `mail` and implemented only in
+      `stock` looks like a per-model tidy-up from inside `addons/stock`, so the
+      rule can still report a name a wider index would exempt. That is why the
+      finding says "unless it is a namespace" and why an addon is swept by hand
+      before it is gated -- the standard `CORE_ONLY_KINDS` already sets for the
+      infix rule.
+    * A model split across extension classes (§2.4.13) is still one model here,
+      because the test reads the model NAME rather than the class: `stock.quant`
+      is thirteen classes and exempts nothing by being thirteen.
+    * It exempts on one witness. Requiring two would catch a token a single
+      other model borrowed, and would also lose every protocol with one
+      implementor in the scope; the first is a name a reader can still find and
+      the second is a false positive in a gate, so the trade goes this way.
+    """
+    elsewhere: set[str] = set()
+    for path in files:
+        tree = _ast_cache.parse_file(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef) or not nv.is_model_class(node):
+                continue
+            own = model_class_nouns(node)
+            for member in node.body:
+                if not isinstance(member, ast.FunctionDef | ast.AsyncFunctionDef):
+                    continue
+                if member.name.startswith("__"):
+                    continue
+                token = leading_token(member.name)
+                if token not in own:
+                    elsewhere.add(token)
+    return frozenset(elsewhere)
+
+
+def model_noun_first(
+    name: str,
+    cls: ast.ClassDef | None,
+    namespaces: frozenset[str] = frozenset(),
+) -> str | None:
+    """The model's own noun standing where the verb belongs."""
+    if _CONVERTER_IDIOM.fullmatch(name):
+        return None
+    first = leading_token(name)
+    if first in _MODEL_NOUN_VERBS or first in namespaces:
+        return None
+    return first if first in model_class_nouns(cls) else None
+
+
 # §2.4.4 says a noun in FRONT of a verb hides it from `classify`, which
 # partitions on the first token. The mirror was open the whole time:
 # `nv.infix_abolished_verb` scans `tokens[1:-1]`, so the LAST token is read by
@@ -751,16 +1265,34 @@ def infix_synonym(name: str) -> str | None:
 # which is the honest shape for a rule whose test is one frame deep.
 def classify_definition(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
+    cls: ast.ClassDef | None = None,
+    namespaces: frozenset[str] = frozenset(),
 ) -> tuple[str, str] | None:
     """Return (kind, why) for a definition the vocabulary refuses, else None.
 
-    The name alone settles most of it; two rules need the body, because their
-    discriminator is a claim about behaviour rather than about spelling.
+    The name alone settles most of it; the rest need the body, because their
+    discriminator is a claim about behaviour rather than about spelling, and
+    `model-noun` needs the class, because its discriminator is a claim about
+    what the receiver is called.
     """
     if (hit := classify_name(node.name)) is not None:
         return hit
     stem = node.name.lstrip("_")
     verb, _, rest = stem.partition("_")
+    if (prefix := shaping_prefix(node)) is not None and not stem.startswith(prefix):
+        why = (
+            f"the body is one ORM shaping call and produces nothing -- §2.4.22; "
+            f"a caller told `{verb}` has to open the body to learn the return is "
+            f"the receiver reshaped. Take `_{prefix}_*`"
+        )
+        return ("shaping", why)
+    if (noun := model_noun_first(node.name, cls, namespaces)) is not None:
+        why = (
+            f"`{noun}` is the declaring model's own noun, so it qualifies "
+            f"nothing and hides the verb from `classify` -- §2.4.4; take the "
+            f"row the body satisfies, with the model's word dropped"
+        )
+        return ("model-noun", why)
     if not rest:
         return None
     if verb in ACCUMULATE_VERBS and owns_its_return(node):
@@ -788,6 +1320,13 @@ def classify_definition(
             "row: `_is_` / `_has_` / `_can_`, with the question in the tail"
         )
         return ("bool-under-get", why)
+    if verb == SHOW_VERB and answers_a_question(node):
+        why = (
+            "`show_` answers a question about the subject and returns a bool -- "
+            "§2.4.20's fourth predicate prefix: `_is_` / `_has_` / `_can_`, with "
+            "the modality moved into the tail as `_should_`'s is"
+        )
+        return ("show-predicate", why)
     if (
         verb == RESOLVE_VERB
         and not is_declaration_only(node)
@@ -877,15 +1416,14 @@ def measure(
             f"report a count from an empty scan"
         )
     allowed = load_allowlist(addon) if apply_allowlist else {}
+    namespaces = protocol_namespaces(files)
     found: list[Violation] = []
     for path in files:
         tree = _ast_cache.parse_file(path)
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                continue
+        for node, cls in definitions(tree):
             if node.name in allowed or nv._overrides_same_name(node):
                 continue
-            if (hit := classify_definition(node)) is None:
+            if (hit := classify_definition(node, cls, namespaces)) is None:
                 continue
             if addon != "core" and hit[0] in CORE_ONLY_KINDS:
                 continue
@@ -915,12 +1453,12 @@ def candidates(root: Path | None = None, addon: str = "core") -> list[Violation]
     honest -- and the only thing that lets the next reader close it.
     """
     allowed = load_allowlist(addon)
+    files = scan_files(root if root is not None else addon_src(addon))
+    namespaces = protocol_namespaces(files)
     found: list[Violation] = []
-    for path in scan_files(root if root is not None else addon_src(addon)):
+    for path in files:
         tree = _ast_cache.parse_file(path)
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                continue
+        for node, cls in definitions(tree):
             if node.name in allowed:
                 continue
             if is_bare_abolished(node.name):
@@ -939,7 +1477,7 @@ def candidates(root: Path | None = None, addon: str = "core") -> list[Violation]
             # which is the whole content of holding them back. A rule that is
             # neither blocking nor printed has been dropped, not deferred.
             unswept = UNSWEPT_IN_CORE_KINDS if addon == "core" else CORE_ONLY_KINDS
-            hit = classify_definition(node)
+            hit = classify_definition(node, cls, namespaces)
             if hit is not None and hit[0] in unswept:
                 found.append(
                     Violation(
