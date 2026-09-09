@@ -31,7 +31,7 @@ if typing.TYPE_CHECKING:
     OnDelete = typing.Literal["cascade", "set null", "restrict"]
 
 
-def _relation_delete(old_relation: dict, new_relation: dict, ys) -> None:
+def _remove_from_relations(old_relation: dict, new_relation: dict, ys) -> None:
     for ys1 in old_relation.values():
         ys1 -= ys
     for ys1 in new_relation.values():
@@ -309,7 +309,7 @@ class Many2many(_RelationalMulti):
                 new_relation[x] = delta.final_ids(new_relation[x], created_ids)
             if delta.deleted:
                 comodel.browse(list(delta.deleted)).unlink()
-                _relation_delete(old_relation, new_relation, delta.deleted)
+                _remove_from_relations(old_relation, new_relation, delta.deleted)
 
     def _check_new_relation_access(
         self, model, comodel, old_relation: dict, new_relation: dict

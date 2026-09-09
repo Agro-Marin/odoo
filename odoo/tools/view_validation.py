@@ -240,7 +240,7 @@ def valid_view(arch: etree._Element, **kwargs: object) -> bool:
     return True
 
 
-def validate(*view_types: str) -> Callable[[Validator], Validator]:
+def register_validator(*view_types: str) -> Callable[[Validator], Validator]:
     def decorator(fn: Validator) -> Validator:
         for arch in view_types:
             _validators[arch].append(fn)
@@ -263,7 +263,7 @@ def relaxng(view_type: str) -> etree.RelaxNG | None:
     return _relaxng_cache[view_type]
 
 
-@validate("calendar", "graph", "pivot", "search", "list", "activity")
+@register_validator("calendar", "graph", "pivot", "search", "list", "activity")
 def schema_valid(arch, **kwargs):
     validator = relaxng(arch.tag)
     if validator and not validator.validate(arch):

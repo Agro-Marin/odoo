@@ -22,7 +22,7 @@ if typing.TYPE_CHECKING:
     from .textual import BaseString
 
 
-def _term_lookup(
+def _get_term_translator(
     dictionary: dict[str, dict[str, str]], lang: str
 ) -> typing.Callable[[str], str | None]:
     return lambda term: dictionary.get(term, {lang: None})[lang]
@@ -470,7 +470,7 @@ def mark_dirty_model_term_translation(
         dictionary = field.get_translation_dictionary(from_lang_value, old_translations)
         reconcile_obsolete_terms(field, dictionary, new_terms, lang, records.env)
         new_translations: dict[str, typing.Any] = {
-            l: dialect(_term_lookup(dictionary, l), cache_value)
+            l: dialect(_get_term_translator(dictionary, l), cache_value)
             for l in old_translations
         }
         if delay_translations:

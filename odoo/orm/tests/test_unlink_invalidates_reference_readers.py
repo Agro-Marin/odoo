@@ -85,7 +85,7 @@ def test_the_delete_sweep_drops_a_reference_readers_cache():
         assert pointer.ref_name == "Target"
         assert _is_cached(env, pointer, "ref_name")
 
-        env["uirr.bystander"]._invalidate_after_delete()
+        env["uirr.bystander"]._invalidate_after_unlink()
 
         assert not _is_cached(env, pointer, "ref_name")
 
@@ -116,7 +116,7 @@ def test_the_delete_sweep_drops_the_cached_name():
         assert pointer.res_name == "Target"
         assert _is_cached(env, pointer, "res_name"), "cached before the delete"
 
-        target._invalidate_after_delete()
+        target._invalidate_after_unlink()
 
         assert not _is_cached(env, pointer, "res_name"), (
             "the sweep must drop it, so the next read reruns the compute and "
@@ -132,6 +132,6 @@ def test_the_sweep_runs_whatever_was_deleted():
         )
         assert pointer.res_name == "Target"
 
-        env["uirr.bystander"]._invalidate_after_delete()
+        env["uirr.bystander"]._invalidate_after_unlink()
 
         assert not _is_cached(env, pointer, "res_name")

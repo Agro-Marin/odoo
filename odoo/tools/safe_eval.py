@@ -561,7 +561,7 @@ _SAFE_BUILTINS = {**_BUILTINS, _GUARD_FORMAT_NAME: _guard_format}
 
 
 @functools.lru_cache(maxsize=_VALIDATED_CACHE_MAX)
-def _compile_and_validate(
+def _compile_checked(
     expr: str, filename: str, mode: typing.Literal["eval", "exec"]
 ) -> CodeType:
     code = compile_codeobj(expr, filename=filename, mode=mode, guard_format=True)
@@ -591,7 +591,7 @@ def safe_eval(
 
     if isinstance(expr, (bytes, bytearray)):
         expr = bytes(expr).decode()
-    c = _compile_and_validate(expr, filename or "<unknown>", mode)
+    c = _compile_checked(expr, filename or "<unknown>", mode)
     try:
         return unsafe_eval(c, globals_dict, None)
 

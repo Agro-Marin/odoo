@@ -73,7 +73,7 @@ class UnlinkMixin(_ModelStubs):
             self.env.invalidate_all(flush=False)
             self.env.cr.cache.pop(REFERENCE_VERIFIED_CACHE_KEY, None)
         else:
-            self._invalidate_after_delete()
+            self._invalidate_after_unlink()
 
         if ir_model_data_unlink:
             ir_model_data_unlink.unlink()
@@ -112,7 +112,7 @@ class UnlinkMixin(_ModelStubs):
         if prof.agg and (p := self.env.transaction._orm_profiler):
             p.record("unlink", self._name, record_count, prof.elapsed)
 
-    def _invalidate_after_delete(self) -> None:
+    def _invalidate_after_unlink(self) -> None:
         env = self.env
         registry = env.registry
         cascades = registry.models_cascading_from

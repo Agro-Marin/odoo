@@ -69,19 +69,19 @@ class TestTheCacheKeySeparatesWhatMatters(unittest.TestCase):
             safe_eval("x = 1", {}, mode="eval")
 
     def test_filename_is_part_of_the_key(self):
-        a = se._compile_and_validate("1", "<a>", "eval")
-        b = se._compile_and_validate("1", "<b>", "eval")
+        a = se._compile_checked("1", "<a>", "eval")
+        b = se._compile_checked("1", "<b>", "eval")
         self.assertEqual(a.co_filename, "<a>")
         self.assertEqual(b.co_filename, "<b>")
 
     def test_the_same_call_returns_the_same_object(self):
-        a = se._compile_and_validate("1 + 1", "<t>", "eval")
-        b = se._compile_and_validate("1 + 1", "<t>", "eval")
+        a = se._compile_checked("1 + 1", "<t>", "eval")
+        b = se._compile_checked("1 + 1", "<t>", "eval")
         self.assertIs(a, b, "the second call recompiled")
 
     def test_the_cache_is_bounded(self):
         self.assertEqual(
-            se._compile_and_validate.cache_info().maxsize,
+            se._compile_checked.cache_info().maxsize,
             se._VALIDATED_CACHE_MAX,
             "an unbounded cache would grow with runtime-built expressions",
         )
