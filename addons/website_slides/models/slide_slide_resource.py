@@ -14,7 +14,10 @@ class SlideSlideResource(models.Model):
         "slide.slide", required=True, index=True, ondelete="cascade"
     )
     resource_type = fields.Selection([("file", "File"), ("url", "Link")], required=True)
-    name = fields.Char("Name", compute="_compute_name", readonly=False, store=True)
+    name = fields.Char(
+        "Name", compute="_compute_name", inverse="_inverse_name", store=True
+    )
+    is_name_default = fields.Boolean(default=True, copy=False)
     data = fields.Binary(
         "Resource", compute="_compute_reset_resources", store=True, readonly=False
     )
@@ -46,9 +49,13 @@ class SlideSlideResource(models.Model):
 
     @api.depends("file_name", "resource_type", "data", "link")
     def _compute_name(self):
+        # `is_name_default` (language-independent) replaces comparing `name`
+        # against a live-translated `_("Resource")`, which broke as soon as a
+        # resource created under one user language was later written to
+        # under another: the stored placeholder never matched the newly
+        # translated comparison string, so it was never replaced.
         for resource in self:
-            to_update = not resource.name or resource.name == _("Resource")
-            if to_update:
+            if not resource.name or resource.is_name_default:
                 new_name = _("Resource")
                 if resource.resource_type == "file" and (
                     resource.data or resource.file_name
@@ -57,6 +64,11 @@ class SlideSlideResource(models.Model):
                 elif resource.resource_type == "url":
                     new_name = resource.link
                 resource.name = new_name
+            else:
+                resource.name = resource.name
+
+    def _inverse_name(self):
+        self.is_name_default = False
 
     @api.depends("name", "file_name")
     def _compute_download_url(self):
