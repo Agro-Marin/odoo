@@ -69,7 +69,6 @@ class TestWebBundleSize(TransactionCase):
             "iap",
             "iap_mail",
             "im_livechat",
-            "iot_base",
             "mail",
             "mail_bot",
             "mail_bot_hr",

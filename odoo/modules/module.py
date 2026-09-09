@@ -77,6 +77,8 @@ _DEFAULT_MANIFEST = {
     "external_dependencies": {},
     "init_xml": [],
     "installable": True,
+    "iot_handlers_always": False,
+    "iot_handlers_in_image": False,
     "images": [],
     "images_preview_theme": {},
     "live_test_url": "",

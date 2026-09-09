@@ -12,7 +12,6 @@
         "stock_account",
         "phone_validation",
         "partner_autocomplete",
-        "iot_base",
         "google_address_autocomplete",
     ],
     "data": [
@@ -149,8 +148,6 @@
             "bus/static/src/legacy_multi_tab_service.js",
             "bus/static/src/multi_tab_service.js",
             "bus/static/src/workers/*",
-            "iot_base/static/src/network_utils/*",
-            "iot_base/static/src/device_controller.js",
         ],
         "point_of_sale._assets_pos": [
             "web/static/src/scss/functions.scss",

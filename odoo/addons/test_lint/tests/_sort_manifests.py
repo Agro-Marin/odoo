@@ -24,6 +24,8 @@ MANIFEST_KEY_ORDER: list[str] = [
     "demo",
     "assets",
     "esm",
+    "iot_handlers_always",
+    "iot_handlers_in_image",
     "installable",
     "application",
     "auto_install",

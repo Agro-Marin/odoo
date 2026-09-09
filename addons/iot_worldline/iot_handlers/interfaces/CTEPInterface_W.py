@@ -1,0 +1,53 @@
+import ctypes
+import logging
+import os
+from pathlib import Path
+
+from odoo.addons.iot_drivers.interface import Interface
+from odoo.addons.iot_drivers.iot_handlers.lib.ctypes_terminal_driver import (
+    create_ctypes_string_buffer,
+    import_ctypes_library,
+)
+from odoo.addons.iot_drivers.tools.helpers import download_from_url, unzip_file
+
+_logger = logging.getLogger(__name__)
+
+libPath = Path("odoo/addons/iot_drivers/iot_handlers/lib")
+easyCTEPPath = libPath / "ctep_w/libeasyctep.dll"
+zipPath = str(libPath / "ctep_w.zip")
+
+if not easyCTEPPath.exists():
+    download_from_url(
+        "http://nightly.odoo.com/master/posbox/iotbox/worldline-ctepv23_02_w.zip",
+        zipPath,
+    )
+    unzip_file(zipPath, str(libPath / "ctep_w"))
+
+# Add Worldline dll path so that the linker can find the required dll files
+os.environ["PATH"] = str(libPath / "ctep_w") + os.pathsep + os.environ["PATH"]
+easyCTEP = import_ctypes_library("ctep_w", "libeasyctep.dll")
+
+easyCTEP.createCTEPManager.restype = ctypes.c_void_p
+easyCTEP.connectedTerminal.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+
+
+class CTEPInterface(Interface):
+    _loop_delay = 10
+    connection_type = "ctep"
+
+    def __init__(self):
+        super().__init__()
+        try:
+            self.manager = easyCTEP.createCTEPManager()
+        except OSError:
+            _logger.exception("Failed to initalize CTEPManager")
+
+    def get_devices(self):
+        devices = {}
+        terminal_id = create_ctypes_string_buffer()
+        try:
+            if self.manager and easyCTEP.connectedTerminal(self.manager, terminal_id):
+                devices[terminal_id.value.decode("utf-8")] = self.manager
+        except OSError:
+            _logger.exception("Failed to check if the Worldline terminal is connected")
+        return devices
