@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.28
+:Version: 6.29
 :Date: 2026-09-09
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -1248,7 +1248,7 @@ Section  Population                                                  Count
 §2.4.10  … raising unconditionally                                      10
 §2.4.11  ``_find_*`` methods                                            26
 §2.4.11  … performing an ORM read                                        3
-§2.4.11  … doing something else entirely                                22
+§2.4.11  … doing something else entirely                                20
 §2.4.11  ``_find_or_create_*`` methods                                   1
 §2.4.11  ``_get_or_create_*`` methods                                   32
 §2.4.11  ``_resolve_*`` definitions                                     31
@@ -1547,25 +1547,55 @@ census table counts the definitions and names that spell it head-first against
 the few that spell it the other way. **The rule is general; the conversion
 reached one family** -- across the other collection heads the census searches,
 the tail-first count is the backlog. A name in it is a backlog item, not an open
-question. Two cautions:
-``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent from it
-is measured by nothing; and ``ids`` is deliberately absent, because
-``_get_partner_ids`` names a **field** and the field-hook rule owns that spelling.
+question. Four cautions, every one of them about the measurement rather than the
+rule: ``naming_vocabulary._COLLECTION_HEADS`` is a **search**, so a head absent
+from it is measured by nothing; ``ids`` is deliberately absent, because
+``_get_partner_ids`` names a **field** and the field-hook rule owns that
+spelling; ``_HEADS_HEAD_FIRST`` requires a token *after* the head, so a trailing
+qualifier alone flips the verdict -- ``_get_template_cache_keys`` scores ``tail``
+while ``_get_template_cache_keys_minimal``, three lines away and in the same
+family, scores ``head``; and the ``_get_domain_*`` family (§2.4.1) scores
+``tail`` whenever its ``<what>`` ends in a head, though its order is fixed by the
+prefix. **Read the tail-first count as a candidate population**, never as a list
+of defects.
 
-family** -- across **19** of them this repository spells **100** definitions
-head-first against **153** the other way. A name in the second count is a backlog
-item, not an open question. Four cautions, every one of them about the
-measurement rather than the rule: ``naming_vocabulary._COLLECTION_HEADS`` is a
-**search**, so a head absent from it is measured by nothing; ``ids`` is
-deliberately absent, because ``_get_partner_ids`` names a **field** and the
-field-hook rule owns that spelling; ``_HEADS_HEAD_FIRST`` requires a token
-*after* the head, so a trailing qualifier alone flips the verdict --
-``_get_template_cache_keys`` scores ``tail`` while
-``_get_template_cache_keys_minimal``, three lines away and in the same family,
-scores ``head``; and the ``_get_domain_*`` family (§2.4.1) scores ``tail``
-whenever its ``<what>`` ends in a head, though its order is fixed by the prefix.
-**Read the tail-first count as a candidate population**, never as a list of
-defects.
+**Seven of the tail-first count are that fourth caution firing, and they are not
+backlog** ``[review]``. ``_COLLECTION_HEADS`` spells ``domains`` and not
+``domain``, so a name already head-first on ``domain`` scores tail whenever its
+qualifier happens to end in another head: ``_get_domain_rotting_records`` on
+``records``, ``_get_domain_attachments`` on ``attachments``,
+``_get_domain_legacy_keys`` on ``keys``, with ``_get_domain_accessible_records``
+and three overrides of the first. All seven were confirmed **by return** rather
+than by name -- five annotated ``-> Domain``, one returning ``Domain`` through
+``super()``, one a list of domain tuples -- and reordering any of them makes it
+worse, since ``_get_attachments_domain`` is tail-first for what the method
+actually returns. So the count is an overcount of seven, and §2.4.4's "a name in
+it is a backlog item" is wrong for exactly these.
+
+**And the obvious repair is not available, which is why the head is absent rather
+than forgotten.** Adding ``domain`` to the tuple builds BOTH regexes, so
+``_get_domain_x`` becomes head-first *and* every ``_get_x_domain`` becomes
+tail-first -- and ``_get_*_domain`` is one of the commonest getter idioms in the
+tree (``_get_last_sequence_domain`` ×10, ``_get_product_catalog_domain`` ×7,
+``_get_l10n_latam_documents_domain`` ×6). Measured before proposing, as two head
+tuples over **one fixed tree**, so what it establishes is the delta rather than
+either absolute: the change moves head-first 131 → 273 and tail-first 177 →
+**355**, declaring **186** new backlog items and reclassifying 328 names. **The seven are a caveat
+about how to READ the number, never a correction to bank** -- banking 170 would
+require the scan change, and the scan change asserts a 186-item claim about a
+shipped convention that nobody has argued. ``domain`` is absent from the tuple
+because it cannot be added without settling ``_get_x_domain`` first.
+
+**A name-shaped test cannot answer this, and the first pass proved it**
+``[review]``. That pass asked whether the token after ``get_`` is a head in
+singular or plural form and returned **twelve**; reading the bodies cut it to
+seven. The five it wrongly excused are genuine backlog and every one reads like a
+head-first name: ``_get_attachment_domains`` returns *domains* and so is
+tail-first, ``_get_record_context_keys`` returns a ``list[str]`` of keys,
+``_get_name_search_account_types`` returns types, ``get_model_options`` returns
+options. §2.4.4 already says the head is a claim about the returned thing, so the
+measurement has to read the return; the annotation settled seven of the twelve in
+one line.
 
 **The head noun is a type claim about the members** ``[review]``, and ``keys`` is
 the one that hides it -- anything is a key of something, so the word survives
@@ -2079,8 +2109,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **361** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **269**
+**A ``bool`` return does not make a predicate** ``[review]``. **359** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **271**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -2496,7 +2526,7 @@ grounds in ascending weight:
   happens, while ``self._raise_x_error()`` looks like every other call and the
   lines after it are unreachable in a way a reader has to deduce;
 * nothing types it. A function that never returns is ``NoReturn``; **0** of this
-  repository's **17** ``_raise_*`` model methods say so, and some claim
+  repository's **18** ``_raise_*`` model methods say so, and some claim
   ``-> None``, which is false.
 
 The cost is accepted -- the call site says the verb twice, and ``B904`` fires the
@@ -2817,6 +2847,164 @@ now, over the addon trees only -- a directory test alone would sweep in ORM
 internals the vocabulary does not reach, so the discriminator is a
 ``__manifest__.py`` above the file, which is what makes a directory an addon and
 what the core package has none of.
+
+**And the directory list that widening introduced stops at two, so no gate has
+ever read an addon controller** ``[review]``. ``ADDON_HELPER_DIRS`` is
+``{models, wizard, wizards}``. A controller class derives from
+``http.Controller``, so ``is_model_class`` is false for it, and its directory is
+not in that set, so ``governs_module_helpers`` is false too: every route handler
+and every module-level helper under an addon's ``controllers/`` fails *both*
+tests and is in the population of nothing. It is not a thin scope, it is an
+absent one -- and ``addons/web``, which is twenty-four controller files against
+twenty-six model files, was reported clean by a gate that had read fewer than
+half of its definitions.
+
+*Frozen reading* (§1.4) at ``f5d34bc3c95`` / ``749c3caa2b4`` / ``34a3b5c5e2d`` /
+``cc15c000fb0``, measured in detached worktrees at those four commits by adding
+``controllers`` to that set and diffing the violation **sets**, not the counts.
+The worktrees are the measurement, not a formality: the same script over the
+shared checkout read **63** for ``odoo`` on the same afternoon, because four
+sessions were mid-rename in it, and a figure taken from a tree nobody can name
+is not a reading of the branch.
+
+=================  ========  =======  =====
+Scope              Before    After    New
+=================  ========  =======  =====
+``odoo``                  0       61     61
+``enterprise``          213      236     23
+``agromarin``             0       26     26
+``design-themes``         0        0      0
+=================  ========  =======  =====
+
+**Read that table as newly VISIBLE names, not as new offenders.** Every one of
+the 110 predates the measurement and none arrived with it; what moved is the
+scan, under a fixed tree. That is the middle row of §4's three failure modes --
+the one neither re-measurement nor ``ratchet.py --list`` can detect, because
+after a scan widens every reading agrees with itself and with every later
+reading -- so the distinction survives only if the note carries it. State it in
+those words when banking any floor this reaches, the way ``naming_enterprise``'s
+note does.
+
+**AND ``controllers`` IS ITSELF ONE SLICE OF THE HOLE.** Three sessions asked the
+same question and each measured the directories it thought to name, so each
+answered a different subset: controllers alone is the table above, and
+controllers plus ``tools`` is 146. Measured over **every** directory of an addon
+instead -- ``classify`` and ``_overrides_same_name`` applied exactly as
+``measure()`` does, on top of what is already governed -- the hole is **243**.
+*Frozen reading* (§1.4) at ``e6e7d07e169b`` / ``d09bfed781b`` / ``125a5ceec`` /
+``cc15c000f``:
+
+=================  ======  ===========  =====  ==========  =====
+Scope              Hidden  controllers  tools  migrations  other
+=================  ======  ===========  =====  ==========  =====
+``odoo``              116           60     29           0     27
+``enterprise``         52           23      0           0     29
+``agromarin``          75           26      7          23     19
+``design-themes``       0            0      0           0      0
+=================  ======  ===========  =====  ==========  =====
+
+**The ``other`` column is the finding, and it is 75 definitions nobody enumerated**
+-- reached by neither earlier measurement, because both scans named the
+directories they were looking for and a directory nobody names is a directory
+nobody counts. That is §2.4.13's own blind spot recurring inside the attempt to
+measure it: the fix for *a scan that stops at a list* is not a longer list.
+
+**243 is the size of the hole and NOT the size of a backlog**, and one bucket is
+why. ``agromarin``'s 23 ``migrations`` hits are one-shot upgrade scripts, and
+whether §2.4's vocabulary governs a migration script **at all** is a different
+question from whether it governs a controller -- one a widening would answer by
+accident. Settle it before counting those 23 as debt.
+
+**And it is already answered inconsistently, by mechanism rather than by
+anyone's decision** ``[review]``. The two gates disagree about migrations and
+neither disagreement was chosen. *Frozen reading* (§1.4) at ``04e2c12365d2``:
+``naming_vocabulary``'s file walk reaches **318** migration files under
+``addons/`` and governs **0** of the **500** functions in them, because its population is model classes and a migration script declares
+none; ``naming_core_vocabulary`` scans ``rglob("*.py")`` and reads every function,
+so at a governed scope it reads them all -- and has already renamed one
+(``_seed_missing_steps``). So the same script is ungoverned by one gate and
+gated by the other, and a reader who asks "does the vocabulary govern
+migrations" gets a different answer depending on which gate they ask. **A rule
+that two gates answer differently has not been decided, it has been
+implemented twice**; that is the thing to settle, and the 23 are only its
+visible edge.
+
+**The widening is not landed, and the reason is the floors rather than the
+names.** ``odoo`` and ``agromarin`` are at zero, and §9.4 calls a sibling zero a
+contract rather than debt, so a one-word change to a shared constant would put
+110 offenders through three floors that are all currently hard zeros -- and the
+repair is thirty-odd modules nobody has read. The population is real and it is
+lopsided: of ``odoo``'s 61, **41** are the Validation row -- ``verify`` 23,
+``validate`` 15, ``ensure`` 3 -- and **19** of those 41 sit under
+``addons/payment*``, one ``_verify_signature`` per acquirer, each checking a
+webhook's HMAC. The remaining twenty are the Read row (``fetch`` 12), the
+Payload row (``build`` 4, ``make`` 3) and one ``delete``. **A single row
+carrying two thirds of an unread population is the argument for reading it**:
+these are not scattered stylistic misses, they are one operation spelled three
+ways across twenty modules that copied each other. Whoever takes it should take
+one repository at a time.
+
+**And fix ``SKIP_DIRS`` before widening anything, because it spells the wrong
+word.** ``naming_vocabulary.SKIP_DIRS`` carries ``vendored``; the two directories
+in this workspace are ``odoo/odoo/libs/_vendor`` and
+``addons/auth_passkey/_vendor``, and neither matches. The core one is harmless --
+``naming_core_vocabulary.py`` opens with ``SKIP_DIRS = nv.SKIP_DIRS |
+{"_vendor"}`` precisely because that gate reads the core package -- so the
+exposure is the sibling gate's alone, and it is 11 definitions:
+``verify_registration_response``, ``verify_authentication_response``,
+``validate_certificate_chain`` and eight more attestation verifiers under
+``_vendor/webauthn``. **A widened population would bank all eleven as ours**, and
+they are a vendored library implementing the WebAuthn spec's own vocabulary --
+§2.4.13's opening rule is that the vocabulary governs *this* repository's methods,
+and vendored code is not ours to rename.
+
+**It looks like one word in a frozenset and it is not, which is the more useful
+half of this paragraph.** An earlier draft said exactly that; the change was made,
+predicted to be a no-op, measured, and was not. Read the block as a **delta over
+one tree** and not as four absolutes -- it was taken in a shared checkout, which
+the ``methods`` control row is there to make safe: it does not move, so what the
+other rows show is the frozenset and nothing else.
+
+.. code-block:: text
+
+   bool_returning_predicates   276 -> 274
+   bool_returning_others       355 -> 348
+   methods (control)         26,248 -> 26,248
+   naming_vocabulary --count        0 -> 0
+
+Nine vendored definitions feed two **published census rows** -- ``is_rsa_pkcs``
+and ``is_rsa_pss``, plus seven ``verify_*``/``validate_*`` attestation checks.
+``measure()`` is model-class-scoped and returns none of them, but ``census()``
+calls ``_bool_annotated``, which reads **top-level functions in every scanned
+file** with no model-class test at all; the two disagree about their own
+population, and checking the gate tells you nothing about the block. **The gate
+reads 0 on both sides**, so no amount of re-running it can reveal the move.
+
+**And the two populations are different sets, so neither number predicts the
+other**: 11 names would be flagged by ``classify()`` under a widened population,
+9 feed the bool rows, and the overlap is **7**. The two ``is_rsa_*`` are
+correctly-named predicates that leave the scan anyway, and four offenders --
+``verify_registration_response``, ``verify_authentication_response``,
+``verify_signature``, ``verify_safetynet_timestamp`` -- are not bool-annotated
+and move no row. Reasoning from "11 offenders" to the census cost, or back, gets
+both wrong.
+
+That is §4's middle failure mode -- the scan narrowing under a fixed tree -- with
+the sign that reads as *progress*: two rows fall by nine and the tree has not
+improved by one name. So the fix must land with a banking note saying **nine
+vendored definitions left the scan, not nine renamed**, and it must not land
+while anyone is renaming inside ``bool_returning_*``. The core gate's
+``nv.SKIP_DIRS | {"_vendor"}`` is genuinely free only because
+``naming_core_vocabulary.py`` has no census.
+
+**What was done instead is the per-scope gate**, which reaches the same files
+without moving a shared floor: ``naming_core_vocabulary.py`` reads *every*
+function under the scope it is pointed at, so adding ``web`` to its
+``GOVERNED_ADDONS`` put those twenty-four controller files under a hard zero of
+their own, argued by allowlist rather than banked. **That is the general repair
+for an absent scope** -- onboard the tree to the gate whose population is
+already right, rather than widening the one whose population is wrong and
+paying for it in every other repository at once.
 
 **A function nested inside a method is the third such population, and the
 largest** ``[gate doc_restated_counts]``. The scan read ``tree.body`` for module
@@ -3895,6 +4083,48 @@ section, because they are about the *reading* rather than the count: it is
 invisible to a reviewer as well as to the gate, since it appears in no outline
 and in no search for ``^    def``; so when sweeping a file, **grep ``\bdef ``
 and not ``^    def``**. ``hr``'s was ``date2datetime`` (§2.4.5).
+
+**The largest thing a Python-only reading misses is the other language**
+``[review]``. §2.4 governs ``def``; §4.2 gives JavaScript ``camelCase``, the rule
+that a string naming a Python method must match it exactly, and no verb
+vocabulary at all. So every row of §2.4.3, every reservation and every
+discriminator stops at the language boundary, and ``addons/web/static/src`` is
+**862** files on the far side of it. *Frozen reading* (§1.4) at ``f5d34bc3c95``:
+**332** definitions there open with a verb the table abolishes or §2.4.20 lists
+as a synonym -- ``make`` 75, ``build`` 71, ``validate`` 58, ``delete`` 48,
+``fetch`` 30, then a long tail.
+
+**Most of that 332 is not a defect list, and the reason is specific to the
+language rather than to sample size**: the three largest entries are *framework
+contracts wearing an abolished spelling*, so a mechanical sweep would break
+running code rather than merely misname it. ``validate`` is an OWL prop-schema
+key -- ``props = { x: { validate } }`` -- which OWL reads by name. ``delete`` is
+the ``Map``/``Set`` contract and a reserved word, so §2.4.3's reservation binds
+harder here than in Python. ``make*`` is this codebase's factory idiom, from
+``makeEnv`` down. ``fetch`` is ``window.fetch``, and §2.4.3 already reserves it.
+**A gate banked on that population would be a floor of exemptions**, which is
+§2.4.20's word list with a JSON file around it.
+
+**So the rules that cross the boundary are the ones whose discriminator is a
+body, not a spelling.** *Removes entries from a collection* is the Removal row in
+any language, and nine names in ``web`` were renamed on exactly that reading: the
+``prune`` family, ``purgeStorage``, ``_sweep`` and ``deriveFromApplied``. None of
+those four verbs has a JavaScript idiom behind it, which is what separates them
+from ``make`` and ``fetch``. **Ask what the body does, never what the token looks
+like** -- a head-token scan manufactures findings of its own, and two of this
+one's were ``controlPanelSlots`` (the noun *control panel*) and
+``browser.location.assign`` (the DOM API).
+
+**An OWL template is JavaScript's stored-Python column, and it is the binding
+that bites** ``[review]``. §2.4.14's case is ``ir.actions.server`` holding Python
+that no grep of ``def`` reaches; the JS twin is a template calling a method by
+string -- ``t-on-click="foo"`` -- which no linter resolves and no import graph
+shows. It shares the property that makes the server-action case expensive: the
+rename succeeds, the suite passes, and the call site fails at runtime somewhere
+the author was not looking. **Grep the name in ``*.xml`` before renaming a
+component method.** Doing that by hand nine times is the right cost and it does
+not generalise, which is the third independent argument for treating this
+population as a candidate list.
 
 2.4.20 Synonyms, and the verbs the table does not print
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -7216,6 +7446,21 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.29
+     - 2026-09-09
+     - §2.4.13: ``ADDON_HELPER_DIRS`` is ``{models, wizard, wizards}``, so an
+       addon's ``controllers/`` fails both of the sibling gate's tests and has
+       never been in any vocabulary gate's population -- 61 names in ``odoo``,
+       23 in ``enterprise``, 26 in ``agromarin``, measured at four named commits
+       and recorded as newly **visible** rather than new. Not landed as a
+       widening, because three of those floors are hard zeros and §9.4 calls a
+       sibling zero a contract; closed for ``addons/web`` instead by onboarding
+       it to ``naming_core_vocabulary.py``, whose scan has no helper-dirs filter
+       and therefore reads controllers for free. §2.4.19: the vocabulary stops
+       at the language boundary -- 332 abolished-verb definitions in
+       ``web/static/src``, most of them OWL, ``Map`` and factory contracts
+       rather than defects -- so only body-discriminated rows transfer, and an
+       OWL template is JavaScript's stored-Python binding.
    * - 6.28
      - 2026-09-09
      - Appendix A gains the two ``res.partner`` manufacturer flags, renamed onto
