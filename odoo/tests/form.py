@@ -348,12 +348,16 @@ class Form:
         return safe_eval(context_str, eval_context)
 
     def _prepare_eval_context(self, values: dict | None = None) -> dict:
+        allowed_company_ids = self._env.companies.ids
         context = {
             "id": self._record.id,
             "active_id": self._record.id,
             "active_ids": self._record.ids,
             "active_model": self._record._name,
             "current_date": date.today().strftime("%Y-%m-%d"),
+            "uid": self._env.uid,
+            "allowed_company_ids": allowed_company_ids,
+            "current_company_id": allowed_company_ids[0],
             **self._env.context,
         }
         if values is None:
