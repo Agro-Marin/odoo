@@ -32,7 +32,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
 .o-discuss-badge {
     &,
     & .o-innerBadge {
-        --o-discuss-badge-bg: #{$o-success};
+        --o-discuss-badge-bg: #{$o-danger}; // sync with --o-navbar-badge-bg
         color: white !important;
         background-color: var(--o-discuss-badge-bg) !important;
         align-items: center;

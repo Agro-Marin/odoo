@@ -1,4 +1,8 @@
+from ast import literal_eval
+
 from odoo.tests.common import TransactionCase
+
+from odoo.addons.base.tests.test_cloc import TestClocCustomization
 
 
 class TestUpdateNotification(TransactionCase):
@@ -22,3 +26,14 @@ class TestUpdateNotification(TransactionCase):
             share_user_count,
             "Update Notification: Portal Users count is badly computed in ping message",
         )
+
+
+class TestClocICP(TestClocCustomization):
+    def test_check_cloc_result_in_icp(self):
+        self.create_field("x_invoice_count")
+        message = self.env["publisher_warranty.contract"]._get_message()
+        self.assertTrue("maintenance" in message)
+        store_cloc = self.env["ir.config_parameter"].get_param(
+            "publisher_warranty.cloc"
+        )
+        self.assertEqual(literal_eval(store_cloc)["modules"]["odoo/studio"], 1)

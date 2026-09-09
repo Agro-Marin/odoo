@@ -8,7 +8,7 @@ import requests
 from odoo import SUPERUSER_ID, api, fields, release
 from odoo.exceptions import UserError
 from odoo.models import AbstractModel
-from odoo.tools import config
+from odoo.tools import cloc, config
 from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
@@ -76,7 +76,40 @@ class Publisher_WarrantyContract(AbstractModel):
                     "phone": company_id.phone_ids._primary().number,
                 }
             )
+        if not IrParamSudo.get_param_bool("publisher_warranty.maintenance_disable"):
+            msg["maintenance"] = self._get_maintenance()
+            IrParamSudo.set_param("publisher_warranty.cloc", str(msg["maintenance"]))
         return msg
+
+    @api.model
+    def _get_maintenance(self) -> dict:
+        maintenance = {"version": cloc.VERSION}
+        try:
+            counter = cloc.Cloc()
+            counter.count_env(self.env)
+            if counter.code:
+                maintenance["modules"] = counter.code
+            if counter.errors:
+                maintenance["errors"] = list(counter.errors.keys())
+        except Exception:
+            _logger.exception("cloc collection failed")
+            maintenance["errors"] = ["cloc/error"]
+        return maintenance
+
+    @api.model
+    def _get_verbose_maintenance(self) -> dict:
+        """can be called by a SA to debug cloc issue
+        Without running odoo-bin cloc which is not always possible
+
+        :return: cloc module/exclusion counts
+        :rtype: dict
+        """
+        counter = cloc.Cloc()
+        counter.count_env(self.env)
+        return {
+            "modules_count": counter.modules,
+            "modules_excluded": counter.excluded,
+        }
 
     @api.model
     def _get_sys_logs(self) -> dict:

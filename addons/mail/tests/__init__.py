@@ -1,4 +1,5 @@
 from . import test_controller_contract
+from . import test_discuss_channel_expand
 from . import test_discuss_tools
 from . import test_js
 from . import test_fetchmail_server
@@ -31,6 +32,7 @@ from . import test_res_role
 from . import test_res_users
 from . import test_service_worker
 from . import test_uninstall
+from . import test_publisher_warranty
 from . import test_update_notification
 from . import test_webmanifest
 from . import test_websocket_controller

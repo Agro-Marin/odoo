@@ -20,7 +20,7 @@
 }
 
 .o-mail-DiscussSearch {
-    padding-top: var(--DiscussSearch-padding-top, #{map-get($spacers, 1)});
+    padding-top: var(--DiscussSearch-padding-top, 0);
 }
 
 @include media-only(screen) {

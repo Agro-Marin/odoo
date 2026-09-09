@@ -305,7 +305,6 @@
             "@lunch/*": ["addons/lunch/static/src/*"],
             "@mail/*": ["addons/mail/static/src/*"],
             "@mail_bot/*": ["addons/mail_bot/static/src/*"],
-            "@mail_enterprise/*": ["../enterprise/mail_enterprise/static/src/*"],
             "@mail_group/*": ["addons/mail_group/static/src/*"],
             "@mail_mobile/*": ["../enterprise/mail_mobile/static/src/*"],
             "@mail_plugin/*": ["addons/mail_plugin/static/src/*"],

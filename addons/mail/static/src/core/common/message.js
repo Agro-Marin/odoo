@@ -65,9 +65,9 @@ class MessageDropdown extends Dropdown {
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Message extends Component {
-    static SHADOW_LINK_COLOR = "#66598f";
+    static SHADOW_LINK_COLOR = "#017e84";
     static SHADOW_HIGHLIGHT_COLOR = "#e99d00bf";
-    static SHADOW_LINK_HOVER_COLOR = "#564b79";
+    static SHADOW_LINK_HOVER_COLOR = "#016b70";
     static components = {
         ActionList,
         ActionSwiper,
