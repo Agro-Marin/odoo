@@ -358,8 +358,8 @@ class TestProductProductAudit(TransactionCase):
             Warehouse.search([("company_id", "=", second.id)]),
             "fixture: no warehouse may be visible for the second company",
         )
-        original = type(Warehouse)._warehouse_redirect_warning
-        type(Warehouse)._warehouse_redirect_warning = lambda records: None
+        original = type(Warehouse)._raise_missing_warehouse
+        type(Warehouse)._raise_missing_warehouse = lambda records: None
         try:
             for index, reversed_order in enumerate((False, True)):
                 stranded = self.Product.create(
@@ -395,7 +395,7 @@ class TestProductProductAudit(TransactionCase):
                         "the company that has none has nowhere to put it",
                     )
         finally:
-            type(Warehouse)._warehouse_redirect_warning = original
+            type(Warehouse)._raise_missing_warehouse = original
 
     def test_a_single_non_internal_scope_is_told_what_is_actually_wrong(self):
         with self.assertRaises(UserError) as caught:

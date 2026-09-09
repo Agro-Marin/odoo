@@ -15,7 +15,7 @@ class StockWarehouseRoute(models.Model):
     _inherit = "stock.warehouse"
 
     @ormcache()
-    def _route_field_names(self):
+    def _get_route_field_names(self):
         return tuple(
             name
             for name, field in self._fields.items()
@@ -775,7 +775,7 @@ class StockWarehouseRoute(models.Model):
             Rule.browse(rule_ids).write({"name": name})
 
     def _format_rulename(self, from_loc, dest_loc, suffix):
-        rulename = "%s: %s" % (self._normalized_code(), from_loc.name)
+        rulename = "%s: %s" % (self._get_normalized_code(), from_loc.name)
         if dest_loc:
             rulename += " → %s" % (dest_loc.name)
         if suffix:

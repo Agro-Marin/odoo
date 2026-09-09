@@ -301,7 +301,7 @@ class StockWarehouse(models.Model):
             view_location = warehouse.view_location_id
             if not view_location:
                 continue
-            for field_name in warehouse._sub_location_field_names():
+            for field_name in warehouse._get_sub_location_field_names():
                 location = warehouse[field_name]
                 if not location:
                     continue
@@ -341,12 +341,12 @@ class StockWarehouse(models.Model):
             if "name" not in vals:
                 vals["name"] = self._generate_default_name(
                     company,
-                    self._taken_warehouse_values(taken, "name", company, chosen),
+                    self._get_taken_warehouse_values(taken, "name", company, chosen),
                 )
             if "code" not in vals:
                 vals["code"] = self._generate_default_code(
                     company,
-                    self._taken_warehouse_values(taken, "code", company, chosen),
+                    self._get_taken_warehouse_values(taken, "code", company, chosen),
                 )
             else:
                 vals["code"] = self._normalize_code(vals["code"])
@@ -471,7 +471,7 @@ class StockWarehouse(models.Model):
         warehouses = self
         triggers = self._get_fields_route_trigger()
         rule_fields = self._get_global_rule_fields()
-        location_fields = frozenset(self._sub_location_field_names())
+        location_fields = frozenset(self._get_sub_location_field_names())
         changed = vals.keys()
         refresh_picking_types = (
             "code" in changed
@@ -586,7 +586,7 @@ class StockWarehouse(models.Model):
             )
         )
         routes = self.env["stock.route"].browse()
-        for field_name in self._route_field_names():
+        for field_name in self._get_route_field_names():
             routes |= self[field_name]
         routes |= (
             self.env["stock.route"]
@@ -628,15 +628,15 @@ class StockWarehouse(models.Model):
         for warehouse, vals in zip(self, vals_list, strict=True):
             company = warehouse.company_id
             if "name" not in default:
-                vals["name"] = self._unique_copy_name(
+                vals["name"] = self._get_unique_copy_name(
                     _("%s (copy)", warehouse.name),
                     company,
-                    self._taken_warehouse_values(taken, "name", company, chosen),
+                    self._get_taken_warehouse_values(taken, "name", company, chosen),
                 )
             if "code" not in default:
                 vals["code"] = self._generate_default_code(
                     company,
-                    self._taken_warehouse_values(taken, "code", company, chosen),
+                    self._get_taken_warehouse_values(taken, "code", company, chosen),
                 )
             if vals.get("name"):
                 chosen["name", company.id].add(vals["name"])
@@ -819,15 +819,15 @@ class StockWarehouse(models.Model):
             if view:
                 view.active = not enabled
 
-    def _taken_warehouse_values(self, cache, field_name, company, chosen=None):
+    def _get_taken_warehouse_values(self, cache, field_name, company, chosen=None):
         key = (field_name, company.id)
         if key not in cache:
-            cache[key] = self._existing_warehouse_values(field_name, company)
+            cache[key] = self._get_existing_warehouse_values(field_name, company)
         if chosen is None:
             return cache[key]
         return cache[key] | chosen[key]
 
-    def _existing_warehouse_values(self, field_name, company, taken=()):
+    def _get_existing_warehouse_values(self, field_name, company, taken=()):
         return set(taken) | set(
             self.env["stock.warehouse"]
             .with_context(active_test=False)
@@ -837,7 +837,7 @@ class StockWarehouse(models.Model):
 
     def _generate_default_name(self, company, existing=None):
         if existing is None:
-            existing = self._existing_warehouse_values("name", company)
+            existing = self._get_existing_warehouse_values("name", company)
         if not existing:
             return company.name
         counter = len(existing) + 1
@@ -853,7 +853,7 @@ class StockWarehouse(models.Model):
 
     def _generate_default_code(self, company, existing=None):
         if existing is None:
-            existing = self._existing_warehouse_values("code", company)
+            existing = self._get_existing_warehouse_values("code", company)
         size = self._fields["code"].size
         base = self._normalize_code(company.name) or "WH"
         if base not in existing:
@@ -870,9 +870,9 @@ class StockWarehouse(models.Model):
             )
         )
 
-    def _unique_copy_name(self, base, company, existing=None):
+    def _get_unique_copy_name(self, base, company, existing=None):
         if existing is None:
-            existing = self._existing_warehouse_values("name", company)
+            existing = self._get_existing_warehouse_values("name", company)
         if base not in existing:
             return base
         counter = 2
@@ -886,7 +886,7 @@ class StockWarehouse(models.Model):
     def _normalize_code(self, code):
         return (code or "").replace(" ", "").upper()[: self._fields["code"].size]
 
-    def _normalized_code(self):
+    def _get_normalized_code(self):
         self.check_singleton()
         return self._normalize_code(self.code)
 
@@ -899,7 +899,7 @@ class StockWarehouse(models.Model):
             self._update_route_names(new_name)
 
     @api.model
-    def _warehouse_redirect_warning(self):
+    def _raise_missing_warehouse(self):
         if not self.env.registry.ready:
             return
         if not self.env.user.has_group("stock.group_stock_manager"):

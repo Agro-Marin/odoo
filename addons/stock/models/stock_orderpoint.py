@@ -452,7 +452,7 @@ class StockWarehouseOrderpoint(models.Model):
                     self.env["stock.warehouse"],
                 )
             if not orderpoint.warehouse_id:
-                self.env["stock.warehouse"]._warehouse_redirect_warning()
+                self.env["stock.warehouse"]._raise_missing_warehouse()
 
     @api.depends("warehouse_id", "company_id")
     def _compute_location_id(self):

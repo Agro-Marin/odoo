@@ -15,7 +15,7 @@ field exists to be searched" — which forced the search hook to be spelled
 field. Naming the field for what it
 holds makes the existing ``_search_date_category`` correct as it stands, and
 joins the vocabulary ``stock/models/mixin_date_category.py`` already uses
-(``date_category_to_domain``, ``get_date_category``).
+(``get_domain_date_category``, ``get_date_category``).
 
 Every statement is idempotent: the guard stops matching once a row is rewritten.
 """

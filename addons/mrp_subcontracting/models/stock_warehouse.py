@@ -185,7 +185,7 @@ class StockWarehouse(models.Model):
 
     def _get_picking_type_codes(self):
         codes = super()._get_picking_type_codes()
-        code = self._normalized_code()
+        code = self._get_normalized_code()
         count = self.env["ir.sequence"].search_count(
             [("prefix", "=like", code + "/SBC%/%")]
         )

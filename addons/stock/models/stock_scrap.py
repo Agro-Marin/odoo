@@ -148,7 +148,7 @@ class StockScrap(models.Model):
             [("company_id", "in", self.company_id.ids)]
         )
         if len(company_warehouses) == 0 and self.company_id:
-            self.env["stock.warehouse"]._warehouse_redirect_warning()
+            self.env["stock.warehouse"]._raise_missing_warehouse()
         locations_per_company = {}
         for warehouse in company_warehouses:
             locations_per_company.setdefault(

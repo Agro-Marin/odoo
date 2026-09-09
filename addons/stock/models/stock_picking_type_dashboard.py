@@ -11,7 +11,7 @@ from odoo.addons.base.models.ir_actions_actions import _eval_dict_or_default
 class StockPickingTypeDashboard(models.Model):
     _inherit = "stock.picking.type"
 
-    def _picking_count_buckets(self, query):
+    def _get_picking_count_buckets(self, query):
         picking = self.env["stock.picking"]
         table = picking._table
         state = picking._field_to_sql(table, "state", query)
@@ -44,7 +44,7 @@ class StockPickingTypeDashboard(models.Model):
             Domain("picking_type_id", "in", self.ids)
             & Domain("state", "in", self._OPEN_PICKING_STATES)
         )
-        buckets = self._picking_count_buckets(query)
+        buckets = self._get_picking_count_buckets(query)
         counts = {}
         if not query.is_empty():
             group = picking._field_to_sql(picking._table, "picking_type_id", query)

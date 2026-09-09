@@ -134,7 +134,7 @@ class SaleOrder(models.Model):
                 )
             self.env["stock.warehouse"].with_company(
                 order_line.order_id.company_id,
-            )._warehouse_redirect_warning()
+            )._raise_missing_warehouse()
         other_company_warehouses = self.env["stock.warehouse"].search(
             [("company_id", "in", list(other_company))],
         )

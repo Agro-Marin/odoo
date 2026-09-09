@@ -82,7 +82,7 @@ class StockScheduler(models.AbstractModel):
 
     @api.model
     def _run_quant_tasks(self, use_new_cursor=False, company_id=False):
-        self.env["stock.quant"]._quant_tasks()
+        self.env["stock.quant"]._run_maintenance_tasks()
 
     @api.model
     def _get_orderpoint_domain(self, company_id=False, only_automatic=True):

@@ -130,7 +130,7 @@ class StockWarehousePickingType(models.Model):
 
     def _update_picking_type_barcodes(self, update_data, suffixes):
         self.check_singleton()
-        code = self._normalized_code()
+        code = self._get_normalized_code()
         fields_order = list(suffixes)
         wanted = [{"barcode": code + suffixes[field]} for field in fields_order]
         owned = (

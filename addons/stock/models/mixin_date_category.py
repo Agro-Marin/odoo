@@ -42,7 +42,7 @@ class MixinDateCategory(models.AbstractModel):
         return Domain.OR(
             domain
             for item in value
-            if (domain := self.date_category_to_domain(self._date_category_field, item))
+            if (domain := self.get_domain_date_category(self._date_category_field, item))
         )
 
     @api.model
@@ -88,7 +88,7 @@ class MixinDateCategory(models.AbstractModel):
         return ""
 
     @api.model
-    def date_category_to_domain(self, field_name, date_category):
+    def get_domain_date_category(self, field_name, date_category):
         bound = self._get_date_category_boundaries_naive()
         lower = None
         for key, upper, _label, _kind in self.DATE_CATEGORIES:

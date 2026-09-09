@@ -13,7 +13,7 @@ class PurchaseRequisition(models.Model):
             limit=1,
         )
         if not picking_type:
-            self.env["stock.warehouse"]._warehouse_redirect_warning()
+            self.env["stock.warehouse"]._raise_missing_warehouse()
         return picking_type
 
     warehouse_id = fields.Many2one(

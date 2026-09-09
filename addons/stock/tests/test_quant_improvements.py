@@ -1090,7 +1090,7 @@ class TestStockQuantImprovements(TestStockCommon):
             ]
         )
         self.env.cr.flush()
-        dupes._quant_tasks()
+        dupes._run_maintenance_tasks()
         remaining = self.Quant.search(
             [("product_id", "=", product.id), ("location_id", "=", self.loc.id)]
         )
@@ -1116,7 +1116,7 @@ class TestStockQuantImprovements(TestStockCommon):
             {"product_id": product.id, "location_id": self.loc.id, "quantity": 3.0}
         )
         self.env.cr.flush()
-        in_scope._quant_tasks()
+        in_scope._run_maintenance_tasks()
         self.assertEqual(
             phantom.reserved_quantity,
             5.0,

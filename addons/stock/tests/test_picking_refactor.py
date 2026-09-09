@@ -598,7 +598,7 @@ class TestPickingRefactor(TestStockCommon):
                 "naive UTC datetimes must not be reinterpreted in the OS timezone",
             )
             (_f1, _op1, low), (_f2, _op2, high) = (
-                self.PickingObj.date_category_to_domain(
+                self.PickingObj.get_domain_date_category(
                     "date_planned",
                     "today",
                 )

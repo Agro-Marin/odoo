@@ -160,7 +160,7 @@ class ProductProductQuantity(models.Model):
                 if not warehouse:
                     self.env["stock.warehouse"].with_company(
                         company
-                    )._warehouse_redirect_warning()
+                    )._raise_missing_warehouse()
                     _logger.warning(
                         "Not setting the quantity on hand of %s: company %s has no "
                         "warehouse.",

@@ -663,13 +663,13 @@ class TestAuditQuantTasksScope(TestStockCommon):
         _sq.StockQuantReservation._merge_quants = spy
         self.addCleanup(setattr, _sq.StockQuantReservation, "_merge_quants", orig)
 
-        quant._quant_tasks()
+        quant._run_maintenance_tasks()
         self.assertEqual(
             seen_sizes,
             [1],
             "a recordset call must reach the scoped tasks with its records",
         )
-        self.env["stock.quant"]._quant_tasks()
+        self.env["stock.quant"]._run_maintenance_tasks()
         self.assertEqual(
             seen_sizes,
             [1, 0],

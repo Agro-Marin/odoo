@@ -381,7 +381,7 @@ class StockPackage(models.Model):
         quants = self.quant_ids
         if quants:
             quants.move_quants(message=_("Quantities unpacked"), unpack=True)
-            quants._quant_tasks()
+            quants._run_maintenance_tasks()
 
     def _pre_put_in_pack_hook(
         self,

@@ -379,7 +379,7 @@ class TestInventory(TransactionCase):
             ),
             2.0,
         )
-        self.env["stock.quant"]._quant_tasks()
+        self.env["stock.quant"]._run_maintenance_tasks()
         inventory_quant = self.env["stock.quant"].search(
             [
                 ("location_id", "=", self.stock_location.id),

@@ -14,7 +14,7 @@ class StockWarehouseLocation(models.Model):
     _inherit = "stock.warehouse"
 
     @ormcache()
-    def _sub_location_field_names(self):
+    def _get_sub_location_field_names(self):
         return tuple(self._prepare_sub_location_vals({}))
 
     def _get_fields_location_step(self):
@@ -112,7 +112,7 @@ class StockWarehouseLocation(models.Model):
             claimed.add(barcode)
 
     def _create_missing_locations(self, vals):
-        location_fields = self._sub_location_field_names()
+        location_fields = self._get_sub_location_field_names()
         for warehouse in self:
             if all(warehouse[field] or field in vals for field in location_fields):
                 continue

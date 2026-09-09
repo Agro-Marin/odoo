@@ -198,7 +198,7 @@ class StockMoveForecast(models.Model):
     def _delay_alert_get_documents(self):
         return list(self.mapped("picking_id"))
 
-    def _get_availability_relevant_moves(self):
+    def _filtered_availability_relevant(self):
         return self.filtered(lambda move: move.state not in ("cancel", "done"))
 
     def _is_availability_short(self):
@@ -209,7 +209,7 @@ class StockMoveForecast(models.Model):
                 0 if move.state == "draft" else move.product_qty,
             )
             == -1
-            for move in self._get_availability_relevant_moves()
+            for move in self._filtered_availability_relevant()
         )
 
     def _get_availability(self, comparison_date):
@@ -218,7 +218,7 @@ class StockMoveForecast(models.Model):
         if self._is_availability_short():
             return "late", False
         forecast_date = max(
-            self._get_availability_relevant_moves()
+            self._filtered_availability_relevant()
             .filtered("date_planned_forecast")
             .mapped("date_planned_forecast"),
             default=False,

@@ -601,7 +601,7 @@ class ProductTemplate(models.Model):
             if not warehouse:
                 self.env["stock.warehouse"].with_company(
                     company
-                )._warehouse_redirect_warning()
+                )._raise_missing_warehouse()
             return self.env.ref("stock.action_report_stock_rule").report_action(
                 None,
                 data={
@@ -622,7 +622,7 @@ class ProductTemplate(models.Model):
     def action_product_tmpl_forecast_report(self):
         self.check_singleton()
         if not self.env.user._get_default_warehouse_id():
-            self.env["stock.warehouse"]._warehouse_redirect_warning()
+            self.env["stock.warehouse"]._raise_missing_warehouse()
         return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_forecasted_product_template_action",
         )

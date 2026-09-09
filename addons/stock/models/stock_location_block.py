@@ -134,7 +134,7 @@ class StockLocationBlock(models.Model):
             return ("hard",)
         return OUTGOING_BLOCK_TYPES
 
-    def _reserved_quantities_by_uom(self):
+    def _get_reserved_quantities_by_uom(self):
         if not self:
             return {}
         groups = self.env["stock.quant"]._read_group(
@@ -157,10 +157,10 @@ class StockLocationBlock(models.Model):
                         totals[location_id][uom_name] += quantity
         return {location_id: dict(by_uom) for location_id, by_uom in totals.items()}
 
-    def _total_reserved_quantities(self):
+    def _get_reserved_quantity_totals(self):
         return {
             location_id: sum(by_uom.values())
-            for location_id, by_uom in self._reserved_quantities_by_uom().items()
+            for location_id, by_uom in self._get_reserved_quantities_by_uom().items()
         }
 
     def _check_block_governance_before_write(self, vals):
@@ -248,7 +248,7 @@ class StockLocationBlock(models.Model):
     def _update_block_metadata(self):
         if not self:
             return
-        reserved_by_location = self._reserved_quantities_by_uom()
+        reserved_by_location = self._get_reserved_quantities_by_uom()
         now = fields.Datetime.now()
         by_total = defaultdict(list)
         for location in self:

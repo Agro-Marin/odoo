@@ -480,7 +480,7 @@ class StockPickingType(models.Model):
         if not self.env["stock.warehouse"].search_count(
             [("company_id", "in", companies.ids)], limit=1
         ):
-            self.env["stock.warehouse"]._warehouse_redirect_warning()
+            self.env["stock.warehouse"]._raise_missing_warehouse()
         raise UserError(
             _(
                 "Operation type %(name)s has no warehouse, so its default "

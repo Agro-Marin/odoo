@@ -39,7 +39,7 @@ class StockMoveDone(models.Model):
             .filtered(lambda x: x.state not in ("done", "cancel"))
         )
 
-        moves._drop_unpicked_lines_and_cancel_empty(cancel_backorder)
+        moves._remove_unpicked_lines_and_cancel_empty(cancel_backorder)
 
         moves_todo = moves.filtered(
             lambda m: (
@@ -188,7 +188,7 @@ class StockMoveDone(models.Model):
             body += Markup("</ul>")
         return body
 
-    def _drop_unpicked_lines_and_cancel_empty(self, cancel_backorder):
+    def _remove_unpicked_lines_and_cancel_empty(self, cancel_backorder):
         ml_ids_to_unlink = OrderedSet()
         move_ids_to_cancel = OrderedSet()
         for move in self:

@@ -657,7 +657,7 @@ class StockQuantReservation(models.Model):
     ):
         return False
 
-    def _quant_tasks(self):
+    def _run_maintenance_tasks(self):
         self._merge_quants()
         self._clean_reservations()
         self._unlink_zero_quants()

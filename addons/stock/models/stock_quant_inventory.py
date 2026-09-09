@@ -208,7 +208,7 @@ class StockQuantInventory(models.Model):
             .sudo()
             .get_param("stock.skip_quant_tasks")
         ):
-            self._quant_tasks()
+            self._run_maintenance_tasks()
 
         ctx = dict(self.env.context or {})
         ctx["no_at_date"] = True
@@ -842,7 +842,7 @@ class StockQuantInventory(models.Model):
             .sudo()
             .get_param("stock.skip_quant_tasks")
         ):
-            self._quant_tasks()
+            self._run_maintenance_tasks()
         ctx = dict(self.env.context or {})
         ctx["inventory_report_mode"] = True
         ctx.pop("group_by", None)

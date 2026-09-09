@@ -292,7 +292,7 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(move.product_qty, 1, "Moves created with wrong quantity.")
         self.assertEqual(move.location_id.id, location_loss.id)
 
-        self.env["stock.quant"]._quant_tasks()
+        self.env["stock.quant"]._run_maintenance_tasks()
         quants = self.env["stock.quant"].search(
             [
                 ("product_id", "=", productA.id),
@@ -2212,14 +2212,14 @@ class TestWarehouse(TestStockCommon):
     def test_default_names_read_the_existing_ones_once_per_company(self):
         Warehouse = self.env["stock.warehouse"]
         model = type(Warehouse)
-        original = model._existing_warehouse_values
+        original = model._get_existing_warehouse_values
         calls = []
 
         def spy(records, field_name, company, taken=()):
             calls.append(field_name)
             return original(records, field_name, company, taken)
 
-        self.patch(model, "_existing_warehouse_values", spy)
+        self.patch(model, "_get_existing_warehouse_values", spy)
         Warehouse.create([{} for _ in range(5)])
         self.env.flush_all()
         self.assertEqual(
@@ -2232,14 +2232,14 @@ class TestWarehouse(TestStockCommon):
     def test_supplying_a_name_and_code_reads_nothing(self):
         Warehouse = self.env["stock.warehouse"]
         model = type(Warehouse)
-        original = model._existing_warehouse_values
+        original = model._get_existing_warehouse_values
         calls = []
 
         def spy(records, field_name, company, taken=()):
             calls.append(field_name)
             return original(records, field_name, company, taken)
 
-        self.patch(model, "_existing_warehouse_values", spy)
+        self.patch(model, "_get_existing_warehouse_values", spy)
         Warehouse.create({"name": "Explicit", "code": "EXPL"})
         self.env.flush_all()
         self.assertEqual(

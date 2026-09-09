@@ -55,7 +55,7 @@ class StockRulesReport(models.TransientModel):
                 .id
             )
             if not warehouse_id:
-                self.env["stock.warehouse"]._warehouse_redirect_warning()
+                self.env["stock.warehouse"]._raise_missing_warehouse()
             res["warehouse_ids"] = [(6, 0, [warehouse_id])]
         return res
 

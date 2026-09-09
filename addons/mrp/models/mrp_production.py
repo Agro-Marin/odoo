@@ -629,7 +629,7 @@ class MrpProduction(models.Model):
                     )
                 }
             if mo.company_id.id not in companies_with_warehouse:
-                self.env["stock.warehouse"]._warehouse_redirect_warning()
+                self.env["stock.warehouse"]._raise_missing_warehouse()
 
     @api.depends("bom_id", "product_id")
     def _compute_product_uom_id(self):
@@ -1654,7 +1654,7 @@ class MrpProduction(models.Model):
             return NotImplemented
         dates = value
         return Domain.OR(
-            self.date_category_to_domain("date_start", date) for date in dates
+            self.get_domain_date_category("date_start", date) for date in dates
         )
 
     @api.depends("lot_producing_ids", "product_tracking")
