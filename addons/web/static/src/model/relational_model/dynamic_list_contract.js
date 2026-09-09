@@ -9,4 +9,11 @@ export const DYNAMIC_LIST_OWNER_SURFACE = [
     "onRecordDeselected",
 ];
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * multiSaveLocked: (editedRecord: any, changes: any) => Promise<any>,
+ * resequenceLocked: (originalList: any[], resModel: string, movedId: any, targetId: any) => Promise<any>,
+ * isRecordToDiscard: (record: any) => boolean,
+ * onRecordDeselected: () => void,
+ * }} DynamicListContract
+ */
