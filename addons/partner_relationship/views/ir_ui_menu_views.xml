@@ -5,7 +5,7 @@
         id="menu_partner_relationship_root"
         name="Relationships"
         parent="partner.partner_menu_root"
-        sequence="25" />
+        sequence="30" />
 
     <menuitem
         id="menu_res_partner_relation"
@@ -33,7 +33,7 @@
         name="Relationship Types"
         parent="partner.res_partner_menu_config"
         action="action_res_partner_relation_type"
-        sequence="30"
+        sequence="70"
         groups="partner_relationship.group_partner_relationship_manager" />
 
 </odoo>

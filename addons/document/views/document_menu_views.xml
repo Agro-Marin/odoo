@@ -22,7 +22,7 @@
         id="document.Config"
         name="Configuration"
         parent="document.menu_root"
-        sequence="10"
+        sequence="900"
         groups="document.group_documents_manager" />
 
     <menuitem

@@ -44,7 +44,7 @@
             id="menu_res_city"
             parent="partner.menu_localisation"
             action="action_res_city_tree"
-            sequence="2" />
+            sequence="40" />
     </data>
 
 </odoo>
