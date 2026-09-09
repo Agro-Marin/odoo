@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates>
+	<t t-name="account.account_return_check_control_panel" t-inherit="web.ControlPanel">
+        <EmbeddedActionsDropdown position="replace"/>
+        <button name="embedded_actions" position="replace"/>
+    </t>
+</templates>

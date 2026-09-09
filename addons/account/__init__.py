@@ -31,10 +31,35 @@ def _install_sepa_modules(env):
     ).sudo().button_install()
 
 
+def _load_account_return_data(env):
+    env.ref("account.ir_cron_generate_account_return")._trigger()
+
+    env["account.return.type"].search([])._set_default_values(
+        env["res.company"].search([])
+    )
+
+    for company in env["res.company"].search(
+        [("chart_template", "!=", False)], order="parent_path"
+    ):
+        ChartTemplate = env["account.chart.template"].with_company(company)
+        # Set up the tax returns journal after the CoA was already installed.
+        ChartTemplate._load_data(
+            {
+                "account.journal": ChartTemplate._get_account_reports_journal(
+                    company.chart_template
+                ),
+                "res.company": ChartTemplate._get_account_reports_res_company(
+                    company.chart_template
+                ),
+            }
+        )
+
+
 def _account_post_init(env):
     _set_fiscal_country(env)
     _install_sepa_modules(env)
     _load_deferred_accounts(env)
+    _load_account_return_data(env)
 
 
 from . import controllers

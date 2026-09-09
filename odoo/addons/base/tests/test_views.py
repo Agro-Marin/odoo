@@ -6029,7 +6029,6 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
             "account_payment_provider",
             "account_peppol",
             "account_qr_code_emv",
-            "account_reports",
             "account_saft_import",
             "account_sepa",
             "account_sepa_direct_debit",
