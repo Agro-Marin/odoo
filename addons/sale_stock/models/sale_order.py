@@ -43,7 +43,7 @@ class SaleOrder(models.Model):
         string="Delivery Orders",
         compute="_compute_count_transfer_outgoing",
     )
-    stock_reference_ids = fields.Many2many(
+    reference_ids = fields.Many2many(
         comodel_name="stock.reference",
         relation="stock_reference_sale_rel",
         column1="sale_id",
@@ -387,7 +387,7 @@ class SaleOrder(models.Model):
 
     def _add_reference(self, reference):
         self.check_singleton()
-        self.stock_reference_ids = [
+        self.reference_ids = [
             Command.link(stock_reference.id) for stock_reference in reference
         ]
 
@@ -445,7 +445,7 @@ class SaleOrder(models.Model):
 
     def _remove_reference(self, reference):
         self.check_singleton()
-        self.stock_reference_ids = [
+        self.reference_ids = [
             Command.unlink(stock_reference.id) for stock_reference in reference
         ]
 

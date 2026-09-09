@@ -5,7 +5,6 @@ from . import (
     product_template,
     res_company,
     res_partner,
-    res_users,
     sale_order,
     sale_order_line,
     stock_lot,

@@ -68,7 +68,7 @@ class TestDropship(common.TransactionCase):
         )
         so.action_confirm()
         po = self.env["purchase.order"].search(
-            [("reference_ids", "=", so.stock_reference_ids.id)]
+            [("reference_ids", "=", so.reference_ids.id)]
         )
         po_line = po.line_ids
 
@@ -114,7 +114,7 @@ class TestDropship(common.TransactionCase):
         sale_order_drp_shpng.action_confirm()
 
         self.assertTrue(
-            sale_order_drp_shpng.stock_reference_ids, "SO should have procurement group"
+            sale_order_drp_shpng.reference_ids, "SO should have procurement group"
         )
 
         purchase = self.env["purchase.order"].search(
@@ -463,7 +463,7 @@ class TestDropship(common.TransactionCase):
             }
         )
         sale_order.action_confirm()
-        purchase_order = sale_order.stock_reference_ids.purchase_ids
+        purchase_order = sale_order.reference_ids.purchase_ids
         purchase_order.action_confirm()
         dropship_picking = purchase_order.picking_ids
         dropship_picking.move_line_ids.lot_name = "dropship lot"

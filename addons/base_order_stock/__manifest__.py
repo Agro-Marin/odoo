@@ -1,6 +1,6 @@
 {
     "name": "Base Order Stock Integration",
-    "version": "19.0.1.2.0",
+    "version": "19.0.1.3.0",
     "category": "Hidden",
     "summary": "Stock/delivery tracking mixins for order types",
     "description": """
@@ -19,7 +19,9 @@ Mixins:
   lines and stock moves, backing the delivery/receipt matching grid
 
 Also extends ``stock.picking`` (``delay_pass``, effective-transfer-date
-helpers) and ``account.move`` (incoterm-location override).
+helpers), ``account.move`` (incoterm-location override), ``stock.move.line``
+(``_counterparty_usages``, the location usage each bridge contributes) and
+``res.users`` (``property_warehouse_id``).
 
 ``transfer_state`` is computed per line from the quantities and rolled up to
 the order through ``mixin.order.state.rollup``, the same engine ``base_order``

@@ -66,7 +66,7 @@ class TestStockValuation(ValuationReconciliationTestCommon):
         self.sale_order1.action_confirm()
 
         self.purchase_order1 = self.env["purchase.order"].search(
-            [("reference_ids", "=", self.sale_order1.stock_reference_ids.id)]
+            [("reference_ids", "=", self.sale_order1.reference_ids.id)]
         )
         self.purchase_order1.action_confirm()
 

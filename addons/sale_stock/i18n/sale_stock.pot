@@ -549,7 +549,7 @@ msgid "Reference between stock documents"
 msgstr ""
 
 #. module: sale_stock
-#: model:ir.model.fields,field_description:sale_stock.field_sale_order__stock_reference_ids
+#: model:ir.model.fields,field_description:sale_stock.field_sale_order__reference_ids
 msgid "References"
 msgstr ""
 

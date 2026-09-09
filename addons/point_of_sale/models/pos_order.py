@@ -131,7 +131,7 @@ class PosOrder(models.Model):
         string="Operation Type",
         readonly=False,
     )
-    stock_reference_ids = fields.Many2many(
+    reference_ids = fields.Many2many(
         "stock.reference",
         "stock_reference_pos_order_rel",
         "pos_order_id",
@@ -339,7 +339,7 @@ class PosOrder(models.Model):
             "shipping_date",
             "source",
             "state",
-            "stock_reference_ids",
+            "reference_ids",
             "ticket_code",
             "tip_amount",
             "to_invoice",
@@ -2562,7 +2562,7 @@ class PosOrderLine(models.Model):
             "partner_id": self.order_id.partner_id.id,
             "product_description_variants": self.full_product_name,
             "company_id": self.order_id.company_id,
-            "reference_ids": self.order_id.stock_reference_ids,
+            "reference_ids": self.order_id.reference_ids,
         }
 
     def _launch_stock_rule_from_pos_order_lines(self):
@@ -2573,14 +2573,14 @@ class PosOrderLine(models.Model):
             if line.product_id.type != "consu":
                 continue
 
-            reference_ids = line.order_id.stock_reference_ids
+            reference_ids = line.order_id.reference_ids
             if not reference_ids:
                 reference_ids = (
                     self.env["stock.reference"]
                     .sudo()
                     .create(line._prepare_reference_vals())
                 )
-                line.order_id.stock_reference_ids = [Command.set(reference_ids.ids)]
+                line.order_id.reference_ids = [Command.set(reference_ids.ids)]
 
             values = line._prepare_procurement_vals()
             product_qty = line.qty

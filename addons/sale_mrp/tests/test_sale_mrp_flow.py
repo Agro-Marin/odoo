@@ -3297,7 +3297,7 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         so.action_confirm()
 
         so.date_commitment = fields.Date.today() + datetime.timedelta(days=1)
-        production = so.stock_reference_ids.production_ids
+        production = so.reference_ids.production_ids
         self.assertEqual(production.date_deadline, so.date_commitment)
         so.line_ids.product_qty = 2.0
 

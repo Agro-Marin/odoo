@@ -1,7 +1,6 @@
 from . import (
     res_company,
     res_partner,
-    res_users,
     product_product,
     product_supplierinfo,
     product_template,

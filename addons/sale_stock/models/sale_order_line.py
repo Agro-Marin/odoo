@@ -409,7 +409,7 @@ class SaleOrderLine(models.Model):
             if float_compare(qty, line.product_qty, precision_digits=precision) == 0:
                 continue
 
-            references = line.order_id.stock_reference_ids
+            references = line.order_id.reference_ids
 
             if not references:
                 self.env["stock.reference"].sudo().create(
@@ -565,7 +565,7 @@ class SaleOrderLine(models.Model):
         values.update(
             {
                 "origin": self.order_id.name,
-                "reference_ids": self.order_id.stock_reference_ids,
+                "reference_ids": self.order_id.reference_ids,
                 "sale_line_id": self.id,
                 "date_planned": date_planned,
                 "date_deadline": date_deadline,
