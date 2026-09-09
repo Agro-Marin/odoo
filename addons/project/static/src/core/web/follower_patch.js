@@ -5,11 +5,6 @@ import { patch } from "@web/core/utils/patch";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
 patch(Follower.prototype, {
-    /**
-     * Removing a follower who is a project collaborator also revokes their
-     * portal access to the project (server-side unsubscribe logic), so ask
-     * for confirmation first.
-     */
     async onClickRemove() {
         const follower = this.props.follower;
         if (follower.partner_id.in(follower.thread.collaborator_ids)) {

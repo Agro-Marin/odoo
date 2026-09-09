@@ -411,9 +411,7 @@ export class CalendarController extends Component {
         return this.model.unlinkRecords(ids);
     }
 
-    /**
-     * @param {"next"|"previous"|"today"} move
-     */
+    /** @param {"next"|"previous"|"today"} move */
     async setDate(move) {
         let date = null;
         let scrollToCurrentHour = false;

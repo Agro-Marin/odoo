@@ -77,14 +77,10 @@ function isLazyWaitTarget(el) {
     return !el.classList.contains("o_no_wait_lazy_js") && !(href && href !== "#");
 }
 
-/**
- * @type {WeakSet<Element>}
- */
+/** @type {WeakSet<Element>} */
 let frozenControls = new WeakSet();
 
-/**
- * @type {WeakMap<Element, Map<string, (ev: Event) => any>>}
- */
+/** @type {WeakMap<Element, Map<string, (ev: Event) => any>>} */
 let delegatedHandlers = new WeakMap();
 
 /**

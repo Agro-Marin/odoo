@@ -8,9 +8,7 @@ import {
     SwipeTracker,
 } from "@web/webclient/swipe";
 
-/**
- * @param {number} clientX
- */
+/** @param {number} clientX */
 function touchAt(clientX) {
     return /** @type {any} */ ({ changedTouches: [{ clientX }] });
 }

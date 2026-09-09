@@ -1,6 +1,4 @@
-/**
- * @type {ServiceWorkerGlobalScope}
- */
+/** @type {ServiceWorkerGlobalScope} */
 const sw = /** @type {any} */ (self);
 
 const CACHE_VERSION = "v1";
@@ -44,9 +42,7 @@ sw.addEventListener("activate", (event) => {
     event.waitUntil(activateCaches());
 });
 
-/**
- * @returns {Promise<void>}
- */
+/** @returns {Promise<void>} */
 const activateCaches = async () => {
     try {
         await migrateSupersededCaches();
@@ -92,9 +88,7 @@ const copyMissingEntries = async (fromName, toName, shouldKeep) => {
     }
 };
 
-/**
- * @returns {Promise<void>}
- */
+/** @returns {Promise<void>} */
 const migrateSupersededCaches = async () => {
     for (const name of await caches.keys()) {
         if (name === cacheName || name === staticCacheName) {
@@ -115,9 +109,7 @@ const ASSET_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 const SHELL_ASSET_URL_RE = /\/web\/assets\/(?:esm\/)?[0-9a-f]{7,}\/[^"'\s<>]*/g;
 
-/**
- * @returns {Promise<Set<string> | null>}
- */
+/** @returns {Promise<Set<string> | null>} */
 const getShellReferencedAssetPaths = async () => {
     const cache = await caches.open(cacheName);
     const paths = new Set();
@@ -136,9 +128,7 @@ const getShellReferencedAssetPaths = async () => {
     return hasShell ? paths : null;
 };
 
-/**
- * @returns {Promise<void>}
- */
+/** @returns {Promise<void>} */
 const collectSupersededAssets = async () => {
     const referenced = await getShellReferencedAssetPaths();
     if (!referenced) {
@@ -159,9 +149,7 @@ const collectSupersededAssets = async () => {
     }
 };
 
-/**
- * @returns {Promise<void>}
- */
+/** @returns {Promise<void>} */
 const deleteSupersededCaches = async () => {
     for (const name of await caches.keys()) {
         if (name !== cacheName && name !== staticCacheName && isOwnedCacheName(name)) {
@@ -231,9 +219,7 @@ const saveSessionInfo = async (info) => {
     } catch {}
 };
 
-/**
- * @returns {Promise<string | null>}
- */
+/** @returns {Promise<string | null>} */
 const getSessionInfo = async () => {
     if (sessionInfo) {
         return sessionInfo;

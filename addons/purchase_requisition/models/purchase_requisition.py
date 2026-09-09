@@ -179,12 +179,10 @@ class PurchaseRequisition(models.Model):
         return res
 
     def unlink(self):
-        # Draft requisitions could have some requisition lines.
         self.line_ids.unlink()
         return super().unlink()
 
     def action_cancel(self):
-        # try to set all associated quotations to cancel state
         for requisition in self:
             for requisition_line in requisition.line_ids:
                 requisition_line.supplier_info_ids.sudo().unlink()
@@ -226,9 +224,6 @@ class PurchaseRequisition(models.Model):
         self.state = "draft"
 
     def action_done(self):
-        """
-        Generate all purchase order based on selected lines, should only be called on one agreement at a time
-        """
         if any(
             purchase_order.state == "draft"
             for purchase_order in self.mapped("purchase_ids")
@@ -393,7 +388,6 @@ class PurchaseRequisitionLine(models.Model):
                     "You cannot have a negative or unit price of 0 for an already confirmed blanket order."
                 )
             )
-        # If the price is updated, we have to update the related SupplierInfo
         self.supplier_info_ids.write({"price": vals["price_unit"]})
         return res
 
@@ -411,7 +405,6 @@ class PurchaseRequisitionLine(models.Model):
             purchase_requisition.requisition_type == "blanket_order"
             and purchase_requisition.vendor_id
         ):
-            # create a supplier_info only in case of blanket order
             self.env["product.supplierinfo"].sudo().create(
                 {
                     "partner_id": purchase_requisition.vendor_id.id,

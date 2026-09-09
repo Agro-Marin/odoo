@@ -4,12 +4,7 @@ import { Component, useState, xml } from "@odoo/owl";
 
 import { copy, hasClipboard } from "../hoot_utils.js";
 
-/**
- * @typedef {{
- *  altText?: string;
- *  text: string;
- * }} HootCopyButtonProps
- */
+/** @typedef {{ */
 
 /** @extends {Component<HootCopyButtonProps, import("../hoot").Environment>} */
 export class HootCopyButton extends Component {
@@ -38,9 +33,7 @@ export class HootCopyButton extends Component {
         this.state = useState({ copied: false });
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     async onClick(ev) {
         const text =
             ev.altKey && this.props.altText ? this.props.altText : this.props.text;

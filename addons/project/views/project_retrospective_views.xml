@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Search -->
     <record id="project_retrospective_search" model="ir.ui.view">
         <field name="name">project.retrospective.search</field>
         <field name="model">project.retrospective</field>
@@ -39,7 +38,6 @@
         </field>
     </record>
 
-    <!-- Form -->
     <record id="project_retrospective_form" model="ir.ui.view">
         <field name="name">project.retrospective.form</field>
         <field name="model">project.retrospective</field>
@@ -104,7 +102,6 @@
         </field>
     </record>
 
-    <!-- List -->
     <record id="project_retrospective_list" model="ir.ui.view">
         <field name="name">project.retrospective.list</field>
         <field name="model">project.retrospective</field>
@@ -127,7 +124,6 @@
         </field>
     </record>
 
-    <!-- Action -->
     <record id="action_project_retrospective" model="ir.actions.act_window">
         <field name="name">Retrospectives</field>
         <field name="res_model">project.retrospective</field>
@@ -144,7 +140,6 @@
         </field>
     </record>
 
-    <!-- Action from project smart button -->
     <record
         id="action_project_retrospective_from_project"
         model="ir.actions.act_window">
@@ -156,7 +151,6 @@
         <field name="context">{'default_project_id': active_id}</field>
     </record>
 
-    <!-- Open Actions across all retrospectives -->
     <record id="project_retrospective_action_search" model="ir.ui.view">
         <field name="name">project.retrospective.action.search</field>
         <field name="model">project.retrospective.action</field>

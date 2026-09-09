@@ -37,7 +37,6 @@
         sequence="30"
         groups="stock.group_stock_manager,stock.group_stock_user" />
 
-    <!-- Picking Type Views -->
     <record id="view_stock_picking_type_kanban" model="ir.ui.view">
         <field name="name">stock.picking.type.kanban.inherit.dropshipping</field>
         <field name="model">stock.picking.type</field>

@@ -13,11 +13,6 @@ import {
  * @typedef {import("./suite").Suite} Suite
  * @typedef {import("./suite").Test} Test
  * @typedef {{
- *  name: string;
- *  exclude?: string[];
- *  before?: (test: Test) => any;
- *  after?: (test: Test) => any;
- * }} TagDefinition
  */
 
 const {
@@ -94,9 +89,7 @@ export function applyTags(job, tags) {
     }
 }
 
-/**
- * @param {...TagDefinition} definitions
- */
+/** @param {...TagDefinition} definitions */
 export function defineTags(...definitions) {
     return definitions.map((def) => {
         const tagKey = def.key || normalize(def.name.toLowerCase());
@@ -113,9 +106,7 @@ export function defineTags(...definitions) {
     });
 }
 
-/**
- * @param {string[]} tagNames
- */
+/** @param {string[]} tagNames */
 export function getTags(tagNames) {
     return tagNames.map((tagKey, i) => {
         const nKey = normalize(tagKey.toLowerCase());

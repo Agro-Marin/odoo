@@ -12,9 +12,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 
 const { DateTime } = luxon;
 
-/**
- * @param {() => any} setup
- */
+/** @param {() => any} setup */
 const mountInput = async (setup) => {
     await mountWithCleanup(Root, { props: { setup } });
 };

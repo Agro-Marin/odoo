@@ -16,7 +16,6 @@ class ProductTemplate(models.Model):
         ],
         ondelete={"timesheet": "set manual"},
     )
-    # override domain
     project_id = fields.Many2one(
         domain="['|', ('company_id', '=', False), '&', ('company_id', '=?', company_id), ('company_id', '=', current_company_id), ('allow_billable', '=', True), ('pricing_type', '=', 'task_rate'), ('allow_timesheets', 'in', [service_policy == 'delivered_timesheet', True]), ('is_template', '=', False)]"
     )
@@ -123,7 +122,6 @@ class ProductTemplate(models.Model):
             )
 
     def write(self, vals):
-        # timesheet product can't be deleted, archived or linked to a company
         if ("active" in vals and not vals["active"]) or (vals.get("company_id")):
             time_product = self.env.ref("sale_timesheet.time_product")
             if time_product.product_tmpl_id in self:

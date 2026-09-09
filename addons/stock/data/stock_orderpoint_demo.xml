@@ -1,7 +1,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Resource: stock.warehouse.orderpoint -->
         <record id="stock_warehouse_orderpoint_1" model="stock.warehouse.orderpoint">
             <field name="product_max_qty">10.0</field>
             <field name="product_min_qty">5.0</field>

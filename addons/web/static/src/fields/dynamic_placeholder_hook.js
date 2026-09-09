@@ -19,7 +19,7 @@ const TRIGGER_KEY = "#";
  * @param {import("@web/core/network/orm_service").ORM} orm
  * @param {string} model
  * @param {{ path: string, defaultValue?: string, fieldType?: string }} spec
- * @returns {Promise<string>} the text to splice in, leading space included
+ * @returns {Promise<string>}
  */
 async function buildPlaceholderText(orm, model, { path, defaultValue, fieldType }) {
     const tzPath =

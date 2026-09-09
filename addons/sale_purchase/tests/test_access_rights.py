@@ -10,7 +10,6 @@ class TestAccessRights(TestSalePurchaseCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Create a users
         group_sale_user = cls.env.ref("sales_team.group_sale_salesman")
         group_purchase_user = cls.env.ref("purchase.group_purchase_user")
         cls.user_salesperson = (
@@ -39,7 +38,6 @@ class TestAccessRights(TestSalePurchaseCommon):
         )
 
     def test_access_saleperson(self):
-        """Check a saleperson (only) can generate a PO and a PO user can not confirm a SO"""
         SaleOrder = self.env["sale.order"].with_context(tracking_disable=True)
 
         sale_order = SaleOrder.with_user(self.user_salesperson).create(
@@ -59,7 +57,6 @@ class TestAccessRights(TestSalePurchaseCommon):
             )
         )
 
-        # confirming SO will create the PO even if you don't have the rights
         sale_order.action_confirm()
         sale_order._action_cancel()
 
@@ -67,7 +64,6 @@ class TestAccessRights(TestSalePurchaseCommon):
 
         action = sale_order.sudo().action_view_purchase_orders()
 
-        # try to access PO as sale person
         with self.assertRaises(AccessError):
             purchase_orders = (
                 self.env["purchase.order"]
@@ -76,7 +72,6 @@ class TestAccessRights(TestSalePurchaseCommon):
             )
             purchase_orders.read()
 
-        # try to access PO as purchase person
         purchase_orders = (
             self.env["purchase.order"]
             .with_user(self.user_purchaseperson)
@@ -84,7 +79,6 @@ class TestAccessRights(TestSalePurchaseCommon):
         )
         purchase_orders.read()
 
-        # try to access the PO lines from the SO, as sale person
         with self.assertRaises(AccessError):
             sol_service_purchase.with_user(
                 self.user_salesperson

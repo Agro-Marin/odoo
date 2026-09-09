@@ -3,9 +3,6 @@
 
 import { isX2Many } from "@web/core/field_types";
 
-/** @import { RecordContract } from "./record_contract.js" */
-/** @import { StaticListContract } from "./static_list_contract.js" */
-
 /**
  * @param {RecordContract} record
  * @returns {Generator<[string, StaticListContract]>}
@@ -77,9 +74,7 @@ export function collectPendingCommands(record) {
     return proms;
 }
 
-/**
- * @param {RecordContract} record
- */
+/** @param {RecordContract} record */
 export function healSubtreeReplayFailures(record) {
     for (const [, list] of walkX2manySubtree(record)) {
         list.healFailedReplay();

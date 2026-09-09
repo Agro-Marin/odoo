@@ -14,7 +14,6 @@ class TestMailGroupMailing(TestMailListCommon, HttpCase):
 
     @users("employee")
     def test_mail_mail_headers(self):
-        """Test headers notably unsubscribe headers"""
         test_group = self.test_group.with_env(self.env)
         expected_recipients = (
             self.test_group_member_1

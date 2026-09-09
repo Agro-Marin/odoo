@@ -13,9 +13,7 @@ import { computeAggregatedValue } from "@web/views/view_measurements";
 
 const formatters = registry.category("formatters");
 
-/**
- * @type {("sum" | "avg" | "max" | "min")[]}
- */
+/** @type {("sum" | "avg" | "max" | "min")[]} */
 const AGGREGATE_ATTRS = ["sum", "avg", "max", "min"];
 
 /**
@@ -135,7 +133,7 @@ function aggregatableField(column, fields, optionalActiveFields) {
 /**
  * @param {{ value: any, record: Record<string, any> }[]} fieldEntries
  * @param {string} aggregator
- * @returns {number | undefined} undefined when the caller should fall back
+ * @returns {number | undefined}
  */
 export function weightedGroupAverage(fieldEntries, aggregator) {
     const totalCount = fieldEntries.reduce((s, e) => s + (e.record.__count || 0), 0);
@@ -169,7 +167,7 @@ function blockedAggregate(help) {
  * @param {any} params.currencyId
  * @param {Record<number, any>} params.rates
  * @param {boolean} params.isGroupedAggregation
- * @returns {boolean} whether every entry could be converted
+ * @returns {boolean}
  */
 function convertEntriesToCompanyCurrency(
     fieldEntries,
@@ -196,9 +194,7 @@ function convertEntriesToCompanyCurrency(
     return true;
 }
 
-/**
- * @typedef {Pick<import("./list_renderer").ListGridContext, "getColumns" | "getFields" | "getProps" | "getOptionalActiveFields">} ListAggregatesContext
- */
+/** @typedef {Pick<import("./list_renderer").ListGridContext, "getColumns" | "getFields" | "getProps" | "getOptionalActiveFields">} ListAggregatesContext */
 
 export class ListAggregates {
     /**
@@ -212,9 +208,7 @@ export class ListAggregates {
         this.ratesRequested = false;
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async requestCurrencyRates() {
         if (this.ratesRequested) {
             return;
@@ -262,8 +256,6 @@ export class ListAggregates {
     /**
      * @param {string} fieldName
      * @param {{ column?: object, rows?: Record<string, any>[] }} [known]
-     *        what the caller already holds; computeAggregates has both, and
-     *        re-deriving them per monetary column re-walked every record.
      * @returns {Set}
      */
     getFieldCurrencies(fieldName, known = {}) {
@@ -353,9 +345,7 @@ export class ListAggregates {
         };
     }
 
-    /**
-     * @returns {Record<string, object>}
-     */
+    /** @returns {Record<string, object>} */
     computeAggregates() {
         const columns = this.ctx.getColumns();
         const fields = this.ctx.getFields();

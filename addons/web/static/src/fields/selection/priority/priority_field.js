@@ -84,9 +84,7 @@ export class PriorityField extends FieldComponent {
             ? `${this.tooltipLabel}: ${value}`
             : value;
     }
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     onStarClicked(value) {
         if (this.field.value === value) {
             this.state.index = -1;

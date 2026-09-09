@@ -44,15 +44,8 @@ class SalePdfFormField(models.Model):
         "Form field name must be unique for a given document type.",
     )
 
-    # === CONSTRAINT METHODS ===#
-
     @api.constrains("name")
     def _check_form_field_name_follows_pattern(self):
-        """Ensure the names only contains alphanumerics, hyphens and underscores.
-
-        :return: None
-        :raises: ValidationError if the names aren't alphanumerics, hyphens and underscores.
-        """
         name_pattern = re.compile(r"^(\w|-)+$")
         for form_field in self:
             if not re.match(name_pattern, form_field.name):
@@ -74,11 +67,6 @@ class SalePdfFormField(models.Model):
 
     @api.constrains("path")
     def _check_valid_and_existing_paths(self):
-        """Verify that the paths exist and are valid.
-
-        :return: None
-        :raises: ValidationError if at least one of the paths isn't valid.
-        """
         name_pattern = re.compile(r"^(\w|-|\.)+$")
         for form_field in self.filtered("path"):
             if not re.match(name_pattern, form_field.path):
@@ -134,8 +122,6 @@ class SalePdfFormField(models.Model):
                         " document."
                     )
                 )
-
-    # === BUSINESS METHODS ===#
 
     @api.model
     def _add_basic_mapped_form_fields(self):
@@ -210,7 +196,6 @@ class SalePdfFormField(models.Model):
 
     @api.model
     def _cron_post_upgrade_assign_missing_form_fields(self):
-        # Called post-upgrade as we can't access the files during the upgrade process
         product_documents = self.env["document.document"].search(
             [("attached_on_sale", "=", "inside")]
         )
@@ -230,7 +215,6 @@ class SalePdfFormField(models.Model):
         existing_form_fields_name = existing_form_fields.mapped("name")
         return_bin_size = self.env.context.get("bin_size")
         if return_bin_size:
-            # guarantees that bin_size is always set to False
             records = records.with_context(bin_size=False)
 
         for document in records:

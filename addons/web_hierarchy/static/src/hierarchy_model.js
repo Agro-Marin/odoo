@@ -8,19 +8,14 @@ import { getFieldsSpec } from "@web/model/relational_model";
 import { orderByToString } from "@web/core/utils/order_by";
 
 /**
- * Get the id of the given many2one field value
- *
- * @param {false | {id: Number, display_name?: String}} value many2one value, as
- *        returned by web_read
- * @returns {false | Number} id of the many2one
+ * @param {false | {id: Number, display_name?: String}} value
+ * @returns {false | Number}
  */
 function getIdOfMany2oneField(value) {
     return value ? value.id : false;
 }
 
 /**
- * Deduplicate records by their id, keeping the first occurrence.
- *
  * @param {Object[]} records
  * @returns {Object[]}
  */
@@ -30,8 +25,6 @@ function uniqueById(records) {
 
 export class HierarchyNode {
     /**
-     * Constructor of hierarchy node stored in hierarchy tree
-     *
      * @param {HierarchyModel} model
      * @param {Object} config
      * @param {Object} data
@@ -60,47 +53,27 @@ export class HierarchyNode {
         }
     }
 
-    /**
-     * Is leaf?
-     *
-     * @returns {Boolean} False if the current node has node as child nodes, otherwise True.
-     */
+    /** @returns {Boolean} */
     get isLeaf() {
         return !this.nodes.length;
     }
 
-    /**
-     * Get forest of the current node
-     *
-     * @returns {HierarchyForest}
-     */
+    /** @returns {HierarchyForest} */
     get forest() {
         return this.tree.forest;
     }
 
-    /**
-     * Get the resId of current node
-     *
-     * @returns {Number}
-     */
+    /** @returns {Number} */
     get resId() {
         return this.data.id;
     }
 
-    /**
-     * Get parent field name
-     *
-     * @returns {String}
-     */
+    /** @returns {String} */
     get parentFieldName() {
         return this.model.parentFieldName;
     }
 
-    /**
-     * Get parent res id
-     *
-     * @returns {Number}
-     */
+    /** @returns {Number} */
     get parentResId() {
         return (
             this.parentNode?.resId ||
@@ -108,11 +81,7 @@ export class HierarchyNode {
         );
     }
 
-    /**
-     * Get child node res ids
-     *
-     * @returns {Number[]}
-     */
+    /** @returns {Number[]} */
     get childResIds() {
         return this._nodes.length
             ? this._nodes.map((node) => node.resId)
@@ -121,46 +90,22 @@ export class HierarchyNode {
               ) || [];
     }
 
-    /**
-     * Get child field name
-     *
-     * @returns {String}
-     */
+    /** @returns {String} */
     get childFieldName() {
         return this.model.childFieldName;
     }
 
-    /**
-     * Has child nodes?
-     *
-     * @returns {Boolean}
-     */
+    /** @returns {Boolean} */
     get hasChildren() {
         return this._nodes.length > 0 || this.data[this.childFieldName]?.length > 0;
     }
 
-    /**
-     * Is the record of this node displayed exactly once in the whole forest?
-     *
-     * A record reached through two branches (a cycle, or a record that is both a
-     * root and someone's child) is rendered as two nodes sharing one `data`
-     * object. Expanding or collapsing either copy would desynchronise them, so
-     * both are frozen.
-     *
-     * @returns {Boolean}
-     */
+    /** @returns {Boolean} */
     get isOnlyOccurrenceOfItsRecord() {
         return this.forest.isResIdUnique(this.resId);
     }
 
-    /**
-     * Can show parent node
-     *
-     * Knows if the parent node can be fetched and displayed inside the view
-     *
-     * @returns {Boolean} True if the current node has a parent node but it is not yet displayed and the data of the
-     *                    current node is not already displayed in another node.
-     */
+    /** @returns {Boolean} */
     get canShowParentNode() {
         return (
             Boolean(this.parentResId) &&
@@ -170,14 +115,7 @@ export class HierarchyNode {
         );
     }
 
-    /**
-     * Can show child nodes
-     *
-     * Knows if the child nodes can be fetched and displayed inside the view
-     *
-     * @returns {Boolean} True if the current node has child nodes but they are not yet displayed and the data of the
-     *                    current node is not already displayed in another node.
-     */
+    /** @returns {Boolean} */
     get canShowChildNodes() {
         return (
             this.hasChildren &&
@@ -195,13 +133,7 @@ export class HierarchyNode {
         return subNodes;
     }
 
-    /**
-     * Get all descendants nodes parents. If the current node has descendants,
-     * it is also included in the result.
-     *
-     * @returns {HierarchyNode[]} contains descendants parents in order of depth
-     *          (closest to root first).
-     */
+    /** @returns {HierarchyNode[]} */
     get descendantsParentNodes() {
         if (this.isLeaf) {
             return [];
@@ -213,11 +145,7 @@ export class HierarchyNode {
         return parentNodes;
     }
 
-    /**
-     * Get all descendants nodes resIds
-     *
-     * @returns {Number[]}
-     */
+    /** @returns {Number[]} */
     get allSubsidiaryResIds() {
         return this.getDescendantNodes().map((n) => n.resId);
     }
@@ -226,11 +154,6 @@ export class HierarchyNode {
         return this._nodes.filter((n) => !n.hidden);
     }
 
-    /**
-     * Populate child nodes
-     *
-     * Uses to create child nodes of the current one according to its data.
-     */
     populateChildNodes() {
         this._nodes = [];
         const children = this.data[this.childFieldName] || [];
@@ -243,11 +166,7 @@ export class HierarchyNode {
         }
     }
 
-    /**
-     * create child nodes
-     *
-     * @param {Object[]} childNodesData data of child nodes to generate
-     */
+    /** @param {Object[]} childNodesData */
     createChildNodes(childNodesData) {
         this._nodes = (childNodesData || this.data[this.childFieldName]).map(
             (childData) =>
@@ -261,16 +180,10 @@ export class HierarchyNode {
         this.data[this.parentFieldName] = false;
     }
 
-    /**
-     * Fetch parent node
-     */
     async fetchParentNode() {
         await this.model.fetchManager(this);
     }
 
-    /**
-     * Fetch child nodes
-     */
     async showChildNodes() {
         if (!this.hasChildren) {
             return;
@@ -287,16 +200,7 @@ export class HierarchyNode {
         this.model.notify();
     }
 
-    /**
-     * Collapse child nodes
-     *
-     * Removes the descendant nodes of the current one and stores
-     * the resIds of the child nodes in the data of the current one
-     * to know it has child nodes to be able to show them again
-     * when it is needed.
-     *
-     * @param hideNodes: hide the descendants when it is true to keep the data in cache (default: false)
-     */
+    /** @param hideNodes: */
     collapseChildNodes(hideNodes = false) {
         if (hideNodes) {
             const nodesToHide = this.getDescendantNodes();
@@ -323,9 +227,6 @@ export class HierarchyNode {
         this.data[this.childFieldName] = this._nodes.map((n) => n.data);
     }
 
-    /**
-     * Remove descendant nodes of the current one
-     */
     removeChildNodes(rootNode = this) {
         for (const childNode of this.nodes) {
             if (!childNode.isLeaf && childNode !== rootNode) {
@@ -336,11 +237,7 @@ export class HierarchyNode {
         this._nodes = [];
     }
 
-    /**
-     * Set parent node to the current node
-     *
-     * @param {HierarchyNode} node parent node to set
-     */
+    /** @param {HierarchyNode} node */
     setParentNode(node) {
         const tree = node.tree;
         if (tree.root === this) {
@@ -353,13 +250,7 @@ export class HierarchyNode {
         node.addChildNode(this);
     }
 
-    /**
-     * Move the current node and its descendants into another tree, and register
-     * them there. Hidden descendants stay out of the tree index, exactly as they
-     * were in the tree they are leaving.
-     *
-     * @param {HierarchyTree} tree
-     */
+    /** @param {HierarchyTree} tree */
     setTree(tree) {
         this.tree = tree;
         if (!this.hidden) {
@@ -370,11 +261,7 @@ export class HierarchyNode {
         }
     }
 
-    /**
-     * Adds child node to the current node
-     *
-     * @param {HierarchyNode} node child node to add
-     */
+    /** @param {HierarchyNode} node */
     addChildNode(node) {
         this._nodes.push(node);
         this.data[this.childFieldName].push(node.data);
@@ -384,12 +271,10 @@ export class HierarchyNode {
 
 export class HierarchyTree {
     /**
-     * Constructor
-     *
      * @param {HierarchyModel} model
-     * @param {Object} config config of the model
-     * @param {Object} data root node data of the tree to create
-     * @param {HierarchyForest} forest hierarchy forest containing the tree to create
+     * @param {Object} config
+     * @param {Object} data
+     * @param {HierarchyForest} forest
      */
     constructor(model, config, data, forest) {
         this.id = model.nextTreeId();
@@ -402,30 +287,18 @@ export class HierarchyTree {
         }
     }
 
-    /**
-     * Get node res ids inside the current tree
-     *
-     * @returns {Number[]}
-     */
+    /** @returns {Number[]} */
     get resIds() {
         return [...this.nodePerNodeId.values()].map((node) => node.resId);
     }
 
-    /**
-     * Add node inside the current tree
-     *
-     * @param {HierarchyNode} node node to add inside the current tree
-     */
+    /** @param {HierarchyNode} node */
     addNode(node) {
         this.nodePerNodeId.set(node.id, node);
         this.forest.addNode(node);
     }
 
-    /**
-     * Remove nodes inside the current tree
-     *
-     * @param {HierarchyNode[]} nodes nodes to remove
-     */
+    /** @param {HierarchyNode[]} nodes */
     removeNodes(nodes) {
         for (const node of nodes) {
             this.nodePerNodeId.delete(node.id);
@@ -440,10 +313,9 @@ export class HierarchyTree {
 
 export class HierarchyForest {
     /**
-     *
      * @param {HierarchyModel} model
-     * @param {Object} config model config
-     * @param {Object[]} data list of tree root nodes data
+     * @param {Object} config
+     * @param {Object[]} data
      */
     constructor(model, config, data) {
         this.id = model.nextForestId();
@@ -458,27 +330,17 @@ export class HierarchyForest {
         return this._trees.filter((t) => !t.root.hidden);
     }
 
-    /**
-     * Get node res ids containing inside the current forest
-     *
-     * @returns {Number[]}
-     */
+    /** @returns {Number[]} */
     get resIds() {
         return [...this.nodePerNodeId.values()].map((node) => node.resId);
     }
 
-    /**
-     * Get root node of all trees inside the current forest
-     *
-     * @returns {HierarchyNode[]} root nodes
-     */
+    /** @returns {HierarchyNode[]} */
     get rootNodes() {
         return this.trees.map((t) => t.root);
     }
 
     /**
-     * Is the given record displayed by exactly one node of this forest?
-     *
      * @param {Number} resId
      * @returns {Boolean}
      */
@@ -486,11 +348,7 @@ export class HierarchyForest {
         return this._nodeCountPerResId.get(resId) === 1;
     }
 
-    /**
-     * Add a node inside the current forest
-     *
-     * @param {HierarchyNode} node node to add inside the current forest
-     */
+    /** @param {HierarchyNode} node */
     addNode(node) {
         if (this.nodePerNodeId.has(node.id)) {
             return;
@@ -502,11 +360,7 @@ export class HierarchyForest {
         );
     }
 
-    /**
-     * Removes nodes inside the current forest
-     *
-     * @param {HierarchyNode[]} nodes nodes to remove inside the current forest
-     */
+    /** @param {HierarchyNode[]} nodes */
     removeNodes(nodes) {
         for (const node of nodes) {
             if (!this.nodePerNodeId.delete(node.id)) {
@@ -562,61 +416,35 @@ export class HierarchyModel extends Model {
         return this._forestId++;
     }
 
-    /**
-     * Get parent field info
-     *
-     * @returns {Object} parent field info
-     */
+    /** @returns {Object} */
     get parentField() {
         return this.fields[this.parentFieldName];
     }
 
-    /**
-     * Get res ids of all nodes displayed in the view
-     *
-     * @returns {Number[]} resIds of all nodes displayed in the view
-     */
+    /** @returns {Number[]} */
     get resIds() {
         return this.root?.resIds || [];
     }
 
     /**
      * @override
-     * Answers whether the last load found anything. `Model` says yes
-     * unconditionally, which is what keeps a view from ever reaching sample
-     * data.
-     *
      * @returns {Boolean}
      */
     hasData() {
         return this.resIds.length > 0;
     }
 
-    /**
-     * Get default child field name when no child field name is given to the view
-     *
-     * @returns {String} default child field name to use
-     */
+    /** @returns {String} */
     get defaultChildFieldName() {
         return "__child_ids__";
     }
 
-    /**
-     * Name of the key holding the children of a record, either the one2many
-     * declared by the view or the one @see hierarchy_read synthesises.
-     *
-     * @returns {String}
-     */
+    /** @returns {String} */
     get childFieldName() {
         return this.declaredChildFieldName || this.defaultChildFieldName;
     }
 
-    /**
-     * Get the global domain of the view (which is the domain defined on the
-     * view without applying filters).
-     *
-     * @returns {import("@web/core/domain").DomainListRepr} global domain
-     */
+    /** @returns {import("@web/core/domain").DomainListRepr} */
     get globalDomain() {
         if (!this.env.searchModel?.globalDomain.length) {
             return [];
@@ -626,11 +454,7 @@ export class HierarchyModel extends Model {
         );
     }
 
-    /**
-     * Get active fields name
-     *
-     * @returns {String[]} active fields name
-     */
+    /** @returns {String[]} */
     get activeFieldNames() {
         return Object.keys(this.activeFields);
     }
@@ -651,11 +475,7 @@ export class HierarchyModel extends Model {
         };
     }
 
-    /**
-     * Load the config and data for hierarchy view
-     *
-     * @param {Object} params params to use to load data of hierarchy view
-     */
+    /** @param {Object} params */
     async load(params = {}) {
         const { resIds, ...config } = this._getNextConfig(this.config, params);
         const data = await this.keepLast.add(this._loadData({ ...config, resIds }));
@@ -664,32 +484,21 @@ export class HierarchyModel extends Model {
         this.notify({ scrollTarget: "none" });
     }
 
-    /**
-     * Reload the current view with all currently loaded records
-     */
     async reload() {
         const data = await this.keepLast.add(this._loadData(this.config, true));
         this.root = this._createRoot(this.config, data);
         this.notify({ scrollTarget: "none" });
     }
 
-    /**
-     * @override
-     * Each notify should specify a scroll target (default is to scroll to the
-     * bottom).
-     */
+    /** @override */
     notify(payload = { scrollTarget: "bottom" }) {
         super.notify();
         this.bus.trigger("hierarchyScrollTarget", payload);
     }
 
-    /**
-     * Fetch parent node of given node
-     * @param {HierarchyNode} node node to fetch its parent node
-     */
+    /** @param {HierarchyNode} node */
     async fetchManager(node) {
         if (this.root.trees.length > 1) {
-            // reset the hierarchy
             const treeExpanded = this._findTreeExpanded();
             const resIdsToFetch = [
                 node.parentResId,
@@ -736,11 +545,7 @@ export class HierarchyModel extends Model {
         this.notify({ scrollTarget: "up" });
     }
 
-    /**
-     * Fetch child nodes of given node
-     *
-     * @param {HierarchyNode} node node to fetch its child nodes
-     */
+    /** @param {HierarchyNode} node */
     async fetchSubordinates(node) {
         const childFieldName = this.childFieldName;
         const children = node.data[childFieldName];
@@ -754,13 +559,11 @@ export class HierarchyModel extends Model {
                 allNodeResIds.includes(childResId),
             );
             if (existingChildResIds.length) {
-                // special case with result found with the search view
                 for (const tree of this.root.trees) {
                     if (
                         existingChildResIds.includes(tree.root.resId) &&
                         tree.root.id !== node.id
                     ) {
-                        // don't re-root if both nodes are in the same tree
                         if (node.tree.id === tree.id) {
                             existingChildResIds = existingChildResIds.filter(
                                 (resId) => resId !== tree.root.resId,
@@ -790,10 +593,8 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * Search node to collapse to be able to show the child nodes of node given in parameter
-     *
-     * @param {HierarchyNode} node node to show its child nodes.
-     * @returns {HierarchyNode | null} node found to collapse
+     * @param {HierarchyNode} node
+     * @returns {HierarchyNode | null}
      */
     _searchNodeToCollapse(node) {
         const parentNode = node.parentNode;
@@ -808,11 +609,9 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * Get the next model config to use
-     *
-     * @param {Object} currentConfig current model config used
-     * @param {Object} params new params
-     * @returns {Object} new model config to use
+     * @param {Object} currentConfig
+     * @param {Object} params
+     * @returns {Object}
      */
     _getNextConfig(currentConfig, params) {
         const config = Object.assign({}, currentConfig);
@@ -825,18 +624,14 @@ export class HierarchyModel extends Model {
                 if (globalDomain.length) {
                     config.domain = Domain.and([config.domain, globalDomain]);
                 }
-                // Just needed for the first load.
                 delete config.context.hierarchy_res_id;
             }
         }
 
-        // orderBy
         config.orderBy = "orderBy" in params ? params.orderBy : config.orderBy;
-        // re-apply previous orderBy if not given (or no order)
         if (!config.orderBy.length) {
             config.orderBy = currentConfig.orderBy || [];
         }
-        // apply default order if no order
         if (this.defaultOrderBy && !config.orderBy.length) {
             config.orderBy = this.defaultOrderBy;
         }
@@ -847,11 +642,7 @@ export class HierarchyModel extends Model {
         return getFieldsSpec(this.activeFields, this.fields, context);
     }
 
-    /**
-     * Evaluate if the current search query is the default one.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     isSearchDefaultOrEmpty() {
         if (!this.env.searchModel) {
             return true;
@@ -883,12 +674,9 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * Load data for hierarchy view
-     *
-     * @param {Object} config model config
-     * @param {boolean} reload all currently loaded resIds instead of using
-     *        the config domain
-     * @returns {Object[]} main data for hierarchy view
+     * @param {Object} config
+     * @param {boolean} reload
+     * @returns {Object[]}
      */
     async _loadData(config, reload = false) {
         const resIds = reload ? this.resIds : config.resIds;
@@ -897,11 +685,6 @@ export class HierarchyModel extends Model {
                 await this._hierarchyRead([["id", "in", resIds]], config, false),
             );
         }
-        // If the current SearchModel query is the default one configured for
-        // the action, or there is no search query, only the "root" records
-        // (without a parent) are displayed. `hierarchy_read` falls back to the
-        // domain alone when no root matches it, in the same request: doing that
-        // here cost a second round trip on every load that focuses a record.
         const onlyRoots = this.isSearchDefaultOrEmpty();
         return this._formatData(
             await this._hierarchyRead(config.domain, config, onlyRoots),
@@ -910,8 +693,8 @@ export class HierarchyModel extends Model {
 
     /**
      * @param {import("@web/core/domain").DomainListRepr} domain
-     * @param {Object} config model config
-     * @param {Boolean} onlyRoots prefer the records that have no parent
+     * @param {Object} config
+     * @param {Boolean} onlyRoots
      * @returns {Promise<Object[]>}
      */
     _hierarchyRead(domain, config, onlyRoots) {
@@ -931,22 +714,12 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * Turn the flat record list returned by @see hierarchy_read into the list of
-     * root records, each holding its children under the child field.
-     *
-     * The hierarchy renders one row per depth, so it can only nest a single
-     * branch: when two records of the same level both have children in the
-     * payload, the whole payload is returned flat instead.
-     *
      * @param {Object[]} data
-     * @returns {Object[]} root records
+     * @returns {Object[]}
      */
     _formatData(data) {
         const childFieldName = this.childFieldName;
         const recordPerId = new Map();
-        // The insertion order of this object drives the order of the roots
-        // below: integer-like keys come out in ascending order and the "false"
-        // key (the parentless records) last.
         const recordsPerParentId = {};
         for (const record of data) {
             recordPerId.set(record.id, record);
@@ -956,8 +729,6 @@ export class HierarchyModel extends Model {
         }
         const rootRecords = [];
         const branches = [];
-        // ids of the records sharing a level with a parent already collected in
-        // `branches`: a second parent among them means a second arborescence.
         const siblingIdsOfCollectedParents = new Set();
         for (const [parentId, records] of Object.entries(recordsPerParentId)) {
             const parentRecord = recordPerId.get(Number(parentId));
@@ -978,29 +749,23 @@ export class HierarchyModel extends Model {
             parentRecord[childFieldName] = children;
         }
         if (!rootRecords.length && branches.length) {
-            // Every record has its parent in the payload: the hierarchy loops.
-            // Start from the first parent so that something is displayed.
             rootRecords.push(branches[0][0]);
         }
         return rootRecords;
     }
 
     /**
-     * Create forest
-     *
-     * @param {Object} config model config to use
-     * @param {Object[]} data root data
-     * @returns {HierarchyForest} forest hierarchy
+     * @param {Object} config
+     * @param {Object[]} data
+     * @returns {HierarchyForest}
      */
     _createRoot(config, data) {
         return new HierarchyForest(this, config, data);
     }
 
     /**
-     * Fetch parent node and its children nodes data
-     *
-     * @param {HierarchyNode} node node to fetch its parent node
-     * @returns {Object} the parent node data with children data inside childFieldName
+     * @param {HierarchyNode} node
+     * @returns {Object}
      */
     async _fetchManager(node) {
         const domain = Domain.and([
@@ -1022,11 +787,6 @@ export class HierarchyModel extends Model {
         );
         const managerData = records.find((data) => data.id === node.parentResId);
         if (!managerData) {
-            // The record behind parentResId did not come back: archived, hidden
-            // by a record rule, or deleted since the child was read. The domain
-            // also matches the siblings, so the answer can be non-empty without
-            // holding the parent -- returning an empty object here used to mint
-            // a node with no record behind it, and hang those siblings on it.
             return null;
         }
         const children = records.filter((data) => data.id !== node.parentResId);
@@ -1038,11 +798,9 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * Fetch children nodes data for a given node
-     *
-     * @param {HierarchyNode} node node to fetch its children nodes
-     * @param {Array<number> | null} excludeResIds list of ids to exclude (because the nodes already exist)
-     * @returns {Object[]} list of child node data
+     * @param {HierarchyNode} node
+     * @param {Array<number> | null} excludeResIds
+     * @returns {Object[]}
      */
     async _fetchSubordinates(node, excludeResIds = null) {
         let childrenResIds = node.data[this.childFieldName];
@@ -1069,19 +827,12 @@ export class HierarchyModel extends Model {
         return records;
     }
 
-    /**
-     * fetch descendants nodes resIds to know if the child nodes have descendants
-     *
-     * @param {Object[]} childrenData child nodes data to fetch its descendants
-     */
+    /** @param {Object[]} childrenData */
     async _fetchDescendants(childrenData) {
         const resIds = childrenData.map((d) => d.id);
         if (!resIds.length) {
             return;
         }
-        // No `order`: the aggregate below groups on the parent field only, and
-        // formatted_read_group refuses an order term that is neither a groupby
-        // nor an aggregate. The children are ordered when they are read.
         const fetchChildren = await this.orm.formattedReadGroup(
             this.resModel,
             [[this.parentFieldName, "in", resIds]],
@@ -1100,12 +851,8 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * ORM call to update the parentId of a record during @see updateParentNode
-     * Can be overridden to not use "write".
-     *
-     * @param {HierarchyNode} node node related to the record which parentId
-     *        should be changed
-     * @param {Number} parentResId id of the new parent record
+     * @param {HierarchyNode} node
+     * @param {Number} parentResId
      */
     async updateParentId(node, parentResId = false) {
         return this.orm.write(
@@ -1117,10 +864,10 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * @param {Number} nodeId of the node to update
+     * @param {Number} nodeId
      * @param {Object} parentInfo
-     * @param {Number} [parentInfo.parentNodeId] nodeId of the parent
-     * @param {Number | false} [parentInfo.parentResId] resId of the parent
+     * @param {Number} [parentInfo.parentNodeId]
+     * @param {Number | false} [parentInfo.parentResId]
      * @returns {Promise}
      */
     async updateParentNode(nodeId, { parentNodeId, parentResId }) {
@@ -1141,21 +888,17 @@ export class HierarchyModel extends Model {
         ) {
             return;
         }
-        // Hide the node while waiting for the server response.
         node.hidden = true;
         this.notify({ scrollTarget: "none" });
-        // Update the parent server side.
         await this.mutex.exec(async () => {
             try {
                 await this.updateParentId(node, parentResId);
             } catch (error) {
-                // Show the node again since the operation failed, don't update the view.
                 node.hidden = false;
                 this.notify({ scrollTarget: "none" });
                 throw error;
             }
         });
-        // Reload impacted records.
         const domain = this.computeUpdateParentNodeDomain(
             node,
             parentResId,
@@ -1170,8 +913,6 @@ export class HierarchyModel extends Model {
             return this.reload();
         }
         const formattedData = this._formatData(data.records);
-        // Validate that data coming from the server is still compatible with the current
-        // configuration of the hierarchy.
         for (const record of formattedData) {
             if (getIdOfMany2oneField(record[this.parentFieldName]) !== parentResId) {
                 node.hidden = false;
@@ -1187,20 +928,15 @@ export class HierarchyModel extends Model {
             }
         }
         const nodeToCollapse = this._searchNodeToCollapseAfterMove(node, parentNode);
-        // Update the view.
         if (oldParentNode) {
             oldParentNode.removeChildNode(node);
         } else {
-            // `node` was the root of its tree: drop the tree with it, otherwise
-            // the forest keeps a tree nothing renders.
             node.tree.removeRoot();
         }
         nodeToCollapse?.collapseChildNodes();
         if (!parentNode) {
-            // Drop as root, reset the hierarchy.
             this.root = this._createRoot(this.config, formattedData);
         } else {
-            // Update parentNode data.
             parentNode.data[this.childFieldName] = formattedData;
             parentNode.populateChildNodes();
         }
@@ -1211,40 +947,21 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * Which node of the currently expanded tree has to be collapsed so that the
-     * tree stays a single branch once `node` has moved under `parentNode`.
-     *
-     * @param {HierarchyNode} node that is moving
-     * @param {HierarchyNode} [parentNode] which receives node as its child
-     *                        (undefined if node is dropped as a root).
-     * @returns {HierarchyNode | undefined} node to collapse
+     * @param {HierarchyNode} node
+     * @param {HierarchyNode} [parentNode]
+     * @returns {HierarchyNode | undefined}
      */
     _searchNodeToCollapseAfterMove(node, parentNode) {
         const treeExpanded = this._findTreeExpanded();
         const expandedParentNodeIds =
             treeExpanded?.root.descendantsParentNodes.map((n) => n.id) || [];
         if (node.isLeaf && expandedParentNodeIds.includes(parentNode?.id)) {
-            // node is a leaf dropped in the current expanded tree: the tree is
-            // kept open. Descendants of parentNode will always be reloaded to
-            // account for changes caused by the drop operation.
             return parentNode;
         }
-        // The expanded tree will be altered. If node is not a leaf, the new
-        // expanded tree will contain its descendants. If parentNode is not a
-        // parent in the current expanded tree, it will become one in the new
-        // expanded tree. Compute the depth of the parent of parentNode. That
-        // node is guaranteed to be a parent in the current expanded tree.
         const depth = expandedParentNodeIds.indexOf(parentNode?.parentNode?.id);
         if (depth === -1) {
-            // Drop as root or drop as the child of a root that is not part of
-            // the current expanded tree. The current expanded tree should be
-            // fully closed.
             return treeExpanded?.root;
         }
-        // Drop anywhere else (at a position that can be related to the expanded
-        // tree with the depth of the parent of parentNode). In that case the
-        // existing hierarchy is split at the depth of the parent, and will be
-        // completed by node's remaining expanded tree.
         const nodeIdToCollapse = expandedParentNodeIds.at(depth + 1);
         return nodeIdToCollapse === undefined
             ? undefined
@@ -1273,34 +990,20 @@ export class HierarchyModel extends Model {
     }
 
     /**
-     * Returns a domain to get a recordSet containing:
-     * - node.
-     * - all children under the new parent.
-     * - all descendants in the final expanded tree (after the operation), which
-     *   are at a depth impacted by the update @see updateParentNode (part
-     *   about the expanded tree).
-     *
-     * @param {HierarchyNode} node that is moving
-     * @param {Number | false} parentResId resId of the parent
-     * @param {HierarchyNode} [parentNode] which receives node as its child
-     *                        (undefined if node is dropped as a root).
-     * @returns {Array} domain
+     * @param {HierarchyNode} node
+     * @param {Number | false} parentResId
+     * @param {HierarchyNode} [parentNode]
+     * @returns {Array}
      */
     computeUpdateParentNodeDomain(node, parentResId, parentNode) {
         const domainsOr = [[["id", "=", node.resId]]];
-        // Include the new parent children (for ordering).
         domainsOr.push([[this.parentFieldName, "=", parentResId]]);
         let expandedTreeRoot = null;
         if (!node.isLeaf) {
-            // Include node descendants (keep that part of the expanded tree).
             expandedTreeRoot = node;
         } else if (!parentNode) {
-            // Keep the current expanded tree (if any) from its root if node is a
-            // leaf dropped as a root.
             expandedTreeRoot = node.tree.root;
         } else if (!parentNode.isLeaf) {
-            // Keep the current expanded tree (if any) from the target parent if
-            // node is a leaf.
             expandedTreeRoot = parentNode;
         }
         if (expandedTreeRoot) {
@@ -1309,9 +1012,6 @@ export class HierarchyModel extends Model {
             domainsOr.push([[this.parentFieldName, "in", expandedTreeParentResIds]]);
         }
         let domain = Domain.or(domainsOr);
-        // The whole search domain, not just the action's half of it: records the
-        // user has filtered out must not walk back into the view because
-        // something was dropped next to them.
         if (this.config.domain?.length) {
             domain = Domain.and([domain, this.config.domain]);
         }

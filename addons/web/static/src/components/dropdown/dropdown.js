@@ -250,9 +250,7 @@ export class Dropdown extends Component {
         return utils.isSmall() && hasTouch() && this.props.bottomSheet;
     }
 
-    /**
-     * @returns {string[]}
-     */
+    /** @returns {string[]} */
     get menuClassNames() {
         const merged = mergeClasses(this.props.menuClass);
         return Object.keys(merged)
@@ -260,9 +258,7 @@ export class Dropdown extends Component {
             .map((name) => name.trim());
     }
 
-    /**
-     * @param {HTMLElement} menuEl
-     */
+    /** @param {HTMLElement} menuEl */
     syncMenuClass(menuEl) {
         const wanted = this.menuClassNames;
         for (const name of this._menuClassNames) {

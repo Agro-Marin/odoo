@@ -24,25 +24,8 @@ class DialogWrapper extends Component {
     }
 }
 
-/**
- * @typedef {{
- * onClose?(closeParams?: any): void;
- * env?: object;
- * rootId?: string;
- * sequence?: number;
- * }} DialogServiceInterfaceAddOptions
- */
-/**
- * @typedef {{
- * add(
- * Component: import("@odoo/owl").ComponentConstructor,
- * props?: Record<string, any>,
- * options?: DialogServiceInterfaceAddOptions
- * ): (closeParams?: any) => Promise<void>;
- * closeAll(params?: any): Promise<void>;
- * destroy(): void;
- * }} DialogServiceInterface
- */
+/** @typedef {{ */
+/** @typedef {{ */
 
 export class DialogService {
     /**
@@ -52,14 +35,10 @@ export class DialogService {
     constructor(env, { overlay }) {
         this.env = env;
         this.overlay = overlay;
-        /**
-         * @type {Array<{ id: number, close: Function, isActive: boolean, scrollToOrigin?: () => void }>}
-         */
+        /** @type {Array<{ id: number, close: Function, isActive: boolean, scrollToOrigin?: () => void }>} */
         this.stack = [];
         this.nextId = 0;
-        /**
-         * @type {{ top: number, left: number } | null}
-         */
+        /** @type {{ top: number, left: number } | null} */
         this.scrollOrigin = null;
     }
 

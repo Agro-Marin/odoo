@@ -23,9 +23,7 @@ defineModels([Partner, ResCompany, ResPartner, ResUsers]);
 
 const NB_BUTTONS = 9;
 
-/**
- * @param {number} size
- */
+/** @param {number} size */
 function mockUiSize(size) {
     const bus = new EventBus();
     /** @type {any} */ (mockService)("ui", (/** @type {any} */ env) => {

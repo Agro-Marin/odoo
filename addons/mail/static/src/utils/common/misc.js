@@ -4,7 +4,7 @@ import { AssetsLoadingError, getBundle } from "@web/core/assets";
 import { memoize } from "@web/core/utils/functions";
 import { effect } from "@web/core/utils/reactive";
 /**
- * @template {Object} T
+ * @template {Object}
  * @param {T} obj
  * @param {Object<string, any>} data
  * @param {string[]} [keys=Object.keys(data)]
@@ -38,7 +38,7 @@ export function assignGetter(obj, data) {
 }
 
 /**
- * @template {Object} T
+ * @template {Object}
  * @param {T} obj
  * @param {Object<string, any>} data
  * @param {string[]} [keys=Object.keys(data)]
@@ -55,7 +55,7 @@ export function assignIn(obj, data, keys = Object.keys(data)) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T[]} list
  * @param {number} target
  * @param {(item: T) => number} [itemToCompareVal]
@@ -246,7 +246,7 @@ export const hasHardwareAcceleration = memoize(() => {
 });
 
 /**
- * @template {object} T
+ * @template {object}
  * @param {Object} options
  * @param {(...dependencies: any[]) => void | (() => void)} options.effect
  * @param {(...args: T[]) => Object<string, any>|any[]} options.dependencies
@@ -286,8 +286,8 @@ export function effectWithCleanup({ effect: effectFn, dependencies, reactiveTarg
 }
 
 /**
- * @template {object} T - type of one reactive target
- * @template {Object<string, any>} D - type of dependencies
+ * @template {object}
+ * @template {Object<string, any>}
  * @param {Object} options
  * @param {(dependencies: D) => (() => void)} options.effect
  * @param {number} options.delay
@@ -360,9 +360,7 @@ export async function loadCssFromBundle(targetNode, bundleName) {
     }
 }
 
-/**
- * @returns {(func: () => Promise<any>) => Promise<any>}
- */
+/** @returns {(func: () => Promise<any>) => Promise<any>} */
 export function makeSequential() {
     let inProgress = false;
     /** @type {(() => Promise<any>)|undefined} */

@@ -15,15 +15,9 @@ import {
 
 /** @typedef {import("./misc").FieldDefinition} FieldDefinition */
 /** @typedef {import("./record_list").RecordList} RecordList */
-/**
- * @typedef {Object<string, any>} RecordData
- */
-/**
- * @typedef {Object<string, any>} RecordFields
- */
-/**
- * @typedef {Object<string, typeof Record>} StoreModels
- */
+/** @typedef {Object<string, any>} RecordData */
+/** @typedef {Object<string, any>} RecordFields */
+/** @typedef {Object<string, typeof Record>} StoreModels */
 /**
  * @typedef {Object} Ongoing
  * @property {Object<string, RecordData[]>} storeData
@@ -59,9 +53,7 @@ export class Record {
     _;
     /** @type {import("./misc").IdExpression} */
     static id;
-    /**
-     * @type {string|undefined}
-     */
+    /** @type {string|undefined} */
     static _name;
     /** @type {import("@web/env").OdooEnv} */
     static env;
@@ -71,9 +63,7 @@ export class Record {
     static records;
     /** @type {import("models").Store} */
     static store;
-    /**
-     * @type {import("models").Store}
-     */
+    /** @type {import("models").Store} */
     static _rawStore;
     /**
      * @param {Record} record
@@ -96,9 +86,7 @@ export class Record {
     static getName() {
         return this._name || this.name;
     }
-    /**
-     * @param {import("@web/core/registry").Registry<typeof Record>} [localRegistry]
-     */
+    /** @param {import("@web/core/registry").Registry<typeof Record>} [localRegistry] */
     static register(localRegistry) {
         if (localRegistry) {
             localRegistry.add(this.getName(), this);

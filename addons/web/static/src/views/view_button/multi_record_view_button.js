@@ -10,9 +10,7 @@ export class MultiRecordViewButton extends ViewButton {
         domain: { type: Array, optional: true },
     };
 
-    /**
-     * @param {boolean} [newWindow]
-     */
+    /** @param {boolean} [newWindow] */
     async execute(newWindow) {
         const { list } = this.props;
         const resIds = await list.getResIds(true);

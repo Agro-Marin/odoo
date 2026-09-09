@@ -41,9 +41,7 @@ class Network {
             }
         });
     }
-    /**
-     * @return {{id, p2p: PeerToPeer}}
-     */
+    /** @return {{id, p2p: PeerToPeer}} */
     register(id) {
         const p2p = new PeerToPeer({ notificationRoute: this._notificationRoute });
         this._peerToPeerInstances.set(id, p2p);

@@ -62,19 +62,6 @@ import { computeViewClassName } from "./view_utils.js";
  * @property {string[]} [searchMenuTypes]
  * @property {Record<string, any>} [globalState]
  * @typedef {"activity"
- * | "calendar"
- * | "cohort"
- * | "form"
- * | "gantt"
- * | "graph"
- * | "grid"
- * | "hierarchy"
- * | "kanban"
- * | "list"
- * | "map"
- * | "pivot"
- * | "search"
- * } ViewType
  */
 
 const viewRegistry = registry.category("views");
@@ -190,9 +177,7 @@ export const viewProps = {
     "*": true,
 };
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 const FORWARDED_TO_CONTROLLER = ["noBreadcrumbs"];
 
 /**
@@ -227,16 +212,6 @@ const ACTIONS = [
 /**
  * @typedef {{ views: [number | false, string][], viewId: number | false | undefined, searchViewId: number | false | undefined }} ViewSelection
  * @typedef {{
- * viewDescription: any,
- * arch: string | undefined,
- * fields: Record<string, any> | undefined,
- * relatedModels: Record<string, any> | undefined,
- * actionMenus: Record<string, any> | undefined,
- * searchViewId: number | false | undefined,
- * searchViewArch: string | undefined,
- * searchViewFields: Record<string, any> | undefined,
- * irFilters: Record<string, any>[] | undefined,
- * }} LoadedView
  */
 
 /**
@@ -319,9 +294,7 @@ export class View extends Component {
     static searchMenuTypes = ["filter", "groupBy", "favorite"];
     static canOrderByCount = false;
 
-    /**
-     * @type {number}
-     */
+    /** @type {number} */
     loadViewId;
     static defaultProps = {
         display: {},
@@ -381,9 +354,7 @@ export class View extends Component {
         useDebugCategory("view", { component: this });
     }
 
-    /**
-     * @param {ViewProps} props
-     */
+    /** @param {ViewProps} props */
     async loadView(props) {
         const loadId = ++this.loadViewId;
         const { resModel, type } = props;
@@ -594,14 +565,10 @@ export class View extends Component {
         return withSearchProps;
     }
 
-    /**
-     * @type {string[]}
-     */
+    /** @type {string[]} */
     static VIEW_SELECTING_PROPS = ["arch", "type", "resModel", "viewId", "jsClass"];
 
-    /**
-     * @param {ViewProps} nextProps
-     */
+    /** @param {ViewProps} nextProps */
     onWillUpdateProps(nextProps) {
         const selectors = /** @type {typeof View} */ (this.constructor)
             .VIEW_SELECTING_PROPS;

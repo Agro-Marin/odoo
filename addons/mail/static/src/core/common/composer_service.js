@@ -37,9 +37,7 @@ export class ComposerService {
         this._setHtmlEnabled(false);
     }
 
-    /**
-     * @param {boolean} htmlEnabled
-     */
+    /** @param {boolean} htmlEnabled */
     _setHtmlEnabled(htmlEnabled) {
         if (this.htmlEnabled === htmlEnabled) {
             return;

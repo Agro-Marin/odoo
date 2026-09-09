@@ -2,39 +2,15 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 
-/**
- * How many cards the sample hierarchy draws: one root and its direct reports.
- * Enough to show the shape of the view without filling the screen, and one
- * short of `SAMPLE_PEOPLE`, whose five names repeat past that -- two cards
- * bearing the same name read as a bug in the view rather than as sample data.
- */
 const SAMPLE_CHILD_COUNT = 4;
 
 /**
- * Stand in for `Base.hierarchy_read` while the view shows sample data.
- *
- * `SampleServer` generates a many2one by drawing a random id from the same
- * sample set, so the parent field of a self-referencing model describes a graph
- * with cycles rather than a hierarchy -- a payload this view would lay out flat,
- * or refuse to nest at all. The sample answer therefore imposes its own shape:
- * the first record is the root and the next few are its children. Every other
- * field keeps the value the sample server generated.
- *
  * @this {import("@web/model/sample_server").SampleServer}
  * @param {Object} params
  * @returns {Object[]}
  */
 function mockHierarchyRead(params) {
     const [, specification, parentFieldName] = params.args;
-    // Through `mockRpc`, not `_mockWebSearchReadUnity`: the helpers are marked
-    // private, and the registry's contract is that a mock runs with the sample
-    // server as `this` and reaches it the same way a route would.
-    // Only what that route reads, rather than a spread of ours: `_mockRead`
-    // below it does take `params.args`, and `hierarchy_read`'s args are
-    // `[domain, specification, ...]` where a read's are `[ids, fieldNames]`.
-    // It is handed a fresh object at every call site today, so a spread would
-    // be inert -- but inert by luck, and one call site away from silently
-    // reading our arguments as someone else's.
     const { records } = this.mockRpc({
         model: params.model,
         method: "web_search_read",

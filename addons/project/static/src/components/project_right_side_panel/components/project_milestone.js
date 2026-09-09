@@ -16,10 +16,6 @@ export class ProjectMilestone extends Component {
     setup() {
         this.orm = useService("orm");
         this.dialog = useService("dialog");
-        // Own reactive copy: updates below use Object.assign to mutate this
-        // proxy in place. Reassigning this.milestone to a plain object (as the
-        // code used to) would discard the reactive proxy; copying instead of
-        // wrapping props avoids mutating the parent's prop object.
         this.milestone = useState({ ...this.props.milestone });
         onWillUpdateProps(this.onWillUpdateProps);
     }
@@ -35,8 +31,6 @@ export class ProjectMilestone extends Component {
         return formatDate(DateTime.fromISO(this.milestone.deadline));
     }
 
-    // Derived from the reactive milestone copy: plain getters re-evaluate on
-    // render, so no manual resynchronization is needed.
     get colorClass() {
         return this.milestone.is_deadline_exceeded &&
             !this.milestone.can_be_marked_as_done
@@ -70,8 +64,6 @@ export class ProjectMilestone extends Component {
                     ]),
                 );
             } finally {
-                // Always release the lock, even if the RPC rejects, otherwise a
-                // single transient failure permanently disables the checkbox.
                 this.write_mutex = false;
             }
         }

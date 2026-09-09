@@ -11,9 +11,7 @@ import {
 
 import { parseUrl } from "../local_helpers.js";
 
-/**
- * @param {Promise<any>} promise
- */
+/** @param {Promise<any>} promise */
 const ensureResolvesImmediatly = (promise) =>
     Promise.race([
         promise,

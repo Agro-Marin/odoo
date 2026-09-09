@@ -10,9 +10,7 @@ import { _t } from "@web/core/translation";
 export const SLOW_RPC_CONFIG = { thresholdMs: 5000 };
 
 class SlowRpcService {
-    /**
-     * @param {{ notification: { add: (msg: string, opts?: any) => () => void } }} services
-     */
+    /** @param {{ notification: { add: (msg: string, opts?: any) => () => void } }} services */
     constructor({ notification }) {
         this.notification = notification;
         /** @type {Map<number, { timeoutId: any, isSlow: boolean }>} */

@@ -654,9 +654,6 @@ class PurchaseOrderLine(models.Model):
         moves_to_update.date_deadline = new_date
 
     def _check_orderpoint_picking_type(self):
-        # Warehouse configuration, read on behalf of whoever confirms the
-        # order; an accountant confirming a bill-driven order has no warehouse
-        # access of their own.
         warehouse_loc = (
             self.order_id.picking_type_id.sudo().warehouse_id.view_location_id
         )

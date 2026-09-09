@@ -10,14 +10,6 @@ PROVIDER_MIXINS = ("mixin.google.gmail", "mixin.microsoft.outlook")
 
 @tagged("post_install", "-at_install")
 class TestProviderIsolation(EncryptionKeyCase, TransactionCase):
-    """One model carrying two providers must keep their two flows apart.
-
-    ``ir.mail_server`` and ``fetchmail.server`` each inherit both bundled
-    provider mixins. Anything the shared flow resolved through the MRO -- a
-    field prefix, an endpoint, a CSRF scope -- would let whichever provider
-    won the MRO answer for the other one too.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -80,7 +72,6 @@ class TestProviderIsolation(EncryptionKeyCase, TransactionCase):
         )
 
     def test_unsaved_record_carries_no_id(self):
-        """A NewId is falsy and json cannot serialise it, so it must be dropped."""
         draft = self.env["ir.mail_server"].new({"name": "draft"})
         for uri in (draft.google_gmail_uri, draft.microsoft_outlook_uri):
             self.assertEqual(self._params(uri)["state"].count("false"), 2)

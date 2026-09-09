@@ -8,11 +8,9 @@ class TestPurchaseRequisitionCommon(common.TransactionCase):
 
         cls.env.user.group_ids += cls.env.ref("uom.group_uom")
 
-        # Fetch purchase related user groups
         user_group_purchase_manager = cls.env.ref("purchase.group_purchase_manager")
         user_group_purchase_user = cls.env.ref("purchase.group_purchase_user")
 
-        # User Data: purchase requisition Manager and User
         Users = cls.env["res.users"].with_context({"tracking_disable": True})
 
         cls.user_purchase_requisition_manager = Users.create(
@@ -35,7 +33,6 @@ class TestPurchaseRequisitionCommon(common.TransactionCase):
             }
         )
 
-        # Create Product
         cls.product_uom_id = cls.env.ref("uom.product_uom_unit")
 
         cls.product_09 = cls.env["product.product"].create(
@@ -60,7 +57,6 @@ class TestPurchaseRequisitionCommon(common.TransactionCase):
             }
         )
 
-        # In order to test process of the purchase requisition ,create requisition
         cls.bo_requisition = cls.env["purchase.requisition"].create(
             {
                 "line_ids": [

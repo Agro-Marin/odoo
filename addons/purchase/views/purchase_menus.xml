@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Top menu item -->
     <menuitem
         id="menu_purchase_root"
         name="Purchase"
@@ -16,7 +15,6 @@
         parent="menu_purchase_root"
         sequence="1" />
 
-    <!--Supplier menu-->
     <menuitem
         id="menu_procurement_management_supplier_name"
         name="Vendors"
@@ -84,14 +82,12 @@
         sequence="10"
         groups="uom.group_uom" />
 
-    <!-- Products Control Menu -->
     <menuitem
         id="menu_purchase_products"
         name="Products"
         parent="menu_purchase_root"
         sequence="5" />
 
-    <!-- Product menu-->
     <menuitem
         id="menu_procurement_partner_contact_form"
         name="Products"

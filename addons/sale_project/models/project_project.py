@@ -119,7 +119,6 @@ class ProjectProject(models.Model):
     @api.depends("allow_billable", "partner_id.company_id")
     def _compute_partner_id(self):
         for project in self:
-            # Ensures that the partner_id and its project do not have different companies set
             if not project.allow_billable or (
                 project.company_id
                 and project.partner_id.company_id
@@ -141,12 +140,6 @@ class ProjectProject(models.Model):
         ).update({"sale_line_id": False})
 
     def _get_projects_for_invoice_state(self, invoice_state):
-        """Return project.project records that have a Sale Order at the given invoice_state.
-
-        :param invoice_state: The invoice status.
-        :return: project.project recordset matching the invoice state
-        :rtype: project.project
-        """
         result = self.env.execute_query(
             SQL(
                 """
@@ -173,12 +166,10 @@ class ProjectProject(models.Model):
 
     @api.depends("sale_order_id.invoice_state", "task_ids.sale_order_id.invoice_state")
     def _compute_has_any_so_to_invoice(self):
-        """Has any Sale Order whose invoice_state is 'to do' or 'partial'"""
         if not self.ids:
             self.has_any_so_to_invoice = False
             return
 
-        # 'to do' is this fork's spelling; upstream called the state 'to invoice'.
         project_to_invoice = self._get_projects_for_invoice_state("to do")
         project_to_invoice |= self._get_projects_for_invoice_state("partial")
         project_to_invoice.has_any_so_to_invoice = True
@@ -195,7 +186,6 @@ class ProjectProject(models.Model):
             )
             project.sale_order_line_count = len(sale_order_lines)
 
-            # Use sudo to avoid AccessErrors when the SOLs belong to different companies.
             project.sale_order_count = len(
                 sale_order_lines.sudo().order_id or project.reinvoiced_sale_order_id
             )
@@ -243,10 +233,6 @@ class ProjectProject(models.Model):
             self.reinvoiced_sale_order_id = self.sale_line_id.order_id
 
     def _confirm_linked_sale_orders(self, sol_ids):
-        """Orders created from project/task are supposed to be confirmed to match the typical flow from sales, but since
-        we allow SO creation from the project/task itself we want to confirm newly created SOs immediately after creation.
-        However this would leads to SOs being confirmed without a single product, so we'd rather do it on record save.
-        """
         quotations = (
             self.env["sale.order.line"]
             .sudo()
@@ -262,7 +248,6 @@ class ProjectProject(models.Model):
     def create(self, vals_list):
         projects = super().create(vals_list)
         sol_ids = set()
-        # create() returns one project per vals, so the two are equal-length and aligned
         for project, vals in zip(projects, vals_list, strict=True):
             if vals.get("sale_line_id"):
                 sol_ids.add(vals["sale_line_id"])
@@ -303,7 +288,7 @@ class ProjectProject(models.Model):
             "context": {
                 "show_sale": True,
                 "link_to_project": self.id,
-                "form_view_ref": "sale_project.sale_order_line_view_form_editable",  # Necessary for some logic in the form view
+                "form_view_ref": "sale_project.sale_order_line_view_form_editable",
                 "action_view_sols": True,
                 "default_partner_id": self.partner_id.id,
                 "default_company_id": self.company_id.id,
@@ -437,7 +422,6 @@ class ProjectProject(models.Model):
 
     @api.depends("sale_order_id.invoice_state", "task_ids.sale_order_id.invoice_state")
     def _compute_has_any_so_with_nothing_to_invoice(self):
-        """Has any Sale Order whose invoice_state is set as No"""
         if not self.ids:
             self.has_any_so_with_nothing_to_invoice = False
             return
@@ -497,10 +481,6 @@ class ProjectProject(models.Model):
             action["views"] = [[False, "form"]]
             action["res_id"] = invoice_ids[0]
         return action
-
-    # ----------------------------
-    #  Project Updates
-    # ----------------------------
 
     def _get_sale_order_items_per_project_id(self, domain_per_model=None):
         if not self:
@@ -663,7 +643,6 @@ class ProjectProject(models.Model):
             all_sols -= all_sols[limit]
             display_load_more = True
 
-        # filter to only get the action for the SOLs that the user can read
         action_per_sol = (
             all_sols.sudo(False)._filtered_access("read")._get_action_per_item()
             if with_action
@@ -671,7 +650,6 @@ class ProjectProject(models.Model):
         )
 
         def get_action(sol_id):
-            """Return the action vals to call it in frontend if the user can access to the SO related"""
             action, res_id = action_per_sol.get(sol_id, (None, None))
             return (
                 {
@@ -725,7 +703,6 @@ class ProjectProject(models.Model):
         return domain
 
     def _get_domain_from_section_id(self, section_id):
-        #  When the sale_timesheet module is not installed, all service products are grouped under the 'service revenues' section.
         return self._get_sale_items_domain(
             [("product_type", "!=" if section_id == "materials" else "=", "service")]
         )
@@ -806,7 +783,6 @@ class ProjectProject(models.Model):
         data = []
         sequence_per_invoice_type = self._get_profitability_sequence_per_invoice_type()
         if sale_line_read_group:
-            # Get conversion rate from currencies of the sale order lines to currency of project
             convert_company = self.company_id or self.env.company
 
             sols_per_product = defaultdict(lambda: [0.0, 0.0, []])
@@ -956,17 +932,6 @@ class ProjectProject(models.Model):
         )
 
     def _get_items_from_invoices(self, excluded_move_line_ids=None, with_action=True):
-        """
-        Get all items from invoices, and put them into their own respective section
-        (either costs or revenues)
-        If the final total is 0 for either to_invoice or invoiced (ex: invoice -> credit note),
-        we don't output a new section
-
-        :param excluded_move_line_ids: a list of 'account.move.line' to ignore
-        when fetching the move lines, for example a list of invoices that were
-        generated from a sales order
-        :param with_action: whether to attach the drill-down action to each item
-        """
         if excluded_move_line_ids is None:
             excluded_move_line_ids = []
         aml_fetch_fields = [
@@ -997,7 +962,6 @@ class ProjectProject(models.Model):
             "revenues": {"data": [], "total": {"invoiced": 0.0, "to_invoice": 0.0}},
             "costs": {"data": [], "total": {"billed": 0.0, "to_bill": 0.0}},
         }
-        # TODO: invoices_move_lines.with_context(prefetch_fields=False).move_id.move_type ??
         if invoices_move_lines:
             revenues_lines = []
             cogs_lines = []
@@ -1019,7 +983,6 @@ class ProjectProject(models.Model):
                         self.company_id,
                         move_line.date,
                     )
-                    # an analytic account can appear several time in an analytic distribution with different repartition percentage
                     analytic_contribution = (
                         sum(
                             percentage
@@ -1030,9 +993,8 @@ class ProjectProject(models.Model):
                     )
                     if move_line.parent_state == "draft":
                         amount_to_invoice -= line_balance * analytic_contribution
-                    else:  # move_line.parent_state == 'posted'
+                    else:
                         amount_invoiced -= line_balance * analytic_contribution
-                # don't display the section if the final values are both 0 (invoice -> credit note)
                 if amount_invoiced != 0 or amount_to_invoice != 0:
                     section_id = (
                         "other_invoice_revenues"
@@ -1194,10 +1156,6 @@ class ProjectProject(models.Model):
         if not self.allow_billable:
             return {}, False
         return super()._get_profitability_values()
-
-    # ---------------------------------------------------
-    # Actions
-    # ---------------------------------------------------
 
     def _is_partner_hidden(self):
         return not self.allow_billable

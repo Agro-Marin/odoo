@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Product Template -->
         <record id="view_mrp_product_template_form_inherited" model="ir.ui.view">
             <field name="name">product.form.mrp.inherited</field>
             <field name="model">product.template</field>

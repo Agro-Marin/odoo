@@ -188,9 +188,6 @@ export const stepUtils = {
             ),
         );
     },
-    /**
-     * Utility steps to save a form and wait for the save to complete
-     */
     saveForm() {
         return [
             {
@@ -205,12 +202,6 @@ export const stepUtils = {
             },
         ];
     },
-    /**
-     * Utility steps to cancel a form creation or edition.
-     *
-     * Supports creation/edition from either a form or a list view (so checks
-     * for both states).
-     */
     discardForm() {
         return [
             {

@@ -30,10 +30,6 @@ class TestPurchaseRequisitionSale(TransactionCase):
         )
 
     def test_01_purchase_requisition_services(self):
-        """Create an alternative RFQ for a RFQ automatically genrated from a sale order containing a service that
-        has the "service_to_purchase" activated.
-        """
-        # Create a Sale Order for the subcontracted service
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.client.id,
@@ -60,7 +56,6 @@ class TestPurchaseRequisitionSale(TransactionCase):
             "There should be only one Purchase Order linked to this Sale Order",
         )
 
-        # Create an alternative RFQ for another vendor
         action = purchase_order.action_create_alternative()
         alt_po_wizard = Form(
             self.env["purchase.requisition.create.alternative"].with_context(
@@ -77,7 +72,6 @@ class TestPurchaseRequisitionSale(TransactionCase):
             "Base PO should be linked with the alternative PO",
         )
 
-        # Check if newly created PO is correctly linked to the base Sale Order
         alt_po = purchase_order.alternative_po_ids.filtered(
             lambda po: po.id != purchase_order.id
         )

@@ -2,8 +2,6 @@
 /** @odoo-module native */
 
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
-/** @import { Tree } from "@web/core/tree/condition_tree" */
-/** @import { Condition, Connector, Options } from "@web/core/tree/condition_tree" */
 
 import { isX2ManyType } from "@web/core/field_types";
 import { formatAST, parseExpr } from "@web/core/py_js/py";
@@ -56,7 +54,7 @@ function isSimpleAnd(tree) {
 }
 
 /**
- * @param {Connector} tree an `|` of two simple `&`
+ * @param {Connector} tree
  * @param {Options} options
  * @param {boolean} isRoot
  * @returns {string | null}

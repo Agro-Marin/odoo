@@ -13,7 +13,6 @@ import { pick } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
 import { makeEnv, startServices } from "@web/env";
 
-/** @import { OdooEnv } from "@web/env" */
 import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
 
 /**
@@ -23,12 +22,7 @@ import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
  * @typedef {import("services").ServiceFactories} Services
  */
 
-/**
- * Snapshot a registry so `restoreRegistry` can put it back. Exported alongside
- * its two halves so a test can exercise the round trip on a registry of its own.
- *
- * @param {Registry} registry
- */
+/** @param {Registry} registry */
 export const registerRegistryForCleanup = (registry) => {
     const content = Object.entries(registry.content).map(([key, value]) => [
         key,
@@ -49,24 +43,20 @@ let currentEnv = null;
 beforeEach(() => registerRegistryForCleanup(registry), { global: true });
 afterEach(() => restoreRegistry(registry), { global: true });
 
-/**
- * @param {Registry} registry
- */
+/** @param {Registry} registry */
 export function clearRegistry(registry) {
     registry.content = Object.create(null);
     registry.elements = null;
     registry.entries = null;
 }
 
-/**
- * @returns {OdooEnv}
- */
+/** @returns {OdooEnv} */
 export function getMockEnv() {
     return /** @type {OdooEnv} */ (currentEnv);
 }
 
 /**
- * @template {keyof Services} T
+ * @template {keyof Services}
  * @param {T} name
  * @returns {Services[T]}
  */
@@ -77,8 +67,6 @@ export function getService(name) {
 /**
  * @param {Partial<OdooEnv>} [partialEnv]
  * @param {{
- * makeNew?: boolean;
- * }} [options]
  */
 export async function makeMockEnv(partialEnv, options) {
     if (currentEnv && !options?.makeNew) {
@@ -136,11 +124,9 @@ export async function makeDialogMockEnv(partialEnv) {
 }
 
 /**
- * @template {keyof Services} T
+ * @template {keyof Services}
  * @param {T} name
  * @param {Partial<Services[T]> |
- * ((env: OdooEnv, dependencies: Dependencies) => Services[T])
- * } serviceFactory
  */
 export function mockService(name, serviceFactory) {
     const serviceRegistry = registry.category("services");
@@ -193,9 +179,7 @@ export function mockService(name, serviceFactory) {
     }
 }
 
-/**
- * @param {Registry} registry
- */
+/** @param {Registry} registry */
 export function restoreRegistry(registry) {
     if (registriesContent.has(registry)) {
         clearRegistry(registry);

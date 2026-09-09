@@ -7,7 +7,6 @@ class StockMove(models.Model):
 
     def _get_valid_moves_domain(self):
         domain = super()._get_valid_moves_domain()
-        # If anglo-saxon accounting enabled: we do not generate AALs for the reinvoiced products
         if self.env.user.company_id.anglo_saxon_accounting:
             domain = Domain.AND(
                 [

@@ -4,7 +4,7 @@
 import { browser } from "@web/core/browser/browser";
 
 /**
- * @template T
+ * @template
  * @param {string} key
  * @param {object} options
  * @param {T} options.fallback

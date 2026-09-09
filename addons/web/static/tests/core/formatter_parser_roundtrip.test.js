@@ -27,9 +27,7 @@ describe.current.tags("headless");
 
 beforeEach(makeMockEnv);
 
-/**
- * @type {{ name: string, format: (v: any, o?: any) => string, parse: (s: string) => number, domain?: (v: number) => number }[]}
- */
+/** @type {{ name: string, format: (v: any, o?: any) => string, parse: (s: string) => number, domain?: (v: number) => number }[]} */
 const PAIRS = [
     { name: "float", format: formatFieldFloat, parse: parseFloat },
     { name: "integer", format: formatInteger, parse: parseInteger, domain: Math.round },
@@ -42,14 +40,7 @@ const PAIRS = [
     { name: "monetary", format: formatMonetary, parse: parseMonetary },
 ];
 
-/**
- * @type {{
- * name: string,
- * decimalPoint: string,
- * thousandsSep: string | false,
- * grouping: number[],
- * }[]}
- */
+/** @type {{ */
 const LOCALES = [
     { name: "en_US", decimalPoint: ".", thousandsSep: ",", grouping: [3, 0] },
     { name: "fr_BE", decimalPoint: ",", thousandsSep: ".", grouping: [3, 0] },

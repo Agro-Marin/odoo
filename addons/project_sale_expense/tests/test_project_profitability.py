@@ -29,7 +29,6 @@ class TestProjectSaleExpenseProfitability(
         project = self.env["project.project"].create({"name": "new project"})
         project._create_analytic_account()
         account = project.account_id
-        # Create a new company with the foreign currency.
         foreign_company = self.company_data_2["company"]
         foreign_company.currency_id = self.foreign_currency
         foreign_partner = self.env["res.partner"].create(
@@ -65,7 +64,6 @@ class TestProjectSaleExpenseProfitability(
             }
         )
 
-        # See method definition in `project_hr_expense.tests.test_project_profitability`
         expense = (
             self.check_project_profitability_before_creating_and_approving_expense(
                 expense, project, self.project_profitability_items_empty
@@ -73,9 +71,6 @@ class TestProjectSaleExpenseProfitability(
         )
         self.assertEqual(expense.state, "approved")
 
-        # Create an expense in a foreign company, the expense is linked to the AA of the project.
-        # An order confirms only with a line (base_order); the expense's own
-        # line is appended to the confirmed order later, as in production.
         so_foreign = self.env["sale.order"].create(
             {
                 "name": "Sale order foreign",
@@ -92,8 +87,8 @@ class TestProjectSaleExpenseProfitability(
             {
                 "name": "Expense foreign",
                 "employee_id": foreign_employee.id,
-                "product_id": self.product_c.id,  # Foreign currency product must have no cost
-                "total_amount_currency": 350.00 * 0.5,  # 0.5 is the exchange rate
+                "product_id": self.product_c.id,
+                "total_amount_currency": 350.00 * 0.5,
                 "company_id": foreign_company.id,
                 "analytic_distribution": {account.id: 100},
                 "currency_id": self.foreign_currency.id,
@@ -114,7 +109,7 @@ class TestProjectSaleExpenseProfitability(
         billed = (
             -expense.untaxed_amount_currency
             - expense_foreign.untaxed_amount_currency * 0.2
-        )  # -280.0 - 175.0 * 0.2 = -315.0
+        )
 
         self.assertDictEqual(
             expense_profitability.get("revenues", {}),
@@ -131,7 +126,6 @@ class TestProjectSaleExpenseProfitability(
         self.assertRecordValues(
             self.sale_order.line_ids,
             [
-                # Original SO line:
                 {
                     "is_expense": False,
                     "product_uom_qty": 10.0,
@@ -399,16 +393,6 @@ class TestProjectSaleExpenseProfitability(
         )
 
     def test_project_profitability_2(self):
-        """
-        Test Case:
-        ==========
-        - Create an expense for a project.
-        - post it's entry moves
-        - create an invoice for the sale order linked to the expense
-        - post the invoice
-        - the project profitability should not include the Customer invoice
-        linked to the expense in the revenues, as the Expenses will be there.
-        """
 
         product_new_project_task = self.env["product.product"].create(
             {
@@ -473,7 +457,6 @@ class TestProjectSaleExpenseProfitability(
         revenue_items_from_sol = project._get_revenues_items_from_sol(domain, False)
         expense_profitability = project._get_expenses_profitability_items(False)
         project_profitability = project._get_profitability_items(False)
-        # invoice linked to the expense should not be included in the revenues
         self.assertDictEqual(
             project_profitability.get("revenues", {}),
             {

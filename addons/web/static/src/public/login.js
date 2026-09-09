@@ -10,9 +10,7 @@ export class Login extends Interaction {
         _root: { "t-on-submit": this.onSubmit },
     };
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     onSubmit(ev) {
         const rootEl = /** @type {HTMLElement} */ (ev.currentTarget);
         const submitter = /** @type {SubmitEvent} */ (ev).submitter;

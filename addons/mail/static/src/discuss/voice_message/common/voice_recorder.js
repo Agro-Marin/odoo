@@ -86,7 +86,7 @@ class VoiceRecorder {
         }
     }
 
-    /** @returns {Promise<boolean>} whether recording may proceed */
+    /** @returns {Promise<boolean>} */
     async _openMicrophone() {
         try {
             this.microphone = await browser.navigator.mediaDevices.getUserMedia({

@@ -13,8 +13,6 @@ import { BlankComponent } from "./blank_component.js";
 
 const actionRegistry = registry.category("actions");
 
-/** @import { Action, ActionManager, Controller } from "./action_service.js" */
-
 export class ActionDispatch {
     /**
      * @param {ActionManager} am
@@ -32,13 +30,9 @@ export class ActionDispatch {
         this.nextStack = nextStack;
         this.baseStack = baseStack ?? am.controllerStack;
         this.restoreStackOnError = restoreStackOnError;
-        /**
-         * @type {{ current?: Function }}
-         */
+        /** @type {{ current?: Function }} */
         this.removeDialogRef = { current: undefined };
-        /**
-         * @type {Promise<void>}
-         */
+        /** @type {Promise<void>} */
         this.promise = new Promise((resolve, reject) => {
             this._resolve = resolve;
             this._reject = reject;
@@ -80,9 +74,7 @@ export class ActionDispatch {
         am.nextDialog = null;
     }
 
-    /**
-     * @returns {Promise<any>}
-     */
+    /** @returns {Promise<any>} */
     async settled() {
         try {
             return await this.promise;
@@ -93,9 +85,7 @@ export class ActionDispatch {
         }
     }
 
-    /**
-     * @param {{ componentStatus: string }} ctx
-     */
+    /** @param {{ componentStatus: string }} ctx */
     discard({ componentStatus }) {
         if (!this.controller.isMounted && componentStatus !== "mounted") {
             this._reject(new SupersededError());
@@ -137,9 +127,7 @@ export class ActionDispatch {
         this.removeDialogRef.current?.();
     }
 
-    /**
-     * @returns {any}
-     */
+    /** @returns {any} */
     _restoreStack() {
         const { am, controller, baseStack } = this;
         if (am.controllerStack !== baseStack) {

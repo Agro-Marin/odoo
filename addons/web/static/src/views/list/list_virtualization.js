@@ -82,9 +82,6 @@ export class ListVirtualization {
 
     /**
      * @param {Pick<
-     * import("./list_renderer").ListGridContext,
-     * "getGridState" | "canResequence" | "getEditedRecord"
-     * >} ctx
      * @param {object} params
      * @param {any} params.rootRef
      * @param {any} params.component
@@ -102,9 +99,7 @@ export class ListVirtualization {
         });
     }
 
-    /**
-     * @param {any} virtualGrid
-     */
+    /** @param {any} virtualGrid */
     setVirtualGrid(virtualGrid) {
         this.virtualGrid = virtualGrid;
     }
@@ -144,9 +139,7 @@ export class ListVirtualization {
         this.scroller = getScrollContainer(root);
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     getRowsOffset() {
         const scroller = this.scroller;
         const tbody = this.rootRef.el?.querySelector("tbody");
@@ -203,9 +196,7 @@ export class ListVirtualization {
         }
     }
 
-    /**
-     * @param {number} rowIndex
-     */
+    /** @param {number} rowIndex */
     ensureRowVisible(rowIndex) {
         const scroller = this.scroller;
         if (!this.active || !scroller) {
@@ -318,9 +309,6 @@ export class ListVirtualization {
 
 /**
  * @param {Pick<
- * import("./list_renderer").ListGridContext,
- * "getGridState" | "canResequence" | "getEditedRecord"
- * >} ctx
  * @param {ListVirtualizationConfig} config
  * @returns {ListVirtualization}
  */

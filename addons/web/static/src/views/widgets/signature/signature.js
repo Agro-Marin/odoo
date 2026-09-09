@@ -49,9 +49,7 @@ export class SignatureWidget extends Component {
         this.dialogService.add(SignatureDialog, dialogProps);
     }
 
-    /**
-     * @param {{ signatureImage: string }} param0
-     */
+    /** @param {{ signatureImage: string }} param0 */
     async uploadSignature({ signatureImage }) {
         const file = signatureImage.split(",")[1];
         const record = this.props.record;

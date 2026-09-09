@@ -27,7 +27,6 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
         self.employee_manager.hourly_cost = 10
 
     def test_sale_timesheet_margin(self):
-        """Test the timesheet cost is reported correctly in sale order line."""
         sale_order = self.env["sale.order"].create(
             {
                 "name": "Test_SO0001",
@@ -46,10 +45,8 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
                 "partner_shipping_id": self.partner_b.id,
             }
         )
-        # Confirm the sales order, create project and task.
         sale_order.action_confirm()
 
-        # Add timesheet line
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -62,7 +59,6 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
             }
         )
         sale_order.line_ids._compute_purchase_price()
-        # Cost is expressed in SO line uom
         expected_cost = self.uom_day._compute_quantity(
             self.employee_manager.hourly_cost, self.env.company.project_time_mode_id
         )
@@ -73,12 +69,6 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
         )
 
     def test_no_recompute_purchase_price_not_timesheet(self):
-        """
-        check that if a sale order line is linked to a task but the service is ordered_prepaid,
-        adding a timesheet line does not trigger a recomputation of purchase_price.
-        We also check that the pruchase price of new sale order lines added after the confirmation
-        is computed correctly.
-        """
         project = self.env["project.project"].create(
             {
                 "name": "Test",
@@ -122,9 +112,7 @@ class TestSaleTimesheetMargin(TestCommonSaleTimesheet):
             }
         )
         sale_order.line_ids.purchase_price = 3
-        # Confirm the sales order, create project and task.
         sale_order.action_confirm()
-        # Add timesheet line
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line 222",

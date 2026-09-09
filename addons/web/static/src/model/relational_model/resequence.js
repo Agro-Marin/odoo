@@ -9,12 +9,6 @@
  * @param {(record: any) => number} params.getSequence
  * @param {boolean} [params.asc]
  * @returns {{
- * toReorder: any[],
- * offset: number,
- * fromIndex: number,
- * toIndex: number,
- * reorderAll: boolean,
- * }}
  */
 export function computeResequencePlan({
     records,

@@ -18,7 +18,7 @@ function propertyDescription(definition, definitionRecordName) {
 }
 
 /**
- * @template {new (...args: any[]) => any} T
+ * @template {new (...args: any[]) => any}
  * @param {T} Base
  */
 export const SearchPropertiesMixin = (Base) =>
@@ -104,7 +104,7 @@ export const SearchPropertiesMixin = (Base) =>
 
         /**
          * @param {number[]} ids
-         * @returns {boolean} whether the query lost an element
+         * @returns {boolean}
          */
         _forgetSearchItems(ids) {
             for (const id of ids) {
@@ -151,9 +151,7 @@ export const SearchPropertiesMixin = (Base) =>
             await Promise.all(proms);
         }
 
-        /**
-         * @param {Record<string, any>} field
-         */
+        /** @param {Record<string, any>} field */
         async _fillPropertyFieldSearchItems(field) {
             const result = await this._fetchPropertiesDefinition(
                 this.resModel,

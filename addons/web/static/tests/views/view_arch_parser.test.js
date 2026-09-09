@@ -37,9 +37,7 @@ const KANBAN_ARCH = `
         <templates><t t-name="card"><field name="name"/></t></templates>
     </kanban>`;
 
-/**
- * @param {typeof ListArchParser | typeof KanbanArchParser} ParserClass
- */
+/** @param {typeof ListArchParser | typeof KanbanArchParser} ParserClass */
 function stamping(ParserClass) {
     return class extends ParserClass {
         processButton(/** @type {any} */ node) {

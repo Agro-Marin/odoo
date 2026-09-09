@@ -28,13 +28,9 @@ export class ModelSelector extends Component {
     orm;
     /** @type {KeepLast<any>} */
     keepLast;
-    /**
-     * @type {Object[]}
-     */
+    /** @type {Object[]} */
     models = [];
-    /**
-     * @type {{ placeholder: string, options: Function }[]}
-     */
+    /** @type {{ placeholder: string, options: Function }[]} */
     sources;
 
     setup() {
@@ -93,9 +89,7 @@ export class ModelSelector extends Component {
         return this.props.placeholder || _t("Type a model here...");
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get nbVisibleModels() {
         return this.props.nbVisibleModels || DEFAULT_VISIBLE_MODELS;
     }
@@ -138,9 +132,7 @@ export class ModelSelector extends Component {
         return options;
     }
 
-    /**
-     * @returns {Promise<Array<{model: string, display_name: string}>>}
-     */
+    /** @returns {Promise<Array<{model: string, display_name: string}>>} */
     async fetchAvailableModels() {
         const result = await this.orm.call("ir.model", "get_available_models");
         return result || [];

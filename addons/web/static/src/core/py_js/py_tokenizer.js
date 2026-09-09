@@ -3,9 +3,7 @@
 
 import { TokenType } from "./token_type.js";
 
-/**
- * @typedef { import("./token_type").Token } Token
- */
+/** @typedef { import("./token_type").Token } Token */
 
 class TokenizerError extends Error {}
 
@@ -32,7 +30,7 @@ const numericEscapes = {
 
 /**
  * @param {string} str
- * @param {number} i index of the backslash opening the escape
+ * @param {number} i
  * @param {string} escape
  * @returns {string}
  */
@@ -55,7 +53,7 @@ function decodeNumericEscape(str, i, escape) {
 
 /**
  * @param {string} str
- * @param {number} i index of the backslash opening the escape
+ * @param {number} i
  * @param {string} escape
  * @returns {string | null}
  */

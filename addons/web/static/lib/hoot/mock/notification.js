@@ -8,9 +8,7 @@ const { Event, Promise, Set } = globalThis;
 /** @type {Set<MockNotification>} */
 const notifications = new Set();
 
-/**
- * @returns {MockNotification[]}
- */
+/** @returns {MockNotification[]} */
 export function flushNotifications() {
     const result = [...notifications];
     notifications.clear();

@@ -29,7 +29,6 @@ class TestPerishableQtyAtDate(TestStockCommon, HttpCase):
 
         partner = self.env["res.partner"].create({"name": "Buyer"})
 
-        # Create 3 lots with different expiration dates for each product_exp
         lot_records = self.env["stock.lot"].create(
             [
                 {
@@ -42,13 +41,11 @@ class TestPerishableQtyAtDate(TestStockCommon, HttpCase):
             ]
         )
 
-        # Add stock to each lot
         for lot in lot_records:
             self.env["stock.quant"]._update_available_quantity(
                 lot.product_id, self.stock_location, 100, lot_id=lot
             )
 
-        # update customer lead time, and create SO
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": partner.id,

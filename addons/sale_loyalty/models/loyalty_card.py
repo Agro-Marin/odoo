@@ -30,7 +30,6 @@ class LoyaltyCard(models.Model):
         ]
 
     def _get_mail_author(self):
-        # Default author is the order's salesperson if available, else the order's company.
         if (
             not self.order_id
             or self.order_id.sudo().company_id not in self.env.companies

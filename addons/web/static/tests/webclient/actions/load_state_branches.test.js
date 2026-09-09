@@ -11,9 +11,7 @@ import { actionStorage } from "@web/webclient/actions/action_storage";
 import { loadState } from "@web/webclient/actions/load_state";
 import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
     /** @type {Record<string, any[]>} */
     const calls = { doAction: [], controllersFromState: [], busEvents: [] };

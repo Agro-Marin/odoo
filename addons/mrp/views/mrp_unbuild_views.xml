@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--  Unbuild and scrap menu -->
     <record id="action_mrp_unbuild_moves" model="ir.actions.act_window">
         <field name="name">Stock Moves</field>
         <field name="res_model">stock.move.line</field>
@@ -198,10 +197,6 @@
         </field>
     </record>
 
-    <!--
-        simplified version of unbuild form for unbuild button via manufacturing order,
-        expects required fields to be filled in via 'default_' values
-    -->
     <record id="mrp_unbuild_form_view_simplified" model="ir.ui.view">
         <field name="name">mrp.unbuild.form.simplified</field>
         <field name="model">mrp.unbuild</field>

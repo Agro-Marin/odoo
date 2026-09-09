@@ -25,9 +25,7 @@ export class PurchaseFileUploader extends DocumentFileUploader {
         return "action_create_invoice_from_file";
     }
 
-    /**
-     * @returns {Promise<number[]>}
-     */
+    /** @returns {Promise<number[]>} */
     async getUploadIds() {
         if (this.props.record) {
             return [this.props.record.resId];

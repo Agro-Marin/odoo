@@ -8,7 +8,6 @@ import {
 } from "@web/core/utils/dnd/draggable_hook_builder";
 import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_utils";
 
-/** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
 /** @typedef {DraggableHandlerParams & { group: HTMLElement | null }} SortableHandlerParams */
 
 /**
@@ -82,7 +81,7 @@ function placeholderSiblings(ctx, element) {
 /**
  * @param {Record<string, any>} ctx
  * @param {HTMLElement} element
- * @returns {boolean} whether the consumer's onElementEnter fires
+ * @returns {boolean}
  */
 function onElementPointerEnter(ctx, element) {
     if (acceptsElement(ctx, element)) {
@@ -99,7 +98,7 @@ function onElementPointerEnter(ctx, element) {
 /**
  * @param {Record<string, any>} ctx
  * @param {HTMLElement} element
- * @returns {boolean} whether the consumer's onElementEnter fires
+ * @returns {boolean}
  */
 function onElementComplexPointerEnter(ctx, element) {
     if (ctx.haveAlreadyChanged) {
@@ -135,7 +134,7 @@ function onElementComplexPointerEnter(ctx, element) {
  * @param {Record<string, any>} ctx
  * @param {HTMLElement} element
  * @param {EventTarget | null} relatedTarget
- * @returns {boolean} whether the consumer's onElementLeave fires
+ * @returns {boolean}
  */
 function onElementComplexPointerLeave(ctx, element, relatedTarget) {
     const relatedElement = /** @type {HTMLElement} */ (relatedTarget);
@@ -259,9 +258,7 @@ const hookParams = {
 
         const trackGroups = Boolean(connectGroups && groupSelector);
 
-        /**
-         * @param {PointerEvent} ev
-         */
+        /** @param {PointerEvent} ev */
         const onPointerOver = (ev) => {
             if (trackGroups) {
                 const group = closestGroupOf(ev.target);
@@ -281,9 +278,7 @@ const hookParams = {
             }
         };
 
-        /**
-         * @param {PointerEvent} ev
-         */
+        /** @param {PointerEvent} ev */
         const onPointerOut = (ev) => {
             if (trackGroups) {
                 const group = closestGroupOf(ev.target);

@@ -44,9 +44,7 @@ export function applyLuxonLocale(locale) {
     }
 }
 
-/**
- * @returns {string}
- */
+/** @returns {string} */
 function getPageLocale() {
     const htmlLang = document.documentElement.getAttribute("lang");
     if (session.is_frontend) {
@@ -65,44 +63,18 @@ const FALLBACK_LANG_PARAMETERS = {
     week_start: 7,
 };
 
-/**
- * @typedef {{
- * hash: string,
- * modules: Record<string, { messages: { id: string, string: string }[] }>,
- * lang_parameters: {
- * date_format: string,
- * time_format: string,
- * decimal_point: string,
- * direction: string,
- * grouping: string,
- * thousands_sep: string,
- * week_start: number,
- * },
- * multi_lang: boolean,
- * }} TranslationPayload
- */
+/** @typedef {{ */
 
-/**
- * @typedef {{
- * db: IndexedDB,
- * url: string,
- * lang: string,
- * cacheMarker: string,
- * }} TranslationSource
- */
+/** @typedef {{ */
 
-/**
- * @param {string} cacheMarker
- */
+/** @param {string} cacheMarker */
 function markTranslationsCached(cacheMarker) {
     try {
         browser.localStorage.setItem("webclient_translations_version", cacheMarker);
     } catch {}
 }
 
-/**
- * @param {TranslationPayload} result
- */
+/** @param {TranslationPayload} result */
 function updateTranslations(result) {
     /** @type {Record<string, Record<string, string>>} */
     const terms = {};

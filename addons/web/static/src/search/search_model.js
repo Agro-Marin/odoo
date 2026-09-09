@@ -53,12 +53,6 @@ import {
 } from "./search_state.js";
 import { getIntervalOptions } from "./utils/dates.js";
 
-/** @import { Context } from "@web/core/context" */
-/** @import { Domain, DomainListRepr } from "@web/core/domain" */
-/** @import { OrderTerm } from "@web/core/utils/order_by" */
-/** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
-/** @import { ActiveItem, AutocompleteValue, Category, Facet, Filter, QueryElement, QueryGroup, SearchItem, SearchItems, Section, StoredSearchItem } from "./search_types" */
-
 /**
  * @typedef {Object} SearchModelConfig
  * @property {string} resModel
@@ -86,14 +80,10 @@ export class SearchModel extends SearchQueryMixin(
         SearchFavoritesMixin(SearchPropertiesMixin(SearchPanelMixin(EventBus))),
     ),
 ) {
-    /**
-     * @type {import("@web/env").OdooEnv & { config: Record<string, any> }}
-     */
+    /** @type {import("@web/env").OdooEnv & { config: Record<string, any> }} */
     env;
 
-    /**
-     * @type {string}
-     */
+    /** @type {string} */
     resModel;
     /** @type {boolean | undefined} */
     blockNotification;
@@ -170,9 +160,7 @@ export class SearchModel extends SearchQueryMixin(
         this._reloadMutex = new Mutex();
     }
 
-    /**
-     * @param {SearchModelConfig} config
-     */
+    /** @param {SearchModelConfig} config */
     async load(config) {
         const { resModel } = config;
         if (!resModel) {
@@ -200,9 +188,7 @@ export class SearchModel extends SearchQueryMixin(
         });
     }
 
-    /**
-     * @param {SearchModelConfig} config
-     */
+    /** @param {SearchModelConfig} config */
     _applyGlobalConfig(config) {
         const { context, domain, groupBy, hideCustomGroupBy, orderBy } = config;
 
@@ -272,9 +258,7 @@ export class SearchModel extends SearchQueryMixin(
         return { searchViewDescription, searchViewFields };
     }
 
-    /**
-     * @param {SearchModelConfig} config
-     */
+    /** @param {SearchModelConfig} config */
     async _loadFromState(config) {
         this._importState(config.state);
         if (this.defaultGroupByRemoved) {
@@ -397,9 +381,7 @@ export class SearchModel extends SearchQueryMixin(
         await this._drainPendingNotification();
     }
 
-    /**
-     * @returns {Category[]}
-     */
+    /** @returns {Category[]} */
     get categories() {
         return /** @type {Category[]} */ (this._sectionsOfType("category"));
     }
@@ -418,9 +400,7 @@ export class SearchModel extends SearchQueryMixin(
         return sections;
     }
 
-    /**
-     * @returns {Context}
-     */
+    /** @returns {Context} */
     get _rawContext() {
         if (!this._context) {
             this._context = makeContext([this.globalContext, this._getContext()]);
@@ -429,16 +409,12 @@ export class SearchModel extends SearchQueryMixin(
         return this._context;
     }
 
-    /**
-     * @returns {Context}
-     */
+    /** @returns {Context} */
     get context() {
         return this._rawContext;
     }
 
-    /**
-     * @returns {DomainListRepr}
-     */
+    /** @returns {DomainListRepr} */
     get domain() {
         if (!this._domain) {
             this._domain = /** @type {DomainListRepr} */ (this._getDomain());
@@ -447,9 +423,7 @@ export class SearchModel extends SearchQueryMixin(
         return this._domain;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get domainString() {
         return this._getDomain({ raw: true }).toString();
     }
@@ -472,16 +446,12 @@ export class SearchModel extends SearchQueryMixin(
         return this._facets;
     }
 
-    /**
-     * @returns {Filter[]}
-     */
+    /** @returns {Filter[]} */
     get filters() {
         return /** @type {Filter[]} */ (this._sectionsOfType("filter"));
     }
 
-    /**
-     * @returns {string[]}
-     */
+    /** @returns {string[]} */
     get groupBy() {
         if (!this.searchMenuTypes.has("groupBy")) {
             return [];
@@ -492,9 +462,7 @@ export class SearchModel extends SearchQueryMixin(
         return this._groupBy.slice();
     }
 
-    /**
-     * @returns {OrderTerm[]}
-     */
+    /** @returns {OrderTerm[]} */
     get orderBy() {
         if (!this._orderBy) {
             this._orderBy = this._getOrderBy();
@@ -507,9 +475,7 @@ export class SearchModel extends SearchQueryMixin(
         return !!this.env.debug;
     }
 
-    /**
-     * @returns {import("./search_state").SearchModelState}
-     */
+    /** @returns {import("./search_state").SearchModelState} */
     exportState() {
         return /** @type {import("./search_state").SearchModelState} */ ({
             version: SEARCH_MODEL_STATE_VERSION,
@@ -551,16 +517,12 @@ export class SearchModel extends SearchQueryMixin(
         this.trigger(SearchModelEvent.UPDATE);
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async refresh() {
         return this._notify();
     }
 
-    /**
-     * @param {Record<string, any>[]} dynamicFilters
-     */
+    /** @param {Record<string, any>[]} dynamicFilters */
     _createGroupOfDynamicFilters(dynamicFilters) {
         const pregroup = dynamicFilters.map((filter) => ({
             groupNumber: this.nextGroupNumber,
@@ -573,9 +535,7 @@ export class SearchModel extends SearchQueryMixin(
         this._createGroupOfSearchItems(pregroup);
     }
 
-    /**
-     * @param {Record<string, any>[]} pregroup
-     */
+    /** @param {Record<string, any>[]} pregroup */
     _createGroupOfSearchItems(pregroup) {
         pregroup.forEach((/** @type {Record<string, any>} */ preSearchItem) => {
             const searchItem = Object.assign(preSearchItem, {
@@ -620,9 +580,7 @@ export class SearchModel extends SearchQueryMixin(
         );
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     _getContext() {
         return computeSearchContext(
             this._getGroups(),
@@ -755,9 +713,7 @@ export class SearchModel extends SearchQueryMixin(
         return computeGroupDomain(filter, this.searchViewFields);
     }
 
-    /**
-     * @returns {QueryGroup[]}
-     */
+    /** @returns {QueryGroup[]} */
     _getGroups() {
         if (!this._groups) {
             this._groups = getQueryGroups(this.query, this.searchItems);
@@ -765,9 +721,7 @@ export class SearchModel extends SearchQueryMixin(
         return this._groups;
     }
 
-    /**
-     * @returns {OrderTerm[]}
-     */
+    /** @returns {OrderTerm[]} */
     _getOrderBy() {
         return computeOrderBy(
             this._getGroups(),
@@ -808,9 +762,7 @@ export class SearchModel extends SearchQueryMixin(
         return getSelectedGeneratorIds(this.query, dateFilterId);
     }
 
-    /**
-     * @returns {Domain}
-     */
+    /** @returns {Domain} */
     _getSearchPanelDomain() {
         return computeSearchPanelDomain(
             this._getCategoryDomain(),
@@ -818,9 +770,7 @@ export class SearchModel extends SearchQueryMixin(
         );
     }
 
-    /**
-     * @param {import("./search_state").SearchModelState} state
-     */
+    /** @param {import("./search_state").SearchModelState} state */
     _importState(state) {
         if (
             state.version !== undefined &&
@@ -846,9 +796,7 @@ export class SearchModel extends SearchQueryMixin(
         }
     }
 
-    /**
-     * @param {{ reloadSections?: boolean }} [options]
-     */
+    /** @param {{ reloadSections?: boolean }} [options] */
     async _notify({ reloadSections = true } = {}) {
         this._reset();
 
@@ -868,7 +816,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @template T
+     * @template
      * @param {() => T} fn
      * @returns {T}
      */
@@ -884,7 +832,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @template T
+     * @template
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}
      */
@@ -899,9 +847,7 @@ export class SearchModel extends SearchQueryMixin(
         }
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async _drainPendingNotification() {
         if (this.blockNotification || !this._pendingNotification) {
             return;
@@ -911,7 +857,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @template T
+     * @template
      * @param {T} value
      * @returns {T}
      */

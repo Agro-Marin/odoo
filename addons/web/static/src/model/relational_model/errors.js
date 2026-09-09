@@ -4,9 +4,7 @@
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 export class FetchRecordError extends Error {
-    /**
-     * @param {number[]} resIds
-     */
+    /** @param {number[]} resIds */
     constructor(resIds) {
         super(
             _t(

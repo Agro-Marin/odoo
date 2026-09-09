@@ -46,9 +46,7 @@ registerTemplate(
     </t>`,
 );
 
-/**
- * @returns {{ get renderer(): any, rendererRenders: number }}
- */
+/** @returns {{ get renderer(): any, rendererRenders: number }} */
 function setupCustomRowList() {
     /** @type {{ renderer: any, rendererRenders: number }} */
     const captured = { renderer: null, rendererRenders: 0 };

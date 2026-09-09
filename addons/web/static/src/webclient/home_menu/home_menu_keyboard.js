@@ -6,16 +6,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 
 import { nextFocusedIndex } from "./grid_navigation.js";
 
-/**
- * @param {{
- *  rows: () => number[][],
- *  activate: (index: number) => unknown,
- *  fallback: () => unknown,
- *  escape: () => unknown,
- *  isAvailable: (target: EventTarget | null) => boolean,
- *  enterTarget: () => EventTarget | null,
- * }} params
- */
+/** @param {{ */
 export function useHomeMenuKeyboard({
     rows,
     activate,

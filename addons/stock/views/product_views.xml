@@ -21,16 +21,11 @@
         </field>
     </record>
 
-    <!-- Precedence -->
     <record id="action_open_routes" model="ir.actions.server">
         <field name="name">Routes</field>
         <field name="model_id" ref="product.model_product_template" />
         <field name="state">code</field>
         <field name="code">action = model.action_view_routes_diagram()</field>
-        <!--
-            Runnable by the readonly tier: a pure read that returns the routes
-            diagram, behind a product-form button that carries no groups.
-        -->
         <field
             name="group_ids"
             eval="[(4, ref('stock.group_stock_user')), (4, ref('stock.group_stock_readonly'))]" />
@@ -88,7 +83,6 @@
         </field>
     </record>
 
-    <!-- view common to both template and product -->
     <record id="view_template_property_form" model="ir.ui.view">
         <field name="name">product.template.stock.property.form.inherit</field>
         <field name="model">product.template</field>
@@ -458,7 +452,6 @@
         <field name="group_ids" eval="[(4, ref('stock.group_stock_user'))]" />
     </record>
 
-    <!-- Product Variant -->
     <record id="stock_product_search_form_view" model="ir.ui.view">
         <field name="name">product.product.search.stock.form</field>
         <field name="model">product.product</field>
@@ -479,7 +472,6 @@
         </field>
     </record>
 
-    <!-- Search view for product view with quantity -->
     <record id="product_search_form_view_stock_report" model="ir.ui.view">
         <field name="name">product.product.search.stock.form.stock.report</field>
         <field name="model">product.product</field>
@@ -586,7 +578,6 @@
         </field>
     </record>
 
-    <!-- Precedence -->
     <record id="action_inventory_at_date" model="ir.actions.act_window">
         <field name="name">Inventory at Date</field>
         <field name="res_model">stock.quantity.history</field>
@@ -594,7 +585,6 @@
         <field name="target">new</field>
     </record>
 
-    <!-- Stock Report View -->
     <record id="product_product_stock_tree" model="ir.ui.view">
         <field name="name">product.product.stock.list</field>
         <field name="model">product.product</field>
@@ -617,8 +607,6 @@
                 <field name="id" column_invisible="True" />
                 <field name="display_name" string="Product" />
                 <field name="categ_id" optional="hide" />
-                <!-- <button name="%(action_view_inventory_tree)d" type="action" class="btn-link"
-                    context="{'search_default_product_id': id, 'default_product_id': id}"> -->
                 <field
                     name="qty_available"
                     string="On Hand"
@@ -674,7 +662,6 @@
         </field>
     </record>
 
-    <!-- view used for product.product only -->
     <record id="product_form_view_procurement_button" model="ir.ui.view">
         <field name="name">product.product.procurement</field>
         <field name="model">product.product</field>

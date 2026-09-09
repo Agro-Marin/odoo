@@ -93,15 +93,6 @@ class PurchaseOrderLine(models.Model):
         return moves._get_kit_quantity(self.product_id, order_qty, kit_bom, filters)
 
     def _get_kit_moves(self):
-        """This line's moves as of ``accrual_entry_date``, when one is set.
-
-        The kit branch cannot go through ``_get_transferable_moves()``: that one
-        keeps the moves carrying the line's own product, and a kit line's moves
-        carry its components. Without the cut an accrual read the receipt as it
-        stands now rather than as it stood on the accrual date, whatever date it
-        asked for. ``purchase_stock`` gets the same cut for free through
-        ``_get_stock_moves_outgoing_incoming()``.
-        """
         self.check_singleton()
         accrual_date = self.env.context.get("accrual_entry_date")
         if not accrual_date:

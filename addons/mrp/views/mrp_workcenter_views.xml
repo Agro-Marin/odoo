@@ -17,7 +17,6 @@
                 </p>
             </field>
         </record>
-        <!-- Work Centers -->
         <record id="mrp_workcenter_tree_view" model="ir.ui.view">
             <field name="name">mrp.workcenter.list</field>
             <field name="model">mrp.workcenter</field>
@@ -138,7 +137,6 @@
                 </p>
             </field>
         </record>
-        <!-- Workcenter Kanban view-->
         <record id="mrp_workcenter_kanban" model="ir.ui.view">
             <field name="name">mrp.workcenter.kanban</field>
             <field name="model">mrp.workcenter</field>

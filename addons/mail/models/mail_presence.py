@@ -120,11 +120,6 @@ class MailPresence(models.Model):
                 with self.env.cr.savepoint():
                     self.env["mail.presence"].sudo().create(values)
             except UniqueViolation:
-                # Two first polls for the same user/guest race (e.g. two tabs
-                # opening at once): both find no row and both insert, and the
-                # partial unique index rejects the second. UniqueViolation is not
-                # in PG_CONCURRENCY_EXCEPTIONS_TO_RETRY, so without this it escapes
-                # the websocket handler. Update the row the other poll created.
                 user_or_guest_sudo.invalidate_recordset(["presence_ids"])
                 user_or_guest_sudo.presence_ids.write(values)
 

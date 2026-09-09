@@ -113,7 +113,6 @@
                     t-if="lot['lot_record'].product_id.valid_ean"
                     t-set="final_barcode"
                     t-value="'01' + '0' * (14 - len(lot['lot_record'].product_id.barcode)) + lot['lot_record'].product_id.barcode" />
-                <!-- TODO: must keep lot/sn as last value in barcode because we cannot pad '0's without changing lot/sn name until we can scan in FNC1. -->
                 <t
                     t-if="lot['lot_record'].product_id.tracking == 'lot'"
                     name="datamatrix_lot"

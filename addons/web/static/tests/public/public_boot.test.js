@@ -9,9 +9,7 @@ import { setupGlobalPageBehaviors, startPublicApp } from "@web/public/public_boo
 
 describe.current.tags("headless");
 
-/**
- * @param {string} html
- */
+/** @param {string} html */
 function setupPage(html) {
     /** @type {HTMLElement} */ (getFixture()).innerHTML = html;
     const stopAtDocument = (/** @type {Event} */ ev) => ev.stopPropagation();

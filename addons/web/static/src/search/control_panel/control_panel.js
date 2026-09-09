@@ -21,9 +21,7 @@ import { useCommand } from "@web/ui/commands/command_hook";
 
 const STICKY_CLASS = "o_mobile_sticky";
 
-/**
- * @returns {{showEmbedded: boolean, embeddedActions: any[], visibleEmbeddedActions: any[], showAllEmbeddedActions: boolean, newActionIsShared: boolean, newActionName: string, currentEmbeddedAction: any}}
- */
+/** @returns {{showEmbedded: boolean, embeddedActions: any[], visibleEmbeddedActions: any[], showAllEmbeddedActions: boolean, newActionIsShared: boolean, newActionName: string, currentEmbeddedAction: any}} */
 function makeNoEmbeddedInfos() {
     return {
         showEmbedded: false,
@@ -62,17 +60,13 @@ export class ControlPanel extends Component {
     breadcrumbs;
     /** @type {any} */
     orm;
-    /**
-     * @type {import("@web/search/embedded_actions_bar/embedded_actions").EmbeddedActions | null}
-     */
+    /** @type {import("@web/search/embedded_actions_bar/embedded_actions").EmbeddedActions | null} */
     embeddedActions;
     /** @type {{el: HTMLElement | null}} */
     root;
     /** @type {any} */
     adaptiveMenuRef;
-    /**
-     * @type {{embeddedInfos: {showEmbedded: boolean, embeddedActions: any[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: any[], currentEmbeddedAction: any}}}
-     */
+    /** @type {{embeddedInfos: {showEmbedded: boolean, embeddedActions: any[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: any[], currentEmbeddedAction: any}}} */
     state;
     /** @type {(ev: Event) => void} */
     onScrollThrottledBound;
@@ -142,9 +136,7 @@ export class ControlPanel extends Component {
         }
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get adaptsToScroll() {
         return (
             this.env.isSmall &&
@@ -248,9 +240,7 @@ export class ControlPanel extends Component {
         return _t("%s View", view.name);
     }
 
-    /**
-     * @param {import("@web/views/view").ViewType} viewType
-     */
+    /** @param {import("@web/views/view").ViewType} viewType */
     switchView(viewType, /** @type {any} */ newWindow) {
         return this.actionService.switchView(viewType, {}, { newWindow });
     }
@@ -265,9 +255,7 @@ export class ControlPanel extends Component {
         return this.switchView(viewSwitcherEntries[nextIndex].type);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onMainButtonsKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
         if (hotkey === "arrowdown") {

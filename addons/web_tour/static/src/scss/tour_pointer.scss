@@ -94,8 +94,7 @@
         color: transparent;
         transition: color 0s ease var(--TourPointer__expand-duration);
 
-        // Force style so that it does not depend on where the tooltip is attached
-        line-height: $line-height-base;
+               line-height: $line-height-base;
         @include font-size($font-size-base);
         font-family: $font-family-sans-serif;
         font-weight: normal;
@@ -202,9 +201,7 @@
             }
         }
 
-        // Exception for when the info bubble would overflow to the right:
-        // we offset the content to the left
-        &.o_expand_left {
+                      &.o_expand_left {
             &.o_top,
             &.o_bottom {
                 --TourPointer__translate-x: calc(

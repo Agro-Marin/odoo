@@ -12,21 +12,6 @@ import { Dialog } from "@web/ui/dialog";
 import { standardWidgetProps } from "@web/views/widgets";
 
 /**
- * Parse a quantity the user typed, in the user's own locale.
- *
- * These were `<input type="number">`, which is the anomaly here: every numeric
- * field the framework renders is a text input parsed through
- * `@web/core/parsers`. The DOM normalises a `type="number"` value to the HTML
- * *valid floating-point number* form -- period decimal separator -- whatever the
- * locale, which made both parser families wrong in opposite directions: the
- * locale-aware ones read the normalised "2.5" as 25 wherever "." groups
- * thousands, and the global ones cannot read a comma decimal at all. Reading a
- * text input in the user's locale removes the mismatch instead of picking a side
- * of it, and lets a comma-decimal locale type "2,5" and mean it.
- *
- * `parseInteger` rejects a fraction by throwing; that throw used to escape the
- * click handler, so it is turned into a message here.
- *
  * @param {string} raw
  * @param {{ integer?: boolean }} [options]
  * @returns {{ value: number, error: string | null }}
@@ -118,13 +103,7 @@ export class GenerateDialog extends Component {
         }
     }
 
-    /**
-     * Validate the form and return the numbers to generate with, or null with
-     * `state.error` set. Split out from `_onGenerate` so the branch matrix
-     * (lot/serial x generate/import) is reachable without a DOM.
-     *
-     * @returns {{ count: number, qtyToProcess: number } | null}
-     */
+    /** @returns {{ count: number, qtyToProcess: number } | null} */
     _validate() {
         const move = this.props.move.data;
         if (this.isGenerating && !this.state.nextSerial.trim()) {

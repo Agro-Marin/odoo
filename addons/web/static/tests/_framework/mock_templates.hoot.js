@@ -10,9 +10,7 @@ const SRC_REPLACERS = [
 
 const ATTRIBUTE_PREFIXES = ["", "t-att-", "t-attf-"];
 
-/**
- * @param {Element} template
- */
+/** @param {Element} template */
 function replaceAttributes(template) {
     for (const [tagName, value] of SRC_REPLACERS) {
         for (const prefix of ATTRIBUTE_PREFIXES) {
@@ -36,9 +34,7 @@ function replaceAttributes(template) {
 
 const mockTemplatesRegistered = new WeakSet();
 
-/**
- * @param {{ modules: Map<string, any> }} loader
- */
+/** @param {{ modules: Map<string, any> }} loader */
 export function setupMockTemplates(loader) {
     const templatesModule = loader.modules.get("@web/core/templates");
     if (!templatesModule?.registerTemplateProcessor) {

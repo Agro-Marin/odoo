@@ -7,8 +7,6 @@ import { registry } from "@web/core/registry";
 
 import { parseServerValue } from "./field_values.js";
 
-/** @import { RecordContract } from "@web/model/relational_model/record_contract" */
-
 /**
  * @param {string} fieldType
  * @param {any} value

@@ -15,10 +15,6 @@
                 </button>
             </t>
             <div class="o_form_view o_form_nosheet">
-                <!-- Validation failures land here rather than escaping the click
-                     handler. The quantity fields are text inputs parsed in the
-                     user's locale, as every other numeric field in the framework
-                     is, so refusing bad input in words is the whole guard. -->
                 <div t-if="state.error" class="alert alert-warning mx-3 mt-3 mb-0" role="alert">
                     <t t-esc="state.error"/>
                 </div>

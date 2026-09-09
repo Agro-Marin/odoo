@@ -303,14 +303,7 @@ async function addSwitchTabDropdownItem(rootTarget, tabTarget) {
 
 let discussAsTabId = 0;
 
-/**
- * @param {{
- * asTab?: boolean;
- * authenticateAs?: any | { login: string; password: string; };
- * env?: Partial<OdooEnv>;
- * root?: typeof Component;
- * }} [options]
- */
+/** @param {{ */
 export async function start(options) {
     patchWithCleanup(Rtc.prototype, {
         start() {

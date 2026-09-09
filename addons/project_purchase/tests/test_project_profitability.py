@@ -26,7 +26,7 @@ class TestProjectPurchaseProfitability(
 
     def _create_invoice_for_po(self, purchase_order):
         purchase_order._create_invoices()
-        purchase_bill = purchase_order.invoice_ids  # get the bill from the purchase
+        purchase_bill = purchase_order.invoice_ids
         purchase_bill.invoice_date = datetime.today()
         purchase_bill.action_post()
         return purchase_bill
@@ -34,17 +34,9 @@ class TestProjectPurchaseProfitability(
     def test_bills_without_purchase_order_are_accounted_in_profitability_project_purchase(
         self,
     ):
-        """
-        A bill that has an AAL on one of its line should be taken into account
-        for the profitability of the project.
-        The contribution of the line should only be dependent
-        on the project's analytic account % that was set on the line
-        """
-        # a custom analytic contribution (number between 1 -> 100 included)
         analytic_distribution = 42
         analytic_contribution = analytic_distribution / 100.0
         price_precision = self.env["decimal.precision"].get_precision("Product Price")
-        # create a bill_1 with the AAL
         bill_1 = self.env["account.move"].create(
             {
                 "name": "Bill_1 name",
@@ -68,7 +60,6 @@ class TestProjectPurchaseProfitability(
                 ],
             }
         )
-        # add 2 new AAL to the analytic account. Those costs must be present in the cost data
         self.env["account.analytic.line"].create(
             [
                 {
@@ -83,7 +74,6 @@ class TestProjectPurchaseProfitability(
                 },
             ]
         )
-        # the bill_1 is in draft, therefore it should have the cost "to_bill" same as the -product_price (untaxed)
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -112,9 +102,7 @@ class TestProjectPurchaseProfitability(
                 },
             },
         )
-        # post bill_1
         bill_1.action_post()
-        # we posted the bill_1, therefore the cost "billed" should be -product_price, to_bill should be back to 0
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -144,7 +132,6 @@ class TestProjectPurchaseProfitability(
                 },
             },
         )
-        # create another bill, with 3 lines, 2 diff products, the second line has 2 as quantity, the third line has a negative price
         bill_2 = self.env["account.move"].create(
             {
                 "name": "I have 2 lines",
@@ -192,7 +179,6 @@ class TestProjectPurchaseProfitability(
                 ],
             }
         )
-        # bill_2 is not posted, therefore its cost should be "to_billed" = - sum of all product_price * qty for each line
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -232,9 +218,7 @@ class TestProjectPurchaseProfitability(
                 },
             },
         )
-        # post bill_2
         bill_2.action_post()
-        # bill_2 is posted, therefore its cost should be counting in "billed", with the cost of bill_1
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -273,7 +257,6 @@ class TestProjectPurchaseProfitability(
                 },
             },
         )
-        # create a new purchase order
         purchase_order = self.env["purchase.order"].create(
             {
                 "name": "A purchase order",
@@ -295,10 +278,6 @@ class TestProjectPurchaseProfitability(
         )
         purchase_order.action_confirm()
         self.assertEqual(purchase_order.invoice_state, "to do")
-        # The section "purchase_order" should appear as the purchase order is validated, the total should be updated,
-        # the "other_purchase_costs" shouldn't change, as we don't take into
-        # account bills from purchase orders, as those are already taken into calculations
-        # from the purchase orders (in "purchase_order" section)
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -347,11 +326,8 @@ class TestProjectPurchaseProfitability(
                 },
             },
         )
-        # Create a vendor bill linked to the PO
         purchase_order._create_invoices()
         self.assertEqual(purchase_order.invoice_ids.state, "draft")
-        # now the bill has been created and set to draft so the section "purchase_order" should appear, its costs should be accounted in the "to bill" part
-        # of the purchase_order section, but should touch in the other_purchase_costs
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -400,13 +376,10 @@ class TestProjectPurchaseProfitability(
                 },
             },
         )
-        # Post the vendor bill linked to the PO
         purchase_bill = purchase_order.invoice_ids
         purchase_bill.invoice_date = datetime.today()
         purchase_bill.action_post()
         self.assertEqual(purchase_order.invoice_ids.state, "posted")
-        # now the bill has been posted so the costs of the section "purchase_order" should be accounted in the "billed" part
-        # and the total should be updated accordingly
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -460,21 +433,11 @@ class TestProjectPurchaseProfitability(
         )
 
     def test_account_analytic_distribution_ratio(self):
-        """
-        When adding multiple account analytics on a purchase line, and one of those
-        is from a project (for ex: project created on confirmed SO),
-        then in the profitability only the corresponding ratio of the analytic distribution
-        for that project analytic account should be taken into account.
-        (for ex: if there are 2 accounts on 1 line, one is 60% project analytic account, 40% some other,
-        then the profitability should only reflect 60% of the cost of the line, not 100%)
-        """
-        # define the ratios for the analytic account of the line
         analytic_ratios = {
             "project_ratio": 60,
             "other_ratio": 40,
         }
         self.assertEqual(sum(ratio for ratio in analytic_ratios.values()), 100)
-        # create another analytic_account that is not really relevant
         other_analytic_account = self.env["account.analytic.account"].create(
             {
                 "name": "Not important",
@@ -482,7 +445,6 @@ class TestProjectPurchaseProfitability(
                 "plan_id": self.analytic_plan.id,
             }
         )
-        # create a new purchase order
         purchase_order = self.env["purchase.order"].create(
             {
                 "name": "A purchase order",
@@ -491,7 +453,6 @@ class TestProjectPurchaseProfitability(
                     Command.create(
                         {
                             "analytic_distribution": {
-                                # this is the analytic_account that is linked to the project
                                 self.analytic_account.id: analytic_ratios[
                                     "project_ratio"
                                 ],
@@ -537,7 +498,6 @@ class TestProjectPurchaseProfitability(
             "No data should be found since the purchase order is not invoiced.",
         )
 
-        # Invoice the purchase order
         self._create_invoice_for_po(purchase_order)
         self.assertEqual(purchase_order.invoice_state, "done")
         self.assertDictEqual(
@@ -567,18 +527,14 @@ class TestProjectPurchaseProfitability(
         )
 
     def test_multi_currency_for_project_purchase_profitability(self):
-        """This test ensures that when purchase orders with different currencies are linked to the same project, the amount are correctly computed according to the
-        rate of the company"""
         project = self.env["project.project"].create({"name": "new project"})
         project._create_analytic_account()
         account = project.account_id
         foreign_company = self.company_data_2["company"]
         foreign_company.currency_id = self.foreign_currency
 
-        # a custom analytic contribution (number between 1 -> 100 included)
         analytic_distribution = 42
         analytic_contribution = analytic_distribution / 100.0
-        # Create a bill_1 with the foreign_currency.
         bill_1 = self.env["account.move"].create(
             {
                 "name": "Bill foreign currency",
@@ -617,11 +573,6 @@ class TestProjectPurchaseProfitability(
                 ],
             }
         )
-        # Ensures that if no items have the main currency, the total is still displayed in the main currency.
-        # Expected total : product_price * 0.2 (rate) * 3 (number of products).
-        # Note : for some reason, the method to round the amount to the rounding of the currency is not 100% reliable.
-        # We use a float_compare in order to ensure the value is close enough to the expected result. This problem has no repercusion on the client side, since
-        # there is also a rounding method on this side to ensure the amount is correctly displayed.
         items = project._get_profitability_items(with_action=False)["costs"]
         self.assertEqual("other_purchase_costs", items["data"][0]["id"])
         self.assertEqual(
@@ -649,7 +600,6 @@ class TestProjectPurchaseProfitability(
         )
         self.assertEqual(0.0, items["total"]["billed"])
 
-        # Create a bill 2 with the main currency.
         bill_2 = self.env["account.move"].create(
             {
                 "name": "Bill main currency",
@@ -686,8 +636,6 @@ class TestProjectPurchaseProfitability(
             }
         )
 
-        # The 2 bills are in draft, therefore the "to_bill" section should contain the total cost of the 2 bills.
-        # The expected total is therefore product_price * 1 * 3 + product_price * 0.2 * 3 => * 3.6
         items = project._get_profitability_items(with_action=False)["costs"]
         self.assertEqual("other_purchase_costs", items["data"][0]["id"])
         self.assertEqual(
@@ -715,7 +663,6 @@ class TestProjectPurchaseProfitability(
         )
         self.assertEqual(0.0, items["total"]["billed"])
 
-        # Bill 2 is posted. Its total is now in the 'billed' section, while the bill_1 is still in the 'to bill' one.
         bill_2.action_post()
         items = project._get_profitability_items(with_action=False)["costs"]
         self.assertEqual("other_purchase_costs", items["data"][0]["id"])
@@ -758,7 +705,6 @@ class TestProjectPurchaseProfitability(
             0,
         )
 
-        # Bill 1 is posted. Its total is now in the 'billed' section, the 'to bill' one should now be empty.
         bill_1.action_post()
         items = project._get_profitability_items(with_action=False)["costs"]
         self.assertEqual("other_purchase_costs", items["data"][0]["id"])
@@ -787,7 +733,6 @@ class TestProjectPurchaseProfitability(
             0,
         )
 
-        # create a new purchase order with the foreign company
         purchase_order_foreign = self.env["purchase.order"].create(
             {
                 "name": "A foreign purchase order",
@@ -822,9 +767,6 @@ class TestProjectPurchaseProfitability(
         purchase_order_foreign.action_confirm()
         self.assertEqual(purchase_order_foreign.invoice_state, "to do")
 
-        # The section "purchase_order" should appear because the purchase order is validated, the total should be updated,
-        # but the "other_purchase_costs" shouldn't change, as we don't take into
-        # account bills from purchase orders in this section.
         items = project._get_profitability_items(with_action=False)["costs"]
         self.assertEqual("purchase_order", items["data"][0]["id"])
         self.assertEqual(
@@ -873,7 +815,6 @@ class TestProjectPurchaseProfitability(
             0,
         )
 
-        # create a new purchase order
         purchase_order = self.env["purchase.order"].create(
             {
                 "name": "A foreign purchase order",
@@ -908,7 +849,6 @@ class TestProjectPurchaseProfitability(
         purchase_order.action_confirm()
         self.assertEqual(purchase_order.invoice_state, "to do")
 
-        # The section "purchase_order" should be updated with the new po values.
         items = project._get_profitability_items(with_action=False)["costs"]
         self.assertEqual("purchase_order", items["data"][0]["id"])
         self.assertEqual(
@@ -959,8 +899,6 @@ class TestProjectPurchaseProfitability(
 
         self._create_invoice_for_po(purchase_order)
         self.assertEqual(purchase_order.invoice_state, "done")
-        # The section "purchase_order" should now appear because purchase_order was invoiced.
-        # The purchase order of the main company has been billed. Its total should now be in the 'billed' section.
         items = project._get_profitability_items(with_action=False)["costs"]
         self.assertEqual("purchase_order", items["data"][0]["id"])
         self.assertEqual(
@@ -1019,8 +957,6 @@ class TestProjectPurchaseProfitability(
 
         self._create_invoice_for_po(purchase_order_foreign)
         self.assertEqual(purchase_order_foreign.invoice_state, "done")
-        # The purchase order of the main company has been billed. Its total should now be in the 'billed' section.
-        # The 'to bill' section of the purchase order should now be empty
         items = project._get_profitability_items(with_action=False)["costs"]
         self.assertEqual("purchase_order", items["data"][0]["id"])
         self.assertEqual(
@@ -1090,7 +1026,6 @@ class TestProjectPurchaseProfitability(
         self.assertEqual(action["res_id"], purchase_order.id)
 
     def test_analytic_distribution_with_included_tax(self):
-        """When calculating the profitability of a project, included taxes should not be calculated"""
         included_tax = self.env["account.tax"].create(
             {
                 "name": "included tax",
@@ -1101,10 +1036,7 @@ class TestProjectPurchaseProfitability(
             }
         )
 
-        # create a purchase.order with the project account in analytic_distribution
-        purchase_order = self.env[
-            "purchase.order"
-        ].create(
+        purchase_order = self.env["purchase.order"].create(
             {
                 "name": "A purchase order",
                 "partner_id": self.partner_a.id,
@@ -1113,8 +1045,8 @@ class TestProjectPurchaseProfitability(
                         {
                             "analytic_distribution": {self.analytic_account.id: 100},
                             "product_id": self.product_order.id,
-                            "product_qty": 2,  # plural value to check if the price is multiplied more than once
-                            "tax_ids": [included_tax.id],  # set the included tax
+                            "product_qty": 2,
+                            "tax_ids": [included_tax.id],
                             "price_unit": self.product_order.standard_price,
                             "currency_id": self.env.company.currency_id.id,
                         }
@@ -1124,7 +1056,6 @@ class TestProjectPurchaseProfitability(
         )
         purchase_order.action_confirm()
         purchase_order._create_invoices()
-        # the profitability should not take taxes into account
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -1145,10 +1076,9 @@ class TestProjectPurchaseProfitability(
             },
         )
 
-        purchase_bill = purchase_order.invoice_ids  # get the bill from the purchase
+        purchase_bill = purchase_order.invoice_ids
         purchase_bill.invoice_date = datetime.today()
         purchase_bill.action_post()
-        # same here, taxes should not be calculated in the profitability
         self.assertDictEqual(
             self.project._get_profitability_items(False)["costs"],
             {
@@ -1170,8 +1100,6 @@ class TestProjectPurchaseProfitability(
         )
 
     def test_analytic_distribution_with_mismatched_uom(self):
-        """When changing the unit of measure, the profitability should still match the price_subtotal of the order line"""
-        # create a purchase.order with the project account in analytic_distribution
         purchase_order = self.env["purchase.order"].create(
             {
                 "name": "A purchase order",
@@ -1190,7 +1118,6 @@ class TestProjectPurchaseProfitability(
             }
         )
         purchase_order.action_confirm()
-        # changing the uom to a higher number
         purchase_order.line_ids.product_uom_id = self.env.ref("uom.product_uom_dozen")
         purchase_order._create_invoices()
         self.assertDictEqual(
@@ -1254,7 +1181,6 @@ class TestProjectPurchaseProfitability(
         )
 
     def test_vendor_credit_note_profitability(self):
-        """Reversing a vendor bill should cancel out the profitability costs."""
         purchase_order = self.env["purchase.order"].create(
             {
                 "name": "A Purchase",
@@ -1343,11 +1269,9 @@ class TestProjectPurchaseProfitability(
         )
 
     def test_profitability_foreign_currency_rate_on_bill_date(self):
-        """Test that project profitability uses the correct currency rate (on bill date) for vendor bills in foreign currency."""
         CurrencyRate = self.env["res.currency.rate"]
         company = self.env.company
 
-        # Pick a foreign currency different from company currency
         foreign_currency = self.env["res.currency"].search(
             [("id", "!=", company.currency_id.id)], limit=1
         )
@@ -1356,7 +1280,6 @@ class TestProjectPurchaseProfitability(
                 {"name": "USD", "symbol": "$", "rounding": 0.01, "decimal_places": 2}
             )
 
-        # Set two rates: yesterday and today
         today = datetime.today().date()
         yesterday = today - timedelta(days=1)
         rate_today = 1.9
@@ -1378,7 +1301,6 @@ class TestProjectPurchaseProfitability(
             }
         )
 
-        # Create a vendor bill in foreign currency, dated yesterday, with analytic distribution to the project
         price_unit = 150
         bill = self.env["account.move"].create(
             {
@@ -1402,10 +1324,8 @@ class TestProjectPurchaseProfitability(
             }
         )
 
-        # Compute expected value: balance is in company currency, so should be price_unit / rate_yesterday (since bill is in foreign currency)
         expected_cost = -(price_unit / rate_yesterday)
 
-        # Check profitability before posting (should be in 'to_bill')
         costs = self.project._get_profitability_items(False)["costs"]
         self.assertEqual(len(costs["data"]), 1)
         actual_to_bill = costs["data"][0]["to_bill"]
@@ -1414,7 +1334,6 @@ class TestProjectPurchaseProfitability(
             f"Expected to_bill {expected_cost}, got {actual_to_bill}",
         )
 
-        # Post the bill and check 'billed'
         bill.action_post()
         costs = self.project._get_profitability_items(False)["costs"]
         actual_billed = costs["data"][0]["billed"]
@@ -1424,11 +1343,6 @@ class TestProjectPurchaseProfitability(
         )
 
     def test_project_purchase_profitability_with_split_bills(self):
-        """
-        Test that project profitability is correctly computed when a purchase order
-        is billed in multiple steps (e.g. one partial bill followed by a final bill
-        covering the remaining quantity)
-        """
 
         purchase_order = self.env["purchase.order"].create(
             {
@@ -1557,7 +1471,6 @@ class TestProjectPurchaseProfitability(
                 "plan_id": self.analytic_plan.id,
             }
         )
-        # create a new purchase order
         purchase_order = self.env["purchase.order"].create(
             {
                 "name": "A purchase order",
@@ -1566,7 +1479,6 @@ class TestProjectPurchaseProfitability(
                     Command.create(
                         {
                             "analytic_distribution": {
-                                # this is the analytic_account that is linked to the project
                                 f"{self.analytic_account.id},{other_analytic_account.id}": 100,
                             },
                             "product_id": self.product_order.id,

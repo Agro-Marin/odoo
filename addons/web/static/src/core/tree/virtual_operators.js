@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { Tree, Options, Condition, Connector, Value } from "./condition_tree.js" */
-
 import {
     applyTransformations,
     areEqualTrees,
@@ -18,9 +16,7 @@ import {
     TRUE_TREE,
 } from "./condition_tree.js";
 
-/**
- * @param {Value} path
- */
+/** @param {Value} path */
 function splitPath(path) {
     if (typeof path !== "string") {
         return { initialPath: "", lastPart: path };
@@ -31,9 +27,7 @@ function splitPath(path) {
     return { initialPath, lastPart };
 }
 
-/**
- * @param {Value} path
- */
+/** @param {Value} path */
 function isSimplePath(path) {
     return typeof path === "string" && !splitPath(path).initialPath;
 }
@@ -90,13 +84,9 @@ function introduceSetOperators(tree, options = {}) {
     return operate(_introduceSetOperator, tree, options);
 }
 
-/**
- * @param {Tree} tree
- */
+/** @param {Tree} tree */
 function eliminateSetOperators(tree) {
-    /**
-     * @param {Condition} c
-     */
+    /** @param {Condition} c */
     function _removeSetOperator(c) {
         const { negate, path, operator, value } = c;
         if (["set", "not set"].includes(/** @type {string} */ (operator))) {
@@ -134,13 +124,9 @@ function introduceStartsWithOperators(tree, options) {
     return operate(_introduceStartsWithOperator, tree, options);
 }
 
-/**
- * @param {Tree} tree
- */
+/** @param {Tree} tree */
 function eliminateStartsWithOperators(tree) {
-    /**
-     * @param {Condition} c
-     */
+    /** @param {Condition} c */
     function _eliminateStartsWithOperator(c) {
         const { negate, path, operator, value } = c;
         if (operator === "starts with") {
@@ -208,9 +194,7 @@ const makeBetween = (path, value1, value2) => makeRange(path, value1, value2, "<
 const makeStrictBetween = (path, value1, value2) =>
     makeRange(path, value1, value2, "<");
 
-/**
- * @param {string} delta
- */
+/** @param {string} delta */
 function boundDate(delta) {
     if (!delta) {
         return expression(`context_today().strftime("%Y-%m-%d")`);
@@ -220,9 +204,7 @@ function boundDate(delta) {
     );
 }
 
-/**
- * @param {string} delta
- */
+/** @param {string} delta */
 function boundDatetime(delta) {
     if (!delta) {
         return expression(
@@ -404,13 +386,9 @@ function introduceBetweenOperators(tree, options = {}) {
     );
 }
 
-/**
- * @param {Tree} tree
- */
+/** @param {Tree} tree */
 function eliminateBetweenOperators(tree) {
-    /**
-     * @param {Condition} c
-     */
+    /** @param {Condition} c */
     function _eliminateBetweenOperator(c) {
         const { negate, path, operator, value } = c;
         // @ts-ignore
@@ -431,9 +409,7 @@ function eliminateBetweenOperators(tree) {
     return operate(_eliminateBetweenOperator, tree);
 }
 
-/**
- * @param {Condition} c
- */
+/** @param {Condition} c */
 function _eliminateAnyOperator(c) {
     const { path, operator, value, negate } = c;
     const condValue = /** @type {Condition} */ (value);
@@ -455,20 +431,14 @@ function _eliminateAnyOperator(c) {
     }
 }
 
-/**
- * @param {Tree} tree
- */
+/** @param {Tree} tree */
 function eliminateAnyOperators(tree) {
     return operate(_eliminateAnyOperator, tree);
 }
 
-/**
- * @param {Tree} tree
- */
+/** @param {Tree} tree */
 function removeFalseTrueLeaves(tree) {
-    /**
-     * @param {Condition} c
-     */
+    /** @param {Condition} c */
     function _removeFalseTrueLeave(c) {
         const { path, operator, value, negate } = c;
         if (areEqualTrees(condition(path, operator, value), FALSE_TREE)) {

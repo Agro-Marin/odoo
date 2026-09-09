@@ -4,16 +4,13 @@ import { sortBy } from "@web/core/utils/collections/arrays";
 import { GraphModel } from "@web/views/graph";
 
 export class BurndownChartModel extends GraphModel {
-    /**
-     * @override
-     */
+    /** @override */
     setup(params) {
         super.setup(params);
         this.stageSeqAndNamePerId = {};
     }
 
     /**
-     * Fetch the sequence of each stage in the project. This function alters this.stageSeqAndNamePerId
      * @protected
      * @param {Object} context
      */
@@ -38,32 +35,21 @@ export class BurndownChartModel extends GraphModel {
         return stageSeqAndNamePerId;
     }
 
-    /**
-     * @param {SearchParams} searchParams
-     */
+    /** @param {SearchParams} searchParams */
     async load(searchParams) {
         const { context, groupBy } = searchParams;
 
         if (groupBy.includes("step_id")) {
             if (context.stage_name_and_sequence_per_id) {
-                // Provided by the server actions that open the chart. (Do not
-                // additionally require default_project_id: no producer sets
-                // it, the gate would make this payload dead weight.)
                 this.stageSeqAndNamePerId = context.stage_name_and_sequence_per_id;
             } else if (!Object.keys(this.stageSeqAndNamePerId).length) {
-                // Page reload / direct navigation: fetch once and keep it —
-                // step names and sequences don't change with search
-                // interactions, and refetching on every filter or group-by
-                // change costs one RPC each.
                 this.stageSeqAndNamePerId = await this._fetchStageInfo(context);
             }
         }
         await super.load(searchParams);
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     prepareData() {
         super.prepareData();
         const { groupBy } = this.searchParams;
@@ -74,7 +60,6 @@ export class BurndownChartModel extends GraphModel {
                 const group = Object.assign(...JSON.parse(firstIdentifier));
                 const val = group.step_id;
                 if (Array.isArray(val)) {
-                    // `??`: a real sequence of 0 must not fall back to -1.
                     return this.stageSeqAndNamePerId[val[0]]?.sequence ?? -1;
                 }
                 return -1;

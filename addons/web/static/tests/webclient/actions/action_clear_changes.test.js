@@ -6,9 +6,7 @@ import { EventBus } from "@odoo/owl";
 import { AppEvent } from "@web/core/events";
 import { clearUncommittedChanges } from "@web/webclient/actions/action_clear_changes";
 
-/**
- * @returns {any}
- */
+/** @returns {any} */
 function makeEnv() {
     return { bus: new EventBus() };
 }

@@ -5,9 +5,7 @@ import { ASTType } from "./ast_type.js";
 import { binaryOperators, comparators } from "./py_tokenizer.js";
 import { TokenType } from "./token_type.js";
 
-/**
- * @typedef { import("./py_tokenizer").Token } Token
- */
+/** @typedef { import("./py_tokenizer").Token } Token */
 
 /**
  * @typedef { import("./ast_type").AST } AST
@@ -125,7 +123,7 @@ function isSymbol(token, value) {
 }
 
 /**
- * @param {TokenCursor} cur positioned after the opening parenthesis
+ * @param {TokenCursor} cur
  * @returns {AST}
  */
 function parseParenthesized(cur) {
@@ -152,7 +150,7 @@ function parseParenthesized(cur) {
 }
 
 /**
- * @param {TokenCursor} cur positioned after the opening bracket
+ * @param {TokenCursor} cur
  * @returns {AST}
  */
 function parseList(cur) {
@@ -175,7 +173,7 @@ function parseList(cur) {
 }
 
 /**
- * @param {TokenCursor} cur positioned after the opening brace
+ * @param {TokenCursor} cur
  * @returns {AST}
  */
 function parseDict(cur) {
@@ -259,7 +257,7 @@ function parsePrefix(current, cur) {
  * @param {AST} right
  * @param {Token} current
  * @param {TokenCursor} cur
- * @returns {AST | null} the chain, or null when there is nothing after `right`
+ * @returns {AST | null}
  */
 function parseChain(left, right, current, cur) {
     const continuesAChain = () =>
@@ -284,7 +282,7 @@ function parseChain(left, right, current, cur) {
 
 /**
  * @param {AST} left
- * @param {Token} current an infix operator
+ * @param {Token} current
  * @param {TokenCursor} cur
  * @returns {AST}
  */
@@ -317,7 +315,7 @@ function parseBinary(left, current, cur) {
 
 /**
  * @param {AST} fn
- * @param {TokenCursor} cur positioned after the opening parenthesis
+ * @param {TokenCursor} cur
  * @returns {AST}
  */
 function parseCall(fn, cur) {

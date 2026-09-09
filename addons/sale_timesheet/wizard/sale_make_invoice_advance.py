@@ -18,8 +18,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
         export_string_translation=False,
     )
 
-    # === COMPUTE METHODS ===#
-
     @api.depends("sale_order_ids")
     def _compute_invoicing_timesheet_enabled(self):
         for wizard in self:
@@ -29,16 +27,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
                 ).product_id.filtered(lambda p: p._is_delivered_timesheet())
             )
 
-    # === BUSINESS METHODS ===#
-
     def _create_invoices(self, sale_orders):
-        """Override method from sale/wizard/sale_make_invoice_advance.py
-
-        When the user want to invoice the timesheets to the SO
-        up to a specific period then we need to recompute the
-        qty_to_invoice for each product_id in sale.order.line,
-        before creating the invoice.
-        """
         if (
             self.advance_payment_method == "delivered"
             and self.invoicing_timesheet_enabled

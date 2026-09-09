@@ -7,9 +7,6 @@ class TestMrpAnalyticAccount(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # The group 'mrp.group_mrp_routings' is required to make the field
-        # 'workorder_ids' visible in the view of 'mrp.production'. The subviews
-        #  of `workorder_ids` must be present in many tests to create records.
         cls.env.user.group_ids += cls.env.ref(
             "analytic.group_analytic_accounting"
         ) + cls.env.ref("mrp.group_mrp_routings")
@@ -81,16 +78,11 @@ class TestMrpAnalyticAccount(TransactionCase):
                 f"{cls.analytic_plan._column_name()}": cls.analytic_account.id,
             }
         )
-        # Remove the analytic account auto-generated when creating a timesheetable project if it exists
         cls.project.account_id = False
 
 
 class TestAnalyticAccount(TestMrpAnalyticAccount):
     def test_mo_analytic(self):
-        """Test the amount on analytic line will change when consumed qty of the
-        component changed.
-        """
-        # create a mo
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = self.product
         mo_form.bom_id = self.bom
@@ -100,14 +92,12 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         mo.action_confirm()
         self.assertEqual(mo.state, "confirmed")
         self.assertEqual(len(mo.move_raw_ids.analytic_account_line_ids), 0)
-        # increase qty_producing to 5.0
         mo_form = Form(mo)
         mo_form.qty_producing = 5.0
         mo_form.save()
         self.assertEqual(mo.state, "progress")
         self.assertEqual(mo.move_raw_ids.analytic_account_line_ids.amount, -50.0)
 
-        # increase qty_producing to 10.0
         mo_form = Form(mo)
         mo_form.qty_producing = 10.0
         mo_form.save()
@@ -115,14 +105,11 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(mo.state, "to_close")
         self.assertEqual(mo.move_raw_ids.analytic_account_line_ids.amount, -100.0)
 
-        # mark as done
         mo.button_mark_done()
         self.assertEqual(mo.state, "done")
         self.assertEqual(mo.move_raw_ids.analytic_account_line_ids.amount, -100.0)
 
     def test_mo_analytic_backorder(self):
-        """Test the analytic lines are correctly posted when backorder."""
-        # create a mo
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = self.product
         mo_form.bom_id = self.bom
@@ -133,7 +120,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(mo.state, "confirmed")
         self.assertEqual(len(mo.move_raw_ids.analytic_account_line_ids), 0)
 
-        # increase qty_producing to 5.0
         mo_form = Form(mo)
         mo_form.qty_producing = 5.0
         mo_form.save()
@@ -145,19 +131,13 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(mo.move_raw_ids.analytic_account_line_ids.amount, -50.0)
 
     def test_workcenter_different_analytic_account(self):
-        """Test when workcenter and MO are using the same analytic account, no
-        duplicated lines will be post.
-        """
-        # Required for `workorder_ids` to be visible in the view
         self.env.user.group_ids += self.env.ref("mrp.group_mrp_routings")
-        # set wc analytic account to be different from the one on the bom
         analytic_plan = self.env["account.analytic.plan"].create({"name": "Plan Test"})
         wc_analytic_account = self.env["account.analytic.account"].create(
             {"name": "wc_analytic_account", "plan_id": analytic_plan.id}
         )
         self.workcenter.analytic_distribution = {str(wc_analytic_account.id): 100.0}
 
-        # create a mo
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = self.product
         mo_form.bom_id = self.bom
@@ -167,7 +147,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         mo.action_confirm()
         self.assertEqual(len(mo.workorder_ids.wc_analytic_account_line_ids), 0)
 
-        # change duration to 60
         mo.workorder_ids[0].duration = 60.0
         self.assertEqual(mo.workorder_ids.mo_analytic_account_line_ids.amount, -10.0)
         self.assertEqual(
@@ -182,7 +161,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
             wc_analytic_account,
         )
 
-        # change duration to 120
         mo.workorder_ids[0].duration = 120.0
         self.assertEqual(mo.workorder_ids.mo_analytic_account_line_ids.amount, -20.0)
         self.assertEqual(
@@ -196,8 +174,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
             mo.workorder_ids.wc_analytic_account_line_ids[analytic_plan._column_name()],
             wc_analytic_account,
         )
-
-        # mark as done
 
         mo.qty_producing = 10.0
         mo.set_qty_producing()
@@ -217,12 +193,7 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         )
 
     def test_changing_mo_analytic_account(self):
-        """Check if the MO account analytic lines are correctly updated
-        after the change of the MO account analytic (ie. we change the project linked to the MO).
-        """
-        # Required for `workorder_ids` to be visible in the view
         self.env.user.group_ids += self.env.ref("mrp.group_mrp_routings")
-        # create a mo
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = self.product
         mo_form.bom_id = self.bom
@@ -234,7 +205,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(len(mo.move_raw_ids.analytic_account_line_ids), 0)
         self.assertEqual(len(mo.workorder_ids.mo_analytic_account_line_ids), 0)
 
-        # Change duration to 60
         mo.workorder_ids[0].duration = 60.0
         self.assertEqual(
             mo.workorder_ids.mo_analytic_account_line_ids[
@@ -243,12 +213,10 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
             self.analytic_account,
         )
 
-        # Mark as done
         mo.button_mark_done()
         self.assertEqual(mo.state, "done")
         self.assertEqual(len(mo.move_raw_ids.analytic_account_line_ids), 1)
 
-        # Create a new analytic account
         analytic_plan = self.env["account.analytic.plan"].create({"name": "Plan Test"})
         new_analytic_account = self.env["account.analytic.account"].create(
             {"name": "test_analytic_account_2", "plan_id": analytic_plan.id}
@@ -259,9 +227,7 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
                 f"{analytic_plan._column_name()}": new_analytic_account.id,
             }
         )
-        # Remove the analytic account auto-generated when creating a timesheetable project if it exists
         new_project.account_id = False
-        # Change the MO analytic account by changing its project_id
         mo.project_id = new_project
         self.assertEqual(
             mo.move_raw_ids.analytic_account_line_ids[analytic_plan._column_name()],
@@ -272,25 +238,18 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
             new_analytic_account,
         )
 
-        # Get the MO analytic account lines
         mo_analytic_account_raw_lines = mo.move_raw_ids.analytic_account_line_ids
         mo_analytic_account_wc_lines = mo.move_raw_ids.analytic_account_line_ids
         mo.project_id = False
-        # Check that the MO analytic account lines are deleted
         self.assertEqual(len(mo.move_raw_ids.analytic_account_line_ids), 0)
         self.assertEqual(len(mo.workorder_ids.mo_analytic_account_line_ids), 0)
         self.assertFalse(mo_analytic_account_raw_lines.exists())
         self.assertFalse(mo_analytic_account_wc_lines.exists())
-        # Check that the AA lines are recreated correctly if we delete the AA, save the MO, and assign a new one
         mo.project_id = self.project
         self.assertEqual(len(mo.move_raw_ids.analytic_account_line_ids), 1)
         self.assertEqual(len(mo.workorder_ids.mo_analytic_account_line_ids), 1)
 
     def test_add_remove_wo_analytic_no_company(self):
-        """Test the addition and removal of work orders to an MO linked to
-        a project with an analytic account that has no company associated
-        """
-        # Create an analytic account and remove the company
         analytic_account_no_company = (
             self.env["account.analytic.account"]
             .create(
@@ -308,10 +267,8 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
                 f"{self.analytic_plan._column_name()}": analytic_account_no_company.id,
             }
         )
-        # Remove the analytic account auto-generated when creating a timesheetable project if it exists
         project_aa_no_company.account_id = False
 
-        # Create a mo linked to a project with an analytic account with no associated company
         mo_no_company = self.env["mrp.production"].create(
             {
                 "product_id": self.product.id,
@@ -341,10 +298,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(len(analytic_account_no_company.line_ids), 0)
 
     def test_update_components_qty_to_0(self):
-        """Test that the analytic lines are deleted when the quantity of the component is set to 0.
-        Create an MO with a project that has an analytic account and a component, confirm and validate it,
-        set the quantity of the component to 0, the analytic lines should be deleted.
-        """
         component = self.env["product.product"].create(
             {
                 "name": "Component",
@@ -389,7 +342,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
                 f"{self.analytic_plan._column_name()}": analytic_account.id,
             }
         )
-        # Remove the analytic account auto-generated when creating a timesheetable project if it exists
         new_project.account_id = False
 
         mo_form = Form(self.env["mrp.production"])
@@ -413,7 +365,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertFalse(analytic_account.line_ids)
 
     def test_cross_analytics(self):
-        """Test cross analytics on the project linked to an MO."""
         ap1 = self.env["account.analytic.plan"].create(
             {
                 "name": "Plan 1",
@@ -446,7 +397,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
             }
         )
 
-        # create a mo
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = self.product
         mo_form.bom_id = self.bom
@@ -457,7 +407,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(mo.state, "confirmed")
         self.assertEqual(len(mo.move_raw_ids.analytic_account_line_ids), 0)
 
-        # increase qty_producing to 5.0
         mo_form = Form(mo)
         mo_form.qty_producing = 5.0
         mo_form.save()
@@ -466,7 +415,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(len(aal), 1)
         self.assertEqual(sum(aal.mapped("amount")), -50.00)
 
-        # increase qty_producing to 10.0
         mo_form = Form(mo)
         mo_form.qty_producing = 10.0
         mo_form.save()
@@ -477,33 +425,19 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(len(aal), 1)
         self.assertEqual(sum(aal.mapped("amount")), -100.00)
 
-        # mark as done
         mo.button_mark_done()
         aal = mo.move_raw_ids.analytic_account_line_ids
         self.assertEqual(mo.state, "done")
         self.assertEqual(len(aal), 1)
         self.assertEqual(sum(aal.mapped("amount")), -100.00)
 
-        # assert the right accounts are on the right analytic lines
         self.assertEqual(aal[ap1_column], ac1)
         self.assertEqual(aal[ap2_column], ac2)
 
     def test_mo_qty_analytics(self):
-        """
-        This test tests multiple behaviours and edge cases. First off, when
-        there is a project (with AAs) associated to an MO, the analytic entries should only
-        be generated when the MO's components are consumed/reserved (i.e.
-        picked). Second, when changing the produced quantity in a confirmed MO,
-        it should appropriately adjust the amount of picked components. Third,
-        analytic entries should at all times reflect the current situation, and
-        thus must be regenerated every time there's a change in components'
-        picked status.
-        """
-        # refill components
         location = self.env.ref("stock.stock_location_stock")
         self.env["stock.quant"]._update_available_quantity(self.component, location, 10)
 
-        # create a mo
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = self.product
         mo_form.bom_id = self.bom
@@ -514,14 +448,12 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(mo.state, "confirmed")
         self.assertEqual(self.analytic_account.balance, 0.0)
 
-        # increase qty_producing to 5.0
         mo_form = Form(mo)
         mo_form.qty_producing = 5.0
         mo_form.save()
         self.assertEqual(mo.state, "progress")
         self.assertEqual(self.analytic_account.balance, -50.0)
 
-        # decrease qty_producing to 0.0
         mo_form = Form(mo)
         mo_form.qty_producing = 0.0
         mo_form.save()
@@ -529,16 +461,9 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(self.analytic_account.balance, 0.0)
 
     def test_mandatory_analytic_plan_production(self):
-        """
-        Tests that the MO can only generate AALs if it is supposed to.
-        ie. The MO is producing the product and there is a project linked to the MO that has at least one analytic plan set,
-        and all its mandatory plans set (the ones that are constrained by the 'Manufacturing Order' domain).
-        """
         self.env.user.group_ids += self.env.ref("mrp.group_mrp_routings")
         self.applicability.business_domain = "manufacturing_order"
-        self.project[f"{self.analytic_plan._column_name()}"] = (
-            False  # Remove the AA from the mandatory plan of the project
-        )
+        self.project[f"{self.analytic_plan._column_name()}"] = False
         new_analytic_plan = self.env["account.analytic.plan"].create(
             {
                 "name": "New Plan",
@@ -550,9 +475,7 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
                 "plan_id": new_analytic_plan.id,
             }
         )
-        self.project[f"{new_analytic_plan._column_name()}"] = (
-            new_analytic_account  # Create a new AA and link it to another plan of the project
-        )
+        self.project[f"{new_analytic_plan._column_name()}"] = new_analytic_account
 
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = self.product
@@ -567,10 +490,7 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
             mo.button_mark_done()
 
     def test_bom_aal_generation(self):
-        """This test ensure that when a project is set on a BOM, the aal are correctly generated when the workorder of
-        the MO is marked as done. New aal should NOT be generated when the MO is later on marked as done too."""
 
-        # Required for `workorder_ids` to be visible in the view
         self.env.user.group_ids += self.env.ref("mrp.group_mrp_routings")
 
         self.bom.project_id = self.project
@@ -590,8 +510,6 @@ class TestAnalyticAccount(TestMrpAnalyticAccount):
         self.assertEqual(bom_analytic_lines, mo.move_raw_ids.analytic_account_line_ids)
 
     def test_category_analytic_line_mrp(self):
-        """This test ensures that when a project is set on a manufacturing order, the aal's generated have the correct
-        'manufacturing order' category"""
 
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = self.product

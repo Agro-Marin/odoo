@@ -3,8 +3,6 @@
 
 import { _t } from "@web/core/translation";
 
-/** @import { FieldsRegistryItemShape } from "registries" */
-
 /**
  * @param {string} name
  * @param {string} label
@@ -15,9 +13,7 @@ export function archAttribute(name, label, rest = {}) {
     return { name, label, type: "string", ...rest };
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>[number]} */
 export function digitsAttribute() {
     return archAttribute("digits", _t("Digits"), {
         help: _t(
@@ -26,9 +22,7 @@ export function digitsAttribute() {
     });
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>[number]} */
 export function createPermissionAttribute() {
     return archAttribute("can_create", _t("Can create"), {
         type: "boolean",
@@ -38,9 +32,7 @@ export function createPermissionAttribute() {
     });
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>[number]} */
 export function writePermissionAttribute() {
     return archAttribute("can_write", _t("Can write"), {
         type: "boolean",
@@ -50,16 +42,12 @@ export function writePermissionAttribute() {
     });
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>} */
 export function relationalPermissionAttributes() {
     return [createPermissionAttribute(), writePermissionAttribute()];
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>[number]} */
 export function filenameAttribute() {
     return archAttribute("filename", _t("File name field"), {
         type: "field",
@@ -68,9 +56,7 @@ export function filenameAttribute() {
     });
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedAttributes"]>} */
 export function imageDimensionAttributes() {
     return [
         archAttribute("width", _t("Width"), {
@@ -100,9 +86,7 @@ export function placeholderFieldOption(availableTypes = ["char"]) {
     };
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>} */
 export function datePrecisionOptions() {
     const choices = () => [
         { label: _t("Days"), value: "days" },
@@ -132,9 +116,7 @@ export function datePrecisionOptions() {
     ];
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>} */
 export function dynamicPlaceholderOptions() {
     return [
         {
@@ -155,9 +137,7 @@ export function dynamicPlaceholderOptions() {
     ];
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]} */
 export function autosaveOption() {
     return {
         label: _t("Autosave"),
@@ -170,9 +150,7 @@ export function autosaveOption() {
     };
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]} */
 export function enableFormattingOption() {
     return {
         label: _t("Format number"),
@@ -185,9 +163,7 @@ export function enableFormattingOption() {
     };
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]} */
 export function numericInputTypeOption() {
     return {
         label: _t("Type"),
@@ -199,9 +175,7 @@ export function numericInputTypeOption() {
     };
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>} */
 export function numericInputOptions() {
     return [
         numericInputTypeOption(),
@@ -213,9 +187,7 @@ export function numericInputOptions() {
     ];
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]} */
 export function imageSizeOption() {
     return {
         label: _t("Size"),
@@ -229,9 +201,7 @@ export function imageSizeOption() {
     };
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]} */
 export function acceptedFileExtensionsOption() {
     return {
         label: _t("Accepted file extensions"),
@@ -243,9 +213,7 @@ export function acceptedFileExtensionsOption() {
     };
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>} */
 export function humanReadableOptions() {
     return [
         {
@@ -268,9 +236,7 @@ export function humanReadableOptions() {
     ];
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]} */
 export function hideTrailingZerosOption() {
     return {
         label: _t("Hide trailing zeros"),
@@ -298,9 +264,7 @@ export function colorFieldOption(help, { isRelationalField = false } = {}) {
     };
 }
 
-/**
- * @returns {NonNullable<FieldsRegistryItemShape["fieldDependencies"]>}
- */
+/** @returns {NonNullable<FieldsRegistryItemShape["fieldDependencies"]>} */
 export function dynamicPlaceholderDependency() {
     return ({ options }) => [
         ...(options?.dynamic_placeholder

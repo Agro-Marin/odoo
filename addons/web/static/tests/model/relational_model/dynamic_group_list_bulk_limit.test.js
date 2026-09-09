@@ -11,9 +11,7 @@ const ACTIVE_IDS_LIMIT = 20000;
 const TOTAL_RECORDS = 25000;
 const NB_GROUPS = 12;
 
-/**
- * @param {{ grouped: boolean }} options
- */
+/** @param {{ grouped: boolean }} options */
 function makeList({ grouped }) {
     const proto = grouped ? DynamicGroupList.prototype : DynamicRecordList.prototype;
     const list = Object.create(proto);

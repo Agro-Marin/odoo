@@ -34,7 +34,7 @@ export const fileTypeMagicWordMap = {
 export const IMAGE_PLACEHOLDER = "/web/static/img/placeholder.png";
 
 /**
- * @param {string} value the binary field's value, non-empty
+ * @param {string} value
  * @param {{ model: string, resId: number | false, field: string, unique?: any }} location
  * @returns {string}
  */
@@ -77,9 +77,7 @@ export class ImageField extends FieldComponent {
     orm;
     /** @type {{ isValid: boolean }} */
     state;
-    /**
-     * @type {Map<string, string>}
-     */
+    /** @type {Map<string, string>} */
     urlCache;
 
     setup() {
@@ -166,9 +164,7 @@ export class ImageField extends FieldComponent {
     get hasTooltip() {
         return this.props.enableZoom && this.field.value;
     }
-    /**
-     * @returns {Record<string, string>}
-     */
+    /** @returns {Record<string, string>} */
     get tooltipAttributes() {
         if (!this.hasTooltip) {
             return {};

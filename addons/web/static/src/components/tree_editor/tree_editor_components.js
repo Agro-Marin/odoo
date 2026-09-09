@@ -24,9 +24,7 @@ export class Input extends Component {
         this.inputRef = useRef("input");
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     async onChange(ev) {
         const el = /** @type {HTMLInputElement} */ (ev.target);
         await this.props.update(el.value);
@@ -48,9 +46,7 @@ export class Select extends Component {
     };
     static template = "web.TreeEditor.Select";
 
-    /**
-     * @returns {{ungrouped: any[], groups: Array<[string, any[]]>}}
-     */
+    /** @returns {{ungrouped: any[], groups: Array<[string, any[]]>}} */
     get renderedOptions() {
         const groups = new Map();
         const ungrouped = [];
@@ -114,9 +110,7 @@ export class InRange extends Component {
     static template = "web.TreeEditor.InRange";
     static options = IN_RANGE_OPTIONS;
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get selectedValueType() {
         const [fieldType, valueType, start, end] = this.props.value;
         if (valueType !== "custom range") {
@@ -125,9 +119,7 @@ export class InRange extends Component {
         return matchInRangeProviderOption(fieldType, start, end) || valueType;
     }
 
-    /**
-     * @param {string} newValueType
-     */
+    /** @param {string} newValueType */
     updateValueType(newValueType) {
         const [fieldType] = this.props.value;
         if (newValueType === this.selectedValueType) {
@@ -143,9 +135,7 @@ export class InRange extends Component {
                 : [false, false];
         return this.props.update([fieldType, newValueType, ...values]);
     }
-    /**
-     * @param {[any, any]} values
-     */
+    /** @param {[any, any]} values */
     updateValues(values) {
         const [fieldType, currentValueType] = this.props.value;
         return this.props.update([fieldType, currentValueType, ...values]);
@@ -178,9 +168,7 @@ export class List extends Component {
         );
     }
 
-    /**
-     * @param {any} newValue
-     */
+    /** @param {any} newValue */
     update(newValue) {
         return this.props.update([...this.props.value, newValue]);
     }

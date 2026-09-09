@@ -7,9 +7,7 @@ import { Many2ManyTagsField, many2ManyTagsField } from "./many2many_tags_field.j
 export class KanbanMany2ManyTagsField extends Many2ManyTagsField {
     static template = "web.KanbanMany2ManyTagsField";
 
-    /**
-     * @type {{ source: Object[], tags: Object[] } | null}
-     */
+    /** @type {{ source: Object[], tags: Object[] } | null} */
     _visibleTagsMemo = null;
 
     /** @returns {Array<Object>} */

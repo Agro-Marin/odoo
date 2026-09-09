@@ -86,7 +86,6 @@
         </div>
     </t>
 
-
     <t t-name="mail.DiscussSidebarCallParticipants.participantShortStatus">
         <span t-if="session?.shortStatus" t-att-class="{
             [`${CALL_ICON_MUTED} opacity-75`]: session.shortStatus === 'mute',

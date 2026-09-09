@@ -39,9 +39,7 @@ function styledArguments(args, prefix, prefixColor) {
     return args;
 }
 
-/**
- * @param {any[]} args
- */
+/** @param {any[]} args */
 function unstyledArguments(args) {
     const prefix = `[${DEFAULT_PREFIX[0]}]`;
     const firstArg = args.shift() ?? "";
@@ -76,15 +74,11 @@ class Logger {
         return new Logger(this.logLevel, ISSUE_LEVELS.global);
     }
 
-    /**
-     * @param {...any} args
-     */
+    /** @param {...any} args */
     debug(...args) {
         $debug(...styledArguments(args));
     }
-    /**
-     * @param {...any} args
-     */
+    /** @param {...any} args */
     error(...args) {
         switch (this.issueLevel) {
             case ISSUE_LEVELS.suppressed: {
@@ -116,21 +110,15 @@ class Logger {
         callback();
         $groupEnd();
     }
-    /**
-     * @param {...any} args
-     */
+    /** @param {...any} args */
     table(...args) {
         $table(...args);
     }
-    /**
-     * @param {...any} args
-     */
+    /** @param {...any} args */
     trace(...args) {
         $trace(...args);
     }
-    /**
-     * @param {...any} args
-     */
+    /** @param {...any} args */
     warn(...args) {
         switch (this.issueLevel) {
             case ISSUE_LEVELS.suppressed: {
@@ -150,18 +138,14 @@ class Logger {
         }
     }
 
-    /**
-     * @param {...any} args
-     */
+    /** @param {...any} args */
     logDebug(...args) {
         if (!this.canLog("debug")) {
             return;
         }
         $debug(...styledArguments(args, ...DEBUG_PREFIX));
     }
-    /**
-     * @param {import("./suite").Suite} suite
-     */
+    /** @param {import("./suite").Suite} suite */
     logSuite(suite) {
         if (!this.canLog("suites")) {
             return;
@@ -188,9 +172,7 @@ class Logger {
         }
         $log(...styledArguments(args));
     }
-    /**
-     * @param {import("./test").Test} test
-     */
+    /** @param {import("./test").Test} test */
     logTest(test) {
         if (!this.canLog("tests")) {
             return;
@@ -213,31 +195,23 @@ class Logger {
     logTestEvent(prefix, ...args) {
         $log(...styledArguments(args, ...prefix));
     }
-    /**
-     * @param {...any} args
-     */
+    /** @param {...any} args */
     logRun(...args) {
         if (!this.canLog("runner")) {
             return;
         }
         $log(...styledArguments(args));
     }
-    /**
-     * @param {...any} args
-     */
+    /** @param {...any} args */
     logGlobal(...args) {
         $dir(...unstyledArguments(args));
     }
 
-    /**
-     * @param {keyof typeof LOG_LEVELS} level
-     */
+    /** @param {keyof typeof LOG_LEVELS} level */
     canLog(level) {
         return this.logLevel >= LOG_LEVELS[level];
     }
-    /**
-     * @param {keyof typeof ISSUE_LEVELS} level
-     */
+    /** @param {keyof typeof ISSUE_LEVELS} level */
     setIssueLevel(level) {
         const restoreIssueLevel = () => {
             this.issueLevel = previous;
@@ -246,9 +220,7 @@ class Logger {
         this.issueLevel = ISSUE_LEVELS[level];
         return restoreIssueLevel;
     }
-    /**
-     * @param {keyof typeof LOG_LEVELS} level
-     */
+    /** @param {keyof typeof LOG_LEVELS} level */
     setLogLevel(level) {
         const restoreLogLevel = () => {
             this.logLevel = previous;
@@ -276,9 +248,7 @@ export function makeNetworkLogger(prefix, title) {
             ? title.slice(0, 128) + " (click to show full input)"
             : title;
     return {
-        /**
-         * @param {() => any[]} getData
-         */
+        /** @param {() => any[]} getData */
         logRequest(getData) {
             if (!logger.canLog("debug")) {
                 return;
@@ -299,9 +269,7 @@ export function makeNetworkLogger(prefix, title) {
             $trace("Request trace:");
             $groupEnd();
         },
-        /**
-         * @param {() => any[]} getData
-         */
+        /** @param {() => any[]} getData */
         logResponse(getData) {
             if (!logger.canLog("debug")) {
                 return;

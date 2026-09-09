@@ -4,9 +4,7 @@ import { ChannelMember } from "@mail/discuss/core/common/channel_member_model";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
 ChannelMember.CANCEL_CALL_INVITE_DELAY = 30000;
-/**
- * @type {Partial<import("models").ChannelMember> & ThisType<import("models").ChannelMember>}
- */
+/** @type {Partial<import("models").ChannelMember> & ThisType<import("models").ChannelMember>} */
 const ChannelMemberPatch = {
     setup() {
         super.setup(...arguments);

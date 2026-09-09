@@ -28,8 +28,7 @@ export class FlowEditorStore {
      * @param {Object} [params]
      * @param {import("./flow_types").FlowNode[]} [params.nodes]
      * @param {import("./flow_types").FlowConnection[]} [params.connections]
-     * @param {import("./flow_types").FlowViewport | null} [params.viewport] null,
-     *  like omitting it, starts at the default viewport
+     * @param {import("./flow_types").FlowViewport | null} [params.viewport]
      * @param {boolean} [params.readonly]
      */
     constructor({
@@ -93,9 +92,7 @@ export class FlowEditorStore {
         return this.connections.find((connection) => connection.id === connectionId);
     }
 
-    /**
-     * @returns {import("./flow_types").FlowConnectionId}
-     */
+    /** @returns {import("./flow_types").FlowConnectionId} */
     getNextConnectionId() {
         let connectionId;
         do {
@@ -201,9 +198,7 @@ export class FlowEditorStore {
         return true;
     }
 
-    /**
-     * @param {Partial<import("./flow_types").FlowSelection>} selection
-     */
+    /** @param {Partial<import("./flow_types").FlowSelection>} selection */
     setSelection({ nodeIds = [], connectionIds = [] }) {
         const availableNodeIds = new Set(this.nodes.map((node) => node.id));
         const availableConnectionIds = new Set(
@@ -222,9 +217,7 @@ export class FlowEditorStore {
         this.selection.connectionIds = [];
     }
 
-    /**
-     * @param {Partial<import("./flow_types").FlowViewport>} values
-     */
+    /** @param {Partial<import("./flow_types").FlowViewport>} values */
     setViewport(values) {
         this.viewport = {
             ...this.viewport,
@@ -233,9 +226,7 @@ export class FlowEditorStore {
         };
     }
 
-    /**
-     * @param {boolean} readonly
-     */
+    /** @param {boolean} readonly */
     setReadonly(readonly) {
         if (readonly && this.interaction?.type !== "pan") {
             this.cancelInteraction();

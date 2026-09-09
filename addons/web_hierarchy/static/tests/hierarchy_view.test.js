@@ -30,11 +30,7 @@ async function enableFilters(filterNames = []) {
     }
 }
 
-/**
- * Give the test a handle on the model the view builds.
- *
- * @returns {() => import("@web_hierarchy/hierarchy_model").HierarchyModel}
- */
+/** @returns {() => import("@web_hierarchy/hierarchy_model").HierarchyModel} */
 function captureModel() {
     let model;
     patchWithCleanup(HierarchyModel.prototype, {
@@ -46,13 +42,7 @@ function captureModel() {
     return () => model;
 }
 
-/**
- * Every node the view draws must be indexed by the forest: `resIds` feeds the
- * reload domain and the action's active ids, so a node missing from the index is
- * a record that silently disappears on the next reload.
- *
- * @param {import("@web_hierarchy/hierarchy_model").HierarchyModel} model
- */
+/** @param {import("@web_hierarchy/hierarchy_model").HierarchyModel} model */
 function expectForestToIndexEveryRenderedNode(model) {
     const renderedNodeIds = queryAll(".o_hierarchy_node_container").map((el) =>
         Number(el.dataset.nodeId),
@@ -192,13 +182,11 @@ test("display child nodes", async () => {
     expect(".o_hierarchy_node_button.btn-primary").toHaveCount(0);
     expect(".o_hierarchy_node_button.btn-secondary").toHaveCount(2);
     expect(".o_hierarchy_node_button.btn-secondary").toHaveText("Fold");
-    // check nodes in each row
     expect(".o_hierarchy_row:eq(0) .o_hierarchy_node").toHaveCount(1);
     expect(".o_hierarchy_row:eq(0) .o_hierarchy_node_content").toHaveText("Albert");
 
     expect(".o_hierarchy_row:eq(1) .o_hierarchy_node").toHaveCount(2);
     expect(queryAllTexts(".o_hierarchy_row:eq(1) .o_hierarchy_node_content")).toEqual([
-        // Name + Parent name
         "Georges\nAlbert",
         "Josephine\nAlbert",
     ]);
@@ -1160,7 +1148,6 @@ test("drag node to scroll", async () => {
         resModel: "hr.employee",
     });
 
-    // Fully open the view
     expect(".o_hierarchy_row").toHaveCount(1);
     await contains(".o_hierarchy_node_button.btn-primary").click();
     expect(".o_hierarchy_row").toHaveCount(2);
@@ -1182,7 +1169,6 @@ test("drag node to scroll", async () => {
     const content = queryOne(".o_content");
     await scroll(content, { top: 0 });
 
-    // Limit the height and enable scrolling
     content.setAttribute("style", "min-height:600px;max-height:600px;overflow-y:auto;");
     expect(content.scrollTop).toBe(0);
     expect(content).toHaveRect({ height: 600 });
@@ -1196,7 +1182,6 @@ test("drag node to scroll", async () => {
 
     await advanceFrame(50);
 
-    // should be at the end of the content
     expect(content.clientHeight + content.scrollTop).toBe(content.scrollHeight);
 
     await dragActions.moveTo(".o_hierarchy_row:eq(0)");
@@ -1207,10 +1192,8 @@ test("drag node to scroll", async () => {
 
     await advanceFrame(50);
 
-    // should be at the top of the content
     expect(content.scrollTop).toBe(0);
 
-    // cancel drag: press "Escape"
     await press("Escape");
     await animationFrame();
 
@@ -1536,7 +1519,6 @@ test("Keep the state of the branch when we open another branch in the same level
         { id: 5, name: "Jean", parent_id: 2, child_ids: [6] },
         { id: 6, name: "Claude", parent_id: 5, child_ids: [] },
     );
-    // check we keep in cache the previous branch to avoid fetching again the same data
     await mountView({
         resModel: "hr.employee",
         type: "hierarchy",
@@ -1620,7 +1602,6 @@ test("Avoid fetching subnodes if those subnodes are already in the view", async 
     expect(
         queryAllTexts(".o_hierarchy_row:last-child .o_hierarchy_node_content"),
     ).toEqual(["Georges\nAlbert", "Josephine\nAlbert"]);
-    // The button to show the subnodes should be displayed for Georges and Josephine
     expect(".o_hierarchy_node_button.btn-primary").toHaveCount(2);
 });
 
@@ -1631,9 +1612,6 @@ test("Open record on new window", async () => {
         },
     });
     await mountWithCleanup(WebClient);
-    // Let the mount-time url restore finish. Dispatching straight away races it:
-    // `doAction` mints a navigation epoch and `loadState` fails its supersession
-    // check before reaching `getActionParams`.
     await animationFrame();
     await getService("action").doAction({
         res_model: "hr.employee",
@@ -1643,9 +1621,6 @@ test("Open record on new window", async () => {
             [false, "form"],
         ],
     });
-    // Only watch the history from here: booting the web client and dispatching
-    // the action write entries of their own, and pinning those makes any change
-    // to the boot sequence read as a hierarchy regression.
     patchWithCleanup(browser.sessionStorage, {
         setItem(key, value) {
             expect.step(`set ${key}-${value}`);
@@ -1659,8 +1634,6 @@ test("Open record on new window", async () => {
     expect(".o_hierarchy_view").toHaveCount(1);
     expect(".o_form_view").toHaveCount(0);
     expect.verifySteps([
-        // The form action is pushed, handed to the new window, then popped, so
-        // that this window is left on the hierarchy it started from.
         'set current_action-{"res_model":"hr.employee","type":"ir.actions.act_window","views":[[false,"hierarchy"],[false,"form"]]}',
         'set current_state-{"actionStack":[{"displayName":"","model":"hr.employee","view_type":"hierarchy"},{"displayName":"","model":"hr.employee","view_type":"form","resId":2}],"resId":2,"model":"hr.employee"}',
         "opened in new window: /odoo/hr.employee/hr.employee/2",
@@ -1670,9 +1643,6 @@ test("Open record on new window", async () => {
 });
 
 test("expanding a node never orders the child-count aggregate", async () => {
-    // formatted_read_group refuses an order term that is neither a groupby nor
-    // an aggregate, so a view with a default_order used to make every unfold
-    // raise once the server was reached.
     Employee._views["hierarchy,2"] = Employee._views.hierarchy.replace(
         "<hierarchy>",
         `<hierarchy default_order="name">`,
@@ -1688,8 +1658,6 @@ test("expanding a node never orders the child-count aggregate", async () => {
     expect(".o_hierarchy_row").toHaveCount(2);
     await contains(".o_hierarchy_node_button.btn-primary").click();
     expect(".o_hierarchy_row").toHaveCount(3);
-    // The records themselves are read in the requested order; only the
-    // aggregate, which groups on the parent field alone, goes without one.
     expect.verifySteps([
         'web_search_read order="name ASC"',
         "formatted_read_group order=undefined",
@@ -1720,8 +1688,6 @@ test("the card template can read the view context", async () => {
 });
 
 test("updating the parent of a node that is gone is a no-op", async () => {
-    // The renderer reads node ids out of the DOM, so it can hand over an id the
-    // model has already dropped (a concurrent reload, a stale drag).
     const getModel = captureModel();
     onRpc("web_search_read", () => expect.step("web_search_read"));
     onRpc("hr.employee", "write", () => expect.step("write"));
@@ -1734,9 +1700,6 @@ test("updating the parent of a node that is gone is a no-op", async () => {
 });
 
 test("reloading mints fresh node ids instead of reusing the previous ones", async () => {
-    // Node ids address nodes from the DOM. Restarting the counter on every load
-    // let a `data-node-id` left over from a previous render resolve to an
-    // unrelated record.
     const getModel = captureModel();
     await mountView({ type: "hierarchy", resModel: "hr.employee" });
 
@@ -1751,9 +1714,6 @@ test("reloading mints fresh node ids instead of reusing the previous ones", asyn
 });
 
 test("re-rooting a tree keeps its whole branch indexed by the forest", async () => {
-    // Unfolding a node whose child is already displayed as the root of another
-    // tree moves that tree under it. The branch hanging under that root has to
-    // travel with it.
     Employee._records = [
         { id: 1, name: "Albert", parent_id: false, child_ids: [2, 3] },
         { id: 2, name: "Georges", parent_id: 1, child_ids: [5] },
@@ -1774,20 +1734,15 @@ test("re-rooting a tree keeps its whole branch indexed by the forest", async () 
         `,
     });
     await enableFilters(["test_filter"]);
-    // Two records of the same level have children, so the six records are laid
-    // out flat rather than as one branch.
     expect(".o_hierarchy_row").toHaveCount(1);
     expect(".o_hierarchy_node").toHaveCount(6);
 
-    // Unfold Jean: Paul hangs under him, in Jean's own tree.
     await contains(
         ".o_hierarchy_node_container:has(.o_hierarchy_node_content:contains('Jean')) .o_hierarchy_node_button",
     ).click();
     expect(".o_hierarchy_row").toHaveCount(2);
     expectForestToIndexEveryRenderedNode(getModel());
 
-    // Unfold Georges: Jean is already displayed, so Jean's tree is re-rooted
-    // under Georges, carrying Paul.
     await contains(
         ".o_hierarchy_node_container:has(.o_hierarchy_node_content:contains('Georges')) .o_hierarchy_node_button",
     ).click();
@@ -1824,11 +1779,6 @@ test("moving a root away from its tree leaves no tree behind", async () => {
 });
 
 test("collapses the right branch when the branch is the first node ever minted", async () => {
-    // The node to collapse is looked up as expandedParentNodeIds.at(depth + 1).
-    // Fetching a parent mints a fresh id for it and demotes the old root, so the
-    // very first node the model ever created can end up at that index. A
-    // truthiness test on the id skips it when the id is 0 and the branch stays
-    // open. Load once (no search facet) so that node 0 is still on screen.
     Employee._records = [
         { id: 1, name: "M", parent_id: false, child_ids: [2, 3] },
         { id: 2, name: "A", parent_id: 1, child_ids: [4, 5] },
@@ -1857,14 +1807,11 @@ test("collapses the right branch when the branch is the first node ever minted",
         message: "A is the first node the model minted",
     });
 
-    // Fetch A's manager: M is minted with a fresh id and node 0 becomes its child.
     await contains(".o_hierarchy_node_container button .fa-chevron-up").click();
     expect(branchIds().indexOf(0)).toBe(1, {
         message: "node 0 now sits where .at(depth + 1) looks",
     });
 
-    // Drop the leaf A1 onto B, a leaf whose parent is the new root: depth is 0,
-    // so the branch to collapse is node 0 -- A, which still holds A2.
     await contains(
         ".o_hierarchy_node_container:has(.o_hierarchy_node_content:contains('A1')) .o_hierarchy_node",
     ).dragAndDrop(
@@ -1878,9 +1825,6 @@ test("collapses the right branch when the branch is the first node ever minted",
 });
 
 test("fetching a parent the server will not return adds no phantom card", async () => {
-    // The parent id lives on the child, but the record behind it is not
-    // readable: archived, hidden by a record rule, or deleted between two
-    // requests. Every read then answers without it.
     onRpc("hierarchy_read", () => [
         { id: 2, name: "Alice", parent_id: { id: 1, display_name: "Ghost" } },
     ]);
@@ -1899,9 +1843,6 @@ test("fetching a parent the server will not return adds no phantom card", async 
 });
 
 test("a parent the server hides while answering with its other children", async () => {
-    // Worse shape: the domain is `id = parent OR parent_id = parent`, so the
-    // siblings match even when the parent itself does not. The children were
-    // then hung on an empty object and rendered as a card with no record.
     onRpc("hierarchy_read", () => [
         { id: 2, name: "Alice", parent_id: { id: 1, display_name: "Ghost" } },
     ]);
@@ -1922,9 +1863,6 @@ test("a parent the server hides while answering with its other children", async 
 });
 
 test("a drop does not let filtered-out records back into the view", async () => {
-    // The reload after a drop asks for the new parent's children. That answer
-    // has to obey the same search the view is under, or dropping next to a
-    // record silently reveals the ones the user filtered away.
     Employee._records = [
         { id: 1, name: "Root", parent_id: false, child_ids: [2, 3] },
         { id: 2, name: "Alice", parent_id: 1, child_ids: [] },
@@ -1968,10 +1906,6 @@ test("a drop does not let filtered-out records back into the view", async () => 
 });
 
 test("focusing a record costs one hierarchy_read, not two", async () => {
-    // `hierarchy_res_id` is the "show me this record's hierarchy" link. The
-    // record it names has a parent, so the root-only search matches nothing and
-    // the answer has to come from the fallback -- which used to be a second
-    // request from the client.
     Employee._records.push({ id: 5, name: "Lisa", parent_id: 2, child_ids: [] });
     Employee._records.find((rec) => rec.id === 2).child_ids.push(5);
     onRpc("hierarchy_read", ({ args }) => {
@@ -2004,13 +1938,10 @@ test("draws sample records behind the no-content helper", async () => {
 
     expect(".o_content").toHaveClass("o_view_sample_data");
     expect(".o_view_nocontent").toHaveCount(1);
-    // One root and its direct reports: the sample answer imposes that shape,
-    // because the generated parent ids are random and describe cycles.
     expect(".o_hierarchy_row").toHaveCount(2);
     expect(".o_hierarchy_node").toHaveCount(5);
     expect(".o_hierarchy_row:eq(0) .o_hierarchy_node").toHaveCount(1);
     expect(".o_hierarchy_row:eq(1) .o_hierarchy_node").toHaveCount(4);
-    // Real generated values, and no name drawn twice.
     const names = queryAllTexts(".o_hierarchy_node_content").map(
         (t) => t.split("\n")[0],
     );

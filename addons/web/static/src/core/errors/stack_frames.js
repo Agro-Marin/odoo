@@ -3,14 +3,7 @@
 
 import { browser } from "@web/core/browser/browser";
 
-/**
- * @typedef {{
- * functionName: string,
- * fileName: string,
- * lineNumber: number,
- * columnNumber: number,
- * }} StackFrame
- */
+/** @typedef {{ */
 
 const V8_FRAME_RE = /^\s*at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?\s*$/;
 const GECKO_FRAME_RE = /^\s*(?:(.*?)@)?(.+?):(\d+):(\d+)\s*$/;
@@ -94,9 +87,7 @@ export function decodeMappings(mappings) {
 }
 
 class SourceMapConsumer {
-    /**
-     * @param {{ sources: string[], mappings: string, sourceRoot?: string }} map
-     */
+    /** @param {{ sources: string[], mappings: string, sourceRoot?: string }} map */
     constructor(map) {
         this.sources = (map.sources || []).map((s) =>
             map.sourceRoot ? `${map.sourceRoot}${s}` : s,

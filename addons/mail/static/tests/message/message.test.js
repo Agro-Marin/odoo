@@ -1643,9 +1643,7 @@ test("a star toggled elsewhere shows the message in an open Starred mailbox", as
     await contains(".o-mail-DiscussSidebar button.o-active", {
         text: "Starred messages",
     });
-    // the box must have fetched its (empty) content first, or the fetch races the star below
     await contains(".o-mail-Thread-empty", { text: "No starred messages" });
-    // another tab starred it: the server sends the message, then the toggle
     pyEnv["mail.message"].write([messageId], {
         starred_partner_ids: [Command.link(serverState.partnerId)],
     });
@@ -1912,14 +1910,6 @@ test("Channel should be opened after clicking on its mention", async () => {
 });
 
 test("a #channel mention in an EMAIL body opens the channel", async () => {
-    // The body of an EMAIL message is rendered into a SHADOW ROOT, while the
-    // click handler sits on the message root in the light DOM. `ev.target` is
-    // retargeted to the shadow host there, so `handleClickOnLink`'s
-    // `closest("a")` answered null and none of the redirects fired -- a
-    // decorated mention silently fell through to a full page load. The
-    // comment-message twin is "Channel should be opened after clicking on its
-    // mention"; only `message_type` differs, and the link has to be reached
-    // through the shadow root because the query helpers do not pierce one.
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     const otherId = pyEnv["discuss.channel"].create({ name: "my-channel" });

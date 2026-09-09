@@ -42,9 +42,7 @@ export class ProjectTaskFormController extends FormControllerWithHTMLExpander {
         }
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     getStaticActionMenuItems() {
         return {
             ...super.getStaticActionMenuItems(),

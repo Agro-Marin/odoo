@@ -20,19 +20,13 @@ class UiService {
     constructor(env) {
         this.env = env;
         this.bus = new EventBus();
-        /**
-         * @type {() => void}
-         */
+        /** @type {() => void} */
         this._onMediaChange = () => {};
-        /**
-         * @type {MediaQueryList[]}
-         */
+        /** @type {MediaQueryList[]} */
         this.subscribedMedias = [];
         this.blockCount = 0;
         this.activeElements = makeActiveElementStack();
-        /**
-         * @type {(() => void) | null}
-         */
+        /** @type {(() => void) | null} */
         this.withdrawScopeResolver = null;
 
         const initialSize = this.getSize();
@@ -60,9 +54,7 @@ class UiService {
         });
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     getSize() {
         return utils.getSize();
     }

@@ -127,7 +127,6 @@ test("test so_line_create_button widget: valid SO", async () => {
     expect("div[name='sale_line_id'] input").toHaveValue("Service Product 2", {
         message: "The sale order line should be created and set in the input field.",
     });
-    // As the SO contains at least one service product, it should be validated and created.
     expect.verifySteps(["valid_so"]);
 });
 
@@ -154,7 +153,6 @@ test("test so_line_create_button widget: invalid SO", async () => {
         message:
             "The sale order line should not be created and set in the input field.",
     });
-    // As the SO does not contain at least one service product, it should not be validated and created.
     expect.verifySteps(["invalid_so"]);
 });
 

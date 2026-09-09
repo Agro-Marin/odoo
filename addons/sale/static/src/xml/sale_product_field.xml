@@ -4,7 +4,6 @@
 
     <t t-name="sale.SaleProductField" t-inherit="account.ProductLabelSectionAndNoteField" t-inherit-mode="primary">
         <xpath expr="//Many2One" position="after">
-            <!-- Show configuration button for custom lines/products -->
             <button
                 t-if="!props.readonly and hasConfigurationButton"
                 type="button"

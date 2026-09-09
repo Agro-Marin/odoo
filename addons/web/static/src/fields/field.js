@@ -141,9 +141,7 @@ function countedComponent(C) {
     return counted;
 }
 
-/**
- * @type {readonly string[]}
- */
+/** @type {readonly string[]} */
 const FIELD_OWN_PROPS = Object.freeze([
     "attrs",
     "class",
@@ -154,9 +152,7 @@ const FIELD_OWN_PROPS = Object.freeze([
     "type",
 ]);
 
-/**
- * @type {Set<string>}
- */
+/** @type {Set<string>} */
 const warnedWidgetMisses = new Set();
 
 export function resetWidgetMissWarnings() {
@@ -352,14 +348,10 @@ export class Field extends Component {
     static template = "web.Field";
     static props = fieldProps;
 
-    /**
-     * @type {{ readonly: boolean, required: boolean, invalid: boolean, empty: boolean }}
-     */
+    /** @type {{ readonly: boolean, required: boolean, invalid: boolean, empty: boolean }} */
     _visualFeedback;
 
-    /**
-     * @type {(record?: any) => any[] | undefined}
-     */
+    /** @type {(record?: any) => any[] | undefined} */
     dynamicDomain;
 
     setup() {

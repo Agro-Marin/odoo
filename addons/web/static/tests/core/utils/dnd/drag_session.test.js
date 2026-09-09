@@ -13,9 +13,7 @@ describe.current.tags("headless");
 /** @param {string} reason */
 const makeError = (reason) => new Error(`Error in hook useProbe: ${reason}.`);
 
-/**
- * @returns {{ root: HTMLElement, items: HTMLElement[] }}
- */
+/** @returns {{ root: HTMLElement, items: HTMLElement[] }} */
 function makeTree() {
     const root = document.createElement("div");
     /** @type {HTMLElement} */ (getFixture()).appendChild(root);

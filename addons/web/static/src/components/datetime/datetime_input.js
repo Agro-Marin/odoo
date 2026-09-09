@@ -8,17 +8,7 @@ import { DateTimePicker } from "./datetime_picker.js";
 import { useDateTimePicker } from "./datetime_picker_hook.js";
 /** @typedef {import("@web/core/l10n/luxon").DateTime} DateTime */
 
-/**
- * @typedef {import("./datetime_picker").DateTimePickerProps & {
- * class?: string;
- * disabled?: boolean;
- * format?: string;
- * id?: string;
- * onApply?: (value: DateTime) => any;
- * onChange?: (value: DateTime) => any;
- * placeholder?: string;
- * }} DateTimeInputProps
- */
+/** @typedef {import("./datetime_picker").DateTimePickerProps & { */
 
 const dateTimeInputOwnProps = {
     format: { type: String, optional: true },

@@ -40,7 +40,6 @@
                     </group>
                 </sheet>
                 <footer>
-                    <!-- Has rewards -->
                     <button
                         type="object"
                         name="action_apply"
@@ -55,7 +54,6 @@
                         class="btn btn-secondary"
                         invisible="not reward_ids"
                         data-hotkey="x" />
-                    <!-- No rewards -->
                     <button
                         type="object"
                         name="action_cancel"

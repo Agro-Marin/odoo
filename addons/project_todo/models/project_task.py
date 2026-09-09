@@ -3,9 +3,6 @@ from lxml import html
 from odoo import api, models
 from odoo.tools import html2plaintext
 
-# Elements that end a line when a description is flattened to a title. Without
-# this, html2plaintext runs sibling list items together and "the first line" of
-# a checklist becomes the whole checklist.
 _BLOCK_TAGS = (
     "p",
     "div",
@@ -30,14 +27,6 @@ class ProjectTask(models.Model):
 
     @api.model
     def _todo_name_from_description(self, description):
-        """Return a one-line title for a to-do created from its description.
-
-        :param description: the to-do's HTML description, possibly empty.
-        :return: the first non-empty line, truncated; ``''`` when the
-                 description carries no text at all (an empty editor document
-                 is ``<p><br></p>``, which is *not* falsy).
-        :rtype: str
-        """
         if not description:
             return ""
         try:
@@ -45,11 +34,7 @@ class ProjectTask(models.Model):
         except ValueError, SyntaxError:
             fragment = None
         if fragment is not None:
-            # iterdescendants, not iter: the latter yields the wrapper `div`
-            # this parser just created, whose text is the whole document.
             for element in fragment.iterdescendants(*_BLOCK_TAGS):
-                # itertext() keeps inline markup (<b>, <font>, …) as text while
-                # stopping at the first block boundary.
                 line = " ".join(element.itertext()).strip()
                 if line:
                     break
@@ -67,9 +52,6 @@ class ProjectTask(models.Model):
         for vals in vals_list:
             if vals.get("name") or vals.get("project_id") or vals.get("parent_id"):
                 continue
-            # Derive first, fall back on the *result* being empty. Falling back
-            # on the description being falsy leaves an empty title behind for
-            # every description that holds no text.
             vals["name"] = self._todo_name_from_description(
                 vals.get("description")
             ) or self.env._("Untitled to-do")
@@ -87,12 +69,6 @@ class ProjectTask(models.Model):
 
     @api.model
     def get_todo_views_id(self):
-        """Returns the ids of the main views used in the To-Do app.
-
-        :return: a list of views id and views type
-                 e.g. [(kanban_view_id, "kanban"), (list_view_id, "list"), ...]
-        :rtype: list(tuple())
-        """
         return [
             (
                 self.env["ir.model.data"]._xmlid_to_res_id(

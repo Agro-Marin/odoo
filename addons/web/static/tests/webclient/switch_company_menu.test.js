@@ -38,9 +38,7 @@ const clickConfirm = () =>
 
 const openCompanyMenu = () => contains(".dropdown-toggle").click();
 
-/**
- * @param {number} index
- */
+/** @param {number} index */
 const toggleCompany = (index) =>
     contains(`[data-company-id] [role=menuitemcheckbox]:eq(${index})`).click();
 

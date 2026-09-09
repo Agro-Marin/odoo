@@ -28,11 +28,6 @@
         </div>
     </t>
 
-    <!--
-        One row of count cards. Rendered twice - once for the company-wide
-        figures and once for the current user's - from the same spec, so the two
-        cannot drift apart.
-    -->
     <t t-name="purchase.PurchaseDashboardRow">
         <div class="g-col-12 g-col-lg-11 grid gap-1" t-attf-style="--columns: 61">
             <t t-foreach="cards" t-as="card" t-key="card.spacer ? 'spacer' + card_index : card.key">
@@ -97,8 +92,6 @@
                         </div>
                         <div class="g-col-12 g-col-lg-12 grid gap-1">
                             <div class="d-none d-lg-block g-col-6 p-0" id="left_grid_bottom"/>
-                            <!-- `my`, not `global`: the value shown and the colour
-                                 that judges it must come from the same dataset. -->
                             <t t-call="purchase.PurchaseDashboardDaysCard">
                                 <t t-set="title" t-value="'My Days to Order'"/>
                                 <t t-set="value" t-value="purchaseData['my']['days_to_order']"/>

@@ -8,8 +8,6 @@ import { pick } from "@web/core/utils/collections/objects";
 import { resolveClientAction } from "./action_loader.js";
 import { actionStorage } from "./action_storage.js";
 
-/** @import { ActionManager, Controller } from "./action_service.js" */
-
 /**
  * @param {{ tag?: any, id?: any }} [action]
  * @returns {boolean}
@@ -21,7 +19,7 @@ export function isMenuController(action) {
 /**
  * @param {Record<string, any>[]} toFetch
  * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
- * @returns {Map<string, Promise<any>>} the in-flight answer per key
+ * @returns {Map<string, Promise<any>>}
  */
 function fetchBreadcrumbs(toFetch, breadcrumbCache) {
     const req = rpc("/web/action/load_breadcrumbs", { actions: toFetch }, { retry: 1 });
@@ -63,9 +61,7 @@ function breadcrumbKey(controller) {
     return { actionInfo, key: JSON.stringify(actionInfo) };
 }
 
-/**
- * @typedef {{ controller: Controller, key: string, actionInfo: Record<string, any> }} BreadcrumbEntry
- */
+/** @typedef {{ controller: Controller, key: string, actionInfo: Record<string, any> }} BreadcrumbEntry */
 
 /**
  * @param {BreadcrumbEntry[]} entries
@@ -161,9 +157,7 @@ export function buildBreadcrumbs(stack, am) {
  */
 async function loadBreadcrumbs(controllers, breadcrumbCache) {
     const candidates = [];
-    /**
-     * @type {Map<string, string>}
-     */
+    /** @type {Map<string, string>} */
     const namedFromUrl = new Map();
     for (const controller of controllers) {
         const { action, displayName } = controller;

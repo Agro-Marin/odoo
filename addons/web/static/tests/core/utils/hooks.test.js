@@ -845,9 +845,7 @@ describe("useChildRef and useForwardRefToParent", () => {
 });
 
 describe("useSyncedInputProperty", () => {
-    /**
-     * @param {any} initial
-     */
+    /** @param {any} initial */
     function makeHost(initial) {
         class Host extends Component {
             static props = {};

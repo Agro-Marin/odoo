@@ -48,9 +48,7 @@ class TestAccruedTimeSheetSaleOrders(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_accrued_entries(self):
-        # log 10 hours on 2020-01-02
         self._log_hours(10, "2020-01-02")
-        # log 10 hours on 2020-01-05
         self._log_hours(10, "2020-01-05")
         wizard = (
             self.env["account.accrued.orders.wizard"]
@@ -68,51 +66,40 @@ class TestAccruedTimeSheetSaleOrders(TestCommonSaleTimesheet):
             )
         )
 
-        # nothing to invoice on 2020-01-01
         with self.assertRaises(UserError):
             wizard.create_entries()
 
-        # 10 hours to invoice on 2020-01-03
         wizard.date = fields.Date.to_date("2020-01-03")
         self.assertRecordValues(
             self.env["account.move"].search(wizard.create_entries()["domain"]).line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 900, "credit": 0},
                 {"account_id": wizard.account_id.id, "debit": 0, "credit": 900},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 900},
                 {"account_id": wizard.account_id.id, "debit": 900, "credit": 0},
             ],
         )
 
-        # 20 hours to invoice on 2020-01-07
         wizard.date = fields.Date.to_date("2020-01-07")
         self.assertRecordValues(
             self.env["account.move"].search(wizard.create_entries()["domain"]).line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 1800, "credit": 0},
                 {"account_id": wizard.account_id.id, "debit": 0, "credit": 1800},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 1800},
                 {"account_id": wizard.account_id.id, "debit": 1800, "credit": 0},
             ],
         )
 
     def test_timesheet_invoiced_accrued_entries(self):
-        # log 10 hours on 2020-01-02
         self._log_hours(10, "2020-01-02")
 
-        # invoice on 2020-01-04
         inv = self.sale_order._create_invoices()
         inv.invoice_date = fields.Date.to_date("2020-01-04")
         inv.action_post()
 
-        # log 10 hours on 2020-01-06
         self._log_hours(10, "2020-01-06")
 
-        # invoice on 2020-01-08
         inv = self.sale_order._create_invoices()
         inv.invoice_date = fields.Date.to_date("2020-01-08")
         inv.action_post()
@@ -135,35 +122,28 @@ class TestAccruedTimeSheetSaleOrders(TestCommonSaleTimesheet):
         self.assertRecordValues(
             self.env["account.move"].search(wizard.create_entries()["domain"]).line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 900, "credit": 0},
                 {"account_id": wizard.account_id.id, "debit": 0, "credit": 900},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 900},
                 {"account_id": wizard.account_id.id, "debit": 900, "credit": 0},
             ],
         )
 
-        # nothing to invoice on 2020-01-05
         wizard.date = fields.Date.to_date("2020-01-05")
         with self.assertRaises(UserError):
             wizard.create_entries()
 
-        # 20 hours to invoice on 2020-01-07
         wizard.date = fields.Date.to_date("2020-01-07")
         self.assertRecordValues(
             self.env["account.move"].search(wizard.create_entries()["domain"]).line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 900, "credit": 0},
                 {"account_id": wizard.account_id.id, "debit": 0, "credit": 900},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 900},
                 {"account_id": wizard.account_id.id, "debit": 900, "credit": 0},
             ],
         )
 
-        # nothing to invoice on 2020-01-05
         wizard.date = fields.Date.to_date("2020-01-09")
         with self.assertRaises(UserError):
             wizard.create_entries()

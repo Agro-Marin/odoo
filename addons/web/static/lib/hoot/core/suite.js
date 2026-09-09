@@ -101,9 +101,7 @@ export class Suite extends Job {
         }
     }
 
-    /**
-     * @param {Job[]} jobs
-     */
+    /** @param {Job[]} jobs */
     setCurrentJobs(jobs) {
         if (this.isMinimized) {
             return;

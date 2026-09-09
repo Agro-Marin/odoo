@@ -9,9 +9,7 @@ let _cachedUA;
 /** @type {ReturnType<typeof _computeUAResults> | undefined} */
 let _uaResults;
 
-/**
- * @param {string} ua
- */
+/** @param {string} ua */
 function _computeUAResults(ua) {
     const chrome = /Chrome/i.test(ua);
     return {
@@ -38,44 +36,32 @@ function _getUA() {
     return /** @type {NonNullable<typeof _uaResults>} */ (_uaResults);
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isBrowserChrome() {
     return _getUA().chrome;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isBrowserFirefox() {
     return _getUA().firefox;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isBrowserMicrosoftEdge() {
     return _getUA().edge;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isBrowserSafari() {
     return _getUA().safari;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isAndroid() {
     return _getUA().android;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isIOS() {
     if (_getUA().iosUA) {
         return true;
@@ -86,58 +72,42 @@ export function isIOS() {
     return false;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isOtherMobileOS() {
     return _getUA().otherMobile;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isMacOS() {
     return _getUA().mac;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isMobileOS() {
     return isAndroid() || isIOS() || isOtherMobileOS();
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isIosApp() {
     return _getUA().iosApp;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isAndroidApp() {
     return _getUA().androidApp;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isDisplayStandalone() {
     return browser.matchMedia("(display-mode: standalone)").matches;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function prefersReducedMotion() {
     return browser.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function hasTouch() {
     return (
         browser.ontouchstart !== undefined ||
@@ -145,23 +115,17 @@ export function hasTouch() {
     );
 }
 
-/**
- * @returns {number}
- */
+/** @returns {number} */
 export function maxTouchPoints() {
     return browser.navigator.maxTouchPoints || 0;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isVirtualKeyboardSupported() {
     return "virtualKeyboard" in browser.navigator;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isWebShareSupported() {
     return "share" in browser.navigator;
 }

@@ -8,9 +8,7 @@ let translationContext = null;
 
 const TCTX = "t-translation-context";
 
-/**
- * @param {Node | null} node
- */
+/** @param {Node | null} node */
 function getTranslationContext(node) {
     if (!node || node.nodeType !== Node.ELEMENT_NODE) {
         return translationContext ?? "";
@@ -24,9 +22,7 @@ function getTranslationContext(node) {
 
 const contextByTextNode = new Map();
 
-/**
- * @param {Node} node
- */
+/** @param {Node} node */
 function setTranslationContext(node) {
     switch (node.nodeType) {
         case Node.TEXT_NODE:
@@ -369,9 +365,7 @@ function removeFromExpression(value, remove, operator) {
 
 const ATTRIBUTE_ELEMENT_KEYS = new Set(["name", "add", "remove", "separator"]);
 
-/**
- * @param {Element} child
- */
+/** @param {Element} child */
 function warnUnknownAttributeKeys(child) {
     const unknown = [...child.attributes]
         .map(({ name }) => name)
@@ -462,9 +456,7 @@ function modifyAttributes(target, operation) {
     }
 }
 
-/**
- * @param {Node} node
- */
+/** @param {Node} node */
 function removeNode(node) {
     const { nextSibling, previousSibling } = node;
     /** @type {ChildNode} */ (node).remove();

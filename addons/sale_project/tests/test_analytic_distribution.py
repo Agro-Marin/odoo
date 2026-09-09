@@ -11,11 +11,6 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Creating analytic plans within tests could cause some registry issues
-        # hence we are creating them in the setupClass instead.
-        # This is because creating a plan creates fields and columns on models inheriting
-        # from the mixin.
-        # The registry is reset on class cleanup.
         cls.plan_b = cls.env["account.analytic.plan"].create({"name": "Q"})
 
     def test_project_transmits_analytic_plans_to_sol_distribution(self):
@@ -92,14 +87,6 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
         )
 
     def test_project_analytic_distribution_on_invoice_lines(self):
-        """
-        Test that Analytic Distribution applies from Project to Invoice Lines (excluding payable/receivable lines).
-        Steps:
-          1. Create a project.
-          2. Create an invoice with the project in context.
-          3. Add an invoice line.
-          4. Verify analytic distribution is applied.
-        """
 
         invoice = (
             self.env["account.move"]
@@ -133,9 +120,6 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
         )
 
     def test_get_so_mapping_domain_with_no_analytic_distribution(self):
-        """
-        Ensure _get_so_mapping_domain doesnt fail when analytic_distribution is not set
-        """
 
         account = self.env["account.account"].create(
             {
@@ -170,12 +154,6 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
         )
 
     def test_so_mapping_multi_key_distribution_keeps_earlier_match(self):
-        """
-        A move line's analytic_distribution can carry more than one key (e.g. a line
-        split between the project's account and an unrelated one). _get_so_mapping_from_project
-        must not drop a match found on an earlier key just because a later key in the
-        same distribution matches no project.
-        """
         self.project_global.account_id = self.analytic_account_sale
         sale_order = self.env["sale.order"].create(
             {

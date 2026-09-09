@@ -76,9 +76,7 @@ export class ZXingBarcodeDetector {
         this.cropArea = undefined;
     }
 
-    /**
-     * @param {{x: number, y: number, width: number, height: number}} cropArea
-     */
+    /** @param {{x: number, y: number, width: number, height: number}} cropArea */
     setCropArea(cropArea) {
         this.cropArea = cropArea;
     }

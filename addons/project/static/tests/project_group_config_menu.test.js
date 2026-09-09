@@ -69,18 +69,13 @@ test("task kanban: deleting a step column routes through the unlink wizard", asy
 
     const clickColumnAction = await toggleKanbanColumnActions(0);
     await clickColumnAction("Delete");
-    // The wizard IS the confirmation: no generic "delete this column?" dialog,
-    // and no raw unlink.
     expect(".modal").toHaveCount(0);
     expect.verifySteps(["action_open_delete_wizard", "doAction"]);
 
-    // Dismissing the wizard (Escape / Discard) closes with no payload: nothing
-    // must happen, in particular no crash and no reload.
     captured.options.onClose(undefined);
     await animationFrame();
     expect.verifySteps([]);
 
-    // Confirming the wizard reloads the view.
     captured.options.onClose({ success: true });
     await animationFrame();
     expect.verifySteps(["web_read_group"]);
@@ -113,8 +108,6 @@ test("task kanban: non-stage columns keep the generic confirm + raw unlink", asy
     });
 
     await mountView({ ...taskKanbanParams, groupBy: ["milestone_id"] });
-    // Column 1 is "Milestone 1" (column 0 is the falsy "None" group, which
-    // renders no config menu).
     const clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Delete");
     await animationFrame();

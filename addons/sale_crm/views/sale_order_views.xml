@@ -28,7 +28,6 @@
         </field>
     </record>
 
-    <!-- This menu is display in CRM app when sale is installed-->
     <menuitem
         id="sale_order_menu_quotations_crm"
         name="My Quotations"

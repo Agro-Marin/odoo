@@ -23,10 +23,6 @@ export class TimePeriodSelectionField extends SelectionField {
     }
 
     get options() {
-        // This field widget replaces three last options of `based_on` field by
-        // the current month, the next month and the after next month for the
-        // last year. For instance, if the current date is 12 January 2025,
-        // the options will be "January 2024", "February 2024" and "March 2024".
         const date1 = DateTime.now().set({ day: 1 }).minus({ years: 1 });
         const date2 = date1.plus({ months: 1 });
         const date3 = date1.plus({ months: 2 });

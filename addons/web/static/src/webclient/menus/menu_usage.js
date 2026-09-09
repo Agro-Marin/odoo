@@ -12,15 +12,15 @@ const HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000;
 const SYNC_DELAY_MS = 10_000;
 
 /**
- * @typedef {{ n: number, t: number }} UsageEntry count and last-use timestamp
- * @typedef {Record<string, UsageEntry>} UsageTable keyed by menu xmlid
+ * @typedef {{ n: number, t: number }} UsageEntry
+ * @typedef {Record<string, UsageEntry>} UsageTable
  */
 
 function storageKey() {
     return `${KEY_PREFIX}:${session.db}:${user.userId}`;
 }
 
-/** @param {unknown} value @returns {UsageTable} */
+/** @param {unknown} value */
 function asTable(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
         return {};
@@ -97,9 +97,7 @@ function evict(table, now) {
         .forEach((xmlid) => delete table[xmlid]);
 }
 
-/**
- * @returns {UsageTable}
- */
+/** @returns {UsageTable} */
 function usage() {
     return mergeUsage(asTable(user.settings?.homemenu_usage), readLocal());
 }
@@ -123,12 +121,6 @@ export const menuUsage = {
         sync();
     },
 
-    /**
-     * Forget everything this session knows, both halves -- leaving one behind
-     * would let the next read merge it back. Local only, and deliberately: a
-     * pending sync is cancelled rather than turned into a write, so this is
-     * something a caller can do without reaching the server.
-     */
     clear() {
         try {
             browser.localStorage.removeItem(storageKey());
@@ -138,7 +130,7 @@ export const menuUsage = {
     },
 
     /**
-     * @template {{ xmlid?: string }} T
+     * @template {{ xmlid?: string }}
      * @param {T[]} items
      * @param {number} [limit]
      * @returns {T[]}

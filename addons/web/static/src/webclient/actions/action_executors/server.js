@@ -8,9 +8,6 @@ import { user } from "@web/core/user";
 
 import { nextActionDepth } from "../action_constants.js";
 
-/** @import { ActionManager } from "../action_service.js" */
-/** @import { ServerAction } from "@web/webclient/actions/action_service" */
-
 /**
  * @param {ServerAction} action
  * @param {{ _actionDepth?: number } & object} options

@@ -105,8 +105,6 @@ class TestSalesControllers(HttpCase, SaleCommon):
         return len(order.message_ids.filtered(lambda m: m.subtype_id == subtype))
 
     def test_viewed_note_only_posts_for_draft_orders(self):
-        """The "Quotation viewed by customer" note must only post for a
-        draft/unconfirmed order, not a confirmed one (F20)."""
         confirmed_so = self.sale_order.copy()
         confirmed_so.message_subscribe(self.user_portal.partner_id.ids)
         confirmed_so.action_confirm()
@@ -134,15 +132,6 @@ class TestSalesControllers(HttpCase, SaleCommon):
         )
 
     def test_signature_acceptance_propagates_signature_context(self):
-        """After online signature acceptance, _confirm_order() must be
-        called with sale_include_signature=True so the confirmation email's
-        PDF shows the signature (F21)."""
-        # `_has_to_be_signed()` reads the order's own `require_signature`.
-        # Setting the company flag only changes what a *new* order computes --
-        # `_compute_require_signature` depends on `company_id`, which is not
-        # changing here -- so this order would keep whatever it was created
-        # with, and the test would pass or fail on the fixture's default rather
-        # than on the behaviour it is about.
         self.sale_order.require_signature = True
         self.sale_order._portal_ensure_token()
 

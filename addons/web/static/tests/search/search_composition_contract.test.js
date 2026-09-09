@@ -19,9 +19,7 @@ import { SearchModel } from "@web/search/search_model";
 
 describe.current.tags("headless");
 
-/**
- * @returns {object[]}
- */
+/** @returns {object[]} */
 function chain() {
     const levels = [];
     let proto = SearchModel.prototype;
@@ -57,9 +55,7 @@ class Probe extends Component {
     static props = ["*"];
 }
 
-/**
- * @returns {Promise<any>}
- */
+/** @returns {Promise<any>} */
 async function loadedSearchModel() {
     const component = await mountWithSearch(Probe, {
         resModel: "partner",

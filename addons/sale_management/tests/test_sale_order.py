@@ -12,7 +12,6 @@ class TestSaleOrder(SaleManagementCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # some variables to ease asserts in tests
         cls.pub_product_price = 100.0
         cls.pl_product_price = 80.0
         cls._enable_discounts()
@@ -37,7 +36,6 @@ class TestSaleOrder(SaleManagementCommon):
             / 100.0
         )
 
-        # create some products
         cls.product_1, cls.optional_product = cls.env["product.product"].create(
             [
                 {
@@ -52,10 +50,7 @@ class TestSaleOrder(SaleManagementCommon):
             ]
         )
 
-        # create some quotation templates
-        cls.quotation_template_no_discount = cls.env[
-            "sale.order.template"
-        ].create(
+        cls.quotation_template_no_discount = cls.env["sale.order.template"].create(
             {
                 "name": "A quotation template",
                 "sale_order_template_line_ids": [
@@ -69,7 +64,7 @@ class TestSaleOrder(SaleManagementCommon):
                             "name": "Optional products",
                             "display_type": "line_section",
                             "is_optional": True,
-                            "sequence": 11,  # to be sure optional products are last in the template
+                            "sequence": 11,
                         }
                     ),
                     Command.create(
@@ -82,7 +77,6 @@ class TestSaleOrder(SaleManagementCommon):
             }
         )
 
-        # create two pricelist with different discount policies (same total price)
         pricelist_rule_values = [
             Command.create(
                 {
@@ -139,16 +133,9 @@ class TestSaleOrder(SaleManagementCommon):
             ]
         )
 
-        # variable kept to reduce code diff
         cls.sale_order = cls.empty_order
 
     def test_01_template_without_pricelist(self):
-        """
-        This test checks that without any rule in the pricelist, the public price
-        of the product is used in the sale order after selecting a
-        quotation template.
-        """
-        # first case, without discount in the quotation template
         self.sale_order.write(
             {"sale_order_template_id": self.quotation_template_no_discount.id}
         )
@@ -211,13 +198,7 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_02_template_with_discount_included_pricelist(self):
-        """
-        This test checks that with a 'discount included' price list,
-        the price used in the sale order is computed according to the
-        price list.
-        """
 
-        # first case, without discount in the quotation template
         self.sale_order.write(
             {
                 "pricelist_id": self.discount_included_price_list.id,
@@ -250,11 +231,6 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_03_template_with_discount_excluded_pricelist(self):
-        """
-        This test checks that with a 'discount excluded' price list,
-        the price used in the sale order is the product public price and
-        the discount is computed according to the price list.
-        """
         self.sale_order.write(
             {
                 "pricelist_id": self.discount_excluded_price_list.id,
@@ -325,10 +301,6 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_04_update_pricelist_option_line(self):
-        """
-        This test checks that option line's values are correctly
-        updated after a pricelist update
-        """
         self.sale_order.write(
             {"sale_order_template_id": self.quotation_template_no_discount.id}
         )
@@ -390,10 +362,6 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_option_price_unit_is_not_recomputed(self):
-        """
-        Verifies that user defined price unit for optional products remains the same after
-        update of quantities.
-        """
 
         sale_order_with_option = self.env["sale.order"].create(
             {
@@ -418,15 +386,10 @@ class TestSaleOrder(SaleManagementCommon):
         optional_product_line = self._get_optional_product_lines(sale_order_with_option)
 
         optional_product_line.price_unit = 100
-        # after changing the quantity of the product, the price unit should not be recomputed
         optional_product_line.product_qty = 10
         self.assertEqual(optional_product_line.price_unit, 100)
 
     def test_reload_template_translations(self):
-        """
-        Check that quotation template gets reloaded with correct translations on partner change.
-        """
-        # Add some display type lines to the template
         self.quotation_template_no_discount.sale_order_template_line_ids = [
             Command.create(
                 {
@@ -441,10 +404,8 @@ class TestSaleOrder(SaleManagementCommon):
                 }
             ),
         ]
-        # Remove product description to ease comparing before/after translations
         self.product_1.description_sale = None
 
-        # Commence activation of Dutch vernacular
         self.env["res.lang"]._activate_lang("nl_NL")
         partner_NL = self.partner.copy(
             {"lang": "nl_NL", "name": "Pieter-Jan Hollandman"}
@@ -472,7 +433,6 @@ class TestSaleOrder(SaleManagementCommon):
                 continue
             record.with_context(lang="nl_NL").name = trans_dict[record.name]
 
-        # Create sale order form (and a way to retrieve line names)
         def get_form_field_names(form):
             return [
                 form.line_ids.edit(0).name,
@@ -485,14 +445,12 @@ class TestSaleOrder(SaleManagementCommon):
         order_form = Form(self.sale_order.browse())
         order_form.sale_order_template_id = self.quotation_template_no_discount
 
-        # Sanity check English names
         self.assertSequenceEqual(
             get_form_field_names(order_form),
             names_EN,
             "Lines should be displayed in English for an American partner",
         )
 
-        # Go Dutch
         order_form.partner_id = partner_NL
         self.assertSequenceEqual(
             get_form_field_names(order_form),
@@ -500,7 +458,6 @@ class TestSaleOrder(SaleManagementCommon):
             "Lines should be displayed in Dutch for a Dutch partner",
         )
 
-        # Edit a line & change back to American partner
         with order_form.line_ids.edit(0) as order_line:
             order_line.product_qty += 1
         order_form.partner_id = self.partner
@@ -510,7 +467,6 @@ class TestSaleOrder(SaleManagementCommon):
             "Lines shouldn't change when edited",
         )
 
-        # Reload template manually
         order_form.sale_order_template_id = self.quotation_template_no_discount
         self.assertSequenceEqual(
             get_form_field_names(order_form),
@@ -520,7 +476,6 @@ class TestSaleOrder(SaleManagementCommon):
 
         order_form.partner_id = partner_NL
 
-        # Reload template, save, and change partner again
         order_form.sale_order_template_id = self.quotation_template_no_discount
         order_form.save()
         order_form.partner_id = self.partner
@@ -531,10 +486,6 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_product_description_no_template_description(self):
-        """
-        Test case for when the product has a description, but the quotation template line does not.
-        The final sale order line should use the product's description.
-        """
         quotation_template_no_description = self.empty_order_template
         quotation_template_no_description.sale_order_template_line_ids = [
             Command.create(
@@ -555,10 +506,6 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_product_description_with_template_description(self):
-        """
-        Test case for when both the product and the quotation template line have descriptions.
-        The final sale order line should use the template's description.
-        """
         quotation_template_with_description = self.empty_order_template
         quotation_template_with_description.sale_order_template_line_ids = [
             Command.create(
@@ -579,10 +526,6 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_warning_quotation(self):
-        """
-        ensure "warning for the change of your quotation's company" isn't triggered
-        during the creation of a quotation when a quotation template is set as default
-        """
         quotation_template = self.empty_order_template
         quotation_template.sale_order_template_line_ids = [
             Command.create({"product_id": self.product.id})
@@ -600,14 +543,6 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_template_quantity_transferred(self):
-        """Template line quantities must reach the resulting sale order lines.
-
-        Regression test for t21897: in Odoo 19 sale.order.line.product_uom_qty
-        became a pure computed field (no readonly=False), so writing it from
-        sale.order.template.line._prepare_order_line_values is a silent no-op.
-        The fix maps the template qty into product_qty (the editable field);
-        product_uom_qty then recomputes to the same value.
-        """
         quotation_template = self.empty_order_template
         quotation_template.sale_order_template_line_ids = [
             Command.create(
@@ -640,9 +575,6 @@ class TestSaleOrder(SaleManagementCommon):
         )
 
     def test_show_update_pricelist_false_on_sale_order_open(self):
-        """Ensure the update pricelist button is disabled when opening a sale order
-        with a default quotation template applied.
-        """
         quotation_template = self.env["sale.order.template"].create(
             {
                 "name": "Test Quotation Template",

@@ -4,9 +4,7 @@ import { expect, test } from "@odoo/hoot";
 import { Deferred } from "@web/core/utils/concurrency";
 import { useAddInlineRecord, useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 
-/**
- * @returns {{ list: any, calls: string[] }}
- */
+/** @returns {{ list: any, calls: string[] }} */
 function makeList() {
     /** @type {string[]} */
     const calls = [];

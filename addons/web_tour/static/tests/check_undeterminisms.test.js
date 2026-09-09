@@ -28,7 +28,7 @@ async function waitForMacro() {
 }
 class Root extends Component {
     static components = {};
-    static template = xml /*html*/ `
+    static template = xml `
         <t>
             <div class="container">
                 <button class="button0">Button 0</button>
@@ -70,7 +70,7 @@ beforeEach(async () => {
     patchWithCleanup(browser.console, {
         log: (s) => expect.step(`log: ${s}`),
         error: (s) => {
-            s = s.replace(/\n +at.*/g, ""); // strip stack trace
+            s = s.replace(/\n +at.*/g, "");
             expect.step(`error: ${s}`);
         },
         warn: () => {},

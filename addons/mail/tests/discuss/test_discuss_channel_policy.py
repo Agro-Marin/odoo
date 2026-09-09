@@ -8,14 +8,6 @@ from odoo.addons.mail.tests.common import MailCommon
 
 @tagged("post_install", "-at_install")
 class TestDiscussChannelTypePolicy(MailCommon):
-    """Pin the channel_type x policy matrix.
-
-    Every one of these answers used to be a bare `channel_type == "channel"`
-    literal somewhere in discuss_channel.py, so a module adding a type (livechat,
-    whatsapp, ai_chat) landed on whichever side the literal happened to put it.
-    Adding a type now means adding a row here.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -57,11 +49,6 @@ class TestDiscussChannelTypePolicy(MailCommon):
                 self.assertEqual(channel._narrates_membership_changes(), narrates)
 
     def test_notify_opted_in_only_is_channel_only(self):
-        # Only 'channel' notifies members who opted in or were mentioned; every
-        # other type (chat, group, and any module's own type) notifies all. This
-        # replaces the `channel_type != "channel"` literal in the notification
-        # member domain, so a new type must decide the attribute rather than
-        # silently inherit the notify-all side.
         opt_in = self.Channel._types_with("notify_opted_in_only")
         self.assertEqual(opt_in, ["channel"])
 
@@ -79,7 +66,6 @@ class TestDiscussChannelTypePolicy(MailCommon):
         self.assertNotIn("group", supported)
 
     def test_the_sql_check_is_built_from_the_policy(self):
-        """The CHECK is generated, not a second hand-written copy of the list."""
         self.env.cr.execute(
             """
             SELECT pg_get_constraintdef(oid)
@@ -111,8 +97,6 @@ class TestDiscussChannelPolicyRegressions(MailCommon):
         cls.Channel = cls.env["discuss.channel"]
 
     def test_searching_partners_negatively_means_has_no_such_member(self):
-        """`not in` must mean set-membership negation, as it does for every
-        other m2m -- not "has some member who is not X"."""
         other = self.env["res.partner"].create({"name": "Outside"})
         channel = self.Channel.create(
             {
@@ -149,8 +133,6 @@ class TestDiscussChannelPolicyRegressions(MailCommon):
         )
 
     def test_receiving_a_bounce_honours_the_multi_record_contract(self):
-        """The hook is called on a search() result elsewhere in mail; the
-        blacklist mixin implements it with `for record in self`."""
         channels = self.Channel.create(
             [
                 {"name": "A", "channel_type": "channel"},
@@ -164,8 +146,6 @@ class TestDiscussChannelPolicyRegressions(MailCommon):
         channels._message_receive_bounce("bouncy@example.com", partner)
 
     def test_a_member_with_a_blank_name_is_omitted_not_rendered_as_False(self):
-        """`partner_id.name or guest_id.name` fell through an empty name to an
-        empty recordset's False, which format_list rendered as "False"."""
         blank = self.env["res.partner"].create({"name": ""})
         named = self.env["res.partner"].create({"name": "Ana"})
         group = self.Channel._create_group([named.id, blank.id])
@@ -173,7 +153,6 @@ class TestDiscussChannelPolicyRegressions(MailCommon):
         self.assertIn("Ana", group.display_name)
 
     def test_creating_with_a_falsy_x2many_is_accepted_as_everywhere_else(self):
-        """res.partner.create(child_ids=False) works; so must this."""
         channel = self.Channel.create(
             {"name": "C", "channel_type": "channel", "channel_member_ids": False}
         )
@@ -190,8 +169,6 @@ class TestDiscussChannelPolicyRegressions(MailCommon):
             channels.invite_by_email(["someone@example.com"])
 
     def test_the_push_title_is_the_display_name_not_a_second_rendering(self):
-        """The group branch used to hand-roll `', '.join(...) + " and " + last`:
-        untranslated, unbounded, and divergent from display_name."""
         partners = self.env["res.partner"].create(
             [{"name": name} for name in ("Ana", "Bo", "Cy", "Di")]
         )
@@ -248,7 +225,6 @@ class TestDiscussChannelInviteLookup(MailCommon):
         cls.Channel = cls.env["discuss.channel"]
 
     def test_an_address_is_data_not_a_like_pattern(self):
-        """`_` and `%` in an invitee address must not act as wildcards."""
         self.assertEqual(escape_like_wildcards("a_b%c@x.com"), r"a\_b\%c@x.com")
         member = self.env["res.partner"].create({"name": "M", "email": "a-b@x.com"})
         group = self.Channel._create_group([member.id])
@@ -264,14 +240,11 @@ class TestDiscussChannelInviteLookup(MailCommon):
         self.assertEqual(list(group._get_uninvited_emails(["a-b@x.com"])), [])
 
     def test_the_lookup_stays_case_insensitive(self):
-        """Guest emails are stored unnormalised, so `=ilike` must remain."""
         member = self.env["res.partner"].create({"name": "M", "email": "a-b@x.com"})
         group = self.Channel._create_group([member.id])
         self.assertEqual(list(group._get_uninvited_emails(["A-B@X.com"])), [])
 
     def test_joined_notification_lives_on_the_member_model(self):
-        """It reads only members; discuss.channel called it once per channel
-        while passing that channel's members, so `self` was never used."""
         self.assertTrue(hasattr(self.env["discuss.channel.member"], "_notify_joined"))
         self.assertFalse(hasattr(self.Channel, "_notify_members_joined"))
         member = self.env["res.partner"].create({"name": "M"})

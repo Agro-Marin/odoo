@@ -244,9 +244,7 @@ export const FAKE_MODEL = {
     updateRecord() {},
 };
 
-/**
- * @param {HTMLElement} element
- */
+/** @param {HTMLElement} element */
 function instantScrollTo(element) {
     element?.scrollIntoView({ behavior: "instant", block: "center" });
 }

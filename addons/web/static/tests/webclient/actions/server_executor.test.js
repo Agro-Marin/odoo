@@ -8,9 +8,7 @@ import { MAX_ACTION_DEPTH } from "@web/webclient/actions/action_constants";
 import { executeServerAction } from "@web/webclient/actions/action_executors/server";
 import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
     /** @type {Record<string, any[]>} */
     const calls = { doAction: [] };

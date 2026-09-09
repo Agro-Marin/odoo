@@ -440,9 +440,7 @@ export async function toggleArchive() {
     await contains(SELECTORS.toggleArchive).click();
 }
 
-/**
- * @param {number} [index=0]
- */
+/** @param {number} [index=0] */
 export async function openModelFieldSelectorPopover(index = 0) {
     await contains(`.o_model_field_selector:eq(${index})`).click();
 }

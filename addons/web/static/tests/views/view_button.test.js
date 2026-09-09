@@ -16,9 +16,7 @@ import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_
 import { ViewButton } from "@web/views/view_button/view_button";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
 
-/**
- * @param {string} buttonXml
- */
+/** @param {string} buttonXml */
 async function mountButton(buttonXml) {
     class Parent extends Component {
         static components = { ViewButton, MultiRecordViewButton };

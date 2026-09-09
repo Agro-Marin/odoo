@@ -6,8 +6,6 @@ import { Domain } from "@web/core/domain";
 import { makeActiveField } from "./field_metadata.js";
 import { extractInfoFromGroupData } from "./field_values.js";
 
-/** @import { RelationalModelConfig } from "./relational_model.js" */
-
 /**
  * @typedef {object} PostprocessReadGroupDeps
  * @property {(config: RelationalModelConfig, propertyFullName: string) => Promise<void>} getPropertyDefinition

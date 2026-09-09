@@ -52,8 +52,6 @@ function isRendered(childEl) {
 }
 
 /**
- * A text node after the "stop spelling" marker belongs to the quote, but only
- * an element can carry the data attribute the grouping reads, so it is wrapped.
  * @param {Element|CharacterData} childEl
  * @returns {Element|CharacterData}
  */
@@ -106,8 +104,6 @@ const messagePatch = {
     },
 
     /**
-     * Hides every run of quoted nodes in bodyEl and returns those runs, so each
-     * can be given its own ellipsis button. Recurses into anything unquoted.
      * @param {HTMLElement} bodyEl
      * @returns {(Element|CharacterData)[][]}
      */

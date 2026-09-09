@@ -30,15 +30,11 @@ import {
 } from "@web/views/view_utils";
 
 class PivotDropdown extends Dropdown {
-    /**
-     * @override
-     */
+    /** @override */
     get position() {
         return this.props.state.position || "bottom-start";
     }
-    /**
-     * @override
-     */
+    /** @override */
     get target() {
         return this.props.state.target;
     }
@@ -101,14 +97,10 @@ export class PivotRenderer extends Component {
         }
         this.fields = sortBy(fields, "string");
     }
-    /**
-     * @private
-     */
+    /** @private */
     computeMeasureFormatters() {
         const { fieldAttrs, measures, widgets, activeMeasures } = this.model.metaData;
-        /**
-         * @type {Map<string, { codec: any, formatType: string, baseOptions: Record<string, any> }>}
-         */
+        /** @type {Map<string, { codec: any, formatType: string, baseOptions: Record<string, any> }>} */
         this.measureFormatters = new Map();
         for (const measure of activeMeasures) {
             const field = measures[measure];
@@ -181,9 +173,7 @@ export class PivotRenderer extends Component {
         return codec.format(cell.value, { ...formatOptions, humanReadable: false });
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     get groupByItems() {
         if (this.groupByItemsCache) {
             return this.groupByItemsCache;
@@ -223,9 +213,7 @@ export class PivotRenderer extends Component {
         return this.groupByItemsCache;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get hideCustomGroupBy() {
         return this.env.searchModel.hideCustomGroupBy || false;
     }
@@ -240,9 +228,7 @@ export class PivotRenderer extends Component {
         return groupable && fieldName !== "id" && GROUPABLE_TYPES.includes(type);
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     onAddCustomGroupBy(fieldName) {
         this.model.addGroupBy({
             ...this.dropdown.cellInfo,
@@ -291,9 +277,7 @@ export class PivotRenderer extends Component {
             this.model.closeGroup(cell.groupId, type);
         }
     }
-    /**
-     * @param {Object} cell
-     */
+    /** @param {Object} cell */
     onMeasureClick(cell) {
         this.model.sortRows({
             groupId: cell.groupId,
@@ -301,9 +285,7 @@ export class PivotRenderer extends Component {
             order: (cell.order || "desc") === "asc" ? "desc" : "asc",
         });
     }
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onMouseEnter(ev) {
         const current = /** @type {HTMLElement} */ (ev.currentTarget);
         let index = [...current.parentNode.children].indexOf(current);

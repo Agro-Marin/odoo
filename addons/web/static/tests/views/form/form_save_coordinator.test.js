@@ -7,11 +7,7 @@ import {
     InvalidFormSaveTransitionError,
 } from "@web/views/form/form_save_coordinator";
 
-/**
- * @param {Record<string, any>} [opts] `dirty`, `save`, `urgentSave`, `discard`
- *   and `hooks` are read here; the rest is spread onto the record double, so
- *   a case may also hand it `__proto__`.
- */
+/** @param {Record<string, any>} [opts] */
 function makeContext({
     dirty = true,
     save,

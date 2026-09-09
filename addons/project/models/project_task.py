@@ -309,9 +309,6 @@ class ProjectTask(models.Model):
         "CHECK ((planned_date_begin <= date_end))",
         "The planned start date must be before the planned end date.",
     )
-    # The calendar view needs both a start and an end, and a task may carry only
-    # a deadline; this reads planned_date_begin when there is one and date_end
-    # otherwise.
     planned_date_start = fields.Datetime(
         compute="_compute_planned_date_start",
         inverse="_inverse_planned_date_start",
@@ -2297,20 +2294,6 @@ class ProjectTask(models.Model):
     def _write_split_by_default_planned_dates(
         self, vals: dict[str, Any]
     ) -> bool | None:
-        """Split ``self`` into the batches a first planning writes different dates to.
-
-        Planning several never-planned tasks into one window means each of them
-        starts and stops on its own assignee's calendar, not on the window's raw
-        bounds. Returns ``None`` when there is nothing to split, so the caller
-        writes ``vals`` once and unchanged; otherwise it has written every record
-        already and returns what those writes returned.
-
-        One batch per calendar group. The dates are derived from that group's own
-        calendar, so folding them into a single shared ``vals`` and writing once
-        threw the grouping away: the last calendar in iteration order won and its
-        dates landed on every task, which made the result depend on iteration
-        order rather than on each task's calendar.
-        """
         if len(self) < 2 or not (
             vals.get("planned_date_begin") and vals.get("date_end")
         ):
@@ -2335,8 +2318,6 @@ class ProjectTask(models.Model):
         return result
 
     def write(self, vals: dict[str, Any]) -> bool:
-        # A cleared deadline clears the start with it: a task planned from nothing
-        # to nowhere is not planned.
         if "date_end" in vals and not vals["date_end"]:
             vals = {**vals, "planned_date_begin": False}
 
@@ -3720,14 +3701,7 @@ class ProjectTask(models.Model):
             planned_date_begin = datetime.strptime(
                 planned_date_begin, "%Y-%m-%d %H:%M:%S"
             ).astimezone(timezone(tz_info))
-            # `allocated_hours` only, never `planned_hours`. The user is placing
-            # this task by hand, and planned_hours is derived from wherever it
-            # sat before -- sizing the new block from it would resize the drag to
-            # the previous window rather than honour the gesture. With no
-            # commitment the drag wins, which is what the else branch below is
-            # for.
             if self.allocated_hours:
-                # expected days + one month in case the current user took some day offs in the future
                 max_date_end = planned_date_begin + relativedelta(
                     days=self.allocated_hours / 8, months=1
                 )
@@ -4056,7 +4030,6 @@ class ProjectTask(models.Model):
         task1 = self._table
         query = self._search(domain & Domain("id", "in", self.ids), bypass_access=True)
 
-        # join for overlapping tasks (task2)
         task2 = query.get_table_alias(task1, "T2")
         query.add_join(
             "JOIN",
@@ -4074,7 +4047,6 @@ class ProjectTask(models.Model):
         )
         query.add_where(domain._to_sql(self, task2, query))
 
-        # overlapping tasks must be for the same user
         task1_user_rel = query.join(
             task1, "id", "project_task_user_rel", "task_id", "TU1"
         )
@@ -4089,7 +4061,6 @@ class ProjectTask(models.Model):
             )
         )
 
-        # group by task, user, partner name, and order by partner name
         task1_user = query.join(task1_user_rel, "user_id", "res_users", "id", "U")
         task1_partner = query.join(task1_user, "partner_id", "res_partner", "id", "P")
         task1_partner_name = self.env["res.partner"]._field_to_sql(
@@ -4132,10 +4103,6 @@ class ProjectTask(models.Model):
             ]
         )
 
-        # The inner mapping needs no default factory: the loop below always
-        # assigns a complete dict, and both readers go through
-        # `.get(task.id, {})` and then `items()`, so the defaults were never the
-        # source of a value.
         res = defaultdict(dict)
         for row in self._get_planning_overlap_rows([("allocated_hours", ">", 0)]):
             res[row["id"]][row["user_id"]] = {
@@ -4256,7 +4223,6 @@ class ProjectTask(models.Model):
 
     @api.model
     def _search_planning_overlap(self, operator, value):
-        # search implemented only for 'in' {bool}
         if operator != "in":
             return NotImplemented
         if not all(isinstance(v, bool) for v in value):
@@ -4291,21 +4257,14 @@ class ProjectTask(models.Model):
         return [("id", operator_new, sql)]
 
     def _get_tasks_by_resource_calendar_dict(self):
-        """
-        Returns a dict of:
-            key = 'resource.calendar'
-            value = recordset of 'project.task'
-        """
         default_calendar = self.env.company.resource_calendar_id
 
-        calendar_by_user_dict = {  # key: user_id, value: resource.calendar instance
+        calendar_by_user_dict = {
             user.id: user.resource_calendar_id or default_calendar
             for user in self.mapped("user_ids")
         }
 
-        tasks_by_resource_calendar_dict = defaultdict(
-            lambda: self.env[self._name]
-        )  # key = resource_calendar instance, value = tasks
+        tasks_by_resource_calendar_dict = defaultdict(lambda: self.env[self._name])
         for task in self:
             if len(task.user_ids) == 1:
                 tasks_by_resource_calendar_dict[
@@ -4355,7 +4314,6 @@ class ProjectTask(models.Model):
 
     @api.model
     def _search_dependency_warning(self, operator, value):
-        # search implemented only for 'in' {bool}
         if operator != "in":
             return NotImplemented
         if not all(isinstance(v, bool) for v in value):
@@ -4383,11 +4341,10 @@ class ProjectTask(models.Model):
             task.planned_date_start = task.planned_date_begin or task.date_end
 
     def _inverse_planned_date_start(self):
-        """Inverse method only used for calendar view to update the date start if the date begin was defined"""
         for task in self:
             if task.planned_date_begin:
                 task.planned_date_begin = task.planned_date_start
-            else:  # to keep the right hour in the date_end
+            else:
                 task.date_end = task.planned_date_start
 
     def _search_planned_date_start(self, operator, value):
@@ -4433,7 +4390,6 @@ class ProjectTask(models.Model):
         return available_work_intervals
 
     def _get_dependencies_dict(self):
-        # contains a task as key and the list of tasks before this one as values
         return {
             task: [t for t in task.predecessor_ids if t != task and t in self]
             if task.predecessor_ids
@@ -4475,9 +4431,7 @@ class ProjectTask(models.Model):
             vals["planned_date_begin"], "%Y-%m-%d %H:%M:%S"
         ).astimezone(timezone(tz_info))
         fetch_date_end = max_date_start.astimezone(timezone(tz_info))
-        end_loop = date_start + relativedelta(
-            day=31, month=12, years=1
-        )  # end_loop will be the end of the next year.
+        end_loop = date_start + relativedelta(day=31, month=12, years=1)
 
         (
             valid_intervals_per_user,
@@ -4490,8 +4444,6 @@ class ProjectTask(models.Model):
 
         first_possible_date_per_task = {
             key: max(
-                # naive on purpose: a max() floor that loses to every real
-                # value, never an instant anyone reads
                 first_possible_date_per_task.get(key, datetime.min),  # noqa: DTZ901  sentinel, not an instant
                 dependent_tasks_end_dates.get(key, datetime.min),  # noqa: DTZ901  sentinel, not an instant
             ).astimezone(timezone(tz_info))
@@ -4500,14 +4452,12 @@ class ProjectTask(models.Model):
         }
 
         scale = self.env.context.get("gantt_scale", "week")
-        # In week and month scale, the precision set is used. In day scale we force the half day precison.
         cell_part_from_context = self.env.context.get("cell_part")
         cell_part = (
             cell_part_from_context
             if scale in ["week", "month"] and cell_part_from_context in [1, 2, 4]
             else 2
         )
-        # In year scale, cells represent a month, a typical full-time work schedule involves around 160 to 176 hours per month
         delta_hours = 160 if scale == "year" else 24 / cell_part
 
         sorted_tasks = topological_sort(self._get_dependencies_dict())
@@ -4561,10 +4511,6 @@ class ProjectTask(models.Model):
 
                         start_date = max(start_date, first_possible_start_date)
 
-                    # for flexible resources, work intervals are divided (min time of the day, max time of the day)
-                    # a microsecond is lost in the total duration and the end of the interval
-                    # it's the only way to have many intervals, as if end date of a range = start date of the next range,
-                    # both will be merged in one range
                     if end_date.time() == time.max:
                         end_date += relativedelta(microseconds=1)
 
@@ -4576,8 +4522,6 @@ class ProjectTask(models.Model):
                         end_date - start_date
                     ).total_seconds() / 3600
                     interval_duration = real_interval_duration
-                    # start_date and end_date are the same day
-                    # we check duration doesn't exceed work hours for flexible resources
                     for user_id in user_ids or ():
                         if user_id in flex_user_work_hours_per_day:
                             interval_duration = min(
@@ -4609,14 +4553,10 @@ class ProjectTask(models.Model):
 
                     used_intervals.append((start_date, end_date, task))
 
-                    # exact zero is reachable and is the only value that ends
-                    # the walk: hours_to_plan -= min(duration, hours_to_plan)
-                    # subtracts the remainder from itself on the last interval
                     if hours_to_plan == 0.0:  # noqa: RUF069  exact by construction
                         compute_date_end = end_date
                         break
 
-                # Get more intervals if the fetched ones are not enough for scheduling
                 if compute_date_end and hours_to_plan <= 0:
                     break
 
@@ -4648,14 +4588,12 @@ class ProjectTask(models.Model):
                         )
                     break
 
-            # remove the task from the record to avoid unnecessary write
             self -= task
             if not compute_date_end or hours_to_plan > 0:
                 continue
 
             start_no_utc = compute_date_start.astimezone(UTC).replace(tzinfo=None)
             end_no_utc = compute_date_end.astimezone(UTC).replace(tzinfo=None)
-            # record the computed start/end to write on the task
             tasks_to_write[task] = {"start": start_no_utc, "end": end_no_utc}
 
             for next_task in task.successor_ids:
@@ -4686,36 +4624,15 @@ class ProjectTask(models.Model):
         return [warnings, old_vals_per_task_id]
 
     def _get_hours_to_plan(self):
-        """Effort the smart scheduler should book for this task.
-
-        ``allocated_hours`` is the *commitment ledger*: since the fork's PMI
-        hours split it is a stored compute aggregated from ``reservation_ids``,
-        so it is 0.0 for a task that has never been scheduled -- which is exactly
-        the input smart scheduling receives. Reading it alone made the scheduler
-        fall through to its window-based fallback for every unplanned task and
-        hand out week-long blocks for a day of work (measured: an 8h task landing
-        2023-01-02 08:00 .. 2023-01-03 12:00 instead of .. 2023-01-02 17:00),
-        which is the whole of TestSmartSchedule's 12 failures.
-
-        The estimate lives in ``planned_hours`` -- the PMBOK Effort the fixtures
-        were migrated to. Prefer the real commitment when reservations exist,
-        fall back to the estimate when they do not.
-        """
         return self.allocated_hours or self.planned_hours
 
     @api.model
     def _compute_schedule(self, user, calendar, date_start, date_end, company=None):
-        """Compute the working intervals available for the employee
-        fill the empty schedule slot between contract with the company schedule.
-        """
         if user:
             employees_work_days_data, _dummy = user.sudo()._get_valid_work_intervals(
                 date_start, date_end
             )
             schedule = employees_work_days_data.get(user.id) or Intervals([])
-            # We are using this function to get the intervals for which the schedule of the employee is invalid. Those data are needed to check if we must fallback on the
-            # company schedule. The validity_intervals['valid'] does not contain the work intervals needed, it simply contains large intervals with validity time period
-            # ex of return value : ['valid'] = 01-01-2000 00:00:00 to 11-01-2000 23:59:59; ['invalid'] = 11-02-2000 00:00:00 to 12-31-2000 23:59:59
             _dummy, validity_intervals = (
                 self._scheduling_get_resource_calendars_validity(
                     date_start,
@@ -4734,10 +4651,6 @@ class ProjectTask(models.Model):
             ]
 
     def _get_last_predecessor_date_end_per_task(self):
-        """Return a dict with task.id as key and the latest date_end from all the dependent tasks of that task.
-
-        :return: dict of {task.id: latest dependent date_end}
-        """
         query = """
                     SELECT task.id as id,
                            MAX(depends_on.date_end) as date
@@ -4754,11 +4667,7 @@ class ProjectTask(models.Model):
         self.env.cr.execute(query, [self.ids, self.ids])
         return {res["id"]: res["date"] for res in self.env.cr.dictfetchall()}
 
-    # -------------------------------------
-    # Business Methods : Auto-shift
-
     def _scheduling_get_resource(self):
-        """Get the resource linked to the task."""
         self.check_singleton()
         return (
             self.user_ids._get_project_task_resource()
@@ -4774,18 +4683,6 @@ class ProjectTask(models.Model):
         resource=None,
         company=None,
     ):
-        """Get the calendars and resources (for instance to later get the work intervals for the provided date_start
-        and date_end).
-
-        :param date_start: A start date for the search
-        :param date_end: A end date fot the search
-        :param intervals_to_search: If given, the periods for which the calendars validity must be retrieved.
-        :param resource: If given, it overrides the resource in self._get_resource
-        :return: a dict `resource_calendar_validity` with calendars as keys and their validity as values,
-                 a dict `resource_validity` with 'valid' and 'invalid' keys, with the intervals where the resource
-                 has a valid calendar (resp. no calendar)
-        :rtype: tuple(defaultdict(), dict())
-        """
         interval = Intervals(
             [(date_start, date_end, self.env["resource.calendar.attendance"])]
         )
@@ -4811,16 +4708,6 @@ class ProjectTask(models.Model):
     def _scheduling_get_users_unavailable_intervals(
         self, user_ids, date_begin, date_end, tasks_to_exclude_ids
     ):
-        """
-        Get the unavailable intervals per user, intervals already occupied by other tasks.
-
-        :param user_ids: A list of user IDs for whom the unavailable intervals are being calculated.
-        :param date_begin: The beginning date of the intervals.
-        :param date_end: The end date of the intervals.
-        :param tasks_to_exclude_ids: A list of task IDs to exclude from the already planned tasks.
-        :return: A dictionary where the keys are user IDs and the values are the unavailable intervals.
-        :rtype: dict[int, Intervals]
-        """
         domain = [
             ("user_ids", "in", user_ids),
             ("date_end", ">=", date_begin.replace(tzinfo=None)),
@@ -4857,24 +4744,6 @@ class ProjectTask(models.Model):
         remove_intervals_with_planned_tasks=True,
         valid_intervals_per_user=None,
     ):
-        """
-        Get the valid intervals available for planning.
-
-        :param start_date: The start date for the intervals.
-        :param end_date: The end date for the intervals.
-        :param users: A list of users for whom the intervals are being calculated.
-        :param candidates_ids: A list of candidate IDs to plan.
-        :param remove_intervals_with_planned_tasks: Whether to remove intervals with already planned tasks.
-        :return: A tuple containing:
-
-            - valid_intervals_per_user: A dictionary where keys are user IDs and values are lists of valid intervals.
-            - flex_user_work_hours_per_day: A dictionary where keys are flexible resources users IDs and values are dicts,
-            keys are days and values are number of available hours per day.
-            - flex_user_work_hours_per_week: A dictionary where keys are flexible resources users IDs and values are dicts,
-            keys are weeks and values are number of available hours per week.
-
-        :rtype: tuple(dict[int, List[Interval]], dict[int, dict[date, float]], dict[int, dict[date, float]])
-        """
         if not self:
             return {}, {}, {}
 
@@ -4942,7 +4811,6 @@ class ProjectTask(models.Model):
             )
             for interval in unavailable_intervals_day_formatted:
                 tasks = interval[2]
-                # start and end of intervals are on the same day thanks to flex_resources_work_intervals format
                 day = interval[0].date()
 
                 interval_allocated_hours = 0.0
@@ -5025,8 +4893,6 @@ class ProjectTask(models.Model):
 
             new_valid_intervals_per_user[user_ids] = new_valid_intervals_per_user[False]
             for user_id in user_ids:
-                # if user is not present in invalid_intervals => he's not present in users_work_intervals
-                # => he's not available at all and the users together don't have any valid interval in commun
                 if (user_id,) not in invalid_intervals_per_user:
                     new_valid_intervals_per_user[user_ids] = Intervals()
                     break

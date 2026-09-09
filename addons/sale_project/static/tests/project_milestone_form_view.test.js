@@ -32,7 +32,6 @@ const mountViewParams = {
 };
 
 /**
- * Helper function to mount the view and test if an element has the `text-danger` class.
  * @param {number} resId.
  * @param {boolean} shouldHaveClass.
  */

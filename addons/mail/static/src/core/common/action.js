@@ -15,17 +15,15 @@ export const ACTION_TAGS = Object.freeze({
 });
 
 /** @typedef {import("@mail/model/record").Record} Record */
+/** @typedef {Component|Record} ActionOwner */
 /**
- * @typedef {Component|Record} ActionOwner
- */
-/**
- * @template {ActionOwner} [O=ActionOwner]
+ * @template {ActionOwner}
  * @typedef {{ action: Action<O>, store: import("models").Store, owner: O }} ActionParams
  */
 /**
- * @template {ActionOwner} [O=ActionOwner]
- * @template {ActionParams<O>} [P=ActionParams<O>] what a definition callback is
- * @template {Action<O>} [A=Action<O>] the `this` a definition callback runs
+ * @template {ActionOwner}
+ * @template {ActionParams<O>}
+ * @template {Action<O>}
  * @typedef {Object} ActionDefinition
  * @property {boolean|((this: A, params: P) => boolean)} [badge]
  * @property {string|((this: A, params: P) => string)} [badgeIcon]
@@ -59,8 +57,8 @@ export const ACTION_TAGS = Object.freeze({
  * @property {boolean} [isMoreAction]
  */
 /**
- * @template {ActionOwner} [O=ActionOwner] what hosts this action. A subclass
- * @template {ActionDefinition<O, any, any>} [D=ActionDefinition<O, any, any>] the
+ * @template {ActionOwner}
+ * @template {ActionDefinition<O, any, any>}
  */
 export class Action {
     /** @type {D} */
@@ -331,13 +329,9 @@ export class Action {
     }
 }
 
-/**
- * @template {Action<any>} [A=Action] the action class this family builds.
- */
+/** @template {Action<any>} */
 export class UseActions extends SignalStore {
-    /**
-     * @type {new (...args: any[]) => A}
-     */
+    /** @type {new (...args: any[]) => A} */
     ActionClass = /** @type {any} */ (Action);
     /** @type {Component} */
     component;

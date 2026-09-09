@@ -60,7 +60,6 @@ describe("time_period_selection field", () => {
             "Nov 2024-Jan 2025",
         );
         destroy(view);
-        // Check for a different date.
         mockDate("2020-03-20 07:00:00");
         await mountView({
             type: "form",

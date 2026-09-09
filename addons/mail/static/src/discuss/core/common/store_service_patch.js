@@ -3,9 +3,7 @@ import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { patch } from "@web/core/utils/patch";
 import { debounce } from "@web/core/utils/timing";
-/**
- * @type {Partial<import("models").Store> & ThisType<import("models").Store>}
- */
+/** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const storeServicePatch = {
     setup() {
         super.setup();

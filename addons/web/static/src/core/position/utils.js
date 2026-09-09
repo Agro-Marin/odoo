@@ -10,14 +10,6 @@ import { viewOf } from "@web/core/utils/dom/ui";
  * @typedef {{[direction: string]: string}} DirectionFlipOrder
  * @typedef {{[variant in Variant]: string}} VariantFlipOrder
  * @typedef {{
- * top: number,
- * left: number,
- * maxHeight?: number;
- * direction: Direction,
- * variant: Variant,
- * variantOffset?: number,
- * [key: string]: any,
- * }} PositioningSolution
  * @typedef ComputePositionOptions
  * @property {HTMLElement | (() => HTMLElement)} [container]
  * @property {number} [margin=0]
@@ -89,20 +81,7 @@ export function reverseForRTL(direction, variant = "middle") {
     return [direction, variant];
 }
 
-/**
- * @typedef {{
- *   popBox: DOMRect,
- *   targetBox: DOMRect,
- *   contBox: DOMRect,
- *   iframeBox: { top: number, left: number },
- *   cont: HTMLElement,
- *   containerIsHTMLNode: boolean,
- *   containerIsInIframe: boolean,
- *   shrink: boolean | undefined,
- *   directionsData: Record<string, number>,
- *   variantsData: Record<string, number>,
- * }} PlacementMeasure
- */
+/** @typedef {{ */
 
 /**
  * @param {string} d
@@ -371,7 +350,5 @@ export function reposition(popper, target, options) {
     return solution;
 }
 
-/**
- * @type {WeakMap<HTMLElement, { authored: string, applied: string }>}
- */
+/** @type {WeakMap<HTMLElement, { authored: string, applied: string }>} */
 const popperMaxHeightState = new WeakMap();

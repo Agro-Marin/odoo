@@ -2,9 +2,7 @@
 import { Store } from "@mail/core/common/store_service";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
-/**
- * @type {Partial<import("models").Store> & ThisType<import("models").Store>}
- */
+/** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const StorePatch = {
     _hasFullscreenUrlOnUpdate() {
         const url = new URL(browser.location.href);

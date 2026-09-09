@@ -32,9 +32,7 @@ import { isPyDict, isPyMapping, toPyDict } from "./py_utils.js";
 
 export { isPyTuple };
 
-/**
- * @typedef {import("./ast_type.js").AST} AST
- */
+/** @typedef {import("./ast_type.js").AST} AST */
 
 const isTrue = BUILTINS.bool;
 
@@ -819,9 +817,7 @@ function comparing(op, left, right, compare) {
     }
 }
 
-/**
- * @type {Record<string, (left: any, right: any) => boolean>}
- */
+/** @type {Record<string, (left: any, right: any) => boolean>} */
 const COMPARISONS = {
     "==": (left, right) => isEqual(left, right),
     "<>": (left, right) => !isEqual(left, right),
@@ -1165,9 +1161,7 @@ function methods(_class) {
     return found;
 }
 
-/**
- * @type {Set<any>}
- */
+/** @type {Set<any>} */
 const allowedFns = new Set([
     PyDate,
     PyDateTime,
@@ -1233,15 +1227,7 @@ function attributeOf(table, typeName, key) {
 
 const unboundFn = Symbol("unbound function");
 
-/**
- * @typedef {{
- *   context: Record<string, any>,
- *   dicts: Set<object>,
- *   callerProvidesContext: boolean,
- *   pyContext: Record<string, any> | undefined,
- *   evaluate: (ast: AST) => any,
- * }} EvalScope
- */
+/** @typedef {{ */
 
 /**
  * @param {import("./ast_type.js").ASTName} ast

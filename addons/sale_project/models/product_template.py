@@ -8,7 +8,6 @@ class ProductTemplate(models.Model):
     @api.model
     def _selection_service_policy(self):
         service_policies = [
-            # (service_policy, string)
             ("ordered_prepaid", _("Prepaid/Fixed Price")),
             ("delivered_manual", _("Based on Delivered Quantity (Manual)")),
         ]
@@ -112,13 +111,10 @@ class ProductTemplate(models.Model):
     def _prepare_invoicing_tooltip(self):
         if self.service_policy == "delivered_milestones":
             return _("Invoice your milestones when they are reached.")
-        # ordered_prepaid and delivered_manual are handled in the super call, according to the
-        # corresponding value in the `invoice_policy` field (delivered/ordered quantities)
         return super()._prepare_invoicing_tooltip()
 
     def _get_service_to_general_map(self):
         return {
-            # service_policy: (invoice_policy, service_type)
             "ordered_prepaid": ("ordered", "manual"),
             "delivered_milestones": ("transferred", "milestones"),
             "delivered_manual": ("transferred", "manual"),
@@ -144,10 +140,6 @@ class ProductTemplate(models.Model):
 
     @api.constrains("project_id", "project_template_id")
     def _check_project_and_template(self):
-        """NOTE 'service_tracking' should be in decorator parameters but since ORM check constraints twice (one after setting
-        stored fields, one after setting non stored field), the error is raised when company-dependent fields are not set.
-        So, this constraints does cover all cases and inconsistent can still be recorded until the ORM change its behavior.
-        """
         for product in self:
             if product.service_tracking == "no" and (
                 product.project_id or product.project_template_id

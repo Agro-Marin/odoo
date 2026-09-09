@@ -87,8 +87,6 @@
                     name="draft_rfqs"
                     string="Quotations"
                     domain="[('state', '=', 'draft')]" />
-                <!-- Mirrors the `sent` bucket of purchase.order.prepare_dashboard;
-                    the "RFQ Sent" dashboard cards toggle this by name. -->
                 <filter
                     name="waiting_rfqs"
                     string="RFQ Sent"
@@ -353,11 +351,6 @@
         </field>
     </record>
 
-    <!--
-        Unfortunately we want the purchase kpis table to only show up
-        in some list views, so we have to duplicate code to support both
-        view versions
-    -->
     <record id="view_purchase_order_list_kpis" model="ir.ui.view">
         <field name="name">purchase.order.inherit.purchase.order.list</field>
         <field name="model">purchase.order</field>
@@ -527,9 +520,7 @@
         <field name="arch" type="xml">
             <form string="Purchase Order" class="o_purchase_order">
                 <header>
-                    <!-- Invisible helper fields consumed by header-button modifiers -->
                     <field name="locked" invisible="1" />
-                    <!-- 1. Send RFQ (draft) -->
                     <button
                         name="action_send_rfq"
                         groups="purchase.group_purchase_user"
@@ -539,7 +530,6 @@
                         context="{'send_rfq':True}"
                         data-hotkey="g"
                         invisible="state != 'draft'" />
-                    <!-- 2. Confirm -->
                     <button
                         id="confirm_button"
                         name="action_confirm"
@@ -550,9 +540,7 @@
                         data-hotkey="q"
                         context="{'validate_analytic': True}"
                         invisible="state != 'draft'" />
-                    <!-- 3. Create bill from uploaded file -->
                     <widget name="purchase_file_uploader" invisible="state != 'done'" />
-                    <!-- 4. Send PO (post-confirmation) -->
                     <button
                         name="action_send_rfq"
                         groups="purchase.group_purchase_user"
@@ -561,14 +549,12 @@
                         type="object"
                         context="{'send_rfq':False}"
                         data-hotkey="g" />
-                    <!-- 5. Acknowledge -->
                     <button
                         name="action_acknowledge"
                         groups="purchase.group_purchase_user"
                         string="Acknowledge"
                         type="object"
                         invisible="acknowledged or state != 'done'" />
-                    <!-- 6. Print -->
                     <button
                         name="action_print_quotation"
                         string="Print"
@@ -583,7 +569,6 @@
                         groups="base.group_user"
                         data-hotkey="k"
                         invisible="state != 'done'" />
-                    <!-- 7. Lock / Unlock -->
                     <button
                         name="action_lock"
                         string="Lock"
@@ -598,7 +583,6 @@
                         data-hotkey="l"
                         invisible="not locked"
                         groups="purchase.group_order_unlock" />
-                    <!-- 8. Cancel -->
                     <button
                         name="action_cancel"
                         groups="purchase.group_purchase_user"
@@ -607,7 +591,6 @@
                         type="object"
                         invisible="state not in ['draft', 'done']"
                         data-hotkey="x" />
-                    <!-- 9. Reset to draft -->
                     <button
                         name="action_draft"
                         groups="purchase.group_purchase_user"
@@ -804,7 +787,6 @@
                                         column_invisible="True" />
 
                                     <field name="sequence" widget="handle" />
-                                    <!-- optional="show" allows name (description) to be editable -->
                                     <field
                                         name="product_id"
                                         widget="product_label_section_and_note_field"

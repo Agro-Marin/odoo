@@ -62,10 +62,6 @@ class ProjectProject(models.Model):
                 project.account_id.id, 0
             )
 
-    # ----------------------------
-    #  Actions
-    # ----------------------------
-
     def action_view_project_purchase_orders(self):
         purchase_orders = (
             self.env["purchase.order.line"]
@@ -141,10 +137,6 @@ class ProjectProject(models.Model):
             return action
         return super().action_profitability_items(section_name, domain, res_id)
 
-    # ----------------------------
-    #  Project Updates
-    # ----------------------------
-
     def _get_stat_buttons(self):
         buttons = super()._get_stat_buttons()
         if self.env.user.has_group("purchase.group_purchase_user"):
@@ -218,7 +210,6 @@ class ProjectProject(models.Model):
                     price_subtotal = purchase_line.currency_id._convert(
                         purchase_line.price_subtotal, self.currency_id, self.company_id
                     )
-                    # an analytic account can appear several time in an analytic distribution with different repartition percentage
                     analytic_contribution = (
                         sum(
                             percentage
@@ -258,7 +249,6 @@ class ProjectProject(models.Model):
                             )
                             if not line.analytic_distribution:
                                 continue
-                            # an analytic account can appear several time in an analytic distribution with different repartition percentage
                             analytic_contribution = (
                                 sum(
                                     percentage

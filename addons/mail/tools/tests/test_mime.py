@@ -222,14 +222,6 @@ class TestAttachedMessage:
         b"--INNER--\r\n"
     )
 
-    # Origin asserts that a file inside an attached .eml stays inside it -- an
-    # attached message being a single part -- while this branch's parser lifts the
-    # nested file out, so the carrier reports two attachments. That is a behavioural
-    # disagreement with a suite on each side, not a naming collision the replay can
-    # settle, and it is recorded as open in
-    # agromarin-knowledge/workspaces/workspace-LMMG/2026-08-23-odoo-merge-port-list.md.
-    # Skipped rather than deleted so the question stays visible and origin's other
-    # four tests keep running; whoever decides the parser deletes the skip or the test.
     @pytest.mark.skip(
         reason="parser behaviour undecided: see the 2026-08-23 merge port list"
     )
@@ -241,14 +233,6 @@ class TestAttachedMessage:
         assert [a.fname for a in result.attachments] == ["original_msg.eml"]
         assert "INNER BODY" not in result.body
 
-    # Origin asserts that a file inside an attached .eml stays inside it -- an
-    # attached message being a single part -- while this branch's parser lifts the
-    # nested file out, so the carrier reports two attachments. That is a behavioural
-    # disagreement with a suite on each side, not a naming collision the replay can
-    # settle, and it is recorded as open in
-    # agromarin-knowledge/workspaces/workspace-LMMG/2026-08-23-odoo-merge-port-list.md.
-    # Skipped rather than deleted so the question stays visible and origin's other
-    # four tests keep running; whoever decides the parser deletes the skip or the test.
     @pytest.mark.skip(
         reason="parser behaviour undecided: see the 2026-08-23 merge port list"
     )
@@ -392,13 +376,6 @@ FORWARDED = (
 
 
 class TestEmbeddedMessage:
-    """A forwarded ``.eml`` carries files, and they must survive the parse.
-
-    Handing back only the envelope is what "treat ``message/rfc822`` as one
-    opaque leaf" does, and it silently turns "forward the invoice to the folder
-    alias" into "file an ``.eml`` nobody opens".
-    """
-
     def names(self, raw: bytes, **kwargs):
         return [a.fname for a in payload(raw, **kwargs).attachments]
 
@@ -407,12 +384,10 @@ class TestEmbeddedMessage:
         assert self.names(raw) == ["forwarded.eml", "invoice.pdf"]
 
     def test_the_embedded_body_is_not_filed_as_an_attachment(self):
-        """The old walk-based parser filed it, under the name "attachment"."""
         raw = HEADERS + multipart(b"mixed", b"OUTER", PLAIN + b"FYI", FORWARDED)
         assert "attachment" not in self.names(raw)
 
     def test_the_embedded_body_does_not_leak_into_the_outer_body(self):
-        """The old parser replaced the outer body with the embedded one."""
         raw = HEADERS + multipart(b"mixed", b"OUTER", PLAIN + b"FYI", FORWARDED)
         body = payload(raw).body
         assert "FYI" in body
@@ -457,13 +432,6 @@ class TestEmbeddedMessage:
         assert self.names(raw) == ["outer.eml", "forwarded.eml", "invoice.pdf"]
 
     def test_a_bounce_keeps_the_failed_mail_s_files_out_of_the_report(self):
-        """The embedded message is the mail that failed, not this one.
-
-        The embedded part comes first here on purpose: a bounce parse stops at
-        the first body, so with the usual ordering the part is never reached and
-        the test would pass without exercising the rule at all.
-        """
         raw = HEADERS + multipart(b"mixed", b"OUTER", FORWARDED, PLAIN + b"FYI")
         assert self.names(raw, is_bounce=True) == ["forwarded.eml"]
-        # the very same mail, parsed as an ordinary one, does carry the file
         assert self.names(raw) == ["forwarded.eml", "invoice.pdf"]

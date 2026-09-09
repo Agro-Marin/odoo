@@ -14,17 +14,7 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 import { LruCache } from "@web/core/utils/lru_cache";
 
-/**
- * @typedef {{
- * callback?: function;
- * type?: "ram" | "disk";
- * update?: "once" | "always";
- * immutable?: boolean;
- * model?: string;
- * silent?: boolean;
- * onRequestIssued?: (request: object) => void;
- * }} RPCCacheSettings
- */
+/** @typedef {{ */
 
 const VERSION_FIELD = "__version";
 
@@ -78,7 +68,7 @@ function validateSettings(
 }
 
 /**
- * @template T
+ * @template
  * @param {T} value
  * @param {WeakSet<object>} [seen]
  * @returns {T}
@@ -104,14 +94,10 @@ const MAX_STORAGE_SIZE = 2 * 1024 * 1024 * 1024;
 export const RAM_CACHE_MAX_ENTRIES = 10000;
 
 class Crypto {
-    /**
-     * @param {string} secret
-     */
+    /** @param {string} secret */
     constructor(secret) {
         const bytes = /** @type {string[]} */ (secret.match(/../g));
-        /**
-         * @type {Promise<CryptoKey>}
-         */
+        /** @type {Promise<CryptoKey>} */
         this._key = browser.crypto.subtle.importKey(
             "raw",
             new Uint8Array(bytes.map((h) => Number.parseInt(h, 16))).buffer,
@@ -121,9 +107,7 @@ class Crypto {
         );
     }
 
-    /**
-     * @param {any} value
-     */
+    /** @param {any} value */
     async encrypt(value) {
         const key = await this._key;
         const iv = browser.crypto.getRandomValues(new Uint8Array(12));
@@ -266,9 +250,7 @@ class RamCache {
         this._forgetLru(table, key);
     }
 
-    /**
-     * @param {string | string[] | null} [tables]
-     */
+    /** @param {string | string[] | null} [tables] */
     invalidate(tables = null) {
         if (tables) {
             tables = typeof tables === "string" ? [tables] : tables;
@@ -333,9 +315,7 @@ export class RPCCache {
             ? new IndexedDB(name, version + CRYPTO_ALGO)
             : null;
         this.ramCache = new RamCache();
-        /**
-         * @type {Record<string, { callbacks: { callback: Function, shape: Function }[], invalidated: boolean, model?: string, table?: string }>}
-         */
+        /** @type {Record<string, { callbacks: { callback: Function, shape: Function }[], invalidated: boolean, model?: string, table?: string }>} */
         this.pendingRequests = Object.create(null);
         /** @type {Record<string, number>} */
         this.diskGenerations = Object.create(null);
@@ -355,9 +335,7 @@ export class RPCCache {
         return this.globalDiskGeneration + (this.diskGenerations[table] || 0);
     }
 
-    /**
-     * @param {string | string[] | null | undefined} tables
-     */
+    /** @param {string | string[] | null | undefined} tables */
     bumpDiskGeneration(tables) {
         if (tables == null) {
             this.globalDiskGeneration++;
@@ -653,9 +631,7 @@ export class RPCCache {
         }
     }
 
-    /**
-     * @param {string | string[] | null} [tables]
-     */
+    /** @param {string | string[] | null} [tables] */
     invalidate(tables) {
         this.bumpDiskGeneration(tables);
         this.indexedDB?.invalidate(tables);
@@ -699,9 +675,7 @@ export class RPCCache {
         }
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async purgeStorage() {
         await this.indexedDB?.deleteDatabase();
     }

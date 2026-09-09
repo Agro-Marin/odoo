@@ -7,16 +7,11 @@ import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 
 /**
  * @typedef {import("@web/ui/popover/popover_service").PopoverServiceAddOptions & {
- * onBack?: () => void;
- * preventDismissOnContentScroll?: boolean;
- * }} BottomSheetServiceAddOptions
  * @typedef {BottomSheetService["add"]} BottomSheetServiceAddFunction
  */
 
 class BottomSheetService {
-    /**
-     * @param {{ overlay: any }} services
-     */
+    /** @param {{ overlay: any }} services */
     constructor({ overlay }) {
         this.openCount = 0;
         this.present = makeOverlayPresenter({

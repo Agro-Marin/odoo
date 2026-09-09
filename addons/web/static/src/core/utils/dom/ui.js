@@ -192,9 +192,7 @@ const FOCUSABLE_SELECTOR = FOCUSABLE_SELECTORS.join(",");
 const TABABLE_SELECTOR = TABABLE_SELECTORS.join(",");
 const TABABLE_OR_HOST_SELECTOR = `${TABABLE_SELECTOR},${SHADOW_HOST_SELECTOR}`;
 
-/**
- * @param {HTMLElement} el
- */
+/** @param {HTMLElement} el */
 export function isFocusable(el) {
     return el.matches(FOCUSABLE_SELECTOR) && isVisible(el) && !el.closest("[inert]");
 }
@@ -217,7 +215,7 @@ export function getTabableElements(container = document.body) {
 }
 
 /**
- * @param {ParentNode} root the element or fragment to search, and its shadow hosts
+ * @param {ParentNode} root
  * @param {HTMLElement[]} out
  */
 function collectTabable(root, out) {

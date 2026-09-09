@@ -23,15 +23,11 @@ const deserializers = registry.category("deserializers");
 
 const TEXT_TYPES = new Set(["char", "text", "html"]);
 
-/**
- * @param {unknown} value
- */
+/** @param {unknown} value */
 const formatUnknown = (value) =>
     value == null || value === false ? "" : String(value);
 
-/**
- * @type {Map<string, FieldCodec>}
- */
+/** @type {Map<string, FieldCodec>} */
 const codecCache = new Map();
 
 /**

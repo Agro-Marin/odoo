@@ -16,9 +16,7 @@ class ProbeCog extends Component {
     static props = {};
 }
 
-/**
- * @param {Record<string, any>} [overrides]
- */
+/** @param {Record<string, any>} [overrides] */
 function makeCogMenu(overrides = {}) {
     const menu = Object.create(CogMenu.prototype);
     menu.env = /** @type {any} */ ({});

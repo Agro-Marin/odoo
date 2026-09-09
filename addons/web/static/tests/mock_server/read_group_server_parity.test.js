@@ -31,9 +31,7 @@ class CurrencyRate extends models.Model {
 
 defineModels([CurrencyRate]);
 
-/**
- * @type {Record<string, [any, number, number][]>}
- */
+/** @type {Record<string, [any, number, number][]>} */
 const SERVER = {
     day: [
         [["2024-01-01", "01 Jan 2024"], 1.0, 1],

@@ -83,9 +83,7 @@ class DropdownNestingState {
     }
 }
 
-/**
- * @param {import("@web/components/dropdown/dropdown_hook").DropdownState} state
- */
+/** @param {import("@web/components/dropdown/dropdown_hook").DropdownState} state */
 export function useDropdownNesting(state) {
     const env = useEnv();
     const /** @type {any} */ envAny = env;

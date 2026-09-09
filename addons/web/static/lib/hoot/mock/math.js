@@ -9,9 +9,7 @@ const {
 } = globalThis;
 const { floor: $floor, random: $random } = Math;
 
-/**
- * @param {unknown} [seed]
- */
+/** @param {unknown} [seed] */
 function toValidSeed(seed) {
     if (isNil(seed)) {
         return generateSeed();
@@ -26,9 +24,7 @@ export function generateSeed() {
     return $floor($random() * 1e16);
 }
 
-/**
- * @param {number} seed
- */
+/** @param {number} seed */
 export function makeSeededRandom(seed) {
     function random() {
         state ^= (state << 13) >>> 0;

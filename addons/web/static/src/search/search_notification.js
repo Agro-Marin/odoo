@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @param {Promise<void> | void} notification
- */
+/** @param {Promise<void> | void} notification */
 export function fireAndForgetNotify(notification) {
     Promise.resolve(notification).catch((error) => {
         console.error(

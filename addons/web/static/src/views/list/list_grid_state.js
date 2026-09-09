@@ -6,29 +6,18 @@ import { toRaw } from "@odoo/owl";
 /**
  * @typedef {"group" | "record" | "add-line"} FlatRowType
  * @typedef {{
- * type: FlatRowType,
- * globalIndex: number,
- * record?: object,
- * rawRecord?: object,
- * recordId?: string,
- * group?: object,
- * parentGroup?: object,
- * depth: number,
- * }} FlatRow
  */
 
 export class ListGridState {
-    /**
-     * @type {object[]}
-     */
+    /** @type {object[]} */
     _columns = [];
     /** @type {Map<any, number>} */
     _colIndexById = new Map();
 
     /**
      * @param {object} options
-     * @param {object} options.list the list to materialise until the first update
-     * @param {boolean} [options.isRTL] the one option `update()` is never passed
+     * @param {object} options.list
+     * @param {boolean} [options.isRTL]
      */
     constructor({ list, isRTL = false }) {
         this._list = list;
@@ -53,9 +42,7 @@ export class ListGridState {
         this._cursor = 0;
     }
 
-    /**
-     * @param {Record<string, any>} options
-     */
+    /** @param {Record<string, any>} options */
     update(options) {
         if (options.list !== undefined) {
             this._list = options.list;
@@ -167,16 +154,12 @@ export class ListGridState {
         return this._flatRows[rowIndex];
     }
 
-    /**
-     * @param {number} colIndex
-     */
+    /** @param {number} colIndex */
     rememberColumn(colIndex) {
         this._lastColIndex = colIndex;
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get colCount() {
         let count = this._columns.length;
         if (this._hasSelectors) {
@@ -227,9 +210,7 @@ export class ListGridState {
         return idx + (this._hasSelectors ? 1 : 0);
     }
 
-    /**
-     * @param {object[]} columns
-     */
+    /** @param {object[]} columns */
     _setColumns(columns) {
         this._columns = columns;
         this._colIndexById = new Map(columns.map((col, index) => [col.id, index]));

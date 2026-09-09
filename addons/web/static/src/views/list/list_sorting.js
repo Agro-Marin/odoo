@@ -36,9 +36,7 @@ export const listSortingMixin = {
         return classNames.join(" ");
     },
 
-    /**
-     * @param {{ name: string }} column
-     */
+    /** @param {{ name: string }} column */
     onClickSortColumn(column) {
         if (this.columnWidths.justResized) {
             return;
@@ -81,9 +79,7 @@ export const listSortingMixin = {
         }
     },
 
-    /**
-     * @param {{ element: HTMLElement }} params
-     */
+    /** @param {{ element: HTMLElement }} params */
     sortStart({ element }) {
         const table = this.tableRef.el;
         const headers = [...table.querySelectorAll("thead th")];
@@ -104,9 +100,7 @@ export const listSortingMixin = {
         }
     },
 
-    /**
-     * @param {{ element: HTMLElement }} params
-     */
+    /** @param {{ element: HTMLElement }} params */
     sortStop({ element }) {
         for (const cell of element.querySelectorAll("td")) {
             cell.style.width = "";

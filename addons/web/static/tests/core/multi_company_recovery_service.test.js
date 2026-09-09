@@ -8,9 +8,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { user } from "@web/core/user";
 
-/**
- * @param {number} companyId
- */
+/** @param {number} companyId */
 function accessError(companyId) {
     return {
         data: {

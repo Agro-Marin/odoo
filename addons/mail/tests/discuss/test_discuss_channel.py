@@ -607,10 +607,6 @@ class TestChannelInternals(MailCommon, HttpCase):
         ):
             member._mark_as_read(msg_1.id)
         self._reset_bus()
-        # Nothing changes on the second read, so the reader's own bus gets one
-        # payload carrying both markers: a browser that missed the first
-        # notification (odoo/odoo#225575) catches up from it, and the chat is
-        # not told about a seen marker that did not move.
         with self.assertBus(
             [(self.env.cr.dbname, "res.partner", self.user_admin.partner_id.id)],
             [

@@ -7,7 +7,6 @@ import { useBus, useService } from "@web/core/utils/hooks";
 
 /**
  * @typedef {import("./tour_pointer_state").TourPointerState} TourPointerState
- *
  * @typedef TourPointerProps
  * @property {TourPointerState} pointerState
  * @property {boolean} bounce
@@ -47,8 +46,8 @@ export class TourPointer extends Component {
     };
 
     static template = "web_tour.TourPointer";
-    static width = 28; // in pixels
-    static height = 28; // in pixels
+    static width = 28;
+    static height = 28;
 
     setup() {
         this.orm = useService("orm");
@@ -58,13 +57,9 @@ export class TourPointer extends Component {
                 const popperRect = pointer.getBoundingClientRect();
                 const { top, left, direction } = position;
                 if (direction === "top") {
-                    // position from the bottom instead of the top as it is needed
-                    // to ensure the expand animation is properly done
                     pointer.style.bottom = `${window.innerHeight - top - popperRect.height}px`;
                     pointer.style.removeProperty("top");
                 } else if (direction === "left") {
-                    // position from the right instead of the left as it is needed
-                    // to ensure the expand animation is properly done
                     pointer.style.right = `${window.innerWidth - left - popperRect.width}px`;
                     pointer.style.removeProperty("left");
                 }
@@ -72,7 +67,7 @@ export class TourPointer extends Component {
         };
         Object.defineProperty(positionOptions, "position", {
             get: () => this.position,
-            set: () => {}, // do not let the position hook change the position
+            set: () => {},
             enumerable: true,
         });
         const position = usePosition(
@@ -96,7 +91,6 @@ export class TourPointer extends Component {
                 const hasOpenStateChanged = lastOpenState !== this.isOpen;
                 lastOpenState = this.isOpen;
 
-                // Check is the pointed element is a zone
                 if (this.props.pointerState.isZone) {
                     const { anchor } = this.props.pointerState;
                     let offsetLeft = 0;
@@ -115,7 +109,6 @@ export class TourPointer extends Component {
                     zone.style.top = top + offsetTop + "px";
                 }
 
-                // Content changed: we must re-measure the dimensions of the text.
                 if (hasContentChanged) {
                     lastMeasuredContent = this.content;
                     pointer.style.removeProperty("width");
@@ -123,8 +116,6 @@ export class TourPointer extends Component {
                     dimensions = pointer.getBoundingClientRect();
                 }
 
-                // If the content or the "is open" state changed: we must apply
-                // new width and height properties
                 if (hasContentChanged || hasOpenStateChanged) {
                     const [width, height] = this.isOpen
                         ? [dimensions.width, dimensions.height]
@@ -132,7 +123,6 @@ export class TourPointer extends Component {
                     if (this.isOpen) {
                         pointer.style.removeProperty("transition");
                     } else {
-                        // No transition if switching from open to closed
                         pointer.style.setProperty("transition", "none");
                     }
                     pointer.style.setProperty("width", `${width}px`);
@@ -145,7 +135,6 @@ export class TourPointer extends Component {
                         const { x, y, width } = anchor.getBoundingClientRect();
                         const [lastAnchorX, lastAnchorY] = [anchorX, anchorY];
                         [anchorX, anchorY] = [x, y];
-                        // Let's just say that the anchor is static if it moved less than 1px.
                         const delta = Math.sqrt(
                             Math.pow(x - lastAnchorX, 2) + Math.pow(y - lastAnchorY, 2),
                         );

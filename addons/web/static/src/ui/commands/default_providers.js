@@ -29,9 +29,7 @@ export class HotkeyCommandItem extends Component {
         useHotkey(this.props.hotkey, this.props.executeCommand);
     }
 
-    /**
-     * @returns {string[]}
-     */
+    /** @returns {string[]} */
     get keysToPress() {
         /** @type {string[]} */
         let result = this.props.hotkey.split("+");

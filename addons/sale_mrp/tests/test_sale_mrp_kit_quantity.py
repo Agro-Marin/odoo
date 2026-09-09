@@ -234,12 +234,6 @@ class TestSaleMrpKitQuantity(BaseCommon):
         self.assertEqual(invoice_line._get_cogs_value(), 35.0)
 
     def test_price_unit_answers_for_the_move_and_not_for_the_kit(self):
-        """`_get_price_unit` is the moves' own product; the kit has its own hook.
-
-        Asking the kit question through `_get_price_unit` is how a component
-        came to be priced as a whole kit for `product._get_last_in()`,
-        `_run_fifo` and every other valuation caller with no interest in kits.
-        """
         for label, components in (
             ("two components", [(10.0, 2.0), (5.0, 3.0)]),
             ("one component", [(10.0, 2.0)]),

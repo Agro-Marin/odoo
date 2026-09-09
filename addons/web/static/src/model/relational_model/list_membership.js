@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { RelationalRecord } from "./record.js" */
-
 export class ListMembership {
     /** @param {(number | string)[]} [ids] */
     constructor(ids = []) {
@@ -12,9 +10,7 @@ export class ListMembership {
         this.tmpIncreaseLimit = 0;
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get count() {
         return this.ids.length;
     }

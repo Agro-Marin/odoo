@@ -60,10 +60,6 @@
         <field name="view_mode">form</field>
         <field name="view_id" ref="view_product_replenish" />
         <field name="target">new</field>
-        <!--
-            binding_model_id evaluated to False
-            to remove it in existing db's as it was bug-prone
-        -->
         <field name="binding_model_id" eval="False" />
     </record>
 

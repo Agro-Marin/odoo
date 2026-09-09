@@ -6,7 +6,6 @@
         <field name="model">choose.delivery.carrier</field>
         <field name="inherit_id" ref="delivery.choose_delivery_carrier_view_form" />
         <field name="arch" type="xml">
-            <!-- Remove the groups to show the weight when stock is installed -->
             <xpath expr="//div[@name='carried_weight']" position="attributes">
                 <attribute name="groups" />
             </xpath>

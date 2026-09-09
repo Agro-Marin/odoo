@@ -84,20 +84,14 @@ export class AutoComplete extends Component {
     ignoreBlur = false;
     _scrollAwayAttached = false;
 
-    /**
-     * @type {Deferred<void> | null}
-     */
+    /** @type {Deferred<void> | null} */
     pendingPromise = null;
-    /**
-     * @type {Deferred<void> | null}
-     */
+    /** @type {Deferred<void> | null} */
     loadingPromise = null;
     /** @type {any} */
     _loadedRequest = null;
     _loadedInputValue = "";
-    /**
-     * @type {{ direction: number, applied: Deferred<void> } | null}
-     */
+    /** @type {{ direction: number, applied: Deferred<void> } | null} */
     _entry = null;
     navigationRev = 0;
 
@@ -226,9 +220,7 @@ export class AutoComplete extends Component {
         });
     }
 
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     setInputValue(value) {
         this.state.value = value;
         if (this.inputRef.el) {
@@ -425,9 +417,7 @@ export class AutoComplete extends Component {
         return this.sources.some((s) => s.id === source.id);
     }
 
-    /**
-     * @returns {any | null}
-     */
+    /** @returns {any | null} */
     _firstSelectableOption() {
         for (const source of this.sources) {
             if (source.isLoading) {
@@ -472,9 +462,7 @@ export class AutoComplete extends Component {
         applied.resolve();
     }
 
-    /**
-     * @param {any} error
-     */
+    /** @param {any} error */
     reportSourceError(error) {
         reportUncaught(error);
     }
@@ -654,9 +642,7 @@ export class AutoComplete extends Component {
         ev.preventDefault();
     }
 
-    /**
-     * @param {[number, number]} indices
-     */
+    /** @param {[number, number]} indices */
     onOptionMouseEnter([sourceIndex, optionIndex]) {
         if (
             this.navigator.isMouseArmed &&

@@ -15,9 +15,7 @@ debugRegistry.addValidation((entry) => entry instanceof Registry);
  * @property {boolean} canSeeModelAccess
  */
 
-/**
- * @returns {Promise<AccessRights>}
- */
+/** @returns {Promise<AccessRights>} */
 const getAccessRights = async () => {
     const rightsToCheck = {
         "ir.ui.view": "write",
@@ -99,9 +97,7 @@ export function createDebugContext({ categories = [] } = {}) {
     });
 }
 
-/**
- * @param {{ categories?: string[] }} [options]
- */
+/** @param {{ categories?: string[] }} [options] */
 export function useOwnDebugContext({ categories = [] } = {}) {
     useSubEnv(createDebugContext({ categories }));
 }

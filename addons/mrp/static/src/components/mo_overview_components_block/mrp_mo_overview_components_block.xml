@@ -9,7 +9,6 @@
                 isFolded="state.fold[component.summary.index]"
                 showOptions="props.showOptions"
                 toggleFolded.bind="onToggleFolded"/>
-            <!-- Display Replenishment block -->
             <t t-if="hasReplenishmentsBlock(component)" t-foreach="component.replenishments" t-as="replenishment" t-key="replenishment.summary.index">
                 <MoOverviewLine
                     data="replenishment.summary"

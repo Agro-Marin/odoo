@@ -46,9 +46,7 @@ test("a failing open flips the instance to degraded mode", async () => {
     expect(db._degraded).toBe(true);
 });
 
-/**
- * @param {{ completed: boolean }} state
- */
+/** @param {{ completed: boolean }} state */
 function patchTransactionToRecordCompletion(state) {
     const originalTransaction = IDBDatabase.prototype.transaction;
     IDBDatabase.prototype.transaction = function (...args) {
@@ -82,9 +80,7 @@ test("invalidate() settles on the transaction, not on its clear() requests", asy
     after(() => db.deleteDatabase());
 });
 
-/**
- * @param {{ opens: number }} state
- */
+/** @param {{ opens: number }} state */
 function patchOpenToFailAsynchronously(state) {
     const original = indexedDB.open;
     indexedDB.open = () => {

@@ -85,9 +85,7 @@ export class ProfilingQwebView extends Component {
         });
     }
 
-    /**
-     * @returns {{ archs: Object, data: Array<{template: string, xpath: string, directive: string, time: number, duration: number, query: number, view_id?: any, delay?: number}> }}
-     */
+    /** @returns {{ archs: Object, data: Array<{template: string, xpath: string, directive: string, time: number, duration: number, query: number, view_id?: any, delay?: number}> }} */
     get profile() {
         return this.value ? this.value[0].results : { archs: {}, data: [] };
     }
@@ -346,9 +344,7 @@ export class ProfilingQwebView extends Component {
             node.setAttribute("data-xpath", xpath);
         });
     }
-    /**
-     * @private
-     */
+    /** @private */
     _renderView() {
         const view = this.viewObjects.find((view) => view.id === this.state.viewID);
         if (view) {

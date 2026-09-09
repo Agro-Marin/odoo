@@ -3,9 +3,7 @@
 
 import { UNACCENT_REPLACEMENTS, UNACCENT_SOURCES } from "./unaccent_table.js";
 
-/**
- * @type {Map<string, string> | null}
- */
+/** @type {Map<string, string> | null} */
 let foldMap = null;
 
 /** @returns {Map<string, string>} */

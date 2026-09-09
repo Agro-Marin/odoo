@@ -19,8 +19,6 @@ import { View } from "@web/views/view";
 
 const ControllerComponentTemplate = xml`<t t-component="Component" t-props="componentProps"/>`;
 
-/** @import { ActionManager } from "./action_service.js" */
-
 /**
  * @param {any} component
  * @param {any} action
@@ -45,9 +43,7 @@ function useControllerStateRecorders(component, action, am) {
     }
 }
 
-/**
- * @param {ActionManager} am
- */
+/** @param {ActionManager} am */
 export function makeControllerComponent(am) {
     return class ControllerComponent extends Component {
         static template = ControllerComponentTemplate;
@@ -77,9 +73,7 @@ export function makeControllerComponent(am) {
             onError(this.onError);
         }
 
-        /**
-         * @param {CallbackRecorder} recorder
-         */
+        /** @param {CallbackRecorder} recorder */
         _makeStateExporter(recorder) {
             if (!recorder) {
                 return undefined;

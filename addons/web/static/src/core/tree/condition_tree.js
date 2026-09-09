@@ -1,16 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { AST } from "@web/core/py_js/py_parser" */
-/** @import { DomainRepr } from "@web/core/domain" */
+/** @typedef {number|string|boolean|Expression} Atom */
 
-/**
- * @typedef {number|string|boolean|Expression} Atom
- */
-
-/**
- * @typedef {Atom|Atom[]} Value
- */
+/** @typedef {Atom|Atom[]} Value */
 
 /**
  * @typedef {Object} Condition
@@ -37,9 +30,7 @@
  * @property {Tree[]} children
  */
 
-/**
- * @typedef {Connector|Condition|ComplexCondition} Tree
- */
+/** @typedef {Connector|Condition|ComplexCondition} Tree */
 
 /**
  * @typedef {Object} Options
@@ -53,9 +44,7 @@ import { toPyValue } from "@web/core/py_js/py_utils";
 
 import { ASTType } from "../py_js/ast_type.js";
 export class Expression {
-    /**
-     * @param {string | AST} ast
-     */
+    /** @param {string | AST} ast */
     constructor(ast) {
         if (typeof ast === "string") {
             ast = parseExpr(ast);
@@ -250,9 +239,7 @@ export function formatValue(value) {
     return formatAST(astFromValue(value));
 }
 
-/**
- * @param {Value} value
- */
+/** @param {Value} value */
 export function normalizeValue(value) {
     return toValue(astFromValue(value));
 }
@@ -295,9 +282,7 @@ export function applyTransformations(transformations, transformed, ...fixedParam
     return transformed;
 }
 
-/**
- * @param {Connector} connector
- */
+/** @param {Connector} connector */
 function normalizeConnector(connector) {
     const newTree = { ...connector, children: /** @type {any[]} */ ([]) };
     for (const child of connector.children) {

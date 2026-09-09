@@ -6,8 +6,6 @@ import { isX2Many } from "@web/core/field_types";
 
 import { listId } from "./static_list_utils.js";
 
-/** @import { RelationalRecord } from "@web/model/relational_model/record" */
-
 /**
  * @param {Object} activeFields
  * @param {Object} fields
@@ -90,9 +88,7 @@ export function findUnsetRequiredFields(
     return unsetRequiredFields;
 }
 
-/**
- * @param {RelationalRecord} record
- */
+/** @param {RelationalRecord} record */
 function pruneUnreachableInvalidFields(record) {
     for (const fieldName of [...toRaw(record.invalidFields)]) {
         if (!(fieldName in record.activeFields) || record.isFieldInvisible(fieldName)) {
@@ -106,7 +102,6 @@ function pruneUnreachableInvalidFields(record) {
  * @param {RelationalRecord} record
  * @param {{ silent?: boolean, removeInvalidOnly?: boolean }} mode
  * @returns {{ isInvisible: (f: string) => boolean, isRequired: (f: string) => boolean,
- * isChildListValid: (f: string, list: any) => boolean }}
  */
 function makeValidityCallbacks(record, { silent, removeInvalidOnly }) {
     return {

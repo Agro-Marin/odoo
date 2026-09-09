@@ -35,7 +35,6 @@ export function provideMailBadges(env, apps) {
             appByModule.set(app.module, app.xmlid);
         }
         const xmlid = app.xmlid;
-        // An app's first model is the one its root menu opens.
         (app.models || []).forEach((model, index) => {
             if (index === 0 && !appByRootModel.has(model)) {
                 appByRootModel.set(model, xmlid);
@@ -65,7 +64,7 @@ export function provideMailBadges(env, apps) {
     return badges;
 }
 
-/** @param {import("@web/env").OdooEnv} env @param {() => void} changed */
+/** @param {import("@web/env").OdooEnv} env */
 export function subscribeMailBadges(env, changed) {
     const store = env.services["mail.store"];
     let stopInbox = () => {};

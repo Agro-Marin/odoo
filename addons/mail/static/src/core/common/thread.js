@@ -472,9 +472,7 @@ export class Thread extends Component {
         );
     }
 
-    /**
-     * @type {import("@mail/core/common/thread_scroll_hook").ThreadScroll["setScroll"]}
-     */
+    /** @type {import("@mail/core/common/thread_scroll_hook").ThreadScroll["setScroll"]} */
     setScroll(value, options) {
         this.threadScroll.setScroll(value, options);
     }

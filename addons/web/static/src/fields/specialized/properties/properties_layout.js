@@ -3,11 +3,7 @@
 
 /**
  * @typedef {{ name: string, type: string, string?: string, value?: any,
- * fold_by_default?: boolean, definition_changed?: boolean,
- * [key: string]: any }} PropertyDefinition
  * @typedef {{ title: string | null, name: string | null,
- * elements: PropertyDefinition[], isFolded?: boolean,
- * invisibleLabel?: boolean, columnSeparator?: boolean }} PropertyGroup
  */
 
 /** @param {PropertyDefinition} property */
@@ -88,8 +84,6 @@ export function findEnclosingSeparator(propertiesValues, targetIndex) {
  * @param {string} propertyName
  * @param {"up" | "down"} direction
  * @returns {{ status: "moved", targetIndex: number }
- * | { status: "at-edge", direction: "up" | "down" }
- * | { status: "not-found" }}
  */
 export function movePropertyByOffset(propertiesValues, propertyName, direction) {
     const propertyIndex = propertiesValues.findIndex(

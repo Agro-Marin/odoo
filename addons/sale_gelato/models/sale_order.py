@@ -11,7 +11,6 @@ _logger = logging.getLogger(__name__)
 
 
 def post_commit(func):
-    """Wrap method to run in postcommit/postrollback hook with a separate cursor."""
 
     @wraps(func)
     def _post_commit_wrapper(self, *args, **kwargs):
@@ -25,25 +24,14 @@ def post_commit(func):
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
-    # === CRUD METHODS === #
-
     def _prevent_mixing_gelato_and_non_gelato_products(self):
-        """Ensure that the order lines don't mix Gelato and non-Gelato products.
-
-        This method is not a constraint and is called from the `create` and `write` methods of
-        `sale.order.line` to cover the cases where adding/writing on order lines would not trigger a
-        constraint check (e.g., adding products through the Catalog).
-
-        :return: None
-        :raise ValidationError: If Gelato and non-Gelato products are mixed.
-        """
         for order in self:
             gelato_lines = order.line_ids.filtered(
                 lambda l: l.product_id.gelato_product_uid
             )
             non_gelato_lines = (order.line_ids - gelato_lines).filtered(
                 lambda l: l.product_id.sale_ok and l.product_id.type != "service"
-            )  # Filter out non-saleable (sections, etc.) and non-deliverable products.
+            )
             if gelato_lines and non_gelato_lines:
                 raise ValidationError(
                     _(
@@ -51,10 +39,7 @@ class SaleOrder(models.Model):
                     )
                 )
 
-    # === ACTION METHODS === #
-
     def action_view_delivery_wizard(self):
-        """Override of `delivery` to set a Gelato delivery method by default in the wizard."""
         res = super().action_view_delivery_wizard()
 
         if not self.env.context.get("carrier_recompute") and any(
@@ -67,7 +52,6 @@ class SaleOrder(models.Model):
         return res
 
     def action_confirm(self):
-        """Override of `sale` to send the order to Gelato on confirmation."""
         res = super().action_confirm()
         for order in self.filtered(
             lambda o: any(o.line_ids.product_id.mapped("gelato_product_uid"))
@@ -77,14 +61,7 @@ class SaleOrder(models.Model):
             order._create_order_on_gelato()
         return res
 
-    # === BUSINESS METHODS === #
-
     def _get_incomplete_address_error(self):
-        """Ensure that all order's partner address fields required by Gelato are set.
-
-        :return: An error message if the address is incomplete, None otherwise.
-        :rtype: str | None
-        """
         required_address_fields = ["city", "country_id", "email", "name", "street"]
         if self.partner_id.country_id.code not in const.COUNTRIES_WITHOUT_ZIPCODE:
             required_address_fields.append("zip")
@@ -104,17 +81,13 @@ class SaleOrder(models.Model):
         return None
 
     def _create_order_on_gelato(self):
-        """Send the order creation request to Gelato and log the request result on the chatter.
-
-        :return: None
-        """
         delivery_line = self.line_ids.filtered(
             lambda l: (
                 l.is_delivery and l.product_id.default_code in ("normal", "express")
             )
         )
         payload = {
-            "orderType": "draft",  # The order is confirmed/deleted later, see @post_commit hooks.
+            "orderType": "draft",
             "orderReferenceId": self.id,
             "customerReferenceId": f"Odoo Partner #{self.partner_id.id}",
             "currency": self.currency_id.name,
@@ -123,13 +96,9 @@ class SaleOrder(models.Model):
             "shippingAddress": self.partner_shipping_id._gelato_prepare_address_payload(),
         }
         try:
-            api_key = (
-                self.company_id.sudo().gelato_api_key
-            )  # In sudo mode to read on the company.
+            api_key = self.company_id.sudo().gelato_api_key
             data = utils.make_request(api_key, "order", "v4", "orders", payload=payload)
 
-            # Add hooks to confirm/delete the order on Gelato only after the transaction is
-            # committed/rolled back. This prevents creating duplicate confirmed orders on Gelato.
             self.env.cr.postcommit.add(
                 partial(self._confirm_order_on_gelato, data["id"])
             )
@@ -155,11 +124,6 @@ class SaleOrder(models.Model):
         )
 
     def _gelato_prepare_items_payload(self):
-        """Create the payload for the 'items' key of an 'orders' request.
-
-        :return: The items payload.
-        :rtype: dict
-        """
         items_payload = []
         for gelato_line in self.line_ids.filtered(
             lambda l: l.product_id.gelato_product_uid
@@ -178,12 +142,6 @@ class SaleOrder(models.Model):
 
     @post_commit
     def _confirm_order_on_gelato(self, gelato_order_id):
-        """Send the order confirmation request to Gelato.
-
-        This is performed in a separate transaction to allow running as post-commit hook.
-
-        :return: None
-        """
         self.check_singleton()
 
         _logger.info(
@@ -193,10 +151,8 @@ class SaleOrder(models.Model):
         )
         data = None
         try:
-            api_key = (
-                self.company_id.sudo().gelato_api_key
-            )  # In sudo mode to read on the company.
-            payload = {"orderType": "order"}  # Confirm the order (draft -> order).
+            api_key = self.company_id.sudo().gelato_api_key
+            payload = {"orderType": "order"}
             data = utils.make_request(
                 api_key,
                 "order",
@@ -221,12 +177,6 @@ class SaleOrder(models.Model):
 
     @post_commit
     def _remove_order_on_gelato(self, gelato_order_id):
-        """Send the order deletion request to Gelato.
-
-        This is performed in a separate transaction to allow running as post-commit hook.
-
-        :return: None
-        """
         self.check_singleton()
 
         _logger.info(
@@ -236,9 +186,7 @@ class SaleOrder(models.Model):
         )
         data = None
         try:
-            api_key = (
-                self.company_id.sudo().gelato_api_key
-            )  # In sudo mode to read on the company.
+            api_key = self.company_id.sudo().gelato_api_key
             data = utils.make_request(
                 api_key, "order", "v4", f"orders/{gelato_order_id}", method="DELETE"
             )

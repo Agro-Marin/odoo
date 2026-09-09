@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Project Task export template -->
     <record id="project_task_export_template_line_sale_line_id" model="ir.exports.line">
         <field name="export_id" ref="project.project_task_export_template" />
         <field name="name">sale_line_id</field>
     </record>
 
-    <!-- Product template export template -->
     <record id="services_template_export_template" model="ir.exports">
         <field name="name">Services</field>
         <field name="resource">product.template</field>

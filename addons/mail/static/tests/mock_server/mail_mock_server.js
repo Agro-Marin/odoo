@@ -22,7 +22,7 @@ const mockRpcRegistry = registry.category("mail.mock_rpc");
 export const DISCUSS_ACTION_ID = 104;
 
 /**
- * @template [T={}]
+ * @template
  * @typedef {import("@web/../tests/web_test_helpers").RouteCallback<T>} RouteCallback
  */
 const { DateTime } = luxon;

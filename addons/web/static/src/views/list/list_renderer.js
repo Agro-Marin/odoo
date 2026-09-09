@@ -79,72 +79,9 @@ const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) =>
  * @typedef {import("./list_column_utils").Column} Column
  * @typedef {"up" | "down" | "left" | "right"} Direction
  * @typedef {ViewProps & {
- * list: DynamicList | StaticList;
- * archInfo?: any;
- * editable?: any;
- * cycleOnTab?: boolean;
- * allowSelectors?: boolean;
- * [key: string]: any;
- * }} ListRendererProps
  * @typedef {{
- * getProps: () => ListRendererProps;
- * getEnv: () => any;
- * getColumns: () => Column[];
- * getAllColumns: () => Column[];
- * getFields: () => Record<string, object>;
- * getGridState: () => import("./list_grid_state").ListGridState;
- * getEditedRecord: () => any;
- * getOptionalActiveFields: () => Record<string, boolean>;
- * getAllowSelectors: () => boolean;
- * getCanCreate: () => boolean;
- * getDisplayRowCreates: () => boolean;
- * getControls: () => any[];
- * getSel: () => any;
- * getVirtualization: () => import("./list_virtualization").ListVirtualization | undefined;
- * canResequence: () => boolean;
- * toggleRecordSelection: (record: object) => void;
- * onToggleGroup: (group: object) => void;
- * onAdd: (params?: object) => void;
- * onOpenRecord: (record: object) => void;
- * onDeleteRecord: (record: object) => void;
- * onEditNextRecord: (record: object, group?: object) => any;
- * onSave: () => void;
- * findFocusFutureCell: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | null;
- * isInlineEditable: (record: object) => boolean;
- * isCellReadonly: (column: Column, record: object) => boolean;
- * expandCheckboxes: (record: object, direction: "up" | "down") => boolean;
- * setKeyboardNavigation: (active: boolean) => void;
- * }} ListGridContext
  * @typedef {{
- * isEditing: boolean;
- * canSelectRecord: boolean;
- * }} ListRowFlags
  * @typedef {{
- * getRowClass: (record: RelationalRecord) => string;
- * getColumns: (record: RelationalRecord) => Column[];
- * evalInvisible: (invisible: string, record: RelationalRecord) => boolean;
- * canUseFormatter: (column: Column, record: RelationalRecord) => boolean;
- * getFormattedValue: (column: Column, record: RelationalRecord) => any;
- * getCellClass: (column: Column, record: RelationalRecord) => string;
- * getCellTitle: (column: Column, record: RelationalRecord, formattedValue?: string) => string | undefined;
- * getFieldClass: (column: Column) => string;
- * getFieldProps: (record: RelationalRecord, column: Column) => object;
- * displayDeleteIcon: (record: RelationalRecord) => boolean;
- * onCellClicked: (record: RelationalRecord, column: Column, ev: PointerEvent, newWindow?: boolean) => any;
- * onButtonCellClicked: (record: RelationalRecord, column: Column, ev: PointerEvent) => any;
- * onRemoveCellClicked: (record: RelationalRecord, ev: PointerEvent) => any;
- * onCellKeydown: (ev: KeyboardEvent, group?: Group | null, record?: object | null) => any;
- * toggleRecordSelection: (record: any) => any;
- * onRowTouchStart: (record: RelationalRecord, ev: TouchEvent) => void;
- * onRowTouchEnd: (record: RelationalRecord) => void;
- * onRowTouchMove: (record: RelationalRecord) => void;
- * onClickCapture: (record: RelationalRecord, ev: PointerEvent) => void;
- * ignoreEventInSelectionMode: (ev: MouseEvent) => void;
- * getGridState: () => import("./list_grid_state").ListGridState;
- * getEditedRecord: () => any;
- * displaySaveNotification: () => void;
- * markRowRender: (recordId: string) => void;
- * }} ListRowApi
  */
 
 export class ListRenderer extends Component {
@@ -170,9 +107,7 @@ export class ListRenderer extends Component {
     };
     static defaultProps = { allowSelectors: false, cycleOnTab: true };
 
-    /**
-     * @type {Record<string, string>}
-     */
+    /** @type {Record<string, string>} */
     tooltipInfoByColumn = {};
 
     /** @type {import("./list_renderer").ListGridContext} */
@@ -249,9 +184,7 @@ export class ListRenderer extends Component {
         this.setupLayoutAndFocus();
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     setupServices() {
         useRenderCounter("list.ListRenderer");
         this._displaySaveNotification = this.displaySaveNotification.bind(this);
@@ -273,9 +206,7 @@ export class ListRenderer extends Component {
         this.tableRef = useRef("table");
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     setupSharedContexts() {
         /** @type {import("./list_renderer").ListGridContext} */
         this.gridContext = this.buildGridContext();
@@ -284,9 +215,7 @@ export class ListRenderer extends Component {
         this.rowApi = this.buildRowApi();
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     setupRowInteractions() {
         this.sel = useListSelection(this.gridContext, {
             longTouchThreshold: /** @type {typeof ListRenderer} */ (this.constructor)
@@ -338,9 +267,7 @@ export class ListRenderer extends Component {
         onWillRender(() => this.syncRenderState());
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     setupLayoutAndFocus() {
         this.state = useState({ showGroupInput: false });
         let dataRowId;
@@ -430,9 +357,7 @@ export class ListRenderer extends Component {
         });
     }
 
-    /**
-     * @returns {Column[]}
-     */
+    /** @returns {Column[]} */
     getVisibleOptionalColumns() {
         return this.allColumns.filter(
             (col) => col.optional && !this.evalColumnInvisible(col.column_invisible),
@@ -497,9 +422,7 @@ export class ListRenderer extends Component {
         return getRowComponentClass(this.constructor);
     }
 
-    /**
-     * @param {any} record
-     */
+    /** @param {any} record */
     resolveRowRecord(record) {
         if (!record || typeof record !== "object") {
             return record;
@@ -507,16 +430,12 @@ export class ListRenderer extends Component {
         return this.gridState.findRowByRecordId(String(record.id))?.record ?? record;
     }
 
-    /**
-     * @param {any} group
-     */
+    /** @param {any} group */
     toggleGroup(group) {
         return this.groupOps.toggleGroup(group);
     }
 
-    /**
-     * @param {any} group
-     */
+    /** @param {any} group */
     resolveRowGroup(group) {
         if (!group || typeof group !== "object") {
             return group;
@@ -524,9 +443,7 @@ export class ListRenderer extends Component {
         return this.gridState.findRowByGroupId(String(group.id))?.group ?? group;
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async restoreEditionFocus() {
         await Promise.resolve();
         if (status(this) === "destroyed") {
@@ -560,9 +477,7 @@ export class ListRenderer extends Component {
         this.nav.resolvePendingVirtFocus();
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     syncRenderState() {
         this.editedRecord = this.props.list.editedRecord;
         this.rowFlags.isEditing = this.props.list.isEditing;
@@ -608,9 +523,7 @@ export class ListRenderer extends Component {
         perfMeasure("list:virt.refresh", "list:virt.refresh:start");
     }
 
-    /**
-     * @returns {import("./list_renderer").ListGridContext}
-     */
+    /** @returns {import("./list_renderer").ListGridContext} */
     buildGridContext() {
         return {
             getProps: () => this.props,
@@ -647,9 +560,7 @@ export class ListRenderer extends Component {
         };
     }
 
-    /**
-     * @returns {import("./list_renderer").ListRowApi}
-     */
+    /** @returns {import("./list_renderer").ListRowApi} */
     buildRowApi() {
         const rec = (/** @type {any} */ r) => this.resolveRowRecord(r);
         const grp = (/** @type {any} */ g) => this.resolveRowGroup(g);
@@ -734,9 +645,7 @@ export class ListRenderer extends Component {
         return columns;
     }
 
-    /**
-     * @param {string} recordId
-     */
+    /** @param {string} recordId */
     markRowRender(recordId) {
         if (!this._renderedRowIds) {
             return;
@@ -748,9 +657,7 @@ export class ListRenderer extends Component {
         }
     }
 
-    /**
-     * @param {string} recordId
-     */
+    /** @param {string} recordId */
     clearRecordCaches(recordId) {
         this._readonlyCache?.delete(recordId);
     }
@@ -781,9 +688,7 @@ export class ListRenderer extends Component {
         this.nav.focusCell(column, forward);
     }
 
-    /**
-     * @param {HTMLElement} el
-     */
+    /** @param {HTMLElement} el */
     focus(el) {
         this.nav.focus(el);
     }
@@ -868,9 +773,7 @@ export class ListRenderer extends Component {
         }
     }
 
-    /**
-     * @param {RelationalRecord} _record
-     */
+    /** @param {RelationalRecord} _record */
     getColumns(_record) {
         return this.columns;
     }
@@ -897,9 +800,7 @@ export class ListRenderer extends Component {
         return this.isX2Many && this.canCreate;
     }
 
-    /**
-     * @param {RelationalRecord} record
-     */
+    /** @param {RelationalRecord} record */
     displayDeleteIcon(record) {
         return !evaluateBooleanExpr(this.deleteControl.invisible, record.evalContext);
     }
@@ -1004,9 +905,7 @@ export class ListRenderer extends Component {
         this.agg.openMultiCurrencyPopover(ev, value, fieldName);
     }
 
-    /**
-     * @param {RelationalRecord} record
-     */
+    /** @param {RelationalRecord} record */
     async onDeleteRecord(record) {
         if (this.editedRecord && this.editedRecord !== record) {
             const left = await this.props.list.leaveEditMode();
@@ -1028,9 +927,7 @@ export class ListRenderer extends Component {
         return this.nav.findFocusFutureCell(cell, cellIsInGroupRow, direction);
     }
 
-    /**
-     * @param {RelationalRecord} _record
-     */
+    /** @param {RelationalRecord} _record */
     isInlineEditable(_record) {
         return !!this.props.editable;
     }
@@ -1164,9 +1061,7 @@ export class ListRenderer extends Component {
         return list.toggleSelection();
     }
 
-    /**
-     * @param {RelationalRecord} record
-     */
+    /** @param {RelationalRecord} record */
     toggleRecordSelection(record) {
         if (!this.canSelectRecord) {
             return;
@@ -1174,16 +1069,12 @@ export class ListRenderer extends Component {
         this.sel.toggleSelection(record, this.sel.shiftKeyMode);
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     toggleOptionalField(fieldName) {
         this.opt.toggleOptionalField(fieldName, () => this.render());
     }
 
-    /**
-     * @param {string} groupId
-     */
+    /** @param {string} groupId */
     toggleOptionalFieldGroup(groupId) {
         this.opt.toggleOptionalFieldGroup(groupId, () => this.render());
     }
@@ -1193,9 +1084,7 @@ export class ListRenderer extends Component {
         this.debugOpenView = this.opt.debugOpenView;
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onGlobalClick(ev) {
         if (!(this.props.list.editedRecord || this.state.showGroupInput)) {
             return;
@@ -1225,9 +1114,7 @@ export class ListRenderer extends Component {
         this.props.list.leaveEditMode();
     }
 
-    /**
-     * @param {boolean} active
-     */
+    /** @param {boolean} active */
     setKeyboardNavigation(active) {
         const tbody = this.tableRef.el?.querySelector("tbody");
         tbody?.classList.toggle("o_keyboard_navigation", active);
@@ -1237,9 +1124,7 @@ export class ListRenderer extends Component {
         return Boolean(odoo.debug);
     }
 
-    /**
-     * @param {Column} column
-     */
+    /** @param {Column} column */
     makeTooltip(column) {
         if (!column.relatedPropertyField && this.tooltipInfoByColumn[column.id]) {
             return this.tooltipInfoByColumn[column.id];
@@ -1264,23 +1149,17 @@ export class ListRenderer extends Component {
         this.sel.onRowTouchStart(record, ev);
     }
 
-    /**
-     * @param {RelationalRecord} _record
-     */
+    /** @param {RelationalRecord} _record */
     onRowTouchEnd(_record) {
         this.sel.onRowTouchEnd(_record);
     }
 
-    /**
-     * @param {RelationalRecord} _record
-     */
+    /** @param {RelationalRecord} _record */
     onRowTouchMove(_record) {
         this.sel.onRowTouchMove(_record);
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     ignoreEventInSelectionMode(ev) {
         this.sel.ignoreEventInSelectionMode(ev);
     }

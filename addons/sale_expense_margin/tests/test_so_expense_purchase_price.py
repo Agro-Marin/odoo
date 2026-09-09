@@ -7,7 +7,6 @@ from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 @tagged("-at_install", "post_install")
 class TestExpenseMargin(TestExpenseCommon):
     def test_expense_reinvoice_purchase_price(self):
-        # re-invoiceable products
         product_with_cost = self.product_a
         product_with_cost.write(
             {"standard_price": 1000, "expense_policy": "sales_price"}
@@ -15,7 +14,6 @@ class TestExpenseMargin(TestExpenseCommon):
         product_with_no_cost = self.product_c
         product_with_no_cost.write({"expense_policy": "sales_price"})
 
-        # create SO line and confirm SO (with only one line)
         sale_order = (
             self.env["sale.order"]
             .with_context(
@@ -46,7 +44,6 @@ class TestExpenseMargin(TestExpenseCommon):
         expense = self.create_expenses(
             [
                 {
-                    # expense with zero cost product, with 15% tax
                     "name": "expense_1",
                     "date": "2020-10-07",
                     "product_id": product_with_no_cost.id,
@@ -57,7 +54,6 @@ class TestExpenseMargin(TestExpenseCommon):
                     "sale_order_id": sale_order.id,
                 },
                 {
-                    # expense with zero cost product, with no tax
                     "name": "expense_2",
                     "date": "2020-10-07",
                     "product_id": product_with_no_cost.id,
@@ -66,7 +62,6 @@ class TestExpenseMargin(TestExpenseCommon):
                     "sale_order_id": sale_order.id,
                 },
                 {
-                    # expense with product with cost (1000), with 15% tax
                     "name": "expense_3",
                     "date": "2020-10-07",
                     "product_id": product_with_cost.id,
@@ -77,7 +72,6 @@ class TestExpenseMargin(TestExpenseCommon):
                     "sale_order_id": sale_order.id,
                 },
                 {
-                    # expense with product with cost (1000), with no tax
                     "name": "expense_4",
                     "date": "2020-10-07",
                     "product_id": product_with_cost.id,
@@ -89,13 +83,12 @@ class TestExpenseMargin(TestExpenseCommon):
         ).sorted("name")
 
         expense.action_submit()
-        expense._do_approve()  # Skip duplicate wizard
+        expense._do_approve()
         self.post_expenses_with_wizard(expense)
 
         self.assertAlmostEqual(sale_order.line_ids[0].purchase_price, 1000.0)
         self.assertFalse(sale_order.line_ids[0].is_expense)
 
-        # Expense Lines
         for line, expected_purchase_price in zip(
             sale_order.line_ids[1:], [86.96, 100.0, 869.5666667, 1000.0], strict=True
         ):

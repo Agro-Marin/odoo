@@ -278,9 +278,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
         }
         this.props.editRecord(record);
     }
-    /**
-     * @param {boolean} fire
-     */
+    /** @param {boolean} fire */
     cancelPendingClick(fire) {
         browser.clearTimeout(this.clickTimeoutId);
         this.clickTimeoutId = null;
@@ -362,9 +360,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
         super.onDayCellDidMount(info);
         this.injectMobileWeekNumber(info);
     }
-    /**
-     * @param {Object} info
-     */
+    /** @param {Object} info */
     injectMobileWeekNumber(info) {
         if (
             !this.env.isSmall ||

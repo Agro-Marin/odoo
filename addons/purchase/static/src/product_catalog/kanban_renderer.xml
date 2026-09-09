@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <templates xml:space="preserve">
-    <!--
-        Inherits the *product catalog* renderer, not `web.KanbanRenderer`. Both
-        happen to change only the no-content helper today, so the two produced
-        the same DOM - but inheriting the wrong base meant any second change to
-        product's catalog template would silently never reach purchase.
-    -->
     <t t-name="purchase.ProductCatalogKanbanRenderer" t-inherit="ProductCatalogKanbanRenderer" t-inherit-mode="primary">
         <xpath expr="//div[hasclass('o_nocontent_help')]" position="replace">
             <div class="o_nocontent_help">

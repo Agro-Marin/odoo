@@ -6,9 +6,7 @@
         &.o_priority_star {
             background-color: transparent;
             font-size: 1.35em;
-            // Font Awesome 7 tells the filled and outlined star apart by weight,
-            // not by codepoint: the outline lost its own glyph (\f006).
-            &.fa-regular.fa-star {
+                                  &.fa-regular.fa-star {
                 color: #a8a8a8;
                 &:hover {
                     color: gold;

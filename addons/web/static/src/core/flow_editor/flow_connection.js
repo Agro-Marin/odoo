@@ -11,10 +11,9 @@ import { Component } from "@odoo/owl";
 
 /**
  * @typedef FlowConnectionProps
- * @property {string} className extra classes a consumer maps onto its own domain
+ * @property {string} className
  * @property {import("./geometry/connections").FlowConnectionGeometry} geometry
- * @property {string} label drawn at the connection's midpoint; a domain's own
- *  annotation of the edge, which the editor never authors and never reads
+ * @property {string} label
  * @property {(params: FlowConnectionClickParams) => void} onClick
  * @property {boolean} selected
  */

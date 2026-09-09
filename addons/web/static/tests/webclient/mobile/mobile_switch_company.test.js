@@ -29,9 +29,7 @@ describe.current.tags("mobile");
 const clickConfirm = () =>
     contains(".o_switch_company_menu_buttons button:first").click();
 
-/**
- * @param {number} index
- */
+/** @param {number} index */
 const toggleCompany = async (index) =>
     contains(`[data-company-id] [role=menuitemcheckbox]:eq(${index})`).click();
 

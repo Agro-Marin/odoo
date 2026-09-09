@@ -11,9 +11,7 @@ describe.current.tags("headless");
 const SECRET = "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b";
 const S_PENDING = Symbol("pending");
 
-/**
- * @param {Promise<any>} promise
- */
+/** @param {Promise<any>} promise */
 function promiseState(promise) {
     return Promise.race([promise, Promise.resolve(S_PENDING)]).then(
         (value) =>
@@ -25,9 +23,7 @@ function promiseState(promise) {
 }
 
 describe("invalidateByModel scopes pending requests by table too", () => {
-    /**
-     * @param {string[]} invalidatedTables
-     */
+    /** @param {string[]} invalidatedTables */
     async function secondFallbackRan(invalidatedTables) {
         const cache = new RPCCache("mock", 1, SECRET);
         const inFlight = new Deferred();

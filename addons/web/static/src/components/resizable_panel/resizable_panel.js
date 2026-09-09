@@ -41,9 +41,7 @@ export class ResizablePanel extends Component {
         });
     }
 
-    /**
-     * @returns {Record<string, boolean>}
-     */
+    /** @returns {Record<string, boolean>} */
     get class() {
         const classes = mergeClasses(this.props.class);
         const positioned = Object.keys(classes).some(

@@ -38,9 +38,7 @@ export class ViewController extends Component {
 
     setupInteractions() {}
 
-    /**
-     * @returns {{ action: Object[], print: Object[] }}
-     */
+    /** @returns {{ action: Object[], print: Object[] }} */
     get actionMenuItems() {
         return buildActionMenuItems(
             this.getStaticActionMenuItems(),
@@ -48,23 +46,17 @@ export class ViewController extends Component {
         );
     }
 
-    /**
-     * @returns {Record<string, Object>}
-     */
+    /** @returns {Record<string, Object>} */
     getStaticActionMenuItems() {
         return {};
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get archiveDialogProps() {
         return {};
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get deleteConfirmationDialogProps() {
         return {};
     }
@@ -75,8 +67,6 @@ export class ViewController extends Component {
      */
     async beforeExecuteActionButton(clickParams) {}
 
-    /**
-     * @param {any} clickParams
-     */
+    /** @param {any} clickParams */
     async afterExecuteActionButton(clickParams) {}
 }

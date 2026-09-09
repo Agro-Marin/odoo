@@ -11,7 +11,7 @@ export class ProjectRightSidePanelSection extends Component {
         slots: {
             type: Object,
             shape: {
-                default: Object, // Content is not optional
+                default: Object,
                 header: { type: Object, optional: true },
                 title: { type: Object, optional: true },
             },
@@ -43,7 +43,6 @@ export class ProjectRightSidePanelSection extends Component {
 
     toggleSection() {
         if (!this.env.isSmall || !this.props.canBeClosed) {
-            // then no need to change the value.
             this.state.isClosed = false;
         } else {
             this.state.isClosed = !this.state.isClosed;

@@ -159,15 +159,11 @@ export class ColorPicker extends Component {
     root;
     /** @type {any[]} */
     tabs = [];
-    /**
-     * @type {string[][]}
-     */
+    /** @type {string[][]} */
     defaultColors = DEFAULT_COLORS;
     /** @type {Record<string, string[]>} */
     grayscales = DEFAULT_GRAYSCALES;
-    /**
-     * @type {string[]}
-     */
+    /** @type {string[]} */
     themeColorVars = [];
     /** @type {string | false | undefined} */
     defaultColorSet;

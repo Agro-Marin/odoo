@@ -8,10 +8,6 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _timesheet_domain_get_invoiced_lines(self, sale_line_delivery):
-        """Get the domain for the timesheet to link to the created invoice
-        :param sale_line_delivery: recordset of sale.order.line to invoice
-        :return a normalized domain
-        """
         return [
             ("so_line", "in", sale_line_delivery.ids),
             ("project_id", "!=", False),

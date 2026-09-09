@@ -14,7 +14,7 @@ import { Component } from "@odoo/owl";
  * @typedef FlowPortProps
  * @property {boolean} connected
  * @property {import("./flow_types").FlowNodeId} nodeId
- * @property {number} offset fraction of the node's height, from its top edge
+ * @property {number} offset
  * @property {(params: FlowPortPointerDownParams) => void} onPointerDown
  * @property {import("./flow_types").FlowPort} port
  * @property {"valid" | "invalid"} [validation]

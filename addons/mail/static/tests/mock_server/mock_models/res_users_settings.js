@@ -2,7 +2,7 @@ import { fields, getKwArgs, webModels } from "@web/../tests/web_test_helpers";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { patch } from "@web/core/utils/patch";
 /**
- * @template T
+ * @template
  * @typedef {import("@web/../tests/web_test_helpers").KwArgs<T>} KwArgs
  */
 

@@ -33,8 +33,6 @@ class ProjectProject(models.Model):
     def _get_costs_items_from_purchase(
         self, domain, profitability_items, with_action=True
     ):
-        """This method is used in sale_project and project_purchase. Since project_account is the only common module (except project), we create the method here."""
-        # calculate the cost of bills without a purchase order
         account_move_lines = (
             self.env["account.move.line"]
             .sudo()
@@ -51,7 +49,6 @@ class ProjectProject(models.Model):
             )
         )
         if account_move_lines:
-            # Get conversion rate from currencies to currency of the current company
             amount_invoiced = amount_to_invoice = 0.0
             for move_line in account_move_lines:
                 line_balance = move_line.company_currency_id._convert(
@@ -59,7 +56,6 @@ class ProjectProject(models.Model):
                     to_currency=self.currency_id,
                     date=move_line.date,
                 )
-                # an analytic account can appear several time in an analytic distribution with different repartition percentage
                 analytic_contribution = (
                     sum(
                         percentage
@@ -70,9 +66,8 @@ class ProjectProject(models.Model):
                 )
                 if move_line.parent_state == "draft":
                     amount_to_invoice -= line_balance * analytic_contribution
-                else:  # move_line.parent_state == 'posted'
+                else:
                     amount_invoiced -= line_balance * analytic_contribution
-            # don't display the section if the final values are both 0 (bill -> vendor credit)
             if amount_invoiced != 0 or amount_to_invoice != 0:
                 costs = profitability_items["costs"]
                 section_id = "other_purchase_costs"
@@ -163,20 +158,9 @@ class ProjectProject(models.Model):
         return super().action_profitability_items(section_name, domain, res_id)
 
     def _get_domain_aal_with_no_move_line(self):
-        """this method is used in order to overwrite the domain in sale_timesheet module. Since the field 'project_id' is added to the "analytic line" model
-        in the hr_timesheet module, we can't add the condition ('project_id', '=', False) here."""
         return [("account_id", "=", self.account_id.id), ("move_line_id", "=", False)]
 
     def _get_aal_categories_with_their_own_section(self):
-        """Analytic-line categories another profitability section already counts.
-
-        A module that adds a `category` to `account.analytic.line` and reports
-        it under a heading of its own extends this, so the "other" section
-        below does not count the same line a second time. Naming those values
-        here instead would be this module reading its own extensions'
-        vocabulary, and the selection does not even carry them until the module
-        that adds them is installed.
-        """
         return []
 
     def _get_items_from_aal(self, with_action=True):
@@ -199,7 +183,6 @@ class ProjectProject(models.Model):
                 "revenues": {"data": [], "total": {"invoiced": 0.0, "to_invoice": 0.0}},
                 "costs": {"data": [], "total": {"billed": 0.0, "to_bill": 0.0}},
             }
-        # dict of form  { company : {costs : float, revenues: float}}
         dict_amount_per_currency_id = defaultdict(
             lambda: {"costs": 0.0, "revenues": 0.0}
         )
@@ -232,8 +215,6 @@ class ProjectProject(models.Model):
                 dict_amounts["costs"], self.currency_id, self.company_id
             )
 
-        # we dont know what part of the numbers has already been billed or not, so we have no choice but to put everything under the billed/invoiced columns.
-        # The to bill/to invoice ones will simply remain 0
         profitability_sequence_per_invoice_type = (
             self._get_profitability_sequence_per_invoice_type()
         )

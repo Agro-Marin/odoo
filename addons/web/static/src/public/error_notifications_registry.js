@@ -4,9 +4,7 @@
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 
-/**
- * @type {import("registries").ErrorNotificationsRegistryItemShape}
- */
+/** @type {import("registries").ErrorNotificationsRegistryItemShape} */
 export const sessionExpired = {
     title: _t("Odoo Session Expired"),
     message: _t(
@@ -22,9 +20,7 @@ export const sessionExpired = {
     ],
 };
 
-/**
- * @type {import("registries").ErrorNotificationsRegistryItemShape}
- */
+/** @type {import("registries").ErrorNotificationsRegistryItemShape} */
 export const forbidden = {
     title: _t("Access Denied"),
     message: _t("You do not have permission to perform this operation."),

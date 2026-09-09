@@ -8,9 +8,7 @@ import { uniqueId } from "@web/core/utils/functions";
 import { effect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 
-/**
- * @param {(record: any, props?: any) => void | Promise<void>} callback
- */
+/** @param {(record: any, props?: any) => void | Promise<void>} callback */
 export function useRecordObserver(callback) {
     const component = useComponent();
     let currentId;

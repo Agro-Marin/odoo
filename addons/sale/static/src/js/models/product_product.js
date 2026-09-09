@@ -23,16 +23,12 @@ export class ProductProduct {
         this.description = description;
     }
 
-    /**
-     * @return {ProductTemplateAttributeLine[]}
-     */
+    /** @return {ProductTemplateAttributeLine[]} */
     get noVariantPtals() {
         return this.ptals.filter((ptal) => ptal.create_variant === "no_variant");
     }
 
-    /**
-     * @return {Number}
-     */
+    /** @return {Number} */
     get selectedNoVariantPtavsPriceExtra() {
         return this.noVariantPtals.reduce(
             (price, ptal) => price + ptal.selectedPtavsPriceExtra,
@@ -40,25 +36,19 @@ export class ProductProduct {
         );
     }
 
-    /**
-     * @return {Number[]}
-     */
+    /** @return {Number[]} */
     get selectedPtavIds() {
         return this.ptals.flatMap((ptal) => ptal.selected_ptavs).map((ptav) => ptav.id);
     }
 
-    /**
-     * @return {Number[]}
-     */
+    /** @return {Number[]} */
     get selectedNoVariantPtavIds() {
         return this.noVariantPtals
             .flatMap((ptal) => ptal.selected_ptavs)
             .map((ptav) => ptav.id);
     }
 
-    /**
-     * @return {{id: Number, value: String}[]}
-     */
+    /** @return {{id: Number, value: String}[]} */
     get selectedCustomPtavs() {
         return this.ptals
             .map((ptal) => ptal.selectedCustomPtav)

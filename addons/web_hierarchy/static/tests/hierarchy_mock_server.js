@@ -1,10 +1,6 @@
 import { beforeEach } from "@odoo/hoot";
 import { onRpc } from "@web/../tests/web_test_helpers";
 
-/**
- * Mirror of `Base.hierarchy_read` (web_hierarchy/models/models.py). Keep the two
- * in step: a double that answers a different question tests nothing.
- */
 function hierarchyRead({ model, args, kwargs }) {
     const [domain, specification, parentFieldName, childFieldName, order, onlyRoots] =
         args;
@@ -49,9 +45,6 @@ function hierarchyRead({ model, args, kwargs }) {
     if (childFieldName) {
         return records;
     }
-    // When the view is focused on one record, the records that are the parent of
-    // another record of the set already display their children, so they need no
-    // child ids.
     const parentResIds = records
         .filter((rec) => rec[parentFieldName])
         .map((rec) => rec[parentFieldName].id);
@@ -75,5 +68,4 @@ function hierarchyRead({ model, args, kwargs }) {
     return records;
 }
 
-// See esm-migration note: register at runtime so the route applies per test.
 beforeEach(() => onRpc("hierarchy_read", hierarchyRead), { global: true });

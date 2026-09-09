@@ -27,8 +27,6 @@ GROUP_SEND_BATCH_SIZE = 500
 
 
 class MailGroup(models.Model):
-    """A mailing list, fed by email through its alias and optionally moderated."""
-
     _name = "mail.group"
     _description = "Mail Group"
     _inherit = ["mixin.mail.alias"]
@@ -281,7 +279,6 @@ class MailGroup(models.Model):
             raise ValidationError(_('The "Authorized Group" is missing.'))
 
     def _alias_get_creation_values(self):
-        """Return the default values for the automatically created alias."""
         values = super()._alias_get_creation_values()
         values["alias_model_id"] = self.env["ir.model"]._get("mail.group").id
         values["alias_force_thread_id"] = self.id
@@ -297,7 +294,6 @@ class MailGroup(models.Model):
         self.is_closed = False
 
     def _alias_get_error(self, message, message_dict, alias):
-        """Return the error barring ``message``'s sender from the list, or None."""
         self.check_singleton()
 
         email = email_normalize(message_dict.get("email_from", ""))
@@ -334,11 +330,6 @@ class MailGroup(models.Model):
     def message_post(
         self, body="", subject=None, email_from=None, author_id=None, **kwargs
     ):
-        """Post ``body`` on the group and return the ``mail.message`` it created.
-
-        The group is not a ``mixin.mail.thread``, so this drives the whole flow itself:
-        the message, the ``mail.group.message`` wrapping it, and the moderation.
-        """
         self.check_singleton()
         Mailthread = self.env["mixin.mail.thread"]
         values = dict(
@@ -434,7 +425,6 @@ class MailGroup(models.Model):
         return mail_message
 
     def action_send_guidelines(self, members=None):
-        """Send guidelines to given members."""
         self.check_singleton()
 
         if not self.env.is_admin() and not self.is_moderator:
@@ -492,7 +482,6 @@ class MailGroup(models.Model):
         _logger.info("Send guidelines to %i members", len(members))
 
     def _notify_members(self, message):
-        """Send the given message to all members of the mail group (except the author)."""
         self.check_singleton()
 
         if message.mail_group_id != self:
@@ -510,8 +499,6 @@ class MailGroup(models.Model):
             email_normalize(member.email): member.email for member in self.member_ids
         }
 
-        # the same parameter mail.mail reads for its own batching, and the same
-        # itertools.batched at the end of it
         batch_size = self.env["ir.config_parameter"]._get_positive_int_param(
             "mail.session.batch.size", GROUP_SEND_BATCH_SIZE
         )
@@ -588,7 +575,6 @@ class MailGroup(models.Model):
         return moderated_groups._notify_moderators()
 
     def _notify_moderators(self):
-        """Push a notification (Inbox / Email) to the moderators whose an action is waiting."""
         template = self.env.ref(
             "mail_group.mail_group_notify_moderation", raise_if_not_found=False
         )
@@ -634,7 +620,6 @@ class MailGroup(models.Model):
 
     @api.model
     def _clean_email_body(self, body_html):
-        """Strip the mailing footer an incoming reply quoted back at us."""
         tree = lxml.html.fromstring(body_html or "")
         xpath_footer = ".//div[contains(@id, 'o_mg_message_footer')]"
         for parent_footer in tree.xpath(xpath_footer + "/.."):
@@ -645,7 +630,6 @@ class MailGroup(models.Model):
 
     @api.model
     def _routing_check_route(self, message, message_dict, route, raise_exception=True):
-        """Bounce the incoming emails if the group is closed."""
         if route[0] == "mail.group" and self.browse(route[1]).is_closed:
             body = self.env["ir.qweb"]._render(
                 "mail_group.email_template_mail_group_closed"
@@ -720,13 +704,6 @@ class MailGroup(models.Model):
             self.action_send_guidelines(member)
 
     def _leave_group(self, email, partner_id=None, all_members=False):
-        """Remove the given email / partner from the group.
-
-        If the "all_members" parameter is set to True, remove all members with the given
-        email address (multiple members might have the same email address).
-
-        Otherwise, remove the most appropriate.
-        """
         self.check_singleton()
         if all_members and not partner_id:
             self.env["mail.group.member"].search(
@@ -741,7 +718,6 @@ class MailGroup(models.Model):
                 member.unlink()
 
     def _send_subscribe_confirmation_email(self, email):
-        """Send an email to the given address to subscribe / unsubscribe to the mailing list."""
         self.check_singleton()
         confirm_action_url = self._generate_action_url(email, "subscribe")
 
@@ -811,10 +787,6 @@ class MailGroup(models.Model):
         return hmac(self.env(su=True), "mail_group-email-subscription", data)
 
     def _generate_email_access_token(self, email):
-        """Return an unsubscribe token bound to ``email``, so it frees no other.
-
-        :param str email: normalized email
-        """
         return tools.hmac(
             self.env(su=True), "mail_group-access-token-portal-email", (self.id, email)
         )
@@ -842,12 +814,6 @@ class MailGroup(models.Model):
         return result.get(self.id)
 
     def _get_members(self, email, partner_id):
-        """Return ``{group_id: mail.group.member}`` over ``self``, for one email.
-
-        One email can match several members, since ``res.partner.email`` is not
-        unique. The order picks one: with a partner given, the member carrying it
-        wins over the partner-less one; without, the partner-less one wins.
-        """
         order = "partner_id ASC"
         if not email_normalize(email):
             return {}

@@ -15,9 +15,7 @@ const SERVER_ROWS = {
     99: { id: 99, display_name: "Rec 99" },
 };
 
-/**
- * @param {{ resIds?: number[], deleted?: Set<number> }} [options]
- */
+/** @param {{ resIds?: number[], deleted?: Set<number> }} [options] */
 function makeList({ resIds = [], deleted = new Set() } = {}) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },

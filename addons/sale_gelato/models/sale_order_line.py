@@ -4,8 +4,6 @@ from odoo import api, models
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
-    # === CRUD METHODS === #
-
     @api.model_create_multi
     def create(self, vals_list):
         order_lines = super().create(vals_list)

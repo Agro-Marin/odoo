@@ -15,9 +15,7 @@ import {
     refreshBreadcrumbDisplayNames,
 } from "@web/webclient/actions/breadcrumb_manager";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
     /** @type {{ restore: string[], stateToUrl: (Record<string, any> | undefined)[] }} */
     const calls = { restore: [], stateToUrl: [] };

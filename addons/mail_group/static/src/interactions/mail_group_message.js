@@ -22,8 +22,6 @@ export class MailGroupMessage extends Interaction {
     setup() {
         this.isShown = true;
 
-        // By default hide the mention of the previous email for which we reply
-        // And add a button "Read more" to show the mention of the parent email
         const quoted = this.el.querySelectorAll(".card-body *[data-o-mail-quote]");
         if (quoted.length > 0) {
             const readMore = document.createElement("button");
@@ -36,9 +34,7 @@ export class MailGroupMessage extends Interaction {
         }
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     async onReadMoreClick(ev) {
         const data = await this.waitFor(
             rpc(ev.target.getAttribute("href"), {

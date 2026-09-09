@@ -28,6 +28,5 @@ class ProjectTask(models.Model):
         res = super().write(vals)
 
         if "step_id" in vals:
-            # sudo as sms template model is protected
             self.sudo()._send_sms()
         return res

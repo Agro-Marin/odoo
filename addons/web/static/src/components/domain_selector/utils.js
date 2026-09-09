@@ -37,9 +37,7 @@ export function getDefaultDomain(fieldDefs) {
     return domainFromTree(getDefaultCondition(fieldDefs));
 }
 
-/**
- * @returns {(resModel: string) => Promise<string>}
- */
+/** @returns {(resModel: string) => Promise<string>} */
 export function useGetDefaultLeafDomain() {
     const fieldService = useService("field");
     return async (resModel) => {

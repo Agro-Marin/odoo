@@ -10,9 +10,7 @@ describe.current.tags("desktop");
 
 const COLORS = { done: "success", blocked: "danger" };
 
-/**
- * @param {Record<string, any>} [opts]
- */
+/** @param {Record<string, any>} [opts] */
 function makeGroup({ id = "g1", value = "a", count = 3, records = [] } = {}) {
     return {
         id,
@@ -25,9 +23,7 @@ function makeGroup({ id = "g1", value = "a", count = 3, records = [] } = {}) {
     };
 }
 
-/**
- * @param {Record<string, any>} [opts]
- */
+/** @param {Record<string, any>} [opts] */
 function makeModel({ groups = [makeGroup()], readProgressBar } = {}) {
     /** @type {Record<string, Function[]>} */
     const hooks = {};
@@ -71,9 +67,7 @@ function makeModel({ groups = [makeGroup()], readProgressBar } = {}) {
     };
 }
 
-/**
- * @param {Record<string, any>} [opts]
- */
+/** @param {Record<string, any>} [opts] */
 async function mountProgressBar({
     model = makeModel(),
     aggregateFields = [],

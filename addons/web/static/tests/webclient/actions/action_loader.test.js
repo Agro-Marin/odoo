@@ -12,12 +12,10 @@ import {
     resolveClientAction,
 } from "@web/webclient/actions/action_loader";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 /**
  * @param {Record<string, any>} [overrides]
- * @returns {any} the action-manager surface preprocessAction/makeController reach
+ * @returns {any}
  */
 function makeFakeAm(overrides = {}) {
     let id = 0;

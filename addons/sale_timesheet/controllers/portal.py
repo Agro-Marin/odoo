@@ -60,10 +60,8 @@ class PortalProjectAccount(PortalAccount, ProjectCustomerPortal):
             page, date_begin, date_end, sortby, filterby, domain=domain
         )
 
-        # pager
         pager = portal_pager(**values["pager"])
 
-        # content according to pager and archive selected
         invoices = values["invoices"](pager["offset"])
         request.session["my_invoices_history"] = [
             i["invoice"].id for i in invoices[:100]

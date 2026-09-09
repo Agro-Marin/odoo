@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { PeriodWindow } from "../search_types" */
-
 import { Domain } from "@web/core/domain";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
@@ -197,9 +195,7 @@ function getOptionsWithDescriptions(OPTIONS) {
     return options;
 }
 
-/**
- * @type {WeakMap<object, {referenceMoment: any, options: readonly Record<string, any>[]}>}
- */
+/** @type {WeakMap<object, {referenceMoment: any, options: readonly Record<string, any>[]}>} */
 const PERIOD_OPTIONS_CACHE = new WeakMap();
 
 /**
@@ -363,9 +359,7 @@ function getSetParam(periodOption, referenceMoment) {
     return setParam;
 }
 
-/**
- * @type {Record<string, number>}
- */
+/** @type {Record<string, number>} */
 const INTERVAL_RANKS = Object.fromEntries(
     Object.keys(BACKEND_INTERVAL_OPTIONS).map((id, index) => [id, index]),
 );
@@ -378,9 +372,7 @@ export function rankInterval(intervalOptionId) {
     return intervalOptionId in INTERVAL_RANKS ? INTERVAL_RANKS[intervalOptionId] : -1;
 }
 
-/**
- * @param {Record<string, any>[]} options
- */
+/** @param {Record<string, any>[]} options */
 function sortPeriodOptions(options) {
     options.sort((/** @type {any} */ o1, /** @type {any} */ o2) => {
         const granularity1 = o1.granularity;

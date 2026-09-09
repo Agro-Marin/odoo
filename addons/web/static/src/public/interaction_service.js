@@ -47,13 +47,9 @@ export class InteractionService {
         /** @type {PreparedRoot[]} */
         this.roots = [];
         this.owlApp = null;
-        /**
-         * @type {Promise<any>[]}
-         */
+        /** @type {Promise<any>[]} */
         this.proms = [];
-        /**
-         * @type {Set<unknown>}
-         */
+        /** @type {Set<unknown>} */
         this.pendingErrors = new Set();
         this.droppedErrorCount = 0;
         /** @type {WeakSet<Object>} */
@@ -63,7 +59,7 @@ export class InteractionService {
     }
 
     /**
-     * @template T
+     * @template
      * @param {() => T} fn
      * @returns {T}
      */
@@ -446,9 +442,7 @@ export class InteractionService {
         );
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     stopDisconnectedInteractions() {
         this.stopMatching(
             (interaction) => !interaction.el?.isConnected,
@@ -457,9 +451,7 @@ export class InteractionService {
         );
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     get isReady() {
         return Promise.allSettled(this.proms.slice()).then(() => {
             const errors = this.pendingErrors;

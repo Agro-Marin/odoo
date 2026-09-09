@@ -213,9 +213,7 @@ class Contains {
         this.executeError = undefined;
     }
 
-    /**
-     * @returns {Promise}
-     */
+    /** @returns {Promise} */
     run() {
         this.done = false;
         this.def = makeDeferred();
@@ -299,9 +297,7 @@ class Contains {
         }
     }
 
-    /**
-     * @param {HTMLElement} el
-     */
+    /** @param {HTMLElement} el */
     executeAction(el) {
         let message = this.successMessage;
         if (this.options.click) {
@@ -405,9 +401,7 @@ class Contains {
         this.def?.resolve();
     }
 
-    /**
-     * @returns {HTMLElement[]|undefined}
-     */
+    /** @returns {HTMLElement[]|undefined} */
     select() {
         const target = this.selectParent();
         if (!target) {
@@ -515,9 +509,7 @@ class Contains {
         return res;
     }
 
-    /**
-     * @returns {Element|undefined}
-     */
+    /** @returns {Element|undefined} */
     selectParent() {
         if (this.options.parent) {
             this.parentContains = new Contains(this.options.parent[0], {

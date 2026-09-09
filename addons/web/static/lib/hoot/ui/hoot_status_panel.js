@@ -12,7 +12,6 @@ import { HootTestPath } from "./hoot_test_path.js";
 /**
  * @typedef {import("../core/runner").Runner} Runner
  * @typedef {{
- * }} HootStatusPanelProps
  */
 
 const {
@@ -26,9 +25,7 @@ const {
 /** @type {Performance["now"]} */
 const $now = performance.now.bind(performance);
 
-/**
- * @param {HTMLCanvasElement | null} canvas
- */
+/** @param {HTMLCanvasElement | null} canvas */
 function setupCanvas(canvas) {
     if (!canvas) {
         return;
@@ -45,9 +42,7 @@ function randInt(min, max) {
     return $floor($random() * (max - min + 1)) + min;
 }
 
-/**
- * @param {string} content
- */
+/** @param {string} content */
 function spawnIncentive(content) {
     const incentive = document.createElement("div");
     const params = [
@@ -72,9 +67,7 @@ function spawnIncentive(content) {
     document.querySelector("hoot-container").shadowRoot.appendChild(incentive);
 }
 
-/**
- * @param {boolean} failed
- */
+/** @param {boolean} failed */
 function updateTitle(failed) {
     const toAdd = failed ? TITLE_PREFIX.fail : TITLE_PREFIX.pass;
     let title = getTitle();
@@ -243,9 +236,7 @@ export class HootStatusPanel extends Component {
         onWillRender(this.updateProgressBar.bind(this));
     }
 
-    /**
-     * @param {typeof this.uiState.statusFilter} status
-     */
+    /** @param {typeof this.uiState.statusFilter} status */
     filterResults(status) {
         this.uiState.resultsPage = 0;
         if (this.uiState.statusFilter === status) {
@@ -260,9 +251,7 @@ export class HootStatusPanel extends Component {
         return $max($floor((totalResults - 1) / resultsPerPage), 0);
     }
 
-    /**
-     * @param {Runner} runner
-     */
+    /** @param {Runner} runner */
     globalCleanup(runner) {
         if (!runner.headless) {
             this.stopTimer();
@@ -279,9 +268,7 @@ export class HootStatusPanel extends Component {
         }
     }
 
-    /**
-     * @param {Runner} runner
-     */
+    /** @param {Runner} runner */
     globalSetup(runner) {
         this.state.debug = runner.debug;
     }

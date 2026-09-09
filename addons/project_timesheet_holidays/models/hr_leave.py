@@ -14,10 +14,6 @@ class HrLeave(models.Model):
         return super()._apply_leave_request()
 
     def _generate_timesheets(self, ignored_resource_calendar_leaves=None):
-        """Timesheet will be generated on leave validation
-        internal_project_id and leave_timesheet_task_id are used.
-        The generated timesheet will be attached to this project/task.
-        """
         vals_list = []
         leave_ids = []
         calendar_leaves_data = self.env["resource.calendar.leaves"]._read_group(
@@ -53,7 +49,7 @@ class HrLeave(models.Model):
                     hours = leave.request_hour_to - leave.request_hour_from
                 elif leave.request_unit_half:
                     hours = calendar.hours_per_day / 2
-                else:  # Single-day leave
+                else:
                     hours = calendar.hours_per_day
                 work_hours_data = [(leave_date, hours)]
             else:
@@ -84,7 +80,6 @@ class HrLeave(models.Model):
                     )
                 )
 
-        # Unlink previous timesheets to avoid doublon (shouldn't happen on the interface but meh). Necessary when the function is called to regenerate timesheets.
         old_timesheets = (
             self.env["account.analytic.line"]
             .sudo()
@@ -136,7 +131,6 @@ class HrLeave(models.Model):
             global_leaves._generate_public_time_off_timesheets(self.employee_id)
 
     def action_refuse(self):
-        """Remove the timesheets linked to the refused holidays"""
         result = super().action_refuse()
         timesheets = self.sudo().mapped("timesheet_ids")
         timesheets.write({"holiday_id": False})
@@ -154,14 +148,12 @@ class HrLeave(models.Model):
 
     def _force_cancel(self, *args, **kwargs):
         super()._force_cancel(*args, **kwargs)
-        # override this method to reevaluate timesheets after the leaves are updated via force cancel
         timesheets = self.sudo().timesheet_ids
         timesheets.holiday_id = False
         timesheets.unlink()
 
     def write(self, vals):
         res = super().write(vals)
-        # reevaluate timesheets after the leaves are wrote in order to remove empty timesheets
         timesheet_ids_to_remove = []
         for leave in self:
             if leave.number_of_days == 0 and leave.sudo().timesheet_ids:

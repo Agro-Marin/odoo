@@ -11,8 +11,6 @@ export class UnsplashBeacon extends Interaction {
         const unsplashImageEls = this.el.querySelectorAll("img[src*='/unsplash/']");
         const unsplashImageIds = [];
         for (const unsplashImageEl of unsplashImageEls) {
-            // extract the image id from URL
-            // (`http://www.domain.com:1234/unsplash/xYdf5feoI/lion.jpg` -> `xYdf5feoI`)
             unsplashImageIds.push(
                 unsplashImageEl.src.split("/unsplash/")[1].split("/")[0],
             );

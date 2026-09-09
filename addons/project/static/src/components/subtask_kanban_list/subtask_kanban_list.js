@@ -33,10 +33,6 @@ export class SubtaskKanbanList extends Component {
     }
 
     get openSubtasks() {
-        // Recompute on every render: a subtask toggling to done/canceled does
-        // not change the record count, so a count-keyed cache would keep the
-        // now-closed subtask in the open list. `records`/`data.state` are
-        // reactive, so OWL re-renders when a child's state changes.
         return this.list.records.filter(
             (subtask) => !["done", "canceled"].includes(subtask.data.state),
         );
@@ -78,8 +74,6 @@ export class SubtaskKanbanList extends Component {
 
     async _onSubtaskCreateNameChanged(name) {
         if (this._createInFlight) {
-            // A second change event (e.g. blur racing the SAVE button) must
-            // not create the subtask twice.
             return;
         }
         if (name.trim() === "") {
@@ -104,7 +98,6 @@ export class SubtaskKanbanList extends Component {
             {
                 display_name: name,
                 parent_id: this.props.record.resId,
-                // Private parent task: project_id is false, not a record.
                 project_id: this.props.record.data.project_id?.id ?? false,
                 user_ids: this.props.record.data.user_ids.resIds,
                 sequence: nextSequence,

@@ -37,9 +37,7 @@ export class SubcontractingPortalWebClient extends Component {
         });
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onGlobalClick(ev) {
         if (
             ev.ctrlKey &&

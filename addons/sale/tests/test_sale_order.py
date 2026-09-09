@@ -950,9 +950,6 @@ class TestSaleOrder(SaleCommon):
         )
 
     def test_track_finalize_discard_keeps_other_records_pending_tracking(self):
-        """A single order's discarded tracking must not wipe the shared
-        per-model precommit dict other orders in the same transaction still
-        have pending tracked-field changes in."""
         order_a, order_b = self.empty_order, self.sale_order
         tracking_key = f"mail.tracking.{order_a._name}"
         uid_key = f"mail.tracking.uid.{order_a._name}"
@@ -1037,8 +1034,6 @@ class TestSalesTeam(SaleCommon):
         )
 
     def test_compute_team_id_does_not_cross_companies(self):
-        """_compute_team_id must not fall back to a team in a different
-        company than the order's own (F32)."""
         root_company = self.env["res.company"].create({"name": "F32 root company"})
         root_company.write(
             {
@@ -1227,10 +1222,6 @@ class TestSalesTeam(SaleCommon):
         company_a = self.env["res.company"].create({"name": "A"})
         company_b = self.env["res.company"].create({"name": "B"})
         country = self.env["res.country"].search([], limit=1)
-        # Pin the country rather than letting it be computed. The subject here is
-        # a *company* mismatch; the group's country used to fall out of its own
-        # (countryless) company and now falls out of the acting one, which is not
-        # the country these taxes are created with.
         tax_group_a = self.env["account.tax.group"].create(
             {
                 "name": "A",
@@ -1360,8 +1351,6 @@ class TestSalesTeam(SaleCommon):
             self.sale_order.prepayment_percent = 1.01
 
     def test_action_view_source_sale_orders_single_order(self):
-        """action_view_source_sale_orders() must resolve the sale order form
-        view instead of raising when the xmlid is looked up (F10)."""
         self.sale_order.action_confirm()
         invoice = self.sale_order._create_invoices()
         action = invoice.action_view_source_sale_orders()
@@ -1518,9 +1507,6 @@ class TestSaleMailComposerUI(MailCommon, HttpCase):
 
 @tagged("post_install", "-at_install")
 class TestResPartnerViewGroups(SaleCommon):
-    """sale's inherits of account/payment partner views must ADD their own
-    group instead of replacing the base view's groups= wholesale (F03/F04)."""
-
     def _combined_groups(self, xmlid, node_xpath):
         view = self.env.ref(xmlid)
         arch = view._get_combined_arch()
@@ -1564,10 +1550,6 @@ class TestResPartnerViewGroups(SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestAccountMoveSaleCustomerInvoiceDomain(SaleCommon):
-    """The sale_customer_invoice_id domain must combine BOTH the partner
-    filter and the move_id/move_type filter when partner_id is set, not
-    silently drop the latter to an operator-precedence bug (F01)."""
-
     def _get_field_node_domain(self, xmlid, field_name):
         view = self.env.ref(xmlid)
         arch = view._get_combined_arch()
@@ -1596,17 +1578,12 @@ class TestAccountMoveSaleCustomerInvoiceDomain(SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestAccountMoveComputeDepends(SaleCommon):
-    """Two computes read fields their @api.depends didn't list, so a write
-    to those fields alone left them stale (F12/F13)."""
-
     def test_compute_team_id_depends_on_company(self):
         AccountMove = self.env["account.move"]
         depends = self.env.registry.field_depends[AccountMove._fields["team_id"]]
         self.assertIn("company_id", depends)
 
     def test_compute_sale_warning_text_depends_on_commercial_parent(self):
-        """_compute_sale_warning_text reads partner_id.parent_id.* but its
-        @api.depends omitted both paths (F31)."""
         AccountMove = self.env["account.move"]
         depends = self.env.registry.field_depends[
             AccountMove._fields["sale_warning_text"]
@@ -1621,9 +1598,6 @@ class TestAccountMoveComputeDepends(SaleCommon):
         self.assertNotIn("company_id.account_storno", depends)
 
     def test_invoiced_amount_excludes_subsection_lines(self):
-        """_get_sale_order_invoiced_amount must exclude line_subsection rows
-        from the sum, same as the module's other display-type exclusion
-        list (F33)."""
         AccountMove = self.env["account.move"]
         source = inspect.getsource(AccountMove._get_sale_order_invoiced_amount)
         self.assertIn("line_subsection", source)
@@ -1631,10 +1605,6 @@ class TestAccountMoveComputeDepends(SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestPortalRulePermFlags(SaleCommon):
-    """The portal ir.rule perm_* flags must not silently grant write/create/
-    unlink at the rule level, even though the ACL currently blocks them too
-    (defense in depth, F05/F06)."""
-
     def test_portal_rules_deny_write_create_unlink(self):
         for xmlid in (
             "sale.sale_order_rule_portal",
@@ -1650,10 +1620,6 @@ class TestPortalRulePermFlags(SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestPriceHistoryWizardRule(SaleCommon):
-    """The price-history wizard models must be scoped to their own creator,
-    like the sibling wizards sale_advance_payment_inv/mass_cancel_orders
-    (F08)."""
-
     def test_wizard_is_scoped_to_its_creator(self):
         group = self.env.ref("sales_team.group_sale_salesman")
         user_a, user_b = self.env["res.users"].create(
@@ -1688,10 +1654,6 @@ class TestPriceHistoryWizardRule(SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestDownPaymentSectionLineLang(SaleCommon):
-    """_prepare_down_payment_section_line() must translate "Down Payments"
-    against the partner's language, not whatever the current env happens to
-    carry (F24)."""
-
     def test_section_name_uses_partner_lang(self):
         self.env["res.lang"]._activate_lang("es_419")
         self.sale_order.partner_id.lang = "es_419"
@@ -1703,9 +1665,6 @@ class TestDownPaymentSectionLineLang(SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestPaymentTermReadonly(SaleCommon):
-    """payment_term_id must become readonly once the order is done/cancelled,
-    like every sibling field in the same header group (F07)."""
-
     def test_payment_term_id_readonly_once_done(self):
         self.sale_order.action_confirm()
         self.assertEqual(self.sale_order.state, "done")
@@ -1719,10 +1678,6 @@ class TestPaymentTermReadonly(SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestSaleOrderLineDisplayName(SaleCommon):
-    """_compute_display_name()'s lang-switch truthiness check must keep
-    working after dropping the unused partner_lang dict it used to compute
-    (F26)."""
-
     def test_display_name_switches_lang_when_partner_has_one(self):
         self.env["res.lang"]._activate_lang("es_419")
         self.sale_order.partner_id.lang = "es_419"
@@ -1739,9 +1694,6 @@ class TestSaleOrderLineDisplayName(SaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestPaymentLinkWizardWarning(SaleCommon):
-    """The expired-quotation warning branch must still fire alongside the
-    prepayment-amount one, not have been silently dropped (F23)."""
-
     def test_expired_order_gets_warning_message(self):
         self.sale_order.date_validity = fields.Date.today() - timedelta(days=1)
         self.assertTrue(self.sale_order.is_expired)

@@ -43,9 +43,7 @@ export class KanbanCoverImageDialog extends Component {
         return Boolean(this.props.record.data[this.props.fieldName]);
     }
 
-    /**
-     * @param {Object[]} _
-     */
+    /** @param {Object[]} _ */
     onUpload([attachment]) {
         if (!attachment) {
             return;

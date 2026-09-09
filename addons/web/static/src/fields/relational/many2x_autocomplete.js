@@ -126,9 +126,7 @@ export class Many2XAutocomplete extends Component {
     keepLast;
     /** @type {any} */
     selectCreate;
-    /**
-     * @type {{ signature: string | null, names: Set<string> }}
-     */
+    /** @type {{ signature: string | null, names: Set<string> }} */
     emptySearchMemo = { signature: null, names: new Set() };
 
     setup() {
@@ -257,7 +255,6 @@ export class Many2XAutocomplete extends Component {
 
     /**
      * @param {{ name: string, limit: number, domain: any[], context: Object,
-     * specification?: Object }} params
      * @returns {Promise<Array<Object>>}
      */
     nameSearch({ name, limit, domain, context, specification }) {
@@ -459,9 +456,7 @@ export class Many2XAutocomplete extends Component {
         );
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     addNoRecordsSuggestion() {
         return !this.activeActions.createEdit && !this.props.quickCreate;
     }
@@ -631,7 +626,7 @@ export class Many2XAutocomplete extends Component {
  * @param {boolean} params.isToMany
  * @param {Function} [params.onClose]
  * @param {import("@odoo/owl").ComponentConstructor | null} [params.component]
- * @param {string} [params.size] left unset, the dialog's own default applies
+ * @param {string} [params.size]
  * @returns {Function}
  */
 export function useOpenMany2XRecord({

@@ -1,25 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @typedef {{
- * originalProperties: Map<string, PropertyDescriptor | undefined>;
- * skeleton: object;
- * extensions: Set<object>;
- * }} PatchDescription
- */
+/** @typedef {{ */
 
 /** @type {WeakMap<object, PatchDescription>} */
 const patchDescriptions = new WeakMap();
 
-/**
- * @type {WeakSet<object>}
- */
+/** @type {WeakSet<object>} */
 const usedExtensions = new WeakSet();
 
-/**
- * @type {Set<WeakRef<object>>}
- */
+/** @type {Set<WeakRef<object>>} */
 const patchedTargetRefs = new Set();
 
 /** @type {WeakSet<object>} */
@@ -71,8 +61,8 @@ function findAncestorPropertyDescriptor(objToPatch, key) {
 }
 
 /**
- * @template {Record<string, any>} T
- * @template {Partial<T>} U
+ * @template {Record<string, any>}
+ * @template {Partial<T>}
  * @param {T} objToPatch
  * @param {U & ThisType<T & U>} extension
  * @returns {() => void}
@@ -151,9 +141,7 @@ export function patch(objToPatch, extension) {
     };
 }
 
-/**
- * @returns {object[]}
- */
+/** @returns {object[]} */
 export function getPatchedTargets() {
     const targets = [];
     for (const ref of patchedTargetRefs) {

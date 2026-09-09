@@ -19,16 +19,11 @@ class SaleOrder(models.Model):
         domain="[('company_id', 'in', [False, company_id])]",
     )
 
-    # === COMPUTE METHODS ===#
-
-    # Do not make it depend on `company_id` field
-    # It is triggered manually by the _onchange_company_id below iff the SO has not been saved.
     def _compute_sale_order_template_id(self):
         for order in self:
             company_template = order.company_id.sale_order_template_id
             if company_template and order.sale_order_template_id != company_template:
                 if "website_id" in self._fields and order.website_id:
-                    # don't apply quotation template for order created via eCommerce
                     continue
                 order.sale_order_template_id = (
                     order.company_id.sale_order_template_id.id
@@ -82,11 +77,8 @@ class SaleOrder(models.Model):
         for order in self.filtered("sale_order_template_id"):
             order.journal_id = order.sale_order_template_id.journal_id
 
-    # === ONCHANGE METHODS ===#
-
     @api.onchange("company_id")
     def _onchange_company_id(self):
-        """Trigger quotation template recomputation on unsaved records company change"""
         super()._onchange_company_id()
         if self._origin.id:
             return
@@ -107,8 +99,6 @@ class SaleOrder(models.Model):
             for line in sale_order_template.sale_order_template_line_ids
         ]
 
-        # set first line to sequence -99, so a resequence on first page doesn't cause following page
-        # lines (that all have sequence 10 by default) to get mixed in the first page
         if len(order_lines_data) >= 2:
             order_lines_data[1][2]["sequence"] = -99
 
@@ -116,20 +106,10 @@ class SaleOrder(models.Model):
 
     @api.onchange("partner_id")
     def _onchange_partner_id(self):
-        """Reload template for unsaved orders with unmodified lines & orders."""
         if self._origin or not self.sale_order_template_id:
             return
 
         def line_eqv(line, t_line):
-            # Quantity cannot go through the shared name list: the two models
-            # spell it differently. `sale.order.line` keeps the writable quantity
-            # in `product_qty` (its `product_uom_qty` is the reference-UoM
-            # projection), while `sale.order.template.line` owns a plain
-            # `product_uom_qty` -- which is why
-            # `sale.order.template.line._prepare_order_line_values` maps one onto
-            # the other. Comparing `product_uom_qty` on both sides silently
-            # compared different things whenever a line's UoM was not the
-            # product's own.
             return (
                 line
                 and t_line
@@ -148,8 +128,6 @@ class SaleOrder(models.Model):
         if all(starmap(line_eqv, zip_longest(lines, t_lines))):
             self._onchange_sale_order_template_id()
 
-    # === ACTION METHODS ===#
-
     def _get_confirmation_template(self):
         self.check_singleton()
         return (
@@ -161,11 +139,8 @@ class SaleOrder(models.Model):
         res = super().action_confirm()
 
         if self.env.context.get("send_email"):
-            # Mail already sent in super method
             return res
 
-        # When an order is confirmed from backend (send_email=False), if the quotation template has
-        # a specified mail template, send it as it's probably meant to share additional information.
         for order in self:
             if order.sale_order_template_id.mail_template_id:
                 order._send_mail_order_notification(

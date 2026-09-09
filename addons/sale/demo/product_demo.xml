@@ -114,7 +114,6 @@
         <field name="invoice_policy">transferred</field>
     </record>
 
-    <!-- Expensable products -->
     <record id="product.expense_product" model="product.product">
         <field name="invoice_policy">ordered</field>
         <field name="expense_policy">sales_price</field>

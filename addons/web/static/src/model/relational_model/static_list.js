@@ -21,9 +21,6 @@ import { applyCommands } from "./static_list_command_engine.js";
 import { resequenceStaticList, sortBy, sortStaticList } from "./static_list_sort.js";
 import { copyRecordData, listId, pairCreatedRows } from "./static_list_utils.js";
 
-/** @import { DatapointId } from "@web/model/types" */
-/** @import { RelationalRecord } from "./record.js" */
-
 /**
  * @param {[number, any, any?][]} commands
  * @returns {[number, any, any?][]}
@@ -39,9 +36,7 @@ function cloneCommandsById(byId) {
     return new Map([...byId].map(([id, cmds]) => [id, cloneCommands(cmds)]));
 }
 
-/**
- * @type {Record<string, { clone: (value: any) => any, restore?: (list: any, value: any) => void }>}
- */
+/** @type {Record<string, { clone: (value: any) => any, restore?: (list: any, value: any) => void }>} */
 const RESTORABLE_STATE = {
     _commands: { clone: cloneCommands },
     _currentIds: { clone: (ids) => [...ids] },
@@ -77,21 +72,15 @@ export class StaticList extends EditableListDataPoint {
         this._cache = markRaw(new Map());
         this._commands = [];
         this._initialCommands = [];
-        /**
-         * @type {Promise<void> | null}
-         */
+        /** @type {Promise<void> | null} */
         this._commandsPromise = null;
         this._savePoint = undefined;
         /** @type {Map<DatapointId, [number, any, any?][]>} */
         this._unknownRecordCommands = new Map();
         this._loadingStubIds = new Set();
-        /**
-         * @type {boolean}
-         */
+        /** @type {boolean} */
         this._replayFailed = false;
-        /**
-         * @type {ListMembership}
-         */
+        /** @type {ListMembership} */
         this._membership = new ListMembership(this.resIds);
         this._needsReordering = false;
         this._extendedRecords = new Set();
@@ -160,16 +149,12 @@ export class StaticList extends EditableListDataPoint {
         return this.config.resIds ?? [];
     }
 
-    /**
-     * @returns {import("./record").RelationalRecord[]}
-     */
+    /** @returns {import("./record").RelationalRecord[]} */
     get selection() {
         return [];
     }
 
-    /**
-     * @returns {Promise<void> | null}
-     */
+    /** @returns {Promise<void> | null} */
     get pendingCommands() {
         return this._commandsPromise;
     }
@@ -184,9 +169,7 @@ export class StaticList extends EditableListDataPoint {
         return this._commands.length > 0;
     }
 
-    /**
-     * @returns {{ add: RelationalRecord[], remove: RelationalRecord[] }}
-     */
+    /** @returns {{ add: RelationalRecord[], remove: RelationalRecord[] }} */
     get stagedMembershipDelta() {
         const byOpcode = (/** @type {number} */ opcode) =>
             this._commands
@@ -265,9 +248,7 @@ export class StaticList extends EditableListDataPoint {
         });
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     canResequence() {
         return Boolean(
             this.handleField &&
@@ -512,9 +493,7 @@ export class StaticList extends EditableListDataPoint {
         );
     }
 
-    /**
-     * @param {RelationalRecord} record
-     */
+    /** @param {RelationalRecord} record */
     validateExtendedRecord(record) {
         return this.model.mutex.exec(async () => {
             if (!this._currentIds.includes(listId(record))) {
@@ -528,18 +507,14 @@ export class StaticList extends EditableListDataPoint {
         });
     }
 
-    /**
-     * @returns {(number|string)[]}
-     */
+    /** @returns {(number|string)[]} */
     _createCommandVirtualIds() {
         return this._commands
             .filter(([command]) => command === x2ManyCommands.CREATE)
             .map(([, virtualId]) => virtualId);
     }
 
-    /**
-     * @returns {{ createVirtualIds: (number|string)[], previousResIds: Set<any> }}
-     */
+    /** @returns {{ createVirtualIds: (number|string)[], previousResIds: Set<any> }} */
     snapshotCreateReconciliation() {
         return {
             createVirtualIds: this._createCommandVirtualIds(),
@@ -592,9 +567,7 @@ export class StaticList extends EditableListDataPoint {
         return this._membership.materialize(this._cache, this.offset, this.limit);
     }
 
-    /**
-     * @param {number} n
-     */
+    /** @param {number} n */
     _bumpLimit(n) {
         this._tmpIncreaseLimit += n;
         this.model.patchConfig(this.config, { limit: this.limit + n });
@@ -629,9 +602,7 @@ export class StaticList extends EditableListDataPoint {
         this._needsReordering = false;
     }
 
-    /**
-     * @param {{ withoutOnchange?: boolean }} [options]
-     */
+    /** @param {{ withoutOnchange?: boolean }} [options] */
     notifyParentUpdate(options) {
         return this._onUpdate(options);
     }
@@ -659,9 +630,7 @@ export class StaticList extends EditableListDataPoint {
         return newRecord;
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     snapshot() {
         /** @type {Record<string, any>} */
         const snapshot = { config: {} };
@@ -674,9 +643,7 @@ export class StaticList extends EditableListDataPoint {
         return markRaw(snapshot);
     }
 
-    /**
-     * @param {Record<string, any>} snapshot
-     */
+    /** @param {Record<string, any>} snapshot */
     restoreSnapshot(snapshot) {
         for (const [key, { clone, restore }] of Object.entries(RESTORABLE_STATE)) {
             const value = clone(snapshot[key]);
@@ -710,9 +677,7 @@ export class StaticList extends EditableListDataPoint {
         return applyCommands(this, commands, options);
     }
 
-    /**
-     * @param {any[]} serverValue
-     */
+    /** @param {any[]} serverValue */
     applyServerValues(serverValue) {
         if (!Array.isArray(serverValue)) {
             return;
@@ -739,9 +704,7 @@ export class StaticList extends EditableListDataPoint {
         this._trackCommandsPromise(this.applyCommandsLocked(commands, options));
     }
 
-    /**
-     * @param {Promise<void> | undefined} result
-     */
+    /** @param {Promise<void> | undefined} result */
     _trackCommandsPromise(result) {
         if (!result) {
             return;
@@ -926,9 +889,7 @@ export class StaticList extends EditableListDataPoint {
         /** @type {ListMembership} */ (this._membership).append(id);
     }
 
-    /**
-     * @param {(number | Record<string, any>)[]} serverValue
-     */
+    /** @param {(number | Record<string, any>)[]} serverValue */
     commitSave(serverValue) {
         if (!Array.isArray(serverValue)) {
             this.clearCommands();
@@ -1020,9 +981,7 @@ export class StaticList extends EditableListDataPoint {
         this._pruneExtendedRecords();
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     _pruneExtendedRecords() {
         if (!this._extendedRecords.size) {
             return;
@@ -1038,9 +997,7 @@ export class StaticList extends EditableListDataPoint {
         }
     }
 
-    /**
-     * @returns {Set<DatapointId>}
-     */
+    /** @returns {Set<DatapointId>} */
     _collectPinnedIds() {
         /** @type {Set<DatapointId>} */
         const pinnedIds = new Set();
@@ -1201,9 +1158,7 @@ export class StaticList extends EditableListDataPoint {
         this.model.patchConfig(this.config, { limit, offset, orderBy });
     }
 
-    /**
-     * @param {number[]} ids
-     */
+    /** @param {number[]} ids */
     async replaceWith(ids) {
         const resIds = ids.filter((id) => !this._cache.has(id));
         if (resIds.length) {

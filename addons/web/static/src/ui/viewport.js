@@ -14,33 +14,23 @@ export const MEDIAS_BREAKPOINTS = [
     { minWidth: 1400 },
 ];
 
-/**
- * @type {number[]}
- */
+/** @type {number[]} */
 const SIZE_THRESHOLDS = MEDIAS_BREAKPOINTS.map(({ minWidth }) => minWidth).filter(
     (minWidth) => minWidth !== undefined,
 );
 
-/**
- * @type {MediaQueryList[]}
- */
+/** @type {MediaQueryList[]} */
 let sharedMedias = [];
-/**
- * @type {((query: string) => MediaQueryList) | null}
- */
+/** @type {((query: string) => MediaQueryList) | null} */
 let sharedMatchMedia = null;
 
-/**
- * @returns {void}
- */
+/** @returns {void} */
 export function _resetMediaQueryLists() {
     sharedMatchMedia = null;
     sharedMedias = [];
 }
 
-/**
- * @returns {MediaQueryList[]}
- */
+/** @returns {MediaQueryList[]} */
 export function getMediaQueryLists() {
     if (sharedMatchMedia !== browser.matchMedia) {
         sharedMatchMedia = browser.matchMedia;

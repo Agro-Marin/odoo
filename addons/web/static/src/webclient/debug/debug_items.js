@@ -8,9 +8,7 @@ import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog
 import { openUnitTests, UNIT_TESTS_URL, unitTestsLabel } from "./debug_affordances.js";
 import { FieldWidgetsDialog } from "./field_widgets_dialog.js";
 
-/**
- * @returns {Object}
- */
+/** @returns {Object} */
 function runUnitTestsItem() {
     return {
         type: "item",

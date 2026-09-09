@@ -11,9 +11,7 @@ import {
 } from "./hooks/full_calendar_hook.js";
 
 export class CalendarRendererBase extends Component {
-    /**
-     * @param {{ el: HTMLElement, options: Record<string, any> }} params
-     */
+    /** @param {{ el: HTMLElement, options: Record<string, any> }} params */
     viewDidMount({ el, options }) {
         decorateFcViewMount({
             el,
@@ -35,16 +33,12 @@ export class CalendarRendererBase extends Component {
         return [];
     }
 
-    /**
-     * @param {{ date: any }} info
-     */
+    /** @param {{ date: any }} info */
     dayCellClass(info) {
         return withDayCellClassNames(info, this.getDayCellClassNames(info));
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     mapRecordsToEvents() {
         return Object.values(this.model.records).map((r) =>
             this.convertRecordToEvent(r),
@@ -70,9 +64,7 @@ export class CalendarRendererBase extends Component {
         return baseEventClassNames(this.model.records[event.id]);
     }
 
-    /**
-     * @param {{ el?: HTMLElement, date: any }} info
-     */
+    /** @param {{ el?: HTMLElement, date: any }} info */
     onDayCellDidMount(info) {
         const classes = this.getDayCellClassNames(info);
         if (classes.length && info.el) {
@@ -80,9 +72,7 @@ export class CalendarRendererBase extends Component {
         }
     }
 
-    /**
-     * @param {{ el: HTMLElement, event: { id: string } }} info
-     */
+    /** @param {{ el: HTMLElement, event: { id: string } }} info */
     onEventDidMount(info) {
         const { el, event } = info;
         const record = this.model.records[event.id];

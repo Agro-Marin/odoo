@@ -6,9 +6,7 @@ import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 const SHARE_TARGET_ACK_TIMEOUT = 5000;
 
-/**
- * @returns {Promise<File[] | null>}
- */
+/** @returns {Promise<File[] | null>} */
 const getShareTargetDataFromServiceWorker = () =>
     new Promise((resolve) => {
         const { serviceWorker } = browser.navigator;

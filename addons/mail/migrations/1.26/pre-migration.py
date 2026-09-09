@@ -6,13 +6,6 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# A method name written into stored Python is a binding no checkout
-# holds, whatever its leading underscore says. These are mail 1.26's renames.
-#
-# Three of the renames are deliberately absent. `_compute_im_status`,
-# `_compute_activity_summary` and `_default_activity_type` are still live names
-# on other models (res.users, marketing.activity, mixin.mail.activity), so a
-# body naming one of those is not necessarily naming mail's.
 RENAMES = (
     ("fetch_mail", "action_poll_mailbox"),
     ("_fetch_mails", "_poll_due_mailboxes"),
@@ -31,11 +24,6 @@ RENAMES = (
     ("_compute_error", "_compute_errors_and_warnings"),
 )
 
-# ir_act_server.code is what a cron and a user-written server action run;
-# ir_actions_server_history.code is the undo buffer a user can restore from,
-# and an entry left unrewritten is a body that fails on restore.
-# ir_model_fields.compute is not here: it holds a field's Python *body*, and
-# nothing in it calls a compute hook by name.
 CODE_COLUMNS = (
     ("ir_act_server", "code"),
     ("ir_actions_server_history", "code"),
@@ -58,9 +46,6 @@ def _table_exists(cr: Cursor, table: str) -> bool:
 
 
 def _rewrite(cr: Cursor, table: str, column: str, old: str, new: str) -> None:
-    # \m and \M are Postgres word boundaries, and _ is a word character there:
-    # _fetch_mail must not match inside _fetch_mails, nor _compute_error inside
-    # another module's _compute_error_message.
     pattern = rf"\m{old}\M"
     cr.execute(
         f"UPDATE {table} SET {column} = regexp_replace({column}, %s, %s, 'g')"

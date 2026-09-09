@@ -14,9 +14,7 @@ import {
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveElement } from "@web/core/utils/dom/ui";
 
-/**
- * @typedef {{ readonly el: HTMLElement | null; }} Ref
- */
+/** @typedef {{ readonly el: HTMLElement | null; }} Ref */
 
 /**
  * @param {Object} [params]
@@ -133,9 +131,7 @@ function _protectMethod(component, resolve) {
     };
 }
 
-/**
- * @type {WeakMap<string[], Set<PropertyKey>>}
- */
+/** @type {WeakMap<string[], Set<PropertyKey>>} */
 const guardedMethodSets = new WeakMap();
 
 /**
@@ -188,7 +184,7 @@ function makeGuardedView(component, observed, methods) {
 export const SERVICES_METADATA = {};
 
 /**
- * @template {keyof import("services").ServiceFactories} K
+ * @template {keyof import("services").ServiceFactories}
  * @param {K} serviceName
  * @returns {import("services").ServiceFactories[K]}
  */
@@ -198,7 +194,7 @@ export function useService(serviceName) {
 }
 
 /**
- * @template {keyof import("services").ServiceFactories} K
+ * @template {keyof import("services").ServiceFactories}
  * @param {K} serviceName
  * @returns {import("services").ServiceFactories[K] | null}
  */
@@ -307,9 +303,7 @@ export function useSyncedInputProperty(
     return sync;
 }
 
-/**
- * @returns {ForwardRef}
- */
+/** @returns {ForwardRef} */
 export function useChildRef() {
     let defined = false;
     /** @type {Ref} */
@@ -341,9 +335,7 @@ export function useForwardRefToParent(refName) {
     }
     return ref;
 }
-/**
- * @returns {(...args: any[]) => () => void}
- */
+/** @returns {(...args: any[]) => () => void} */
 export function useOwnedDialogs() {
     const dialogService = useService("dialog");
     const closers = new Set();

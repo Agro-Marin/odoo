@@ -91,9 +91,7 @@ export class CalendarModel extends Model {
                 `${serializeDateTime(data.range.start)},${serializeDateTime(data.range.end)},${JSON.stringify(this.meta.context ?? {})}`,
         );
     }
-    /**
-     * @param {Object} [params]
-     */
+    /** @param {Object} [params] */
     async load(params = {}) {
         const previousMeta = { ...this.meta };
         Object.assign(this.meta, params);
@@ -496,9 +494,7 @@ export class CalendarModel extends Model {
         return context;
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     async updateData(data) {
         data.range = this.computeRange();
         let unusualDaysProm;
@@ -561,9 +557,7 @@ export class CalendarModel extends Model {
         }
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     computeRange() {
         const { scale, date, firstDayOfWeek } = this.meta;
         return computeCalendarRange(scale, date, firstDayOfWeek, this.monthOverflow);
@@ -599,9 +593,7 @@ export class CalendarModel extends Model {
         }
         return aggregates;
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     computeDomain(data) {
         return [
             ...this.meta.domain,
@@ -609,15 +601,11 @@ export class CalendarModel extends Model {
             ...this.computeFiltersDomain(data),
         ];
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     computeFiltersDomain(data) {
         return computeFiltersDomain(data.filterSections, this.meta.filtersInfo);
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     computeRangeDomain(data) {
         return computeRangeDomain(
             this.meta.fieldMapping,
@@ -626,9 +614,7 @@ export class CalendarModel extends Model {
         );
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     fetchUnusualDays(data) {
         return this.orm.call(
             this.meta.resModel,
@@ -637,9 +623,7 @@ export class CalendarModel extends Model {
             { context: this.meta.context },
         );
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     async loadUnusualDays(data) {
         const unusualDays = await this._unusualDaysCache.read(data);
         return Object.entries(unusualDays)
@@ -647,9 +631,7 @@ export class CalendarModel extends Model {
             .map((entry) => entry[0]);
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     fetchRecords(data) {
         const { context, fieldNames, resModel } = this.meta;
         return this.orm.searchRead(
@@ -659,9 +641,7 @@ export class CalendarModel extends Model {
             { context },
         );
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     async loadRecords(data) {
         const rawRecords = await this.fetchRecords(data);
         const records = {};
@@ -684,18 +664,14 @@ export class CalendarModel extends Model {
         });
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     addFilterFields(record, filterInfo) {
         return {
             colorIndex: record.colorIndex,
         };
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     fetchFilters(/** @type {string} */ resModel, /** @type {string[]} */ fieldNames) {
         return this.orm.searchRead(
             resModel,
@@ -709,9 +685,7 @@ export class CalendarModel extends Model {
         return this.meta.scales.includes(localScaleId) ? localScaleId : this.meta.scale;
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     async loadFilters(data) {
         const previousSections = data.filterSections;
         const sections = {};
@@ -735,9 +709,7 @@ export class CalendarModel extends Model {
         await Promise.all(proms);
         return { sections, dynamicFiltersInfo };
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     async loadFilterSection(
         /** @type {string} */ fieldName,
         filterInfo,
@@ -793,9 +765,7 @@ export class CalendarModel extends Model {
             context: makeContext([filterInfo.context, this.meta.context]),
         };
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     async loadDynamicFilters(data, filtersInfo) {
         const sections = {};
         const proms = [];
@@ -815,9 +785,7 @@ export class CalendarModel extends Model {
         await Promise.all(proms);
         return sections;
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     async loadDynamicFilterSection(
         data,
         /** @type {string} */ fieldName,
@@ -865,9 +833,7 @@ export class CalendarModel extends Model {
         };
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     collectDynamicRawFilters(data, /** @type {string} */ fieldName, filterInfo) {
         const field = this.meta.fields[fieldName];
         const rawFiltersById = new Map();
@@ -944,9 +910,7 @@ export class CalendarModel extends Model {
         }
         return shouldFetchColor ? records : [];
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     makeFilterDynamic(
         filterInfo,
         previousFilter,
@@ -988,9 +952,7 @@ export class CalendarModel extends Model {
             hasAvatar: !!value,
         };
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     makeFilterRecord(filterInfo, previousFilter, rawRecord) {
         const { colorFieldName, filterFieldName, writeFieldName } = filterInfo;
         const { fields, fieldMapping } = this.meta;
@@ -1030,9 +992,7 @@ export class CalendarModel extends Model {
             hasAvatar: !!value,
         };
     }
-    /**
-     * @protected
-     */
+    /** @protected */
     makeFilterUser(
         filterInfo,
         previousFilter,

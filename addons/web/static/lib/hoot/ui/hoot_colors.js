@@ -8,9 +8,7 @@ import {
 } from "../../hoot-dom/hoot_dom_utils.js";
 import { STORAGE, storageGet, storageSet } from "../hoot_utils.js";
 
-/**
- * @typedef {"dark" | "light"} ColorScheme
- */
+/** @typedef {"dark" | "light"} ColorScheme */
 
 const {
     Object: { entries: $entries, keys: $keys },
@@ -67,16 +65,12 @@ export function getColorScheme() {
     return current.scheme;
 }
 
-/**
- * @param {(scheme: ColorScheme) => any} callback
- */
+/** @param {(scheme: ColorScheme) => any} callback */
 export function onColorSchemeChange(callback) {
     colorChangedCallbacks.push(callback);
 }
 
-/**
- * @param {HTMLElement | null} element
- */
+/** @param {HTMLElement | null} element */
 export function setColorRoot(element) {
     current.root = element;
 }

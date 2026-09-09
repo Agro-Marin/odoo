@@ -14,9 +14,7 @@ export function openUnitTests() {
     browser.open(UNIT_TESTS_URL);
 }
 
-/**
- * @param {string|number} debug
- */
+/** @param {string|number} debug */
 function setDebug(debug) {
     router.pushState({ debug }, { reload: true });
 }

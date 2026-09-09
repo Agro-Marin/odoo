@@ -5,9 +5,7 @@ import { findView, getActionMode } from "@web/webclient/actions/action_views";
 
 describe.current.tags("desktop");
 
-/**
- * @returns {any}
- */
+/** @returns {any} */
 function makeRegistry(entries = {}) {
     return {
         get(/** @type {string} */ key) {

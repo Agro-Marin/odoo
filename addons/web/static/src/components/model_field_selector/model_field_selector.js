@@ -45,9 +45,7 @@ export class ModelFieldSelector extends Component {
     /** @type {{ isInvalid: boolean; displayNames: never[] }} */
     state;
 
-    /**
-     * @type {string | null}
-     */
+    /** @type {string | null} */
     newPath = null;
 
     setup() {

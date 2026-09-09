@@ -74,7 +74,6 @@ class TestTaskPlanningFlow(TransactionCase):
 
     @freeze_time("2023-01-02")
     def test_default_allocated_hours_when_creating_tasks(self):
-        # Add allocated_hours to the task form view so that we can read its value
         form_view = self.env["ir.ui.view"].create(
             {
                 "name": "Test Form",
@@ -180,8 +179,6 @@ class TestTaskPlanningFlow(TransactionCase):
                 "allocated_hours": 4,
             }
         )
-        # Never read; it is the third overlapping task, and it is what makes
-        # task_B's count 2 rather than 1.
         self.env["project.task"].create(
             {
                 "name": "Fsm task 2",
@@ -215,7 +212,6 @@ class TestTaskPlanningFlow(TransactionCase):
         )
 
     def test_planned_date_consistency_for_tasks(self):
-        """This test ensures that a task can not have date start set, if its date end is False"""
         task_1 = self.env["project.task"].create(
             [
                 {
@@ -259,11 +255,6 @@ class TestTaskPlanningFlow(TransactionCase):
         self.assertEqual("2021-09-27", task_1.date_end.strftime("%Y-%m-%d"))
 
     def test_editing_task_planned_date(self):
-        """Check writing dates to a task:
-        - when writing to a single task, write dates as given
-        - when writing to multiple tasks, write dates as given if any task already had dates
-        - otherwise, modify dates according to assignee's or company's schedule
-        """
 
         def get_hours(task):
             return task.planned_date_begin.hour, task.date_end.hour
@@ -306,7 +297,6 @@ class TestTaskPlanningFlow(TransactionCase):
                     "name": "Task C - Planned",
                     "user_ids": (self.project_user + self.project_test_user).ids,
                     "project_id": self.project_test.id,
-                    # Wednesday 05:00:00 -> 10:00:00
                     "planned_date_begin": "2024-08-27 05:00:00",
                     "date_end": "2024-08-27 10:00:00",
                 },
@@ -321,7 +311,6 @@ class TestTaskPlanningFlow(TransactionCase):
 
         (task_A + task_C).write(
             {
-                # Monday 00:00:00 -> 23:59:59 CET
                 "planned_date_begin": "2024-08-26 00:00:00",
                 "date_end": "2024-08-26 23:59:59",
             }
@@ -334,7 +323,6 @@ class TestTaskPlanningFlow(TransactionCase):
 
         task_B.write(
             {
-                # Tuesday 16:00:00 -> 21:00:00 CET
                 "planned_date_begin": "2024-08-27 16:00:00",
                 "date_end": "2024-08-27 21:00:00",
             }
@@ -351,22 +339,12 @@ class TestTaskPlanningFlow(TransactionCase):
 
         tasks.write(
             {
-                # Tuesday 16:00:00 -> 22:00:00 CET
                 "planned_date_begin": "2024-08-27 16:00:00",
                 "date_end": "2024-08-27 22:00:00",
             }
         )
         self.assertListEqual(
             [get_hours(task) for task in tasks],
-            # Per the docstring above, each task follows its OWN assignee's
-            # schedule: task A's single assignee is on the company calendar
-            # (ending 17:00 UTC), task B's is on the 12:00-19:00 calendar built
-            # for this test, and task C has two assignees, which
-            # `_get_tasks_by_resource_calendar_dict` sends to the company
-            # calendar. This used to read [(16, 19)] * 3 -- one calendar's
-            # result on every task -- because write() computed the per-calendar
-            # grouping and then wrote a single shared `vals`, so whichever
-            # calendar came last in iteration order overwrote the rest.
             [(16, 17), (16, 19), (16, 17)],
             "Batched tasks should be planned using each assignee's schedule",
         )
@@ -449,12 +427,10 @@ class TestTaskPlanningFlow(TransactionCase):
                 "project_id": self.project_test.id,
             }
         )
-        # 1) Cancel a task which has no begin date or deadline
         task.state = "canceled"
         self.assertFalse(task.planned_date_begin, "The begin date should remain unset")
         self.assertFalse(task.date_end, "The deadline should remain unset")
 
-        # 2) Cancel a task which has only a deadline
         task.date_end = datetime.now() + relativedelta(hours=4)
         task.state = "canceled"
         self.assertFalse(task.planned_date_begin, "The begin date should remain unset")
@@ -464,7 +440,6 @@ class TestTaskPlanningFlow(TransactionCase):
             "The deadline should not have changed",
         )
 
-        # 3) Cancel a task which has both a begin date and a deadline, the begin date being prior than today's date (this is not a future task)
         task.planned_date_begin = datetime.now() - relativedelta(hours=1)
         task.state = "canceled"
         self.assertEqual(
@@ -478,7 +453,6 @@ class TestTaskPlanningFlow(TransactionCase):
             "The deadline should not have changed as this is not a future task",
         )
 
-        # 4) Cancel a task which has both a begin date and a deadline, the begin date being later than today's date (this is future task)
         task.planned_date_begin = datetime.now() + relativedelta(hours=1)
         task.state = "canceled"
         self.assertFalse(
@@ -618,10 +592,6 @@ class TestTaskPlanningFlow(TransactionCase):
         )
         self.assertEqual(task1.planned_date_begin, datetime(2021, 9, 23, 6, 0, 0))
         self.assertEqual(task1.date_end, datetime(2021, 9, 23, 15, 0, 0))
-        # The full day is 8 working hours.  Assert it on scheduled_hours, as
-        # test_default_allocated_hours_when_creating_tasks already does:
-        # allocated_hours is the reservation-derived commitment, and this
-        # assignee is a bare user with no employee, so nothing is committed.
         self.assertEqual(task1.scheduled_hours, 8)
 
         task2.plan_task_in_calendar(vals)

@@ -4,8 +4,6 @@ from odoo.addons.mail.tests.common import MailCommon
 
 
 class MailBotCommon(MailCommon):
-    """A user with a real OdooBot chat, and helpers to talk to it."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -23,7 +21,6 @@ class MailBotCommon(MailCommon):
         self.bot_user.sudo().write({"odoobot_state": state, "odoobot_failed": failed})
 
     def _say(self, body="", *, user=None, channel=None, context=None, **kwargs):
-        """Post as the user and return odoobot's answers, in id order."""
         user = user or self.bot_user
         channel = channel if channel is not None else self.bot_channel
         if context:

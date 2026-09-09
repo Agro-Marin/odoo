@@ -31,79 +31,14 @@ import { SpecialDataCache } from "./special_data_cache.js";
 import { StaticList } from "./static_list.js";
 import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
 
-/** @import { Context } from "@web/core/context" */
-/** @import { DomainListRepr } from "@web/core/domain" */
-/** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
-/** @import { ServiceFactories as Services } from "services" */
-/** @import { DataPoint } from "./datapoint.js" */
-
 /**
  * @typedef {{
- * changes?: Record<string, any>;
- * fieldNames?: string[];
- * evalContext?: any;
- * onError?: (error: unknown) => unknown;
- * cache?: Object;
- * [key: string]: any;
- * }} OnChangeParams
  * @typedef {SearchParams & {
- * fields: Record<string, Field>;
- * activeFields: Record<string, FieldInfo>;
- * fieldsToAggregate: string[];
- * isMonoRecord: boolean;
- * isRoot: boolean;
- * resIds?: number[];
- * mode?: "edit" | "readonly";
- * loadId?: string;
- * limit?: number;
- * offset?: number;
- * countLimit?: number;
- * groupsLimit?: number;
- * groups?: Record<string, unknown>;
- * currentGroups?: Record<string, unknown>;
- * openGroupsByDefault?: boolean;
- * extraDomain?: import("@web/core/domain").DomainListRepr;
- * isFolded?: boolean;
- * isGroupList?: boolean;
- * rawContext?: Record<string, unknown>;
- * [key: string]: any;
- * }} RelationalModelConfig
  * @typedef {{
- * config: RelationalModelConfig;
- * state?: RelationalModelState;
- * hooks?: { lifecycle?: Partial<LifecycleHooks>; ui?: Partial<UIHooks> };
- * limit?: number;
- * countLimit?: number;
- * groupsLimit?: number;
- * defaultOrderBy?: import("@web/core/utils/order_by").OrderTerm[];
- * maxGroupByDepth?: number;
- * multiEdit?: boolean;
- * groupByInfo?: Record<string, { activeFields: Record<string, FieldInfo>; fields: Record<string, Field> }>;
- * activeIdsLimit?: number;
- * useSendBeaconToSaveUrgently?: boolean;
- * canUseSampleModel?: boolean;
- * isAlive?: () => boolean;
- * }} RelationalModelParams
  * @typedef {{
- * config: RelationalModelConfig;
- * specialDataCaches: import("./special_data_cache.js").SpecialDataCache;
- * }} RelationalModelState
  */
 
-/**
- * @typedef {{
- * onWillLoadRoot: (config: RelationalModelConfig) => any;
- * onRootLoaded: (root: DataPoint) => any;
- * onWillSaveRecord: (record: RelationalRecord, changes: Record<string, unknown>) => any;
- * onRecordSaved: (record: RelationalRecord, changes: Record<string, unknown>) => any;
- * onWillSaveMulti: (record: RelationalRecord, changes: Object) => any;
- * onSavedMulti: (records: RelationalRecord[]) => any;
- * onWillSetInvalidField: (record: RelationalRecord, fieldName: string) => any;
- * onRecordChanged: (record: RelationalRecord, changes: Record<string, unknown>) => any;
- * onWillDisplayOnchangeWarning: (warning: Object) => any;
- * onAskMultiSaveConfirmation: (changes: Object, validRecords: RelationalRecord[]) => any;
- * }} LifecycleHooks
- */
+/** @typedef {{ */
 const DEFAULT_LIFECYCLE_HOOKS = /** @type {LifecycleHooks} */ ({
     onWillLoadRoot: () => {},
     onRootLoaded: () => {},
@@ -117,18 +52,7 @@ const DEFAULT_LIFECYCLE_HOOKS = /** @type {LifecycleHooks} */ ({
     onAskMultiSaveConfirmation: () => true,
 });
 
-/**
- * @typedef {{
- * onDisplayOnchangeWarning: (warning: {type: string, title: string, message: string, className?: string, sticky?: boolean}) => void;
- * onDisplayInvalidFields: () => (() => void);
- * onDisplayUrgentSave: (message: string) => (() => void);
- * onDisplayPropertyWarning: (message: string) => void;
- * onDisplayArchiveAction: (action: Object, reload: () => Promise<any>) => any;
- * onConfirmArchive: (archiveFn: Function, dialogProps?: Object) => void;
- * onConfirmDuplicate: (resIds: number[], copyFn: Function) => void;
- * onDisplayLimitNotification: (msg: string) => void;
- * }} UIHooks
- */
+/** @typedef {{ */
 const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
     onDisplayOnchangeWarning: () => {},
     onDisplayInvalidFields: () => () => {},
@@ -202,20 +126,14 @@ export class RelationalModel extends Model {
         this.initialSampleGroups = undefined;
         this.canUseSampleModel = Boolean(params.canUseSampleModel);
 
-        /**
-         * @type {UrgentSaveCoordinator}
-         */
+        /** @type {UrgentSaveCoordinator} */
         this.urgentSave = new UrgentSaveCoordinator(this.bus);
         /** @type {(() => void) | null} */
         this._closeUrgentSaveNotification = null;
-        /**
-         * @type {Deferred | null}
-         */
+        /** @type {Deferred | null} */
         this._rootLoadDef = null;
 
-        /**
-         * @type {Set<Promise<unknown>>}
-         */
+        /** @type {Set<Promise<unknown>>} */
         this._compoundUpdates = new Set();
     }
 
@@ -236,17 +154,13 @@ export class RelationalModel extends Model {
         return this.root.hasData;
     }
 
-    /**
-     * @returns {LifecycleHooks}
-     */
+    /** @returns {LifecycleHooks} */
     get lifecycleHooks() {
         return /** @type {{ lifecycle: LifecycleHooks, ui: UIHooks }} */ (this.hooks)
             .lifecycle;
     }
 
-    /**
-     * @returns {UIHooks}
-     */
+    /** @returns {UIHooks} */
     get uiHooks() {
         return /** @type {{ lifecycle: LifecycleHooks, ui: UIHooks }} */ (this.hooks)
             .ui;
@@ -260,9 +174,7 @@ export class RelationalModel extends Model {
         this._closeUrgentSaveNotification = this.uiHooks.onDisplayUrgentSave(message);
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     closeUrgentSaveNotification() {
         if (this._closeUrgentSaveNotification) {
             this._closeUrgentSaveNotification();
@@ -387,9 +299,7 @@ export class RelationalModel extends Model {
         return result;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get hasOnRecordChangedHook() {
         return (
             this.lifecycleHooks.onRecordChanged !==
@@ -424,7 +334,7 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * @template T
+     * @template
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}
      */
@@ -829,8 +739,6 @@ export class RelationalModel extends Model {
      * @param {RelationalModelConfig} config
      * @param {Partial<RelationalModelConfig>} patch
      * @param {{
-     * commit?: (data: Record<string, unknown>) => unknown;
-     * }} [options]
      */
     async reloadWithConfig(config, patch, { commit } = {}) {
         const tmpConfig = { ...config, ...patch };

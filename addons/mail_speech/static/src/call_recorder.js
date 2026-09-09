@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 
-/** Most preferred first. */
 const MIMETYPES = [
     "audio/webm;codecs=opus",
     "audio/ogg;codecs=opus",
@@ -114,10 +113,6 @@ export class CallRecorder {
     }
 
     _recordSegment() {
-        // A new recorder per segment, rather than one recorder given a
-        // timeslice: a timeslice emits blobs that share one container header,
-        // so only the first of them plays on its own, and a segment that
-        // cannot be played on its own is not a segment.
         if (!this.recording) {
             return;
         }

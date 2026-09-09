@@ -78,13 +78,7 @@ class TestProjectDashboardCommon(Common):
 
 
 class TestDashboardProject(TestProjectDashboardCommon):
-    """
-    This test ensures that the method get_sale_item_data compute correctly the data needed for the project_profitability sale sub section.
-    Since the data is different for the same input when the timesheet module is installed, those tests have to be run at_install
-    """
-
     def test_get_sale_item_data_various_sols(self):
-        """This test ensures that the sols are computed and put into the correct profitability sections"""
         sol_service_1, sol_service_2, sol_service_3, sol_service_4 = (
             self.dashboardSaleOrderLine.create(
                 [
@@ -117,8 +111,6 @@ class TestDashboardProject(TestProjectDashboardCommon):
                 "product_id",
             ]
         )
-        # The fork refuses to confirm an order with no lines, so the order
-        # is confirmed here instead of in setUpClass.
         self.dashboard_sale_order.action_confirm()
 
         sale_item_data = self.dashboard_project.get_sale_items_data(

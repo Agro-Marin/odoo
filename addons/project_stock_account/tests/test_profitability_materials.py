@@ -1,5 +1,3 @@
-"""Tests for the Materials line of project profitability (picking AALs)."""
-
 from odoo.tests import TransactionCase, tagged
 
 
@@ -27,11 +25,6 @@ class TestProfitabilityMaterials(TransactionCase):
         )
 
     def test_picking_aal_is_excluded_from_the_other_section(self):
-        """The Materials section counts it, so the generic one must not.
-
-        This is the half `project_account` cannot test: `picking_entry`
-        reaches the selection only once this module is installed.
-        """
         self._picking_aal(-75.0)
         self.assertIn(
             "picking_entry",
@@ -41,11 +34,9 @@ class TestProfitabilityMaterials(TransactionCase):
         self.assertEqual(items["costs"]["total"]["billed"], 0.0)
 
     def test_no_picking_aal_returns_false(self):
-        """Without picking analytic lines there is no Materials section."""
         self.assertFalse(self.project._get_items_from_aal_picking(with_action=False))
 
     def test_picking_aal_sums_into_materials_costs(self):
-        """Picking analytic lines aggregate into the other_costs item."""
         self._picking_aal(-75.0)
         self._picking_aal(-25.0)
         items = self.project._get_items_from_aal_picking(with_action=False)
@@ -55,7 +46,6 @@ class TestProfitabilityMaterials(TransactionCase):
         self.assertEqual(items[0]["to_bill"], 0.0)
 
     def test_materials_costs_merge_into_profitability(self):
-        """The Materials total lands in the project profitability costs."""
         self._picking_aal(-40.0)
         items = self.project._get_profitability_items(with_action=False)
         materials = [
@@ -65,5 +55,4 @@ class TestProfitabilityMaterials(TransactionCase):
         self.assertEqual(materials[0]["billed"], -40.0)
 
     def test_materials_label_registered(self):
-        """The other_costs label is exposed for the profitability report."""
         self.assertIn("other_costs", self.project._get_profitability_labels())

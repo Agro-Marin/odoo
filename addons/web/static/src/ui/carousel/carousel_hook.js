@@ -5,24 +5,13 @@ import { onWillDestroy, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { clamp } from "@web/core/utils/format/numbers";
 
-/**
- * @typedef {{
- * count: () => number;
- * startIndex?: number;
- * interval?: number;
- * wrap?: boolean;
- * }} CarouselParams
- */
+/** @typedef {{ */
 
-/**
- * @param {CarouselParams} params
- */
+/** @param {CarouselParams} params */
 export function useCarousel({ count, startIndex = 0, interval = 0, wrap = true }) {
     const stored = useState({ index: startIndex });
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     const activeIndex = () => {
         const total = count();
         return total <= 0 ? 0 : clamp(stored.index, 0, total - 1);

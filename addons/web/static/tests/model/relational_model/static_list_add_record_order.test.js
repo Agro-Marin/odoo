@@ -6,24 +6,9 @@ import { StaticList } from "@web/model/relational_model/static_list";
 
 const { SET, CLEAR, CREATE, UPDATE } = x2ManyCommands;
 
-/**
- * @typedef {{
- * virtualId: string | null,
- * resId: number | false,
- * data: Record<string, any>,
- * applyChanges?: () => void,
- * }} FakeRow
- */
+/** @typedef {{ */
 
-/**
- * @typedef {{
- * commands?: any[],
- * currentIds?: any[],
- * records?: FakeRow[],
- * limit?: number,
- * offset?: number,
- * }} EngineListParams
- */
+/** @typedef {{ */
 
 function makeEngineList(
     /** @type {EngineListParams} */ {

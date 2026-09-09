@@ -52,31 +52,16 @@ import { Test } from "./test.js";
 
 /**
  * @typedef {{
- *  aborted?: boolean;
- *  debug?: boolean;
- * }} AfterTestOptions
  * @typedef {import("../hoot_utils").ArgumentType} ArgumentType
  * @typedef {string | ((pass: boolean) => string)} AssertionMessage
  * @typedef {string | string[] | ((pass: boolean, raw: typeof String["raw"]) => string | string[])} AssertionReportMessage
  * @typedef {VerifierOptions & {
- *  timeout?: number;
- * }} AsyncVerifierOptions
  * @typedef {InteractionType | "assertion" | "error" | "step"} CaseEventType
  * @typedef {{ exact?: boolean }} ClassListOptions
  * @typedef {{ exact?: boolean; inline?: boolean }} DOMStyleOptions
  * @typedef {{
- *  headless: boolean;
- * }} ExpectBuilderParams
  * @typedef {{
- *  message?: AssertionMessage;
- *  not?: boolean;
- *  rejects?: boolean;
- *  resolves?: boolean;
- *  silent?: boolean;
- * }} ExpectOptions
  * @typedef {DeepEqualOptions & {
- *  message?: AssertionMessage;
- * }} VerifierOptions
  * @typedef {import("../hoot_utils").DeepEqualOptions} DeepEqualOptions
  * @typedef {import("../hoot_utils").Label} Label
  * @typedef {import("@odoo/hoot-dom").Dimensions} Dimensions
@@ -89,30 +74,18 @@ import { Test } from "./test.js";
  */
 
 /**
- * @template T
+ * @template
  * @typedef {T & ReturnType<Promise.withResolvers> & {
- *  options: VerifierOptions;
- *  timeout: number;
- * }} AsyncResolver
  */
 
 /**
- * @template [R=unknown]
- * @template [A=R]
+ * @template
+ * @template
  * @typedef {{
- *  acceptedType: ArgumentType | ArgumentType[];
- *  getFailedDetails: () => unknown[];
- *  mapElements: (received: Target) => ElementMap;
- *  message: AssertionMessage;
- *  name: string;
- *  onFail: AssertionReportMessage;
- *  onPass: AssertionReportMessage;
- *  predicate: () => boolean;
- * }} MatcherSpecifications
  */
 
 /**
- * @template T
+ * @template
  * @typedef {T | Iterable<T>} MaybeIterable
  */
 
@@ -133,9 +106,7 @@ const {
 /** @type {Performance["now"]} */
 const $now = performance.now.bind(performance);
 
-/**
- * @param {[string, unknown][]} entries
- */
+/** @param {[string, unknown][]} entries */
 function detailsFromEntries(entries) {
     const result = [];
     const expected = entries.at(-2);
@@ -149,23 +120,17 @@ function detailsFromEntries(entries) {
     return result;
 }
 
-/**
- * @param {...unknown} args
- */
+/** @param {...unknown} args */
 function detailsFromValues(...args) {
     return detailsFromEntries(args.map((arg) => [null, arg]));
 }
 
-/**
- * @param {...unknown} args
- */
+/** @param {...unknown} args */
 function detailsFromValuesWithDiff(...args) {
     return detailsFromValues(...args).concat(Markup.diff(...args));
 }
 
-/**
- * @param {Error} [error]
- */
+/** @param {Error} [error] */
 function formatError(error) {
     let strError = error ? String(error) : "";
     if (error?.cause) {
@@ -185,9 +150,7 @@ function formatMessage(message, plural, not) {
         .replaceAll(R_NOT, not ? "$2" : "$1");
 }
 
-/**
- * @param {Iterable<unknown> | Record<unknown, unknown>} object
- */
+/** @param {Iterable<unknown> | Record<unknown, unknown>} object */
 function getLength(object) {
     if (typeof object === "string" || $isArray(object)) {
         return object.length;
@@ -198,9 +161,7 @@ function getLength(object) {
     return $keys(object).length;
 }
 
-/**
- * @param {number} depth
- */
+/** @param {number} depth */
 function getStack(depth) {
     const error = new Error();
     if (!isFirefox()) {
@@ -252,7 +213,7 @@ function includes(object, item) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T[]} list
  * @param {string} separator
  * @param {string} [lastSeparator]
@@ -326,9 +287,7 @@ function r(template, ...substitutions) {
     return makeLabel(String.raw(template, ...substitutions), null);
 }
 
-/**
- * @param {string} method
- */
+/** @param {string} method */
 function scopeError(method) {
     return new HootError(`cannot call \`${method}()\` outside of a test`);
 }
@@ -383,9 +342,7 @@ let currentStack = "";
  * @returns {[typeof enrichedExpect, typeof expectHooks]}
  */
 export function makeExpect(params) {
-    /**
-     * @param {AfterTestOptions} [options]
-     */
+    /** @param {AfterTestOptions} [options] */
     function afterTest(options) {
         const { test } = currentResult;
 
@@ -547,9 +504,7 @@ export function makeExpect(params) {
         return result;
     }
 
-    /**
-     * @param {number} expected
-     */
+    /** @param {number} expected */
     function assertions(expected) {
         if (!currentResult) {
             throw scopeError("expect.assertions");
@@ -562,9 +517,7 @@ export function makeExpect(params) {
         currentResult.expectedAssertions = expected;
     }
 
-    /**
-     * @param {Test} test
-     */
+    /** @param {Test} test */
     function beforeTest(test) {
         if (test) {
             test.results.push(new CaseResult(test, params.headless));
@@ -670,9 +623,7 @@ export function makeExpect(params) {
         return pass;
     }
 
-    /**
-     * @param {number} expected
-     */
+    /** @param {number} expected */
     function errors(expected) {
         if (!currentResult) {
             throw scopeError("expect.errors");
@@ -700,9 +651,7 @@ export function makeExpect(params) {
         return !currentResultInErrorState;
     }
 
-    /**
-     * @param {CustomEvent<InteractionDetails>} event
-     */
+    /** @param {CustomEvent<InteractionDetails>} event */
     function onInteraction({ detail, type }) {
         if (!currentResult) {
             return;
@@ -711,9 +660,7 @@ export function makeExpect(params) {
         currentResult.registerEvent(type, detail);
     }
 
-    /**
-     * @param {unknown} value
-     */
+    /** @param {unknown} value */
     function step(value) {
         if (!currentResult) {
             throw scopeError("expect.step");
@@ -816,7 +763,7 @@ export function makeExpect(params) {
     }
 
     /**
-     * @template [R=unknown]
+     * @template
      * @param {R} received
      */
     function expect(received) {
@@ -917,9 +864,7 @@ export class CaseResult {
         this.currentSteps = [];
     }
 
-    /**
-     * @param {CaseEventType} type
-     */
+    /** @param {CaseEventType} type */
     getEvents(type) {
         const nType = typeof type === "number" ? type : CASE_EVENT_TYPES[type].value;
         return this.events.filter((event) => event.type & nType);
@@ -989,9 +934,9 @@ export class CaseResult {
 }
 
 /**
- * @template R
- * @template [A=R]
- * @template [Async=false]
+ * @template
+ * @template
+ * @template
  */
 export class Matcher {
     /**
@@ -1023,9 +968,7 @@ export class Matcher {
         unconsumedMatchers.add(this);
     }
 
-    /**
-     * @returns {Omit<Matcher<R, A, Async>, "not">}
-     */
+    /** @returns {Omit<Matcher<R, A, Async>, "not">} */
     get not() {
         if (this._flags & FLAGS.not) {
             throw matcherModifierError("not", `matcher is already negated`);
@@ -1033,9 +976,7 @@ export class Matcher {
         return this._clone(FLAGS.not);
     }
 
-    /**
-     * @returns {Omit<Matcher<R, A, true>, "rejects" | "resolves">}
-     */
+    /** @returns {Omit<Matcher<R, A, true>, "rejects" | "resolves">} */
     get rejects() {
         if (this._flags & (FLAGS.rejects | FLAGS.resolves)) {
             throw matcherModifierError(
@@ -1046,9 +987,7 @@ export class Matcher {
         return this._clone(FLAGS.rejects);
     }
 
-    /**
-     * @returns {Omit<Matcher<R, A, true>, "rejects" | "resolves">}
-     */
+    /** @returns {Omit<Matcher<R, A, true>, "rejects" | "resolves">} */
     get resolves() {
         if (this._flags & (FLAGS.rejects | FLAGS.resolves)) {
             throw matcherModifierError(
@@ -1101,9 +1040,7 @@ export class Matcher {
         }));
     }
 
-    /**
-     * @param {ExpectOptions} [options]
-     */
+    /** @param {ExpectOptions} [options] */
     toBeEmpty(options) {
         this._ensureArguments(arguments);
 
@@ -1439,9 +1376,7 @@ export class Matcher {
         });
     }
 
-    /**
-     * @param {ExpectOptions & { indeterminate?: boolean }} [options]
-     */
+    /** @param {ExpectOptions & { indeterminate?: boolean }} [options] */
     toBeChecked(options) {
         this._ensureArguments(arguments);
 
@@ -1460,9 +1395,7 @@ export class Matcher {
         }));
     }
 
-    /**
-     * @param {ExpectOptions} [options]
-     */
+    /** @param {ExpectOptions} [options] */
     toBeDisplayed(options) {
         this._ensureArguments(arguments);
 
@@ -1479,9 +1412,7 @@ export class Matcher {
         }));
     }
 
-    /**
-     * @param {ExpectOptions} [options]
-     */
+    /** @param {ExpectOptions} [options] */
     toBeEnabled(options) {
         this._ensureArguments(arguments);
 
@@ -1497,9 +1428,7 @@ export class Matcher {
         }));
     }
 
-    /**
-     * @param {ExpectOptions} [options]
-     */
+    /** @param {ExpectOptions} [options] */
     toBeFocused(options) {
         this._ensureArguments(arguments);
 
@@ -1515,9 +1444,7 @@ export class Matcher {
         }));
     }
 
-    /**
-     * @param {ExpectOptions} [options]
-     */
+    /** @param {ExpectOptions} [options] */
     toBeVisible(options) {
         this._ensureArguments(arguments);
 
@@ -2068,10 +1995,6 @@ export class Assertion extends CaseEvent {
     /**
      * @param {number} number
      * @param {Partial<Assertion & {
-     *  docLabel?: string;
-     *  message: AssertionMessage,
-     *  reportMessage: AssertionReportMessage,
-     * }>} values
      */
     constructor(number, values) {
         super();
@@ -2140,9 +2063,7 @@ export class Assertion extends CaseEvent {
         }
     }
 
-    /**
-     * @param {keyof typeof FLAGS} name
-     */
+    /** @param {keyof typeof FLAGS} name */
     hasFlag(name) {
         return this.flags & FLAGS[name];
     }
@@ -2177,9 +2098,7 @@ export class DOMCaseEvent extends CaseEvent {
 export class CaseError extends CaseEvent {
     type = CASE_EVENT_TYPES.error.value;
 
-    /**
-     * @param {Error} error
-     */
+    /** @param {Error} error */
     constructor(error) {
         super();
 
@@ -2202,9 +2121,7 @@ export class Step extends CaseEvent {
     label = "step";
     docLabel = "expect.step";
 
-    /**
-     * @param {any} value
-     */
+    /** @param {any} value */
     constructor(value) {
         super();
 

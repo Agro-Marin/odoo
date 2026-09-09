@@ -5,8 +5,6 @@ from odoo.fields import Command
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
-    # delivery overrides
-
     def _compute_amount_total_without_delivery(self):
         res = super()._compute_amount_total_without_delivery()
         return res - sum(
@@ -20,17 +18,9 @@ class SaleOrder(models.Model):
     def set_delivery_line(self, carrier, amount):
         res = super().set_delivery_line(carrier, amount)
         for order in self:
-            # A shipping reward claimed before a carrier was chosen is
-            # created with price_unit=0 (see _get_reward_values_free_shipping
-            # below). Nothing else re-triggers the loyalty recompute when a
-            # delivery line is added afterward, so without this the reward
-            # line stays stuck at 0 on a still-open quotation until the order
-            # is confirmed.
             if any(line.reward_id.reward_type == "shipping" for line in order.line_ids):
                 order._update_programs_and_rewards()
         return res
-
-    # sale_loyalty overrides
 
     def _get_no_effect_on_threshold_lines(self):
         res = super()._get_no_effect_on_threshold_lines()
@@ -39,7 +29,6 @@ class SaleOrder(models.Model):
         )
 
     def _get_not_rewarded_order_lines(self):
-        """Exclude delivery lines from consideration for reward points."""
         order_line = super()._get_not_rewarded_order_lines()
         return order_line.filtered(lambda line: not line.is_delivery)
 
@@ -85,7 +74,6 @@ class SaleOrder(models.Model):
     def _get_claimable_rewards(self, forced_coupons=None):
         res = super()._get_claimable_rewards(forced_coupons)
         if any(reward.reward_type == "shipping" for reward in self.line_ids.reward_id):
-            # Allow only one reward of type shipping at the same time
             filtered_res = {}
             for coupon, rewards in res.items():
                 filtered_rewards = rewards.filtered(

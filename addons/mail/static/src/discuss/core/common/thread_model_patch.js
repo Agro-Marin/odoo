@@ -96,9 +96,7 @@ const threadStaticPatch = {
 };
 patch(Thread, threadStaticPatch);
 
-/**
- * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
- */
+/** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const threadPatch = {
     _setupMembershipFields() {
         this.channel_member_ids = fields.Many("discuss.channel.member", {
@@ -324,8 +322,6 @@ const threadPatch = {
             return false;
         }
         let res;
-        // Read the filtering getter once: it rebuilds the array on every
-        // access, so indexing it inside the loop is O(n^2) per recompute.
         const persistentMessages = this.persistentMessages;
         for (let i = persistentMessages.length - 1; i >= 0; i--) {
             const message = persistentMessages[i];

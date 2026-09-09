@@ -166,16 +166,12 @@ export class PropertiesField extends FieldComponent {
         useEffect(() => this._movePopoverIfNeeded());
     }
 
-    /**
-     * @returns {object}
-     */
+    /** @returns {object} */
     get renderedColumnsCount() {
         return this.env.isSmall ? 1 : this.props.columns;
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get propertiesList() {
         return (this.field.value || [])
             .filter((definition) => !definition.definition_deleted)
@@ -186,23 +182,17 @@ export class PropertiesField extends FieldComponent {
         return {};
     }
 
-    /**
-     * @returns {import("./properties_layout").PropertyGroup[]}
-     */
+    /** @returns {import("./properties_layout").PropertyGroup[]} */
     get groupedPropertiesList() {
         return groupProperties(this.propertiesList, this.renderedColumnsCount);
     }
 
-    /**
-     * @returns {integer}
-     */
+    /** @returns {integer} */
     get definitionRecordId() {
         return this.props.record.data[this.definitionRecordField]?.id;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get definitionRecordModel() {
         return this.props.record.fields[this.definitionRecordField].relation;
     }
@@ -239,9 +229,7 @@ export class PropertiesField extends FieldComponent {
         return `${this.domIdPrefix}_${propertyName}`;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     generatePropertyName(propertyType) {
         let name = uuid();
         if (propertyType === "html") {
@@ -349,9 +337,7 @@ export class PropertiesField extends FieldComponent {
         this._openPropertyDefinition(target, propertyName, false);
     }
 
-    /**
-     * @param {object} propertyDefinition
-     */
+    /** @param {object} propertyDefinition */
     async onPropertyDefinitionChange(propertyDefinition) {
         propertyDefinition["definition_changed"] = true;
         if (propertyDefinition.type === "separator") {
@@ -417,9 +403,7 @@ export class PropertiesField extends FieldComponent {
         }
     }
 
-    /**
-     * @param {string} propertyName
-     */
+    /** @param {string} propertyName */
     onPropertyDelete(propertyName) {
         let message = _t("Are you sure you want to delete this property field?") + " ";
         if (this.definitionRecordModel !== "properties.base.definition") {
@@ -517,9 +501,7 @@ export class PropertiesField extends FieldComponent {
         this.openPropertyDefinition = newName;
     }
 
-    /**
-     * @param {string} propertyName
-     */
+    /** @param {string} propertyName */
     onSeparatorClick(propertyName) {
         if (propertyName) {
             this._toggleSeparators([propertyName]);
@@ -692,9 +674,7 @@ export class PropertiesField extends FieldComponent {
         return this.initialValues?.[propertyName]?.name ?? propertyName;
     }
 
-    /**
-     * @returns {integer}
-     */
+    /** @returns {integer} */
     _getPropertyIndex(propertyName) {
         const initialName = this.initialValues[propertyName]?.name || propertyName;
         return this.propertiesList.findIndex((property) =>
@@ -768,9 +748,7 @@ export class PropertiesField extends FieldComponent {
         });
     }
 
-    /**
-     * @param {string} propertyName
-     */
+    /** @param {string} propertyName */
     _setDefaultPropertyValue(propertyName) {
         return this._updateRecordProperties((propertiesValues) => {
             const newProperty = propertiesValues.find(

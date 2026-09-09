@@ -9,77 +9,24 @@ import { rpcLog } from "@web/core/utils/asset_log";
 import { isObject, omit } from "@web/core/utils/collections/objects";
 import { globalSingleton } from "@web/core/utils/global_singleton";
 
-/** @import { RPCCache } from "@web/core/network/rpc_cache" */
+/** @typedef {{ */
+
+/** @typedef {{ */
+
+/** @typedef {{ */
+
+/** @typedef {{ */
 
 /**
- * @typedef {{
- * code: number;
- * message: string;
- * data?: RPCErrorData;
- * type?: string;
- * }} JsonRpcError
- */
-
-/**
- * @typedef {{
- * name?: string;
- * message?: string;
- * arguments?: unknown[];
- * context?: Record<string, unknown>;
- * debug?: string;
- * [extra: string]: unknown;
- * }} RPCErrorData
- */
-
-/**
- * @typedef {{
- * cache?: boolean | { type?: "ram" | "disk"; update?: "once" | "always"; immutable?: boolean; callback?: Function };
- * silent?: boolean;
- * headers?: HeadersInit;
- * timeout?: number;
- * retry?: number | Partial<RetryConfig>;
- * dedup?: boolean;
- * signal?: AbortSignal;
- * }} RpcSettings
- */
-
-/**
- * @typedef {{
- * data: { id: number; jsonrpc: "2.0"; method: "call"; params: Record<string, any> };
- * url: string;
- * settings?: RpcSettings;
- * result?: any;
- * error?: NetworkError;
- * }} RpcEventDetail
- */
-
-/**
- * @template T
+ * @template
  * @typedef {Promise<T> & { abort: (rejectError?: boolean) => void }} RpcPromise
  */
 
-/**
- * @typedef {{
- * subscribers: number;
- * lastOut: () => void;
- * }} InflightEntry
- */
+/** @typedef {{ */
 
-/**
- * @typedef {{
- * rpcBus: EventBus,
- * inflightDedup: Map<string, InflightEntry & { shared: any }>,
- * inflightCacheJoin: Map<string, InflightEntry>,
- * rpcCache: RPCCache | null | undefined,
- * busListenersAttached: boolean,
- * rpcId: number,
- * dedupCallbackSeq: number,
- * }} RpcState
- */
+/** @typedef {{ */
 
-/**
- * @type {RpcState}
- */
+/** @type {RpcState} */
 const _rpcState = globalSingleton(
     "rpc",
     () =>
@@ -105,9 +52,7 @@ const RPC_SETTINGS = new Set([
     "dedup",
     "signal",
 ]);
-/**
- * @param {{[key: string]: any}} settings
- */
+/** @param {{[key: string]: any}} settings */
 function validateRPCSettings(settings) {
     const invalidKeys = Object.keys(settings).filter((key) => !RPC_SETTINGS.has(key));
     if (invalidKeys.length) {
@@ -120,7 +65,7 @@ function validateRPCSettings(settings) {
 }
 
 /**
- * @template {Promise<any>} T
+ * @template {Promise<any>}
  * @param {T} promise
  * @param {AbortSignal | undefined} signal
  * @returns {T}
@@ -159,9 +104,7 @@ export class RPCError extends NetworkError {
         this.exceptionName = null;
         /** @type {string | null} */
         this.subType = null;
-        /**
-         * @type {string | undefined}
-         */
+        /** @type {string | undefined} */
         this.model = undefined;
     }
 }
@@ -287,16 +230,12 @@ export function makeErrorFromResponse(response) {
     return error;
 }
 
-/**
- * @param {RPCCache} cache
- */
+/** @param {RPCCache} cache */
 rpc.setCache = function (cache) {
     _rpcState.rpcCache = cache;
 };
 
-/**
- * @returns {Promise<void>}
- */
+/** @returns {Promise<void>} */
 rpc.purgeCacheStorage = function () {
     return _rpcState.rpcCache?.purgeStorage() ?? Promise.resolve();
 };
@@ -355,9 +294,7 @@ if (!_rpcState.busListenersAttached) {
     });
 }
 
-/**
- * @typedef {{ retries: number; baseMs: number; maxMs: number }} RetryConfig
- */
+/** @typedef {{ retries: number; baseMs: number; maxMs: number }} RetryConfig */
 
 /**
  * @param {number | Partial<RetryConfig>} retry
@@ -398,14 +335,10 @@ function isRetryable(err) {
     return err instanceof NetworkError && err.retryable === true;
 }
 
-/**
- * @type {Map<string, InflightEntry & { shared: any }>}
- */
+/** @type {Map<string, InflightEntry & { shared: any }>} */
 const inflightDedup = _rpcState.inflightDedup;
 
-/**
- * @type {Map<string, InflightEntry>}
- */
+/** @type {Map<string, InflightEntry>} */
 const inflightCacheJoin = _rpcState.inflightCacheJoin;
 
 /**
@@ -711,9 +644,7 @@ function _rpcOnce(url, params, settings) {
         settled = true;
         reject(error);
     };
-    /**
-     * @param {Error} error
-     */
+    /** @param {Error} error */
     const fail = (error) => {
         rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings: busSettings, error });
         settleReject(error);
@@ -817,13 +748,9 @@ function _rpcWithRetry(url, params, settings) {
     const { promise, resolve, reject } = Promise.withResolvers();
     let aborted = false;
     let settled = false;
-    /**
-     * @type {RpcPromise<unknown> | null}
-     */
+    /** @type {RpcPromise<unknown> | null} */
     let currentInner = null;
-    /**
-     * @type {ReturnType<typeof browser.setTimeout> | null}
-     */
+    /** @type {ReturnType<typeof browser.setTimeout> | null} */
     let backoffTimer = null;
     let attempt = 0;
 

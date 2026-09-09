@@ -4,12 +4,6 @@ from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestTodoAclScope(TransactionCase):
-    """project_todo is auto_install, so whatever it grants lands on every
-    database that has ``project``. It needs write access to ``project.task``
-    (bounded by its own record rule) and to ``project.tags`` (the ``#tag``
-    quick-create syntax), and nothing beyond that.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -21,7 +15,6 @@ class TestTodoAclScope(TransactionCase):
         )
 
     def test_employee_cannot_touch_project_workflow_steps(self):
-        """Project stages are not a to-do concept: to-dos file into project.triage."""
         self.assertFalse(self.employee.has_group("project.group_project_user"))
         step = self.env["project.workflow.step"].create(
             {
@@ -48,20 +41,17 @@ class TestTodoAclScope(TransactionCase):
                 self.env.flush_all()
 
     def test_employee_cannot_delete_project_tags(self):
-        """Removing a tag from a to-do is a write on the task, not an unlink."""
         tag = self.env["project.tags"].create({"name": "Company-wide tag"})
         with self.assertRaises(AccessError):
             tag.with_user(self.employee).unlink()
             self.env.flush_all()
 
     def test_employee_can_still_create_and_rename_tags(self):
-        """What the quick-create's ``#tag`` syntax and the colour picker need."""
         tag = self.env["project.tags"].with_user(self.employee).create({"name": "mine"})
         tag.write({"color": 3})
         self.assertEqual(tag.color, 3)
 
     def test_employee_owns_only_their_own_private_tasks(self):
-        """The blanket CRUD on project.task is bounded by the module's rule."""
         someone_elses = self.env["project.task"].create(
             {
                 "name": "Not yours",

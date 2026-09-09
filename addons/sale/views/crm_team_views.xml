@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Dedicated actions used in views below -->
     <record id="action_quotations_salesteams" model="ir.actions.act_window">
         <field name="name">Quotations</field>
         <field name="res_model">sale.order</field>
@@ -70,7 +69,6 @@
             }</field>
     </record>
 
-    <!-- crm.team views (& actions) -->
     <record id="crm_team_salesteams_view_form" model="ir.ui.view">
         <field name="name">crm.team.form</field>
         <field name="model">crm.team</field>

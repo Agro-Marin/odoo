@@ -6,9 +6,7 @@ export class ValueError extends Error {}
 
 class OverflowError extends Error {}
 
-/**
- * @param {number} year
- */
+/** @param {number} year */
 export function assertYearInRange(year) {
     if (year < 1 || year > 9999) {
         throw new OverflowError("date value out of range");
@@ -26,7 +24,7 @@ export function fmt4(n) {
 }
 
 /**
- * @template T
+ * @template
  * @param {number} a
  * @param {number} b
  * @param {(quotient: number, remainder: number) => T} fn

@@ -119,10 +119,6 @@
     </record>
 
     <record id="action_view_stock_putaway_rule" model="ir.actions.act_window">
-        <!--
-            Putaway rules from
-            category
-        -->
         <field name="name">Putaway Rules</field>
         <field name="res_model">stock.putaway.rule</field>
         <field
@@ -133,10 +129,6 @@
     </record>
 
     <record id="action_view_stock_putaway_rule_3" model="ir.actions.act_window">
-        <!--
-            Putaway rules from
-            location
-        -->
         <field name="name">Putaway Rules</field>
         <field name="res_model">stock.putaway.rule</field>
         <field

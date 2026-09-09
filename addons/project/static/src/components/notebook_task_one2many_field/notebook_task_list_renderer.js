@@ -8,9 +8,6 @@ import { TaskListRenderer } from "../task_list_renderer.js";
 export class NotebookTaskListRenderer extends TaskListRenderer {
     static rowsTemplate = "project.NotebookTaskListRenderer.Rows";
     static createControlsTemplate = "project.NotebookTaskListRenderer.CreateControls";
-    // Explicit stable key: deriving it from `constructor.name` (as this used
-    // to) breaks under minification and silently forks the preference for
-    // every subclass.
     static hideClosedStorageKey = "project.notebook_task_list.hide_closed";
 
     setup() {
@@ -45,8 +42,6 @@ export class NotebookTaskListRenderer extends TaskListRenderer {
     }
 
     get ShowX2MRecords() {
-        // If there isn't a closed_X2M_count defined in the context of the x2m task in the view we are always displaying the Toggle button
-        // In case there is no computed field to calculate the number of closed X2M tasks in the backend
         return this.closedX2MCount > 0 || typeof this.closedX2MCount === "undefined";
     }
 

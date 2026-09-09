@@ -18,8 +18,6 @@ describe.current.tags("desktop");
 defineMailModels();
 
 /**
- * A voice message, and the id of the attachment carrying it.
- *
  * @param {Object} pyEnv
  * @returns {{ channelId: number, attachmentId: number }}
  */
@@ -44,9 +42,6 @@ function voiceMessageIn(pyEnv) {
 }
 
 /**
- * The speech fields arrive from the server on an existing attachment, which is
- * also how a transcription that finishes later reaches an open conversation.
- *
  * @param {number} attachmentId
  * @param {Object} values
  */

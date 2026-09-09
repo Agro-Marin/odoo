@@ -1,7 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { Group } from "@web/model/relational_model/group" */
 /** @typedef {import("@web/views/list/list_column_utils").Column} Column */
 
 import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model";

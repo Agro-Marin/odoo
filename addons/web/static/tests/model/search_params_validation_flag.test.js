@@ -14,9 +14,7 @@ class Probe extends Model {
     async load() {}
 }
 
-/**
- * @returns {Promise<string[]>}
- */
+/** @returns {Promise<string[]>} */
 async function mountAndCollectWarnings() {
     /** @type {string[]} */
     const warnings = [];

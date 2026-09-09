@@ -46,9 +46,6 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
         const actionMenuItems = super.getStaticActionMenuItems(...arguments);
         const archive = actionMenuItems.archive;
         if (archive) {
-            // Compose with the base condition (archiveEnabled && record active)
-            // instead of replacing it — otherwise "Archive" shows even on an
-            // already-archived project. isAvailable may be a bool or a function.
             const base = archive.isAvailable;
             archive.isAvailable = () =>
                 (typeof base === "function" ? base() : base) && this.isProjectManager;
@@ -56,9 +53,7 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
         return actionMenuItems;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     async onRecordSaved(record, changes) {
         await super.onRecordSaved(...arguments);
         const updatedFields = Object.keys(this.featuresToObserve).filter(

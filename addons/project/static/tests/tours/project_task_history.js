@@ -1,11 +1,3 @@
-/**
- * Project Task history tour.
- * Features tested:
- * - Create / edit a task description and ensure revisions are created on write
- * - Open the history dialog and check that the revisions are correctly shown
- * - Select a revision and check that the content / comparison are correct
- * - Click the restore button and check that the content is correctly restored
- */
 
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
@@ -15,7 +7,6 @@ function changeDescriptionContentAndSave(newContent) {
     const newText = `${baseDescriptionContent} ${newContent}`;
     return [
         {
-            // force focus on editable so editor will create initial p (if not yet done)
             trigger: "div.note-editable.odoo-editor-editable",
             run: "click",
         },
@@ -30,14 +21,12 @@ function changeDescriptionContentAndSave(newContent) {
 function insertEditorContent(newContent) {
     return [
         {
-            // force focus on editable so editor will create initial p (if not yet done)
             trigger: "div.note-editable.odoo-editor-editable",
             run: "click",
         },
         {
             trigger: `div.note-editable[spellcheck='true'].odoo-editor-editable`,
             run: async function () {
-                // Insert content as html and make the field dirty
                 const div = document.createElement("div");
                 div.appendChild(document.createTextNode(newContent));
                 this.anchor.removeChild(this.anchor.firstChild);
@@ -67,7 +56,6 @@ registry.category("web_tour.tours").add("project_task_history_tour", {
             trigger: ".o_kanban_view .o_kanban_record:contains(Test History Task)",
             run: "click",
         },
-        // edit the description content 3 times and save after each edit
         ...changeDescriptionContentAndSave("0"),
         ...changeDescriptionContentAndSave("1"),
         ...changeDescriptionContentAndSave("2"),
@@ -131,7 +119,6 @@ registry.category("web_tour.tours").add("project_task_history_tour", {
             trigger: `.modal .history-container .history-content-view .history-view-inner:contains(${baseDescriptionContent} 1)`,
         },
         {
-            // click on the comparison tab
             trigger: ".history-container .history-view-top-bar a:contains(Comparison)",
             run: "click",
         },
@@ -165,10 +152,6 @@ registry.category("web_tour.tours").add("project_task_history_tour", {
         {
             content:
                 "Verify that the description contains the right text after the restore",
-            // The bare editor selector matches the instant the dialog closes,
-            // i.e. before the restored value has been written back into it, so
-            // the assertion below read the pre-restore content. Waiting on the
-            // text makes the step observe the restore instead of racing it.
             trigger: `div.note-editable.odoo-editor-editable:contains(${baseDescriptionContent} 1)`,
             run: function () {
                 const p = this.anchor?.innerText;
@@ -317,11 +300,6 @@ registry.category("web_tour.tours").add("project_task_last_history_steps_tour", 
             run: "click",
         },
         {
-            // Let the restore settle before touching the editor again. The
-            // focus click inside `insertEditorContent` otherwise lands on the
-            // editable the restore is about to replace, so `spellcheck="true"`
-            // -- which the editor only sets on the focused instance -- never
-            // appears on the element that survives.
             trigger: "body:not(:has(.modal))",
         },
         ...insertEditorContent("2"),

@@ -54,7 +54,7 @@ export class SelectionLikeField extends FieldComponent {
     }
 
     /**
-     * @param {unknown} id an option's id, or `false`/`null` to clear
+     * @param {unknown} id
      * @param {Array<[any, string]>} options
      * @returns {{ id: number, display_name: string } | false | undefined}
      */

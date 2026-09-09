@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @param {any} segment
- */
+/** @param {any} segment */
 function assertPrimitiveSegment(segment) {
     const type = typeof segment;
     if (
@@ -20,9 +18,7 @@ function assertPrimitiveSegment(segment) {
     }
 }
 
-/**
- * @template T
- */
+/** @template */
 export class Cache {
     /**
      * @param {(...args: any[]) => T} getValue
@@ -64,9 +60,7 @@ export class Cache {
         return { cache, key: path.at(-1) };
     }
 
-    /**
-     * @param {any[]} path
-     */
+    /** @param {any[]} path */
     clear(...path) {
         const { cache, key } = this._getCacheAndKey(path, false);
         if (cache) {

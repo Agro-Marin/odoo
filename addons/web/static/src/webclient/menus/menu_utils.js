@@ -3,9 +3,7 @@
 
 import { normalize } from "@web/core/l10n/utils";
 
-/**
- * @typedef {{childrenTree: MenuTreeNode[], actionPath?: string, actionID?: number | string, [key: string]: any}} MenuTreeNode
- */
+/** @typedef {{childrenTree: MenuTreeNode[], actionPath?: string, actionID?: number | string, [key: string]: any}} MenuTreeNode */
 
 /**
  * @param {MenuTreeNode} tree
@@ -18,9 +16,6 @@ function traverseMenuTree(tree, cb, parents = []) {
 }
 
 /**
- * The url a menu entry navigates to. The action path is preferred over the id
- * so the url survives a database in which ids differ.
- *
  * @param {{ actionPath?: string, actionID?: number|string }} menu
  * @returns {string}
  */
@@ -30,48 +25,29 @@ export function menuHref(menu) {
 
 /**
  * @typedef MenuEntry
- * @property {string} parents the names of its ancestors, " / " joined
+ * @property {string} parents
  * @property {string} label
  * @property {number} id
  * @property {string} [xmlid]
  * @property {number|string} [actionID]
  * @property {string} href
  * @property {number} [appID]
- * @property {string} [module] the app external ID namespace; legacy icon fallback
- * @property {string[]} [models] the models the app's menus open, for an app
- * @property {string} [category] the heading it sits under, for an app
- * @property {string[]} [keywords] the vocabulary its menu declares, for an app
- * @property {string[]} [searchTerms] what the app matches on besides its name
+ * @property {string} [module]
+ * @property {string[]} [models]
+ * @property {string} [category]
+ * @property {string[]} [keywords]
+ * @property {string[]} [searchTerms]
  * @property {string} [webIconData]
  * @property {{ iconClass: string, color: string, backgroundColor: string }} [webIcon]
  */
 
-/**
- * An app: a menu whose id is its own appID. `computeAppsAndMenuItems` pushes
- * one only for a node carrying both an id and an action, and gives every one
- * of them an icon, so a launcher can read those fields off any app without
- * checking. `MenuEntry` alone does not say that, being the type of the deeper
- * menus too.
- *
- * @typedef {MenuEntry & {
- *  actionID: number|string,
- *  appID: number,
- *  href: string,
- *  id: number,
- *  label: string,
- *  parents: string,
- * }} AppEntry
- */
+/** @typedef {MenuEntry & { */
 
 const MAX_APPS_PER_SEARCHABLE_MODEL = 1;
 
 /**
- * What an app answers to besides its name: the keywords its menu declares
- * first, since they are the words a user actually types and a translator can
- * follow, then the addon that owns it, then the models only it opens.
- *
  * @param {AppEntry} app
- * @param {Map<string, number>} appsByModel how many apps each model reaches
+ * @param {Map<string, number>} appsByModel
  * @returns {string[]}
  */
 function appSearchTerms(app, appsByModel) {
@@ -195,14 +171,7 @@ export function flattenMenuTree(menuTree) {
 const searchKeys = new WeakMap();
 
 /**
- * What a menu entry is matched against: its own name first and its ancestors
- * behind it, so "quotations" ranks "Sales / Orders / Quotations" above a menu
- * named after its app. Normalized once here and searched `preNormalized`, so
- * a keystroke re-normalizes nothing: normalizing is two Unicode passes and a
- * regex per string, and a query runs over every menu in the database.
- *
- * @param {{ parents: string, label: string }} menu the two fields it reads,
- *  rather than a whole `MenuEntry`, which is more than it needs
+ * @param {{ parents: string, label: string }} menu
  * @returns {string}
  */
 export function menuSearchKey(menu) {
@@ -220,11 +189,6 @@ export function menuSearchKey(menu) {
 const appSearchKeys = new WeakMap();
 
 /**
- * What an app is matched against: its name and everything `appSearchTerms`
- * gathered, each normalized once and searched `preNormalized`, the way
- * `menuSearchKey` is. `fuzzyLookup` scores a list of strings by its best
- * member, so a name match still outranks a model match on the same query.
- *
  * @param {{ label: string, searchTerms?: string[] }} app
  * @returns {string[]}
  */
@@ -238,9 +202,6 @@ export function appSearchKey(app) {
 }
 
 /**
- * Sorts in place, by the stored order of the xmlids. Anything carrying an
- * xmlid will do: this reads nothing else off an app.
- *
  * @param {{ xmlid?: string }[]} apps
  * @param {string[]} order
  */
@@ -264,13 +225,10 @@ export function reorderApps(apps, order) {
 export const HOME_MENU_CONFIG_VERSION = 2;
 
 /**
- * The user's home menu layout, as stored in `res.users.settings.homemenu_config`.
- * Version 1 was the bare `order` list; anything unreadable is the default layout.
- *
  * @typedef HomeMenuConfig
- * @property {string[]} order xmlids, the drag-and-drop order
- * @property {string[]} pinned xmlids shown first, in this order
- * @property {string[]} hidden xmlids kept out of the grid, still searchable
+ * @property {string[]} order
+ * @property {string[]} pinned
+ * @property {string[]} hidden
  */
 
 /** @param {unknown} list */
@@ -281,7 +239,7 @@ function xmlids(list) {
 }
 
 /**
- * @param {unknown} raw the stored value, a JSON string or already parsed
+ * @param {unknown} raw
  * @returns {HomeMenuConfig | null}
  */
 export function readHomeMenuConfig(raw) {
@@ -315,7 +273,7 @@ export function readHomeMenuConfig(raw) {
     return null;
 }
 
-/** @param {unknown} raw @returns {HomeMenuConfig} */
+/** @param {unknown} raw */
 export function parseHomeMenuConfig(raw) {
     return readHomeMenuConfig(raw) ?? { order: [], pinned: [], hidden: [] };
 }

@@ -42,7 +42,7 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
             run: "click",
         },
         {
-            isActive: ["button.o-kanban-button-new.dropdown"], // if the project template dropdown is active
+            isActive: ["button.o-kanban-button-new.dropdown"],
             trigger: 'button.o-dropdown-item:contains("New Project")',
             content: "Let's create a regular project.",
             tooltipPosition: "right",
@@ -215,7 +215,7 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
             run: "click",
         },
         {
-            isActive: ["button.o_list_button_add.dropdown"], // if the project template dropdown is active
+            isActive: ["button.o_list_button_add.dropdown"],
             trigger: 'button.o-dropdown-item:contains("New Project")',
             content: "Let's create a regular project.",
             tooltipPosition: "right",
@@ -466,8 +466,6 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
             trigger: ".o_field_widget[name=description] h3:contains('Milestones')",
             content: "Milestones title must be in description",
         },
-        // Those steps are currently needed in order to prevent the following issue:
-        // "Form views in edition mode are automatically saved when the page is closed, which leads to stray network requests and inconsistencies."
         {
             trigger: ".o_back_button",
             content:

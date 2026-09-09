@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const RECORD_CONTRACT_SURFACE = [
     "activeFields",
     "data",
@@ -38,9 +36,7 @@ export const RECORD_CONTRACT_SURFACE = [
     "closeInvalidFieldsNotification",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const RECORD_OWNER_SURFACE = [
     "_addSavePoint",
     "applyChanges",
@@ -75,74 +71,6 @@ export const RECORD_OWNER_SURFACE = [
     "update",
 ];
 
-/**
- * @typedef {{
- * _addSavePoint: () => void,
- * applyChanges: (changes: Record<string, any>, options?: any) => any,
- * applyDefaultValues: () => any,
- * applyValues: (values: Record<string, any>) => any,
- * discardLocked: () => void,
- * displayInvalidFieldNotification: () => void,
- * getChangesLocked: (options?: any) => Record<string, any>,
- * getDefaultValues: () => Record<string, any>,
- * isFieldReadonly: (fieldName: string) => boolean,
- * loadLocked: (nextConfig?: Record<string, any>) => Promise<void>,
- * manuallyAdded: boolean,
- * parseServerValues: (values: Record<string, any>, options?: { currentValues?: Record<string, any>, orderBys?: Record<string, any> }) => Record<string, any>,
- * saveLocked: (options?: any) => Promise<any>,
- * setData: (data: Record<string, any>, params?: { orderBys?: Record<string, any>, keepChanges?: boolean }) => void,
- * switchModeLocked: (mode: "edit" | "readonly") => void,
- * _toggleSelection: (selected?: boolean) => void,
- * updateLocked: (changes: Record<string, any>, options?: any) => Promise<any>,
- * virtualId: string | false,
- * assignResId: (resId: number) => void,
- * canBeAbandoned: boolean,
- * discard: () => Promise<any>,
- * extendActiveFields: (activeFieldsToRestore: Record<string, any>) => void,
- * isInEdition: boolean,
- * resId: number | false,
- * resIds: number[] | undefined,
- * saveState: import("./record_save_coordinator").RecordSaveCoordinator,
- * selected: boolean,
- * setInvalidFieldsNotification: (close: () => void) => void,
- * skipsParentUpdate: boolean,
- * switchMode: (mode: "edit" | "readonly") => Promise<any>,
- * update: (changes: Record<string, any>, options?: any) => Promise<any>,
- * }} RecordOwnerContract
- */
+/** @typedef {{ */
 
-/**
- * @typedef {{
- * activeFields: Record<string, any>,
- * data: Record<string, any>,
- * fields: Record<string, any>,
- * isNew: boolean,
- * savedData: Record<string, any>,
- * changes: Record<string, any>,
- * _initialTextValues: Record<string, any>,
- * invalidFields: Set<string>,
- * _savePoint: Record<string, any> | undefined,
- * _textValues: Record<string, any>,
- * unsetRequiredFields: Set<string>,
- * dirty: boolean,
- * hasPendingChanges: boolean,
- * _hasChanges: boolean,
- * loadedFieldNames: Set<string>,
- * checkValidityLocked: (options?: any) => boolean,
- * _clearChanges: () => void,
- * clearValidity: () => void,
- * commitChanges: (extraValues?: Record<string, any>) => void,
- * createStaticListDatapoint: (data: any[], fieldName: string, options?: { orderBys?: Record<string, any> }) => any,
- * discardChanges: () => void,
- * restoreEditState: () => boolean,
- * snapshotEditState: () => void,
- * isFieldInvisible: (fieldName: string) => boolean,
- * isFieldRequired: (fieldName: string) => boolean,
- * processProperties: (properties: any, fieldName: string, parent: any, currentValues: any) => Record<string, any>,
- * rebuildData: () => void,
- * resetValues: (values: Record<string, any>) => void,
- * restoreActiveFields: () => void,
- * setEvalContext: () => void,
- * closeInvalidFieldsNotification: () => void,
- * }} RecordContract
- */
+/** @typedef {{ */

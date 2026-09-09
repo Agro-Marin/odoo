@@ -26,9 +26,7 @@ export class KanbanDropdownMenuWrapper extends Component {
         });
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onClick(ev) {
         this.dropdownControl.closeAll();
     }

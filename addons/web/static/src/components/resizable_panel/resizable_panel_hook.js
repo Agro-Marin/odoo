@@ -47,9 +47,7 @@ class ResizeController {
         this.onPointerUp = this.onPointerUp.bind(this);
     }
 
-    /**
-     * @param {Object} nextProps
-     */
+    /** @param {Object} nextProps */
     applyProps(nextProps) {
         const previousInitialWidth = this.initialWidth;
         this.minWidth = this.params.getMinWidth(nextProps);
@@ -183,9 +181,7 @@ class ResizeController {
     }
 }
 
-/**
- * @param {UseResizableParams} params
- */
+/** @param {UseResizableParams} params */
 export function useResizable({
     containerRef: _containerRef,
     handleRef: _handleRef,

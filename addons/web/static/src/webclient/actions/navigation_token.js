@@ -13,16 +13,12 @@ export class NavigationToken {
         this.epoch = epoch;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     isCurrent() {
         return this._tracker.epoch === this.epoch;
     }
 
-    /**
-     * @throws {SupersededError}
-     */
+    /** @throws {SupersededError} */
     throwIfSuperseded() {
         if (!this.isCurrent()) {
             throw new SupersededError();
@@ -30,7 +26,7 @@ export class NavigationToken {
     }
 
     /**
-     * @template T
+     * @template
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
      */
@@ -42,22 +38,16 @@ export class NavigationToken {
 export class NavigationTracker {
     constructor() {
         this._epoch = 0;
-        /**
-         * @type {Set<(reason: unknown) => void>}
-         */
+        /** @type {Set<(reason: unknown) => void>} */
         this._pendingRejects = new Set();
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get epoch() {
         return this._epoch;
     }
 
-    /**
-     * @returns {NavigationToken}
-     */
+    /** @returns {NavigationToken} */
     mint() {
         this._epoch++;
         if (this._pendingRejects.size) {
@@ -70,15 +60,13 @@ export class NavigationTracker {
         return new NavigationToken(this, this._epoch);
     }
 
-    /**
-     * @returns {NavigationToken}
-     */
+    /** @returns {NavigationToken} */
     snapshot() {
         return new NavigationToken(this, this._epoch);
     }
 
     /**
-     * @template T
+     * @template
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
      */
@@ -87,7 +75,7 @@ export class NavigationTracker {
     }
 
     /**
-     * @template T
+     * @template
      * @param {NavigationToken} token
      * @param {Promise<T>} promise
      * @returns {Promise<T>}

@@ -6,14 +6,10 @@ import { cookie } from "@web/core/browser/cookie";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const DENSITIES = ["default", "compact", "condensed"];
 
-/**
- * @type {Record<string, string>}
- */
+/** @type {Record<string, string>} */
 const DENSITY_CLASSES = {
     compact: "o-density-compact",
     condensed: "o-density-condensed",
@@ -85,9 +81,7 @@ export const densityService = {
     },
 };
 
-/**
- * @param {string} density
- */
+/** @param {string} density */
 function applyDensityClass(density) {
     const { classList } = document.body;
     for (const cls of Object.values(DENSITY_CLASSES)) {

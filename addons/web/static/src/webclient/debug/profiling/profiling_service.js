@@ -77,9 +77,7 @@ class ProfilingService {
         }
     }
 
-    /**
-     * @param {Record<string, any>} params
-     */
+    /** @param {Record<string, any>} params */
     async setProfiling(params) {
         this.stateGeneration++;
         const kwargs = Object.assign(
@@ -114,9 +112,7 @@ class ProfilingService {
         await this.setProfiling({ profile: !this.state.isEnabled });
     }
 
-    /**
-     * @param {string} collector
-     */
+    /** @param {string} collector */
     async toggleCollector(collector) {
         const nextCollectors = this.state.collectors.slice();
         const index = nextCollectors.indexOf(collector);

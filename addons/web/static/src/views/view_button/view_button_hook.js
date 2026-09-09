@@ -55,7 +55,7 @@ function undefinedAsTrue(val) {
 
 /**
  * @param {Record<string, any>} clickParams
- * @param {Record<string, any>} params the button's record parameters
+ * @param {Record<string, any>} params
  * @returns {Record<string, any>}
  */
 function buildButtonContext(clickParams, params) {

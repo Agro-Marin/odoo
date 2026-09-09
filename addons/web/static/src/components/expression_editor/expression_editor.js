@@ -20,9 +20,7 @@ export class ExpressionEditor extends Component {
         update: Function,
     };
 
-    /**
-     * @type {Record<string, Record<string, any>>}
-     */
+    /** @type {Record<string, Record<string, any>>} */
     filteredFields = {};
 
     setup() {
@@ -64,9 +62,7 @@ export class ExpressionEditor extends Component {
         return null;
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getDefaultCondition() {
         return makeDefaultCondition(
             this.filteredFields,
@@ -134,9 +130,7 @@ export class ExpressionEditor extends Component {
         return !!this.env.debug;
     }
 
-    /**
-     * @param {string} expression
-     */
+    /** @param {string} expression */
     onExpressionChange(expression) {
         this.props.update(expression);
     }
@@ -145,9 +139,7 @@ export class ExpressionEditor extends Component {
         this.props.update("True");
     }
 
-    /**
-     * @param {Object} tree
-     */
+    /** @param {Object} tree */
     update(tree) {
         let expression;
         try {

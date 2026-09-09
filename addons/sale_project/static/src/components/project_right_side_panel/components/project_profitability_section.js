@@ -31,10 +31,8 @@ export class ProjectProfitabilitySection extends Component {
 
     async toggleSaleItems() {
         if (this.state.displayLoadMore === null) {
-            // first time the section is unfold, load the 5 first items.
             await this.onLoadMoreClick();
         }
-        // the state change is done at the end to ensure the loaded data are present when the component is rendered
         this.state.isFolded = !this.state.isFolded;
     }
 

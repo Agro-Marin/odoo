@@ -7,7 +7,7 @@ import { Job } from "./job.js";
 import { Tag } from "./tag.js";
 
 /**
- * @template T
+ * @template
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
@@ -77,9 +77,7 @@ export class Test extends Job {
         this.run = null;
     }
 
-    /**
-     * @param {string} stringFn
-     */
+    /** @param {string} stringFn */
     formatFunctionSource(stringFn) {
         let modifiers = "";
         let startingLine = 0;
@@ -137,9 +135,7 @@ export class Test extends Job {
         this.run = this.run.bind(this);
     }
 
-    /**
-     * @param {() => MaybePromise<void>} fn
-     */
+    /** @param {() => MaybePromise<void>} fn */
     setRunFn(fn) {
         this.run = fn ? async () => fn() : null;
         if (fn) {

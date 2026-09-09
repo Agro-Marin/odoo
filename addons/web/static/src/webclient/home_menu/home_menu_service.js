@@ -29,8 +29,6 @@ export class HomeMenuState {
 
     /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
-        // Services must stay raw: proxying their controller state breaks
-        // structured cloning when the action service writes browser history.
         this.action = markRaw(env.services.action);
         this.mutex = markRaw(new Mutex());
     }
@@ -64,12 +62,6 @@ export class HomeMenuState {
 /**
  * @param {import("services").ServiceFactories["menu"]} menus
  * @returns {{
- *  apps: import("./home_menu.js").HomeMenuApp[],
- *  config: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
- *  defaultConfig: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
- *  defaultOrder: string[],
- *  personal: boolean,
- * }}
  */
 export function computeHomeMenuLayout(menus) {
     const defaultConfig = parseHomeMenuConfig(session.homemenu_default_config);

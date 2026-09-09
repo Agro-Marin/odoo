@@ -4,9 +4,7 @@
 
 const _globals = /** @type {Record<string, any>} */ (globalThis);
 
-/**
- * @param {string} key
- */
+/** @param {string} key */
 function _record(key) {
     if (!_globals.__odooTrace) {
         return;
@@ -20,9 +18,6 @@ function _record(key) {
  * @param {string} flagSubstring
  * @param {string} [extraGlobalFlag]
  * @returns {((category: string, ...parts: any[]) => void) & {
- * enabled: () => boolean,
- * active: () => boolean,
- * }}
  */
 function _makeNamespacedLog(prefix, flagSubstring, extraGlobalFlag) {
     const flagKey = `debug.${flagSubstring}`;
@@ -74,9 +69,7 @@ export const fieldLog = _makeNamespacedLog("field", "field");
 
 export const livechatLog = _makeNamespacedLog("livechat", "livechat");
 
-/**
- * @typedef {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }} CategoryLog
- */
+/** @typedef {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }} CategoryLog */
 
 /**
  * @param {ReturnType<typeof _makeNamespacedLog>} namespaced
@@ -103,9 +96,7 @@ export const makeViewLog = _categoryBinder(viewLog);
 export const makeFieldLog = _categoryBinder(fieldLog);
 export const makeLivechatLog = _categoryBinder(livechatLog);
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 function _traceArmedAtInit() {
     try {
         if (globalThis.location?.search?.includes("odoo-trace")) {

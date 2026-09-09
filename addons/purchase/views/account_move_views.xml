@@ -6,7 +6,6 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form" />
         <field name="arch" type="xml">
-            <!-- Auto-complete could be done from either a bill either a purchase order -->
             <field name="invoice_vendor_bill_id" position="after">
                 <t groups="purchase.group_purchase_user">
                     <field

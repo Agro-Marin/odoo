@@ -17,12 +17,8 @@ const { DateTime } = luxon;
 export const messageActionsRegistry = registry.category("mail.message/actions");
 
 /** @typedef {import("@odoo/owl").Component} Component */
-/**
- * @typedef {Component & { reactionPicker?: Object, optionsDropdown?: Object, root?: {el?: HTMLElement|null}, isActive?: boolean, overlayRootId?: string, shouldHideFromMessageListOnDelete?: boolean, openReactionMenu?: () => void, }} MessageActionOwner
- */
-/**
- * @typedef {import("@mail/core/common/action").ActionDefinition<MessageActionOwner, ActionParams, MessageAction>} ActionDefinition
- */
+/** @typedef {Component & { reactionPicker?: Object, optionsDropdown?: Object, root?: {el?: HTMLElement|null}, isActive?: boolean, overlayRootId?: string, shouldHideFromMessageListOnDelete?: boolean, openReactionMenu?: () => void, }} MessageActionOwner */
+/** @typedef {import("@mail/core/common/action").ActionDefinition<MessageActionOwner, ActionParams, MessageAction>} ActionDefinition */
 /** @typedef {import("models").Message} Message */
 /** @typedef {import("models").Thread} Thread */
 /** @typedef {import("@mail/core/common/action").ActionParams<MessageActionOwner> & { action: MessageAction, message: Message, thread: Thread }} ActionParams */
@@ -30,9 +26,7 @@ export const messageActionsRegistry = registry.category("mail.message/actions");
  * @typedef {Object} MessageActionSpecificDefinition
  * @property {boolean|((this: MessageAction, params: ActionParams) => boolean)} [condition=true]
  */
-/**
- * @typedef {ActionDefinition & MessageActionSpecificDefinition} MessageActionDefinition
- */
+/** @typedef {ActionDefinition & MessageActionSpecificDefinition} MessageActionDefinition */
 /**
  * @param {string} id
  * @param {MessageActionDefinition} definition

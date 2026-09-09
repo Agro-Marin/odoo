@@ -38,7 +38,6 @@ test("test creation of todo from the calendar view", async () => {
         message: "The calendar view should have 2 todos with date_end set",
     });
 
-    // click on today's cell to create a new todo
     await contains(".fc-day-today").click();
     await animationFrame();
 

@@ -16,13 +16,9 @@ import { formatServerValue } from "./record_value_transforms.js";
 import { resequenceRecords } from "./resequence.js";
 import { computeNextOrderBy } from "./static_list_utils.js";
 
-/** @import { DataPoint } from "./datapoint.js" */
-
 const DEFAULT_HANDLE_FIELD = "sequence";
 
-/**
- * @abstract
- */
+/** @abstract */
 /**
  * @param {{ type: string }} field
  * @param {any} value
@@ -44,9 +40,7 @@ function isSameStoredValue(field, value, current) {
 }
 
 export class DynamicList extends EditableListDataPoint {
-    /**
-     * @type {DataPoint["setup"]}
-     */
+    /** @type {DataPoint["setup"]} */
     setup(...args) {
         super.setup(...args);
         /** @type {number} */
@@ -58,9 +52,7 @@ export class DynamicList extends EditableListDataPoint {
         this.isDomainSelected = false;
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     get evalContext() {
         return getSpecEvalContext(this.config);
     }
@@ -146,9 +138,7 @@ export class DynamicList extends EditableListDataPoint {
         return true;
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get recordCount() {
         return this.count;
     }
@@ -398,9 +388,7 @@ export class DynamicList extends EditableListDataPoint {
         return this.model.mutex.exec(() => this._selectDomain(value));
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     sortBy(fieldName) {
         return this.model.mutex.exec(() => {
             const orderBy = computeNextOrderBy(fieldName, this.orderBy, false, {
@@ -700,7 +688,7 @@ export class DynamicList extends EditableListDataPoint {
         this.isDomainSelected = value;
     }
 
-    /** @param {boolean} isSelected @param {boolean} state */
+    /** @param {boolean} isSelected */
     async _toggleArchive(isSelected, state) {
         const method = state ? "action_archive" : "action_unarchive";
         const context = this.context;

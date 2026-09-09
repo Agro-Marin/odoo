@@ -40,24 +40,16 @@ import { hasTouch } from "@web/core/browser/feature_detection";
  * @typedef {import("@odoo/hoot").QueryOptions} QueryOptions
  * @typedef {import("@odoo/hoot").Target} Target
  * @typedef {DragOptions & {
- * initialPointerMoveDistance?: number;
- * pointerDownDuration?: number;
- * }} DragAndDropOptions
  * @typedef {{
- * altKey?: boolean;
- * ctrlKey?: boolean;
- * metaKey?: boolean;
- * shiftKey?: boolean;
- * }} KeyModifierOptions
  */
 
 /**
- * @template T
+ * @template
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
 /**
- * @template {(...args: any) => any} T
+ * @template {(...args: any) => any}
  * @typedef {(...args: Parameters<T>) => MaybePromise<ReturnType<T>>} Promisify
  */
 
@@ -121,9 +113,7 @@ const dispatchFileDragEvent = async (node, type, files) => {
     await manuallyDispatchProgrammaticEvent(node, type, { dataTransfer });
 };
 
-/**
- * @param {number} [delay]
- */
+/** @param {number} [delay] */
 const waitForTouchDelay = async (delay) => {
     if (hasTouch()) {
         await advanceTime(delay ?? 500);
@@ -178,33 +168,25 @@ export function contains(target, options) {
     /** @type {Promise<Element>} */
     const nodePromise = waitFor.as("contains")(target, { visible: true, ...options });
     return {
-        /**
-         * @param {PointerOptions} [options]
-         */
+        /** @param {PointerOptions} [options] */
         check: async (options) => {
             consumeContains();
             await check(nodePromise, options);
             await animationFrame();
         },
-        /**
-         * @param {FillOptions} [options]
-         */
+        /** @param {FillOptions} [options] */
         clear: async (options) => {
             consumeContains();
             await focusCurrent();
             await clear({ confirm: "auto", ...options });
             await animationFrame();
         },
-        /**
-         * @param {PointerOptions & KeyModifierOptions} [options]
-         */
+        /** @param {PointerOptions & KeyModifierOptions} [options] */
         click: async (options) => {
             consumeContains();
             await callClick(click, nodePromise, options);
         },
-        /**
-         * @param {PointerOptions & KeyModifierOptions} [options]
-         */
+        /** @param {PointerOptions & KeyModifierOptions} [options] */
         dblclick: async (options) => {
             consumeContains();
             await callClick(dblclick, nodePromise, options);
@@ -289,17 +271,13 @@ export function contains(target, options) {
             await drop();
             await advanceFrame();
         },
-        /**
-         * @param {File[]} files
-         */
+        /** @param {File[]} files */
         dragEnterFiles: async (files) => {
             consumeContains();
             await dispatchFileDragEvent(await nodePromise, "dragenter", files);
             await animationFrame();
         },
-        /**
-         * @param {File[]} files
-         */
+        /** @param {File[]} files */
         dropFiles: async (files) => {
             consumeContains();
             await dispatchFileDragEvent(await nodePromise, "drop", files);
@@ -365,9 +343,7 @@ export function contains(target, options) {
             await press(keyStrokes, options);
             await animationFrame();
         },
-        /**
-         * @param {Position} position
-         */
+        /** @param {Position} position */
         scroll: async (position) => {
             consumeContains();
             await scroll(nodePromise, position, {
@@ -376,17 +352,13 @@ export function contains(target, options) {
             });
             await animationFrame();
         },
-        /**
-         * @param {InputValue} value
-         */
+        /** @param {InputValue} value */
         select: async (value) => {
             consumeContains();
             await select(/** @type {any} */ (value), { target: nodePromise });
             await animationFrame();
         },
-        /**
-         * @param {InputValue} value
-         */
+        /** @param {InputValue} value */
         selectDropdownItem: async (value) => {
             consumeContains();
             await callClick(
@@ -401,9 +373,7 @@ export function contains(target, options) {
             await callClick(click, /** @type {any} */ (item));
             await animationFrame();
         },
-        /**
-         * @param {PointerOptions} [options]
-         */
+        /** @param {PointerOptions} [options] */
         uncheck: async (options) => {
             consumeContains();
             await uncheck(nodePromise, options);
@@ -412,9 +382,7 @@ export function contains(target, options) {
     };
 }
 
-/**
- * @param {string} style
- */
+/** @param {string} style */
 export function defineStyle(style) {
     const styleEl = document.createElement("style");
     styleEl.textContent = style;
@@ -423,9 +391,7 @@ export function defineStyle(style) {
     after(() => styleEl.remove());
 }
 
-/**
- * @param {string} value
- */
+/** @param {string} value */
 export async function editAce(value) {
     await manuallyDispatchProgrammaticEvent(
         queryOne(".ace_editor .ace_content"),
@@ -453,9 +419,7 @@ export async function sortableDrag(from, options) {
 
     let isFirstMove = true;
 
-    /**
-     * @param {string} [targetSelector]
-     */
+    /** @param {string} [targetSelector] */
     const moveAbove = async (targetSelector) => {
         await moveTo(targetSelector, {
             position: {
@@ -467,9 +431,7 @@ export async function sortableDrag(from, options) {
         isFirstMove = false;
     };
 
-    /**
-     * @param {string} [targetSelector]
-     */
+    /** @param {string} [targetSelector] */
     const moveUnder = async (targetSelector) => {
         const elRect = queryRect(targetSelector);
         const firstMoveBelow = isFirstMove && elRect.y > fromRect.y;

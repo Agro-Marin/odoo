@@ -24,7 +24,6 @@ export class ProjectTaskKanbanRenderer extends RottingKanbanRenderer {
     }
 
     canCreateGroup() {
-        // This restrict the creation of project stages to the kanban view of a given project
         const { context, groupByField } = this.props.list;
         const isGroupedByStage = groupByField?.name === "step_id";
         return (

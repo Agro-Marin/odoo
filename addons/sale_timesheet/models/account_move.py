@@ -95,14 +95,6 @@ class AccountMove(models.Model):
         }
 
     def _link_timesheets_to_invoice(self, start_date=None, end_date=None):
-        """Search timesheets from given period and link this timesheets to the invoice
-
-        When we create an invoice from a sale order, we need to
-        link the timesheets in this sale order to the invoice.
-        Then, we can know which timesheets are invoiced in the sale order.
-        :param start_date: the start date of the period
-        :param end_date: the end date of the period
-        """
         for line in self.filtered(
             lambda i: i.move_type == "out_invoice" and i.state == "draft"
         ).invoice_line_ids:
@@ -128,8 +120,6 @@ class AccountMove(models.Model):
                 timesheets.write({"timesheet_invoice_id": line.move_id.id})
 
     def _get_range_dates(self, order):
-        # A method that can be overridden
-        # to set the start and end dates according to order values
         return None, None
 
     def action_post(self):

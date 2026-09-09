@@ -22,8 +22,6 @@ import { buildOrthogonalPath, buildSelfLoopPath } from "./router.js";
  * @param {import("../flow_types").FlowSize} params.defaultNodeSize
  * @param {number} [params.defaultNodeHeaderHeight]
  * @param {{ id: import("../flow_types").FlowNodeId, rect: import("./nodes").FlowRect }[]} [params.paddedRects]
- *  every node's obstacle rect, already padded, so a caller drawing many
- *  connections computes them once; the two endpoint nodes are filtered out here
  * @param {number} [params.obstaclePadding]
  * @param {number} [params.lead]
  * @param {number} [params.cornerRadius]

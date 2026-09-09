@@ -5,17 +5,10 @@ import { _t } from "@web/core/translation";
 
 export const ProjectTaskAnalysisRendererMixin = (T) =>
     class ProjectTaskAnalysisRendererMixin extends T {
-        /**
-         * Drill down on project.task instead of the analysis report model.
-         * NB: no search_view_id is forwarded on purpose — the current one belongs
-         * to the report model, not to project.task.
-         */
         openView(domain, views, context, newWindow) {
             if (!getShowSubtasks()) {
                 context.show_task_options = false;
             }
-            // Map report leaves onto task leaves without mutating `domain`: it is
-            // the model's cached group domain, not a copy.
             const taskDomain = domain.map((leaf) =>
                 Array.isArray(leaf) && leaf[0] === "task_id"
                     ? ["id", ...leaf.slice(1)]

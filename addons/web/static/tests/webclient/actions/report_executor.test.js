@@ -12,9 +12,7 @@ import {
 } from "@web/webclient/actions/reports/report_executor";
 import { getReportUrl } from "@web/webclient/actions/reports/utils";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
     /** @type {Record<string, any[]>} */
     const calls = { updateUI: [], doAction: [], ui: [], actionInfo: [] };

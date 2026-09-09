@@ -521,9 +521,7 @@ test("a cancelled slide-in does not enable snapping", async () => {
     expect(sheet.state.isSnappingEnabled).toBe(true);
 });
 
-/**
- * @param {number} px
- */
+/** @param {number} px */
 async function sheetOfContentHeight(px) {
     defineStyle(`.sheet-sized-child { height: ${px}px; }`);
     class Child extends Component {

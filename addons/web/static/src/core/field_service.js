@@ -44,9 +44,7 @@ function getRelation(fieldDef, followRelationalProperties = false) {
 }
 
 class FieldService {
-    /**
-     * @param {{ orm: any }} services
-     */
+    /** @param {{ orm: any }} services */
     constructor({ orm }) {
         this.orm = orm;
     }
@@ -258,9 +256,7 @@ class FieldService {
         };
     }
 
-    /**
-     * @param {any} [value]
-     */
+    /** @param {any} [value] */
     makeString(value) {
         return String(value ?? "-");
     }

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Reception Report Labels -->
     <template id="report_reception_report_label">
         <t
             t-if="quantity"
@@ -31,7 +30,6 @@
         </t>
     </template>
 
-    <!-- Reception Report -->
     <record id="stock_reception_report_action" model="ir.actions.report">
         <field name="name">Reception Report</field>
         <field name="model">stock.picking</field>
@@ -119,7 +117,6 @@
                     <tbody>
                         <t t-set="possible_moves" t-value="sources_to_lines[source]" />
                         <t t-foreach="possible_moves" t-as="line">
-                            <!-- don't print non-assigned lines when printing pdf -->
                             <tr t-if="line['is_assigned']">
                                 <td>
                                     <span t-out="line['product']['display_name']">

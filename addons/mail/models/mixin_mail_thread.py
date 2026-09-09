@@ -216,9 +216,6 @@ class MixinMailThread(models.AbstractModel):
     ) -> list | NotImplementedType:
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        # Second line of defence only: the field declares groups="base.group_user",
-        # so a non-internal user is refused by the field ACL before reaching this.
-        # Kept so that relaxing the ACL cannot silently open follower search.
         if not (self.env.su or self.env.user._is_internal()):
             user_partner = self.env.user.partner_id
             allow_partner_ids = set(
@@ -3271,10 +3268,6 @@ class MixinMailThread(models.AbstractModel):
         for render_lang in {
             lang or self.env.lang for lang in devices.partner_id.mapped("lang")
         }:
-            # Re-context only when the recipient's language actually differs:
-            # a fresh context is a fresh cache, and re-reading the message just
-            # to render it in the language it is already in costs a query per
-            # notification for the single-language case that is the norm.
             if render_lang == self.env.lang:
                 record_wlang, message_wlang = self, message
             else:
@@ -3987,10 +3980,6 @@ class MixinMailThread(models.AbstractModel):
             truncated = json.loads(f'"{escaped[:max_chars].rstrip(chr(92))}"')
         except json.decoder.JSONDecodeError as json_error:
             truncated = json.loads(f'"{escaped[: json_error.pos - 2]}"')
-        # `json.dumps` escapes a non-BMP character as a surrogate PAIR, so a cut
-        # by escaped length can land between the halves. The survivor is a code
-        # unit rather than a character: it re-encodes cleanly, travels to the
-        # browser as \udXXX and renders there as U+FFFD.
         while truncated and "\ud800" <= truncated[-1] <= "\udfff":
             truncated = truncated[:-1]
         return truncated

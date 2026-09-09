@@ -79,16 +79,6 @@ export class SMLX2ManyField extends X2ManyField {
         return this.selectCreate({ domain, context, title });
     }
 
-    /**
-     * How much of this line's quantity is not saved yet, saved minus current.
-     *
-     * `data` already carries the pending edit over the saved value, so the two
-     * public members answer this without reaching for the record's `savedData`
-     * and `changes`. An untouched line subtracts a number from itself and
-     * gives 0 rather than the NaN the saved/changes pair produced for a
-     * missing change; both are falsy, and every caller here
-     * tests exactly that.
-     */
     _unsavedQtyDelta(ml) {
         return ml.savedData.quantity - ml.data.quantity;
     }

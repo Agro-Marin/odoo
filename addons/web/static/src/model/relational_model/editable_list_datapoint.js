@@ -5,33 +5,21 @@ import { markRaw } from "@odoo/owl";
 
 import { DataPoint } from "./datapoint.js";
 
-/** @import { RelationalRecord } from "./record.js" */
+/** @typedef {{ position?: "top" | "bottom" }} ListInsertion */
 
-/**
- * @typedef {{ position?: "top" | "bottom" }} ListInsertion
- */
-
-/**
- * @abstract
- */
+/** @abstract */
 export class EditableListDataPoint extends DataPoint {
-    /**
-     * @type {{ record: RelationalRecord | null }}
-     */
+    /** @type {{ record: RelationalRecord | null }} */
     _editHandover = markRaw({ record: null });
 
-    /**
-     * @returns {RelationalRecord | undefined}
-     */
+    /** @returns {RelationalRecord | undefined} */
     get editedRecord() {
         return /** @type {RelationalRecord[]} */ (
             /** @type {any} */ (this).records
         ).find((record) => record.isInEdition);
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isEditing() {
         return Boolean(this._editHandover.record || this.editedRecord);
     }
@@ -47,9 +35,7 @@ export class EditableListDataPoint extends DataPoint {
         };
     }
 
-    /**
-     * @returns {string | undefined}
-     */
+    /** @returns {string | undefined} */
     _findHandleField() {
         return Object.keys(this.activeFields).find(
             (fieldName) => this.activeFields[fieldName].isHandle,

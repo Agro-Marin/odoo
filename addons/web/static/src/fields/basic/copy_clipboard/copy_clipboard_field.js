@@ -108,9 +108,7 @@ function extractProps({ string, attrs }) {
     };
 }
 
-/**
- * @type {import("registries").FieldsRegistryItemShape["supportedAttributes"]}
- */
+/** @type {import("registries").FieldsRegistryItemShape["supportedAttributes"]} */
 const copyClipboardAttributes = [
     archAttribute("disabled", _t("Disabled when"), {
         help: _t("Python expression; when it is true the copy button is inert."),

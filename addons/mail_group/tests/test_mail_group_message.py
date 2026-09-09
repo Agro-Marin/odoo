@@ -7,8 +7,6 @@ from odoo.addons.mail_group.tests.data import GROUP_TEMPLATE
 
 class TestMailGroupMessage(TestMailListCommon):
     def test_batch_send(self):
-        """Test that when someone sends an email to a large group that it is
-        delivered exactly to those people"""
         self.test_group.write(
             {
                 "access_mode": "members",
@@ -58,7 +56,6 @@ class TestMailGroupMessage(TestMailListCommon):
         )
 
     def test_group_closed(self):
-        """Test that the email will bounce if the group is closed."""
         self.test_group.is_closed = True
 
         with self.mock_mail_gateway():
@@ -85,7 +82,6 @@ class TestMailGroupMessage(TestMailListCommon):
         "odoo.addons.mail_group.models.mail_group_message",
     )
     def test_email_duplicated(self):
-        """Test gateway does not accept two times same incoming email"""
         self.test_group.write({"moderation": False})
 
         with self.mock_mail_gateway():
@@ -127,8 +123,6 @@ class TestMailGroupMessage(TestMailListCommon):
         "odoo.addons.mail_group.models.mail_group_message",
     )
     def test_email_not_sent_to_author(self):
-        """Test that when someone sends an email the group process does not send
-        it back to the original author."""
         self.test_group.write({"moderation": False})
 
         with self.mock_mail_gateway():
@@ -250,8 +244,6 @@ class TestMailGroupMessage(TestMailListCommon):
         "odoo.addons.mail_group.models.mail_group_message",
     )
     def test_email_empty_from(self):
-        """Test that when someone sends an email the group process does not send
-        it back to the original author."""
         self.test_group.write(
             {
                 "access_mode": "members",

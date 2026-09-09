@@ -2,28 +2,17 @@
 
 import { makeErrorFromResponse } from "@web/core/network/rpc";
 
-/**
- * @typedef {{
- * code?: number;
- * context?: import("@web/core/context").Context;
- * description?: string;
- * message?: string;
- * subType?: string;
- * errorName?: string;
- * type?: string;
- * args?: unknown[];
- * }} ServerErrorInit
- */
+/** @typedef {{ */
 
 /**
- * @template T
+ * @template
  * @typedef {import("./mock_server").KwArgs} KwArgs
  */
 
 const KWARGS_SYMBOL = Symbol("is_kwargs");
 
 /**
- * @template T
+ * @template
  * @param {T} kwargs
  * @returns {T}
  */
@@ -33,7 +22,7 @@ export function makeKwArgs(kwargs) {
 }
 
 /**
- * @template {string} T
+ * @template {string}
  * @param {Iterable<any>} allArgs
  * @param {...T} argNames
  * @returns {KwArgs<Record<T, any>>}
@@ -54,9 +43,7 @@ export function getKwArgs(allArgs, ...argNames) {
     return kwargs;
 }
 
-/**
- * @param {import("./mock_model").ModelRecord} record
- */
+/** @param {import("./mock_model").ModelRecord} record */
 export function getRecordQualifier(record) {
     if (record.id) {
         return `record #${record.id}`;
@@ -68,9 +55,7 @@ export function getRecordQualifier(record) {
     return "anonymous record";
 }
 
-/**
- * @param {ServerErrorInit} params
- */
+/** @param {ServerErrorInit} params */
 export function makeServerError({
     code,
     context,
@@ -109,7 +94,7 @@ export function safeSplit(value, separator) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T} kwargs
  * @returns {T}
  */

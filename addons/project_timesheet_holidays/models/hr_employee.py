@@ -12,8 +12,6 @@ class HrEmployee(models.Model):
         if self.env.context.get("salary_simulation"):
             return employees
 
-        # We need to create timesheet entries for the global time off that are already created
-        # and are planned for after this employee creation date
         self.with_context(
             allowed_company_ids=employees.company_id.ids
         )._create_future_public_holidays_timesheets(employees)
@@ -26,14 +24,11 @@ class HrEmployee(models.Model):
         self_company = self.with_context(allowed_company_ids=self.company_id.ids)
         if "active" in vals:
             if vals.get("active"):
-                # Create future holiday timesheets
                 inactive_emp = inactive_emp.with_env(self_company.env)
                 inactive_emp._create_future_public_holidays_timesheets(inactive_emp)
             else:
-                # Delete future holiday timesheets
                 self_company._remove_future_public_holidays_timesheets()
         elif "resource_calendar_id" in vals:
-            # Update future holiday timesheets
             self_company._remove_future_public_holidays_timesheets()
             self_company._create_future_public_holidays_timesheets(self_company)
         return result
@@ -75,7 +70,6 @@ class HrEmployee(models.Model):
         for employee in employees:
             if not employee.active:
                 continue
-            # First we look for the global time off that are already planned after today
             global_leaves = (
                 employee.resource_calendar_id.global_leave_ids.filtered(
                     lambda l: l.date_from >= today

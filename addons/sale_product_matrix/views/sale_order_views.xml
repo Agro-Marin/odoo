@@ -7,7 +7,6 @@
         <field name="inherit_id" ref="sale.view_sale_order_form" />
         <field name="arch" type="xml">
             <field name="partner_id" position="after">
-                <!-- Technical non stored fields for Order Grid Entry -->
                 <field name="grid" invisible="1" />
                 <field name="grid_product_tmpl_id" invisible="1" />
                 <field name="grid_update" invisible="1" />

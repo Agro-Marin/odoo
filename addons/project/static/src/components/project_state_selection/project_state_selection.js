@@ -15,20 +15,13 @@ export class ProjectStateSelectionField extends StateSelectionField {
         this.colors = STATUS_COLORS;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get options() {
         return super.options.filter((o) => o[0] !== "to_define");
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get label() {
-        // `to_define` is hidden from the dropdown options but is a real
-        // selection value: format against the full selection so records in
-        // that state don't render an empty label.
         return formatSelection(this.currentValue, {
             selection: this.props.record.fields[this.props.name].selection,
         });

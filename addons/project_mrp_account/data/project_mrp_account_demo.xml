@@ -28,7 +28,6 @@
             <field name="location_dest_id" ref="stock.stock_location_stock" />
             <field name="bom_id" ref="mrp.mrp_bom_wood_panel" />
         </record>
-        <!-- Function confirm MO -->
         <function
             model="mrp.production"
             name="action_confirm"

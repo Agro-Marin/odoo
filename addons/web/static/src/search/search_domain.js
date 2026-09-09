@@ -5,7 +5,6 @@ import { Domain } from "@web/core/domain";
 
 import { constructDateDomain } from "./utils/dates.js";
 
-/** @import { ActiveItem, AutocompleteValue, QueryGroup, SearchItem, SearchItems } from "./search_types" */
 /**
  * @param {Iterable<any>} categories
  * @param {Record<string, any>} searchViewFields

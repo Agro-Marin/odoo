@@ -12,7 +12,6 @@ import { HootTestResult } from "./hoot_test_result.js";
 /**
  * @typedef {import("../core/test").Test} Test
  * @typedef {{
- * }} HootReportingProps
  */
 
 const { Boolean } = globalThis;
@@ -333,9 +332,7 @@ export class HootReporting extends Component {
         );
     }
 
-    /**
-     * @param {typeof this.uiState.statusFilter} status
-     */
+    /** @param {typeof this.uiState.statusFilter} status */
     filterResults(status) {
         this.uiState.resultsPage = 0;
         if (this.uiState.statusFilter === status) {

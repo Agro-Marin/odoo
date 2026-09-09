@@ -49,7 +49,6 @@ export const taskStageWithStateSelection = {
     ],
     fieldDependencies: [
         { name: "state", type: "selection" },
-        // Read by the embedded ProjectTaskStateSelection (isToggleMode).
         { name: "project_id", type: "many2one" },
     ],
     supportedTypes: ["many2one"],

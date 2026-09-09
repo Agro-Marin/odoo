@@ -22,17 +22,9 @@ export class LinkNavigation {
     /**
      * @param {MouseEvent} ev
      * @param {import("models").Thread} [thread]
-     * @returns {boolean} whether the click was handled here
+     * @returns {boolean}
      */
     handleClickOnLink(ev, thread) {
-        // The body of an EMAIL message is rendered into a shadow root
-        // (`message.js:168`, gated by `message.xml:113`) while the click
-        // handler sits on the message root, in the light DOM. `ev.target` is
-        // therefore retargeted to the shadow host and `closest("a")` answered
-        // null for every link in an email body -- so none of the redirects
-        // below ever fired, and a decorated `#channel` mention silently fell
-        // through to a full page load. The composed path names the element
-        // that was actually clicked.
         const target = /** @type {Element} */ (ev.composedPath?.()[0] ?? ev.target);
         const link = target.closest?.("a");
         if (!link) {
@@ -85,8 +77,8 @@ export class LinkNavigation {
      * @param {MouseEvent} ev
      * @param {HTMLAnchorElement} link
      * @param {number} id
-     * @param {import("models").Thread} [thread] the one the link was clicked in
-     * @returns {boolean} whether the click was handled here
+     * @param {import("models").Thread} [thread]
+     * @returns {boolean}
      */
     openRedirectedMessage(ev, link, id, thread) {
         const message = this.store["mail.message"].get(id);
@@ -114,7 +106,7 @@ export class LinkNavigation {
      * @param {import("models").Message} message
      * @param {import("models").Thread} targetThread
      * @param {HTMLAnchorElement} link
-     * @param {import("models").Thread} [thread] the one the link was clicked in
+     * @param {import("models").Thread} [thread]
      */
     revealMessage(message, targetThread, link, thread) {
         targetThread.highlightMessage = message;
@@ -127,11 +119,7 @@ export class LinkNavigation {
         }
     }
 
-    /**
-     * A reader with no partner of their own cannot be told anything useful, so
-     * the link is followed and the backend decides what they may see.
-     * @param {HTMLAnchorElement} link
-     */
+    /** @param {HTMLAnchorElement} link */
     refuseMessage(link) {
         if (this.store.self_partner) {
             this.notifyConversationUnavailable();

@@ -81,9 +81,7 @@ function makeAce() {
     return { editor, log };
 }
 
-/**
- * @param {Partial<Record<string, any>>} [overrides]
- */
+/** @param {Partial<Record<string, any>>} [overrides] */
 function makeController(overrides = {}) {
     /** @type {any[]} */
     const changes = [];

@@ -5,10 +5,6 @@ class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
     def _get_action_per_item(self):
-        """Get action per Sales Order Item to display the stock moves linked
-
-        :returns: Dict containing id of SOL as key and the action as value
-        """
         action_per_sol = super()._get_action_per_item()
         stock_move_action = self.env.ref(
             "sale_project_stock.stock_move_per_sale_order_line_action"

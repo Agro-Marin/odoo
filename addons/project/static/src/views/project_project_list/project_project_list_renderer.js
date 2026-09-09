@@ -10,20 +10,8 @@ export class ProjectProjectListRenderer extends ListRenderer {
         GroupConfigMenu: ProjectProjectGroupConfigMenu,
     };
 
-    /**
-     * This method prevents from computing the selection once for each cell when
-     * rendering the list. Indeed, `selection` is a getter which browses all the
-     * records, so computing it for each cell slows down the rendering a lot on
-     * large tables. It also prevents from iterating over the selection to
-     * compare the projects' companies for each cell.
-     *
-     * @returns {boolean} whether all selected projects share the same value for
-     *      the given field.
-     */
+    /** @returns {boolean} */
     haveAllSelectedProjectsSameField(field) {
-        // Cache keyed by field (see project_task_list_renderer): a single
-        // field-agnostic flag would return the first field's answer if called
-        // for two different fields in the same render/microtask window.
         this._sameFieldCache ??= {};
         if (!(field in this._sameFieldCache)) {
             const selection = this.props.list.selection;

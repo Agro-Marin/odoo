@@ -10,7 +10,6 @@ class TestSaleAutoInvoice(TestSaleCouponCommon):
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
-        # Create a loyalty program with 100% discount
         self.env["loyalty.program"].sudo().create(
             {
                 "name": "100discount",
@@ -32,7 +31,6 @@ class TestSaleAutoInvoice(TestSaleCouponCommon):
                 ],
             }
         )
-        # Add order line to order
         self.env["sale.order.line"].create(
             {
                 "order_id": self.empty_order.id,
@@ -41,7 +39,6 @@ class TestSaleAutoInvoice(TestSaleCouponCommon):
                 "price_unit": 200,
             }
         )
-        # Apply discount
         self._apply_promo_code(self.empty_order, "100dis")
         self.empty_order._confirm_order()
         self.assertTrue(

@@ -3,10 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { Group } from "@web/model/relational_model/group";
 
-/**
- * @param {{ groupCount: number, listCount: number, hasLimitedCount: boolean,
- * isGrouped?: boolean, countLimit?: number }} options
- */
+/** @param {{ groupCount: number, listCount: number, hasLimitedCount: boolean, */
 function makeGroup({
     groupCount,
     listCount,

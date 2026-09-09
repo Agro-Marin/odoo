@@ -12,7 +12,6 @@ class TestUpload(HttpCase):
     def test_wrong_pdf(self):
         self.authenticate("admin", "admin")
         data = {"csrf_token": http.Request.csrf_token(self)}
-        # Structurally valid but AES-encrypted PDF file (generated with PyPDF)
         with file_open("sale_pdf_quote_builder/tests/files/test_AES.pdf", "rb") as f:
             files = [("ufile", ("test_AES.pdf", f.read(), "application/pdf"))]
         resp = self.url_open(
@@ -22,8 +21,6 @@ class TestUpload(HttpCase):
         self.assertEqual(
             resp.headers["Content-Type"], "application/json; charset=utf-8"
         )
-        # Compare parsed JSON: the fork's orjson serializer emits compact
-        # separators, so a raw-text comparison is serializer-fragile.
         self.assertEqual(
             resp.json()["error"],
             "It seems that we're not able to process this pdf inside a "

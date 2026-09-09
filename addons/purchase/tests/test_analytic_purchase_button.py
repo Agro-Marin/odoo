@@ -100,8 +100,6 @@ class TestAnalyticPurchaseButton(TransactionCase):
         action = self.account.action_view_purchase_orders()
         self.assertEqual(action["view_mode"], "list,form")
         self.assertNotIn("res_id", action)
-        # Assert what the action *lists*, not the shape of the domain it carries:
-        # it hands over a traversal domain rather than materialising every id.
         listed = self.env["purchase.order"].search(action["domain"])
         self.assertIn(first, listed)
         self.assertIn(second, listed)

@@ -42,7 +42,7 @@ export function webNameSearch(
 }
 
 /**
- * @template T
+ * @template
  * @param {T[]} records
  * @param {number} limit
  * @returns {{ records: T[], hasMore: boolean }}
@@ -78,9 +78,7 @@ export function searchMoreTitle(fieldString) {
     return _t("Search");
 }
 
-/**
- * @returns {string}
- */
+/** @returns {string} */
 export function searchMoreLabel() {
     return _t("Search more...");
 }

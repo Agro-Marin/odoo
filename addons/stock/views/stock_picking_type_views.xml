@@ -330,16 +330,10 @@
                                     groups="stock.group_tracking_lot">
                                     <field name="set_package_type" />
                                 </group>
-                                <!-- As this group will be hidden without multi_loccation, you will
-                                not be able to create a
-                                    picking type with the code 'Internal', which make sense, but as the field 'code' on picking
-                                    types can't be partially hidden, you can still select the code internal in the form view -->
                                 <group
                                     string="Locations"
                                     groups="stock.group_stock_multi_locations"
                                     name="locations">
-                                    <!-- Labels = hack to handle field location string changes in
-                                    repair -->
                                     <label
                                         for="default_location_src_id"
                                         name="default_location_src_id_label" />

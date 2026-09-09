@@ -3,16 +3,9 @@
 
 import { useService } from "@web/core/utils/hooks";
 
-/**
- * @typedef {Pick<
- * import("services").ServiceFactories["action"],
- * "doAction" | "doActionButton" | "switchView"
- * >} ActionPort
- */
+/** @typedef {Pick< */
 
-/**
- * @returns {ActionPort}
- */
+/** @returns {ActionPort} */
 export function useAction() {
     return useService("action");
 }

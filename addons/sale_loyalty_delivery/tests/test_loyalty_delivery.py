@@ -42,7 +42,6 @@ class TestLoyaltyDeliveryCost(TestSaleCouponCommon):
                 "amount": 100,
             }
         )
-        # Create a 50% discount on order code
         cls.env["loyalty.program"].create(
             {
                 "name": "50% discount code",
@@ -77,9 +76,6 @@ class TestLoyaltyDeliveryCost(TestSaleCouponCommon):
         )
 
     def test_delivery_cost_gift_card(self):
-        """
-        Test that the order amount used to trigger the free delivery doesn't consider gift cards.
-        """
 
         program_gift_card = self.env["loyalty.program"].create(
             {
@@ -128,15 +124,7 @@ class TestLoyaltyDeliveryCost(TestSaleCouponCommon):
         self.assertEqual(order.line_ids.filtered("is_delivery").price_total, 0)
 
     def test_free_delivery_cost_with_ewallet(self):
-        """
-        Automatic free shipping of a delivery carrier should not be affected by the
-        use of an ewallet when paying.
-        Paying for an order of value 200 with an ewallet should still trigger the
-        free shipping of the selected carrier if the free shipping is for amounts
-        over 100.
-        """
 
-        # Create an eWallet Program and its corresponding rewards and coupons.
         program_ewallet = self.env["loyalty.program"].create(
             {
                 "name": "eWallet",
@@ -165,7 +153,6 @@ class TestLoyaltyDeliveryCost(TestSaleCouponCommon):
         reward_ewallet = program_ewallet.reward_ids[0]
         ewallet = program_ewallet.coupon_ids[0]
 
-        # Create an order and pay with the ewallet.
         order = self.order
         order._apply_program_reward(reward_ewallet, ewallet)
 
@@ -182,9 +169,6 @@ class TestLoyaltyDeliveryCost(TestSaleCouponCommon):
         self.assertEqual(order.line_ids.filtered("is_delivery").price_total, 0)
 
     def test_delivery_cost_discounts(self):
-        """
-        make sure discounts aren't taken into account for free delivery
-        """
         discount90 = self.env["loyalty.program"].create(
             {
                 "name": "90% Discount",
@@ -207,7 +191,6 @@ class TestLoyaltyDeliveryCost(TestSaleCouponCommon):
             }
         )
 
-        # Create an order and apply discount.
         order = self.order
         order._update_programs_and_rewards()
         coupon = order.coupon_point_ids.coupon_id.filtered(
@@ -232,7 +215,6 @@ class TestLoyaltyDeliveryCost(TestSaleCouponCommon):
         )
 
     def test_discount_percentage_ignores_delivery_lines(self):
-        """Check that percentage discounts ignore shipping costs."""
         self.delivery_carrier.free_over = False
         self._apply_promo_code(self.order, "test-50pc")
 

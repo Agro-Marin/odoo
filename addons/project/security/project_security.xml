@@ -151,10 +151,6 @@
         <record id="triage_visibility_rule" model="ir.rule">
             <field name="name">Triage: see own buckets</field>
             <field name="model_id" ref="model_project_triage" />
-            <!--
-                project.triage.user_id is required=True, so a False arm could never
-                match; the rule is "your own buckets", stated once.
-            -->
             <field name="domain_force">[('user_id', '=', user.id)]</field>
         </record>
         <record id="report_project_task_user_report_comp_rule" model="ir.rule">
@@ -200,7 +196,6 @@
         ]</field>
             <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
         </record>
-        <!-- Portal -->
         <record id="project_project_rule_portal" model="ir.rule">
             <field name="name">Project: portal users: portal and following</field>
             <field name="model_id" ref="project.model_project_project" />
@@ -354,14 +349,6 @@
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
         </record>
-        <!--
-            project.cfd.report — the burndown chart's twin, built from the same CTE,
-            shipped with an ACL and no rules at all. It does not leak today: its
-            _search feeds the CTE from project.task._search(), which applies that
-            model's rules as the calling user. But the whole protection then rests
-            on one _search override, which is exactly the argument for the burndown
-            carrying its own rules. Mirror them.
-        -->
         <record id="cfd_report_project_user_rule" model="ir.rule">
             <field name="name">Cumulative Flow Diagram: project visibility User</field>
             <field name="model_id" ref="model_project_cfd_report" />
@@ -440,15 +427,6 @@
         </record>
     </data>
 
-    <!--
-        ============================================================
-        PM-layer child models: multi-company + project-visibility rules
-        (mirror project.task / project.update). Without these, any internal
-        project user could read/mutate risks, gates, benefits, baselines,
-        history, retrospectives and sprints of projects they cannot see.
-        ============================================================
-    -->
-    <!-- project.risk -->
     <record id="risk_comp_rule" model="ir.rule">
         <field name="name">Project/project.risk: multi-company</field>
         <field name="model_id" ref="model_project_risk" />
@@ -477,7 +455,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.gate -->
     <record id="gate_comp_rule" model="ir.rule">
         <field name="name">Project/project.gate: multi-company</field>
         <field name="model_id" ref="model_project_gate" />
@@ -506,7 +483,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.gate.criterion -->
     <record id="gate_criterion_comp_rule" model="ir.rule">
         <field name="name">Project/project.gate.criterion: multi-company</field>
         <field name="model_id" ref="model_project_gate_criterion" />
@@ -535,7 +511,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.benefit -->
     <record id="benefit_comp_rule" model="ir.rule">
         <field name="name">Project/project.benefit: multi-company</field>
         <field name="model_id" ref="model_project_benefit" />
@@ -564,7 +539,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.baseline -->
     <record id="baseline_comp_rule" model="ir.rule">
         <field name="name">Project/project.baseline: multi-company</field>
         <field name="model_id" ref="model_project_baseline" />
@@ -593,7 +567,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.baseline.line -->
     <record id="baseline_line_comp_rule" model="ir.rule">
         <field name="name">Project/project.baseline.line: multi-company</field>
         <field name="model_id" ref="model_project_baseline_line" />
@@ -622,7 +595,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.history -->
     <record id="history_comp_rule" model="ir.rule">
         <field name="name">Project/project.history: multi-company</field>
         <field name="model_id" ref="model_project_history" />
@@ -651,7 +623,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.retrospective -->
     <record id="retrospective_comp_rule" model="ir.rule">
         <field name="name">Project/project.retrospective: multi-company</field>
         <field name="model_id" ref="model_project_retrospective" />
@@ -680,7 +651,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.retrospective.action -->
     <record id="retrospective_action_comp_rule" model="ir.rule">
         <field name="name">Project/project.retrospective.action: multi-company</field>
         <field name="model_id" ref="model_project_retrospective_action" />
@@ -710,7 +680,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- project.sprint -->
     <record id="sprint_comp_rule" model="ir.rule">
         <field name="name">Project/project.sprint: multi-company</field>
         <field name="model_id" ref="model_project_sprint" />
@@ -739,11 +708,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!--
-        project.task.dependency — the one PM child model that never got rules.
-        Without them any project user could read and delete the dependency
-        graph of projects they cannot open.
-    -->
     <record id="task_dependency_comp_rule" model="ir.rule">
         <field name="name">Project/project.task.dependency: multi-company</field>
         <field name="model_id" ref="model_project_task_dependency" />
@@ -772,13 +736,6 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
     </record>
 
-    <!--
-        project.resource.report — an aggregate over every company's
-        reservations. It carried neither a company_id nor any rule, so a user
-        of one company read the per-user allocated hours of another company's
-        private projects (only the project *name* was masked, by
-        project.project's own rules).
-    -->
     <record id="resource_report_comp_rule" model="ir.rule">
         <field name="name">Project/project.resource.report: multi-company</field>
         <field name="model_id" ref="model_project_resource_report" />

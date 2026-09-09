@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- Multi-Company Rules -->
     <record id="purchase_order_comp_rule" model="ir.rule">
         <field name="name">Purchase Order multi-company</field>
         <field name="model_id" ref="model_purchase_order" />
@@ -20,7 +19,6 @@
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
 
-    <!-- Portal Access Rules -->
     <record id="portal_purchase_order_user_rule" model="ir.rule">
         <field name="name">Portal Purchase Orders</field>
         <field name="model_id" ref="model_purchase_order" />
@@ -41,7 +39,6 @@
         <field name="groups" eval="[(4, ref('base.group_portal'))]" />
     </record>
 
-    <!-- Multi-Buyer Purchase Order Assignment Rules -->
     <record id="purchase_order_personal_rule" model="ir.rule">
         <field name="name">Personal Purchase Orders</field>
         <field name="model_id" ref="model_purchase_order" />
@@ -103,7 +100,6 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
-    <!-- Multi-Buyer Vendor Invoice Analysis Rules -->
     <record id="account_invoice_report_purchase_personal_rule" model="ir.rule">
         <field name="name">Personal Vendor Bills Analysis</field>
         <field name="model_id" ref="account.model_account_invoice_report" />
@@ -120,7 +116,6 @@
         <field name="groups" eval="[(4, ref('purchase.group_purchase_user_all'))]" />
     </record>
 
-    <!-- Multi-Buyer Vendor Invoice Assignment Rules -->
     <record id="purchase_user_account_move_personal_rule" model="ir.rule">
         <field name="name">Personal Vendor Bills</field>
         <field name="model_id" ref="account.model_account_move" />
@@ -153,11 +148,6 @@
         <field name="groups" eval="[(4, ref('purchase.group_purchase_user_all'))]" />
     </record>
 
-    <!--
-        The Read-only tier's scope, stated: every order, and every vendor
-        document. Read only; the buyer's personal rule keeps governing what
-        they may change.
-    -->
     <record id="purchase_order_rule_readonly" model="ir.rule">
         <field name="name">Read-only: all purchase orders</field>
         <field name="model_id" ref="model_purchase_order" />

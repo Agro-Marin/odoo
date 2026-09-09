@@ -13,9 +13,7 @@ import { TranslationDialog } from "./translation_dialog.js";
 /** @type {{ code: string | undefined, language: string }} */
 const _langCache = { code: undefined, language: "" };
 
-/**
- * @returns {(params: { record: Object, fieldName: string }) => Promise<void>}
- */
+/** @returns {(params: { record: Object, fieldName: string }) => Promise<void>} */
 function useTranslationDialog() {
     const addDialog = useOwnedDialogs();
 
@@ -52,9 +50,7 @@ export class TranslationButton extends Component {
         record: { type: Object },
     };
 
-    /**
-     * @type {(params: { record: Object, fieldName: string }) => Promise<void>}
-     */
+    /** @type {(params: { record: Object, fieldName: string }) => Promise<void>} */
     translationDialog;
 
     setup() {

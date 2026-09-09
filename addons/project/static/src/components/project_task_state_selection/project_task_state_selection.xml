@@ -1,6 +1,5 @@
 <templates>
     <t t-name="project.ProjectTaskStateSelection" t-inherit="web.StateSelectionField" t-inherit-mode="primary">
-        <!-- Readonly button -->
         <xpath expr="//t[@t-if='props.readonly']/button" position="attributes">
             <attribute name="tabindex">-1</attribute>
         </xpath>
@@ -10,7 +9,6 @@
         <xpath expr="//t[@t-if='props.readonly']/button" position="attributes">
             <attribute name="t-att-title">label</attribute>
         </xpath>
-        <!-- Waiting state button -->
         <xpath expr="//t[@t-if='props.readonly']" position="after">
             <t t-elif="currentValue == 'blocked' and isView(['activity', 'kanban', 'list', 'calendar'])">
                 <button class="d-flex align-items-center btn fw-normal p-0 justify-content-center " title="This task is blocked by another unfinished task" t-att-class="{'o_task_state_list_view': isView(['list'])}">
@@ -18,7 +16,6 @@
                 </button>
             </t>
         </xpath>
-        <!-- The toggle mark as done button -->
         <xpath expr="//t[@t-if='props.readonly']" position="after">
             <t t-elif="isToggleMode and ['todo', 'in_progress'].includes(currentValue)">
                 <button t-if="isView(['activity', 'kanban', 'list', 'calendar']) or this.env.isSmall"
@@ -49,7 +46,6 @@
             </t>
         </xpath>
 
-        <!-- Normal dropdown mode toggle button (displayed on the card/record by default) -->
         <xpath expr="//Dropdown/button/div" position="replace">
             <div t-if="isView(['activity', 'kanban', 'list', 'calendar']) or this.env.isSmall" class="d-flex align-items-center" t-att-class="{'o_task_state_list_view': isView(['list'])}" t-att-title="label">
                 <i t-if="currentValue == 'blocked'" t-attf-class="{{ stateIcon(currentValue) }} {{ statusColor(currentValue) }}"/>
@@ -70,7 +66,6 @@
                 </t>
             </div>
         </xpath>
-        <!-- Tooltip for the dropdown toggler -->
         <xpath expr="//Dropdown" position="attributes">
             <attribute name="position">`${ getDropdownPosition() }`</attribute>
             <attribute name="menuClass" separator=" + " add="' project_task_state_selection_menu'"></attribute>
@@ -80,11 +75,9 @@
             <attribute name="class" remove="p-0" add="shadow-none" separator=" "/>
             <attribute name="t-att-class">getTogglerClass(currentValue)</attribute>
         </xpath>
-        <!-- Dropdown divider -->
         <xpath expr="//CheckboxItem" position="before">
             <div t-if="option[0] == 'canceled' and (currentValue != 'blocked' or this.env.isSmall)" role="separator" class="dropdown-divider"/>
         </xpath>
-        <!-- Approval mode dropdown button (class)-->
         <xpath expr="//CheckboxItem/span[1]" position="attributes">
             <attribute name="t-attf-class" separator=" " add="{{ stateIcon(option[0]) }}" remove="o_status"></attribute>
         </xpath>

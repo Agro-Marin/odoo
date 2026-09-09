@@ -7,17 +7,9 @@ import {
     buildViewInfo,
 } from "@web/webclient/actions/action_info_builders";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
-    /**
-     * @type {{
-     *     pushState: number,
-     *     switchView: Record<string, any>[],
-     *     doAction: Record<string, any>[],
-     * }}
-     */
+    /** @type {{ */
     const calls = { pushState: 0, switchView: [], doAction: [] };
     const am = {
         pushState: () => calls.pushState++,

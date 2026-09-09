@@ -21,7 +21,7 @@ const apps = [
     { xmlid: "studio.app_1" },
 ];
 
-/** @param {any} store @returns {import("@web/env").OdooEnv} */
+/** @param {any} store */
 function envWith(store) {
     return /** @type {import("@web/env").OdooEnv} */ ({
         services: { "mail.store": store },

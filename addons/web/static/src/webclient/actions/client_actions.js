@@ -9,7 +9,6 @@ import { registry } from "@web/core/registry";
 import { htmlSprintf } from "@web/core/utils/dom/html";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
 
-/** @import { Action } from "./action_service.js" */
 /**
  * @param {import("@web/env").OdooEnv} env
  * @param {Action} action
@@ -74,9 +73,7 @@ const HOME_POLL_RETRY_DELAY = 1000;
 const HOME_POLL_MAX_DELAY = 8000;
 const HOME_POLL_DEADLINE = 2 * 60 * 1000;
 
-/**
- * @returns {Promise<boolean>}
- */
+/** @returns {Promise<boolean>} */
 async function waitForServer() {
     const deadline = Date.now() + HOME_POLL_DEADLINE;
     let delay = HOME_POLL_RETRY_DELAY;
@@ -108,9 +105,7 @@ registry.category("actions").add("home", home);
 
 registry.category("actions").add("reload_context", reload);
 
-/**
- * @param {import("@web/env").OdooEnv} env
- */
+/** @param {import("@web/env").OdooEnv} env */
 async function softReload(env) {
     const controller = env.services.action.currentController;
     if (controller) {

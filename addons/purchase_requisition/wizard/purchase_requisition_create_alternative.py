@@ -31,11 +31,9 @@ class PurchaseRequisitionCreateAlternative(models.TransientModel):
     @api.depends("partner_ids", "copy_products")
     def _compute_purchase_warn_msg(self):
         self.purchase_warn_msg = ""
-        # follows partner warning logic from PurchaseOrder
         if not self.env.user.has_group("purchase.group_warning_purchase"):
             return
         for partner in self.partner_ids:
-            # If partner has no warning, check its company
             if not partner.purchase_warn_msg:
                 partner = partner.parent_id
             if partner and partner.purchase_warn_msg:
@@ -94,7 +92,6 @@ class PurchaseRequisitionCreateAlternative(models.TransientModel):
                     ("product_name", "!=", False),
                 ]
             )
-            # Build dict: {partner: set(product_tmpl_ids)}
             for info in supplierinfo:
                 partner_product_tmpl_dict.setdefault(info.partner_id.id, set()).add(
                     info.product_tmpl_id.id

@@ -7,10 +7,6 @@ from odoo.addons.sale_timesheet.tests.test_sale_timesheet import TestSaleTimeshe
 @tagged("post_install", "-at_install")
 class TestPerformanceTimesheet(TestSaleTimesheet):
     def test_performance_billable_project_change_customer(self):
-        """
-        Use case: change the partner of a billable project containing many tasks having no SOL, which should trigger _compute_sale_line_id() of all tasks.
-        We check if the number of queries does not increase proportionally to the number of tasks.
-        """
         project = self.env["project.project"].create(
             {
                 "name": "Perf Project",
@@ -28,7 +24,6 @@ class TestPerformanceTimesheet(TestSaleTimesheet):
             )
         self.assertTrue(project.task_ids.sale_line_id)
 
-        # Reset all tasks's SOL to False, double the number of tasks and run it again
         project.allow_billable = False
         self.assertFalse(project.task_ids.sale_line_id)
         self.env["project.task"].create(

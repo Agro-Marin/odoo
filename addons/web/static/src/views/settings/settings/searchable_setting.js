@@ -21,9 +21,7 @@ export class SearchableSetting extends Setting {
 
     setup() {
         this.settingRef = useRef("setting");
-        /**
-         * @type {{ search: { value: string }, showAllContainer: { showAllContainer: boolean }, highlightClass: Record<string, boolean> }}
-         */
+        /** @type {{ search: { value: string }, showAllContainer: { showAllContainer: boolean }, highlightClass: Record<string, boolean> }} */
         this.state = useState({
             search: this.env.searchState,
             showAllContainer: this.env.showAllContainer,
@@ -51,18 +49,14 @@ export class SearchableSetting extends Setting {
         onWillUnmount(() => browser.clearTimeout(this._highlightTimer));
     }
 
-    /**
-     * @returns {Record<string, boolean>}
-     */
+    /** @returns {Record<string, boolean>} */
     get classNames() {
         const classNames = super.classNames;
         classNames.o_searchable_setting = Boolean(this.labels.length);
         return { ...classNames, ...this.state.highlightClass };
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     visible() {
         if (!this.state.search.value) {
             return true;

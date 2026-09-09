@@ -77,9 +77,7 @@ export class DomainSelectorDialog extends EditorDialog {
         };
     }
 
-    /**
-     * @returns {Promise<boolean>}
-     */
+    /** @returns {Promise<boolean>} */
     async isValueValid() {
         let domain;
         try {

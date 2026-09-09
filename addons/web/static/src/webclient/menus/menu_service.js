@@ -54,9 +54,7 @@ class MenuTree {
         this.currentAppId = undefined;
     }
 
-    /**
-     * @param {Object} [menusData]
-     */
+    /** @param {Object} [menusData] */
     setData(menusData) {
         if (menusData && !menusData.root) {
             console.warn("Discarding a menu payload with no root entry");
@@ -93,9 +91,7 @@ class MenuTree {
         return this.currentAppId ? this.getMenu(this.currentAppId) : undefined;
     }
 
-    /**
-     * @param {number|string} menuID
-     */
+    /** @param {number|string} menuID */
     getMenuAsTree(menuID) {
         const menu = this.getMenu(menuID);
         if (!menu) {
@@ -220,9 +216,7 @@ class MenuService {
         return this.tree.getApps();
     }
 
-    /**
-     * @param {number|string} menuId
-     */
+    /** @param {number|string} menuId */
     getMenu(menuId) {
         return this.tree.getMenu(menuId);
     }

@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Terms to translate for the Gmail plugin
--->
 <ressources>
     <string>Task</string>
     <string>Could not create the project</string>

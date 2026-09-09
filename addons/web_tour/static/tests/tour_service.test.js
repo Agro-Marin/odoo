@@ -21,7 +21,7 @@ let macro;
 
 class Root extends Component {
     static components = {};
-    static template = xml /*html*/ `<t><button class="button0">Button 0</button></t>`;
+    static template = xml `<t><button class="button0">Button 0</button></t>`;
     static props = ["*"];
 }
 
@@ -49,21 +49,12 @@ afterEach(() => {
     tourState.clear();
 });
 
-/**
- * Resuming after a reload reads the tour out of the registry, and the bundle
- * that puts it there is not necessarily done: a bundle served as ESM is
- * evaluated after the services start.  `test_company_switch_access_error`
- * under `?debug=assets` lands in the registry ~360 ms after `tourService`
- * reads it, and the tour used to be dropped on the floor for it.
- */
 describe("resuming a tour the registry does not have yet", () => {
     test("a tour registered after the service started still resumes", async () => {
         tourState.setCurrentTour("late_tour");
         tourState.setCurrentConfig({ mode: "auto", stepDelay: 0 });
         tourState.setCurrentIndex(0);
 
-        // Mounting starts the services, so the resume happens here -- with the
-        // registry still empty.
         await mountWithCleanup(Root);
         expect(tourRegistry.contains("late_tour")).toBe(false);
 
@@ -82,17 +73,9 @@ describe("resuming a tour the registry does not have yet", () => {
     });
 
     test("a manual tour absent from this page keeps its state and stays quiet", async () => {
-        // Not every bundle carries every tour -- `startTour` says so itself
-        // ("point_of_sale do not load all tours assets"). An onboarding tour
-        // that is simply not on this page must survive to the next one, so
-        // the loud drop is reserved for `auto`, where a runner is waiting and
-        // nothing is going to produce the tour.
         patchWithCleanup(browser.console, {
             error: (msg) => expect.step(`error: ${msg}`),
         });
-        // A manual tour is only resumed at all when tours are enabled for the
-        // user; with them off, `tourService.start` drops the state itself
-        // before `resumeTour` is reached. Enabled is the case under test.
         patchWithCleanup(session, { tour_enabled: true });
         tourState.setCurrentTour("elsewhere_tour");
         tourState.setCurrentConfig({ mode: "manual", stepDelay: 0 });
@@ -106,10 +89,6 @@ describe("resuming a tour the registry does not have yet", () => {
     });
 
     test("a tour nobody can produce is reported and its state dropped", async () => {
-        // The other half of the same `if (!tour)`: returning silently left
-        // `current_tour` naming a tour that would never arrive, so every later
-        // page load re-entered the resume to return silently again, and a
-        // runner waiting on it could only report a script timeout.
         patchWithCleanup(browser.console, {
             error: (msg) => expect.step(`error: ${msg}`),
         });

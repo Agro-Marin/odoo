@@ -70,15 +70,7 @@ export class X2ManyField extends FieldComponent {
     /** @type {Record<string, any>} */
     fieldDefinition;
 
-    /**
-     * @type {{
-     * openRecord: (record: any) => any,
-     * onAdd: (params: any) => any,
-     * onListAdd: (params: any) => any,
-     * onOpenFormView: (record: any, options: any) => any,
-     * deleteRecord: (record: any) => any,
-     * }}
-     */
+    /** @type {{ */
     rendererCallbacks;
 
     /** @type {{ source: Record<string, any> | null, recordsDraggable: boolean | undefined, archInfo: Record<string, any> | null }} */
@@ -147,16 +139,12 @@ export class X2ManyField extends FieldComponent {
         }
     }
 
-    /**
-     * @returns {string | undefined}
-     */
+    /** @returns {string | undefined} */
     getOpenRecordTitle() {
         return undefined;
     }
 
-    /**
-     * @param {{ linkRecords: Function, saveAndLink: Function, updateRecord: Function }} crud
-     */
+    /** @param {{ linkRecords: Function, saveAndLink: Function, updateRecord: Function }} crud */
     setupRecordOpeners({ linkRecords, saveAndLink, updateRecord }) {
         const openRecord = useOpenX2ManyRecord({
             activeField: this.activeField,
@@ -253,9 +241,7 @@ export class X2ManyField extends FieldComponent {
         return this._nestedKeyOptionalFieldsData;
     }
 
-    /**
-     * @returns {string | false | undefined}
-     */
+    /** @returns {string | false | undefined} */
     get listEditable() {
         return (
             (this.archInfo.activeActions.edit && this.archInfo.editable) ||
@@ -263,9 +249,7 @@ export class X2ManyField extends FieldComponent {
         );
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     get rendererActiveActions() {
         const memo = this._rendererActiveActions;
         if (memo && shallowEqual(memo, this.activeActions)) {
@@ -295,9 +279,7 @@ export class X2ManyField extends FieldComponent {
         return next;
     }
 
-    /**
-     * @returns {{ offset: number, limit: number, total: number, onUpdate: Function, withAccessKey: boolean }}
-     */
+    /** @returns {{ offset: number, limit: number, total: number, onUpdate: Function, withAccessKey: boolean }} */
     get pagerProps() {
         const list = this.list;
         return {
@@ -323,9 +305,7 @@ export class X2ManyField extends FieldComponent {
         };
     }
 
-    /**
-     * @returns {typeof import("@odoo/owl").Component | undefined}
-     */
+    /** @returns {typeof import("@odoo/owl").Component | undefined} */
     get kanbanRenderer() {
         const ctor = /** @type {typeof X2ManyField} */ (this.constructor);
         return (

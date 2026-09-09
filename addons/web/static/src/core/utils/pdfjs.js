@@ -60,9 +60,7 @@ const VIEWER_STYLE_ID = "o_hide_pdfjs_buttons_style";
 /** @type {WeakMap<HTMLIFrameElement, string>} */
 const pendingViewerStyles = new WeakMap();
 
-/**
- * @param {HTMLIFrameElement} iframe
- */
+/** @param {HTMLIFrameElement} iframe */
 function applyViewerStyle(iframe) {
     const doc = iframe.contentDocument;
     if (!doc?.head) {
@@ -80,17 +78,13 @@ function applyViewerStyle(iframe) {
 /** @type {any} */
 let _pdfjsLib = null;
 
-/**
- * @type {any}
- */
+/** @type {any} */
 export const pdfjsLib = makeLazyFacade(() => _pdfjsLib);
 
 /** @type {Promise<any> | null} */
 let loadPromise = null;
 
-/**
- * @returns {Promise<any>}
- */
+/** @returns {Promise<any>} */
 export async function loadPDFJS() {
     if (!_pdfjsLib) {
         loadPromise ??= (async () => {
@@ -108,9 +102,7 @@ export async function loadPDFJS() {
     return pdfjsLib;
 }
 
-/**
- * @type {string}
- */
+/** @type {string} */
 const PDFJS_WASM_URL = "/web/static/lib/pdfjs/web/wasm/";
 
 /**

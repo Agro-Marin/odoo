@@ -27,32 +27,14 @@ import { registerInlineViewArchs } from "./mock_server/mock_model.js";
 /**
  * @typedef {any} Config
  * @typedef {{
- * value?: string;
- * index?: number;
- * }} EditSelectMenuParams
  * @typedef {ViewProps & {
- * archs?: Record<string, string>
- * config?: Config;
- * env?: import("@web/env").OdooEnv;
- * resId?: number;
- * [key: string]: any;
- * }} MountViewParams
  * @typedef {{
- * class?: string;
- * id?: string;
- * index?: number;
- * modifier?: string;
- * target?: string;
- * text?: string;
- * }} SelectorOptions
  * @typedef {import("@odoo/hoot").FormatXmlOptions} FormatXmlOptions
  * @typedef {import("@web/views/view").ViewProps} ViewProps
  * @typedef {import("./mock_server/mock_model").ViewType} ViewType
  */
 
-/**
- * @param {unknown} value
- */
+/** @param {unknown} value */
 const isNil = (value) => value === null || value === undefined;
 
 class ViewDialog extends Component {
@@ -105,16 +87,12 @@ export function buildSelector(base, params) {
     return selector;
 }
 
-/**
- * @param {SelectorOptions} [options]
- */
+/** @param {SelectorOptions} [options] */
 export async function clickButton(options) {
     await contains(buildSelector(`.btn:enabled`, options)).click();
 }
 
-/**
- * @param {SelectorOptions} [options]
- */
+/** @param {SelectorOptions} [options] */
 export async function clickCancel(options) {
     await contains(buildSelector(`.o_form_button_cancel:enabled`, options)).click();
 }
@@ -159,30 +137,22 @@ export async function clickFieldDropdownItem(fieldName, itemContent, options) {
     await animationFrame();
 }
 
-/**
- * @param {SelectorOptions} [options]
- */
+/** @param {SelectorOptions} [options] */
 export async function clickModalButton(options) {
     await contains(buildSelector(`.modal .btn:enabled`, options)).click();
 }
 
-/**
- * @param {SelectorOptions} [options]
- */
+/** @param {SelectorOptions} [options] */
 export async function clickSave(options) {
     await contains(buildSelector(`.o_form_button_save:enabled`, options)).click();
 }
 
-/**
- * @param {SelectorOptions} [options]
- */
+/** @param {SelectorOptions} [options] */
 export async function clickViewButton(options) {
     await contains(buildSelector(`.o_view_controller .btn:enabled`, options)).click();
 }
 
-/**
- * @param {string} value
- */
+/** @param {string} value */
 export function expectMarkup(value) {
     return {
         /**
@@ -203,9 +173,7 @@ export function fieldInput(name, options) {
     return contains(buildSelector(`.o_field_widget[name='${name}'] input`, options));
 }
 
-/**
- * @param {MountViewParams} params
- */
+/** @param {MountViewParams} params */
 export async function mountViewInDialog(params) {
     const container = await mountWithCleanup(MainComponentsContainer, {
         env: params.env,

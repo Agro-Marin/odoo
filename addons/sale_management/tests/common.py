@@ -6,7 +6,6 @@ class SaleManagementCommon(SaleCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Ensure user has access to sale order templates
         cls.env.user.group_ids += cls.env.ref(
             "sale_management.group_sale_order_template"
         )
@@ -19,7 +18,6 @@ class SaleManagementCommon(SaleCommon):
 
     @staticmethod
     def _get_optional_product_lines(order):
-        """Returns the order lines that are optional products."""
         return order.line_ids.filtered(
             lambda line: not line.display_type and line._is_line_optional(),
         )

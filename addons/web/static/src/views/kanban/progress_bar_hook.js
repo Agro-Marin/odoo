@@ -11,14 +11,12 @@ import {
     getAggregateSpecifications,
 } from "@web/model/relational_model";
 
-/** @import { Group } from "@web/model/relational_model/group" */
-
 const FALSE = Symbol("False");
 
 const MOVE_RECONCILE_DELAY = 300;
 
 /**
- * @template T
+ * @template
  * @param {() => Promise<T>} load
  * @returns {Promise<T | undefined>}
  */
@@ -33,9 +31,7 @@ async function latestOnly(load) {
     }
 }
 
-/**
- * @type {{ activeBar: string | null, bars: Object[], total: number, isReady: boolean }}
- */
+/** @type {{ activeBar: string | null, bars: Object[], total: number, isReady: boolean }} */
 const EMPTY_GROUP_INFO = Object.freeze({
     activeBar: null,
     bars: [],
@@ -139,9 +135,7 @@ class ProgressBarState {
         }
     }
 
-    /**
-     * @param {Group} group
-     */
+    /** @param {Group} group */
     _seedGroupInfo(group) {
         const key = groupKey(group.serverValue);
         this._aggregatesByKey.set(key, { ...group.aggregates });
@@ -176,9 +170,7 @@ class ProgressBarState {
         this._recomputeTotals(group);
     }
 
-    /**
-     * @param {Group} group
-     */
+    /** @param {Group} group */
     _recomputeTotals(group) {
         const groupInfo = this._groupsInfo[group.id];
         if (!groupInfo) {
@@ -210,9 +202,7 @@ class ProgressBarState {
         this._syncActiveBar(group);
     }
 
-    /**
-     * @param {Group} group
-     */
+    /** @param {Group} group */
     _syncActiveBar(group) {
         const groupInfo = this._groupsInfo[group.id];
         if (!groupInfo) {
@@ -375,9 +365,7 @@ class ProgressBarState {
         this._deselectActiveBars((group) => group.list.count === 0);
     }
 
-    /**
-     * @param {(group: Group, activeBar: Object) => boolean} shouldDeselect
-     */
+    /** @param {(group: Group, activeBar: Object) => boolean} shouldDeselect */
     _deselectActiveBars(shouldDeselect) {
         for (const group of this.model.root.groups) {
             const key = groupKey(group.serverValue);
@@ -419,9 +407,7 @@ class ProgressBarState {
         });
     }
 
-    /**
-     * @param {string} recordId
-     */
+    /** @param {string} recordId */
     cancelRecordMove(recordId) {
         this._recordMoves.delete(recordId);
     }
@@ -542,9 +528,7 @@ class ProgressBarState {
         this._membershipRetryDebounced();
     }
 
-    /**
-     * @param {Group} group
-     */
+    /** @param {Group} group */
     updateAggregateGroup(group) {
         const activeBar = group && this.activeBars[groupKey(group.serverValue)];
         if (activeBar) {
@@ -655,9 +639,7 @@ class ProgressBarState {
         );
     }
 
-    /**
-     * @param {{ context: Object, domain: Array, groupBy: string[], resModel: string }} params
-     */
+    /** @param {{ context: Object, domain: Array, groupBy: string[], resModel: string }} params */
     async loadProgressBar({ context, domain, groupBy, resModel }) {
         if (groupBy.length) {
             const res = await latestOnly(() =>
@@ -701,9 +683,7 @@ class ProgressBarState {
         }
     }
 
-    /**
-     * @param {Group} group
-     */
+    /** @param {Group} group */
     _pbCountKey(group) {
         if (group.value === true) {
             return "True";

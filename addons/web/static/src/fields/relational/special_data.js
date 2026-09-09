@@ -13,12 +13,8 @@ import {
 } from "@odoo/owl";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
-/** @import { Component } from "@odoo/owl" */
-/** @import { Services } from "services" */
 
-/**
- * @type {WeakMap<Map<string, Promise<any>>, Map<string, Set<() => void>>>}
- */
+/** @type {WeakMap<Map<string, Promise<any>>, Map<string, Set<() => void>>>} */
 const staleReloadSubscribers = new WeakMap();
 
 /**
@@ -41,7 +37,7 @@ function subscribersFor(specialDataCaches, key) {
 }
 
 /**
- * @template T, [Props=any]
+ * @template
  * @param {(orm: Services["orm"], props: Component<Props>["props"]) => Promise<T>} loadFn
  * @returns {{ data: T }}
  */

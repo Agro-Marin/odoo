@@ -26,10 +26,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             }
         )
 
-    #########
-    # UTILS #
-    #########
-
     def _create_sale_order(self):
         return self.env["sale.order"].create(
             {
@@ -76,10 +72,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             ]
         )
         return self.company_currency, self.other_currency
-
-    #########
-    # TESTS #
-    #########
 
     def test_sale_stock_margin_1(self):
         sale_order = self._create_sale_order()
@@ -195,16 +187,13 @@ class TestSaleStockMargin(TestStockValuationCommon):
             self.env, sale_order.picking_ids.button_validate()
         ).save().process()
 
-        self.assertAlmostEqual(order_line_1.purchase_price, 43)  # (35 + 51) / 2
-        self.assertAlmostEqual(
-            order_line_2.purchase_price, 12.5
-        )  # (17 + 11 + 11 + 11) / 4
-        self.assertAlmostEqual(order_line_1.margin, 34)  # (60 - 43) * 2
-        self.assertAlmostEqual(order_line_2.margin, 30)  # (20 - 12.5) * 4
+        self.assertAlmostEqual(order_line_1.purchase_price, 43)
+        self.assertAlmostEqual(order_line_2.purchase_price, 12.5)
+        self.assertAlmostEqual(order_line_1.margin, 34)
+        self.assertAlmostEqual(order_line_2.margin, 30)
         self.assertAlmostEqual(sale_order.margin, 64)
 
     def test_sale_stock_margin_6(self):
-        """Test that the purchase price doesn't change when there is a service product in the SO"""
         product = self.product_standard
         service = self.env["product.product"].create(
             {
@@ -235,13 +224,11 @@ class TestSaleStockMargin(TestStockValuationCommon):
         )
         self.assertEqual(sale_order.margin, 90, "Sales order profit should be 90.00")
 
-        # Change the purchase price of the service product.
         order_line_1.purchase_price = 100.0
         self.assertEqual(
             order_line_1.purchase_price, 100, "Sales order line cost should be 100.00"
         )
 
-        # Confirm the sales order.
         sale_order.action_confirm()
 
         self.assertEqual(
@@ -278,9 +265,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
         self.assertEqual(so_line.price_unit, 400)
 
     def test_so_and_multicompany(self):
-        """In a multicompany environnement, when the user is on company C01 and confirms a SO that
-        belongs to a second company C02, this test ensures that the computations will be based on
-        C02's data"""
         main_company = self.env["res.company"]._get_main_company()
         main_company_currency = main_company.currency_id
         new_company_currency = (
@@ -385,14 +369,11 @@ class TestSaleStockMargin(TestStockValuationCommon):
             subtype_id=self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_comment"),
         )
 
-        # `sent` is a BOOLEAN in this fork, not a state: `ORDER_STATE` is
-        # draft/done/cancel and `_mark_as_sent` writes `sent=True`.
         self.assertTrue(so.sent)
         self.assertEqual(so.line_ids[0].purchase_price, 15)
         so.action_confirm()
         self.assertEqual(so.line_ids[0].purchase_price, 15)
 
-        # Set SO back to draft, and trigger purchase price recompute via currency change
         so.with_context(disable_cancel_warning=True).action_cancel()
         so.action_draft()
         so.currency_id = self.other_currency
@@ -400,11 +381,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
         self.assertEqual(so.line_ids.purchase_price, 40)
 
     def test_add_product_on_delivery_price_unit_on_sale(self):
-        """Adding a product directly on a sale order's delivery should result in the new SOL
-        having its `purchase_price` and `margin` + `margin_percent` fields correctly calculated.
-        """
         products = [self._create_product() for _ in range(2)]
-        # products, costs and prices are three 2-element sequences built together
         for product, cost, price in zip(products, [20, 10], [25, 20], strict=True):
             product.categ_id.property_cost_method = "standard"
             product.write(
@@ -439,7 +416,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
         )
 
     def test_add_standard_product_on_delivery_cost_on_sale_order(self):
-        """test that if product with standard cost method is added in delivery, the cost is computed."""
         product = self.product_standard
         product.write(
             {
@@ -476,7 +452,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
         )
 
     def test_add_avco_product_on_delivery_cost_on_sale_order(self):
-        """test that if product with avco cost method and an order "invoice_policy" is added in delivery, the cost is computed."""
         categ_average = self.env["product.category"].create(
             {"name": "AVERAGE", "property_cost_method": "average"}
         )
@@ -519,16 +494,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
         )
 
     def test_avco_does_not_mix_products_on_compute_avg_price(self):
-        """
-        Ensure that when stock moves are duplicated and their product changed,
-        the sale line linkage is cleared correctly, preventing average price
-        computation from mixing valuation layers of different products.
-        This test verifies that:
-        - The duplicated delivery's moves lose the original sale_line_id when the product changes.
-        - A new sale order line is created for the new product, increasing the total order lines.
-        - Validations of deliveries and return pickings proceed without errors.
-        - The purchase price on the original sale line remains accurate (unchanged).
-        """
         self.product_avco_auto.uom_id = self.env.ref("uom.product_uom_dozen").id
         sale_order = self._create_sale_order()
         sale_order_line = self._create_sale_order_line(sale_order, self.product_avco, 1)
@@ -585,8 +550,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
         self.assertEqual(sale_order_line.margin, 12.0)
 
     def test_avco_calc(self):
-        """test purchase_price and margin correct calculation for avco product"""
-        # need to freezetime due to test being too fast resulting in inconsistent AVCO calculation for in/out moves having the same exact validation date
         with freeze_time() as freeze:
             so = self._create_sale_order()
             self.product_avco_auto.list_price = 100
@@ -599,7 +562,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             )
             freeze.tick(delta=datetime.timedelta(seconds=2))
 
-            # SOL quantity=2, qty_delivered=0
             sol = self._create_sale_order_line(so, self.product_avco_auto, 2, 100)
             self.assertEqual(sol.product_uom_qty, 2)
             self.assertEqual(sol.qty_transferred, 0)
@@ -614,7 +576,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
                 "margin = (sale price - purchase_price) * SOL quantity = (100 - 30) * 2 = 140",
             )
 
-            # SOL quantity=2, qty_delivered=1
             so.action_confirm()
             move = sol.move_ids
             move.quantity = 1
@@ -626,8 +587,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
                 .with_context(backorder_wizard_values["context"])
             )
             backorder_wizard.process()
-            # purchase_unit_from_delivery = line.move_ids(done)._get_price_unit = (1 * 30) / (1) = 30
-            # qty_from_std_price = max(SOL quantity - qty_from_delivery, 0) = 2 - 1 = 1
             self.assertEqual(
                 sol.purchase_price,
                 30,
@@ -640,7 +599,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             )
             freeze.tick(delta=datetime.timedelta(seconds=2))
 
-            # SOL quantity=2, qty_delivered=3
             self._make_in_move(self.product_avco_auto, 2, 142.5)
             self.assertEqual(
                 self.product_avco_auto.standard_price,
@@ -655,8 +613,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             move.quantity = 2
             delivery = move.picking_id
             delivery.button_validate()
-            # purchase_unit_from_delivery = line.move_ids(done)._get_price_unit = (1 * 30 + 2 * 75) / (1 + 2) = 60
-            # qty_from_std_price = max(SOL quantity - qty_from_delivery, 0) = max(2 - 3, 0) = 0
             self.assertEqual(
                 sol.purchase_price,
                 60,
@@ -669,9 +625,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             )
 
     def test_avco_zero_quantity(self):
-        """test that the purchase_price and margin are still calculated correctly when 0 quantity SOL
-        including when a return is done for avco valuated product"""
-        # need to freezetime due to test being too fast resulting in inconsistent AVCO calculation for in/out moves having the same exact validation date
         with freeze_time() as freeze:
             so = self._create_sale_order()
             self.product_avco_auto.list_price = 100
@@ -683,7 +636,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
                 "standard_price for avco = (2 * 20 + 2 * 40) / (2 + 2) = 30: 4 in stock",
             )
             sol = self._create_sale_order_line(so, self.product_avco_auto, 1, 100)
-            # SOL quantity=1, qty_delivered=0
             self.assertEqual(sol.product_uom_qty, 1)
             self.assertEqual(sol.qty_transferred, 0)
             self.assertEqual(
@@ -698,7 +650,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             )
             so.action_confirm()
 
-            # SOL quantity=0, qty_delivered=0
             sol2 = self._create_sale_order_line(so, self.product_avco_auto, 0, 90)
             self.assertEqual(sol2.product_uom_qty, 0)
             self.assertEqual(sol2.qty_transferred, 0)
@@ -711,7 +662,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
                 sol2.margin, 0, "margin = 0 if no quantities sold/delivered"
             )
 
-            # SOL quantity=1, qty_delivered=1
             self._make_in_move(self.product_avco_auto, 2, 60)
             self.assertEqual(
                 self.product_avco_auto.standard_price,
@@ -737,7 +687,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             )
             freeze.tick(delta=datetime.timedelta(seconds=2))
 
-            # SOL quantity=1, qty_delivered=-2
             self._make_in_move(self.product_avco_auto, 2, 5)
             self.assertEqual(
                 self.product_avco_auto.standard_price,
@@ -776,7 +725,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             )
             freeze.tick(delta=datetime.timedelta(seconds=2))
 
-            # SOL quantity=0, qty_delivered=-2
             self._make_in_move(self.product_avco_auto, 2, 30)
             self.assertEqual(
                 self.product_avco_auto.standard_price,
@@ -796,9 +744,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
                 "margin = (sale price - purchase_price) * qty_delivered = (100 - 32.5) * -2 = -135",
             )
 
-            # SOL quantity=0, qty_delivered=2
             so2 = self._create_sale_order()
-            # throwaway product so we can deliver extra product in delivery
             throwaway_sol = self._create_sale_order_line(
                 so2, self.product_standard, 1, 100
             )
@@ -819,7 +765,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
                 32.5,
                 "no new incoming moves, std price should be unchanged",
             )
-            # purchase_unit_from_delivery = line.move_ids(done)._get_price_unit = (2 * 32.5) / 2 = 32.5
             self.assertEqual(
                 sol3.purchase_price,
                 self.product_avco_auto.standard_price,
@@ -832,10 +777,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             )
             freeze.tick(delta=datetime.timedelta(seconds=2))
 
-            # SOL quantity=0, qty_delivered=2-1=1, returned = 1
-            self._make_in_move(
-                self.product_avco_auto, 2, 17.5
-            )  # force different standard_price
+            self._make_in_move(self.product_avco_auto, 2, 17.5)
             self.assertEqual(
                 self.product_avco_auto.standard_price,
                 30,
@@ -856,7 +798,6 @@ class TestSaleStockMargin(TestStockValuationCommon):
             return_pick.button_validate()
             self.assertEqual(sol3.product_uom_qty, 0)
             self.assertEqual(sol3.qty_transferred, 1)
-            # purchase_unit_from_delivery = line.move_ids(done)._get_price_unit = (2 * 32.5 + 1 * 32.5) / (2 + 1) = 32.5
             self.assertEqual(
                 sol3.purchase_price,
                 32.5,

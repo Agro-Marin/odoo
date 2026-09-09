@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        Templates used for the portal view.
-    -->
     <template id="mail_groups" name="Mailing Lists">
         <t t-call="portal.portal_layout">
             <div class="oe_structure oe_empty">
@@ -11,7 +8,6 @@
                     <div
                         class="o_we_bg_filter"
                         style="background-color: rgba(1, 126, 132, 0.8) !important">
-                        <!-- Color filter effect that can be edited by the website editor -->
                     </div>
                     <div class="container w-100 h-100 text-light p-5">
                         <h1 class="mt-5">Stay in touch with our Community</h1>

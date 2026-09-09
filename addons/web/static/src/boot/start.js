@@ -16,9 +16,7 @@ import { session } from "@web/session";
 
 const log = makeAssetLog("boot");
 
-/**
- * @type {Promise<import("@odoo/owl").App | undefined> | null}
- */
+/** @type {Promise<import("@odoo/owl").App | undefined> | null} */
 let bootPromise = null;
 
 export function applyBootBodyClasses() {
@@ -35,9 +33,7 @@ export function applyBootBodyClasses() {
     log("body classes applied:", document.body.className);
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function applyUserTimezone() {
     if (!user.tz) {
         return false;

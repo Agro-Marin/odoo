@@ -14,10 +14,7 @@ import {
 } from "@web/webclient/menus/menu_utils";
 
 /**
- * The apps a layout shows: everything it does not hide. An app the layout
- * cannot name is always shown, since nothing can have hidden it.
- *
- * @template {{ xmlid?: string }} T
+ * @template {{ xmlid?: string }}
  * @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config
  * @param {T[]} apps
  * @returns {T[]}
@@ -29,11 +26,7 @@ export function shownApps(config, apps) {
 }
 
 /**
- * The pinned ones among `apps`, in the order they were pinned rather than the
- * order they arrived in. An xmlid pinned but absent — an app uninstalled since
- * — is skipped rather than left as a hole.
- *
- * @template {{ xmlid?: string }} T
+ * @template {{ xmlid?: string }}
  * @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config
  * @param {T[]} apps
  * @returns {T[]}
@@ -49,21 +42,9 @@ export function pinnedApps(config, apps) {
 }
 
 /**
- * The stored order after a drag: `movedId` lifted out and put back after
- * `afterId`, or at the front when it was dropped before everything.
- *
- * Answers `null` rather than an order when `movedId` is not in the list. That
- * is the case `Array.indexOf` reports as -1 and `splice(-1, 1)` then acts on
- * by removing the LAST app instead, silently reordering something the user
- * never touched.
- *
- * An `afterId` that is not in the list lands at the front, which is where the
- * same -1 put it before, and is the only sensible answer for "after an app
- * that is not here".
- *
- * @param {string[]} order the stored order, unchanged by this
+ * @param {string[]} order
  * @param {string} movedId
- * @param {string} [afterId] the app it was dropped behind, if any
+ * @param {string} [afterId]
  * @returns {string[] | null}
  */
 export function orderAfterDrag(order, movedId, afterId) {
@@ -77,7 +58,6 @@ export function orderAfterDrag(order, movedId, afterId) {
     return next;
 }
 
-/** Database/user isolation also applies when several databases share an origin. */
 export function homeMenuLayoutStorageKey() {
     return `webclient_home_layout:${session.db}:${user.userId}`;
 }
@@ -95,7 +75,6 @@ export function useHomeMenuLayoutSync(onChange) {
         }
         const request = ++generation;
         try {
-            // A hint may arrive after a later commit. Read the authoritative row.
             const [settings] = await orm.read(
                 "res.users.settings",
                 [user.settings.id],
@@ -107,7 +86,6 @@ export function useHomeMenuLayoutSync(onChange) {
             user.updateUserSettings("homemenu_config", settings.homemenu_config);
             onChange();
         } catch {
-            // A failed background refresh does not discard the local layout.
         }
     });
 }
@@ -115,15 +93,7 @@ export function useHomeMenuLayoutSync(onChange) {
 /** @typedef {{ operation: string, xmlid?: string, value?: boolean | string[] }} LayoutChange */
 
 export class HomeMenuLayout {
-    /**
-     * @param {{
-     * config: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
-     * defaultConfig: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
-     * orm: import("services").ServiceFactories["orm"],
-     * personal?: boolean,
-     * onSaved?: () => void,
-     * }} params
-     */
+    /** @param {{ */
     constructor({ config, defaultConfig, orm, personal, onSaved = () => {} }) {
         this.config = config;
         this.defaultConfig = defaultConfig;
@@ -304,14 +274,12 @@ export class HomeMenuLayout {
                         JSON.stringify({ config: raw, at: Date.now() }),
                     );
                 } catch {
-                    // Storage is only a cross-tab hint; the RPC already saved.
                 }
             } catch (error) {
                 this.pending.unshift(...changes);
                 this.state.status = "error";
                 throw error;
             }
-            // A UI callback cannot turn a committed operation into a retry.
             this.onSaved();
         });
     }

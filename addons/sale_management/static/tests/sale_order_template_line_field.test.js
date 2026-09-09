@@ -150,7 +150,7 @@ test("drag and drop regular template lines inside optional section resets some f
 
         expect(
             args[1].sale_order_template_line_ids.find(
-                (commands) => commands[1] === 13, // Sec4-r1
+                (commands) => commands[1] === 13,
             )[2].product_uom_qty,
         ).toEqual(0, {
             message:
@@ -158,7 +158,7 @@ test("drag and drop regular template lines inside optional section resets some f
         });
         expect(
             args[1].sale_order_template_line_ids.find(
-                (commands) => commands[1] === 11, // Sec3-sub2-r1
+                (commands) => commands[1] === 11,
             )[2].product_uom_qty,
         ).toEqual(1, {
             message:
@@ -166,7 +166,7 @@ test("drag and drop regular template lines inside optional section resets some f
         });
         expect(
             args[1].sale_order_template_line_ids.find(
-                (commands) => commands[1] === 9, // Sec3-sub1-r1
+                (commands) => commands[1] === 9,
             )?.[2].product_uom_qty,
         ).toEqual(undefined, {
             message:
@@ -208,7 +208,7 @@ test("Moving Optional Sections to include some template lines should set quantit
 
         expect(
             args[1].sale_order_template_line_ids.find(
-                (commands) => commands[1] === 7, // Sec3-r2
+                (commands) => commands[1] === 7,
             )[2].product_uom_qty,
         ).toEqual(0, {
             message:
@@ -216,7 +216,7 @@ test("Moving Optional Sections to include some template lines should set quantit
         });
         expect(
             args[1].sale_order_template_line_ids.find(
-                (commands) => commands[1] === 9, // Sec3-sub1-r1
+                (commands) => commands[1] === 9,
             )[2].product_uom_qty,
         ).toEqual(0, {
             message:
@@ -224,7 +224,7 @@ test("Moving Optional Sections to include some template lines should set quantit
         });
         expect(
             args[1].sale_order_template_line_ids.find(
-                (commands) => commands[1] === 13, // Sec4-r1
+                (commands) => commands[1] === 13,
             )?.[2].product_uom_qty,
         ).toEqual(undefined, {
             message:
@@ -262,7 +262,7 @@ test("Moving Optional Sections to exclude some template lines should set quantit
 
         expect(
             args[1].sale_order_template_line_ids.find(
-                (command) => command[1] === 6, // Sec3-r1
+                (command) => command[1] === 6,
             )[2].product_uom_qty,
         ).toEqual(1, {
             message:
@@ -270,7 +270,7 @@ test("Moving Optional Sections to exclude some template lines should set quantit
         });
         expect(
             args[1].sale_order_template_line_ids.find(
-                (command) => command[1] === 7, // Sec3-r2
+                (command) => command[1] === 7,
             )?.[2].product_uom_qty,
         ).toEqual(undefined, {
             message:
@@ -278,7 +278,7 @@ test("Moving Optional Sections to exclude some template lines should set quantit
         });
         expect(
             args[1].sale_order_template_line_ids.find(
-                (command) => command[1] === 9, // Sec3-sub1-r1
+                (command) => command[1] === 9,
             )[2].product_uom_qty,
         ).toEqual(1, {
             message:
@@ -286,7 +286,7 @@ test("Moving Optional Sections to exclude some template lines should set quantit
         });
         expect(
             args[1].sale_order_template_line_ids.find(
-                (command) => command[1] === 11, // Sec3-sub2-r1
+                (command) => command[1] === 11,
             )?.[2].product_uom_qty,
         ).toEqual(undefined, {
             message:

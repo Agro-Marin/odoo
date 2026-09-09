@@ -126,9 +126,7 @@ export class CustomColorPicker extends Component {
         }
     }
 
-    /**
-     * @returns {Document[]}
-     */
+    /** @returns {Document[]} */
     reachableDocuments() {
         try {
             return [
@@ -169,9 +167,7 @@ export class CustomColorPicker extends Component {
         });
     }
 
-    /**
-     * @param {string} color
-     */
+    /** @param {string} color */
     setSelectedColor(color) {
         const rgba = convertCSSColorToRgba(color);
         if (rgba) {
@@ -189,9 +185,7 @@ export class CustomColorPicker extends Component {
     getAllowedHotkeys(allowedKeys) {
         return allowedKeys.flatMap((key) => [key, `control+${key}`]);
     }
-    /**
-     * @param {HTMLElement} el
-     */
+    /** @param {HTMLElement} el */
     setLastFocusedSliderEl(el) {
         this.lastFocusedSliderEl = el;
         /** @type {HTMLElement} */ (document.activeElement).blur();
@@ -261,9 +255,7 @@ export class CustomColorPicker extends Component {
         }
         return clamp(value, min, max);
     }
-    /**
-     * @param {String} hotkey
-     */
+    /** @param {String} hotkey */
     selectColorOnEnter(hotkey) {
         if (hotkey === "enter" && this.shouldSetSelectedColor) {
             this.pickerFlag = false;
@@ -273,9 +265,7 @@ export class CustomColorPicker extends Component {
         }
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _updateUI() {
         const colorPickerArea = this.colorPickerAreaRef.el;
         const pickerHeight = colorPickerArea.clientHeight;
@@ -428,15 +418,11 @@ export class CustomColorPicker extends Component {
         });
         this._updateCssColor();
     }
-    /**
-     * @private
-     */
+    /** @private */
     _colorSelected() {
         this.props.onColorSelect(this.colorComponents);
     }
-    /**
-     * @private
-     */
+    /** @private */
     _updateCssColor() {
         const r = this.colorComponents.red;
         const g = this.colorComponents.green;
@@ -460,9 +446,7 @@ export class CustomColorPicker extends Component {
             this.props.onInputEnter(ev);
         }
     }
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onClick(ev) {
         if (this.props.stopClickPropagation) {
             ev.stopPropagation();
@@ -489,9 +473,7 @@ export class CustomColorPicker extends Component {
             this.lastFocusedSliderEl = undefined;
         }
     }
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onEscapeKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
         if (hotkey === "escape") {
@@ -588,9 +570,7 @@ export class CustomColorPicker extends Component {
         );
         this._updateUI();
     }
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onSliderKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
         this.selectColorOnEnter(hotkey);
@@ -637,9 +617,7 @@ export class CustomColorPicker extends Component {
         this._updateOpacity(opacity);
         this._updateUI();
     }
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onOpacitySliderKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
         this.selectColorOnEnter(hotkey);

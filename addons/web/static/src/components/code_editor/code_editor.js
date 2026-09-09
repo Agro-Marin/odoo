@@ -4,9 +4,7 @@
 import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 import { useAceEditor } from "@web/components/code_editor/ace_editor_hook";
 import { loadBundle } from "@web/core/assets";
-/**
- * @typedef {import("@web/components/code_editor/ace_editor_hook").CursorPosition} CursorPosition
- */
+/** @typedef {import("@web/components/code_editor/ace_editor_hook").CursorPosition} CursorPosition */
 export class CodeEditor extends Component {
     static template = "web.CodeEditor";
     static props = {
@@ -82,9 +80,7 @@ export class CodeEditor extends Component {
         });
     }
 
-    /**
-     * @returns {any}
-     */
+    /** @returns {any} */
     get aceEditor() {
         return this.controller.editor;
     }

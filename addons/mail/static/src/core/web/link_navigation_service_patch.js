@@ -9,9 +9,6 @@ patch(LinkNavigation.prototype, {
      * @returns {boolean}
      */
     handleClickOnLink(ev, thread) {
-        // See the base implementation: `ev.target` is the shadow HOST for a
-        // link inside an email message body, so this read answered undefined
-        // and record links never opened.
         const target = /** @type {HTMLElement} */ (ev.composedPath?.()[0] ?? ev.target);
         const model = target.dataset?.oeModel;
         const id = Number(target.dataset?.oeId);

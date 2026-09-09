@@ -12,7 +12,6 @@ import {
 import { saleModels } from "@sale/../tests/sale_test_helpers";
 
 class SaleOrderLine extends saleModels.SaleOrderLine {
-    // for skipping tax setup required for prices computation to run correctly
     price_unit = fields.Float({ default: 3.0 });
     price_total = fields.Float({ default: 3.0 });
     price_subtotal = fields.Float({ default: 3.5 });
@@ -235,7 +234,6 @@ test("Unsetting optional section should reset some fields", async () => {
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub1-r1",
     ).product_qty = 0;
-    // This line should not be reset
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub2-r1",
     ).product_qty = 5;
@@ -300,7 +298,6 @@ test("drag and drop regular line inside optional section resets some fields", as
         expect(
             args[1].line_ids.find((commands) => commands[1] === 13)[2].product_qty,
         ).toEqual(
-            // Sec4-r1
             0,
             {
                 message:
@@ -310,7 +307,6 @@ test("drag and drop regular line inside optional section resets some fields", as
         expect(
             args[1].line_ids.find((commands) => commands[1] === 11)[2].product_qty,
         ).toEqual(
-            // Sec3-sub2-r1
             1,
             {
                 message:
@@ -320,7 +316,6 @@ test("drag and drop regular line inside optional section resets some fields", as
         expect(
             args[1].line_ids.find((commands) => commands[1] === 9)?.[2].product_qty,
         ).toEqual(
-            // Sec3-sub1-r1
             undefined,
             {
                 message:
@@ -353,7 +348,6 @@ test("drag and drop regular line inside optional section resets some fields", as
 
 test("Moving Optional Sections to include some lines should set quantity to 0", async () => {
     SaleOrderLine._records.find((record) => record.name === "Sec4").is_optional = true;
-    // keep sec4-r1's quantity 1 so that we can check that it doesn't reset
     SaleOrderLine._records.find(
         (record) => record.name === "Sec4-sub1-r1",
     ).product_qty = 0;
@@ -363,7 +357,6 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
         expect(
             args[1].line_ids.find((commands) => commands[1] === 7)[2].product_qty,
         ).toEqual(
-            // Sec3-r2
             0,
             {
                 message:
@@ -373,7 +366,6 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
         expect(
             args[1].line_ids.find((commands) => commands[1] === 9)[2].product_qty,
         ).toEqual(
-            // Sec3-sub1-r1
             0,
             {
                 message:
@@ -383,7 +375,6 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
         expect(
             args[1].line_ids.find((commands) => commands[1] === 13)?.[2].product_qty,
         ).toEqual(
-            // Sec4-r1
             undefined,
             {
                 message:
@@ -419,7 +410,6 @@ test("Moving Optional Sections to exclude some lines should set quantity to 1", 
         expect(
             args[1].line_ids.find((command) => command[1] === 6)[2].product_qty,
         ).toEqual(
-            // Sec3-r1
             1,
             {
                 message:
@@ -429,7 +419,6 @@ test("Moving Optional Sections to exclude some lines should set quantity to 1", 
         expect(
             args[1].line_ids.find((command) => command[1] === 7)?.[2].product_qty,
         ).toEqual(
-            // Sec3-r2
             undefined,
             {
                 message:
@@ -439,7 +428,6 @@ test("Moving Optional Sections to exclude some lines should set quantity to 1", 
         expect(
             args[1].line_ids.find((command) => command[1] === 9)[2].product_qty,
         ).toEqual(
-            // Sec3-sub1-r1
             1,
             {
                 message:
@@ -449,7 +437,6 @@ test("Moving Optional Sections to exclude some lines should set quantity to 1", 
         expect(
             args[1].line_ids.find((command) => command[1] === 11)?.[2].product_qty,
         ).toEqual(
-            // Sec3-sub2-r1
             undefined,
             {
                 message:

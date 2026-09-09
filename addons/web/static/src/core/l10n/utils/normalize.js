@@ -3,13 +3,7 @@
 
 import { unaccent } from "./unaccent.js";
 
-/**
- * @typedef {{
- * match: string;
- * start: number;
- * end: number;
- * }} NormalizedMatchResult
- */
+/** @typedef {{ */
 
 /**
  * @param {string} str
@@ -19,9 +13,7 @@ export function normalize(str) {
     return casefold(unaccent(stripCombiningMarks(str.normalize("NFKC"))));
 }
 
-/**
- * @type {Map<string, string>}
- */
+/** @type {Map<string, string>} */
 const NORMALIZED_CODEPOINTS = new Map();
 
 /**
@@ -75,9 +67,7 @@ function findNormalizedMatch(
     return null;
 }
 
-/**
- * @param {string} src
- */
+/** @param {string} src */
 function prepareSource(src) {
     const srcAsCodepoints = Array.from(src);
     const normalizedSrc = srcAsCodepoints.map(normalizeCodepoint);

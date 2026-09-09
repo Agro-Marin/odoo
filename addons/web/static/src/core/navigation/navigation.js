@@ -53,19 +53,13 @@ class NavigationItem {
     /** @type {number} */
     index = -1;
 
-    /**
-     * @type {HTMLElement}
-     */
+    /** @type {HTMLElement} */
     el;
 
-    /**
-     * @type {HTMLElement}
-     */
+    /** @type {HTMLElement} */
     target;
 
-    /**
-     * @param {{ index: number, el: HTMLElement, options: NavigationOptions, navigator: Navigator }} param0
-     */
+    /** @param {{ index: number, el: HTMLElement, options: NavigationOptions, navigator: Navigator }} param0 */
     constructor({ index, el, options, navigator }) {
         this.index = index;
 
@@ -156,9 +150,7 @@ class NavigationItem {
         }
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _onMouseMove() {
         if (
             this._navigator.activeItem !== this &&
@@ -169,9 +161,7 @@ class NavigationItem {
         }
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _onArmedMouseEnter() {
         if (
             this._navigator.isMouseArmed &&
@@ -183,9 +173,7 @@ class NavigationItem {
         }
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _onArmedMouseLeave() {
         if (this._navigator.isMouseArmed) {
             this._navigator.clearActiveItem();
@@ -310,16 +298,12 @@ export class Navigator {
         return idx >= 0 ? (this.items[idx] ?? null) : null;
     }
 
-    /**
-     * @type {boolean}
-     */
+    /** @type {boolean} */
     get hasActiveItem() {
         return Boolean(this.activeItem?.el.isConnected);
     }
 
-    /**
-     * @type {boolean}
-     */
+    /** @type {boolean} */
     get isFocused() {
         const active = this._activeElement();
         return (
@@ -337,9 +321,7 @@ export class Navigator {
         );
     }
 
-    /**
-     * @type {boolean}
-     */
+    /** @type {boolean} */
     get isMouseArmed() {
         return this._mouseArmed;
     }
@@ -511,9 +493,7 @@ export class Navigator {
         this._hotkeyRemoves = [];
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _rearmMouse() {
         if (this._options.mouseActivation !== "armed") {
             return;
@@ -565,9 +545,7 @@ export class Navigator {
         return hasCompositeRole(container) ? container : null;
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _syncActiveDescendant() {
         const owner = this._getAriaOwner();
         if (this._ariaOwner && this._ariaOwner !== owner) {
@@ -588,9 +566,7 @@ export class Navigator {
         owner.setAttribute("aria-activedescendant", activeEl.id);
     }
 
-    /**
-     * @param {number} index
-     */
+    /** @param {number} index */
     _setActiveItem(index) {
         this.activeItem?.setInactive(false);
         const item = index >= 0 ? this.items[index] : undefined;
@@ -618,16 +594,12 @@ export class Navigator {
         }
     }
 
-    /**
-     * @param {HTMLElement} target
-     */
+    /** @param {HTMLElement} target */
     _isNavigationAvailable(target) {
         return this._options.isNavigationAvailable({ navigator: this, target });
     }
 
-    /**
-     * @param {EventTarget | null} target
-     */
+    /** @param {EventTarget | null} target */
     _checkFocus(target) {
         const isEl = target instanceof HTMLElement;
         const navOK = isEl && this._isNavigationAvailable(target);

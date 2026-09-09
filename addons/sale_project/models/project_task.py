@@ -65,7 +65,6 @@ class ProjectTask(models.Model):
     allow_billable = fields.Boolean(related="project_id.allow_billable")
     partner_id = fields.Many2one(inverse="_inverse_partner_id")
 
-    # Project sharing  fields
     display_sale_order_button = fields.Boolean(
         string="Display Sales Order", compute="_compute_display_sale_order_button"
     )
@@ -148,7 +147,6 @@ class ProjectTask(models.Model):
 
     def _inverse_partner_id(self):
         for task in self:
-            # check that sale_line_id/sale_order_id and customer are consistent
             consistent_partners = (
                 task.sale_order_id.partner_id
                 | task.sale_order_id.partner_invoice_id
@@ -173,9 +171,6 @@ class ProjectTask(models.Model):
                 task.sale_line_id = False
                 continue
             if not task.sale_line_id:
-                # if the project_id is set then it means the task is classic task or a subtask with another project than its parent.
-                # To determine the sale_line_id, we first need to look at the parent before the project to manage the case of subtasks.
-                # Two sub-tasks in the same project do not necessarily have the same sale_line_id (need to look at the parent task).
                 sale_line = False
                 if (
                     task.parent_id.sale_line_id
@@ -221,10 +216,6 @@ class ProjectTask(models.Model):
                     )
 
     def _confirm_linked_sale_orders(self, sol_ids):
-        """Orders created from project/task are supposed to be confirmed to match the typical flow from sales, but since
-        we allow SO creation from the project/task itself we want to confirm newly created SOs immediately after creation.
-        However this would leads to SOs being confirmed without a single product, so we'd rather do it on record save.
-        """
         quotations = (
             self.env["sale.order.line"]
             .sudo()
@@ -251,10 +242,6 @@ class ProjectTask(models.Model):
         if sol_id := vals.get("sale_line_id"):
             self._confirm_linked_sale_orders([sol_id])
         return task
-
-    # ---------------------------------------------------
-    # Actions
-    # ---------------------------------------------------
 
     def _get_action_view_so_ids(self):
         return self.sale_order_id.ids
@@ -293,10 +280,6 @@ class ProjectTask(models.Model):
     def _compute_task_to_invoice(self):
         for task in self:
             if task.sale_order_id:
-                # Fork values: no / to do / partial / done / over done. Nothing is
-                # left to invoice when there never was any ('no'), when it is fully
-                # invoiced ('done') or already over-invoiced ('over done'); the
-                # upstream spelling of the middle two was 'to invoice'/'invoiced'.
                 task.task_to_invoice = task.sale_order_id.invoice_state not in (
                     "no",
                     "done",

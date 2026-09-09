@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @typedef {"idle" | "saving"} RecordSaveStatus
- */
+/** @typedef {"idle" | "saving"} RecordSaveStatus */
 
 export class RecordSaveCoordinator {
     constructor() {
@@ -27,9 +25,7 @@ export class RecordSaveCoordinator {
         this.status = "idle";
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get beaconFired() {
         return this._beaconFired;
     }
@@ -44,9 +40,7 @@ export class RecordSaveCoordinator {
         this._beaconFired = false;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     consumeBeaconFired() {
         const fired = this._beaconFired;
         this._beaconFired = false;

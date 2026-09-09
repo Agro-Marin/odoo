@@ -341,7 +341,6 @@
         <field name="mode">primary</field>
         <field name="priority">2</field>
         <field name="arch" type="xml">
-            <!-- Dummy view content since empty views are not supported atm -->
             <list position="attributes">
                 <attribute name="string">Sales Orders</attribute>
             </list>
@@ -404,11 +403,9 @@
                 class="o_sale_order"
                 context="{'res_partner_search_mode': 'customer'}">
                 <header>
-                    <!-- Invisible helper fields consumed by header-button modifiers -->
                     <field name="locked" invisible="1" />
                     <field name="sent" invisible="1" />
                     <field name="has_authorized_transaction_ids" invisible="1" />
-                    <!-- 1. Send quotation (draft) -->
                     <button
                         id="quotation_send_primary"
                         name="action_send_quotation"
@@ -428,7 +425,6 @@
                         class="btn-primary"
                         groups="sale.group_proforma_sales"
                         invisible="state != 'draft' or invoice_count &gt;= 1" />
-                    <!-- 2. Confirm (primary once sent, secondary before) -->
                     <button
                         id="action_confirm"
                         name="action_confirm"
@@ -447,7 +443,6 @@
                         context="{'validate_analytic': True}"
                         data-hotkey="q"
                         invisible="state != 'draft' or sent" />
-                    <!-- 3. Create invoice -->
                     <button
                         id="create_invoice"
                         name="%(sale.action_view_sale_advance_payment_inv)d"
@@ -466,7 +461,6 @@
                         context="{'default_advance_payment_method': 'percentage'}"
                         data-hotkey="q"
                         invisible="invoice_state != 'no' or state != 'done'" />
-                    <!-- 4. Send order (post-confirmation) -->
                     <button
                         string="Send"
                         id="quotation_send"
@@ -484,7 +478,6 @@
                         context="{'proforma': True, 'validate_analytic': True}"
                         invisible="state == 'draft' or invoice_count &gt;= 1"
                         groups="sale.group_proforma_sales" />
-                    <!-- 5. Payment transaction actions -->
                     <button
                         name="payment_action_capture"
                         groups="sales_team.group_sale_salesman"
@@ -501,20 +494,17 @@
                         data-hotkey="shift+v"
                         confirm="Are you sure you want to void the authorized transaction? This action can't be undone."
                         invisible="not has_authorized_transaction_ids" />
-                    <!-- 6. Print -->
                     <button
                         name="action_print_order"
                         string="Print"
                         type="object"
                         groups="base.group_user"
                         data-hotkey="k" />
-                    <!-- 7. Preview -->
                     <button
                         string="Preview"
                         name="action_preview_sale_order"
                         type="object"
                         class="btn-secondary" />
-                    <!-- 8. Lock / Unlock -->
                     <button
                         string="Lock"
                         name="action_lock"
@@ -530,7 +520,6 @@
                         data-hotkey="l"
                         invisible="not locked"
                         groups="sale.group_order_unlock" />
-                    <!-- 9. Cancel -->
                     <button
                         string="Cancel"
                         name="action_cancel"
@@ -539,7 +528,6 @@
                         confirm="Are you sure you want to cancel this order?"
                         data-hotkey="x"
                         invisible="state not in ['draft', 'done'] or not id or locked" />
-                    <!-- 10. Reset to draft -->
                     <button
                         string="Set to Quotation"
                         name="action_draft"
@@ -756,9 +744,6 @@
                                             context="{'order_id': parent.id}" />
                                     </control>
 
-                                    <!-- Non readonly invisible fields, must be specified manually,
-                                    because fields added automatically by the ORM
-                                    are readonly, widgets fieldDependencies too -->
                                     <field
                                         name="display_type"
                                         column_invisible="True" />
@@ -895,7 +880,6 @@
                                         string="Amount"
                                         column_invisible="parent.company_price_include == 'tax_excluded'"
                                         invisible="is_downpayment" />
-                                    <!-- Optional amounts columns -->
                                     <field
                                         name="price_total"
                                         string="Tax Incl."
@@ -916,12 +900,7 @@
                                 </list>
                                 <form>
                                     <field name="price_unit_auto" invisible="1" />
-                                    <!--
-                                    We need the sequence field to be here for new lines to be added at the correct position.
-                                    -->
                                     <field name="sequence" invisible="1" />
-                                    <!-- Display_type must be specified as non readonly (which would
-                                    be the case with the default field added by ORM) -->
                                     <field name="display_type" invisible="1" />
                                     <group>
                                         <group invisible="display_type">

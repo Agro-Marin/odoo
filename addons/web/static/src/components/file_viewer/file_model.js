@@ -104,9 +104,7 @@ export const FileModelMixin = (T) =>
             return Boolean(this.youtubeVideoId);
         }
 
-        /**
-         * @returns {string|null}
-         */
+        /** @returns {string|null} */
         get youtubeVideoId() {
             if (typeof this.url !== "string") {
                 return null;
@@ -155,9 +153,7 @@ export const FileModelMixin = (T) =>
             return this.id ? `/speech/attachment/${this.id}/subtitles.vtt` : "";
         }
 
-        /**
-         * @returns {Object}
-         */
+        /** @returns {Object} */
         get urlQueryParams() {
             if (this.uploading && this.tmpUrl) {
                 return {};
@@ -175,9 +171,7 @@ export const FileModelMixin = (T) =>
             return params;
         }
 
-        /**
-         * @returns {string}
-         */
+        /** @returns {string} */
         get urlRoute() {
             if (this.uploading && this.tmpUrl) {
                 return this.tmpUrl;

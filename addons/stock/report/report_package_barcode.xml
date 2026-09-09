@@ -3,8 +3,6 @@
 
     <template id="report_package_barcode">
         <t t-call="web.basic_layout">
-            <!-- quantity patterns are always 3 digit codes + 1 digit for number of digits
-            (excluding units) -->
             <t t-set="uom_unit_id" t-value="env.ref('uom.product_uom_unit').id" />
             <t
                 t-set="gs1_uom_patterns"
@@ -12,7 +10,6 @@
             <t t-foreach="docs" t-as="o">
                 <div class="page mt-4" style="page-break-after: always;">
                     <div class="oe_structure" />
-                    <!-- HEADER: Package's information -->
                     <div class="row mb-5">
                         <h1 class="col-6">
                             <span t-field="o.name" class="mt0 float-start">Package Reference</span>
@@ -57,7 +54,6 @@
                         </div>
                     </div>
                     <div class="oe_structure" />
-                    <!-- CONTAINED PACKAGES CONTENT -->
                     <t t-foreach="o.child_package_ids" t-as="child_package">
                         <div class="border border-dark p-3 mt-2">
                             <div class="row mb-5">
@@ -97,7 +93,6 @@
                                 </div>
                             </div>
                             <t t-call="stock.report_package_barcode_content">
-                                <!-- Filters out package's quants with no quantity. -->
                                 <t
                                     t-set="package_quants"
                                     t-value="child_package.contained_quant_ids.filtered('quantity')" />
@@ -105,7 +100,6 @@
                         </div>
                         <div class="oe_structure" />
                     </t>
-                    <!-- DIRECTLY CONTAINED QUANTS -->
                     <t t-if="o.quant_ids">
                         <div
                             class="border border-dark p-3 mt-2"
@@ -150,7 +144,6 @@
                 t-set="product_quants"
                 t-value="package_quants.filtered(lambda q: q.product_id.id == product.id)" />
             <t t-set="product_qty" t-value="sum(product_quants.mapped('quantity'))" />
-            <!-- Display each individual LN/SN if there is less than 50. -->
             <t
                 t-set="display_content_details"
                 t-value="0 &lt; len(product_quants.lot_id) &lt; 50" />
@@ -159,7 +152,6 @@
                 t-value="product_quants.get_aggregate_barcodes()" />
             <table
                 class="w-100 table table-sm table-borderless border border-dark mb-0 mt-2">
-                <!-- Quant's summary: product's barcode, product, qty and content's barcode.  -->
                 <thead>
                     <tr>
                         <th
@@ -192,9 +184,7 @@
                         </th>
                     </tr>
                 </thead>
-                <!-- Quant's details.  -->
                 <tbody t-if="display_content_details or len(aggregate_barcodes) &gt; 1">
-                    <!-- Lot/Serial numbers, displayed 4 by 4.  -->
                     <tr
                         t-if="display_content_details"
                         style="font-size: 0.8em;"
@@ -228,7 +218,6 @@
                             </div>
                         </td>
                     </tr>
-                    <!-- Content's Barcodes -->
                     <tr
                         t-if="len(aggregate_barcodes) &gt; 1"
                         style="border-bottom-color: black">

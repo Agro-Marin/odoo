@@ -47,7 +47,6 @@ class TestLeadTime(TestSalePurchaseCommon):
         )
 
     def test_supplier_lead_time(self):
-        """Basic stock configuration and a supplier with a minimum qty and a lead time"""
 
         so = (
             self.env["sale.order"]
@@ -75,7 +74,6 @@ class TestLeadTime(TestSalePurchaseCommon):
         self.assertEqual(po.line_ids.price_unit, self.product.seller_ids.price)
 
     def test_merge_procurement(self):
-        """create 2 sale order for the same supplier with grouping option and check that only one PO is created"""
 
         self.vendor.group_rfq = "day"
 
@@ -103,7 +101,6 @@ class TestLeadTime(TestSalePurchaseCommon):
             [("product_id", "=", self.product.id)]
         )
         self.assertRecordValues(pol, [{"product_qty": 2}])
-        # create another SO, it should increate the existing PO line
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -123,7 +120,6 @@ class TestLeadTime(TestSalePurchaseCommon):
         so.action_confirm()
         self.assertEqual(pol.product_qty, 3)
 
-        # Edit a SOL, it should update the PO line
         sale_order.line_ids.product_qty += 1
         self.assertEqual(pol.product_qty, 4)
 

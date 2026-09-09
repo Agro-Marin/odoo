@@ -101,9 +101,7 @@ export function createWaveResolver({ isLoaded }) {
     const pending = new Map();
     /** @type {Map<string, Set<string>>} */
     const dependents = new Map();
-    /**
-     * @type {Map<string, string[]>}
-     */
+    /** @type {Map<string, string[]>} */
     const waitingOn = new Map();
     /** @type {string[]} */
     const ready = [];

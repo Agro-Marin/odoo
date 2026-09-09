@@ -8,9 +8,7 @@ const COOKIE = "color_scheme";
 
 const revision = reactive({ count: 0 });
 
-/**
- * @param {typeof revision} tracked
- */
+/** @param {typeof revision} tracked */
 function subscribe(tracked) {
     return tracked.count;
 }
@@ -24,9 +22,7 @@ export const colorScheme = {
     get isDark() {
         return this.current === "dark";
     },
-    /**
-     * @param {"light" | "dark"} scheme
-     */
+    /** @param {"light" | "dark"} scheme */
     publish(scheme) {
         cookie.set(COOKIE, scheme);
         document.documentElement.dataset.colorScheme = scheme;
@@ -34,9 +30,7 @@ export const colorScheme = {
     },
 };
 
-/**
- * @returns {{current: "light" | "dark", isDark: boolean}}
- */
+/** @returns {{current: "light" | "dark", isDark: boolean}} */
 export function useColorScheme() {
     const tracked = useState(revision);
     return {

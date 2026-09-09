@@ -70,9 +70,7 @@ async function changeType(propertyType) {
     await animationFrame();
 }
 
-/**
- * @param {boolean[]} propertySpecs
- */
+/** @param {boolean[]} propertySpecs */
 async function makePropertiesGroupView(propertySpecs) {
     let counter = 1;
     patchWithCleanup(PropertiesField.prototype, {
@@ -1208,9 +1206,7 @@ test("properties: many2one 'Search more...' +  internal link save keeps data", a
     });
 
     patchWithCleanup(SelectCreateDialog.prototype, {
-        /**
-         * @override
-         */
+        /** @override */
         setup() {
             super.setup();
             expect.step(this.props.resModel);

@@ -64,9 +64,7 @@ export const purchaseForm = {
         ];
     },
 
-    /**
-     * @param {string} vendorName
-     */
+    /** @param {string} vendorName */
     selectVendor(vendorName) {
         return [
             {
@@ -83,9 +81,7 @@ export const purchaseForm = {
         ];
     },
 
-    /**
-     * @param {string} warehouseName
-     */
+    /** @param {string} warehouseName */
     selectWarehouse(warehouseName) {
         return [
             {

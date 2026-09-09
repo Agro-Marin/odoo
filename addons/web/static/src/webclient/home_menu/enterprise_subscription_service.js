@@ -78,9 +78,7 @@ export class SubscriptionManager {
         this.isWarningHidden = true;
     }
 
-    /**
-     * @returns {Promise<number>}
-     */
+    /** @returns {Promise<number>} */
     _countRecentlyActiveUsers() {
         const limitDate = serializeDate(DateTime.utc().minus({ days: 15 }));
         return this.orm.call("res.users", "search_count", [
@@ -95,9 +93,7 @@ export class SubscriptionManager {
         const nbUsers = await this._countRecentlyActiveUsers();
         browser.location.href = `https://www.odoo.com/odoo-enterprise/upgrade?num_users=${nbUsers}`;
     }
-    /**
-     * @param {string} enterpriseCode
-     */
+    /** @param {string} enterpriseCode */
     async submitCode(enterpriseCode) {
         const [oldDate] = await Promise.all([
             this.orm.call("ir.config_parameter", "get_param", [

@@ -5,10 +5,6 @@ from odoo.http import request
 class ProjectClient(http.Controller):
     @http.route("/mail_plugin/project/search", type="jsonrpc", auth="outlook", cors="*")
     def projects_search(self, search_term, limit=5):
-        """
-        Used in the plugin side when searching for projects.
-        Fetches projects that have names containing the search_term.
-        """
         projects = request.env["project.project"].search(
             [("name", "ilike", search_term)], limit=limit
         )

@@ -11,9 +11,6 @@ class TestUnlinkReward(TestSaleCouponCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # The reward is declared with the program: a program created with a
-        # `program_type` and no `reward_ids` is given the one its type implies, so
-        # adding a second one afterwards left the order claiming whichever it liked.
         cls.promotion_program = cls.env["loyalty.program"].create(
             {
                 "name": "Buy A + 1 B, 1 B are free",
@@ -62,12 +59,10 @@ class TestUnlinkReward(TestSaleCouponCommon):
         self._claim_reward(order, self.promotion_program)
         self.reward.unlink()
 
-        # Check that the reward is archived and not deleted
         self.assertTrue(self.reward.exists())
         self.assertFalse(self.reward.active)
 
     def test_unlink_expired_coupon_line(self):
-        """Ensure that lines linked to expired coupons get unlinked from the order."""
         order = self.empty_order
         order.line_ids = [Command.create({"product_id": self.product_A.id})]
         coupon_program = self.code_promotion_program

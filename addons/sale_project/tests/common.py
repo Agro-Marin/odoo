@@ -44,7 +44,6 @@ class TestSaleProjectCommon(TestSaleCommon):
             }
         )
 
-        # -- manual (delivered, manual)
         cls.product_delivery_manual1 = cls.env["product.product"].create(
             {
                 "name": "Service delivered, create no task",
@@ -88,7 +87,7 @@ class TestSaleProjectCommon(TestSaleCommon):
                 "default_code": "SERV-DELI3",
                 "service_type": "manual",
                 "service_tracking": "task_in_project",
-                "project_id": False,  # will create a project
+                "project_id": False,
                 "taxes_id": False,
                 "property_account_income_id": cls.account_sale.id,
             }
@@ -171,7 +170,6 @@ class TestSaleProjectCommon(TestSaleCommon):
                 },
             ]
         )
-        # -- devliered_milestones (delivered, milestones)
         product_milestone_vals = {
             "type": "service",
             "invoice_policy": "transferred",

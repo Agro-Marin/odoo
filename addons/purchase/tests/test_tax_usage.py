@@ -55,11 +55,6 @@ class TestPurchaseTaxUsage(TransactionCase):
         self.assertNotIn(unused.id, result)
 
     def test_it_leaves_the_candidate_set_alone(self):
-        """Every override in the chain still needs the full set of candidates.
-
-        They used to narrow it in place with `-=`, so each link silently shrank
-        what the next one was given.
-        """
         used = self._tax("Referenced too")
         unused = self._tax("Still not referenced", amount=6)
         self._order_with(used)

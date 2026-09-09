@@ -202,7 +202,7 @@ test("non-fetchable frame origins are skipped without a fetch", async () => {
 });
 
 describe("reading the sourceMappingURL directive", () => {
-    /** @param {string} body @param {(url: string, init: any) => void} onFetch */
+    /** @param {string} body */
     function serve(body, onFetch) {
         mockFetch(async (input, init) => {
             const url = String(input);

@@ -57,9 +57,6 @@ test("Attachment shows spinner during upload", async () => {
 });
 
 /**
- * Drives a real upload that never resolves, so the service holds genuine
- * in-flight state, then hands it the transport result the test wants to pin.
- * Faking the whole upload instead would assert against the fake.
  * @param {number} status
  * @param {string} [response]
  */

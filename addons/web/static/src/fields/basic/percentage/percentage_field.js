@@ -30,7 +30,7 @@ export class PercentageField extends NumericInputFieldBase {
     }
 
     /**
-     * @param {boolean} _humanReadable percentage has no human-readable form
+     * @param {boolean} _humanReadable
      * @returns {string}
      */
     formatValue(_humanReadable) {

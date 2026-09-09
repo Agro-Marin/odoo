@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- Create extra MOs that will have stock.valuation.layers + can be used to populate reports -->
     <record id="mrp_production_drawer_2" model="mrp.production">
         <field name="product_id" ref="product.product_product_27" />
         <field name="product_uom_id" ref="uom.product_uom_unit" />
@@ -78,7 +77,6 @@
             eval="[ref('mrp_account.mrp_production_drawer_2'),                         ref('mrp_account.mrp_production_drawer_3')]" />
     </function>
 
-    <!-- Rewrite history so they finished in the past so it looks more interesting in graphs -->
     <function model="mrp.production" name="write">
         <value eval="[ref('mrp_account.mrp_production_drawer_2')]" />
         <value

@@ -21,10 +21,6 @@ class SaleOrder(models.Model):
             for order in self:
                 order.margin = sum(order.line_ids.mapped("margin"))
         else:
-            # On batch records recomputation (e.g. at install), compute the margins
-            # with a single read_group query for better performance.
-            # This isn't done in an onchange environment because (part of) the data
-            # may not be stored in database (new records or unsaved modifications).
             grouped_order_lines_data = self.env["sale.order.line"]._read_group(
                 [
                     ("order_id", "in", self.ids),

@@ -2,9 +2,7 @@
 import { Message } from "@mail/core/common/message_model";
 import { fields } from "@mail/core/common/record";
 import { patch } from "@web/core/utils/patch";
-/**
- * @type {Partial<import("models").Message> & ThisType<import("models").Message>}
- */
+/** @type {Partial<import("models").Message> & ThisType<import("models").Message>} */
 const messagePatch = {
     setup() {
         super.setup();

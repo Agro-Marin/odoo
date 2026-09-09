@@ -11,21 +11,13 @@ import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
 
 /**
  * @typedef {Parameters<typeof import("@odoo/owl").mount>[2] & {
- *  className: string | string[];
- *  target?: import("@odoo/hoot-dom").Target;
- * }} MountOnFixtureOptions
  * @typedef {{
- *  component: import("@odoo/owl").ComponentConstructor;
- *  props: unknown;
- * }} TestRootProps
  */
 
 const { customElements, document, getSelection, HTMLElement, Promise, WeakSet } =
     globalThis;
 
-/**
- * @param {HTMLIFrameElement} iframe
- */
+/** @param {HTMLIFrameElement} iframe */
 function waitForIframe(iframe) {
     return new Promise((resolve) => iframe.addEventListener("load", resolve));
 }
@@ -36,9 +28,7 @@ let allowFixture = false;
 let currentFixture = null;
 let shouldPrepareNextFixture = true;
 
-/**
- * @param {App | import("@odoo/owl").Component} target
- */
+/** @param {App | import("@odoo/owl").Component} target */
 export function destroy(target) {
     const app = isInstanceOf(target, App) ? target : target.__owl__.app;
     if (destroyed.has(app)) {
@@ -48,9 +38,7 @@ export function destroy(target) {
     app.destroy();
 }
 
-/**
- * @param {import("./runner").Runner} runner
- */
+/** @param {import("./runner").Runner} runner */
 export function makeFixtureManager(runner) {
     function cleanup() {
         allowFixture = false;
@@ -62,13 +50,7 @@ export function makeFixtureManager(runner) {
         }
     }
 
-    /**
-     * Never null: the branch below creates the fixture when there is none, so
-     * every caller may dereference the result. The inferred type came from
-     * `currentFixture` starting as null, which `cleanup` also resets it to.
-     *
-     * @returns {HTMLElement}
-     */
+    /** @returns {HTMLElement} */
     function getFixture() {
         if (!allowFixture) {
             allowFixture = true;
@@ -192,9 +174,7 @@ export class HootFixtureElement extends HTMLElement {
         this.classList.add(this.constructor.CLASSES.show);
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _lookForIframes() {
         const toRemove = new Set(this._iframes.keys());
         for (const iframe of this.getElementsByTagName("iframe")) {

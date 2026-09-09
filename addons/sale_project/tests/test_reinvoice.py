@@ -35,7 +35,6 @@ class TestReInvoice(TestSaleCommon):
                 f"{cls.analytic_plan._column_name()}": cls.analytic_account.id,
             }
         )
-        # Remove the analytic account auto-generated when creating a timesheetable project if it exists
         cls.project.account_id = False
 
         cls.sale_order = (
@@ -59,10 +58,8 @@ class TestReInvoice(TestSaleCommon):
         )
 
     def test_at_cost(self):
-        # Required for `analytic_distribution` to be visible in the view
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
         """ Test vendor bill at cost for product based on ordered and delivered quantities. """
-        # create SO line and confirm SO (with only one line)
         sale_order_line1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.company_data["product_order_cost"].id,
@@ -82,7 +79,6 @@ class TestReInvoice(TestSaleCommon):
 
         self.sale_order.action_confirm()
 
-        # create invoice lines and validate it
         move_form = Form(self.AccountMove)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -160,7 +156,6 @@ class TestReInvoice(TestSaleCommon):
             "Delivered quantity of 'expense' SO line should be computed by analytic amount",
         )
 
-        # create second invoice lines and validate it
         move_form = Form(self.AccountMove)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -230,7 +225,6 @@ class TestReInvoice(TestSaleCommon):
 
     @freeze_time("2020-01-15")
     def test_sales_team_invoiced(self):
-        """Test invoiced field from  sales team ony take into account the amount the sales channel has invoiced this month"""
 
         invoices = self.env["account.move"].create(
             [
@@ -272,12 +266,7 @@ class TestReInvoice(TestSaleCommon):
         self.assertRecordValues(invoices.team_id, [{"invoiced": 500.0}])
 
     def test_sales_price(self):
-        """Test invoicing vendor bill at sales price for products based on delivered and ordered quantities. Check no existing SO line is incremented, but when invoicing a
-        second time, increment only the delivered so line.
-        """
-        # Required for `analytic_distribution` to be visible in the view
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
-        # create SO line and confirm SO (with only one line)
         sale_order_line1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.company_data["product_delivery_sales_price"].id,
@@ -296,7 +285,6 @@ class TestReInvoice(TestSaleCommon):
         )
         self.sale_order.action_confirm()
 
-        # create invoice lines and validate it
         move_form = Form(self.AccountMove)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -374,7 +362,6 @@ class TestReInvoice(TestSaleCommon):
             "Delivered quantity of 'expense' SO line 4 should be computed by analytic amount",
         )
 
-        # create second invoice lines and validate it
         move_form = Form(self.AccountMove)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -433,10 +420,7 @@ class TestReInvoice(TestSaleCommon):
         )
 
     def test_no_expense(self):
-        """Test invoicing vendor bill with no policy. Check nothing happen."""
-        # Required for `analytic_distribution` to be visible in the view
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
-        # confirm SO
         self.env["sale.order.line"].create(
             {
                 "product_id": self.company_data["product_delivery_no"].id,
@@ -447,7 +431,6 @@ class TestReInvoice(TestSaleCommon):
         )
         self.sale_order.action_confirm()
 
-        # create invoice lines and validate it
         move_form = Form(self.AccountMove)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -468,7 +451,6 @@ class TestReInvoice(TestSaleCommon):
         )
 
     def test_not_reinvoicing_invoiced_so_lines(self):
-        """Test that invoiced SO lines are not re-invoiced."""
         so_line1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.company_data["product_delivery_cost"].id,
@@ -488,7 +470,6 @@ class TestReInvoice(TestSaleCommon):
 
         for line in self.sale_order.line_ids:
             line.qty_transferred = 1
-        # create invoice and validate it
         invoice = self.sale_order._create_invoices()
         invoice.action_post()
 
@@ -525,10 +506,8 @@ class TestReInvoice(TestSaleCommon):
         )
 
     def test_not_recomputing_unit_price_for_expensed_so_lines(self):
-        # Required for `analytic_distribution` to be visible in the view
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
 
-        # create SO line and confirm SO (with only one line)
         sol_1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.company_data["product_order_cost"].id,
@@ -539,7 +518,6 @@ class TestReInvoice(TestSaleCommon):
         )
         self.sale_order.action_confirm()
 
-        # create invoice lines and validate it
         move_form = Form(self.AccountMove)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -549,7 +527,6 @@ class TestReInvoice(TestSaleCommon):
         invoice = move_form.save()
         invoice.action_post()
 
-        # update the quantity of the expensed line
         sol_2 = self.sale_order.line_ids.filtered(
             lambda sol: (
                 sol != sol_1
@@ -564,7 +541,6 @@ class TestReInvoice(TestSaleCommon):
         self.assertEqual(sol_2_subtotal_before, sol_2_subtotal_after)
 
     def test_cost_invoicing(self):
-        """Test confirming a vendor invoice to reinvoice cost on the so"""
         serv_cost = self.env["product.product"].create(
             {
                 "name": "Ordered at cost",
@@ -640,9 +616,6 @@ class TestReInvoice(TestSaleCommon):
         )
 
     def test_invoice_analytic_account_so_not_default(self):
-        """Tests whether, when an analytic account rule is set and the so has an analytic account,
-        the default analytic account is not replaced by the one from the so in the invoice.
-        """
         analytic_plan_default = self.env["account.analytic.plan"].create(
             {"name": "default"}
         )
@@ -665,7 +638,6 @@ class TestReInvoice(TestSaleCommon):
                 f"{analytic_plan_default._column_name()}": analytic_account_so.id,
             }
         )
-        # Remove the analytic account auto-generated when creating a timesheetable project if it exists
         project.account_id = False
 
         so_form = Form(self.env["sale.order"])

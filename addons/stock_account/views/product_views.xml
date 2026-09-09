@@ -50,7 +50,6 @@
                 </field>
             </field>
         </record>
-        <!-- Stock Report View -->
         <record id="view_template_property_form_stock_account" model="ir.ui.view">
             <field name="name">view.template.property.form.stock.account</field>
             <field name="model">product.template</field>

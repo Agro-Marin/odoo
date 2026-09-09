@@ -9,7 +9,6 @@ from odoo.tests import Form, freeze_time
 from odoo.addons.project.tests.test_project_base import TestProjectCommon
 
 
-# Time is freezed on a monday
 @freeze_time("2100-01-04")
 class TestPlanningOverlap(TestProjectCommon):
     @classmethod

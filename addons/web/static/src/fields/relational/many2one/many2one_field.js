@@ -87,9 +87,7 @@ export const m2oSupportedOptions = [
         ),
     },
 ];
-/**
- * @type {import("registries").FieldsRegistryItemShape["supportedAttributes"]}
- */
+/** @type {import("registries").FieldsRegistryItemShape["supportedAttributes"]} */
 export const m2oSupportedAttributes = relationalPermissionAttributes();
 
 /** @type {import("registries").FieldsRegistryItemShape["supportedTypes"]} */

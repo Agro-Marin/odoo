@@ -39,9 +39,7 @@ export class ResConfigDevTool extends Component {
         });
     }
 
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     activateDebug(value) {
         router.pushState({ debug: value }, { reload: true });
     }

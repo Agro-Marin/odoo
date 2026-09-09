@@ -14,7 +14,7 @@ const ODOO_CLASS_REGEX = /^oe?(-|_)[\w-]+$/;
 const VALIDATING_KEYS = ["Enter", "Tab"];
 
 /**
- * @param {EventTarget[]} paths composedPath of an click event
+ * @param {EventTarget[]} paths
  * @returns {string}
  */
 const getShortestSelector = (paths) => {
@@ -40,7 +40,6 @@ const getShortestSelector = (paths) => {
             hasOdooClass = true;
         }
 
-        // If we are inside a link or button the previous elements, like <i></i>, <span></span>, etc., can be removed
         if (["BUTTON", "A"].includes(currentElem.tagName)) {
             filteredPath = [];
         }
@@ -131,9 +130,7 @@ export class TourRecorder extends Component {
         });
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     setStartingEvent(ev) {
         if (!this.state.recording || ev.target.closest(".o_tour_recorder")) {
             return;
@@ -141,9 +138,7 @@ export class TourRecorder extends Component {
         this.originClickEvent = ev.composedPath().filter((p) => p instanceof Element);
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     recordClickEvent(ev) {
         if (!this.state.recording || ev.target.closest(".o_tour_recorder")) {
             return;
@@ -152,7 +147,6 @@ export class TourRecorder extends Component {
         this.addTourStep([...pathElements]);
 
         const lastStepInput = this.state.steps.at(-1);
-        // Check that pointerdown and pointerup paths are different to know if it's a drag&drop or a click
         if (
             JSON.stringify(pathElements.map((e) => e.tagName)) !==
             JSON.stringify(this.originClickEvent.map((e) => e.tagName))
@@ -167,9 +161,7 @@ export class TourRecorder extends Component {
         tourRecorderState.setCurrentTourRecorder(this.state.steps);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     recordConfirmationKeyboardEvent(ev) {
         if (
             !this.state.recording ||
@@ -195,9 +187,7 @@ export class TourRecorder extends Component {
         tourRecorderState.setCurrentTourRecorder(this.state.steps);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     recordKeyboardEvent(ev) {
         if (
             !this.state.recording ||
@@ -276,9 +266,7 @@ export class TourRecorder extends Component {
         tourRecorderState.clear();
     }
 
-    /**
-     * @param {Element[]} path
-     */
+    /** @param {Element[]} path */
     addTourStep(path) {
         const shortestPath = getShortestSelector(path);
         const target = queryOne(shortestPath);

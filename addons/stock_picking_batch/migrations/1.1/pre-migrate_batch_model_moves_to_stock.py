@@ -35,11 +35,6 @@ def _repoint(cr, name, model):
 def migrate(cr, version):
     moved = sum(_repoint(cr, name, model) for name, model in MOVED_RECORDS)
 
-    # Every field declaration moved with the model. Leaving their xmlids behind
-    # makes _process_end delete the ir.model.fields rows, which DROPS the
-    # columns; the registry then re-adds them empty and the stored values are
-    # gone. Measured on an upgrade of this module alone: 54 field xmlids
-    # deleted, `name` reset to its default and `is_wave` to NULL.
     cr.execute(
         """
             UPDATE ir_model_data d

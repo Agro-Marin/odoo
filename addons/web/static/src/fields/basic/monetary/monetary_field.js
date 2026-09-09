@@ -36,9 +36,7 @@ export class MonetaryField extends NumericInputFieldBase {
         trailingZeros: true,
     };
 
-    /**
-     * @type {ReturnType<typeof useRef>}
-     */
+    /** @type {ReturnType<typeof useRef>} */
     ghostRef;
 
     setup() {

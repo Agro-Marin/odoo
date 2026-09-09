@@ -32,9 +32,7 @@ function makeRecord(id, data) {
     });
 }
 
-/**
- * @returns {Promise<{ state: any, counts: { loadFn: number, rpc: number } }>}
- */
+/** @returns {Promise<{ state: any, counts: { loadFn: number, rpc: number } }>} */
 async function mountSpecialData() {
     const counts = { loadFn: 0, rpc: 0 };
     onRpc("sub", "name_search", () => {

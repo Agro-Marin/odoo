@@ -13,7 +13,6 @@ class TestSalePurchase(TestSalePurchaseCommon):
 
         cls.company_data_2 = cls.setup_other_company()
 
-        # create a generic Sale Order with 2 classical products and a purchase service
         SaleOrder = cls.env["sale.order"]
         cls.analytic_plan = cls.env["account.analytic.plan"].create(
             {"name": "Plan Test"}
@@ -97,7 +96,6 @@ class TestSalePurchase(TestSalePurchaseCommon):
         )
 
     def test_sale_create_purchase(self):
-        """Confirming 2 sales orders with a service that should create two PO, then cancelling the PO should schedule 1 next activity per SO"""
         self.sale_order_1.action_confirm()
         self.sale_order_2.action_confirm()
 
@@ -213,14 +211,13 @@ class TestSalePurchase(TestSalePurchaseCommon):
         )
 
     def test_uom_conversion(self):
-        """Test generated PO use the right UoM according to product configuration"""
         self.service_purchase_2.seller_ids.product_uom_id = self.env.ref(
             "uom.product_uom_unit"
         )
         self.sale_order_2.action_confirm()
         purchase_line = self.env["purchase.order.line"].search(
             [("sale_line_id", "=", self.sol2_service_purchase_2.id)]
-        )  # only one line
+        )
 
         self.assertTrue(purchase_line, "The SO line should generate a PO line")
         self.assertEqual(
@@ -240,15 +237,11 @@ class TestSalePurchase(TestSalePurchaseCommon):
         )
 
     def test_no_supplier(self):
-        """Test confirming SO with product with no supplier raise Error"""
-        # delete the suppliers
         self.service_purchase_1.seller_ids.unlink()
-        # confirm the SO should raise UserError
         with self.assertRaises(UserError):
             self.sale_order_1.action_confirm()
 
     def test_reconfirm_sale_order(self):
-        """Confirm SO, cancel it, then re-confirm it should not regenerate a purchase line"""
         self.sale_order_1.action_confirm()
 
         purchase_order = self.env["purchase.order"].search(
@@ -398,15 +391,6 @@ class TestSalePurchase(TestSalePurchaseCommon):
         )
 
     def test_update_ordered_sale_quantity(self):
-        """Test the purchase order behavior when changing the ordered quantity on the sale order line.
-        Increase of qty on the SO
-        - If PO is draft ['draft'] : increase the quantity on the PO
-        - If PO is confirmed/cancelled ['done', 'cancel'] : create a new PO
-
-        Decrease of qty on the SO
-        - If PO is draft  ['draft'] : next activity on the PO
-        - If PO is confirmed/cancelled ['done', 'cancel'] : next activity on the PO
-        """
         self.sale_order_1.action_confirm()
 
         purchase_order = self.env["purchase.order"].search(
@@ -434,10 +418,9 @@ class TestSalePurchase(TestSalePurchaseCommon):
             "Quantity on SO line is not the same on the purchase line (same UoM)",
         )
 
-        # increase the ordered quantity on sale line
         self.sol1_service_purchase_1.write(
             {"product_qty": self.sol1_service_purchase_1.product_qty + 12}
-        )  # product_qty = 16
+        )
         self.assertEqual(
             purchase_line.product_qty,
             self.sol1_service_purchase_1.product_qty,
@@ -446,10 +429,9 @@ class TestSalePurchase(TestSalePurchaseCommon):
 
         sale_line_old_quantity = self.sol1_service_purchase_1.product_qty
 
-        # decrease the ordered quantity on sale line
         self.sol1_service_purchase_1.write(
             {"product_qty": self.sol1_service_purchase_1.product_qty - 3}
-        )  # product_qty = 13
+        )
         self.assertEqual(
             len(purchase_order.activity_ids),
             1,
@@ -466,15 +448,13 @@ class TestSalePurchase(TestSalePurchaseCommon):
             "Activity is for today, as it is urgent",
         )
 
-        # confirm the PO
         purchase_order.action_confirm()
 
-        # decrease the ordered quantity on sale line
         self.sol1_service_purchase_1.write(
             {"product_qty": self.sol1_service_purchase_1.product_qty - 5}
-        )  # product_qty = 8
+        )
 
-        self.env.invalidate_all()  # Note: creating a second activity will not refresh the cache
+        self.env.invalidate_all()
 
         self.assertEqual(
             purchase_line.product_qty,
@@ -497,11 +477,10 @@ class TestSalePurchase(TestSalePurchaseCommon):
             "Activities are for today, as it is urgent",
         )
 
-        # increase the ordered quantity on sale line
         delta = 8
         self.sol1_service_purchase_1.write(
             {"product_qty": self.sol1_service_purchase_1.product_qty + delta}
-        )  # product_qty = 16
+        )
 
         self.assertEqual(
             purchase_line.product_qty,
@@ -552,9 +531,6 @@ class TestSalePurchase(TestSalePurchaseCommon):
         )
 
     def test_pol_description(self):
-        """
-        test cases when product names are different from how the vendor refers to, which is allowed
-        """
         service = self.env["product.product"].create(
             {
                 "name": "Super Product",
@@ -603,10 +579,6 @@ class TestSalePurchase(TestSalePurchaseCommon):
         self.assertEqual(po.line_ids.name, "[C01] Name01")
 
     def test_pol_custom_attribute(self):
-        """
-        test that custom atributes are passed from the SO the PO for service products
-        """
-        # Setup service product variants
         product_attribute = self.env["product.attribute"].create(
             {
                 "name": "product attribute",
@@ -633,7 +605,6 @@ class TestSalePurchase(TestSalePurchaseCommon):
 
         custom_value = "test"
 
-        # create and confirm SO
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -664,22 +635,6 @@ class TestSalePurchase(TestSalePurchaseCommon):
         )
 
     def test_service_to_purchase_multi_company(self):
-        """Test the service to purchase in a multi-company environment
-
-        The `product.template.service_to_purchase` is a company_dependent field, whose
-        value depends on the company are in, which is not necessarily the order company
-
-        Granted that:
-        - The current company is company_1
-        - The product is configured as a service to be purchased on company_1
-        - The product is NOT configured as a service to be purchased on company_2
-        - We process an order on company_2, while being logged in company_1
-
-        The order must be processed without generating a PO, respecting the product
-        setting for this order's company. We also check that the opposite case holds
-        true as well (i.e. PO is generated when confirming with a company that isn't
-        configured for it, but the SO's company is)
-        """
         company_1 = self.env.company
         company_2 = self.company_data_2["company"]
         self.env.user.company_ids += company_2
@@ -727,9 +682,6 @@ class TestSalePurchase(TestSalePurchaseCommon):
         self.assertTrue(order2.purchase_order_count)
 
     def test_service_to_purchase_branch_tax_propagation(self):
-        """
-        Ensure that SO/PO of a branch can use root company's taxes
-        """
         branch = self.env["res.company"].create(
             {
                 "name": "Branch Company",

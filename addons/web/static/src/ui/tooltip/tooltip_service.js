@@ -92,9 +92,7 @@ class TrackedTooltip {
 }
 
 class TooltipService {
-    /**
-     * @param {{ popover: any }} services
-     */
+    /** @param {{ popover: any }} services */
     constructor({ popover }) {
         this.popover = popover;
         /** @type {TrackedTooltip | null} */
@@ -191,9 +189,7 @@ class TooltipService {
         }, timeoutDelay);
     }
 
-    /**
-     * @param {HTMLElement} el
-     */
+    /** @param {HTMLElement} el */
     openElementsTooltip(el) {
         const element = tooltipHolderOf(el);
         if (!element && !this.elementsWithTooltips.has(el)) {
@@ -234,16 +230,12 @@ class TooltipService {
         }
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onMouseenter(ev) {
         this.openElementsTooltip(/** @type {HTMLElement} */ (ev.target));
     }
 
-    /**
-     * @param {FocusEvent} ev
-     */
+    /** @param {FocusEvent} ev */
     onFocusin(ev) {
         this.openElementsTooltip(/** @type {HTMLElement} */ (ev.target));
     }
@@ -259,9 +251,7 @@ class TooltipService {
         return Boolean(tooltipHolderOf(el)?.dataset.tooltipTouchTapToShow);
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onClick(ev) {
         const el = /** @type {HTMLElement} */ (ev.target);
         if (this.isHelpNode(el)) {
@@ -280,9 +270,7 @@ class TooltipService {
             this.cleanup();
         }
     }
-    /**
-     * @param {TouchEvent} ev
-     */
+    /** @param {TouchEvent} ev */
     onTouchStart(ev) {
         this.cleanup();
         const el = /** @type {HTMLElement} */ (ev.target);
@@ -292,9 +280,7 @@ class TooltipService {
         }, timeoutDelay);
     }
 
-    /**
-     * @param {TouchEvent} ev
-     */
+    /** @param {TouchEvent} ev */
     onTouchEnd(ev) {
         const el = /** @type {HTMLElement} */ (ev.target);
         if (this.isHelpNode(el)) {

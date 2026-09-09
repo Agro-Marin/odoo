@@ -27,12 +27,6 @@ class TestAccessRights(TestSalePurchaseCommon):
         )
 
     def test_access_saleperson_decreases_qty(self):
-        """
-        Suppose a user who has no right on PO
-        Suppose a PO linked to a SO
-        The user decreases the qty on the SO
-        This test ensures that an activity (warning) is added to the PO
-        """
         mto_route = self.env.ref("stock.route_warehouse0_mto")
         buy_route = self.env.ref("purchase_stock.route_warehouse0_buy")
         mto_route.rule_ids.procure_method = "make_to_order"
@@ -89,17 +83,11 @@ class TestAccessRights(TestSalePurchaseCommon):
         po = self.env["purchase.order"].search([("partner_id", "=", vendor.id)])
         po.action_confirm()
 
-        # salesperson writes on the SO
         so.write({"line_ids": [(1, so_line.id, {"product_qty": 0.9})]})
 
         self.assertIn(so.name, po.activity_ids.note)
 
     def test_access_saleperson_with_orderpoint(self):
-        """
-        Suppose a user with no rights on SO creates a product with an orderpoint,
-        then creates a sale order, so the PO will be generated. After creating a second SO,
-        the PO should be updated since it has not been confirmed yet.
-        """
         product = self.env["product.product"].create(
             {
                 "name": "SuperProduct",
@@ -123,7 +111,6 @@ class TestAccessRights(TestSalePurchaseCommon):
                 "route_id": self.env.ref("purchase_stock.route_warehouse0_buy").id,
             }
         )
-        # Create a SO that will automatically generate a PO since we have an orderpoint"
         so = (
             self.env["sale.order"]
             .with_user(self.user_salesperson)
@@ -163,9 +150,6 @@ class TestAccessRights(TestSalePurchaseCommon):
         self.assertEqual(po.state, "done")
 
     def test_sales_user_can_access_forecast_report(self):
-        # `get_report_values` calls `_get_source_document`, which can be a PO, SO, MO, repair etc.
-        # A sales user might not have access to that model by default.
-        # This PO provides a source document to test if it can be accessed in the forecast report.
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -181,7 +165,6 @@ class TestAccessRights(TestSalePurchaseCommon):
                 ],
             }
         )
-        # This PO belongs to a different company, it should not be shown
         different_company_po = self.env["purchase.order"].create(
             {
                 "company_id": self.env["res.company"]
@@ -200,19 +183,14 @@ class TestAccessRights(TestSalePurchaseCommon):
                 ],
             }
         )
-        # (POs are not confirmed, to keep the lines in the 'draft' state)
-        # Reset the cache to correctly test the permissions
         po.env.invalidate_all()
         different_company_po.env.invalidate_all()
-        # A sales user can access the report without any errors
         report_values = (
             self.env["stock.forecasted_product_product"]
             .with_user(self.user_salesperson)
             .get_report_values(docids=self.product.ids)
         )
-        # No exception was raised, but user is not allowed to edit pickings
         self.assertEqual(report_values["docs"]["user_can_edit_pickings"], False)
-        # The data in the report includes only the first PO
         self.assertEqual(
             report_values["docs"]["product"][self.product.id]["draft_purchase_qty"][
                 "in"
@@ -223,7 +201,6 @@ class TestAccessRights(TestSalePurchaseCommon):
             report_values["docs"]["product"][self.product.id]["draft_purchase_orders"],
             [{"id": po.id, "name": po.name}],
         )
-        # A sales user cannot access the PO directly, despite viewing it's info in the report
         with self.assertRaises(
             AccessError, msg="Sales user is not allowed to access a PO"
         ):

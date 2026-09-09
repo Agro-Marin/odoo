@@ -48,16 +48,6 @@ class TestCancelTimeOff(TransactionCase):
 
     @freeze_time("2020-01-01")
     def test_cancel_time_off(self):
-        """Test that an employee can cancel a future time off, that crosses a global leave,
-        if the employee is not in the group_hr_holidays_user.
-
-        Test Case:
-        =========
-        1) Create a time off in the future and that crosses a global leave
-        2) Approve the time off with the admin
-        3) Cancel the time off with the user that is not in the group_hr_holidays_user
-        4) No read error on employee_ids should be raised
-        """
         time_off = self.env["hr.leave"].create(
             {
                 "name": "Test Time Off",

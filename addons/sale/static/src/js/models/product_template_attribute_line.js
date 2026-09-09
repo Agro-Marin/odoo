@@ -17,9 +17,7 @@ export class ProductTemplateAttributeLine {
         );
     }
 
-    /**
-     * @return {ProductTemplateAttributeLine}
-     */
+    /** @return {ProductTemplateAttributeLine} */
     static fromProductConfiguratorPtal(productConfiguratorPtal) {
         const selectedPtavIds = new Set(
             productConfiguratorPtal.selected_attribute_value_ids,
@@ -45,30 +43,22 @@ export class ProductTemplateAttributeLine {
         });
     }
 
-    /**
-     * @return {Number}
-     */
+    /** @return {Number} */
     get selectedPtavsPriceExtra() {
         return this.selected_ptavs.reduce((price, ptav) => price + ptav.price_extra, 0);
     }
 
-    /**
-     * @return {Boolean}
-     */
+    /** @return {Boolean} */
     get hasSelectedCustomPtav() {
         return !!this.selectedCustomPtav;
     }
 
-    /**
-     * @return {ProductTemplateAttributeValue|undefined}
-     */
+    /** @return {ProductTemplateAttributeValue|undefined} */
     get selectedCustomPtav() {
         return this.selected_ptavs.find((ptav) => ptav.custom_value);
     }
 
-    /**
-     * @return {String}
-     */
+    /** @return {String} */
     get ptalDisplayName() {
         const selectedPtavNames = this.selected_ptavs
             .map((ptav) => ptav.name)

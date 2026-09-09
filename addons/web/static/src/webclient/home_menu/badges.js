@@ -27,7 +27,7 @@ export function invalidateHomeMenuBadges(env) {
 }
 badgeProviders.addEventListener("UPDATE", () => invalidateHomeMenuBadges());
 
-/** Subscribe only while a launcher is mounted; providers own their data sources.
+/**
  * @param {import("@web/env").OdooEnv} env
  * @param {() => void} onChange
  */
@@ -71,8 +71,6 @@ export function useHomeMenuBadgeUpdates(env, onChange) {
 }
 
 /**
- * Counts are computed against the complete accessible catalog, in stable order.
- * Metadata participates in the key because it determines model ownership.
  * @param {import("@web/env").OdooEnv} env
  * @param {BadgeApp[]} apps
  * @param {{ refresh?: boolean }} [options]
@@ -96,7 +94,7 @@ export function loadHomeMenuBadges(env, apps, { refresh = false } = {}) {
     return badges;
 }
 
-/** @param {any} provider @param {import("@web/env").OdooEnv} env @param {BadgeApp[]} apps */
+/** @param {any} provider */
 async function runProvider(provider, env, apps) {
     let timer;
     const timeoutMs =
@@ -118,7 +116,7 @@ async function runProvider(provider, env, apps) {
     }
 }
 
-/** @param {import("@web/env").OdooEnv} env @param {BadgeApp[]} apps */
+/** @param {import("@web/env").OdooEnv} env */
 async function countHomeMenuBadges(env, apps) {
     /** @type {Record<string, number>} */
     const badges = {};
@@ -150,24 +148,18 @@ async function countHomeMenuBadges(env, apps) {
     return badges;
 }
 
-/** Above this a tile shows "99+": a four-digit count does not fit an icon. */
 const BADGE_CEILING = 99;
 
 /**
- * A tile's count, and how to show it. One value rather than three calls, so
- * the ceiling and the wording live here instead of in each launcher.
- *
  * @param {Record<string, number>} badges
  * @param {{ xmlid?: string }} app
- * @returns {{ count: number, text: string, label: string }} count 0 for an app
- *  no provider counted, or that none can name
+ * @returns {{ count: number, text: string, label: string }}
  */
 export function appBadge(badges, app) {
     const count = app.xmlid === undefined ? 0 : badges[app.xmlid] || 0;
     return {
         count,
         text: count > BADGE_CEILING ? `${BADGE_CEILING}+` : String(count),
-        // The reader is told the real number, not the shortened one.
         label: _t("%s pending", count),
     };
 }

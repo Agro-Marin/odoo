@@ -41,9 +41,7 @@ function withLocalStorage(key, value, body) {
     }
 }
 
-/**
- * @param {() => void} body
- */
+/** @param {() => void} body */
 function captureConsoleDebug(body) {
     /** @type {any[][]} */
     const captured = [];
@@ -176,9 +174,7 @@ describe("makeXxxLog factory", () => {
     });
 });
 
-/**
- * @param {() => any} body
- */
+/** @param {() => any} body */
 function withTraceSink(body) {
     const globals = traceGlobals;
     const priorFlag = globals.__odooTrace;

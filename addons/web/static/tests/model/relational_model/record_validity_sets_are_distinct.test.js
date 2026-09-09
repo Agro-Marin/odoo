@@ -7,9 +7,7 @@ import { RelationalRecord } from "@web/model/relational_model/record";
 
 describe.current.tags("headless");
 
-/**
- * @param {string} [name]
- */
+/** @param {string} [name] */
 function makeRecord(name = "") {
     const model = {
         Class: { Record: RelationalRecord },

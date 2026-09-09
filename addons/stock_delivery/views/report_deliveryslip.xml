@@ -41,7 +41,6 @@
         </xpath>
     </template>
 
-    <!--  HS Code to table rows-->
     <template
         id="stock_report_delivery_has_serial_move_line_inherit_delivery"
         inherit_id="stock.stock_report_delivery_has_serial_move_line">
@@ -58,20 +57,16 @@
         </xpath>
     </template>
 
-    <!-- package related "section lines" -->
     <template
         id="stock_report_delivery_package_section_line_inherit_delivery"
         inherit_id="stock.stock_report_delivery_package_section_line">
-        <!--  Add additional Package section line info -->
         <xpath expr="//td[@name='package_info']" position="inside">
             <t t-if="package.shipping_weight or package.weight">
-                <!-- assume manually typed in value = priority -->
                 <t t-if="package.shipping_weight">
                     <span> - Weight: </span>
                     <span t-field="package.shipping_weight" />
                     <span t-field="package.weight_uom_name" />
                 </t>
-                <!-- otherwise default to calculated value -->
                 <t t-else="">
                     <span> - Weight (estimated): </span>
                     <span t-field="package.weight" />
@@ -84,7 +79,6 @@
     <template
         id="delivery_stock_report_delivery_no_package_section_line"
         inherit_id="stock.stock_report_delivery_no_package_section_line">
-        <!-- Add additional No Package section line info -->
         <xpath expr="//td[@name='no_package_info']" position="inside">
             <t t-if="o.weight_bulk">
                 <span> - Weight: </span>

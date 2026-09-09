@@ -7,9 +7,7 @@ import { session } from "@web/session";
 
 describe.current.tags("headless");
 
-/**
- * @param {Record<string, any>} sessionPatch
- */
+/** @param {Record<string, any>} sessionPatch */
 function withSession(sessionPatch) {
     const previousInfo = /** @type {any} */ (odoo).info;
     patchWithCleanup(session, sessionPatch);

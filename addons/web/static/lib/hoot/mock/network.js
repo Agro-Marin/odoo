@@ -20,18 +20,7 @@ import { ensureTest } from "../main_runner.js";
 
 /**
  * @typedef {ResponseInit & {
- *  type?: ResponseType;
- *  url?: string;
- * }} MockResponseInit
  * @typedef {AbortController
- *  | MockBroadcastChannel
- *  | MockMessageChannel
- *  | MockMessagePort
- *  | MockSharedWorker
- *  | MockWebSocket
- *  | MockWorker
- *  | MockXMLHttpRequest
- *  | ServerWebSocket} NetworkInstance
  */
 
 const {
@@ -131,16 +120,12 @@ function getHeaders(object, content) {
     return headers;
 }
 
-/**
- * @param {...NetworkInstance} instances
- */
+/** @param {...NetworkInstance} instances */
 function isOpen(...instances) {
     return instances.every((i) => openNetworkInstances.has(i));
 }
 
-/**
- * @param {...NetworkInstance} instances
- */
+/** @param {...NetworkInstance} instances */
 function markClosed(...instances) {
     for (const instance of instances) {
         openNetworkInstances.delete(instance);
@@ -156,9 +141,7 @@ function markOpen(instance) {
     return instance;
 }
 
-/**
- * @param {string} stringParams
- */
+/** @param {string} stringParams */
 function parseJsonRpcParams(stringParams) {
     const jsonParams = $assign($create(null), $parse(stringParams));
     if (jsonParams && "jsonrpc" in jsonParams) {
@@ -249,10 +232,6 @@ const openNetworkInstances = new Set();
 
 /** @type {ReturnType<parseNetworkDelay>} */
 let getNetworkDelay = null;
-// NOT `typeof fetch`. The result is awaited below, so a plain value is as
-// valid as a promise, and `mockFetch`'s own docstring says a return that "does
-// not meet the required format" is wrapped in a MockResponse -- which is what
-// nearly every call site relies on, returning a bare object literal.
 /** @type {((input: RequestInfo | URL, init?: RequestInit) => any) | null} */
 let mockFetchFn = null;
 /** @type {((websocket: ServerWebSocket) => any) | null} */
@@ -396,33 +375,25 @@ export async function mockedFetch(input, init) {
     return response;
 }
 
-/**
- * @param {typeof mockFetchFn} [fetchFn]
- */
+/** @param {typeof mockFetchFn} [fetchFn] */
 export function mockFetch(fetchFn) {
     ensureTest("mockFetch");
     mockFetchFn = fetchFn;
 }
 
-/**
- * @param {typeof mockWebSocketConnection} [onWebSocketConnected]
- */
+/** @param {typeof mockWebSocketConnection} [onWebSocketConnected] */
 export function mockWebSocket(onWebSocketConnected) {
     ensureTest("mockWebSocket");
     mockWebSocketConnection = onWebSocketConnected;
 }
 
-/**
- * @param {typeof mockWorkerConnections[number]} [onWorkerConnected]
- */
+/** @param {typeof mockWorkerConnections[number]} [onWorkerConnected] */
 export function mockWorker(onWorkerConnected) {
     ensureTest("mockWorker");
     mockWorkerConnections.push(onWorkerConnected);
 }
 
-/**
- * @param {Parameters<parseNetworkDelay>} args
- */
+/** @param {Parameters<parseNetworkDelay>} args */
 export function throttleNetwork(...args) {
     getNetworkDelay = parseNetworkDelay(...args);
 }
@@ -484,9 +455,7 @@ export class MockCookie {
             .join("; ");
     }
 
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     set(value) {
         const [pair, ...attributes] = String(value).split(R_SEMICOLON);
         const separator = pair.indexOf("=");
@@ -517,9 +486,7 @@ export class MockCookie {
 }
 
 export class MockDedicatedWorkerGlobalScope {
-    /**
-     * @param {SharedWorker | Worker} worker
-     */
+    /** @param {SharedWorker | Worker} worker */
     constructor(worker) {
         $assign(
             this,
@@ -538,9 +505,7 @@ export class MockDedicatedWorkerGlobalScope {
 }
 
 export class MockHistory {
-    /**
-     * @private
-     */
+    /** @private */
     _index = 0;
     /**
      * @private
@@ -569,9 +534,7 @@ export class MockHistory {
         return "auto";
     }
 
-    /**
-     * @param {Location} location
-     */
+    /** @param {Location} location */
     constructor(location) {
         this._location = location;
         this.pushState(null, "", this._location.href);
@@ -611,9 +574,7 @@ export class MockHistory {
         this._location.assign(url);
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _dispatchPopState() {
         window.dispatchEvent(new PopStateEvent("popstate", { state: this.state }));
     }
@@ -622,9 +583,7 @@ export class MockHistory {
 export class MockLocation extends MockEventTarget {
     static publicListeners = ["reload"];
 
-    /**
-     * @private
-     */
+    /** @private */
     _anchor = document.createElement("a");
 
     get ancestorOrigins() {
@@ -718,9 +677,7 @@ export class MockLocation extends MockEventTarget {
 }
 
 export class MockMessageChannel {
-    /**
-     * @protected
-     */
+    /** @protected */
     _mutex = Promise.resolve();
 
     constructor() {
@@ -747,9 +704,7 @@ export class MockMessagePort extends MockEventTarget {
      */
     _target = this;
 
-    /**
-     * @param {MessageChannel} owner
-     */
+    /** @param {MessageChannel} owner */
     constructor(owner) {
         super();
 
@@ -871,9 +826,7 @@ export class MockResponse extends Response {
 export class MockSharedWorker extends MockEventTarget {
     static publicListeners = ["error"];
 
-    /**
-     * @private
-     */
+    /** @private */
     _messageChannel = new MockMessageChannel();
 
     get port() {
@@ -923,9 +876,7 @@ export class MockWebSocket extends MockEventTarget {
      * @type {ReturnType<typeof makeNetworkLogger>}
      */
     _logger = null;
-    /**
-     * @private
-     */
+    /** @private */
     _readyState = WebSocket.CONNECTING;
 
     get readyState() {
@@ -982,9 +933,7 @@ export class MockWebSocket extends MockEventTarget {
 export class MockWorker extends MockEventTarget {
     static publicListeners = ["error", "message"];
 
-    /**
-     * @private
-     */
+    /** @private */
     _messageChannel = new MockMessageChannel();
 
     /**
@@ -1035,35 +984,25 @@ export class MockXMLHttpRequest extends MockEventTarget {
         Object.assign(this, XMLHttpRequest);
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _method = "GET";
-    /**
-     * @private
-     */
+    /** @private */
     _readyState = XMLHttpRequest.UNSENT;
     /**
      * @type {Record<string, string>}
      * @private
      */
     _requestHeaders = Object.create(null);
-    /**
-     * @private
-     */
+    /** @private */
     _requestUrl = "";
     /**
      * @type {Response | null}
      * @private
      */
     _response = null;
-    /**
-     * @private
-     */
+    /** @private */
     _responseMimeType = "";
-    /**
-     * @private
-     */
+    /** @private */
     _responseValue = null;
 
     get readyState() {
@@ -1099,9 +1038,7 @@ export class MockXMLHttpRequest extends MockEventTarget {
         return this._readyState >= XMLHttpRequest.LOADING ? "OK" : "";
     }
 
-    /**
-     * @type {XMLHttpRequestResponseType}
-     */
+    /** @type {XMLHttpRequestResponseType} */
     responseType = "";
     upload = new MockXMLHttpRequestUpload();
 

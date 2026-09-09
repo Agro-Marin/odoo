@@ -61,9 +61,7 @@ function makeModel() {
     return { model, loadDefs, cacheParams };
 }
 
-/**
- * @param {any} params
- */
+/** @param {any} params */
 function startCallback(params) {
     const state = { returned: false };
     params.callback({ records: [], length: 0 }, true).then(() => {

@@ -18,7 +18,6 @@ export class TodoFormControlPanel extends ControlPanel {
             () => [this.env.isSmall],
         );
         onMounted(() => {
-            // We check if we have come from activity view using router action stack and toggle chatter
             const isFromActivityView =
                 router.current.actionStack?.[router.current.actionStack?.length - 1]
                     ?.view_type === "activity";

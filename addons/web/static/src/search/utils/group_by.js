@@ -3,9 +3,7 @@
 
 import { BACKEND_INTERVAL_OPTIONS, DEFAULT_INTERVAL } from "./dates.js";
 
-/**
- * @param {string} descr
- */
+/** @param {string} descr */
 function errorMsg(descr) {
     return `Invalid groupBy description: ${descr}`;
 }

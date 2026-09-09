@@ -23,10 +23,6 @@ import { SampleDataCoordinator } from "./sample_data_coordinator.js";
 import { buildSampleORM } from "./sample_server.js";
 import { validateSearchParams } from "./search_params_schema.js";
 
-/** @import { OdooEnv } from "@web/env" */
-/** @import { SearchParams } from "@web/model/types" */
-/** @import { ServiceFactories as Services } from "services" */
-
 export class Model extends SignalStore {
     static services = [];
 
@@ -41,33 +37,19 @@ export class Model extends SignalStore {
         this.orm = services.orm;
         this.bus = new EventBus();
         this.isReady = false;
-        /**
-         * @type {() => boolean}
-         */
+        /** @type {() => boolean} */
         this.isAlive = params?.isAlive || (() => true);
-        /**
-         * @type {number}
-         */
+        /** @type {number} */
         this._updateEpoch = 0;
-        /**
-         * @type {SampleDataCoordinator}
-         */
+        /** @type {SampleDataCoordinator} */
         this.sampleData = new SampleDataCoordinator();
-        /**
-         * @type {any}
-         */
+        /** @type {any} */
         this.root = undefined;
-        /**
-         * @type {any}
-         */
+        /** @type {any} */
         this.metaData = undefined;
-        /**
-         * @type {any}
-         */
+        /** @type {any} */
         this.data = undefined;
-        /**
-         * @type {any}
-         */
+        /** @type {any} */
         this.config = undefined;
         /** @type {Deferred} */
         this.whenReady = new Deferred();
@@ -83,60 +65,33 @@ export class Model extends SignalStore {
      */
     setup(_params, _services) {}
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get useSampleModel() {
         return this.sampleData.isActive;
     }
 
-    /**
-     * @param {boolean} value
-     */
+    /** @param {boolean} value */
     set useSampleModel(value) {
         this.sampleData.set(value);
     }
 
-    /**
-     * @param {Partial<SearchParams>} [_params]
-     */
+    /** @param {Partial<SearchParams>} [_params] */
     async load(_params) {}
 
-    /**
-     * Whether the last load found anything. Override it in any model whose view
-     * supports sample data: `useModelWithSampleData` reaches for the sample ORM
-     * only when this answers false, so the default below turns `sample="1"`
-     * into a no-op.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     hasData() {
         return true;
     }
 
-    /**
-     * Field descriptions the sample server cannot learn from the view.
-     *
-     * `relatedModels` describes the fields a model's *arch* names. A model
-     * that assembles its own specification can reach further -- a map asks its
-     * partner for coordinates no arch mentions -- and the sample server has no
-     * way to know those fields exist, let alone their types, so it samples
-     * them as `false`. Declaring them here is how a model says so.
-     *
-     * @returns {Record<string, Record<string, any>>} keyed by model name
-     */
+    /** @returns {Record<string, Record<string, any>>} */
     getSampleRelatedModels() {
         return {};
     }
 
-    /**
-     * @returns {Promise<void> | void}
-     */
+    /** @returns {Promise<void> | void} */
     settleBeforeReload() {}
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get updateEpoch() {
         return this._updateEpoch;
     }
@@ -148,7 +103,7 @@ export class Model extends SignalStore {
 }
 
 /**
- * @template {Model} M
+ * @template {Model}
  * @param {M} model
  * @returns {M}
  */
@@ -181,9 +136,7 @@ function getSearchParams(props) {
     return params;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 function _isSearchParamsValidationEnabled() {
     return (
         Boolean(odoo.debug) ||
@@ -275,15 +228,6 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         component.props.useSampleModel &&
         (!("useSampleModel" in globalState) || globalState.useSampleModel);
     if (useSampleModel && model.hasData === Model.prototype.hasData) {
-        // `Model.hasData()` answers true unconditionally and the sample ORM is
-        // reached only when it answers false, so a view that asks for sample
-        // data without overriding it silently gets none, and reading either
-        // file alone says the feature is supported.
-        // This says the model can *receive* sample data, not that the view ends
-        // up with any: `web_gantt` overrides `hasData`, reaches the sample ORM
-        // and draws its rows, while its own sample answers `records: []` and no
-        // pill is ever drawn. Silence here does not cover what a view type's
-        // sample mock chooses to return.
         console.warn(
             `${ModelClass.name} asks for sample data but does not override hasData().` +
                 ` Model.hasData() answers true unconditionally, so the sample model is` +
@@ -297,9 +241,7 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         Object.setPrototypeOf(sampleORM, orm);
     }
 
-    /**
-     * @param {Record<string, unknown>} props
-     */
+    /** @param {Record<string, unknown>} props */
     async function _load(props) {
         const settling = model.settleBeforeReload();
         if (settling) {

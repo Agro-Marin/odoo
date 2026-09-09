@@ -87,9 +87,7 @@ export class ConfirmationDialog extends Component {
         return true;
     }
 
-    /**
-     * @param {Function} [callback]
-     */
+    /** @param {Function} [callback] */
     async execButton(callback) {
         let shouldClose;
         try {

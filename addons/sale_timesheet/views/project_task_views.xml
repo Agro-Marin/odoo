@@ -196,7 +196,6 @@
         </field>
     </record>
 
-    <!-- We do a separate inheritance from the base view for the SO button to give the buttons a deterministic order using priorities -->
     <record
         id="project_project_view_kanban_inherit_sale_timesheet_so_button"
         model="ir.ui.view">
@@ -258,13 +257,11 @@
                         groups="hr_timesheet.group_hr_timesheet_user" />
             </xpath>
             <xpath expr="//field[@name='timesheet_ids']/list" position="inside">
-                <!-- <field name="timesheet_ids"/> is already inside a block groups="hr_timesheet.group_hr_timesheet_user"  -->
                 <field name="is_so_line_edited" column_invisible="True" />
             </xpath>
             <xpath
                 expr="//field[@name='timesheet_ids']/list/field[@name='unit_amount']"
                 position="before">
-                <!-- <field name="timesheet_ids"/> is already inside a block groups="hr_timesheet.group_hr_timesheet_user"  -->
                 <field name="timesheet_invoice_id" column_invisible="True" />
                 <field
                     name="so_line"

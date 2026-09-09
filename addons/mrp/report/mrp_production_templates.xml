@@ -155,7 +155,6 @@
             <t t-set="move_line_qtys" t-value="[]" />
             <t t-foreach="move_lines" t-as="move_line">
                 <t t-if="move_line.product_id.uom_id._has_common_reference(uom_unit)">
-                    <!-- print 1 label per 1 uom when uom category = units -->
                     <t
                         t-set="move_line_qtys"
                         t-value="move_line_qtys + [int(move_line.quantity)]" />

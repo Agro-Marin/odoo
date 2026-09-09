@@ -18,9 +18,7 @@ export class UpgradeDialog extends Component {
     setup() {
         this.orm = useService("orm");
     }
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async _confirmUpgrade() {
         const usersCount = await this.orm.call("res.users", "search_count", [
             [["share", "=", false]],

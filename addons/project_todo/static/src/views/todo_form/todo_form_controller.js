@@ -8,11 +8,6 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { FormControllerWithHTMLExpander } from "@web/views/form_with_html_expander/form_controller_with_html_expander";
 import { TodoFormCogMenu } from "./todo_form_cog_menu.js";
 
-/**
- *  The FormController is overridden to be able to manage the edition of the name of a to-do directly
- *  in the breadcrumb as well as the mark as done button next to it.
- */
-
 export class TodoFormController extends FormControllerWithHTMLExpander {
     static components = {
         ...FormControllerWithHTMLExpander.components,
@@ -22,10 +17,6 @@ export class TodoFormController extends FormControllerWithHTMLExpander {
     setup() {
         super.setup();
         this.notifications = useService("notification");
-        // Toggling the chatter changes how much room the description may take.
-        // The renderer's resize effect only re-runs when one of its own
-        // dependencies changes, and `reloadHtmlFieldHeight` is the one this
-        // controller owns — without re-arming it the toggle is a no-op.
         useBus(this.env.bus, "TODO:TOGGLE_CHATTER", () => {
             this.htmlExpanderState.reload = true;
         });
@@ -34,9 +25,7 @@ export class TodoFormController extends FormControllerWithHTMLExpander {
         });
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     getStaticActionMenuItems() {
         return {
             ...super.getStaticActionMenuItems(),

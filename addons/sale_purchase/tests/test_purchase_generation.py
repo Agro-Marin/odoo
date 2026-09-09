@@ -56,8 +56,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         return order
 
     def test_quantity_in_sale_line_uom(self):
-        """The ordered quantity is expressed in the SO line UoM, not the product's
-        reference UoM: selling 1 Dozen of a product counted in Units buys 12 Units."""
         service = self._create_service(self.uom_unit, self.uom_unit)
         order = self._confirm_order(service, 1.0, uom=self.uom_dozen)
         sale_line = order.line_ids
@@ -67,7 +65,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         self.assertEqual(sale_line.purchase_line_ids.product_qty, 12.0)
 
     def test_quantity_in_vendor_uom(self):
-        """The vendor's own UoM still applies on top of the sale line UoM."""
         service = self._create_service(self.uom_unit, self.uom_dozen)
         order = self._confirm_order(service, 24.0)
         purchase_line = order.line_ids.purchase_line_ids
@@ -108,8 +105,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         )
 
     def test_second_increase_only_tops_up_the_open_rfq(self):
-        """Once part of the order is bought on a confirmed PO, a later increase must
-        raise the open RfQ to the *remainder*, not to the whole ordered quantity."""
         service = self._create_service(self.uom_unit, self.uom_dozen)
         order = self._confirm_order(service, 12.0)
         sale_line = order.line_ids
@@ -136,9 +131,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         )
 
     def test_open_rfq_never_goes_negative(self):
-        """A confirmed purchase can exceed the sale line -- through a buyer's edit or
-        a partial cancellation. The open RfQ then has nothing left to carry, and must
-        not be handed a negative quantity."""
         service = self._create_service(self.uom_unit, self.uom_unit)
         order = self._confirm_order(service, 10.0)
         sale_line = order.line_ids
@@ -157,9 +149,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         self.assertEqual(open_line.product_qty, 0.0)
 
     def test_open_rfq_tracks_the_sale_line(self):
-        """The open RfQ is kept in step with the sale line, so a buyer's own edit to
-        it is superseded by the next increase. Documented here because it is a choice,
-        not an accident."""
         service = self._create_service(self.uom_unit, self.uom_unit)
         order = self._confirm_order(service, 10.0)
         sale_line = order.line_ids
@@ -178,9 +167,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         )
 
     def test_procurement_owned_purchase_lines_are_left_alone(self):
-        """A sale line can carry purchase lines it did not create -- MTO and dropship
-        products are bought by the procurement engine, which links them back to the
-        sale line. Increasing the sale quantity must not buy them a second time."""
         service = self._create_service(self.uom_unit, self.uom_unit)
         order = self._confirm_order(service, 10.0)
         sale_line = order.line_ids
@@ -221,8 +207,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         self.assertEqual(len(sale_line.purchase_line_ids), 1)
 
     def test_line_added_to_confirmed_order_by_salesperson(self):
-        """A salesperson has no write access on purchase orders; adding a line to an
-        already-confirmed sale order must still generate the RfQ."""
         salesperson = (
             self.env["res.users"]
             .with_context(no_reset_password=True)
@@ -275,8 +259,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         self.assertEqual(len(sale_line.sudo().purchase_line_ids), 1)
 
     def test_cancellation_warns_even_when_flag_is_off(self):
-        """The RfQ outlives the setting that created it, so cancelling the sale order
-        must still warn the buyer once `service_to_purchase` is turned off."""
         service = self._create_service(self.uom_unit, self.uom_unit)
         order = self._confirm_order(service, 1.0)
         purchase_order = order.line_ids.purchase_line_ids.order_id
@@ -323,8 +305,6 @@ class TestPurchaseGeneration(TestSalePurchaseCommon):
         self.assertFalse(order.line_ids._purchase_service_match_supplier(warning=False))
 
     def test_reinvoiced_service_cannot_be_subcontracted(self):
-        """A product re-invoiced at cost is bought through the expense, so the flag
-        must be refused by the ORM and not only by the form's onchange."""
         with self.assertRaises(ValidationError):
             self.env["product.template"].create(
                 {

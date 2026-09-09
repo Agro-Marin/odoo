@@ -422,10 +422,6 @@ test("Field evaluates readonly/required once per render", async () => {
 });
 
 /**
- * Collect the widget/type warnings `getFieldFromRegistry` emits while mounting.
- * The registry de-duplicates them process-wide, so the reset is what keeps this
- * assertion from passing vacuously after an earlier test consumed the key.
- *
  * @param {() => Promise<void>} workload
  * @returns {Promise<string[]>}
  */

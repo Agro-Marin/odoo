@@ -54,9 +54,7 @@ const SELECTORS = {
     debugArea: ".o_expression_editor_debug_container textarea",
 };
 
-/**
- * @param {string} value
- */
+/** @param {string} value */
 async function editExpression(value) {
     await click(SELECTORS.complexConditionInput);
 

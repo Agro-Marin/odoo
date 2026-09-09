@@ -29,9 +29,7 @@
                 </button>
             </button>
             <group name="sale_shipping" position="attributes">
-                <attribute name="groups"/><!-- Remove the res.group on the group and set
-                it on the field directly-->
-                <attribute name="string">Delivery</attribute>
+                <attribute name="groups" />                <attribute name="string">Delivery</attribute>
             </group>
             <label for="date_commitment" position="before">
                 <field
@@ -125,12 +123,6 @@
         <field name="inherit_id" ref="sale.view_sale_order_list_2" />
         <field name="arch" type="xml">
             <field name="date_commitment" position="attributes">
-                <!-- Red when the promise is at risk: still owing goods past the
-                    promised date. The previous expression ANDed
-                    `date_commitment &lt; date_effective` with
-                    `date_effective &lt;= date_commitment`, which can never both
-                    hold, and then ORed a bare `transfer_state == 'partial'`
-                    that made every other term unreachable. -->
                 <attribute name="decoration-danger">
                     (
                     transfer_state in ['to do', 'partial']

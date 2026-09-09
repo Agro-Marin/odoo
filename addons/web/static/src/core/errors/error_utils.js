@@ -5,12 +5,7 @@ import { mapFramesToSource, parseStackFrames } from "./stack_frames.js";
 
 /** @typedef {import("./uncaught_errors").UncaughtError} UncaughtError */
 
-/**
- * @typedef {Error & {
- * annotatedTraceback?: string,
- * errorEvent?: ErrorEvent | PromiseRejectionEvent,
- * }} AnnotatedError
- */
+/** @typedef {Error & { */
 
 /**
  * @param {UncaughtError} uncaughtError
@@ -48,7 +43,7 @@ export function fullTraceback(error) {
 /**
  * @param {AnnotatedError} error
  * @returns {Promise<string>}
- * @throws {AnnotatedError} on the first call for an error carrying an errorEvent
+ * @throws {AnnotatedError}
  */
 export async function fullAnnotatedTraceback(error) {
     if (error.annotatedTraceback) {
@@ -116,9 +111,7 @@ export function getErrorTechnicalName(error) {
     return error.name !== Error.name ? error.name : error.constructor.name;
 }
 
-/**
- * @param {any} error
- */
+/** @param {any} error */
 export function reportUncaught(error) {
     Promise.resolve().then(() => {
         throw error;

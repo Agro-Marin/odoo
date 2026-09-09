@@ -7,8 +7,6 @@ import { parseServerValue } from "./field_values.js";
 import { computeResequencePlan } from "./resequence.js";
 import { compareRecords, computeNextOrderBy } from "./static_list_utils.js";
 
-/** @import { StaticList } from "@web/model/relational_model/static_list" */
-
 /**
  * @param {StaticList} list
  * @param {any[]} [currentIds]

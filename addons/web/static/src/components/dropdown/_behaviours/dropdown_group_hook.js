@@ -10,9 +10,7 @@ import { DROPDOWN_GROUP } from "@web/components/dropdown/dropdown_group";
  * @property {boolean} isOpen
  */
 
-/**
- * @returns {DropdownGroupState}
- */
+/** @returns {DropdownGroupState} */
 export function useDropdownGroup() {
     const env = useEnv();
     const /** @type {any} */ envAny = env;

@@ -19,11 +19,6 @@
         </field>
     </record>
 
-    <!--
-        We need to create an fsm view here so that we can prevent the
-        remaining_hours_so field from being automatically added to the fsm view
-        when installing the sale_timesheet module
-    -->
     <record id="view_task_project_user_fsm_pivot_base" model="ir.ui.view">
         <field name="name">report.project.task.user.pivot</field>
         <field name="model">report.project.task.user</field>
@@ -53,11 +48,6 @@
         </field>
     </record>
 
-    <!--
-        We need to create an fsm view here so that we can prevent the
-        remaining_hours_so field from being automatically added to the fsm view
-        when installing the sale_timesheet module
-    -->
     <record id="view_task_project_user_fsm_graph_base" model="ir.ui.view">
         <field name="name">report.project.task.user.graph</field>
         <field name="model">report.project.task.user</field>

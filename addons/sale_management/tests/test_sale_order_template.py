@@ -54,7 +54,6 @@ class TestSaleOrderTemplate(SaleManagementCommon):
             ]
 
     def test_template_cannot_use_unrelated_company_products(self):
-        # Access to products of other companies
         with self.assertRaises(UserError):
             self.empty_order_template.sale_order_template_line_ids = [
                 Command.create(
@@ -92,7 +91,7 @@ class TestSaleOrderTemplate(SaleManagementCommon):
                         }
                     ),
                     Command.create(
-                        {  # Shared product
+                        {
                             "product_id": self.product.id,
                         }
                     ),
@@ -101,12 +100,6 @@ class TestSaleOrderTemplate(SaleManagementCommon):
         )
 
     def test_company_changes_on_template(self):
-        """Test `_check_company_id` constraint.
-
-        Since most multi-company issues are already catched by the automated `check_company` logic
-        (see other tests), we have to trigger issues the other way (through the template field) to
-        test the constraint.
-        """
         self.empty_order_template.write(
             {
                 "company_id": self.company.id,
@@ -120,13 +113,10 @@ class TestSaleOrderTemplate(SaleManagementCommon):
             }
         )
 
-        # Branch company is allowed to use parent company products
         self.empty_order_template.company_id = self.branch_company.id
 
-        # Cannot share template if contains restricted products
         with self.assertRaises(ValidationError):
             self.empty_order_template.company_id = False
 
-        # Template cannot hold products from other companies
         with self.assertRaises(ValidationError):
             self.empty_order_template.company_id = self.other_company.id

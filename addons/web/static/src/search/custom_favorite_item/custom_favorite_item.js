@@ -26,9 +26,7 @@ export class CustomFavoriteItem extends Component {
         });
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     async saveFavorite(ev, isShared = false) {
         const description = this.state.description?.trim() ?? "";
         if (!description) {
@@ -58,9 +56,7 @@ export class CustomFavoriteItem extends Component {
         return serverSideId;
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     async editFavorite(ev) {
         const serverSideId = await this.saveFavorite(ev);
         if (!serverSideId) {
@@ -69,9 +65,7 @@ export class CustomFavoriteItem extends Component {
         editFavoriteFilter(this.actionService, serverSideId);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onInputKeydown(ev) {
         switch (ev.key) {
             case "Enter":

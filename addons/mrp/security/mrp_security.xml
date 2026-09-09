@@ -52,7 +52,6 @@
     </data>
 
     <data noupdate="1">
-        <!-- Multi -->
         <record id="mrp_production_rule" model="ir.rule">
             <field name="name">mrp_production multi-company</field>
             <field

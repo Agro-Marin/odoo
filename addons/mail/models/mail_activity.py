@@ -33,15 +33,9 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.ir_attachment import IrAttachment
     from odoo.addons.bus.models.res_users import ResUsers
 
-# What `_todo_key` spells: the document an activity makes busy, as
-# (model, id) -- and for a document-less activity, ("mail.activity", its own id),
-# which names a record too.
 type TodoKey = tuple[str, int]
 type TodoKeys = set[TodoKey]
 type TodoKeysByUser = dict[ResUsers, TodoKeys]
-# (activity id, res_model, res_id, user_id) -- what the access scan reads. The
-# last three are falsy-or-set from both sources, but a recordset spells the empty
-# one False and SQL spells it None, so every reader has to compare, not test.
 type AccessRow = tuple[
     int, str | Literal[False] | None, int | None, int | Literal[False] | None
 ]
@@ -180,9 +174,6 @@ class MailActivity(models.Model):
     _GC_BATCH = 10_000
     _VIEW_DATA_MAX_LIMIT = 1_000
 
-    # One entry per operator, both spellings side by side: the SQL branch and the
-    # in-memory branch of `_domain_deadline_today` have to answer the same
-    # question, and two separate tables let one gain an operator the other lacks.
     _DEADLINE_OPERATORS = {
         "<": (lt, SQL("<")),
         "<=": (le, SQL("<=")),
@@ -191,9 +182,6 @@ class MailActivity(models.Model):
         ">": (gt, SQL(">")),
     }
 
-    # Nothing searches res_id without res_model: the One2many's inverse is a
-    # Many2oneReference, so the ORM adds `res_model = <model>` itself. This one
-    # index replaces the two single-column ones and is smaller than their sum.
     _res_model_res_id_index = models.Index("(res_model, res_id)")
 
     _check_res_id_is_set_if_model = models.Constraint(
@@ -247,10 +235,6 @@ class MailActivity(models.Model):
             try:
                 name_by_id = self._names_by_id(records)
             except MissingError:
-                # A vanished document is normal here -- `res_id` is a
-                # Many2oneReference, so nothing cascades and the row survives its
-                # document. Narrow to what is left rather than reading the whole
-                # batch a second time.
                 name_by_id = self._names_by_id(records.exists())
             for activity in activities:
                 activity.res_name = name_by_id.get(activity.res_id, False)
@@ -416,14 +400,6 @@ class MailActivity(models.Model):
         )
 
     def _filtered_todo(self) -> Self:
-        # The in-memory half of `_domain_todo`, and literally it: one predicate,
-        # so the SQL and Python answers agree by construction rather than by
-        # `test_todo_domain_counts_from_the_assignee_day` noticing when they
-        # stop. Measured cost of routing through `filtered_domain` rather than
-        # a hand-rolled group-by-timezone loop: +1.3% (+0.16 ms) on a whole
-        # create+write+unlink cycle, interleaved A/B/B/A to cancel drift. The
-        # isolated call is ~9x slower at one record, which is 57 us against an
-        # operation that costs 12 ms -- a ratio worth ignoring.
         return self.filtered_domain(self._domain_todo())
 
     def _todo_key(self) -> tuple[str, int]:
@@ -448,12 +424,6 @@ class MailActivity(models.Model):
         documents = Domain.FALSE
         modelless_ids = []
         by_model = defaultdict(list)
-        # `sorted`, because `keys` is a set: its order decides the order the
-        # per-model branches are OR-ed in, and this domain is rebuilt on every
-        # activity create, write and unlink. Unsorted, the busiest query shape on
-        # this model reached PostgreSQL as different text in every worker. The
-        # ORM already normalises the values inside an `in`, so it is the branch
-        # order alone that moves.
         for res_model, res_id in sorted(keys):
             by_model[res_model].append(res_id)
             if res_model == ORPHAN_BUCKET:
@@ -675,12 +645,6 @@ class MailActivity(models.Model):
 
     @api.model
     def _deadline_in_assignee_day(self, vals: ValuesType) -> ValuesType:
-        # This runs before `super().create`, so injecting a deadline pre-empts
-        # the ORM's own default machinery. It exists only for the case that
-        # machinery cannot serve -- an assignee named in `vals`, which the field
-        # default never sees. A `default_date_deadline` in the context is an
-        # explicit instruction and `default_get` already honours it, so stand
-        # aside and let it through rather than overwriting it with today.
         if vals.get("date_deadline") or self.env.context.get("default_date_deadline"):
             return vals
         return {
@@ -1160,8 +1124,6 @@ class MailActivity(models.Model):
         message_attachments.write(
             {"res_id": activity_message.id, "res_model": activity_message._name}
         )
-        # `|=`, not `=`: `message_post_with_source` already linked the feedback
-        # attachments, and replacing the m2m dropped them from the chatter.
         activity_message.attachment_ids |= message_attachments
         return self.env["ir.attachment"]
 
@@ -1364,11 +1326,6 @@ class MailActivity(models.Model):
         grouped_ongoing = by_cell(all_ongoing)
         grouped_completed = by_cell(all_completed)
 
-        # Sorted, not a bare set union: `_get_activity_data_order` sorts a dict
-        # built by iterating this, and Python's sort is stable, so every tie in
-        # the sort key falls back to *this* iteration order. Left as a set, two
-        # documents due the same day came back in a different order in every
-        # process -- the activity view reshuffling its rows between reloads.
         cells = sorted(
             grouped_ongoing.keys() | grouped_completed.keys(),
             key=lambda cell: (cell[0], cell[1].id),
@@ -1437,8 +1394,6 @@ class MailActivity(models.Model):
                     previous = deadline_by_res_id.get(res_id)
                     if previous is None or date < previous:
                         deadline_by_res_id[res_id] = date
-        # `res_id` breaks the tie explicitly rather than leaving it to whatever
-        # order the caller happened to build the dict in.
         ongoing_res_ids = sorted(
             deadline_by_res_id, key=lambda res_id: (deadline_by_res_id[res_id], res_id)
         )
@@ -1465,8 +1420,6 @@ class MailActivity(models.Model):
         )
 
     def _activities_with_records(self) -> Iterator[tuple[str, Self, list[int]]]:
-        """Yield (model, its activities, their res_ids) -- ids positionally
-        aligned with the activities, which is what lets callers `zip` the two."""
         for model, activities in self._document_backed().grouped("res_model").items():
             yield model, activities, activities.mapped("res_id")
 

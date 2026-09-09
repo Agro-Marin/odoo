@@ -6,8 +6,6 @@ import { humanNumber } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
 
-/** @import { Services } from "services" */
-
 export const DEFAULT_MAX_FILE_SIZE = 128 * 1024 * 1024;
 
 /**
@@ -72,9 +70,7 @@ export function checkFileType(file, allowedMIMETypes, notificationService) {
     return true;
 }
 
-/**
- * @returns {function}
- */
+/** @returns {function} */
 export function useFileUploader() {
     const http = useService("http");
     const notification = useService("notification");

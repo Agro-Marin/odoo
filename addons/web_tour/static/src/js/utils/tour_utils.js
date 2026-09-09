@@ -1,9 +1,7 @@
 /** @odoo-module native */
 /**
- * Calls the given `func` then returns/resolves to `true`
- * if it will result to unloading of the page.
  * @param {(...args: any[]) => void} func
- * @param  {any[]} args
+ * @param {any[]} args
  * @returns {boolean | Promise<boolean>}
  */
 export function callWithUnloadCheck(func, ...args) {
@@ -102,12 +100,6 @@ export function getScrollParent(element) {
     if (!element) {
         return null;
     }
-    // We cannot only rely on the fact that the element’s scrollHeight is
-    // greater than its clientHeight. This might not be the case when a step
-    // starts, and the scrollbar could appear later. For example, when clicking
-    // on a "building block" in the "building block previews modal" during a
-    // tour (in website edit mode). When the modal opens, not all "building
-    // blocks" are loaded yet, and the scrollbar is not present initially.
     const overflowY = window.getComputedStyle(element).overflowY;
     const isScrollable =
         overflowY === "auto" ||

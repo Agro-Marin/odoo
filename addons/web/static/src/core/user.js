@@ -54,9 +54,7 @@ import { session } from "@web/session";
 
 export const userBus = new EventBus();
 
-/**
- * @type {number}
- */
+/** @type {number} */
 export const SUPERUSER_ID = 1;
 
 /** @returns {number[]} */
@@ -86,8 +84,8 @@ const USER_KEYS_OWNED_BY_USER = [
 ];
 
 /**
- * @param {any} userCompanies session.user_companies
- * @param {Record<string, any>} context the user context, whose allowed_company_ids this owns
+ * @param {any} userCompanies
+ * @param {Record<string, any>} context
  */
 function makeCompanies(userCompanies, context) {
     /** @type {any[]} */
@@ -99,9 +97,7 @@ function makeCompanies(userCompanies, context) {
     /** @type {any} */
     let defaultCompany;
 
-    /**
-     * @param {number[]} cids
-     */
+    /** @param {number[]} cids */
     function setActive(cids) {
         const previousIds = activeCompanies.map((c) => c.id).join("-");
         activeCompanies = cids
@@ -191,7 +187,7 @@ function makeCompanies(userCompanies, context) {
 
 /**
  * @param {number | false} userId
- * @param {Record<string, any>} groups session.groups
+ * @param {Record<string, any>} groups
  * @param {{ isInternalUser?: boolean, isSystem?: boolean, isAdmin?: boolean, isPublic?: boolean }} flags
  */
 function makeGroupCache(userId, groups, flags) {
@@ -310,9 +306,7 @@ async function writeUserSetting(settings, key, value, context) {
     Object.assign(settings, changedSettings);
 }
 
-/**
- * @param {ReturnType<typeof makeCompanies>} companies
- */
+/** @param {ReturnType<typeof makeCompanies>} companies */
 function companyFacet(companies) {
     return {
         get defaultCompany() {

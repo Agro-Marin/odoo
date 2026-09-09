@@ -47,13 +47,6 @@ class TestMailActivityTodo(TransactionCase):
         )
 
     def test_deadline_is_the_day_the_user_picked(self):
-        """``date_end`` is a Datetime and the wizard collects a Date.
-
-        Storing the Date as-is means naive UTC midnight, which reads back as the
-        *previous* evening anywhere west of UTC — the to-do says "Yesterday" for
-        a deadline the user set as today. Assert on what the user is shown, not
-        on the stored UTC instant, or the bug passes the test in every timezone.
-        """
         picked = datetime.date(2026, 8, 10)
         for tz in ("UTC", "America/Mexico_City", "Pacific/Kiritimati", "Asia/Tokyo"):
             with self.subTest(tz=tz):
@@ -73,9 +66,6 @@ class TestMailActivityTodo(TransactionCase):
                 todo = self.env["project.task"].search(
                     [("name", "=", f"tz {tz}")], limit=1
                 )
-                # Read it back the way the web client does: an explicit tz in
-                # context. Relying on the ambient one would let whatever the
-                # test env happens to carry decide the answer.
                 shown = fields.Datetime.context_timestamp(
                     todo.with_context(tz=tz), todo.date_end
                 ).date()

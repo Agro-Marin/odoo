@@ -4,9 +4,7 @@ import { after, describe, expect, mockFetch, test } from "@odoo/hoot";
 
 import { parseUrl } from "../local_helpers.js";
 
-/**
- * @param {Blob | MediaSource} obj
- */
+/** @param {Blob | MediaSource} obj */
 function createObjectURL(obj) {
     const url = URL.createObjectURL(obj);
     after(() => URL.revokeObjectURL(url));

@@ -6,9 +6,7 @@ import { getTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
 const DEFAULT_ID = Symbol("default");
 
-/**
- * @typedef {{ externalWindow: Window|null, generation: number, hooks: { beforePopout?: Function, afterPopoutClosed?: Function }, app?: App }} Popout
- */
+/** @typedef {{ externalWindow: Window|null, generation: number, hooks: { beforePopout?: Function, afterPopoutClosed?: Function }, app?: App }} Popout */
 
 class MailPopout {
     /** @type {Map<any, Popout>} */
@@ -237,9 +235,7 @@ class MailPopout {
                 service.reset(id);
             },
 
-            /**
-             * @returns {Window|null}
-             */
+            /** @returns {Window|null} */
             get externalWindow() {
                 return service.getExternalWindow(id);
             },
@@ -256,9 +252,7 @@ export const mailPopoutService = {
     /** @param {Window} window */
     async addAssets(window) {},
 
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     start(env) {
         const service = new MailPopout(env);
         return Object.assign(service.createManager(), {

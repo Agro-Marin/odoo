@@ -10,9 +10,6 @@ import {
     createFilterTree as buildFilterTree,
 } from "./search_panel_fetch.js";
 
-/** @import { DomainListRepr } from "@web/core/domain" */
-/** @import { Category, Filter, Section, SectionPredicate } from "../search_types" */
-
 /**
  * @param {any} error
  * @returns {string}
@@ -22,7 +19,7 @@ function sectionErrorMessage(error) {
 }
 
 /**
- * @template {new (...args: any[]) => any} T
+ * @template {new (...args: any[]) => any}
  * @param {T} Base
  */
 export const SearchPanelMixin = (Base) =>
@@ -54,9 +51,7 @@ export const SearchPanelMixin = (Base) =>
             return this._notify();
         }
 
-        /**
-         * @param {number[]} sectionIds
-         */
+        /** @param {number[]} sectionIds */
         async clearSections(sectionIds) {
             for (const sectionId of sectionIds) {
                 const section = this.sections.get(sectionId);
@@ -71,9 +66,7 @@ export const SearchPanelMixin = (Base) =>
             return this._notify();
         }
 
-        /**
-         * @returns {Promise<void>}
-         */
+        /** @returns {Promise<void>} */
         async invalidateSections() {
             this.searchPanelInfo.shouldReload = true;
             return this._notify();
@@ -272,9 +265,7 @@ export const SearchPanelMixin = (Base) =>
             this.searchPanelInfo.loaded = true;
         }
 
-        /**
-         * @returns {Promise<void>}
-         */
+        /** @returns {Promise<void>} */
         async _reloadSections() {
             return this._reloadMutex.exec(() =>
                 this._withNotificationsBlockedAsync(async () => {

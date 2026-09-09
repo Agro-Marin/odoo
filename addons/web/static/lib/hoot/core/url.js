@@ -8,9 +8,6 @@ import { CONFIG_KEYS, CONFIG_SCHEMA, FILTER_KEYS, FILTER_SCHEMA } from "./config
 
 /**
  * @typedef {{
- *  debug?: boolean;
- *  ignore?: boolean;
- * }} CreateUrlFromIdOptions
  * @typedef {typeof import("./config").DEFAULT_CONFIG} DEFAULT_CONFIG
  * @typedef {typeof import("./config").DEFAULT_FILTERS} DEFAULT_FILTERS
  */
@@ -43,9 +40,7 @@ const debouncedUpdateUrl = debounce(function updateUrl() {
     history.replaceState({ path }, "", path);
 }, 20);
 
-/**
- * @param {Partial<DEFAULT_CONFIG & DEFAULT_FILTERS>} params
- */
+/** @param {Partial<DEFAULT_CONFIG & DEFAULT_FILTERS>} params */
 export function createUrl(params) {
     const url = new URL(location.href);
     for (const key in params) {
@@ -133,9 +128,7 @@ export function refresh() {
     history.go();
 }
 
-/**
- * @param {Partial<DEFAULT_CONFIG & DEFAULT_FILTERS>} params
- */
+/** @param {Partial<DEFAULT_CONFIG & DEFAULT_FILTERS>} params */
 export function setParams(params) {
     for (const [key, value] of $entries(params)) {
         if (!CONFIG_KEYS.includes(key) && !FILTER_KEYS.includes(key)) {
@@ -151,9 +144,7 @@ export function setParams(params) {
     debouncedUpdateUrl();
 }
 
-/**
- * @param {...(keyof DEFAULT_CONFIG | keyof DEFAULT_FILTERS | "*")} keys
- */
+/** @param {...(keyof DEFAULT_CONFIG | keyof DEFAULT_FILTERS | "*")} keys */
 export function subscribeToURLParams(...keys) {
     const state = useState(urlParams);
     if (keys.length) {

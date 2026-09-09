@@ -16,9 +16,7 @@ export function getFirstAndLastTabableElements(el) {
     return [tabableEls[0], tabableEls.at(-1)];
 }
 
-/**
- * @param {KeyboardEvent} e
- */
+/** @param {KeyboardEvent} e */
 function trapFocus(e) {
     const hotkey = getActiveHotkey(e);
     if (!["tab", "shift+tab"].includes(hotkey)) {
@@ -49,9 +47,7 @@ function trapFocus(e) {
     }
 }
 
-/**
- * @param {string} refName
- */
+/** @param {string} refName */
 export function useActiveElement(refName) {
     if (!refName) {
         throw new Error("refName not given to useActiveElement");

@@ -13,10 +13,7 @@ import { HootSearch } from "./hoot_search.js";
 import { HootSideBar } from "./hoot_side_bar.js";
 import { HootStatusPanel } from "./hoot_status_panel.js";
 
-/**
- * @typedef {{
- * }} HootMainProps
- */
+/** @typedef {{ */
 
 const { setTimeout } = globalThis;
 
@@ -134,9 +131,7 @@ export class HootMain extends Component {
         }
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     abort(ev) {
         const { runner } = this.env;
         this.escapeKeyPresses++;
@@ -148,9 +143,7 @@ export class HootMain extends Component {
         }
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     manualStart(ev) {
         const { runner } = this.env;
         if (runner.state.status !== "ready") {
@@ -170,9 +163,7 @@ export class HootMain extends Component {
         this.env.runner.checkPresetForViewPort();
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     toggleDebug(ev) {
         ev.preventDefault();
 

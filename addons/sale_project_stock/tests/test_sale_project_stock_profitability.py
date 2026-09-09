@@ -54,9 +54,6 @@ class TestSaleProjectStockProfitability(
 
     @skip("Temporary to fast merge new valuation")
     def test_report_invoice_items_anglo_saxon_automatic_valuation(self):
-        """An invoice can have some lines which should be classified/displayed under the 'Costs'
-        section of a project's profitability report (specifically, COGS lines).
-        """
         self.env.company.anglo_saxon_accounting = True
         self.stock_account_product_categ.write(
             {

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { Value } from "./condition_tree.js" */
-
 /**
  * @param {Value} value
  * @param {boolean | Record<number, string>} [displayNames]
@@ -46,9 +44,7 @@ export function getResModel(fieldDef) {
     return null;
 }
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 const SPECIAL_FIELDS = [
     "country_id",
     "user_id",

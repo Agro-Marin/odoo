@@ -77,9 +77,7 @@ export class KanbanColumnExamplesDialog extends Component {
         });
     }
 
-    /**
-     * @param {string} page
-     */
+    /** @param {string} page */
     onPageUpdate(page) {
         this.activePage = page;
     }

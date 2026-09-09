@@ -119,9 +119,7 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
     });
 }
 
-/**
- * @param {number} offset
- */
+/** @param {number} offset */
 export function patchTimeZone(offset) {
     patchWithCleanup(luxon.Settings, {
         defaultZone: luxon.FixedOffsetZone.instance(offset),
@@ -139,9 +137,7 @@ export function patchWithCleanup(obj, patchValue) {
     });
 }
 
-/**
- * @returns {Element}
- */
+/** @returns {Element} */
 export function getFixture() {
     return document;
 }
@@ -221,7 +217,7 @@ const mapKeyboardEvent = (args) => ({
 });
 
 /**
- * @template {typeof Event} T
+ * @template {typeof Event}
  * @param {EventType} eventType
  * @returns {[T, (attrs: EventInit) => EventInit]}
  */
@@ -304,7 +300,7 @@ const getEventConstructor = (eventType) => {
 };
 
 /**
- * @template {EventType} T
+ * @template {EventType}
  * @param {Element} el
  * @param {string | null | undefined | false} selector
  * @param {T} eventType
@@ -849,9 +845,7 @@ export async function dragAndDrop(from, to, position) {
     await drop(to, position);
 }
 
-/**
- * @param {Element | string} from
- */
+/** @param {Element | string} from */
 export async function drag(from, pointerType = "mouse") {
     const assertIsDragging = (fn, endDrag) =>
         ({
@@ -883,15 +877,11 @@ export async function drag(from, pointerType = "mouse") {
         await triggerEvent(target || source, null, "pointerup", targetPosition);
     }, true);
 
-    /**
-     * @param {Element | string} selector
-     */
+    /** @param {Element | string} selector */
     const getEl = (selector) =>
         selector instanceof Element ? selector : fixture.querySelector(selector);
 
-    /**
-     * @param {Position} [position]
-     */
+    /** @param {Position} [position] */
     const getTargetPosition = (position) => {
         const tRect = target.getBoundingClientRect();
         const tPos = {

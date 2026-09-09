@@ -54,9 +54,7 @@ function assumeBrowserLogging(ev, uncaughtError) {
 }
 
 class ErrorService {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
         this.env = env;
         this._onError = (/** @type {any} */ ev) => this.onError(ev);

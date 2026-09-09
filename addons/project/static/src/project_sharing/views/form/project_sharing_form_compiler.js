@@ -6,8 +6,6 @@ import { SIZES } from "@web/ui/viewport";
 import { FormCompiler } from "@web/views/form";
 
 /**
- * Compiler the portal chatter in project sharing.
- *
  * @param {HTMLElement} node
  * @param {Object} params
  * @returns
@@ -48,17 +46,16 @@ patch(FormCompiler.prototype, {
         const res = super.compile(node, params);
         const chatterContainerHookXml = res.querySelector(".o-mail-Form-chatter");
         if (!chatterContainerHookXml) {
-            return res; // no chatter, keep the result as it is
+            return res;
         }
         if (chatterContainerHookXml.parentNode.classList.contains("o_form_sheet")) {
-            return res; // if chatter is inside sheet, keep it there
+            return res;
         }
         const formSheetBgXml = res.querySelector(".o_form_sheet_bg");
         const parentXml = formSheetBgXml && formSheetBgXml.parentNode;
         if (!parentXml) {
-            return res; // miss-config: a sheet-bg is required for the rest
+            return res;
         }
-        // after sheet bg (standard position, below form)
         setAttributes(chatterContainerHookXml, {
             "t-att-class": `{
                 "overflow-x-hidden overflow-y-auto o-aside h-100": __comp__.uiService.size >= ${SIZES.XXL},

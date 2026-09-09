@@ -14,9 +14,6 @@ export function showTemplateUndoNotification(
         undoCallback,
     },
 ) {
-    // `message` is already translated by every caller (literal `_t(...)` at the
-    // call sites) or is a server-provided string — do not re-wrap in _t() here
-    // (double translation / non-extractable term).
     let undoing = false;
     const undoNotification = env.services.notification.add(message, {
         type: actionType,
@@ -26,9 +23,6 @@ export function showTemplateUndoNotification(
                 icon: "fa-undo",
                 onClick: async () => {
                     if (undoing) {
-                        // A second click while the first undo RPC is in
-                        // flight would replay it on an already-reverted (or
-                        // unlinked) record.
                         return;
                     }
                     undoing = true;
@@ -45,10 +39,6 @@ export function showTemplateUndoNotification(
                     if (res && undoMethod !== "unlink") {
                         env.services.action.doAction(res);
                     } else if (undoMethod === "unlink") {
-                        // Restore the previous controller after unlinking the
-                        // record; with no history (e.g. form opened by URL),
-                        // fall back to going back instead of staying on the
-                        // form of a deleted record.
                         const controller = env.services.action.currentController;
                         const restoreController = controller.config.breadcrumbs?.at(-2);
                         if (restoreController) {
@@ -114,7 +104,6 @@ export async function showTemplateFormView(
     await env.services.action.doAction(action);
 }
 
-// Task → Template Notification
 registry
     .category("actions")
     .add("project_show_template_notification", (env, action) => {
@@ -127,7 +116,6 @@ registry
         return params.next;
     });
 
-// Task → Template Undo Confirmation Dialog
 registry
     .category("actions")
     .add("project_show_template_undo_confirmation_dialog", (env, action) => {
@@ -143,7 +131,6 @@ registry
         return params.next;
     });
 
-// Project → Template Create Redirection
 registry
     .category("actions")
     .add("project_to_template_redirection_action", (env, action) => {
@@ -154,7 +141,6 @@ registry
         });
     });
 
-// Project → Template Notification
 registry
     .category("actions")
     .add("project_template_show_notification", (env, action) => {
@@ -169,7 +155,6 @@ registry
         return params.next;
     });
 
-// Project → Template Undo Confirmation Dialog
 registry
     .category("actions")
     .add("project_template_show_undo_confirmation_dialog", (env, action) => {

@@ -5,9 +5,7 @@ import { canStartDrag, handleEdgeScrolling } from "@web/core/utils/dnd/drag_geom
 
 describe.current.tags("headless");
 
-/**
- * @param {{ tolerance?: number, from?: {x: number, y: number}, to: {x: number, y: number} }} spec
- */
+/** @param {{ tolerance?: number, from?: {x: number, y: number}, to: {x: number, y: number} }} spec */
 function toleranceCtx({ tolerance = 10, from = { x: 0, y: 0 }, to }) {
     return /** @type {any} */ ({
         tolerance,
@@ -16,9 +14,7 @@ function toleranceCtx({ tolerance = 10, from = { x: 0, y: 0 }, to }) {
     });
 }
 
-/**
- * @param {{ vertical?: boolean }} [opts]
- */
+/** @param {{ vertical?: boolean }} [opts] */
 function scrollable({ vertical = true } = {}) {
     const box = document.createElement("div");
     box.style.cssText = vertical
@@ -33,16 +29,7 @@ function scrollable({ vertical = true } = {}) {
     return box;
 }
 
-/**
- * @param {{
- * box: HTMLElement,
- * pointer: {x: number, y: number},
- * speed?: number,
- * threshold?: number,
- * direction?: string,
- * vertical?: boolean,
- * }} spec
- */
+/** @param {{ */
 function scrollCtx({
     box,
     pointer,

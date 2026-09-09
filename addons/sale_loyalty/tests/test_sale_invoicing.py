@@ -51,7 +51,6 @@ class TestSaleInvoicing(TestSaleCouponCommon):
             }
         )
 
-        # Check default invoice_policy on discount product
         self.assertEqual(
             discount_coupon_program.reward_ids.discount_line_product_id.invoice_policy,
             "ordered",
@@ -59,14 +58,11 @@ class TestSaleInvoicing(TestSaleCouponCommon):
 
         order._update_programs_and_rewards()
         self._claim_reward(order, discount_coupon_program)
-        # Order is not confirmed, there shouldn't be any invoiceable line
         invoiceable_lines = order._get_order_lines_invoiceable()
         self.assertEqual(len(invoiceable_lines), 0)
 
         order.action_confirm()
         invoiceable_lines = order._get_order_lines_invoiceable()
-        # Product was not delivered, the order invoice status is 'No' as invoicing it should not be
-        # promoted, but the reward line should still be invoiceable, if users wants to invoice it
         self.assertEqual(order.invoice_state, "no")
         self.assertEqual(len(invoiceable_lines), 1)
 
@@ -77,7 +73,6 @@ class TestSaleInvoicing(TestSaleCouponCommon):
         inv.action_cancel()
 
         order.line_ids[0].qty_transferred = 1
-        # Product is delivered, the two lines can be invoiced.
         self.assertEqual(order.invoice_state, "to do")
         invoiceable_lines = order._get_order_lines_invoiceable()
         self.assertEqual(order.line_ids, invoiceable_lines)
@@ -114,7 +109,6 @@ class TestSaleInvoicing(TestSaleCouponCommon):
                 "name": "Large Cabinet",
             }
         )
-        # orderline1
         self.env["sale.order.line"].create(
             {
                 "product_id": product_6.id,
@@ -124,7 +118,6 @@ class TestSaleInvoicing(TestSaleCouponCommon):
             }
         )
 
-        # Check default invoice_policy on discount product
         self.assertEqual(
             discount_coupon_program.reward_ids.discount_line_product_id.invoice_policy,
             "ordered",
@@ -140,7 +133,6 @@ class TestSaleInvoicing(TestSaleCouponCommon):
             }
         )
 
-        # orderline2
         self.env["sale.order.line"].create(
             {
                 "product_id": product_11.id,

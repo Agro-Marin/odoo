@@ -4,10 +4,6 @@
 import { clamp } from "@web/core/utils/format/numbers";
 
 /**
- * @import { DraggableHookContext } from "./draggable_hook_builder.js"
- */
-
-/**
  * @param {DraggableHookContext} ctx
  * @param {PointerEvent} ev
  * @returns {void}

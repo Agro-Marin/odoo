@@ -14,7 +14,6 @@ const hookParams = {
         rows: null,
     },
     onComputeParams({ ctx, params }) {
-        // Row selector
         ctx.rowSelector = params.rows || null;
         if (ctx.rowSelector) {
             ctx.fullSelector = `${ctx.rowSelector} ${ctx.fullSelector}`;

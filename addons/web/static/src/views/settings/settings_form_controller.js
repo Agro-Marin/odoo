@@ -61,9 +61,7 @@ export class SettingsFormController extends formView.Controller {
         };
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     /** @param {Record<string, any>} clickParams */
     async beforeExecuteActionButton(clickParams) {
         if (clickParams.name === "cancel") {

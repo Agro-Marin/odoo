@@ -88,23 +88,17 @@ export class ErrorDialog extends Component {
         }
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get title() {
         return /** @type {any} */ (this.constructor).title;
     }
 
-    /**
-     * @returns {string | null | undefined}
-     */
+    /** @returns {string | null | undefined} */
     get traceback() {
         return this.props.traceback;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get clipboardReport() {
         return `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.traceback}`;
     }
@@ -172,9 +166,7 @@ export class WarningDialog extends Component {
             this.message = message;
         }
     }
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     inferTitle() {
         return (
             titleForException(this.props.exceptionName) ||
@@ -235,9 +227,7 @@ export class SessionExpiredDialog extends Component {
     }
 }
 
-/**
- * @type {{name: string, title?: any, Dialog?: import("@odoo/owl").ComponentConstructor}[]}
- */
+/** @type {{name: string, title?: any, Dialog?: import("@odoo/owl").ComponentConstructor}[]} */
 const ODOO_EXCEPTIONS = [
     {
         name: "odoo.addons.base.models.ir_mail_server.MailDeliveryError",

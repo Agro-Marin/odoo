@@ -72,7 +72,7 @@ export class QuickLauncher extends Component {
     }
 
     /**
-     * @param {import("./home_menu.js").HomeMenuApp[]} apps in the stored order
+     * @param {import("./home_menu.js").HomeMenuApp[]} apps
      * @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config
      */
     _pickApps(apps, config) {

@@ -141,7 +141,6 @@ class TestLoyaltyhistory(TestSaleCouponCommon):
         )
 
     def test_loyalty_history_multi_reward(self):
-        """Verify that applying multiple rewards sums up the total points cost."""
         self.loyalty_card.points = initial_points = 4
         self.loyalty_program.with_context(active_test=False).reward_ids.active = True
         order = self.empty_order

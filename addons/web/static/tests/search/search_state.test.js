@@ -16,9 +16,7 @@ import {
 
 describe.current.tags("headless");
 
-/**
- * @returns {Record<string, any>}
- */
+/** @returns {Record<string, any>} */
 function makeSource() {
     const value = { id: 10, checked: false, display_name: "Tag A" };
     const group = { id: "g1", name: "Group", values: new Map([[10, value]]) };

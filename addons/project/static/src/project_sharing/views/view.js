@@ -4,7 +4,6 @@ import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
 import { View } from "@web/views/view";
 
-/** Hack to display the project name when we load project sharing */
 patch(View.prototype, {
     setup() {
         super.setup();

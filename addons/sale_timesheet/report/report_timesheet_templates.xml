@@ -34,7 +34,6 @@
         </t>
     </template>
 
-    <!-- Sale Order Timesheet Report for given timesheets -->
     <template id="report_timesheet_sale_order">
         <t t-set="record_name">Sales Order Item</t>
         <t t-set="with_order_id" t-value="true" />
@@ -50,7 +49,6 @@
         <field name="binding_model_id" ref="model_sale_order" />
     </record>
 
-    <!-- Invoice Timesheet Report for given timesheets -->
     <template id="report_timesheet_account_move">
         <t t-set="record_name">Invoice</t>
         <t t-call="sale_timesheet.timesheet_sale_page" />

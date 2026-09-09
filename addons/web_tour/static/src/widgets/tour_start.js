@@ -42,9 +42,6 @@ export class TourStartWidget extends CharField {
 export const tourStartWidgetField = {
     ...charField,
     component: TourStartWidget,
-    // Not `charField`'s list: `extractProps` is replaced rather than extended,
-    // so none of the char options are read here and declaring them would offer
-    // Studio settings that do nothing.
     supportedOptions: [
         {
             label: _t("Link"),

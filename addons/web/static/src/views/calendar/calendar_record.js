@@ -7,14 +7,10 @@ import { deserializeDate, deserializeDateTime } from "@web/core/l10n/dates";
  * @param {Object} options
  * @param {Record<string, any>} options.fields
  * @param {{ date_start: string, date_stop?: string, date_delay?: string, all_day?: string,
- * color?: string, create_name_field?: string }} options.fieldMapping
  * @param {boolean} options.isTimeHidden
  * @param {string} options.scale
  * @param {boolean} options.isSmall
  * @returns {{ id: number, title: string, isAllDay: boolean, start: any, startType: string,
- * end: any, endType: string, duration: number, colorIndex: any,
- * isHatched: boolean, isStriked: boolean, isTimeHidden: boolean,
- * isMonth: boolean, isSmall: boolean, rawRecord: Record<string, any> }}
  */
 export function normalizeCalendarRecord(
     rawRecord,

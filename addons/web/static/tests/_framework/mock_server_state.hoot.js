@@ -8,9 +8,7 @@ const { view_info } = /** @type {any} */ (odoo).__session_info__ || {};
 
 const { Settings } = luxon;
 
-/**
- * @typedef {typeof SERVER_STATE_VALUES} ServerState
- */
+/** @typedef {typeof SERVER_STATE_VALUES} ServerState */
 
 const applyDefaults = () => {
     Object.assign(Settings, DEFAULT_LUXON_SETTINGS);
@@ -41,13 +39,9 @@ const SERVER_STATE_VALUES = {
             currency_id: 1,
         },
     ],
-    /**
-     * @type {{ id: number; name: string; [key: string]: any }[]}
-     */
+    /** @type {{ id: number; name: string; [key: string]: any }[]} */
     disallowedAncestorCompanies: [],
-    /**
-     * @type {{ id: number; name: string; position: string; symbol: string; [key: string]: any }[]}
-     */
+    /** @type {{ id: number; name: string; position: string; symbol: string; [key: string]: any }[]} */
     currencies: [
         {
             id: 1,
@@ -130,7 +124,7 @@ const subscriptions = new Map([
 ]);
 
 /**
- * @template T
+ * @template
  * @param {T} target
  * @param {(state: ServerState) => T} callback
  */

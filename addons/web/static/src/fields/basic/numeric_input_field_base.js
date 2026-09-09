@@ -58,9 +58,7 @@ export class NumericInputFieldBase extends FieldComponent {
         return this.field.value;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get rawValue() {
         return this.value === false ? "" : String(this.value);
     }
@@ -76,9 +74,7 @@ export class NumericInputFieldBase extends FieldComponent {
         );
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get formattedValue() {
         if (
             this.props.formatNumber === false ||

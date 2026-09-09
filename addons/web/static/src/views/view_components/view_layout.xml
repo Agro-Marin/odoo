@@ -22,9 +22,6 @@
                     <t t-if="hasSlot('layout-actions')" t-slot="layout-actions"/>
                 </t>
 
-                <!-- The button that reveals the search bar on a small screen.
-                     A view that renders SearchBar without it gets a search bar
-                     it cannot collapse, which is what web_cohort shipped. -->
                 <t t-set-slot="control-panel-navigation-additional">
                     <t t-if="props.searchBar and props.searchBarToggler"
                        t-component="props.searchBarToggler.component"

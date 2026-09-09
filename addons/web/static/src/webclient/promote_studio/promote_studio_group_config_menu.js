@@ -15,9 +15,7 @@ patch(GroupConfigMenu.prototype, {
         super.setup();
         this.orm = useService("orm");
     },
-    /**
-     * @override
-     */
+    /** @override */
     get permissions() {
         const permissions = super.permissions;
         Object.defineProperty(permissions, "canEditAutomations", {

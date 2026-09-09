@@ -6,13 +6,10 @@ from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 
 @tagged("post_install", "-at_install")
 class TestProjectBilling(TestCommonSaleTimesheet):
-    """This test suite provide checks for miscellaneous small things."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        # set up
         cls.employee_tde = cls.env["hr.employee"].create(
             {
                 "name": "Employee TDE",
@@ -33,7 +30,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             }
         )
 
-        # Sale Order 1, no project/task created, used to timesheet at employee rate
         SaleOrder = cls.env["sale.order"]
         SaleOrderLine = cls.env["sale.order.line"]
         cls.sale_order_1 = SaleOrder.create(
@@ -59,7 +55,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
                 "order_id": cls.sale_order_1.id,
             }
         )
-        # Sale Order 2, creates 2 project billed at task rate
         cls.sale_order_2 = SaleOrder.create(
             {
                 "partner_id": cls.partner_2.id,
@@ -91,7 +86,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             }
         )
 
-        # FIXME: [XBO] since the both projects have a SOL than the pricing_type should not be task_rate !
         cls.project_task_rate = cls.env["project.project"].search(
             [("sale_line_id", "=", cls.so2_line_deliver_project_task.id)], limit=1
         )
@@ -132,11 +126,9 @@ class TestProjectBilling(TestCommonSaleTimesheet):
         )
 
     def test_billing_employee_rate(self):
-        """Check task and subtask creation, and timesheeting in a project billed at 'employee rate'. Then move the task into a 'task rate' project."""
         Task = self.env["project.task"]
         Timesheet = self.env["account.analytic.line"]
 
-        # create a task
         task = Task.with_context(
             default_project_id=self.project_employee_rate.id
         ).create(
@@ -165,11 +157,8 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "Task created in a project billed on 'employee rate' should have the same customer as the one from the project",
         )
 
-        task.write(
-            {"sale_line_id": False}
-        )  # remove the SOL to check if the timesheet has no SOL when there is no SOL in the task
+        task.write({"sale_line_id": False})
 
-        # log timesheet on task
         timesheet1 = Timesheet.create(
             {
                 "name": "Test Line",
@@ -198,7 +187,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "The timesheet should be linked to the project of the map entry",
         )
 
-        # create a subtask
         subtask = Task.create(
             {
                 "name": "first subtask task",
@@ -220,7 +208,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "Subtask in non billable project should not have a customer",
         )
 
-        # log timesheet on subtask
         timesheet2 = Timesheet.create(
             {
                 "name": "Test Line on subtask",
@@ -246,7 +233,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "The timesheet should not be linked to SOL as the task is in a non billable project",
         )
 
-        # move task into task rate project
         task.write(
             {
                 "project_id": self.project_task_rate.id,
@@ -267,11 +253,8 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             self.partner_a,
             "Task created in a project billed on 'employee rate' should have the same customer when it has been created.",
         )
-        # the `subtask.sale_line_id` is consider to be recompute,
-        # but the result differ after the write of project_id without depend on it
         task.flush_model(["sale_line_id"])
 
-        # move subtask into task rate project
         subtask.write(
             {
                 "project_id": self.project_task_rate2.id,
@@ -288,7 +271,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "Subtask should keep the same sale order line than their mother, even when they are moved into another project",
         )
 
-        # create a second task in employee rate project
         task2 = Task.with_context(
             default_project_id=self.project_employee_rate.id
         ).create(
@@ -297,10 +279,8 @@ class TestProjectBilling(TestCommonSaleTimesheet):
                 "partner_id": self.partner_a.id,
             }
         )
-        # This needs to be done after creation because setting partner_id causes _get_last_sol_of_customer to recompute the sale_line_id
         task2.update({"sale_line_id": False})
 
-        # log timesheet on task in 'employee rate' project without any fallback (no map, no SOL on task, no SOL on project)
         timesheet3 = Timesheet.create(
             {
                 "name": "Test Line",
@@ -316,7 +296,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "The timesheet should not be linked to SOL as there is no fallback at all (no map, no SOL on task, no SOL on project)",
         )
 
-        # log timesheet on task in 'employee rate' project (no map, no SOL on task, but SOL on project)
         timesheet4 = Timesheet.create(
             {
                 "name": "Test Line ",
@@ -333,14 +312,9 @@ class TestProjectBilling(TestCommonSaleTimesheet):
         )
 
     def test_billing_task_rate(self):
-        """
-        Check task and subtask creation, and timesheeting in a project billed at 'task rate'.
-        Then move the task into a 'employee rate' project then, 'non billable'.
-        """
         Task = self.env["project.task"]
         Timesheet = self.env["account.analytic.line"]
 
-        # create a task
         task = Task.with_context(default_project_id=self.project_task_rate.id).create(
             {
                 "name": "first task",
@@ -358,7 +332,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "Task created in a project billed on 'task rate' should have the same customer as the one from the project",
         )
 
-        # log timesheet on task
         timesheet1 = Timesheet.create(
             {
                 "name": "Test Line",
@@ -375,7 +348,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "The timesheet should be linked to the SOL associated to the task since the pricing type of the project is task rate.",
         )
 
-        # create a subtask
         subtask = Task.with_context(
             default_project_id=self.project_task_rate.id
         ).create(
@@ -391,7 +363,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "Subtask should not have the customer if it's project is not billable",
         )
 
-        # log timesheet on subtask
         timesheet2 = Timesheet.create(
             {
                 "name": "Test Line on subtask",
@@ -410,11 +381,8 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             timesheet2.so_line,
             "The timesheet should not be linked to SOL as it's a non billable project",
         )
-        # the `subtask.sale_line_id` is consider to be recompute,
-        # but the result differ after the write of project_id
         task.flush_model(["sale_line_id"])
 
-        # move task and subtask into task rate project
         task.write(
             {
                 "project_id": self.project_employee_rate.id,
@@ -449,15 +417,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
         )
 
     def test_customer_change_in_project(self):
-        """Test when the user change the customer in a project
-
-        Test Case:
-        =========
-        1) Take project with pricing_type="fixed_rate", change the existing customer to another and check if the SO and SOL are equal to False.
-        2) Take project with pricing_type="employee_rate", change the existing customer to another and check if the SO and SOL are equal to False.
-            2.1) Check if the SOL in mapping is also equal to False
-        """
-        # 1) Take project with pricing_type="fixed_rate", change the existing customer to another and check if the SO and SOL are equal to False.
         self.project_project_rate.write(
             {
                 "partner_id": self.partner_2.id,
@@ -477,7 +436,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "Since there is no SO and SOL in the project, the pricing type should be task rate.",
         )
 
-        # 2) Take project with pricing_type="employee_rate", change the existing customer to another and check if the SO and SOL are equal to False.
         self.project_employee_rate.write(
             {
                 "partner_id": self.partner_2.id,
@@ -492,7 +450,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             "The SOL in the project should be False because the previous SOL customer does not match the actual customer of the project.",
         )
 
-        # 2.1) Check if the SOL in mapping is also equal to False
         self.assertFalse(
             self.project_employee_rate_manager.sale_line_id,
             "The SOL in the mapping should be False because the actual customer in the project has not this SOL.",
@@ -508,25 +465,11 @@ class TestProjectBilling(TestCommonSaleTimesheet):
         )
 
     def test_project_form_view(self):
-        """Test if in the form view, the partner is correctly computed when the user adds a mapping
-
-        Test Case:
-        =========
-        1) Use the Form class to create a project with a form view
-        2) Define a billable project
-        3) Create an employee mapping in this project
-        4) Check if the partner_id and pricing_type fields have been changed
-        """
         with Form(
             self.env["project.project"].with_user(self.project_sale_manager)
         ) as project_form:
             project_form.name = "Test Billable Project"
             project_form.allow_billable = True
-            # `sale_line_employee_ids` is not visible if `partner_id` is not set
-            # As the behavior of the test is to check the partner on the project
-            # is set to the partner of the order line, temporary make the field visible
-            # even if it's not the case in the reality, in the web client
-            # not allow_billable or not partner_id
             project_form._view["modifiers"]["sale_line_employee_ids"]["invisible"] = (
                 "False"
             )
@@ -546,13 +489,6 @@ class TestProjectBilling(TestCommonSaleTimesheet):
             )
 
     def test_take_into_account_invoicing_app_legacy(self):
-        """Test the timesheets linked to a invoice determined as a invoiced imported form app legacy
-        are still considered as billed even if the state of those invoices is cancelled.
-
-        Since the account_accountant module is not in the dependencies of sale_timesheet module,
-        this test will manually set the state and payment_status to be in the same condition
-        than the feature "Invoicing Switch Threshold".
-        """
         timesheet1 = self.env["account.analytic.line"].create(
             {
                 "name": "/",

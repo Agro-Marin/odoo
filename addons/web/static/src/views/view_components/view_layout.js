@@ -12,16 +12,15 @@ import { ActionHelper } from "@web/views/action_helper";
 /**
  * @typedef ViewLayoutProps
  * @property {Record<string, any>} [slots]
- * @property {string} [className] on the view root
- * @property {(ref: any) => void} [rootRef] forwarded to the view root, so a
- *   controller can still reach the element it no longer renders
- * @property {string} [contentClassName] on `Layout`'s content, beside the sample-data class
+ * @property {string} [className]
+ * @property {(ref: any) => void} [rootRef]
+ * @property {string} [contentClassName]
  * @property {Record<string, any>} [display]
- * @property {Record<string, any>} [searchBarToggler] from {@link useViewChassis}
+ * @property {Record<string, any>} [searchBarToggler]
  * @property {boolean} [searchBar]
  * @property {boolean} [autofocusSearchBar]
  * @property {boolean} [cogMenu]
- * @property {boolean} [useSampleModel] applies `o_view_sample_data`
+ * @property {boolean} [useSampleModel]
  * @property {boolean} [displayNoContent]
  * @property {string} [noContentHelp]
  */
@@ -55,13 +54,6 @@ export class ViewLayout extends Component {
     };
 
     setup() {
-        // The view root moved inside this component, and a controller still
-        // needs it -- `useSetupAction({ rootRef })` restores scroll from it.
-        // Without the forward its `useRef("root")` resolves to nothing, which
-        // is silent: scroll simply stops being restored.
-        //
-        // Not `useForwardRefToParent`: that helper reads `props[refName]`, so
-        // it would want the prop to be called `root` rather than `rootRef`.
         const ref = useRef("root");
         this.props.rootRef?.(ref);
     }
@@ -86,17 +78,7 @@ export class ViewLayout extends Component {
 }
 
 /**
- * The controller half of {@link ViewLayout}: builds the props it consumes, so
- * the two cannot drift.
- *
- * `<ViewLayout t-props="chassis.props"/>`, with individual attributes after the
- * `t-props` for anything a view overrides.
- *
  * @param {{
- * model?: () => any,
- * displayNoContent?: () => boolean,
- * display?: () => Record<string, any>,
- * }} [hooks]
  * @returns {{ searchBarToggler: any, rootRef: any, props: ViewLayoutProps }}
  */
 export function useViewChassis(hooks = {}) {
@@ -106,13 +88,7 @@ export function useViewChassis(hooks = {}) {
 
     const getModel = () => (hooks.model ? hooks.model() : component.model);
 
-    /**
-     * A view with no `noContentHelp` still shows `ActionHelper`'s default text,
-     * which is why this does not test the help itself: an empty view saying
-     * nothing at all is the defect, not a missing string.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     const displayNoContent = () => {
         if (hooks.displayNoContent) {
             return hooks.displayNoContent();
@@ -140,9 +116,6 @@ export function useViewChassis(hooks = {}) {
                 searchBarToggler,
                 useSampleModel: Boolean(model?.useSampleModel),
                 displayNoContent: displayNoContent(),
-                // Truthiness, not `typeof`: `noContentHelp` is `false` when the
-                // action suppresses the helper, and a `markup()` object -- which
-                // is an object, not a primitive -- when it carries one.
                 ...(noContentHelp ? { noContentHelp } : {}),
             };
         },

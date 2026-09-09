@@ -245,7 +245,6 @@ class TestResUsersSettings(TransactionCase):
         settings.update_homemenu_config(
             [{"operation": "pin", "xmlid": "app.a", "value": True}]
         )
-        # The second tab sends its intention, not its stale empty layout.
         settings.update_homemenu_config(
             [{"operation": "pin", "xmlid": "app.b", "value": True}]
         )

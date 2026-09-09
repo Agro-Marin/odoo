@@ -37,11 +37,7 @@ export class FieldMany2ManyAltPOs extends X2ManyField {
         return true;
     }
 
-    /**
-     * Override to: avoid reopening currently open record
-     *              open record in same window w/breadcrumb extended
-     * @override
-     */
+    /** @override */
     async openRecord(record) {
         if (record.resId !== this.props.record.resId) {
             const action = await this.orm.call(

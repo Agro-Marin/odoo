@@ -75,9 +75,7 @@ export class PdfViewerField extends FieldComponent {
         );
     }
 
-    /**
-     * @param {string} objectUrl
-     */
+    /** @param {string} objectUrl */
     setObjectUrl(objectUrl) {
         if (this.state.objectUrl && this.state.objectUrl !== objectUrl) {
             URL.revokeObjectURL(this.state.objectUrl);

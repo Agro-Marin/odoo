@@ -150,17 +150,13 @@ export class OverlayContainer extends Component {
         );
     }
 
-    /**
-     * @returns {any}
-     */
+    /** @returns {any} */
     get service() {
         // eslint-disable-next-line no-restricted-syntax
         return this.env.services?.[/** @type {any} */ (this.constructor).serviceName];
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get adoptsUnrooted() {
         const { rootId } = this.state;
         if (rootId === undefined) {
@@ -170,9 +166,7 @@ export class OverlayContainer extends Component {
         return !rootIds.includes(undefined) && rootIds.indexOf(rootId) === 0;
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     get sortedOverlays() {
         const { rootId } = this.state;
         const adoptsUnrooted = this.adoptsUnrooted;

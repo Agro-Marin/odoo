@@ -3,9 +3,7 @@
 
 import { onRendered } from "@odoo/owl";
 
-/**
- * @param {string} label
- */
+/** @param {string} label */
 export function useRenderCounter(label) {
     onRendered(() => {
         if (/** @type {Record<string, any>} */ (globalThis).__renderTrace) {

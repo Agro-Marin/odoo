@@ -62,17 +62,13 @@ export class FormStatusIndicator extends Component {
         return "saved";
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get saveButtonDisabled() {
         const { isNew, isValid } = this.props.model.root;
         return !isNew && this.isDirty && !isValid;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get statusLabel() {
         switch (this.indicatorMode) {
             case "dirty":

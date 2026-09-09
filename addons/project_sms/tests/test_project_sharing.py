@@ -58,10 +58,6 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
         ]
 
     def test_portal_user_can_change_stage_with_sms_template(self):
-        """Test user portal can change the stage of a task to a stage with a sms template
-
-        The sms template should be sent and the stage should be changed on the task.
-        """
         with self.mockSMSGateway():
             self.task_portal.with_user(self.user_portal).write(
                 {
@@ -69,7 +65,7 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
                 }
             )
         self.assertEqual(self.task_portal.step_id, self.task_stage_with_sms)
-        self.assertSMSIapSent([])  # no sms sent since the author is the recipient
+        self.assertSMSIapSent([])
 
         self.task_portal.write(
             {
@@ -101,11 +97,6 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
 
     @tagged("post_install", "-at_install")
     def test_project_user_can_change_stage_with_sms_template(self):
-        """Test that users with the rights to change the stage of a task can perform this action
-        when the stage has an sms template.
-
-        The sms template should be sent and the stage should be changed on the task.
-        """
         project_user_group = self.env.ref("project.group_project_user")
         sale_manager_group = self.env.ref("sales_team.group_sale_manager", False)
         if not sale_manager_group:
@@ -128,7 +119,7 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
                 }
             )
         self.assertEqual(self.task_cow.step_id, self.task_stage_with_sms)
-        self.assertSMSIapSent([])  # no sms sent since the author is the recipient
+        self.assertSMSIapSent([])
 
         self.task_cow.write(
             {

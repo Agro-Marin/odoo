@@ -105,8 +105,6 @@ export class ProjectRightSidePanel extends Component {
     }
 
     formatMonetary(value, options = {}) {
-        // formatCurrency owns symbol lookup/position; keep the panel's
-        // 0-decimals display.
         return formatCurrency(value, this.currencyId, {
             digits: [false, 0],
             ...options,
@@ -115,7 +113,6 @@ export class ProjectRightSidePanel extends Component {
 
     async loadData() {
         if (!this.projectId) {
-            // If this is called from notif, multiples updates but no specific project
             return {};
         }
         const data = await this.orm.call(

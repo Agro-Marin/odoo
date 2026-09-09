@@ -6,9 +6,7 @@ import { registry } from "@web/core/registry";
 
 export const CLICKBOT_RUNNING_KEY = "running.clickbot";
 
-/**
- * @returns {string | null}
- */
+/** @returns {string | null} */
 export function readClickbotRun() {
     try {
         return browser.localStorage.getItem(CLICKBOT_RUNNING_KEY);
@@ -17,9 +15,7 @@ export function readClickbotRun() {
     }
 }
 
-/**
- * @param {string | null} value `null` clears the saved run
- */
+/** @param {string | null} value */
 export function writeClickbotRun(value) {
     try {
         if (value === null) {

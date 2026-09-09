@@ -39,7 +39,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
 
     @mock_auth_method_outlook("employee")
     def test_get_partner_blacklisted_domain(self):
-        """Test enrichment on a blacklisted domain, should return an error."""
         domain = min(iap_tools._MAIL_PROVIDERS)
 
         data = {
@@ -108,10 +107,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
         self.assertEqual(result["partner"]["company"]["id"], -1)
 
     def test_get_partner_iap_return_different_domain(self):
-        """
-        Test the case where the domain of the email returned by IAP is not the same as
-        the domain requested.
-        """
         result = self.mock_plugin_partner_get(
             "Test",
             "qsd@test_domain.xyz",
@@ -153,7 +148,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
         )
 
     def test_get_partner_no_access(self):
-        """Test the case where the partner has been enriched by someone else, but we can't access it."""
         partner = self.env["res.partner"].create(
             {"name": "Test", "website": "https://test.example.com"}
         )
@@ -198,11 +192,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
         )
 
     def test_get_partner_no_email_returned_by_iap(self):
-        """Test the case where IAP do not return an email address.
-
-        We should not duplicate the previously enriched company and we should be able to
-        retrieve the first one.
-        """
         result = self.mock_plugin_partner_get(
             "Test",
             "qsd@domain.com",
@@ -227,7 +216,6 @@ class TestMailPluginController(TestMailPluginControllerCommon):
         )
 
     def test_get_partner_is_default_from(self):
-        """When the email_from is the server default from address, we return a custom message instead of trying to match a partner record."""
         self.env["mail.alias.domain"].create(
             {"name": "example.com", "default_from": "notification"}
         )

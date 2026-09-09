@@ -15,25 +15,16 @@ from odoo.addons.html_editor.controllers.main import HTML_Editor
 
 logger = logging.getLogger(__name__)
 
-# seconds — cap outbound Unsplash API/CDN calls so a stalled remote cannot hang the worker
 REQUEST_TIMEOUT = 10
 
 
 class Web_Unsplash(HTML_Editor):
     def _get_access_key(self):
-        """Use this method to get the key, needed for internal reason"""
         return (
             request.env["ir.config_parameter"].sudo().get_param("unsplash.access_key")
         )
 
     def _notify_download(self, url):
-        """Notifies Unsplash from an image download. (API requirement)
-        :param url: the download_url of the image to be notified
-
-        This method won't return anything. This endpoint should just be
-        pinged with a simple GET request for Unsplash to increment the image
-        view counter.
-        """
         try:
             if (
                 not url.startswith("https://api.unsplash.com/photos/")
@@ -49,33 +40,12 @@ class Web_Unsplash(HTML_Editor):
         except Exception:
             logger.exception("Unsplash download notification failed")
 
-    # ------------------------------------------------------
-    # add unsplash image url
-    # ------------------------------------------------------
     @http.route(
         "/web_unsplash/attachment/add", type="jsonrpc", auth="user", methods=["POST"]
     )
     def save_unsplash_url(self, unsplashurls=None, **kwargs):
-        """
-        unsplashurls = {
-            image_id1: {
-                url: image_url,
-                download_url: download_url,
-            },
-            image_id2: {
-                url: image_url,
-                download_url: download_url,
-            },
-            .....
-        }
-        """
 
         def slugify(s):
-            """Keeps only alphanumeric characters, hyphens and spaces from a string.
-            The string will also be truncated to 1024 characters max.
-            :param s: the string to be filtered
-            :return: the sanitized string
-            """
             return "".join([c for c in s if c.isalnum() or c in list("- ")])[:1024]
 
         if not unsplashurls:
@@ -110,7 +80,6 @@ class Web_Unsplash(HTML_Editor):
                 if req.status_code != requests.codes.ok:
                     continue
 
-                # get mime-type of image url because unsplash url dosn't contains mime-types in url
                 image = req.content
 
                 image = image_process(image, verify_resolution=True)
@@ -119,11 +88,8 @@ class Web_Unsplash(HTML_Editor):
                 logger.exception("Failed to fetch or process Unsplash image")
                 continue
 
-            # append image extension in name, without mutating the shared
-            # search-term `query` across the loop's iterations
             image_query = query + (mimetypes.guess_extension(mimetype) or "")
 
-            # /unsplash/5gR788gfd/lion
             url_frags = ["unsplash", key, image_query]
 
             attachment_data = {
@@ -139,7 +105,6 @@ class Web_Unsplash(HTML_Editor):
             attachment.generate_access_token()
             uploads.append(attachment._get_media_info())
 
-            # Notifies Unsplash from an image download. (API requirement)
             self._notify_download(value.get("download_url"))
 
         return uploads

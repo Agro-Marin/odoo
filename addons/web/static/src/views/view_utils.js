@@ -56,9 +56,7 @@ export function computeViewClassName(viewType, rootNode, additionalClassList = [
         .join(" ");
 }
 
-/**
- * @type {WeakMap<object, object>}
- */
+/** @type {WeakMap<object, object>} */
 const formatOptionsByFieldInfo = new WeakMap();
 
 /**

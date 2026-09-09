@@ -58,9 +58,6 @@ class MailFollowersEdit(models.TransientModel):
                         documents, model_name
                     )
                     message_values["partner_ids"] = wizard.partner_ids.ids
-                    # One invitation for the whole selection: the body lists
-                    # every document and the multi-invite layout is built for
-                    # it, so the first document only lends the message a thread.
                     documents[0].message_notify(**message_values)
         return {
             "type": "ir.actions.client",

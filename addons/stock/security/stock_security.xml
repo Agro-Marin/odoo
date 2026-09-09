@@ -14,27 +14,6 @@
             <field
                 name="comment">Access to all Inventory data but in read-only mode, no actions allowed.</field>
         </record>
-        <!--
-            Read-only's ACL rows list only what they add. Models base.group_user
-            already reads are absent, since the tier implies it; the tier's suite
-            asserts read on each of those, so upstream narrowing one fails loudly.
-
-            Wizards are split by what they do, not how they look. Three only
-            read and are reachable by the tier: stock.quantity.history,
-            stock.rules.report, stock.traceability.report, and get create as
-            well, because a wizard cannot be instantiated without it ("Inventory
-            at Date" was broken for exactly that reason). Every wizard that
-            fronts a write gets no row at all: return, backorder, relocate,
-            request-count, snooze, package-destination, inventory-adjust,
-            label-printing, replenish, and stock.replenishment.info/option,
-            whose related product_min_qty/product_max_qty write through to the
-            orderpoint and whose actions order stock.
-
-            The User tier implies Read-only, so the privilege ladder is strictly
-            Read-only < User < Administrator and an affordance gated positively
-            on the readonly group stays visible to a stock User. Hanging the
-            link off Administrator instead leaves Read-only beside User.
-        -->
         <record id="group_stock_user" model="res.groups">
             <field name="name">User</field>
             <field name="sequence">10</field>
@@ -52,7 +31,6 @@
                 name="user_ids"
                 eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
         </record>
-        <!-- hidden groups -->
         <record id="group_stock_multi_locations" model="res.groups">
             <field name="name">Manage Multiple Stock Locations</field>
         </record>
@@ -123,7 +101,6 @@
     </data>
 
     <data noupdate="1">
-        <!-- multi -->
         <record id="stock_picking_rule" model="ir.rule">
             <field name="name">stock_picking multi-company</field>
             <field
@@ -191,11 +168,6 @@
                 name="model_id"
                 model="ir.model"
                 search="[('model','=','stock.reference')]" />
-            <!--
-                stock.reference has no company_id of its own; scope it through its
-                moves' companies. A freshly created, not-yet-linked reference has
-                no moves, so allow that transient case too.
-            -->
             <field
                 name="domain_force">['|', ('move_ids', '=', False), ('move_ids.company_id', 'in', company_ids)]</field>
         </record>

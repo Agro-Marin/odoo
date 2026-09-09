@@ -413,9 +413,7 @@ describe("EmbeddedActions.reorderFromDrop", () => {
         };
     }
 
-    /**
-     * @param {number|string} index
-     */
+    /** @param {number|string} index */
     function tab(index) {
         const element = document.createElement("button");
         element.dataset.embeddedIndex = String(index);

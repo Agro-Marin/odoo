@@ -61,18 +61,14 @@ export class PropertyTags extends Component {
         });
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get displayBadge() {
         return /** @type {any} */ (
             !this.env.config || this.env.config.viewType !== "kanban"
         );
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get tagListItems() {
         if (!this.props.selectedTags || !this.props.selectedTags.length) {
             return [];
@@ -103,23 +99,17 @@ export class PropertyTags extends Component {
         });
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get selectedTags() {
         return deepCopy(this.props.selectedTags || []);
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get availableTags() {
         return deepCopy(this.props.tags || []);
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get autocompleteSources() {
         return [
             {
@@ -168,18 +158,14 @@ export class PropertyTags extends Component {
         ];
     }
 
-    /**
-     * @param {string | object} tagValue
-     */
+    /** @param {string | object} tagValue */
     onOptionSelected(tagValue) {
         const selectedTags = this.selectedTags;
         const newValue = [...selectedTags, tagValue];
         this.props.onValueChange(newValue);
     }
 
-    /**
-     * @param {string} newLabel
-     */
+    /** @param {string} newLabel */
     async onTagCreate(newLabel) {
         if (!newLabel || !newLabel.length) {
             return;
@@ -208,9 +194,7 @@ export class PropertyTags extends Component {
         this.props.onTagsChange(updatedTags, newValues);
     }
 
-    /**
-     * @param {string} deleteTag
-     */
+    /** @param {string} deleteTag */
     onTagDelete(deleteTag) {
         if (this.props.deleteAction === "value") {
             const selectedTags = this.selectedTags;
@@ -253,9 +237,7 @@ export class PropertyTags extends Component {
         this.popover.close();
     }
 
-    /**
-     * @param {integer} index
-     */
+    /** @param {integer} index */
     deleteTagByIndex(index) {
         this.onTagDelete(this.tagListItems[index].id);
     }

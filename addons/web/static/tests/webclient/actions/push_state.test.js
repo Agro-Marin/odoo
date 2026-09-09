@@ -609,9 +609,7 @@ test(`switchView pushes the stat but doesn't add to the breadcrumbs`, async () =
     });
 });
 
-/**
- * @param {Record<string, any>} state
- */
+/** @param {Record<string, any>} state */
 function expectGlobalStateOnAction4(state) {
     const { globalState, ...envelope } = state;
     expect(envelope).toEqual({

@@ -12,9 +12,7 @@ const unread_store = (() => {
     return new window.idbKeyval.Store("odoo-mail-unread-db", "odoo-mail-unread-store");
 })();
 
-/**
- * @type {Partial<import("models").Store> & ThisType<import("models").Store>}
- */
+/** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const StorePatch = {
     setup() {
         super.setup(...arguments);

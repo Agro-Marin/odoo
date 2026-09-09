@@ -60,7 +60,7 @@ function camelToKebab(str) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T | (() => T)} valueOrFn
  * @returns {T}
  */
@@ -101,7 +101,7 @@ export function safePrevent(ev, { stop } = {}) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T | (() => T)} value
  * @returns {() => T}
  */
@@ -109,9 +109,7 @@ export function toFunction(value) {
     return typeof value === "function" ? /** @type {() => T} */ (value) : () => value;
 }
 
-/**
- * @type {Record<string, WeakSet<HTMLElement>>}
- */
+/** @type {Record<string, WeakSet<HTMLElement>>} */
 const elCache = {};
 
 /**
@@ -149,9 +147,7 @@ function saveAttribute(el, attribute) {
  * @returns {{ add: (fn?: () => any) => void, cleanup: () => void }}
  */
 export function makeCleanupManager(defaultCleanupFn) {
-    /**
-     * @param {() => any} [cleanupFn]
-     */
+    /** @param {() => any} [cleanupFn] */
     const add = (cleanupFn) =>
         typeof cleanupFn === "function" && cleanups.push(cleanupFn);
 
@@ -174,9 +170,7 @@ export function makeCleanupManager(defaultCleanupFn) {
     return { add, cleanup };
 }
 
-/**
- * @param {ReturnType<typeof makeCleanupManager>} cleanup
- */
+/** @param {ReturnType<typeof makeCleanupManager>} cleanup */
 export function makeDOMHelpers(cleanup) {
     /**
      * @param {HTMLElement | null} el

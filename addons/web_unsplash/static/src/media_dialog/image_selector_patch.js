@@ -97,12 +97,9 @@ patch(ImageSelector.prototype, {
 
     get combinedRecords() {
         /**
-         * Creates an array with alternating elements from two arrays.
-         *
          * @param {Array} a
          * @param {Array} b
-         * @returns {Array} alternating elements from a and b, starting with
-         *     an element of a
+         * @returns {Array}
          */
         function alternate(a, b) {
             return [
@@ -131,10 +128,6 @@ patch(ImageSelector.prototype, {
             );
             this.unsplashState.isFetchingUnsplash = false;
             this.unsplashState.unsplashError = false;
-            // Use a set to keep track of every image we've received so far,
-            // based on their ids. This will allow us to ignore duplicate
-            // images from Unsplash. We can assume there are no duplicates at
-            // this point as a precondition.
             const existingIds = new Set(
                 this.unsplashState.unsplashRecords.map((r) => r.id),
             );
@@ -142,14 +135,11 @@ patch(ImageSelector.prototype, {
                 if (existingIds.has(record.id)) {
                     return false;
                 }
-                // Mark this image as seen so that we can ignore any duplicates
-                // from the same Unsplash batch.
                 existingIds.add(record.id);
                 return true;
             });
             const records = newImages.map((record) => {
                 const url = new URL(record.urls.regular);
-                // In small windows, row height could get quite a bit larger than the min, so we keep some leeway.
                 url.searchParams.set("h", 2 * this.MIN_ROW_HEIGHT);
                 url.searchParams.delete("w");
                 return Object.assign({}, record, {
@@ -174,7 +164,6 @@ patch(ImageSelector.prototype, {
         return this.keepLastUnsplash
             .add(this.fetchUnsplashRecords(this.unsplashState.unsplashRecords.length))
             .then(({ records, isMaxed }) => {
-                // This is never reached if another search or loadMore occurred.
                 this.unsplashState.unsplashRecords.push(...records);
                 this.unsplashState.isMaxed = isMaxed;
             });
@@ -194,7 +183,6 @@ patch(ImageSelector.prototype, {
         return this.keepLastUnsplash
             .add(this.fetchUnsplashRecords(0))
             .then(({ records, isMaxed }) => {
-                // This is never reached if a new search occurred.
                 this.unsplashState.unsplashRecords = records;
                 this.unsplashState.isMaxed = isMaxed;
             });

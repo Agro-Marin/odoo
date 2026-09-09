@@ -7,8 +7,6 @@ from odoo.tests import tagged
 from odoo.addons.mail_bot.models.mail_bot import _EMOJI_BMP_RANGES
 from odoo.addons.mail_bot.tests.common import MailBotCommon
 
-# The exact BMP set the module accepted before the table was replaced by a
-# regex. Narrowing it is a regression; widening it is a decision.
 _HISTORICAL_BMP = frozenset(
     codepoint for low, high in _EMOJI_BMP_RANGES for codepoint in range(low, high + 1)
 )
@@ -17,7 +15,6 @@ _HISTORICAL_BMP = frozenset(
 @tagged("odoobot")
 class TestEmojiDetection(MailBotCommon):
     def _picker_emojis(self):
-        """Every emoji `web`'s picker can insert."""
         path = get_module_path("web")
         self.assertTrue(path, "web is not installed")
         source = Path(path) / "static/src/components/emoji_picker/emoji_data.js"
@@ -31,12 +28,6 @@ class TestEmojiDetection(MailBotCommon):
         return emojis
 
     def test_every_picker_emoji_is_recognised(self):
-        """Anything the user can click in Odoo's own picker counts as an emoji.
-
-        The hand-maintained table this replaced stopped at U+1F9FF and rejected
-        87 of the 1452 entries -- a user picked 🧊 and was told they had not
-        sent an emoji.
-        """
         bot = self.env["mail.bot"]
         unrecognised = [
             emoji
@@ -50,7 +41,6 @@ class TestEmojiDetection(MailBotCommon):
         )
 
     def test_emoji_coverage_is_never_narrowed(self):
-        """Every codepoint the module has ever accepted is still accepted."""
         bot = self.env["mail.bot"]
         lost = [
             hex(codepoint)

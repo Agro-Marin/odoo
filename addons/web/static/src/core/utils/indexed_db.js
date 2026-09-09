@@ -31,9 +31,7 @@ export class IndexedDB {
     constructor(/** @type {string} */ name, /** @type {string} */ version) {
         this.name = name;
         this._tables = new Set([VERSION_TABLE]);
-        /**
-         * @type {IDBDatabase | null}
-         */
+        /** @type {IDBDatabase | null} */
         this._db = null;
         this._degraded = false;
         this.mutex = new Mutex();
@@ -76,9 +74,7 @@ export class IndexedDB {
         });
     }
 
-    /**
-     * @param {string|string[]|null} [tables=null]
-     */
+    /** @param {string|string[]|null} [tables=null] */
     async invalidate(tables = null) {
         return this.execute((db) => {
             if (db) {
@@ -118,9 +114,7 @@ export class IndexedDB {
         return this.mutex.exec(() => this._deleteDatabase(() => {}));
     }
 
-    /**
-     * @param {(db?: IDBDatabase) => any} callback
-     */
+    /** @param {(db?: IDBDatabase) => any} callback */
     async execute(callback) {
         return this.mutex.exec(() => this._execute(callback));
     }
@@ -403,9 +397,6 @@ export class IndexedDB {
      * @param {IDBDatabase} db
      * @param {string[]} tables
      * @param {{
-     * needsValue: boolean,
-     * shouldDelete: (cursor: IDBCursor | IDBCursorWithValue) => boolean,
-     * }} params
      * @returns {Promise<void>}
      */
     async _sweep(db, tables, { needsValue, shouldDelete }) {

@@ -128,9 +128,7 @@ export class ProductConfiguratorDialog extends Component {
         return _t("Total: %s", this.getFormattedTotal());
     }
 
-    /**
-     * @return {String}
-     */
+    /** @return {String} */
     getFormattedTotal() {
         const total = (this.state.products || []).reduce(
             (sum, product) => sum + product.price * product.quantity,
@@ -209,16 +207,12 @@ export class ProductConfiguratorDialog extends Component {
         });
     }
 
-    /**
-     * @return {Object}
-     */
+    /** @return {Object} */
     _getAdditionalRpcParams() {
         return {};
     }
 
-    /**
-     * @param {Number} productTmplId
-     */
+    /** @param {Number} productTmplId */
     async _addProduct(productTmplId) {
         const index = this.state.optionalProducts.findIndex(
             (p) => p.product_tmpl_id === productTmplId,
@@ -233,9 +227,7 @@ export class ProductConfiguratorDialog extends Component {
         }
     }
 
-    /**
-     * @param {Number} productTmplId
-     */
+    /** @param {Number} productTmplId */
     _removeProduct(productTmplId) {
         const index = this.state.products.findIndex(
             (p) => p.product_tmpl_id === productTmplId,
@@ -377,9 +369,7 @@ export class ProductConfiguratorDialog extends Component {
         ).customValue = customValue;
     }
 
-    /**
-     * @return {Object[]}
-     */
+    /** @return {Object[]} */
     get _allProducts() {
         return [...this.state.products, ...this.state.optionalProducts];
     }
@@ -392,16 +382,12 @@ export class ProductConfiguratorDialog extends Component {
         return findProduct(this._allProducts, productTmplId);
     }
 
-    /**
-     * @return {Boolean}
-     */
+    /** @return {Boolean} */
     isPossibleConfiguration() {
         return this.state.products.every(isPossibleCombination);
     }
 
-    /**
-     * @return {undefined}
-     */
+    /** @return {undefined} */
     async onConfirm(options) {
         await this._settleCombinations();
         if (!this.isPossibleConfiguration()) {

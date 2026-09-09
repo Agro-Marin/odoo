@@ -31,19 +31,11 @@ export class ReportController extends Component {
         this.model = useState(
             useModelWithSampleData(
                 this.props.Model,
-                // The model keeps these; handing it a reactive proxy of the
-                // props makes every read of metaData a subscription.
                 toRaw(this.props.modelParams),
                 this.modelOptions,
             ),
         );
-        // Before `useSetupAction`, which needs the root ref the chassis
-        // forwards: `ViewLayout` renders the view root now, so a `useRef`
-        // here would resolve to nothing and scroll restoration would stop
-        // silently.
         this.chassis = useViewChassis(this.chassisHooks);
-        // One toggler under two names: `chassis.props` carries it to
-        // `ViewLayout`, and the templates that predate ViewLayout read this.
         this.searchBarToggler = this.chassis.searchBarToggler;
         this.actionState = useSetupAction({
             rootRef: this.chassis.rootRef,
@@ -52,36 +44,22 @@ export class ReportController extends Component {
         });
     }
 
-    /**
-     * Hooks for {@link useViewChassis}, for a subclass whose no-content
-     * condition is its own. Overriding this rather than calling
-     * `useViewChassis` again matters: a second call builds a second
-     * `useSearchBarToggler`, and two togglers over one search bar disagree
-     * about whether it is open.
-     *
-     * @returns {Record<string, () => any>}
-     */
+    /** @returns {Record<string, () => any>} */
     get chassisHooks() {
         return {};
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get modelOptions() {
         return /** @type {any} */ (computeModelOptions(this.env, this.props.display));
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getLocalState() {
         return { metaData: this.model.metaData };
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getContext() {
         return {};
     }

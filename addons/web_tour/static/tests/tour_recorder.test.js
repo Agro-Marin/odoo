@@ -309,7 +309,7 @@ test("Save custom tour", async () => {
     await edit("tour_name");
     await animationFrame();
     await click(".o_button_save_confirm");
-    await runAllTimers(); // Wait that the save notification disappear
+    await runAllTimers();
 
     expect.verifySteps(["tour_name", "/", 1]);
 });
@@ -399,7 +399,7 @@ test("Selecting item in autocomplete field through Enter", async () => {
 test("Edit input after autofocus", async () => {
     class Dummy extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <div class="container">
                     <input type="text" class="o_input" t-ref="input"/>

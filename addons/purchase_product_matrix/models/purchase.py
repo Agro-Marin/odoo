@@ -65,10 +65,7 @@ class PurchaseOrder(models.Model):
                     combination - combination._without_no_variant_attributes()
                 )
 
-                # create or find product variant from combination
                 product = product_template._create_product_variant(combination)
-                # TODO replace the check on product_id by a first check on the ptavs and pnavs?
-                # and only create/require variant after no line has been found ???
                 order_lines = self.line_ids.filtered(
                     lambda line: (
                         (line._origin or line).product_id == product
@@ -79,7 +76,6 @@ class PurchaseOrder(models.Model):
                     )
                 )
 
-                # if product variant already exist in order lines
                 old_qty = sum(order_lines.mapped("product_qty"))
                 qty = cell["qty"]
                 diff = qty - old_qty
@@ -92,8 +88,6 @@ class PurchaseOrder(models.Model):
                 if order_lines:
                     if qty == 0:
                         if self.state in ["draft", "sent"]:
-                            # Remove lines if qty was set to 0 in matrix
-                            # only if PO state = draft/sent
                             self.line_ids -= order_lines
                         else:
                             order_lines.update({"product_qty": 0.0})
@@ -116,12 +110,6 @@ class PurchaseOrder(models.Model):
                                 )
                             )
                         order_lines[0].product_qty = qty
-                        # If we want to support multiple lines edition:
-                        # removal of other lines.
-                        # For now, an error is raised instead
-                        # if len(order_lines) > 1:
-                        #     # Remove 1+ lines
-                        #     self.line_ids -= order_lines[1:]
                 else:
                     if not default_po_line_vals:
                         OrderLine = self.env["purchase.order.line"]
@@ -145,10 +133,8 @@ class PurchaseOrder(models.Model):
                     )
             if product_ids:
                 if new_lines:
-                    # Add new PO lines
                     self.update({"line_ids": new_lines})
 
-                # Recompute prices for new/modified lines:
                 for line in self.line_ids.filtered(
                     lambda line: line.product_id.id in product_ids
                 ):
@@ -181,14 +167,11 @@ class PurchaseOrder(models.Model):
         return matrix
 
     def get_report_matrixes(self):
-        """Reporting method."""
         matrixes = []
         if self.report_grids:
             grid_configured_templates = self.line_ids.filtered(
                 "is_configurable_product"
             ).product_template_id
-            # TODO is configurable product and product_variant_count > 1
-            # configurable products are only configured through the matrix in purchase, so no need to check product_add_mode.
             for template in grid_configured_templates:
                 if (
                     len(

@@ -115,13 +115,6 @@
                 <t
                     t-set="format_number"
                     t-value="lambda x: int(x) if x == int(x) else x" />
-                <!-- In this step, we loop over every move of the picking and do the following
-                    1. We add the barcode column if any of the products has a barcode or if we have a tracked move
-                    2. We add From/To columns according to the type of the picking
-                    3. If a move has multiple move lines, we add a header line summarizing the move,
-                    then we then loop over indvidual move lines and print a breakdown of them
-                    4. If a move contains only one move line, the move is summarized in the heading only
-                    -->
                 <table
                     class="table o_main_table o_table_fixed"
                     t-if="o.move_line_ids and o.move_ids.move_line_ids.filtered(lambda ml: not ml.is_entire_pack)">
@@ -161,8 +154,6 @@
                             <t
                                 t-set="move_lines_without_entire_pack"
                                 t-value="move.move_line_ids.filtered(lambda ml: not ml.is_entire_pack)" />
-                            <!-- This flag is true if there are multiple move lines in a move, or if
-                            there is at least one tracked move line -->
                             <t
                                 t-set="move_has_multiple_lines"
                                 t-value="len(move.move_line_ids) &gt; 1 or any(move_line.lot_id or move_line.lot_name for move_line in move_lines_without_entire_pack)" />
@@ -185,8 +176,6 @@
                                         t-if="move.packaging_uom_id and move.packaging_uom_id != move.product_uom_id">
                                         (<span t-field="move.quantity_packaging_uom" t-options="{&quot;widget&quot;: &quot;integer&quot;}" /> <span t-field="move.packaging_uom_id.name" />) </span>
                                 </td>
-                                <!-- If a move contains only one move line, the move is summarized
-                                in the heading only -->
                                 <td
                                     class="text-start"
                                     t-if="from_col_exists"
@@ -202,8 +191,6 @@
                                         </t>
                                     </div>
                                 </td>
-                                <!-- If a move contains only one move line, the move is summarized
-                                in the heading only -->
                                 <td
                                     class="text-start"
                                     t-if="to_col_exists"
@@ -220,8 +207,6 @@
                                         </t>
                                     </div>
                                 </td>
-                                <!-- We add the barcode column if any of the products has a barcode
-                                or if we have a tracked move -->
                                 <td class="text-center" t-if="barcode_col_exists">
                                     <span
                                         t-if="move.product_id and move.product_id.barcode">
@@ -236,8 +221,6 @@
                                     </span>
                                 </td>
                             </tr>
-                            <!-- If a move has multiple move lines, we then loop over them and print
-                            a breakdown -->
                             <t
                                 t-foreach="move_lines_without_entire_pack.sorted(key=lambda ml: (ml.location_id.complete_name,                                               ml.location_dest_id.complete_name))"
                                 t-as="line"

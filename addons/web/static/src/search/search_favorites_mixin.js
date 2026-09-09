@@ -10,10 +10,8 @@ import {
 } from "./search_favorites.js";
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js";
 
-/** @import { FavoriteItem } from "./search_types" */
-
 /**
- * @template {new (...args: any[]) => any} T
+ * @template {new (...args: any[]) => any}
  * @param {T} Base
  */
 export const SearchFavoritesMixin = (Base) =>
@@ -71,9 +69,7 @@ export const SearchFavoritesMixin = (Base) =>
             return preFavorite;
         }
 
-        /**
-         * @param {Record<string, any>} [params]
-         */
+        /** @param {Record<string, any>} [params] */
         _getIrFilterDescription(params = {}) {
             const { description, isDefault, isShared, embeddedActionId } = params;
             const fns = actionContextCallbacks(this.env, "__getContext__");

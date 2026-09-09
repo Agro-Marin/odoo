@@ -137,9 +137,6 @@ def _parse_expression(expression: str) -> ast.AST | None:
 
 
 def _hasattr_guarded_chains(tree: ast.AST) -> list[list[str]]:
-    # `hasattr(object, 'x') and object.x` is how a template names a field an
-    # optional module adds; the guard makes the attribute legitimate on a
-    # model that lacks it, so the check must not report it.
     chains = []
     for node in ast.walk(tree):
         if (
@@ -516,10 +513,6 @@ class MailTemplate(models.Model):
             try:
                 expressions = self._compile_field_expressions(fname)
                 if model is not None:
-                    # A guard and the attribute it guards are usually two
-                    # QWeb attributes (`t-if` and `t-out`), so guards are
-                    # gathered over the whole field before any expression
-                    # is judged.
                     guarded = [
                         chain
                         for expression in expressions

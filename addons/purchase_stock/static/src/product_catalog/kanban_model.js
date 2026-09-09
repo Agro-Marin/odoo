@@ -4,13 +4,9 @@ import { ProductCatalogKanbanModel } from "@product/product_catalog/kanban_model
 import { getSuggestToggleState } from "./utils.js";
 
 export class PurchaseSuggestCatalogKanbanModel extends ProductCatalogKanbanModel {
-    /**
-     * @override  to reorder records with suggested_qty > 0 to the top, keeping original order.
-     */
+    /** @override to reorder records with suggested_qty > 0 to the top, keeping original order. */
     async _loadData(params, ...rest) {
         const sortBySuggested = (list) => {
-            // A real partition: `filter(x => x === 0)` for the remainder dropped
-            // every record whose suggested_qty was neither positive nor exactly 0.
             const suggested = list.filter((record) => record.suggested_qty > 0);
             const rest = list.filter((record) => !(record.suggested_qty > 0));
             return [...suggested, ...rest];
@@ -34,8 +30,6 @@ export class PurchaseSuggestCatalogKanbanModel extends ProductCatalogKanbanModel
         return result;
     }
 
-    /** Pass suggest context to /product/catalog/order_lines_info RPC
-     * to add computed ["suggested_qty"] key to productCatalogData */
     _getOrderLinesInfoParams(loadParams, productIds) {
         const base = super._getOrderLinesInfoParams(loadParams, productIds);
         return { ...base, ...loadParams.context };

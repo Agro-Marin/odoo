@@ -38,29 +38,8 @@ import {
 
 /**
  * @typedef {{
- * fieldName: string;
- * func: string;
- * name: string;
- * }} MeasureSpec
  * @typedef {{
- * fields: Record<string, any>;
- * records: Record<string, any>[];
- * }} ModelData
  * @typedef {{
- * model: string;
- * method?: string;
- * route?: string;
- * args?: any[];
- * domain?: any[];
- * groupBy?: string[];
- * aggregates?: string[];
- * specification?: Record<string, any>;
- * recordIds?: number[];
- * group_by?: string;
- * progress_bar?: { field: string; colors: Record<string, string> };
- * grouping_sets?: string[][];
- * [key: string]: any;
- * }} MockRpcParams
  */
 
 registry
@@ -88,10 +67,7 @@ export class SampleServer {
     /**
      * @param {string} modelName
      * @param {Record<string, any>} fields
-     * @param {Record<string, Record<string, any>>} [relatedModels] the field
-     *      descriptions `get_views` returned for the models this view reaches,
-     *      keyed by model name. Without them a relation is invented with three
-     *      fields, and every other field of it samples as `false`.
+     * @param {Record<string, Record<string, any>>} [relatedModels]
      */
     constructor(modelName, fields, relatedModels = {}) {
         this.mainModel = modelName;
@@ -157,9 +133,7 @@ export class SampleServer {
         throw new SampleServer.UnimplementedRouteError();
     }
 
-    /**
-     * @param {Record<string, any>[] | null} groups
-     */
+    /** @param {Record<string, any>[] | null} groups */
     setExistingGroups(groups) {
         this.existingGroups = groups;
     }
@@ -255,7 +229,6 @@ export class SampleServer {
      * @param {string} modelName
      * @param {string} groupBySpec
      * @returns {{ fieldName: string, type: string, interval: string | undefined,
-     * relation: string | undefined, alias: string, field: Record<string, any> } | undefined}
      */
     _resolveGroupBy(modelName, groupBySpec) {
         const [fieldName, interval] = groupBySpec.split(":");
@@ -318,9 +291,6 @@ export class SampleServer {
                 } else if (field.type === "many2one") {
                     const relModel = this.data[field.relation];
                     if (!relModel) {
-                        // A relation's own relations are not sampled: the view
-                        // never asked for that model, so there is nothing to
-                        // read from.
                         record[fieldName] = false;
                         continue;
                     }
@@ -555,13 +525,6 @@ export class SampleServer {
                 continue;
             }
             if (field.type === "many2one") {
-                // Answer the subfields that were asked for, as the x2many
-                // branch below does. Flattening every many2one to
-                // `{id, display_name}` silently dropped the rest of an
-                // accepted request, and no caller could tell: a view reaching
-                // a field through a many2one -- a map's partner coordinates, an
-                // arch giving a many2one a sub-view -- got sample records with
-                // that field missing rather than sampled.
                 const relFields = Object.keys(
                     params.specification[fieldName].fields || {},
                 ).filter((relField) => relField !== "display_name");
@@ -700,9 +663,7 @@ export class SampleServer {
         }
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _populateModels() {
         if (!this.populated) {
             for (const modelName of Object.keys(this.data)) {

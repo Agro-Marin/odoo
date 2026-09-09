@@ -10,13 +10,7 @@ import { ListRenderer } from "@web/views/list";
 
 import { PromoteStudioDialog } from "./promote_studio_dialog.js";
 
-/**
- * @typedef {ListRenderer & {
- *     actionService: import("services").ServiceFactories["action"],
- *     dialogService: import("services").ServiceFactories["dialog"],
- *     studioEditable: boolean,
- * }} PromoteStudioListRenderer
- */
+/** @typedef {ListRenderer & { */
 
 export const patchListRendererDesktop = () => ({
     /** @this {PromoteStudioListRenderer} */

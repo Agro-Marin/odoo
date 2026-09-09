@@ -18,15 +18,7 @@ import { globalSingleton } from "./utils/global_singleton.js";
 
 const log = makeAssetLog("js");
 
-/**
- * @typedef {{
- * cssLibs: string[];
- * jsLibs: string[];
- * esmUrl: string | null;
- * esmSpecifiers: string[] | null;
- * esmImportMap: Record<string, string> | null;
- * }} BundleFileNames
- */
+/** @typedef {{ */
 
 const __odoo_assets_state__ = globalSingleton("assets", () => ({
     globalBundleCache: new Map(),
@@ -195,9 +187,7 @@ function seedFromDocument(targetDoc, cacheMap) {
     }
 }
 
-/**
- * @param {Document} targetDoc
- */
+/** @param {Document} targetDoc */
 function reseedFromDocument(targetDoc) {
     const cacheMap = assetCacheByDocument.get(targetDoc);
     if (cacheMap) {

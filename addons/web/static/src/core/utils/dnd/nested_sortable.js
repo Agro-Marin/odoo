@@ -6,10 +6,7 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
 import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_utils";
 import { viewOf } from "@web/core/utils/dom/ui";
 
-/** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
-/**
- * @typedef {DraggableHandlerParams & { group: HTMLElement | null }} NestedSortableHandlerParams
- */
+/** @typedef {DraggableHandlerParams & { group: HTMLElement | null }} NestedSortableHandlerParams */
 
 /**
  * @typedef {import("./sortable").SortableParams} NestedSortableParams
@@ -146,7 +143,7 @@ function notifyMove(ctx, callHandler, prevPos) {
  * @param {Record<string, any>} ctx
  * @param {Function} callHandler
  * @param {Record<string, any>} position
- * @returns {boolean} whether the travel consumed this move
+ * @returns {boolean}
  */
 function nestHorizontally(ctx, callHandler, position) {
     const xInterval = ctx.prevNestX - ctx.pointer.x;

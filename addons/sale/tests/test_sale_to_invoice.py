@@ -651,8 +651,6 @@ class TestSaleToInvoice(TestSaleCommon):
                     "The invoiced amount should be zero, as no invoice are validated for now",
                 )
             else:
-                # A draft invoice claims its quantity, so a second invoice
-                # cannot be raised for it; the amounts wait for it to post.
                 if line == self.sol_prod_order:
                     self.assertEqual(
                         line.qty_to_invoice,
@@ -2096,15 +2094,10 @@ class TestSaleToInvoice(TestSaleCommon):
         self.assertEqual(invoice.partner_id, sale_order.partner_id)
 
     def test_view_draft_invoices_domain(self):
-        """view_draft_invoices()'s action domain must resolve against a real
-        field on account.move.line (sale_line_ids, plural) rather than raise
-        on a nonexistent one."""
         wizard = (
             self.env["sale.advance.payment.inv"].with_context(self.context).create({})
         )
         action = wizard.view_draft_invoices()
-        # Executing the domain against the ORM is what would raise if the
-        # referenced field did not exist.
         self.env["account.move"].search(action["domain"])
 
     def test_downpayment_storno(self):

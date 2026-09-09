@@ -63,9 +63,7 @@ export class MultiCreatePopover extends Component {
         Object.assign(this.multiCreateData.timeRange, timeRange);
     }
 
-    /**
-     * @returns {Promise<boolean>}
-     */
+    /** @returns {Promise<boolean>} */
     async isValidMultiCreateData() {
         const isValid = await this.multiCreateData.record.checkValidity({
             displayNotification: true,

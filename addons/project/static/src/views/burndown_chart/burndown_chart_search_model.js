@@ -4,20 +4,15 @@ import { useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
 
 export class BurndownChartSearchModel extends SearchModel {
-    /**
-     * @override
-     */
+    /** @override */
     setup() {
         this.notificationService = useService("notification");
         super.setup(...arguments);
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     async load() {
         await super.load(...arguments);
-        // Store date and step_id searchItemId in the SearchModel for reuse in other functions.
         for (const searchItem of Object.values(this.searchItems)) {
             if (["dateGroupBy", "groupBy"].includes(searchItem.type)) {
                 if (
@@ -42,11 +37,8 @@ export class BurndownChartSearchModel extends SearchModel {
         }
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     deactivateGroup(groupId) {
-        // Prevent removing 'Date & Stage' and 'Date & is closed' group by from the search
         if (this.searchItems[this.dateSearchItemId].groupId === groupId) {
             if (
                 this.query.some((queryElem) =>
@@ -66,11 +58,8 @@ export class BurndownChartSearchModel extends SearchModel {
         super.deactivateGroup(groupId);
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     toggleDateGroupBy(searchItemId, intervalId) {
-        // Ensure that there is always one and only one date group by selected.
         if (searchItemId === this.dateSearchItemId) {
             const filtered_query = [];
             let triggerNotification = false;
@@ -93,12 +82,8 @@ export class BurndownChartSearchModel extends SearchModel {
         super.toggleDateGroupBy(...arguments);
     }
 
-    /**
-     * @override
-     * Ensure here that there is always either the 'stage' or the 'is_closed' searchItemId inside the query.
-     */
+    /** @override */
     toggleSearchItem(searchItemId) {
-        // if the current searchItem stage/is_closed, the counterpart is added before removing the current searchItem
         if (searchItemId === this.isClosedSearchItemId) {
             super.toggleSearchItem(this.stageIdSearchItemId);
         } else if (searchItemId === this.stageIdSearchItemId) {
@@ -108,19 +93,15 @@ export class BurndownChartSearchModel extends SearchModel {
     }
 
     /**
-     * Adds a notification related to the group by constraint of the Burndown Chart.
-     * @param body The message to display in the notification.
+     * @param body
      * @private
      */
     _addGroupByNotification(body) {
         this.notificationService.add(body, { type: "danger" });
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     async _notify() {
-        // Ensure that we always group by date first and by step_id/is_closed second
         let stageIdIndex = -1;
         let dateIndex = -1;
         let isClosedIndex = -1;
@@ -144,9 +125,6 @@ export class BurndownChartSearchModel extends SearchModel {
             if (isClosedIndex > dateIndex) {
                 dateIndex += 1;
             }
-            // Burn-up mode groups by is_closed (stageIdIndex is -1 here); hoist
-            // the is_closed element, not stageIdIndex — splice(-1,1) would move
-            // the last query element to the front instead.
             this.query.splice(0, 0, this.query.splice(isClosedIndex, 1)[0]);
         } else if (stageIdIndex > 0) {
             if (stageIdIndex > dateIndex) {

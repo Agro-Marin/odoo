@@ -3,8 +3,6 @@
 
 import { download } from "@web/core/network/download";
 
-/** @import { Context, ReportAction } from "@web/webclient/actions/action_service" */
-
 /**
  * @param {ReportAction} action
  * @param {Context} [userContext]

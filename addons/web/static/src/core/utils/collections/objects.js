@@ -13,7 +13,7 @@ function sameValue(a, b) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T} obj1
  * @param {T} obj2
  * @param {(a: any, b: any) => boolean} [comparisonFn]
@@ -144,7 +144,7 @@ function _deepEqualInner(a, b, seen) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T} value
  * @param {WeakMap<object, object>} [seen]
  * @returns {T}
@@ -198,7 +198,7 @@ export function toRawDeep(value, seen = new WeakMap()) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T} object
  * @return {T}
  */
@@ -232,8 +232,8 @@ export function isObject(value) {
 }
 
 /**
- * @template {Record<string, any>} T
- * @template {keyof T} K
+ * @template {Record<string, any>}
+ * @template {keyof T}
  * @param {T} object
  * @param {...(K)} properties
  * @returns {Omit<T, K>}
@@ -278,8 +278,8 @@ function hasPropertyBelowObject(object, property) {
 }
 
 /**
- * @template T
- * @template {keyof T} K
+ * @template
+ * @template {keyof T}
  * @param {T} object
  * @param {...(K)} properties
  * @returns {Pick<T, K>}

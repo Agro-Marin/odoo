@@ -90,9 +90,7 @@ export function isActivationKey(ev) {
     return ev.key === "Enter" || ev.key === " ";
 }
 
-/**
- * @param {ParentNode} root
- */
+/** @param {ParentNode} root */
 export function adoptAccessKeys(root) {
     for (const el of root.querySelectorAll("[accesskey]")) {
         if (el instanceof HTMLElement) {

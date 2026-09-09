@@ -3,11 +3,6 @@ import { makeActiveField, RelationalRecord } from "@web/model/relational_model";
 
 import { ProjectTaskRelationalModel } from "../project_task_relational_model.js";
 
-// NB: step-column deletion (unlink wizard + manager gating) lives in
-// ProjectGroupConfigMenu, not in a DynamicGroupList override: the model
-// layer has no action service to open the wizard with, and the component
-// is shared by the kanban and the grouped list.
-
 export class ProjectTaskRecord extends RelationalRecord {
     setup() {
         super.setup(...arguments);
@@ -43,18 +38,7 @@ export class ProjectTaskRecord extends RelationalRecord {
 }
 
 export class ProjectTaskKanbanModel extends ProjectTaskRelationalModel {
-    /**
-     * WIP limit per workflow step, keyed by step id. Empty unless the board is
-     * grouped by `step_id`.
-     *
-     * The limit lives on `project.workflow.step`, and the kanban's group data
-     * carries only the groupby value, its label and the count — the `<groupby>`
-     * arch element that would bring comodel fields along is parsed by the list
-     * view only. One read per board load, for the steps actually on screen, is
-     * cheaper than denormalising the limit onto every task row.
-     *
-     * @type {Record<number, number>}
-     */
+    /** @type {Record<number, number>} */
     wipLimits = {};
 
     async webReadGroup(config) {
@@ -67,13 +51,6 @@ export class ProjectTaskKanbanModel extends ProjectTaskRelationalModel {
         return result;
     }
 
-    /**
-     * Read the WIP limit of every step on the board.
-     *
-     * Silently leaves the map empty when the read fails: a column header that
-     * cannot show its limit is a smaller problem than a board that will not
-     * render.
-     */
     async _loadWipLimits(config, result) {
         if (config.groupBy?.[0] !== "step_id") {
             this.wipLimits = {};

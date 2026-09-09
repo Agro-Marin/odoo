@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- We want to activate SO template by default for easier demoing. -->
     <record id="base.group_user" model="res.groups">
         <field
             name="implied_ids"

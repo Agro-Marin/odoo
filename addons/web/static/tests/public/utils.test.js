@@ -127,7 +127,7 @@ describe("patch dynamic content", () => {
         /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-att-style": /** @param {any} el @param {any} old */ (el, old) => ({
+                "t-att-style": /** @param {any} el */ (el, old) => ({
                     changeMe: 50,
                     doubleMe: old.doubleMe * 2,
                     addMe: 1000,
@@ -155,7 +155,7 @@ describe("patch dynamic content", () => {
         /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-on-click": /** @param {any} el @param {any} oldFn */ (el, oldFn) => {
+                "t-on-click": /** @param {any} el */ (el, oldFn) => {
                     oldFn();
                     expect.step("patch");
                 },
@@ -172,7 +172,7 @@ describe("patch dynamic content", () => {
         /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-on-click": /** @param {any} el @param {any} oldFn */ (el, oldFn) => {
+                "t-on-click": /** @param {any} el */ (el, oldFn) => {
                     oldFn();
                     expect.step("patch");
                 },

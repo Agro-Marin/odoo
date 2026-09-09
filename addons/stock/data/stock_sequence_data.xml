@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- Sequences for orderpoint -->
     <record id="sequence_mrp_op" model="ir.sequence">
         <field name="name">Stock orderpoint</field>
         <field name="code">stock.orderpoint</field>
@@ -12,7 +11,6 @@
         <field name="company_id" />
     </record>
 
-    <!-- Sequences for pickings -->
     <record id="seq_picking_internal" model="ir.sequence">
         <field name="name">Picking INT</field>
         <field name="code">stock.picking</field>
@@ -21,7 +19,6 @@
         <field name="company_id" eval="False" />
     </record>
 
-    <!-- Sequences from tracking numbers -->
     <record id="sequence_production_lots" model="ir.sequence">
         <field name="name">Serial Numbers</field>
         <field name="code">stock.lot.serial</field>
@@ -32,7 +29,6 @@
         <field name="company_id" eval="False" />
     </record>
 
-    <!-- Sequences for stock.package -->
     <record id="seq_package" model="ir.sequence">
         <field name="name">Packages</field>
         <field name="code">stock.package</field>
@@ -41,7 +37,6 @@
         <field name="company_id" eval="False" />
     </record>
 
-    <!-- Scheduler -->
     <record id="ir_cron_scheduler_action" model="ir.cron" forcecreate="True">
         <field name="name">Procurement: run scheduler</field>
         <field name="model_id" ref="model_stock_scheduler" />

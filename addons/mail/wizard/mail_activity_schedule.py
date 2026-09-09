@@ -345,9 +345,6 @@ class MailActivitySchedule(models.TransientModel):
     def _plan_preview_responsible(
         self, template: MailActivityPlanTemplate, applied_on: models.BaseModel
     ) -> ResUsers | Literal[False]:
-        # The preview stands for one record. With several (or none) the rule is
-        # asked against an empty one, and a complaint -- error or warning -- is
-        # how it says the answer depends on the record it was not given.
         result = template._get_responsible_and_complaints(
             self.plan_on_demand_user_id, applied_on
         )

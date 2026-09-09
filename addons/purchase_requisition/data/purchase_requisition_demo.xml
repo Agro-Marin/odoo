@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!--Blanket Order Agreement-->
         <record id="bo_requisition" model="purchase.requisition">
             <field name="user_id" ref="base.user_admin" />
             <field name="vendor_id" ref="base.res_partner_1" />
@@ -19,7 +18,6 @@
             model="purchase.requisition"
             name="action_confirm"
             eval="[[ref('bo_requisition')]]" />
-        <!--Resource: purchase.order-->
         <record id="rfq1" model="purchase.order">
             <field name="partner_id" ref="base.res_partner_1" />
             <field name="user_id" ref="base.user_admin" />
@@ -55,12 +53,6 @@
             <field name="price_unit">60</field>
             <field name="product_qty">10</field>
         </record>
-        <!-- Call to Tender, i.e. linked RFQs -->
-        <!--
-            Note that forcecreate="0" is added to this demo data due to product type being updated to 'product'
-            by stock, but upgrade issue will occur since 'product' type won't exist yet in purchase when trying
-            to add the new PO lines (i.e. stock product type update won't exist yet, but it will be in the db)
-        -->
         <record id="rfq3" model="purchase.order" forcecreate="0">
             <field name="partner_id" ref="base.res_partner_1" />
             <field name="user_id" ref="base.user_admin" />

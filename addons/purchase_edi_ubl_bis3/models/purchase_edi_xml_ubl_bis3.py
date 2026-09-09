@@ -13,10 +13,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
     _inherit = ["account.edi.xml.ubl_bis3"]
     _description = "Purchase UBL BIS Ordering 3.5"
 
-    # -------------------------------------------------------------------------
-    # Purchase Order EDI Export
-    # -------------------------------------------------------------------------
-
     def _export_order(self, purchase_order):
         vals = {"purchase_order": purchase_order}
         document_node = self._get_purchase_order_node(vals)
@@ -26,7 +22,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         return etree.tostring(xml_content, xml_declaration=True, encoding="UTF-8")
 
     def _setup_base_lines(self, vals):
-        # EXTENDS account.edi.xml.ubl_bis3
         super()._setup_base_lines(vals)
 
         for base_line in vals["base_lines"]:
@@ -90,8 +85,8 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
                 "company": purchase_order.company_id,
                 "currency_id": purchase_order.currency_id,
                 "company_currency_id": purchase_order.company_id.currency_id,
-                "use_company_currency": False,  # If true, use the company currency for the amounts instead of the order currency
-                "fixed_taxes_as_allowance_charges": True,  # If true, include fixed taxes as AllowanceCharges on lines instead of as taxes
+                "use_company_currency": False,
+                "fixed_taxes_as_allowance_charges": True,
             }
         )
 
@@ -169,7 +164,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
             }
 
     def _add_purchase_order_allowance_charge_nodes(self, document_node, vals):
-        # OVERRIDE
         ubl_values = vals["_ubl_values"]
         document_node["cac:AllowanceCharge"] = [
             self._ubl_get_allowance_charge_early_payment(vals, early_payment_values)
@@ -179,7 +173,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         ]
 
     def _add_purchase_order_tax_total_nodes(self, document_node, vals):
-        # OVERRIDE
         sub_vals = {
             **vals,
             "document_node": document_node,
@@ -284,7 +277,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         self._add_document_line_id_nodes(line_node, vals)
 
     def _add_purchase_order_line_amount_nodes(self, line_node, vals):
-        # OVERRIDE
         sub_vals = {
             **vals,
             "line_node": line_node,
@@ -296,7 +288,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         self._ubl_add_line_extension_amount_node(sub_vals)
 
     def _add_purchase_order_line_allowance_charge_nodes(self, line_node, vals):
-        # OVERRIDE
         sub_vals = {
             **vals,
             "line_node": line_node,
@@ -306,19 +297,15 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         }
         self._ubl_add_line_allowance_charge_nodes(sub_vals)
 
-        # Discount.
         self._ubl_add_line_allowance_charge_nodes_for_discount(sub_vals)
 
-        # Recycling contribution taxes.
         self._ubl_add_line_allowance_charge_nodes_for_recycling_contribution_taxes(
             sub_vals
         )
 
-        # Excise taxes.
         self._ubl_add_line_allowance_charge_nodes_for_excise_taxes(sub_vals)
 
     def _ubl_add_line_item_name_description_nodes(self, vals):
-        # EXTENDS account.edi.xml.ubl_bis3
         super()._ubl_add_line_item_name_description_nodes(vals)
 
         item_node = vals["item_node"]
@@ -328,7 +315,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
             item_node["cbc:Name"]["_text"] = supplier_info.product_name
 
     def _ubl_add_line_item_identification_nodes(self, vals):
-        # EXTENDS account.edi.xml.ubl_bis3
         super()._ubl_add_line_item_identification_nodes(vals)
 
         item_node = vals["item_node"]
@@ -340,7 +326,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
             }
 
     def _add_purchase_order_line_item_nodes(self, line_node, vals):
-        # OVERRIDE
         sub_vals = {
             **vals,
             "line_node": line_node,
@@ -351,7 +336,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         self._ubl_add_line_item_node(sub_vals)
 
     def _add_purchase_order_line_price_nodes(self, line_node, vals):
-        # OVERRIDE
         base_line = vals["base_line"]
         ubl_values = base_line["_ubl_values"]
 
@@ -365,7 +349,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         }
 
     def _ubl_get_line_allowance_charge_discount_node(self, vals, discount_values):
-        # EXTENDS account.edi.xml.ubl_bis3
         discount_node = super()._ubl_get_line_allowance_charge_discount_node(
             vals, discount_values
         )
@@ -374,16 +357,7 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
         discount_node["cbc:BaseAmount"] = None
         return discount_node
 
-    # -------------------------------------------------------------------------
-    # Purchase Order EDI Import
-    # -------------------------------------------------------------------------
-
     def _prepare_order_vals(self, order, tree):
-        """Fill order details by extracting details from xml tree.
-        param order: Order to fill details from xml tree.
-        param tree: Xml tree to extract details.
-        :return: list of logs to add warning and information about data from xml.
-        """
         order_vals, logs = super()._prepare_order_vals(order, tree)
         partner, partner_logs = self._import_partner(
             order.company_id,
@@ -411,10 +385,8 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
             document_type="order",
             tax_type="purchase",
         )
-        # adapt each line to purchase.order.line
         for line in lines_vals:
             line["product_qty"] = line.pop("quantity")
-            # remove invoice line fields
             line.pop("deferred_start_date", False)
             line.pop("deferred_end_date", False)
             if not line.get("product_id"):
@@ -426,7 +398,6 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
                 )
         lines_vals += allowance_charges_line_vals
 
-        # Update order with lines excluding discounts
         order_vals["line_ids"] = [Command.create(line_vals) for line_vals in lines_vals]
         logs += partner_logs + delivery_logs + line_logs + allowance_charges_logs
 

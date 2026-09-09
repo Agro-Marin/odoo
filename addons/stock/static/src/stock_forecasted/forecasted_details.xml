@@ -8,8 +8,7 @@
                     <th scope="col">Available</th>
                     <th scope="col" class="text-end">Outgoing</th>
                     <th scope="col">Used by</th>
-                    <th scope="col"></th> <!-- Action Button -->
-                    <th scope="col">Delivery Date</th>
+                    <th scope="col"></th>                    <th scope="col">Delivery Date</th>
                 </tr>
             </thead>
             <tbody>

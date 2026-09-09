@@ -34,9 +34,7 @@ class FormDialogStackService {
 }
 
 const formDialogStackService = {
-    /**
-     * @returns {FormDialogStackService}
-     */
+    /** @returns {FormDialogStackService} */
     start() {
         return new FormDialogStackService();
     },

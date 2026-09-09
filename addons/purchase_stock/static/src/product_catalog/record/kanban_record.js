@@ -4,10 +4,7 @@ import { PurchaseProductCatalogKanbanRecord } from "@purchase/product_catalog/ka
 import { ProductCatalogPurchaseSuggestOrderLine } from "./purchase_order_line.js";
 
 export class ProductCatalogPurchaseSuggestKanbanRecord extends PurchaseProductCatalogKanbanRecord {
-    /* Hides suggest line if suggest_qty == qty in PO */
     getRecordClasses(...args) {
-        // Spread, not the rest-array itself: `super.getRecordClasses([...])`
-        // handed the base a single array argument instead of the original ones.
         const classes = super.getRecordClasses(...args) || "";
         const catalogData = this.productCatalogData || {};
 
@@ -24,7 +21,6 @@ export class ProductCatalogPurchaseSuggestKanbanRecord extends PurchaseProductCa
         return ProductCatalogPurchaseSuggestOrderLine;
     }
 
-    /** Add suggested_qty or pricelist_min_qty (the greater one) if positive, otherwise add 1. */
     addProduct() {
         const { min_qty = 1, suggested_qty = 0 } = this.productCatalogData;
         let quantity_to_add = Math.max(min_qty, suggested_qty, 1);

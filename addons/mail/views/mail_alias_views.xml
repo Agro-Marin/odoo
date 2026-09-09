@@ -104,9 +104,6 @@
         <field name="model">mail.alias</field>
         <field name="arch" type="xml">
             <search string="Search Alias">
-                <!-- First, so the free-text box searches the whole address.
-                    `alias_name` alone cannot match "jobs@example.com": the
-                    column only ever holds the local part. -->
                 <field name="alias_full_name" />
                 <field name="alias_name" />
                 <field name="alias_domain_id" />

@@ -47,21 +47,10 @@ export class FileViewer extends Component {
         modal: true,
     };
 
-    /**
-     * @type {{ dx: number, dy: number, x: number, y: number }}
-     */
+    /** @type {{ dx: number, dy: number, x: number, y: number }} */
     translate;
 
-    /**
-     * @type {{
-     *     index: number,
-     *     file: any,
-     *     imageLoaded: boolean,
-     *     scale: number,
-     *     angle: number,
-     *     isIframeLoaded: boolean,
-     * }}
-     */
+    /** @type {{ */
     state;
 
     setup() {
@@ -149,9 +138,7 @@ export class FileViewer extends Component {
         this.activateFile(this.state.index === 0 ? last : this.state.index - 1);
     }
 
-    /**
-     * @param {Array<Object>} files
-     */
+    /** @param {Array<Object>} files */
     onFilesUpdated(files) {
         if (files === this.props.files) {
             return;
@@ -215,9 +202,7 @@ export class FileViewer extends Component {
         }
     }
 
-    /**
-     * @param {WheelEvent} ev
-     */
+    /** @param {WheelEvent} ev */
     onWheelImage(ev) {
         if (ev.deltaY > 0) {
             this.zoomOut({ scroll: true });
@@ -226,9 +211,7 @@ export class FileViewer extends Component {
         }
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onPointerdownImage(ev) {
         if (this.isDragging) {
             return;
@@ -257,9 +240,7 @@ export class FileViewer extends Component {
         this.updateZoomerStyle();
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onPointermoveView(ev) {
         if (!this.isDragging) {
             return;
@@ -293,9 +274,7 @@ export class FileViewer extends Component {
         this.state.angle = (this.state.angle + 90) % 360;
     }
 
-    /**
-     * @param {{ scroll?: boolean }} options
-     */
+    /** @param {{ scroll?: boolean }} options */
     zoomIn({ scroll = false } = {}) {
         this.state.scale = Math.min(
             this.maxScale,
@@ -304,9 +283,7 @@ export class FileViewer extends Component {
         this.updateZoomerStyle();
     }
 
-    /**
-     * @param {{ scroll?: boolean }} options
-     */
+    /** @param {{ scroll?: boolean }} options */
     zoomOut({ scroll = false } = {}) {
         if (this.state.scale === this.minScale) {
             return;

@@ -20,9 +20,7 @@ const SELECTED_ROW = `
         <td name="baz" data-col-index="2"><span>no input</span></td>
     </tr>`;
 
-/**
- * @param {Record<string, any>} [opts]
- */
+/** @param {Record<string, any>} [opts] */
 function setup({
     columns = [
         { id: 1, name: "foo", type: "field" },
@@ -169,9 +167,7 @@ describe("applyCellKeydownEditModeStayOnRow", () => {
 });
 
 describe("applyCellKeydownMultiEditMode", () => {
-    /**
-     * @param {Record<string, any>} [opts]
-     */
+    /** @param {Record<string, any>} [opts] */
     function multi({ selection = [{ id: "a" }, { id: "b" }], dirty = false } = {}) {
         const s = setup({ props: { list: { selection, records: selection } } });
         s.nav.lastIsDirty = dirty;
@@ -243,9 +239,7 @@ describe("applyCellKeydownMultiEditMode", () => {
 });
 
 describe("applyCellKeydownEditModeGroup", () => {
-    /**
-     * @param {Record<string, any>} [opts]
-     */
+    /** @param {Record<string, any>} [opts] */
     function grouped({
         editable = "bottom",
         canCreate = true,

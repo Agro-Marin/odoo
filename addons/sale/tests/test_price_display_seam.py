@@ -8,16 +8,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 
 @tagged("post_install", "-at_install")
 class TestPriceDisplaySeam(SaleCommon):
-    """`_get_price_display` is what a line type overrides to price itself.
-
-    event_sale prices off the ticket, event_booth_sale off the booth and
-    sale_loyalty off the reward, all through this one method. It is easy to lose
-    without noticing, because `_compute_price_and_discount` can compute the same
-    number inline for a regular line and still look right for every product that
-    is priced off its own product -- which is all of them in this module's own
-    tests. This asserts the seam is consulted, not the answer it happens to give.
-    """
-
     def test_the_price_compute_goes_through_the_display_seam(self):
         origin = SaleOrderLine._get_price_display
         seen = []
@@ -46,7 +36,6 @@ class TestPriceDisplaySeam(SaleCommon):
         )
 
     def test_an_override_of_the_seam_reaches_price_unit(self):
-        """What the seam returns is what the line is priced at."""
         line = self.env["sale.order.line"].create(
             {
                 "order_id": self.empty_order.id,

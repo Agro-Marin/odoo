@@ -9,8 +9,6 @@ import { SPECIAL } from "./search_state.js";
 import { BACKEND_INTERVAL_OPTIONS } from "./utils/dates.js";
 import { FACET_COLORS, FACET_ICONS } from "./utils/misc.js";
 
-/** @import { Facet, QueryGroup, SearchItems } from "./search_types" */
-
 /**
  * @param {string} intervalId
  * @returns {string}

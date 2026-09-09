@@ -239,9 +239,7 @@ export class PeerToPeer extends EventTarget {
     /** @type {Array<RTCIceServer>} */
     _iceServers;
     _isPendingNotify = false;
-    /**
-     * @type {Map<string|number, QueuedNotification>}
-     */
+    /** @type {Map<string|number, QueuedNotification>} */
     _notificationsToSend = new Map();
     _isAntiGlareEnabled = true;
     /** @type {number} */
@@ -258,9 +256,7 @@ export class PeerToPeer extends EventTarget {
         [STREAM_TYPE.SCREEN]: null,
         [STREAM_TYPE.CAMERA]: null,
     });
-    /**
-     * @type {Object<string, (id: number, message: string) => void>}
-     */
+    /** @type {Object<string, (id: number, message: string) => void>} */
     _loggingFunctions = {
         [LOG_LEVEL.DEBUG]: () => {},
         [LOG_LEVEL.INFO]: () => {},
@@ -451,9 +447,7 @@ export class PeerToPeer extends EventTarget {
      * @param {string} content
      */
     async handleNotification(id, content) {
-        /**
-         * @type {{ event: INTERNAL_EVENT[keyof INTERNAL_EVENT], channelId: number, payload: NotificationPayload, }}
-         */
+        /** @type {{ event: INTERNAL_EVENT[keyof INTERNAL_EVENT], channelId: number, payload: NotificationPayload, }} */
         let notification;
         try {
             notification = JSON.parse(content);

@@ -5,9 +5,7 @@ import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 
 import { fields } from "../common/record.js";
-/**
- * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
- */
+/** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const threadPatch = {
     setup() {
         super.setup();

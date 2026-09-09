@@ -522,9 +522,7 @@ test("willDrag is lowered again when the press never becomes a drag", async () =
     expect(dragState.willDrag).toBe(false);
 });
 
-/**
- * @param {Record<string, any>} [hookParams]
- */
+/** @param {Record<string, any>} [hookParams] */
 function makeDraggableList(hookParams = {}) {
     class List extends Component {
         static template = xml`
@@ -678,9 +676,7 @@ test("a drag released under the tolerance never starts and leaves no residue", a
     expectNoDragResidue();
 });
 
-/**
- * @param {Record<string, any>} [hookParams]
- */
+/** @param {Record<string, any>} [hookParams] */
 function makeScrollableDraggableList(hookParams = {}) {
     class List extends Component {
         static template = xml`
@@ -701,9 +697,7 @@ function makeScrollableDraggableList(hookParams = {}) {
     return List;
 }
 
-/**
- * @param {number} y
- */
+/** @param {number} y */
 async function dragIntoScrollerAt(y) {
     const helpers = await contains(".item:first-child").drag({
         initialPointerMoveDistance: 0,
@@ -874,9 +868,7 @@ test("a delayed drag starts when the pointer stayed on the element", async () =>
     expectNoDragResidue();
 });
 
-/**
- * @param {string} itemInner
- */
+/** @param {string} itemInner */
 function makeTouchDraggableList(itemInner = "") {
     class List extends Component {
         static template = xml`

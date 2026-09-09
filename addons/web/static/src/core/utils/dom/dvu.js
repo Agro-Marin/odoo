@@ -73,9 +73,7 @@ const viewport = {
     },
 };
 
-/**
- * @returns {{ width: number, height: number }}
- */
+/** @returns {{ width: number, height: number }} */
 export function getViewportDimensions() {
     return {
         width: browser.visualViewport?.width ?? browser.innerWidth,
@@ -91,9 +89,7 @@ function onViewportChange(callback) {
     return viewport.addListener(callback);
 }
 
-/**
- * @param {Function} callback
- */
+/** @param {Function} callback */
 export function useViewportChange(callback) {
     const removeListener = onViewportChange(callback);
     onWillUnmount(() => removeListener());

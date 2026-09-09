@@ -14,9 +14,7 @@ import { registry } from "@web/core/registry";
 
 describe.current.tags("desktop");
 
-/**
- * @param {{ controlled?: boolean, reply?: any }} [options]
- */
+/** @param {{ controlled?: boolean, reply?: any }} [options] */
 function mockServiceWorker({ controlled = true, reply } = {}) {
     const listeners = new Set();
     const serviceWorker = {
@@ -53,9 +51,7 @@ function mockLocation(search) {
     });
 }
 
-/**
- * @param {{ onSelect?: () => any, apps?: Record<string, any>[], claims?: string[] }} [options]
- */
+/** @param {{ onSelect?: () => any, apps?: Record<string, any>[], claims?: string[] }} [options] */
 function mockExpensesApp({
     onSelect,
     apps = [{ actionPath: "expenses", id: 42 }],

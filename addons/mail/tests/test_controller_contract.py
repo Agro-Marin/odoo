@@ -568,8 +568,6 @@ class TestMailControllerSecurity(MailControllerAttachmentCommon):
         )
 
     def test_public_user_cannot_create_a_channel_through_mail_data(self):
-        # a public visitor is not dispatched the create routes at all, so the
-        # request neither creates a channel nor aborts on the model ACL.
         self.authenticate(None, None)
         before = self.env["discuss.channel"].sudo().search_count([])
         self.call_jsonrpc(

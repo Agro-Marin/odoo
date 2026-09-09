@@ -25,9 +25,7 @@ class Foo extends models.Model {
 defineWebModels();
 defineModels([Foo]);
 
-/**
- * @returns {Promise<RelationalModel>}
- */
+/** @returns {Promise<RelationalModel>} */
 async function mountListAndGetModel() {
     /** @type {RelationalModel[]} */
     const instances = [];

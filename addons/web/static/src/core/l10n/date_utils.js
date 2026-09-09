@@ -119,9 +119,7 @@ export function isInRange(value, range) {
     }
 }
 
-/**
- * @returns {any}
- */
+/** @returns {any} */
 export function today() {
     return DateTime.local().startOf("day");
 }

@@ -390,9 +390,7 @@ test("the blocking overlay announces its message politely", async () => {
     await animationFrame();
 });
 
-/**
- * @param {() => number} getWidth
- */
+/** @param {() => number} getWidth */
 function mockMatchMediaAtWidth(getWidth) {
     /** @type {any[]} */
     const medias = [];

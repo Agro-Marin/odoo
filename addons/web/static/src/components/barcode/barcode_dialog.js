@@ -33,26 +33,20 @@ export class BarcodeDialog extends Component {
         });
     }
 
-    /**
-     * @param {string} result
-     */
+    /** @param {string} result */
     onResult(result) {
         this.props.onResult(result);
         this.props.close();
     }
 
-    /**
-     * @param {Error} error
-     */
+    /** @param {Error} error */
     onError(error) {
         this.state.barcodeScannerSupported = false;
         this.state.errorMessage = error.message;
     }
 }
 
-/**
- * @returns {Promise<string|null>}
- */
+/** @returns {Promise<string|null>} */
 export async function scanBarcode(env, facingMode = "environment") {
     return new Promise((resolve, reject) => {
         let settled = false;

@@ -22,17 +22,6 @@ class MailActivityTodoCreate(models.TransientModel):
     note = fields.Html(sanitize_style=True)
 
     def _deadline_as_datetime(self):
-        """Return ``date_deadline`` as the end of that day, in UTC.
-
-        ``project.task.date_end`` is a Datetime while this wizard collects a
-        Date. Handing the Date straight over stores naive UTC midnight, which
-        renders as the *previous* evening for every user west of UTC — a to-do
-        due "Aug 10" shows up as "Yesterday". Anchor it to the end of the
-        picked day in the user's own timezone instead, so the deadline reads
-        back as the day the user chose and does not fall due at 00:01.
-
-        :rtype: datetime
-        """
         self.check_singleton()
         tz = timezone(self.env.user.tz or "UTC")
         local_end_of_day = datetime.combine(self.date_deadline, time.max, tzinfo=tz)

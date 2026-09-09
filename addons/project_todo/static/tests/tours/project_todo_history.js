@@ -7,7 +7,6 @@ function changeDescriptionContentAndSave(newContent) {
     const newText = `${baseDescriptionContent} ${newContent}`;
     return [
         {
-            // force focus on editable so editor will create initial p (if not yet done)
             trigger: "div.note-editable.odoo-editor-editable",
             run: "click",
         },
@@ -40,7 +39,6 @@ registry.category("web_tour.tours").add("project_todo_history_tour", {
             trigger: ".o_kanban_view .o_kanban_record:contains(Test History Todo)",
             run: "click",
         },
-        // edit the description content 3 times and save after each edit
         ...changeDescriptionContentAndSave("0"),
         ...changeDescriptionContentAndSave("1"),
         ...changeDescriptionContentAndSave("2"),
@@ -104,7 +102,6 @@ registry.category("web_tour.tours").add("project_todo_history_tour", {
             trigger: `.modal .history-container .history-content-view .history-view-inner:contains(${baseDescriptionContent} 1)`,
         },
         {
-            // click on the split comparison tab
             trigger: ".history-container .history-view-top-bar a:contains(Comparison)",
             run: "click",
         },
@@ -138,10 +135,6 @@ registry.category("web_tour.tours").add("project_todo_history_tour", {
         {
             content:
                 "Verify that the description contains the right text after the restore",
-            // The bare editor selector matches the instant the dialog closes, i.e.
-            // before the restored value has been written back into it, so the
-            // assertion below read the pre-restore content. Waiting on the text
-            // makes the step observe the restore instead of racing it.
             trigger: `${descriptionField}:contains(${baseDescriptionContent} 1)`,
             run: function () {
                 const p = this.anchor?.innerText;

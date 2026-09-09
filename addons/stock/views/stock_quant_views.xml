@@ -258,7 +258,6 @@
         </field>
     </record>
 
-    <!-- Inventory Adjustments + Update Quantity (via product) view -->
     <record id="view_stock_quant_list_inventory_editable" model="ir.ui.view">
         <field name="name">stock.quant.inventory.list.editable</field>
         <field name="model">stock.quant</field>
@@ -539,7 +538,6 @@
     </record>
 
     <record id="stock_quant_action" model="ir.actions.act_window">
-        <!-- Used in dashboard -->
         <field name="name">Locations</field>
         <field name="res_model">stock.quant</field>
         <field name="view_mode">list,form</field>
@@ -557,7 +555,6 @@
     </record>
 
     <record id="action_view_quants" model="ir.actions.server">
-        <!-- Menu + python -->
         <field name="name">Inventory</field>
         <field name="model_id" ref="model_stock_quant" />
         <field name="state">code</field>

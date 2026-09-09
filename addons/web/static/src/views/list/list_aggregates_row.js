@@ -20,9 +20,7 @@ export class ListAggregatesRow extends Component {
         list: Object,
         /** @type {any} */
         archInfo: Object,
-        /**
-         * @type {any}
-         */
+        /** @type {any} */
         columns: Array,
         /** @type {any} */
         optionalActiveFields: Object,
@@ -35,9 +33,7 @@ export class ListAggregatesRow extends Component {
         showGroupInput: Boolean,
         onShowGroupInput: Function,
         onHideGroupInput: Function,
-        /**
-         * @type {(value: string) => void}
-         */
+        /** @type {(value: string) => void} */
         onGroupInputConfirm: Function,
     };
 
@@ -59,9 +55,7 @@ export class ListAggregatesRow extends Component {
         });
     }
 
-    /**
-     * @returns {ReturnType<typeof import("./list_aggregates").useListAggregates>}
-     */
+    /** @returns {ReturnType<typeof import("./list_aggregates").useListAggregates>} */
     get agg() {
         return this.props.agg;
     }
@@ -106,9 +100,7 @@ export class ListAggregatesRow extends Component {
         );
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onGroupInputKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
         if (hotkey === "enter") {

@@ -7,31 +7,11 @@ import { Popover } from "@web/ui/popover/popover";
 
 /**
  * @typedef {{
- * animation?: Boolean;
- * arrow?: Boolean;
- * closeOnClickAway?: boolean | ((target: HTMLElement) => boolean);
- * closeOnEscape?: boolean;
- * env?: object;
- * fixedPosition?: boolean;
- * onClose?: (removeParams?: any) => void;
- * onPositioned?: import("@web/core/position/position_hook").UsePositionOptions["onPositioned"];
- * class?: string;
- * role?: string;
- * id?: string;
- * position?: import("@web/core/position/position_hook").UsePositionOptions["position"];
- * ref?: Function;
- * extendedFlipping?: boolean;
- * holdOnHover?: boolean;
- * setActiveElement?: boolean;
- * sequence?: number;
- * }} PopoverServiceAddOptions
  * @typedef {PopoverService["add"]} PopoverServiceAddFunction
  */
 
 class PopoverService {
-    /**
-     * @param {{ overlay: any }} services
-     */
+    /** @param {{ overlay: any }} services */
     constructor({ overlay }) {
         this.present = makeOverlayPresenter({
             overlay,

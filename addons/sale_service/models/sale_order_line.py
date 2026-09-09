@@ -12,7 +12,6 @@ class SaleOrderLine(models.Model):
         "(order_id DESC, sequence, id) WHERE is_service IS TRUE"
     )
 
-    # used to know if generate a task and/or a project, depending on the product settings
     is_service = fields.Boolean(
         "Is a Service",
         compute="_compute_is_service",
@@ -22,14 +21,6 @@ class SaleOrderLine(models.Model):
     )
 
     def _domain_sale_line_service(self, **kwargs):
-        """
-        Get the default generic services domain for sale.order.line.
-        You can filter out domain leafs by passing kwargs of the form 'check_<leaf_field>=False'.
-        Only 'is_service' cannot be disabled.
-
-        :param kwargs: boolean kwargs of the form 'check_<leaf_field>=False'
-        :return: a valid domain
-        """
         domain = [("is_service", "=", True)]
         if kwargs.get("check_is_expense", True):
             domain.append(("is_expense", "=", False))
@@ -45,9 +36,6 @@ class SaleOrderLine(models.Model):
             so_line.is_service = so_line.product_id.type == "service"
 
     def _auto_init(self):
-        """
-        Create column to stop ORM from computing it himself (too slow)
-        """
         if not column_exists(self.env.cr, "sale_order_line", "is_service"):
             create_column(self.env.cr, "sale_order_line", "is_service", "bool")
             self.env.cr.execute("""
@@ -90,7 +78,6 @@ class SaleOrderLine(models.Model):
     @api.model
     def name_search(self, name="", domain=None, operator="ilike", limit=100):
         domain = domain or []
-        # optimization for a SOL services name_search, to avoid joining on sale_order with too many lines
         if (
             domain
             and ("is_service", "=", True) in domain

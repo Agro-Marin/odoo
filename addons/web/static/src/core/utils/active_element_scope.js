@@ -6,14 +6,10 @@ import { getComponentElement } from "@web/core/utils/components";
 
 const ACTIVE_ELEMENT_SCOPE = Symbol("ui.activeElementScope");
 
-/**
- * @type {WeakMap<object, { el: HTMLElement | null }>}
- */
+/** @type {WeakMap<object, { el: HTMLElement | null }>} */
 const OWN_SCOPES = new WeakMap();
 
-/**
- * @type {(node: Node) => Document | HTMLElement}
- */
+/** @type {(node: Node) => Document | HTMLElement} */
 let enclosingScopeOf = () => document;
 
 /**
@@ -27,9 +23,7 @@ export function publishEnclosingScopeResolver(resolve) {
     };
 }
 
-/**
- * @returns {{ el: HTMLElement | null }}
- */
+/** @returns {{ el: HTMLElement | null }} */
 export function useOwnedActiveElement() {
     /** @type {{ el: HTMLElement | null }} */
     const scope = { el: null };
@@ -38,9 +32,7 @@ export function useOwnedActiveElement() {
     return scope;
 }
 
-/**
- * @returns {() => Document | HTMLElement}
- */
+/** @returns {() => Document | HTMLElement} */
 export function useActiveElementScope() {
     const component = useComponent();
     return () => {

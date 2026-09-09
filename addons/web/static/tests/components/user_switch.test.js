@@ -22,9 +22,7 @@ beforeEach(() => {
     fixture.appendChild(form);
 });
 
-/**
- * @param {number} count
- */
+/** @param {number} count */
 function rememberUsers(count) {
     const users = Array.from({ length: count }, (_, i) => ({
         login: `user${i}`,

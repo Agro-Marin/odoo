@@ -5,12 +5,7 @@ import { Component, xml } from "@odoo/owl";
 import { Tag } from "../core/tag.js";
 import { HootLink } from "./hoot_link.js";
 
-/**
- * @typedef {{
- *  inert?: boolean;
- *  tag: Tag;
- * }} HootTagButtonProps
- */
+/** @typedef {{ */
 
 /** @extends {Component<HootTagButtonProps, import("../hoot").Environment>} */
 export class HootTagButton extends Component {

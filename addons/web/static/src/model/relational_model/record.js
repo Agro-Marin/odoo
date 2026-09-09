@@ -50,19 +50,13 @@ import {
 } from "./record_value_transforms.js";
 
 /**
- * @template {keyof any} K
- * @template T
+ * @template {keyof any}
+ * @template
  * @typedef {{ [P in K]: T }} RecordType
  */
 
 /**
  * @typedef {{
- * currentValues?: RecordType<string, unknown>;
- * orderBys?: RecordType<string, unknown>;
- * withInvisible?: boolean;
- * withReadonly?: boolean;
- * keepChanges?: boolean;
- * }} FieldSpecifications
  * @typedef {"edit" | "readonly"} Mode
  */
 
@@ -84,14 +78,7 @@ function openMultiEditEnvelope(dispatched) {
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 
-    /**
-     * @type {typeof DataPoint.prototype.setup<{
-     * manuallyAdded?: boolean;
-     * onUpdate?: (params?: { withoutParentUpdate?: boolean }) => any;
-     * parentRecord?: RelationalRecord;
-     * virtualId?: string;
-     * }>}
-     */
+    /** @type {typeof DataPoint.prototype.setup<{ */
     setup(_config, data, options = {}) {
         this.manuallyAdded = options.manuallyAdded === true;
         this._onUpdate = options.onUpdate || (() => {});
@@ -218,9 +205,7 @@ export class RelationalRecord extends DataPoint {
         return this.config.resIds;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get skipsParentUpdate() {
         return this._noUpdateParent;
     }
@@ -248,9 +233,7 @@ export class RelationalRecord extends DataPoint {
         this._editState.closeInvalidFieldsNotification = close;
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     closeInvalidFieldsNotification() {
         this._editState.closeInvalidFieldsNotification();
         this._editState.closeInvalidFieldsNotification = () => {};
@@ -288,9 +271,7 @@ export class RelationalRecord extends DataPoint {
         return this.model.mutex.exec(() => duplicateRecord(this));
     }
 
-    /**
-     * @param {FieldSpecifications} [params]
-     */
+    /** @param {FieldSpecifications} [params] */
     async getChanges({ withReadonly } = {}) {
         await this.model.askChanges();
         return this.model.mutex.exec(() =>
@@ -303,9 +284,7 @@ export class RelationalRecord extends DataPoint {
         return this.dirty;
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     isFieldInvalid(fieldName) {
         return this.invalidFields.has(fieldName);
     }
@@ -317,32 +296,24 @@ export class RelationalRecord extends DataPoint {
         return this.model.mutex.exec(() => this.loadLocked());
     }
 
-    /**
-     * @param {Parameters<RelationalRecord["saveLocked"]>[0]} [options]
-     */
+    /** @param {Parameters<RelationalRecord["saveLocked"]>[0]} [options] */
     async save(options) {
         await this.model.askChanges();
         return this.model.mutex.exec(() => this.saveLocked(options));
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     async setInvalidField(fieldName) {
         this._markDirty();
         return this._setInvalidField(fieldName);
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     async resetFieldValidity(fieldName) {
         return this._resetFieldValidity(fieldName);
     }
 
-    /**
-     * @param {Mode} mode
-     */
+    /** @param {Mode} mode */
     switchMode(mode) {
         return this.model.mutex.exec(() => this.switchModeLocked(mode));
     }
@@ -393,16 +364,12 @@ export class RelationalRecord extends DataPoint {
         return this._editState.hasPendingChanges;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get _hasChanges() {
         return !this._editState.isChangeSetEmpty;
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     get savedData() {
         return this._values;
     }
@@ -416,9 +383,7 @@ export class RelationalRecord extends DataPoint {
         this._editState.dirty = value;
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     get changes() {
         return this._editState.changes;
     }
@@ -477,9 +442,7 @@ export class RelationalRecord extends DataPoint {
         this.setEvalContext();
     }
 
-    /**
-     * @param {Record<string, any>} [extraValues]
-     */
+    /** @param {Record<string, any>} [extraValues] */
     commitChanges(extraValues) {
         this._values = markRaw({
             ...this._values,
@@ -495,9 +458,7 @@ export class RelationalRecord extends DataPoint {
         this.rebuildData();
     }
 
-    /**
-     * @param {Record<string, any>} values
-     */
+    /** @param {Record<string, any>} values */
     resetValues(values) {
         this._values = markRaw(values);
         this._editState.reset();
@@ -516,16 +477,12 @@ export class RelationalRecord extends DataPoint {
         addSavePoint(this);
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     snapshotEditState() {
         this._editState.snapshot();
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     restoreEditState() {
         return this._editState.restoreSnapshot();
     }
@@ -656,16 +613,12 @@ export class RelationalRecord extends DataPoint {
         this.setEvalContext();
     }
 
-    /**
-     * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options]
-     */
+    /** @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options] */
     checkValidityLocked(options) {
         return checkValidity(this, options);
     }
 
-    /**
-     * @returns {{ withVirtualIds: Object, withoutVirtualIds: Object }}
-     */
+    /** @returns {{ withVirtualIds: Object, withoutVirtualIds: Object }} */
     _computeDataContext() {
         return computeDataContext(
             toRaw(this.data),
@@ -747,16 +700,12 @@ export class RelationalRecord extends DataPoint {
         return defaultValuesOf(fieldNames, this.fields);
     }
 
-    /**
-     * @param {RecordType<string, unknown>} values
-     */
+    /** @param {RecordType<string, unknown>} values */
     _getTextValues(values) {
         return getTextValues(values, this.activeFields, this.fields);
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     isFieldInvisible(fieldName) {
         return isActiveFieldInvisible(
             this.activeFields[fieldName],
@@ -764,9 +713,7 @@ export class RelationalRecord extends DataPoint {
         );
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     isFieldReadonly(fieldName) {
         return isActiveFieldReadonly(
             this.activeFields[fieldName],
@@ -774,9 +721,7 @@ export class RelationalRecord extends DataPoint {
         );
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     isFieldRequired(fieldName) {
         return isActiveFieldRequired(
             this.activeFields[fieldName],
@@ -822,16 +767,12 @@ export class RelationalRecord extends DataPoint {
         return parseRecordServerValues(this, serverValues, options);
     }
 
-    /**
-     * @param {...string} fieldNames
-     */
+    /** @param {...string} fieldNames */
     _removeInvalidFields(...fieldNames) {
         return removeInvalidFields(this, ...fieldNames);
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     restoreActiveFields() {
         this._noUpdateParent = false;
         if (!this._activeFieldsToRestore) {
@@ -843,9 +784,7 @@ export class RelationalRecord extends DataPoint {
         this._activeFieldsToRestore = undefined;
     }
 
-    /**
-     * @param {{ reload?: boolean, onError?: (e: Error, actions: { discard: () => void, retry: () => any }) => any, nextId?: number }} [options]
-     */
+    /** @param {{ reload?: boolean, onError?: (e: Error, actions: { discard: () => void, retry: () => any }) => any, nextId?: number }} [options] */
     async saveLocked(options) {
         return save(this, options);
     }
@@ -870,16 +809,12 @@ export class RelationalRecord extends DataPoint {
         }
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     async _setInvalidField(fieldName) {
         return setInvalidField(this, fieldName);
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     _setInvalidFieldFlag(fieldName) {
         this.invalidFields.add(fieldName);
     }
@@ -888,9 +823,7 @@ export class RelationalRecord extends DataPoint {
         return resetFieldValidity(this, fieldName);
     }
 
-    /**
-     * @param {Mode} mode
-     */
+    /** @param {Mode} mode */
     switchModeLocked(mode) {
         this.model.patchConfig(this.config, { mode });
         if (mode === "readonly") {

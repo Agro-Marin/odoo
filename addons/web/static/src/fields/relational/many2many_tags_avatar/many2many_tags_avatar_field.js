@@ -22,9 +22,7 @@ export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
         withCommand: { type: Boolean, optional: true },
     };
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get specification() {
         return EMPTY_SPECIFICATION;
     }
@@ -165,9 +163,7 @@ export class KanbanMany2ManyTagsAvatarField extends Many2ManyTagsAvatarField {
     /** @type {Record<string, any> | null} */
     _popoverProps = null;
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get popoverProps() {
         const props = { ...this.props, readonly: false };
         delete props.isEditable;

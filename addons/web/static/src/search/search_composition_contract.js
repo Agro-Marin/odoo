@@ -1,14 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_PANEL_PUBLISHED = ["_reloadSections", "_seedSearchPanel"];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_PANEL_REQUIRES = [
     "_getCategoryDomain",
     "_getDomain",
@@ -20,9 +16,7 @@ export const SEARCH_PANEL_REQUIRES = [
     "filters",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_PANEL_SHARED_STATE = [
     "_reloadMutex",
     "_sectionLoadIds",
@@ -37,19 +31,13 @@ export const SEARCH_PANEL_SHARED_STATE = [
     "sectionsPromise",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_PROPERTIES_PUBLISHED = ["fillSearchViewItemsProperty"];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_PROPERTIES_REQUIRES = ["_notify", "getSearchItems"];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_PROPERTIES_SHARED_STATE = [
     "_enrichedSearchItems",
     "_filledPropertyFields",
@@ -63,17 +51,13 @@ export const SEARCH_PROPERTIES_SHARED_STATE = [
     "searchViewFields",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_FAVORITES_PUBLISHED = [
     "_createGroupOfFavorites",
     "_reconciliateFavorites",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_FAVORITES_REQUIRES = [
     "_createGroupOfSearchItems",
     "_getContext",
@@ -85,9 +69,7 @@ export const SEARCH_FAVORITES_REQUIRES = [
     "clearQuery",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_FAVORITES_SHARED_STATE = [
     "_enrichedSearchItems",
     "env",
@@ -102,14 +84,10 @@ export const SEARCH_FAVORITES_SHARED_STATE = [
     "searchViewFields",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_SPLIT_DOMAIN_PUBLISHED = [];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_SPLIT_DOMAIN_REQUIRES = [
     "_getGroupBy",
     "_getGroups",
@@ -125,9 +103,7 @@ export const SEARCH_SPLIT_DOMAIN_REQUIRES = [
     "isDebugMode",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_SPLIT_DOMAIN_SHARED_STATE = [
     "DomainSelectorDialog",
     "defaultGroupBy",
@@ -141,9 +117,7 @@ export const SEARCH_SPLIT_DOMAIN_SHARED_STATE = [
     "treeProcessor",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_QUERY_PUBLISHED = [
     "_activateDefaultSearchItems",
     "addAutoCompletionValues",
@@ -156,18 +130,14 @@ export const SEARCH_QUERY_PUBLISHED = [
     "toggleSearchItem",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_QUERY_REQUIRES = [
     "_getSelectedGeneratorIds",
     "_notify",
     "_withNotificationsBlocked",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_QUERY_SHARED_STATE = [
     "defaultGroupBy",
     "defaultGroupByRemoved",
@@ -182,9 +152,7 @@ export const SEARCH_QUERY_SHARED_STATE = [
     "searchViewFields",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_MODEL_PUBLISHED = [
     "_createGroupOfSearchItems",
     "_getCategoryDomain",
@@ -208,9 +176,7 @@ export const SEARCH_MODEL_PUBLISHED = [
     "isDebugMode",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_MODEL_REQUIRES = [
     "_activateDefaultSearchItems",
     "_createGroupOfFavorites",
@@ -219,9 +185,7 @@ export const SEARCH_MODEL_REQUIRES = [
     "_seedSearchPanel",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_MODEL_SHARED_STATE = [
     "DomainSelectorDialog",
     "_context",
@@ -260,9 +224,7 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "viewService",
 ];
 
-/**
- * @type {Record<string, string>}
- */
+/** @type {Record<string, string>} */
 export const SEARCH_COMPOSITION_IDENTITY = {
     "search/search_panel/search_panel_mixin.js": "toggleCategoryValue",
     "search/search_properties_mixin.js": "fillSearchViewItemsProperty",
@@ -272,23 +234,17 @@ export const SEARCH_COMPOSITION_IDENTITY = {
     "search/search_model.js": "load",
 };
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_COMPOSITION_CONDITIONAL_STATE = [
     "irFilters",
     "searchDomain",
     "sectionsPromise",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_COMPOSITION_BASE_SURFACE = ["trigger"];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const SEARCH_COMPOSITION_ORDER = [
     "search/search_panel/search_panel_mixin.js",
     "search/search_properties_mixin.js",
@@ -298,17 +254,9 @@ export const SEARCH_COMPOSITION_ORDER = [
     "search/search_model.js",
 ];
 
-/**
- * @typedef {{
- * published: string[],
- * requires: string[],
- * sharedState: string[],
- * }} UnitContract
- */
+/** @typedef {{ */
 
-/**
- * @type {Record<string, UnitContract>}
- */
+/** @type {Record<string, UnitContract>} */
 export const SEARCH_COMPOSITION_CONTRACT = {
     "search/search_panel/search_panel_mixin.js": {
         published: SEARCH_PANEL_PUBLISHED,

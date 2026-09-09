@@ -38,9 +38,7 @@
 
         bus = new EventTarget();
 
-        /**
-         * @param {Record<string, any>} modulesByName
-         */
+        /** @param {Record<string, any>} modulesByName */
         registerNativeModules(modulesByName) {
             const entries = Object.entries(modulesByName);
             _loaderDebug("registerNativeModules count=", entries.length);
@@ -204,17 +202,6 @@
 
     /**
      * @param {{
-     * message: unknown,
-     * kind?: string,
-     * phase?: string,
-     * filename?: string,
-     * line?: number,
-     * col?: number,
-     * stack?: string,
-     * cause?: unknown,
-     * reloaded?: boolean,
-     * dedup?: boolean,
-     * }} info
      * @returns {boolean}
      */
     function reportJsError(info) {

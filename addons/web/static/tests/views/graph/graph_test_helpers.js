@@ -81,38 +81,26 @@ export const checkTooltip = (view, { title, lines }, index, datasetIndex = null)
     expect(queryAllTexts(`table tbody tr td.o_value`)).toEqual(lineValues);
 };
 
-/**
- * @param {"asc" | "desc"} direction
- */
+/** @param {"asc" | "desc"} direction */
 export const clickSort = (direction) => {
     const iconClass =
         direction === "asc" ? "fa-arrow-down-short-wide" : "fa-arrow-down-wide-short";
     return contains(`.${iconClass}`).click();
 };
 
-/**
- * @param {GraphView} view
- */
+/** @param {GraphView} view */
 export const getChart = (view) => getGraphRenderer(view).chart;
 
-/**
- * @param {GraphView} view
- */
+/** @param {GraphView} view */
 export const getGraphModelMetaData = (view) => getGraphModel(view).metaData;
 
-/**
- * @param {GraphMode} mode
- */
+/** @param {GraphMode} mode */
 export const getModeButton = (mode) => queryOne`.o_graph_button[data-mode=${mode}]`;
 
-/**
- * @param {GraphView} view
- */
+/** @param {GraphView} view */
 export const getScaleY = (view) => getChart(view).config.options.scales.y;
 
-/**
- * @param {GraphView} view
- */
+/** @param {GraphView} view */
 export const getYAxisLabel = (view) =>
     getChart(view).config.options.scales.y.title.text;
 
@@ -150,9 +138,7 @@ export function checkLegend(view, expectedLabels) {
     });
 }
 
-/**
- * @param {GraphView} view
- */
+/** @param {GraphView} view */
 export async function clickOnDataset(view, options = {}) {
     const chart = getChart(view);
     const point = chart.getDatasetMeta(0).data[0].getCenterPoint();
@@ -163,16 +149,12 @@ export async function clickOnDataset(view, options = {}) {
     });
 }
 
-/**
- * @param {GraphView} view
- */
+/** @param {GraphView} view */
 export function getGraphController(view) {
     return findComponent(view, (c) => c instanceof GraphController);
 }
 
-/**
- * @param {GraphView} view
- */
+/** @param {GraphView} view */
 export function getGraphModel(view) {
     return getGraphController(view).model;
 }
@@ -185,9 +167,7 @@ export function getGraphRenderer(view) {
     return findComponent(view, (c) => c instanceof GraphRenderer);
 }
 
-/**
- * @param {GraphMode} mode
- */
+/** @param {GraphMode} mode */
 export function selectMode(mode) {
     return contains(getModeButton(mode)).click();
 }

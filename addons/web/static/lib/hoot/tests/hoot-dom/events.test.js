@@ -40,9 +40,7 @@ import { Component, xml } from "@odoo/owl";
 
 import { mountForTest, parseUrl } from "../local_helpers.js";
 
-/**
- * @param {Event} ev
- */
+/** @param {Event} ev */
 const formatEvent = (ev) => {
     const { currentTarget, type } = ev;
     const id = currentTarget.id

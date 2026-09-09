@@ -3,9 +3,6 @@
 
 import { shallowEqual } from "@web/core/utils/collections/objects";
 
-/** @import { RelationalModelConfig } from "./relational_model.js" */
-/** @import { SearchParams } from "@web/model/types" */
-
 /**
  * @typedef {object} ConfigTransitionDeps
  * @property {number} [maxGroupByDepth]
@@ -14,7 +11,7 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
  */
 
 /**
- * @template T
+ * @template
  * @param {Record<string, any>} params
  * @param {string} key
  * @param {T} fallback

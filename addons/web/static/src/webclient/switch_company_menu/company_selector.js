@@ -5,9 +5,7 @@ import { router } from "@web/core/browser/router";
 import { user } from "@web/core/user";
 import { symmetricalDifference } from "@web/core/utils/collections/arrays";
 
-/**
- * @type {WeakMap<object[], Map<number, any>>}
- */
+/** @type {WeakMap<object[], Map<number, any>>} */
 const indexByCompanies = new WeakMap();
 
 /**
@@ -24,9 +22,7 @@ export function getCompany(cid) {
     return index.get(cid);
 }
 
-/**
- * @type {WeakMap<object[], Set<number>>}
- */
+/** @type {WeakMap<object[], Set<number>>} */
 const allowedIdsByCompanies = new WeakMap();
 
 /**

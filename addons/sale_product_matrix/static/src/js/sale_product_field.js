@@ -18,9 +18,6 @@ patch(SaleOrderLineProductField.prototype, {
 
     async _openProductConfigurator(edit = false, selectedComboItems = []) {
         if (edit && this.props.record.data.product_add_mode === "matrix") {
-            // Awaited, like every other branch of the product cascade: `_selectProduct`
-            // runs the cascade inside `trackCompoundUpdate` so the model cannot settle
-            // on a half-applied line, and a branch that is only started escapes it.
             return this._openGridConfigurator(true);
         }
         return super._openProductConfigurator(edit, selectedComboItems);

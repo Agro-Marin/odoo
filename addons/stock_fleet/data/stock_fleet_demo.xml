@@ -6,7 +6,6 @@
         <field name="color" eval="5" />
     </record>
 
-    <!-- vehicle category -->
     <record id="model_category_truck" model="fleet.vehicle.model.category">
         <field name="name">Transport Truck</field>
         <field name="sequence">1</field>
@@ -21,7 +20,6 @@
         <field name="volume_capacity">15</field>
     </record>
 
-    <!-- vehicle models -->
     <record id="model_volvo_fm" model="fleet.vehicle.model">
         <field name="name">FM</field>
         <field name="brand_id" ref="fleet.brand_volvo" />
@@ -36,7 +34,6 @@
         <field name="category_id" ref="model_category_van" />
     </record>
 
-    <!-- fleet vehicles -->
     <record id="vehicle_truck_volvo" model="fleet.vehicle">
         <field name="license_plate">ODO-1347</field>
         <field name="vin_sn">1V6AD0ERXBC414305</field>

@@ -19,9 +19,7 @@ import { onWillRender, useEnv, useState, useSubEnv } from "@odoo/owl";
  * @property {boolean} [withAccessKey]
  */
 
-/**
- * @param {() => (PagerProps | undefined)} getProps
- */
+/** @param {() => (PagerProps | undefined)} getProps */
 export function usePager(getProps) {
     const env = useEnv();
     /** @type {Record<string, any>} */

@@ -16,9 +16,7 @@ mainComponents.addValidation({
     props: { type: Object, optional: true },
 });
 
-/**
- * @type {WeakMap<import("@odoo/owl").ComponentConstructor, import("registries").MainComponentsRegistryItemShape>}
- */
+/** @type {WeakMap<import("@odoo/owl").ComponentConstructor, import("registries").MainComponentsRegistryItemShape>} */
 const ENTRIES = new WeakMap();
 
 /**

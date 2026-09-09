@@ -1,5 +1,3 @@
-"""Tests for the analytic-line split of project profitability."""
-
 from unittest.mock import patch
 
 from odoo.tests import TransactionCase, tagged
@@ -29,13 +27,11 @@ class TestProfitabilityAal(TransactionCase):
         return self.env["account.analytic.line"].create(values)
 
     def test_no_lines_yields_zero_totals(self):
-        """Without analytic lines both sections come back empty (boundary)."""
         items = self.project._get_items_from_aal(with_action=False)
         self.assertEqual(items["revenues"]["total"]["invoiced"], 0.0)
         self.assertEqual(items["costs"]["total"]["billed"], 0.0)
 
     def test_lines_split_by_sign(self):
-        """Positive amounts land in revenues, negative in costs."""
         self._aal(120.0)
         self._aal(-45.0)
         self._aal(-5.0)
@@ -46,14 +42,6 @@ class TestProfitabilityAal(TransactionCase):
         self.assertEqual(items["costs"]["data"][0]["id"], "other_costs_aal")
 
     def test_a_category_with_its_own_section_is_excluded(self):
-        """A line another section reports is not counted again here.
-
-        Spelled through the hook rather than through `picking_entry` and
-        `manufacturing_order`: those values reach the selection only once
-        `project_stock_account` and `project_mrp_account` are installed, which
-        this module does not depend on, so naming them here tests nothing and
-        cannot even create the line.
-        """
         self._aal(-80.0)
         with patch.object(
             type(self.project),
@@ -64,7 +52,6 @@ class TestProfitabilityAal(TransactionCase):
         self.assertEqual(items["costs"]["total"]["billed"], 0.0)
 
     def test_to_bill_and_to_invoice_stay_zero(self):
-        """AAL amounts cannot be split by billing state: to_* stay at 0."""
         self._aal(200.0)
         self._aal(-10.0)
         items = self.project._get_items_from_aal(with_action=False)

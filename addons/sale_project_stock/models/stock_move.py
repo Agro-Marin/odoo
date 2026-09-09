@@ -6,9 +6,6 @@ class StockMove(models.Model):
     _inherit = "stock.move"
 
     def _sale_get_invoice_price(self, order):
-        """Based on the current stock move, compute the price to reinvoice the analytic line that is going to be created (so the
-        price of the sale line).
-        """
         self.check_singleton()
 
         if self.product_id.expense_policy == "sales_price":
@@ -26,8 +23,6 @@ class StockMove(models.Model):
             return 0.0
 
         price_unit = self.product_id.standard_price
-        # Prevent unnecessary currency conversion that could be impacted by exchange rate
-        # fluctuations
         if (
             self.company_id.currency_id
             and price_unit
@@ -46,7 +41,6 @@ class StockMove(models.Model):
         return price_unit
 
     def _sale_prepare_sale_line_values(self, order, price, last_sequence):
-        """Generate the sale.line creation value from the current stock move"""
         self.check_singleton()
 
         order = order.sudo()
@@ -67,13 +61,6 @@ class StockMove(models.Model):
             "tax_ids": [x.id for x in taxes],
             "discount": 0.0,
             "product_id": self.product_id.id,
-            # Both quantities are measured in the *move's* unit, so the line is given
-            # that unit and its own `product_qty`. `sale.order.line.product_uom_qty` is
-            # computed and stored from `product_qty` -- writing it is accepted and then
-            # overwritten, which reinvoiced every delivery as a quantity of 1 whatever
-            # was shipped. Passing the unit as well keeps a move measured in something
-            # other than the product's reference unit from being reinvoiced as that many
-            # reference units.
             "product_uom_id": self.product_uom_id.id,
             "product_qty": self.product_uom_qty,
             "qty_transferred": self.quantity,

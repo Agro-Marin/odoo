@@ -127,9 +127,7 @@ export class PyTimeDelta {
         });
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     toMicroseconds() {
         return (this.days * 24 * 3600 + this.seconds) * 1e6 + this.microseconds;
     }
@@ -212,9 +210,7 @@ export class PyTimeDelta {
         return this.days * 86400 + this.seconds + this.microseconds / 1000000;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     toString() {
         const mm = Math.floor(this.seconds / 60);
         const ss = this.seconds % 60;
@@ -231,9 +227,7 @@ export class PyTimeDelta {
         return s;
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     valueOf() {
         return this.total_seconds();
     }

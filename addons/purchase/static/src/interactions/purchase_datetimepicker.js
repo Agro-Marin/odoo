@@ -26,9 +26,7 @@ export class PurchaseDatetimePicker extends Interaction {
         this.registerCleanup(() => picker.dispose());
     }
 
-    /**
-     * @param {import("@web/core/l10n/luxon").DateTime} newDate
-     */
+    /** @param {import("@web/core/l10n/luxon").DateTime} newDate */
     async updateDate(newDate) {
         const { accessToken, orderId, lineId } = this.el.dataset;
         let result;

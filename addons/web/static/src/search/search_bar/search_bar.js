@@ -81,13 +81,7 @@ export class SearchBar extends Component {
     ui;
     /** @type {{ showSearchBar: boolean }} */
     visibilityState;
-    /**
-     * @type {{
-     * expanded: any[];
-     * query: string;
-     * subItemsLimits: Record<string, number>;
-     * }}
-     */
+    /** @type {{ */
     state;
     /** @type {any[]} */
     items;
@@ -158,16 +152,12 @@ export class SearchBar extends Component {
         return this.env.searchModel.getSearchItems((f) => f.type === "field");
     }
 
-    /**
-     * @returns {Record<string, Object>}
-     */
+    /** @returns {Record<string, Object>} */
     get fields() {
         return this.env.searchModel.searchViewFields;
     }
 
-    /**
-     * @param {number} id
-     */
+    /** @param {number} id */
     getSearchItem(id) {
         return this.env.searchModel.searchItems[id];
     }
@@ -525,9 +515,7 @@ export class SearchBar extends Component {
         return subItems;
     }
 
-    /**
-     * @param {Object} facet
-     */
+    /** @param {Object} facet */
     removeFacet(facet) {
         this.env.searchModel.deactivateGroup(facet.groupId);
         this.inputRef.el?.focus();
@@ -541,9 +529,7 @@ export class SearchBar extends Component {
         }
     }
 
-    /**
-     * @param {Object} item
-     */
+    /** @param {Object} item */
     selectItem(item) {
         if (item.isAddCustomFilterButton) {
             return this.env.searchModel.spawnCustomFilterDialog();
@@ -685,9 +671,7 @@ export class SearchBar extends Component {
         });
     }
 
-    /**
-     * @returns {import("@web/core/navigation/navigation").NavigationOptions}
-     */
+    /** @returns {import("@web/core/navigation/navigation").NavigationOptions} */
     getDropdownNavigation() {
         const isExpansible = (index) => {
             const item = this.items[index];
@@ -803,9 +787,7 @@ export class SearchBar extends Component {
         }
     }
 
-    /**
-     * @param {Object} facet
-     */
+    /** @param {Object} facet */
     onFacetRemove(facet) {
         this.removeFacet(facet);
     }
@@ -820,9 +802,7 @@ export class SearchBar extends Component {
         }
     }
 
-    /**
-     * @param {InputEvent} ev
-     */
+    /** @param {InputEvent} ev */
     onSearchInput(ev) {
         if (!hasTouch()) {
             this.searchBarDropdownState.close();
@@ -839,9 +819,7 @@ export class SearchBar extends Component {
         }
     }
 
-    /**
-     * @param {CompositionEvent} ev
-     */
+    /** @param {CompositionEvent} ev */
     onCompositionEnd(ev) {
         const query = /** @type {HTMLInputElement} */ (ev.target).value;
         if (query.trim()) {

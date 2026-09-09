@@ -15,7 +15,6 @@
                 <field name="location_id" column_invisible="True" />
                 <field name="location_dest_id" column_invisible="True" />
                 <field name="state" column_invisible="True" />
-                <!-- Don't put move_id here to avoid that the framework send falsy move_id -->
                 <field name="id" column_invisible="True" />
                 <field
                     name="product_id"

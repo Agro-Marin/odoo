@@ -26,6 +26,4 @@ patch(router, {
     },
 });
 
-// Since the patch for `stateToUrl` and `urlToState` is executed
-// after the router state was already initialized, it has to be replaced.
 router.replaceState(router.urlToState(new URL(browser.location)));

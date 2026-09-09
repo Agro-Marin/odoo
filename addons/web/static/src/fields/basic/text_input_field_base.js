@@ -7,9 +7,7 @@ import { useDynamicPlaceholder } from "@web/fields/dynamic_placeholder_hook";
 import { TrimmingInputFieldBase } from "./trimming_input_field_base.js";
 
 export class TextInputFieldBase extends TrimmingInputFieldBase {
-    /**
-     * @type {any}
-     */
+    /** @type {any} */
     dynamicPlaceholder;
 
     /**
@@ -20,9 +18,7 @@ export class TextInputFieldBase extends TrimmingInputFieldBase {
         return null;
     }
 
-    /**
-     * @param {import("@odoo/owl").Ref<HTMLInputElement | HTMLTextAreaElement>} ref
-     */
+    /** @param {import("@odoo/owl").Ref<HTMLInputElement | HTMLTextAreaElement>} ref */
     setupDynamicPlaceholder(ref) {
         if (this.props.dynamicPlaceholder) {
             this.dynamicPlaceholder = useDynamicPlaceholder(ref);

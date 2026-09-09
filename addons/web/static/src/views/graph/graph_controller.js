@@ -9,15 +9,7 @@ export class GraphController extends ReportController {
         return { displayNoContent: () => this.displayNoContent };
     }
 
-    /**
-     * Lifted verbatim out of the template, precedence and all: `and` binds
-     * tighter than `or`, so the sample-data branch also requires help text
-     * where list, kanban, cohort and pivot show `ActionHelper`'s own default.
-     * Whether that asymmetry is deliberate is a separate question from moving
-     * the chassis, so it is preserved rather than normalised here.
-     *
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get displayNoContent() {
         const model = this.model;
         if (!model.isReady || !model.data) {

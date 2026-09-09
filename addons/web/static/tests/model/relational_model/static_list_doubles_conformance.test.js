@@ -9,9 +9,7 @@ import { StaticList } from "@web/model/relational_model/static_list";
 
 describe.current.tags("headless");
 
-/**
- * @returns {string[]}
- */
+/** @returns {string[]} */
 function realSetupKeys() {
     const list = Object.create(StaticList.prototype);
     const config = makeStaticListConfig();

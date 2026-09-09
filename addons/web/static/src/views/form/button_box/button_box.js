@@ -52,9 +52,7 @@ export class ButtonBox extends Component {
         return !("isVisible" in slot) || Boolean(slot.isVisible);
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     activateStatButton(ev) {
         const item = /** @type {HTMLElement} */ (ev.currentTarget);
         /** @type {HTMLElement | null} */ (

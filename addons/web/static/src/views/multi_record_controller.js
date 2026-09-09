@@ -125,9 +125,7 @@ export class MultiRecordController extends ViewController {
         };
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get selectionKey() {
         const selection = this.model.root.selection;
         if (!selection?.length) {
@@ -177,9 +175,7 @@ export class MultiRecordController extends ViewController {
         });
     }
 
-    /**
-     * @returns {any[]}
-     */
+    /** @returns {any[]} */
     getExportableFields() {
         return [];
     }

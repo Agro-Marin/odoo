@@ -35,19 +35,6 @@ function computeCanCreateGroup(ctx) {
 /**
  * @param {GroupManagementContext} ctx
  * @returns {{
- * canCreateGroup: () => boolean,
- * getGroupConfigMenuProps: (group: any) => {
- * activeActions: any,
- * configItems: any[],
- * deleteGroup: () => Promise<void>,
- * dialogClose: any,
- * group: any,
- * list: any,
- * },
- * deleteGroup: (group: any) => Promise<void>,
- * toggleGroup: (group: any) => any,
- * createGroup: (value: string) => void,
- * }}
  */
 export function useGroupManagement(ctx) {
     const self = {
@@ -55,9 +42,7 @@ export function useGroupManagement(ctx) {
             return computeCanCreateGroup(ctx);
         },
 
-        /**
-         * @param {any} group
-         */
+        /** @param {any} group */
         getGroupConfigMenuProps(group) {
             return {
                 activeActions: ctx.getMenuActiveActions?.(),
@@ -73,24 +58,18 @@ export function useGroupManagement(ctx) {
             };
         },
 
-        /**
-         * @param {any} group
-         */
+        /** @param {any} group */
         async deleteGroup(group) {
             await ctx.getList().deleteGroups([group]);
             ctx.onGroupDeleted?.();
         },
 
-        /**
-         * @param {any} group
-         */
+        /** @param {any} group */
         toggleGroup(group) {
             return group.toggle();
         },
 
-        /**
-         * @param {string} value
-         */
+        /** @param {string} value */
         createGroup(value) {
             if (value) {
                 ctx.getList().createGroup(value);

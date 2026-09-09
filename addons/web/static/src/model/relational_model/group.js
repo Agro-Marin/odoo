@@ -4,7 +4,6 @@
 import { Domain } from "@web/core/domain";
 
 import { DataPoint } from "./datapoint.js";
-/** @import { RelationalModelConfig } from "./relational_model.js" */
 
 export class Group extends DataPoint {
     static type = "Group";
@@ -70,9 +69,7 @@ export class Group extends DataPoint {
         return record;
     }
 
-    /**
-     * @param {import("./editable_list_datapoint.js").ListInsertion} [options]
-     */
+    /** @param {import("./editable_list_datapoint.js").ListInsertion} [options] */
     async addNewRecord(options = {}) {
         const canProceed = await this.model.root.leaveEditMode();
         if (canProceed) {
@@ -140,9 +137,7 @@ export class Group extends DataPoint {
         }
     }
 
-    /**
-     * @param {(string | number)[]} recordIds
-     */
+    /** @param {(string | number)[]} recordIds */
     removeRecords(recordIds) {
         const idsToRemove = recordIds.filter((id) =>
             this.list.records.some((r) => r.id === id),

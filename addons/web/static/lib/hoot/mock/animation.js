@@ -78,17 +78,13 @@ export function cleanupAnimations() {
     }
 }
 
-/**
- * @param {boolean} [enable=false]
- */
+/** @param {boolean} [enable=false] */
 export function disableAnimations(enable = false) {
     ensureTest("disableAnimations");
     allowAnimations = enable;
 }
 
-/**
- * @param {boolean} [enable=true]
- */
+/** @param {boolean} [enable=true] */
 export function enableTransitions(enable = true) {
     ensureTest("enableTransitions");
     allowTransitions = enable;
@@ -148,9 +144,7 @@ export function mockedWindowScrollTo(...args) {
     return windowScrollTo.call(this, ...forceInstantScroll(args));
 }
 
-/**
- * @param {(allowTransitions: boolean) => any} onChange
- */
+/** @param {(allowTransitions: boolean) => any} onChange */
 export function subscribeToTransitionChange(onChange) {
     onChange(allowTransitions);
     animationChangeCleanups.push(

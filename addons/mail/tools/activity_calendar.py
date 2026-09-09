@@ -21,13 +21,6 @@ ANCHOR_MINUTES = 15
 
 @functools.lru_cache(maxsize=4)
 def days_by_timezone(anchor: datetime) -> tuple[tuple[date, tuple[str, ...]], ...]:
-    # Sorted on both axes because `all_timezones()` is a frozenset: unsorted,
-    # the ~486 names land in a different order in every process, and they are
-    # rendered verbatim into the `= ANY(ARRAY[...])` branches of `_sql_today`.
-    # That made the SQL text of every deadline and state query differ run to
-    # run, which is not wrong but is unreproducible -- a query log cannot be
-    # diffed against another run's, and a server-side prepared statement is
-    # keyed on text.
     days = defaultdict(list)
     for tz_name in all_timezones():
         days[anchor.astimezone(timezone(tz_name)).date()].append(tz_name)

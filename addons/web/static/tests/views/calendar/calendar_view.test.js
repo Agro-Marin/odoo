@@ -302,9 +302,6 @@ onRpc("has_group", () => true);
  * @param {import("@odoo/hoot-dom").Target} from
  * @param {import("@odoo/hoot-dom").Target} to
  * @param {{
- * start: "top" | "center" | "bottom";
- * end: "top" | "center" | "bottom";
- * }} [positions]
  * @returns {Promise<void>}
  */
 async function selectRange(from, to, positions) {

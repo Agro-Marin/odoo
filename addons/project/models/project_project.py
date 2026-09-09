@@ -2871,9 +2871,6 @@ class ProjectProject(models.Model):
 
         project.task_ids.role_ids = False
 
-        # A template's tasks carry a window relative to the template's own start.
-        # Re-plan the copies onto the new project's dates, keeping each one no
-        # earlier than where the template put it.
         tasks_to_schedule = self.env["project.task"]
         first_possible_date_per_task = {}
         if project.date_start and self.date_start:
@@ -2911,20 +2908,6 @@ class ProjectProject(models.Model):
         return project
 
     def _pair_template_tasks(self, project):
-        """Pair each template task with the copy ``project`` received.
-
-        Matched by name within each level of the subtask tree. Position is not
-        usable: ``copy`` walks the template's tasks in the model's ``_order``,
-        which ends in ``id desc``, so the top-level copies come back reversed,
-        while the subtasks nested under a parent come back in ascending order --
-        two different orders in one copy. Pairing either side by id put Task 1's
-        window on Task 7, and only raised when the two happened to differ in
-        subtask count.
-
-        Sibling names are the key, so two siblings sharing one raises rather than
-        picking one: a mispairing here plans a task against another task's dates,
-        which no later step can detect.
-        """
 
         def pair(originals, copies):
             if len(originals) != len(copies):
@@ -2935,9 +2918,6 @@ class ProjectProject(models.Model):
             copy_per_name = {}
             for copy in copies:
                 if copy.name in copy_per_name:
-                    # The one case a user can reach and fix, so it gets a dialog
-                    # rather than a traceback: names are the pairing key, and two
-                    # siblings sharing one is ambiguous rather than wrong.
                     raise UserError(
                         self.env._(
                             "Two tasks of template %(template)s are both named "

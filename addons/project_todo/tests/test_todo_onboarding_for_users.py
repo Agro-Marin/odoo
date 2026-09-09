@@ -2,10 +2,7 @@ from odoo.tests.common import TransactionCase, new_test_user
 
 
 class TestTodoOnboardingUsers(TransactionCase):
-    """Test personal stages onboarding and onboarding task creation for project_todo."""
-
     def test_onboarding_stages_and_task_created_for_new_users(self):
-        """Personal stages and onboarding task should be created for internal users upon creation."""
         ProjectTaskSudo = self.env["project.task"].sudo()
 
         internal_user = new_test_user(

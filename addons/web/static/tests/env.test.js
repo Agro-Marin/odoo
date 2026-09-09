@@ -63,9 +63,7 @@ function captureConsole(method) {
     return calls;
 }
 
-/**
- * @returns {{ env: any, started: Promise<void> }}
- */
+/** @returns {{ env: any, started: Promise<void> }} */
 function startEnv() {
     const env = makeEnv();
     after(() => env.disposeServiceRegistryListener?.());
@@ -552,9 +550,7 @@ test("the previous test's service disposer actually ran", async () => {
 });
 
 describe("service-start beacon", () => {
-    /**
-     * @returns {Blob[]}
-     */
+    /** @returns {Blob[]} */
     function spyBeacon() {
         const blobs = [];
         mockSendBeacon((_url, blob) => {

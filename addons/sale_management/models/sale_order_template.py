@@ -69,8 +69,6 @@ class SaleOrderTemplate(models.Model):
         "otherwise the sales journal with the lowest sequence is used.",
     )
 
-    # === COMPUTE METHODS ===#
-
     @api.depends("company_id")
     def _compute_require_signature(self):
         for order in self:
@@ -92,15 +90,11 @@ class SaleOrderTemplate(models.Model):
                 template.company_id or template.env.company
             ).prepayment_percent
 
-    # === ONCHANGE METHODS ===#
-
     @api.onchange("prepayment_percent")
     def _onchange_prepayment_percent(self):
         for template in self:
             if not template.prepayment_percent:
                 template.require_payment = False
-
-    # === CONSTRAINT METHODS ===#
 
     @api.constrains("company_id", "sale_order_template_line_ids")
     def _check_company_id(self):
@@ -160,8 +154,6 @@ class SaleOrderTemplate(models.Model):
                     _("Prepayment percentage must be a valid percentage.")
                 )
 
-    # === CRUD METHODS ===#
-
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
@@ -200,7 +192,6 @@ class SaleOrderTemplate(models.Model):
             "sale_management.sale_order_template_1", raise_if_not_found=False
         )
         if not demo_template or demo_template.sale_order_template_line_ids:
-            # Skip if template not found, or already configured
             return
 
         acoustic_bloc_screen_product = self.env.ref(

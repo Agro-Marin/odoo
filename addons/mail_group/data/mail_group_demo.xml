@@ -1,7 +1,6 @@
 <odoo>
 
     <data>
-        <!-- Group 1 -->
         <record id="mail_group_1" model="mail.group">
             <field name="name">My Company News</field>
             <field name="alias_name">newsletter</field>
@@ -11,7 +10,6 @@
             <field name="access_mode">groups</field>
             <field name="access_group_id" ref="base.group_user" />
         </record>
-        <!-- Members of group 1 -->
         <record id="mail_group_member_1" model="mail.group.member">
             <field name="partner_id" ref="base.partner_admin" />
             <field name="email">admin@yourcompany.example.com</field>
@@ -22,7 +20,6 @@
             <field name="email">mark.brown23@example.com</field>
             <field name="mail_group_id" ref="mail_group_1" />
         </record>
-        <!-- Attachment of messages -->
         <record id="ir_attachment_mail_group_message_1" model="ir.attachment">
             <field name="datas">U3VwZXIgc2VjcmV0IGF0dGFjaG1lbnQ=</field>
             <field name="name">attachment.txt</field>
@@ -31,7 +28,6 @@
             <field name="datas">QnV0IEphdmFzY3JpcHQgc3Vja3M=</field>
             <field name="name">attachment.txt</field>
         </record>
-        <!-- Messages of group 1 -->
         <record id="mail_group_message_1" model="mail.group.message">
             <field name="subject">Important Announce</field>
             <field
@@ -149,7 +145,6 @@
                 name="attachment_ids"
                 eval="[(4, ref('ir_attachment_mail_group_message_2'))]" />
         </record>
-        <!-- Group 2 -->
         <record id="mail_group_2" model="mail.group">
             <field name="name">Public Mailing List</field>
             <field name="alias_name">public_group</field>
@@ -158,7 +153,6 @@
             <field name="moderation" eval="True" />
             <field name="moderator_ids" eval="[(4, ref('base.user_admin'))]" />
         </record>
-        <!-- Message of Group 2 -->
         <record id="mail_group_message_5" model="mail.group.message">
             <field name="subject">Best patch ever</field>
             <field name="body">In this patch, we have cleaned the CSS!</field>

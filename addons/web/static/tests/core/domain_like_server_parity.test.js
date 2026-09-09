@@ -5,9 +5,7 @@ import { Domain } from "@web/core/domain";
 
 describe.current.tags("headless");
 
-/**
- * @type {[string, string, string, boolean, boolean][]}
- */
+/** @type {[string, string, string, boolean, boolean][]} */
 const SERVER = [
     ["abc", "abc", "like", true, true],
     ["abc", "b", "like", true, true],

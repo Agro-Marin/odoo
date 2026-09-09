@@ -157,7 +157,6 @@
         </t>
 
         <div class="row o_portal_purchase_sidebar">
-        <!-- Sidebar -->
         <t t-call="portal.portal_record_sidebar">
         <t t-set="classes" t-value="'col-lg-4 col-xxl-3 d-print-none'" />
 
@@ -245,26 +244,21 @@
         </div>
         </div>
 
-        <!-- Page content -->
         <div id="quote_content" class="o_portal_content col-12 col-lg-8 col-xxl-9">
-        <!-- main content -->
         <div id="portal_purchase_content">
         <div><t t-call="purchase.purchase_order_portal_content" /></div>
         </div>
 
-        <!-- chatter -->
         <hr />
         <div id="purchase_order_communication">
         <h3>Communication history</h3>
         <t t-call="portal.message_thread" />
         </div>
-        </div><!-- // #quote_content -->
-        </div>
+        </div>        </div>
         </xpath>
     </template>
 
     <template id="purchase_order_portal_content" name="Purchase Order Portal Content">
-        <!-- status messages -->
         <div
             t-if="message == 'ack_ok'"
             class="alert alert-success alert-dismissible d-print-none"
@@ -278,7 +272,6 @@
             <br />
             Your acknowledgement has been recorded.
         </div>
-        <!-- Intro -->
         <div id="introduction" class="mt-5 mt-lg-0 pb-2 pt-0">
         <h2 class="my-0">
         <t t-if="order.state == 'draft'">Request for Quotation</t>
@@ -290,7 +283,6 @@
         </div>
 
         <div>
-        <!-- Informations -->
         <div id="informations">
         <div class="row" id="po_date">
         <div class="mb-3 col-6">

@@ -135,9 +135,7 @@ class MockRegistration extends EventTarget {
     }
 }
 
-/**
- * @returns {Array<() => void>}
- */
+/** @returns {Array<() => void>} */
 function captureVisibilityHandlers() {
     /** @type {Array<() => void>} */
     const handlers = [];

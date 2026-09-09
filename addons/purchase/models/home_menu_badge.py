@@ -6,7 +6,6 @@ class HomeMenuBadge(models.AbstractModel):
 
     @api.model
     def _get_badges(self) -> dict[str, int]:
-        # The buyer's own RFQs, which is what `draft` spells here.
         return {
             **super()._get_badges(),
             **self._count_for(

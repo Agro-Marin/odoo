@@ -154,7 +154,6 @@
         </t>
     </template>
 
-    <!-- Complete page of the sale_order -->
     <template
         id="sale_order_portal_template"
         name="Sales Order"
@@ -162,7 +161,6 @@
         primary="True">
         <t t-call="portal.portal_layout" position="inside">
             <t t-set="o_portal_fullwidth_alert" groups="sales_team.group_sale_salesman">
-                <!-- Uses backend_url provided in rendering values -->
                 <t t-call="portal.portal_back_in_edit_mode" />
             </t>
         </t>
@@ -171,7 +169,6 @@
             <div
                 class="row o_portal_sale_sidebar"
                 t-att-data-order-amount-total="sale_order.amount_total">
-                <!-- Sidebar -->
                 <t t-call="portal.portal_record_sidebar">
                     <t t-set="classes" t-value="'col-lg-4 col-xxl-3 d-print-none'" />
                     <t t-set="title">
@@ -197,8 +194,7 @@
                             <div
                                 class="d-flex flex-column gap-2"
                                 id="sale_order_sidebar_button">
-                                <a t-if="sale_order._has_to_be_signed() and not payment_amount" role="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalaccept" href="#"> <!-- If paying by link, signing is skipped. -->
-                                    <i class="fa-solid fa-check" />
+                                <a t-if="sale_order._has_to_be_signed() and not payment_amount" role="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalaccept" href="#">                                    <i class="fa-solid fa-check" />
                                     <t t-if="sale_order._has_to_be_paid()"> Sign &amp; Pay</t>
                                     <t t-else=""> Accept &amp; Sign</t>
                                 </a>
@@ -314,10 +310,8 @@
                     </div>
                 </div>
 
-                <!-- Page content -->
                 <div id="quote_content" class="col-12 col-lg-8 col-xxl-9 mt-5 mt-lg-0">
 
-                    <!-- Modals container -->
                     <div
                         role="dialog"
                         class="modal fade"
@@ -336,7 +330,6 @@
                         </div>
                     </div>
 
-                    <!-- modal relative to the action reject -->
                     <div role="dialog" class="modal fade" id="modaldecline">
                         <div class="modal-dialog">
                             <form
@@ -385,7 +378,6 @@
                         </div>
                     </div>
 
-                    <!-- status messages -->
                     <div
                         t-if="message == 'sign_ok'"
                         class="alert alert-success alert-dismissible d-print-none"
@@ -417,7 +409,6 @@
                     <t
                         t-set="current_tx"
                         t-value="sale_order.get_portal_last_transaction()" />
-                    <!-- hide state header when invoice is posted for current transaction. -->
                     <t
                         t-if="current_tx and not (current_tx.state == 'done' and len(current_tx.invoice_ids) == 1 and current_tx.invoice_ids.state == 'posted')">
                         <t t-call="payment.state_header">
@@ -453,7 +444,6 @@
                             to get a new quotation.</a>
                     </div>
 
-                    <!-- main content -->
                     <div
                         t-attf-class="#{'pb-5' if report_type == 'html' else ''}"
                         id="portal_sale_content">
@@ -462,7 +452,6 @@
                         </div>
                     </div>
 
-                    <!-- bottom actions -->
                     <div
                         t-if="sale_order._has_to_be_signed() or sale_order._has_to_be_paid()"
                         class="d-flex justify-content-center gap-1 d-print-none"
@@ -510,15 +499,12 @@
                         </div>
                     </div>
 
-                    <!-- chatter -->
                     <hr />
                     <div id="sale_order_communication">
                         <h3>Communication history</h3>
                         <t t-call="portal.message_thread" />
                     </div>
-                </div><!--
-                // #quote_content -->
-            </div>
+                </div>            </div>
         </xpath>
     </template>
 
@@ -576,8 +562,6 @@
                     t-if="sale_order._has_to_be_paid() and prepayment_available"
                     t-call="sale.sale_order_portal_pay_modal_amount_selector" />
                 <div t-if="sale_order._has_to_be_paid()" class="mb-3">
-                    <!-- The widget associated with this modal will hide and show spans depending of
-                    the selected option. -->
                     <span t-if="prepayment_available">
                         <span id="o_sale_portal_use_amount_prepayment"> By paying a <u>down payment</u>
                     of <span t-out="amount" t-options="{                                     'widget': 'monetary',                                     'display_currency': sale_order.currency_id                                 }" class="fw-bold" />
@@ -603,7 +587,6 @@
                     The order is not in a state requiring customer payment.
                 </div>
                 <div t-else="" id="payment_method" class="text-start mt-0">
-                    <!-- Inject the order ID to allow Stripe to check if tokenization is required. -->
                     <t t-call="payment.form" sale_order_id="sale_order.id" />
                 </div>
             </main>
@@ -636,13 +619,7 @@
         </div>
     </template>
 
-    <!--
-        Sales Order content : intro, information, order lines, remarks, descriptions ....
-        This template should contain all the printable element of the SO. This is the
-        template rendered in PDF with the report engine.
-    -->
     <template id="sale_order_portal_content" name="Sales Order Portal Content">
-        <!-- Intro -->
         <div
             id="introduction"
             t-attf-class="#{'border-bottom-0 pt-0 pb-3' if report_type == 'html' else ''}">
@@ -667,7 +644,6 @@
                         </t>
                     </div>
                 </span>
-                <!-- Information -->
                 <div id="sale_info" class="col-12 col-lg-6 mb-4">
                     <span id="sale_info_title">
                         <h5 class="mb-1">Sale Information</h5>
@@ -713,7 +689,6 @@
                     </table>
                 </div>
 
-                <!-- ======  Customer Information  ====== -->
                 <div id="customer_info" class="col-12 col-lg-6 mb-4">
                     <h5 class="mb-1">
                         <t
@@ -940,8 +915,6 @@
                                                 t-set="section_name_colspan"
                                                 t-value="99" />
                                         </t>
-                                        <!-- Some columns (e.g. Discount and Unit Price)
-                                        are not displayed on smaller viewports -->
                                         <td
                                             name="td_section_name_xs"
                                             t-att-colspan="section_name_colspan - 1 - (1 if display_discount else 0) - (1 if display_taxes else 0)"
@@ -1055,8 +1028,6 @@
                                             name="td_product_discount"
                                             t-attf-class="text-end {{ 'd-none d-sm-table-cell' if report_type == 'html' else '' }}">
                                             <t t-if="not collapse_prices">
-                                                <!-- ! Always check collapse_prices separately; keep
-                                                discount condition below for XPath -->
                                                 <strong
                                                     t-if="line.discount &gt; 0"
                                                     class="text-info">
@@ -1088,7 +1059,6 @@
                                     </tr>
                                 </t>
                                 <t t-else="">
-                                    <!-- Displaying the section inner content, grouped by taxes -->
                                     <tr
                                         t-foreach="line._get_grouped_section_summary(display_taxes)"
                                         t-as="section_line"
@@ -1184,10 +1154,6 @@
             <t t-call="#{sale_order._get_name_tax_totals_view()}">
                 <t t-set="tax_totals" t-value="sale_order.tax_totals" />
                 <t t-set="currency" t-value="sale_order.currency_id" />
-                <!--
-                NOTE: This variable should not be used in templates before version 19.1, as it might
-                not be available in earlier versions if customer does not upgrade the `sale` module.
-                -->
                 <t t-set="doc" t-value="sale_order" />
             </t>
         </table>

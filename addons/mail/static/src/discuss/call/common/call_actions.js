@@ -17,15 +17,9 @@ export const CALL_ICON_MUTED = "fa-solid fa-microphone-slash";
 /** @typedef {import("@mail/model/record").Record} Record */
 /** @typedef {import("@odoo/owl").Component} Component */
 /** @typedef {import("models").Thread} Thread */
-/**
- * @typedef {(Component|Record) & { env: {inCallMenu?: boolean, inCallInvitation?: boolean}, }} CallActionOwner
- */
-/**
- * @typedef {import("@mail/core/common/action").ActionDefinition<CallActionOwner, ActionParams, CallAction>} ActionDefinition
- */
-/**
- * @typedef {import("@mail/core/common/action").ActionParams<CallActionOwner> & { action: CallAction, thread: Thread }} ActionParams
- */
+/** @typedef {(Component|Record) & { env: {inCallMenu?: boolean, inCallInvitation?: boolean}, }} CallActionOwner */
+/** @typedef {import("@mail/core/common/action").ActionDefinition<CallActionOwner, ActionParams, CallAction>} ActionDefinition */
+/** @typedef {import("@mail/core/common/action").ActionParams<CallActionOwner> & { action: CallAction, thread: Thread }} ActionParams */
 /**
  * @typedef {Object} CallActionSpecificDefinition
  * @property {boolean} [isTracked]

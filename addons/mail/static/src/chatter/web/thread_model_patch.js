@@ -5,9 +5,7 @@ import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { patch } from "@web/core/utils/patch";
-/**
- * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
- */
+/** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const threadPatch = {
     setup() {
         super.setup();

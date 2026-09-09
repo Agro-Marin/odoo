@@ -20,7 +20,6 @@ class StockPicking(models.Model):
             )
             if not reinvoicable_stock_moves:
                 continue
-            # raise if the sale order is not currently open
             if sale_order.state in ("draft", "sent"):
                 raise UserError(
                     _(
@@ -49,9 +48,7 @@ class StockPicking(models.Model):
                         project=project.name,
                     )
                 )
-            # Create SOLs in reinvoiced_sale_order_id with reinvoicable stock moves
             sale_line_values_to_create = []
-            # Get last sequence SOL
             last_so_line = self.env["sale.order.line"].search_read(
                 [("order_id", "=", sale_order.id)],
                 ["sequence"],
@@ -61,9 +58,7 @@ class StockPicking(models.Model):
             last_sequence = next((sol["sequence"] for sol in last_so_line), 100)
 
             for stock_move in reinvoicable_stock_moves:
-                # Get price
                 price = stock_move._sale_get_invoice_price(sale_order)
-                # Create the sale lines in batch
                 sale_line_values_to_create.append(
                     stock_move._sale_prepare_sale_line_values(
                         sale_order, price, last_sequence

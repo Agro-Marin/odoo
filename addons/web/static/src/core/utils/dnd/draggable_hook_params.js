@@ -11,10 +11,6 @@ import {
 } from "./draggable_hook_builder_utils.js";
 
 /**
- * @import { DraggableHookContext } from "./draggable_hook_builder.js"
- */
-
-/**
  * @param {string[]} paramKeys
  * @param {Record<string, any[]>} allAcceptedParams
  * @param {Record<string, any>} params

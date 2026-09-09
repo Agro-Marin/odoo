@@ -27,9 +27,7 @@ function makeItem(searchItems, { definitionsLoaded = false, fill } = {}) {
     return component;
 }
 
-/**
- * @param {Record<string, any>} overrides
- */
+/** @param {Record<string, any>} overrides */
 const propertyGroupBy = (overrides = {}) => ({
     type: "groupBy",
     isProperty: true,
@@ -179,9 +177,7 @@ describe("loadDefinitions", () => {
 });
 
 describe("what triggers the fetch", () => {
-    /**
-     * @param {() => Promise<void>} fill
-     */
+    /** @param {() => Promise<void>} fill */
     async function mountItem(fill) {
         class Parent extends Component {
             static components = { PropertiesGroupByItem };

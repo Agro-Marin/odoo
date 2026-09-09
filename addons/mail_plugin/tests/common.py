@@ -11,12 +11,6 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 
 @contextmanager
 def mock_auth_method_outlook(login):
-    """Mock the Outlook auth method.
-
-    This must be used as a method decorator.
-
-    :param login: Login of the user used for the authentication
-    """
 
     def patched_auth_method_outlook(*args, **kwargs):
         request.update_env(
@@ -43,12 +37,6 @@ class TestMailPluginControllerCommon(HttpCase):
 
     @mock_auth_method_outlook("employee")
     def mock_plugin_partner_get(self, name, email, patched_iap_enrich):
-        """Simulate a HTTP call to /partner/get with the given email and name.
-
-        The authentication process is patched to allow all queries.
-        The third argument "patched_iap_enrich" allow you to mock the IAP request and
-        to return the response you want.
-        """
         data = {
             "id": 0,
             "jsonrpc": "2.0",
@@ -74,11 +62,6 @@ class TestMailPluginControllerCommon(HttpCase):
 
     @mock_auth_method_outlook("employee")
     def mock_enrich_and_create_company(self, partner_id, patched_iap_enrich):
-        """Simulate a HTTP call to /partner/enrich_and_create_company on the given partner.
-
-        The third argument "patched_iap_enrich" allow you to mock the IAP request and
-        to return the response you want.
-        """
         data = {
             "id": 0,
             "jsonrpc": "2.0",

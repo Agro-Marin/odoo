@@ -11,16 +11,10 @@ import { MockServerError } from "./mock_server_utils.js";
  * @typedef {import("fields").FieldType} FieldType
  * @typedef {import("./mock_model").ModelRecord} ModelRecord
  * @typedef {{
- * compute?: (() => void) | string;
- * default?: RecordFieldValue | ((record: ModelRecord) => RecordFieldValue);
- * onChange?: (record: ModelRecord) => void;
- * }} MockFieldProperties
  * @typedef {number | string | boolean | number[]} RecordFieldValue
  */
 
-/**
- * @param {string} name
- */
+/** @param {string} name */
 function camelToPascal(name) {
     return (
         name[0].toUpperCase() +
@@ -29,13 +23,10 @@ function camelToPascal(name) {
 }
 
 /**
- * @template {FieldType} T
- * @template [R=never]
+ * @template {FieldType}
+ * @template
  * @param {T} type
  * @param {{
- * aggregator?: Aggregator;
- * requiredKeys?: R[];
- * }} params
  */
 function makeFieldGenerator(type, { aggregator, defaults, requiredKeys = [] } = {}) {
     const constructorFnName = camelToPascal(type);
@@ -50,9 +41,7 @@ function makeFieldGenerator(type, { aggregator, defaults, requiredKeys = [] } = 
     Object.assign(defaultDef, defaults);
 
     return {
-        /**
-         * @param {Partial<FieldDefinitionsByType[T] & MockFieldProperties>} [properties]
-         */
+        /** @param {Partial<FieldDefinitionsByType[T] & MockFieldProperties>} [properties] */
         [constructorFnName](properties) {
             const field = {
                 ...defaultDef,
@@ -83,9 +72,7 @@ const R_ENDS_WITH_ID = /_id(s)?$/i;
 const R_LOWER_FOLLOWED_BY_UPPER = /([a-z])([A-Z])/g;
 const R_SPACE_OR_UNDERSCORE = /[\s_]+/g;
 
-/**
- * @param {Record<string, FieldDefinition & MockFieldProperties>} fields
- */
+/** @param {Record<string, FieldDefinition & MockFieldProperties>} fields */
 export function copyFields(fields) {
     const fieldsCopy = {};
     for (const [fieldName, field] of Object.entries(fields)) {
@@ -98,16 +85,12 @@ export function copyFields(fields) {
     return fieldsCopy;
 }
 
-/**
- * @param {FieldDefinition & MockFieldProperties} field
- */
+/** @param {FieldDefinition & MockFieldProperties} field */
 export function isComputed(field) {
     return globalThis.Boolean(field.compute || field.related);
 }
 
-/**
- * @param {unknown} value
- */
+/** @param {unknown} value */
 export function getFieldDisplayName(value) {
     const str = String(value)
         .replace(R_ENDS_WITH_ID, "$1")

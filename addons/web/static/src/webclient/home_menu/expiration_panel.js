@@ -9,11 +9,6 @@ import { useService } from "@web/core/utils/hooks";
 const RENEWAL_GRACE_DAYS = 15;
 
 /**
- * A count of days as a phrase. Every number the panel prints can be 1: the
- * days left reach it on the last day, and the two renewal counts are measured
- * from the end of the grace period rather than from today, so they reach it on
- * their own.
- *
  * @param {number} days
  * @returns {string}
  */
@@ -21,9 +16,7 @@ function dayCount(days) {
     return days === 1 ? _t("1 day") : _t("%s days", days);
 }
 
-/**
- * @extends Component
- */
+/** @extends */
 export class ExpirationPanel extends Component {
     static template = "web.ExpirationPanel";
     static props = {};

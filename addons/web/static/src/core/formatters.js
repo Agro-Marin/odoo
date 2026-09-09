@@ -21,9 +21,7 @@ import {
 } from "@web/core/utils/format/numbers";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 
-/**
- * @typedef {{ attrs: Record<string, any>, options: Record<string, any> }} FieldInfoNode
- */
+/** @typedef {{ attrs: Record<string, any>, options: Record<string, any> }} FieldInfoNode */
 
 /**
  * @param {unknown} value
@@ -96,13 +94,6 @@ formatFieldDate.extractOptions = ({ options }) => ({
 /**
  * @param {any} value
  * @param {{
- * numeric?: boolean,
- * showTime?: boolean,
- * showDate?: boolean,
- * showSeconds?: boolean,
- * format?: string,
- * tz?: string,
- * }} [options]
  * @returns {string}
  */
 export function formatFieldDateTime(value, options = {}) {
@@ -330,9 +321,7 @@ export function formatPercentage(value, options = {}) {
 }
 formatPercentage.extractOptions = formatFieldFloat.extractOptions;
 
-/**
- * @param {any[]|false} value
- */
+/** @param {any[]|false} value */
 function formatProperties(value) {
     if (!value || !value.length) {
         return "";

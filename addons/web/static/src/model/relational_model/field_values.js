@@ -2,7 +2,6 @@
 /** @odoo-module native */
 
 import { markup } from "@odoo/owl";
-/** @import { Field } from "@web/model/types" */
 import { Domain } from "@web/core/domain";
 import {
     deserializeDate,
@@ -101,14 +100,10 @@ export function parseServerValue(field, value) {
     return deserializers.get(field.type, (v) => v)(value, field);
 }
 
-/**
- * @type {WeakMap<object, Map<string, string[]>>}
- */
+/** @type {WeakMap<object, Map<string, string[]>>} */
 const aggregateSpecCache = new WeakMap();
 
-/**
- * @param {Record<string, any> | any[]} fields
- */
+/** @param {Record<string, any> | any[]} fields */
 export function invalidateAggregateSpecs(fields) {
     aggregateSpecCache.delete(fields);
 }

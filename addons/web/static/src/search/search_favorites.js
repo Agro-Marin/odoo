@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { OrderTerm } from "@web/core/utils/order_by" */
-
 import { makeContext } from "@web/core/context";
 import { Domain } from "@web/core/domain";
 import { evaluateExpr } from "@web/core/py_js/py";

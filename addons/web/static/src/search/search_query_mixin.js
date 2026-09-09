@@ -7,7 +7,7 @@ import { SPECIAL } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
 /**
- * @template {new (...args: any[]) => any} T
+ * @template {new (...args: any[]) => any}
  * @param {T} Base
  */
 export const SearchQueryMixin = (Base) =>
@@ -29,9 +29,7 @@ export const SearchQueryMixin = (Base) =>
             }
         }
 
-        /**
-         * @param {number|null} defaultFavoriteId
-         */
+        /** @param {number|null} defaultFavoriteId */
         _activateDefaultSearchItems(defaultFavoriteId) {
             if (defaultFavoriteId) {
                 this.toggleSearchItem(defaultFavoriteId);
@@ -176,9 +174,7 @@ export const SearchQueryMixin = (Base) =>
             return preSearchItem.id;
         }
 
-        /**
-         * @param {number|symbol} groupId
-         */
+        /** @param {number|symbol} groupId */
         async deactivateGroup(groupId) {
             if (groupId === SPECIAL) {
                 delete this.defaultGroupBy;
@@ -194,9 +190,7 @@ export const SearchQueryMixin = (Base) =>
             return this._notify();
         }
 
-        /**
-         * @param {number} searchItemId
-         */
+        /** @param {number} searchItemId */
         async toggleSearchItem(searchItemId) {
             const searchItem = this.searchItems[searchItemId];
             if (searchItem.isInvalid) {

@@ -11,9 +11,7 @@ import {
 } from "../hoot_utils.js";
 import { ensureTest } from "../main_runner.js";
 
-/**
- * @typedef {"android" | "ios" | "linux" | "mac" | "windows"} Platform
- */
+/** @typedef {"android" | "ios" | "linux" | "mac" | "windows"} Platform */
 
 const {
     Blob,
@@ -48,9 +46,7 @@ function getMockValues() {
     };
 }
 
-/**
- * @returns {Record<PermissionName, { name: string; state: PermissionState }>}
- */
+/** @returns {Record<PermissionName, { name: string; state: PermissionState }>} */
 function getPermissions() {
     return {
         "background-sync": {
@@ -132,9 +128,7 @@ function getUserAgentBrowser() {
     }
 }
 
-/**
- * @param {Platform} platform
- */
+/** @param {Platform} platform */
 function makeUserAgent(platform) {
     const userAgent = ["Mozilla/5.0"];
     switch (platform.toLowerCase()) {
@@ -170,9 +164,7 @@ function makeUserAgent(platform) {
     return userAgent.join(" ");
 }
 
-/**
- * @param {string} fnName
- */
+/** @param {string} fnName */
 function throwNotImplemented(fnName) {
     return function notImplemented() {
         throw new HootError(`unmocked navigator method: ${fnName}`);
@@ -218,9 +210,7 @@ export class MockClipboardItem extends ClipboardItem {
 }
 
 export class MockPermissions {
-    /**
-     * @param {PermissionDescriptor} permissionDesc
-     */
+    /** @param {PermissionDescriptor} permissionDesc */
     async query({ name }) {
         if (!(name in currentPermissions)) {
             throw new TypeError(
@@ -300,25 +290,19 @@ export function mockPermission(name, value) {
     }
 }
 
-/**
- * @param {Navigator["sendBeacon"]} callback
- */
+/** @param {Navigator["sendBeacon"]} callback */
 export function mockSendBeacon(callback) {
     ensureTest("mockSendBeacon");
     mockValues.sendBeacon = callback;
 }
 
-/**
- * @param {Platform} platform
- */
+/** @param {Platform} platform */
 export function mockUserAgent(platform = "linux") {
     ensureTest("mockUserAgent");
     mockValues.userAgent = makeUserAgent(platform);
 }
 
-/**
- * @param {Navigator["vibrate"]} callback
- */
+/** @param {Navigator["vibrate"]} callback */
 export function mockVibrate(callback) {
     ensureTest("mockVibrate");
     mockValues.vibrate = callback;

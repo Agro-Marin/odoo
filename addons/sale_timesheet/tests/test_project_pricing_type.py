@@ -7,22 +7,11 @@ from .common import TestCommonSaleTimesheet
 @tagged("-at_install", "post_install")
 class TestProjectPricingType(TestCommonSaleTimesheet):
     def test_pricing_type(self):
-        """Test the _compute_pricing_type when the user add a sales order item or some employee mappings in the project
-
-        Test Case:
-        =========
-        1) Take a project non billable and check if the pricing_type is equal to False
-        2) Set allow_billable to True and check if the pricing_type is equal to task_rate (if no SOL and no mappings)
-        3) Set a customer and a SOL in the project and check if the pricing_type is equal to fixed_rate (project rate)
-        4) Set a employee mapping and check if the pricing_type is equal to employee_rate
-        """
         project = self.project_non_billable
 
         def _search_pricing_type(operator, value):
-            # execute the optimization to transform the domain
             return Domain("pricing_type", operator, value).optimize_full(project)
 
-        # 1) Take a project non billable and check if the pricing_type is equal to False
         self.assertFalse(
             project.allow_billable,
             "The allow_billable should be false if the project is non billable.",
@@ -52,7 +41,6 @@ class TestProjectPricingType(TestCommonSaleTimesheet):
         )
         self.assertFalse(project.filtered_domain(_search_pricing_type("!=", False)))
 
-        # 2) Set allow_billable to True and check if the pricing_type is equal to task_rate (if no SOL and no mappings)
         project.write(
             {
                 "allow_billable": True,
@@ -92,7 +80,6 @@ class TestProjectPricingType(TestCommonSaleTimesheet):
         )
         self.assertTrue(project.filtered_domain(_search_pricing_type("!=", False)))
 
-        # 3) Set a customer and a SOL in the project and check if the pricing_type is equal to fixed_rate (project rate)
         project.write(
             {
                 "partner_id": self.partner_b.id,
@@ -136,7 +123,6 @@ class TestProjectPricingType(TestCommonSaleTimesheet):
         )
         self.assertTrue(project.filtered_domain(_search_pricing_type("!=", False)))
 
-        # 4) Set a employee mapping and check if the pricing_type is equal to employee_rate
         project.write(
             {
                 "sale_line_employee_ids": [
@@ -183,7 +169,6 @@ class TestProjectPricingType(TestCommonSaleTimesheet):
         )
         self.assertTrue(project.filtered_domain(_search_pricing_type("!=", False)))
 
-        # Even if the project has no sales order item, since it has an employee mapping, the pricing type must be equal to employee_rate.
         project.write(
             {
                 "sale_line_id": False,

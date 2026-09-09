@@ -16,8 +16,6 @@ export class TaskCheckMark extends BooleanToggleField {
         if (this.props.readonly) {
             return;
         }
-        // Base onChange handles the update, the autosave option and the
-        // optimistic-state rollback on a rejected save.
         await this.onChange(!this.isReached);
     }
 }

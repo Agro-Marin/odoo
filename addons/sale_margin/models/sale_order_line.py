@@ -32,17 +32,11 @@ class SaleOrderLine(models.Model):
     @api.depends("product_id", "company_id", "currency_id", "product_uom_id")
     def _compute_purchase_price(self):
         for line in self:
-            # A combo master line prices at 0 by design (`_get_price_display`) --
-            # its real revenue and cost live on the linked combo-item lines
-            # (`_get_lines_with_price`). Costing it from its own product's
-            # `standard_price` would create a phantom cost with no matching
-            # revenue.
             if not line.product_id or line.product_type == "combo":
                 line.purchase_price = 0.0
                 continue
             line = line.with_company(line.company_id)
 
-            # Convert the cost to the line UoM
             product_cost = line.product_id.uom_id._compute_price(
                 line.product_id.standard_price,
                 line.product_uom_id,
@@ -61,12 +55,6 @@ class SaleOrderLine(models.Model):
     )
     def _compute_margin(self):
         for line in self:
-            # `product_qty`, `qty_transferred` and `purchase_price` are all in the
-            # LINE's unit -- `_compute_purchase_price` converts the cost into
-            # `product_uom_id` explicitly. `product_uom_qty` is the same quantity
-            # in the product's REFERENCE unit, so pairing it with a per-line-unit
-            # price multiplies the conversion factor in twice.
-            # Find alternative calculation when line is added to order from delivery
             if line.qty_transferred and not line.product_qty:
                 calculated_subtotal = line.price_unit * line.qty_transferred
                 line.margin = calculated_subtotal - (

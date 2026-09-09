@@ -64,9 +64,7 @@ export class AttachDocumentWidget extends Component {
         }
     }
 
-    /**
-     * @param {Array<{id: number}>} files
-     */
+    /** @param {Array<{id: number}>} files */
     async onFileUploaded(files) {
         const { action, record } = this.props;
         if (action) {

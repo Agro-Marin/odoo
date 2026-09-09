@@ -38,16 +38,13 @@ export class ProjectTaskKanbanCompiler extends KanbanCompiler {
         return this.compileWidget(el);
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     compile(key, params = {}) {
         const newRoot = super.compile(key, params);
         if (
             this.subtaskListComponentCompiled.component !==
             this.subtaskListComponentCompiled.button
         ) {
-            // Error since one of them is not compiled
             throw new Error(
                 "The subtask list component cannot be rendered if the button and the component are not in the view definition.",
             );

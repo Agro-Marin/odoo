@@ -6,9 +6,7 @@ import { cookie } from "@web/core/browser/cookie";
 
 describe.current.tags("headless");
 
-/**
- * @returns {string[]}
- */
+/** @returns {string[]} */
 function captureCookieWrites() {
     /** @type {string[]} */
     const writes = [];

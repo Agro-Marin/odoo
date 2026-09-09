@@ -51,8 +51,6 @@ class QuotationDocument(models.Model):
         default=False,
     )
 
-    # === CONSTRAINT METHODS ===#
-
     @api.constrains("datas")
     def _check_pdf_validity(self):
         for doc in self:
@@ -64,11 +62,8 @@ class QuotationDocument(models.Model):
                 doc.ir_attachment_id._get_content_prefix()
             )
 
-    # === COMPUTE METHODS === #
-
     @api.depends("datas")
     def _compute_form_field_ids(self):
-        # Empty the linked form fields as we want all and only those from the current datas
         self.form_field_ids = [Command.clear()]
         document_to_parse = self.filtered(lambda doc: doc.datas)
         if document_to_parse:
@@ -76,8 +71,6 @@ class QuotationDocument(models.Model):
             self.env[
                 "sale.pdf.form.field"
             ]._create_or_update_form_fields_on_pdf_records(document_to_parse, doc_type)
-
-    # === ACTION METHODS ===#
 
     def action_view_pdf_form_fields(self):
         self.check_singleton()
@@ -94,8 +87,6 @@ class QuotationDocument(models.Model):
             },
             "target": "current",
         }
-
-    # === CRUD METHODS ===#
 
     @api.model_create_multi
     def create(self, vals_list):

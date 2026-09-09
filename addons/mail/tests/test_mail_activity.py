@@ -25,9 +25,6 @@ class TestMailActivityChatter(HttpCase):
             lang = self.env["res.lang"].search([("code", "=", LANG_CODE)])
             lang.date_format = "%d/%b/%y"
             lang.time_format = "%I:%M:%S %p"
-            # write(), not assignment: res.users.write clears the ormcache
-            # behind context_get when tz changes, and the session the tour
-            # opens reads its timezone from there.
             self.env.ref("base.user_admin").write({"tz": "UTC"})
 
             self.start_tour(

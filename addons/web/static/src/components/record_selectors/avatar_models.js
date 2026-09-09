@@ -5,9 +5,7 @@ import { registry } from "@web/core/registry";
 import { isId } from "@web/core/tree/utils";
 import { imageUrl } from "@web/core/utils/urls";
 
-/**
- * @type {import("@web/core/registry").Registry<boolean>}
- */
+/** @type {import("@web/core/registry").Registry<boolean>} */
 export const avatarModels = registry.category("avatar_models");
 
 avatarModels.add("res.partner", true).add("res.users", true);

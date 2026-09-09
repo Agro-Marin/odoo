@@ -28,9 +28,6 @@ async function openThreadWithFollower({ collaborator }) {
     await start();
     await openFormView("res.partner", threadId);
     if (collaborator) {
-        // The server only serializes collaborator_ids for project threads
-        // (project.project._thread_to_store); seed the store directly to
-        // exercise the follower-side logic.
         const thread = getService("mail.store").Thread.insert({
             model: "res.partner",
             id: threadId,
@@ -45,12 +42,10 @@ test("removing a collaborator follower asks for confirmation", async () => {
     await openThreadWithFollower({ collaborator: true });
     await click("[title='Remove this follower']");
     await contains(".modal", { text: "Remove Collaborator" });
-    // Discard keeps the follower subscribed.
     await click(".modal button", { text: "Discard" });
     await contains(".modal", { count: 0 });
     await click(".o-mail-Followers-button");
     await contains(".o-mail-Follower");
-    // Confirm actually removes them.
     await click("[title='Remove this follower']");
     await click(".modal button", { text: "Remove Collaborator" });
     await contains(".o-mail-Follower", { count: 0 });

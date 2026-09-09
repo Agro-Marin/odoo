@@ -5,17 +5,11 @@ import { markRaw } from "@odoo/owl";
 import { SignalStore } from "@web/core/utils/reactive";
 
 import { getId } from "./field_context.js";
-/** @import { Field, FieldInfo } from "@web/model/types" */
-/** @import { RelationalModel, RelationalModelConfig } from "./relational_model.js" */
 
-/**
- * @typedef {Record<string, unknown> | unknown[]} DataPointPayload
- */
+/** @typedef {Record<string, unknown> | unknown[]} DataPointPayload */
 
 export class DataPoint extends SignalStore {
-    /**
-     * @type {import("./record_edit_state.js").RecordEditState}
-     */
+    /** @type {import("./record_edit_state.js").RecordEditState} */
     _editState;
 
     /** @type {Set<string>} */
@@ -40,7 +34,7 @@ export class DataPoint extends SignalStore {
 
     /**
      * @abstract
-     * @template [O={}]
+     * @template
      * @param {RelationalModelConfig} _config
      * @param {DataPointPayload} [_data]
      * @param {O} [_options]

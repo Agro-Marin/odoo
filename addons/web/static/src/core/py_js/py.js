@@ -19,13 +19,11 @@ export { formatAST } from "./py_utils.js";
  * @typedef { import("./py_parser").AST } AST
  */
 
-/**
- * @type {LruCache}
- */
+/** @type {LruCache} */
 const _astCache = new LruCache(512);
 
 /**
- * @template {AST} T
+ * @template {AST}
  * @param {T} node
  * @returns {T}
  */

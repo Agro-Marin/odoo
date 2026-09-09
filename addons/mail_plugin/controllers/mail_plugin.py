@@ -24,10 +24,6 @@ class MailPluginController(http.Controller):
         cors="*",
     )
     def modules_get(self, **kwargs):
-        """
-        deprecated as of saas-14.3, not needed for newer versions of the mail plugin but necessary
-        for supporting older versions
-        """
         return {"modules": ["contacts", "crm"]}
 
     @http.route(
@@ -37,11 +33,6 @@ class MailPluginController(http.Controller):
         cors="*",
     )
     def res_partner_enrich_and_create_company(self, partner_id):
-        """
-        Route used when the user clicks on the create and enrich partner button
-        it will try to find a company using IAP, if a company is found
-        the enriched company will then be created in the database
-        """
 
         partner = request.env["res.partner"].browse(partner_id).exists()
 
@@ -76,9 +67,6 @@ class MailPluginController(http.Controller):
         cors="*",
     )
     def res_partner_enrich_and_update_company(self, partner_id):
-        """
-        Enriches an existing company using IAP
-        """
         partner = request.env["res.partner"].browse(partner_id).exists()
 
         if not partner:
@@ -165,15 +153,6 @@ class MailPluginController(http.Controller):
         cors="*",
     )
     def res_partner_get(self, email=None, name=None, partner_id=None, **kwargs):
-        """
-        returns a partner given it's id or an email and a name.
-        In case the partner does not exist, we return partner having an id -1, we also look if an existing company
-        matching the contact exists in the database, if none is found a new company is enriched and created automatically
-
-        old route name "/mail_client_extension/partner/get is deprecated as of saas-14.3, it is not needed for newer
-        versions of the mail plugin but necessary for supporting older versions, only the route name is deprecated not
-        the entire method.
-        """
 
         if not (partner_id or (name and email)):
             return {
@@ -243,13 +222,6 @@ class MailPluginController(http.Controller):
 
     @http.route("/mail_plugin/partner/search", type="jsonrpc", auth="outlook", cors="*")
     def res_partners_search(self, search_term, limit=30, **kwargs):
-        """
-        Used for the plugin search contact functionality where the user types a string query in order to search for
-        matching contacts, the string query can either be the name of the contact, it's reference or it's email.
-        We choose these fields because these are probably the most interesting fields that the user can perform a
-        search on.
-        The method returns an array containing the dicts of the matched contacts.
-        """
         normalized_email = tools.email_normalize(search_term)
 
         if normalized_email:
@@ -275,11 +247,6 @@ class MailPluginController(http.Controller):
         cors="*",
     )
     def res_partner_create(self, email, name, company):
-        """
-        params email: email of the new partner
-        params name: name of the new partner
-        params company: parent company id of the new partner
-        """
         notification_emails = (
             request.env["mail.alias.domain"]
             .sudo()
@@ -304,14 +271,6 @@ class MailPluginController(http.Controller):
         "/mail_plugin/log_mail_content", type="jsonrpc", auth="outlook", cors="*"
     )
     def log_mail_content(self, model, res_id, message, attachments=None):
-        """Log the email on the given record.
-
-        :param model: Model of the record on which we want to log the email
-        :param res_id: ID of the record
-        :param message: Body of the email
-        :param attachments: List of attachments of the email.
-            List of tuple: (filename, base 64 encoded content)
-        """
         if model not in self._mail_content_logging_models_whitelist():
             raise Forbidden()
 
@@ -332,10 +291,6 @@ class MailPluginController(http.Controller):
         return self._prepare_translations()
 
     def _iap_enrich(self, domain):
-        """
-        Returns enrichment data for a given domain, in case an error happens the response will
-        contain an enrichment_info key explaining what went wrong
-        """
         if domain in iap_tools._MAIL_PROVIDERS:
             return {"enrichment_info": {"type": "missing_data"}}
 
@@ -364,11 +319,6 @@ class MailPluginController(http.Controller):
         return enriched_data
 
     def _find_existing_company(self, email):
-        """Find the company corresponding to the given domain and its IAP cache.
-
-        :param email: Email of the company we search
-        :return: The partner corresponding to the company
-        """
         search = self._get_iap_search_term(email)
 
         partner_iap = (
@@ -504,10 +454,6 @@ class MailPluginController(http.Controller):
         return partner_values
 
     def _get_contact_data(self, partner):
-        """
-        method used to return partner related values, it can be overridden by other modules if extra information have to
-        be returned with the partner (e.g., leads, ...)
-        """
         if partner:
             partner_response = self._get_partner_data(partner)
             if partner.is_company:
@@ -526,29 +472,15 @@ class MailPluginController(http.Controller):
         }
 
     def _mail_content_logging_models_whitelist(self):
-        """
-        Returns all models that emails can be logged to and that can be used by the "log_mail_content" method,
-        it can be overridden by sub modules in order to whitelist more models
-        """
         return ["res.partner"]
 
     def _get_iap_search_term(self, email):
-        """Return the domain or the email depending if the domain is blacklisted or not.
-
-        So if the domain is blacklisted, we search based on the entire email address
-        (e.g. asbl@gmail.com). But if the domain is not blacklisted, we search based on
-        the domain (e.g. bob@sncb.be -> sncb.be)
-        """
         domain = tools.email_domain_extract(email)
         return (
             ("@" + domain) if domain not in iap_tools._MAIL_DOMAIN_BLACKLIST else email
         )
 
     def _translation_modules_whitelist(self):
-        """
-        Returns the list of modules to be translated
-        Other mail plugin modules have to override this method to include their module names
-        """
         return ["mail_plugin"]
 
     def _prepare_translations(self):

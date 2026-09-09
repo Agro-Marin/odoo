@@ -39,9 +39,7 @@ import { useDebounced } from "@web/core/utils/timing";
  * @property {number|undefined} position
  * @property {string} term
  */
-/**
- * @typedef {import("models").ResPartner | import("models").ResRole | import("models").Thread | import("models").CannedResponse | import("@web/components/emoji_picker").Emoji | (import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}) | import("@mail/core/common/store_service").SpecialMention} Suggestion
- */
+/** @typedef {import("models").ResPartner | import("models").ResRole | import("models").Thread | import("models").CannedResponse | import("@web/components/emoji_picker").Emoji | (import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}) | import("@mail/core/common/store_service").SpecialMention} Suggestion */
 export const DELAY_FETCH = 250;
 
 export class UseSuggestion {
@@ -99,9 +97,7 @@ export class UseSuggestion {
         position: undefined,
         term: "",
     };
-    /**
-     * @type {(SuggestionSearch & {count: number})|null|undefined}
-     */
+    /** @type {(SuggestionSearch & {count: number})|null|undefined} */
     lastFetchedSearch;
     get isSearchMoreSpecificThanLastFetch() {
         return (
@@ -374,9 +370,7 @@ function mapPartnerSuggestionsToOptions(suggestions, classList, { thread } = {})
     return {
         optionTemplate: "mail.Composer.suggestionPartner",
         options:
-            /**
-             * @type {(import("models").ResPartner | import("models").ResRole | import("@mail/core/common/store_service").SpecialMention)[]}
-             */ (suggestions).map((suggestion) => {
+            /** @type {(import("models").ResPartner | import("models").ResRole | import("@mail/core/common/store_service").SpecialMention)[]} */ (suggestions).map((suggestion) => {
                 if ("isSpecial" in suggestion) {
                     return {
                         ...suggestion,

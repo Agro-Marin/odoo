@@ -1,49 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @typedef {Record<string, any>} ServerGroup
- */
+/** @typedef {Record<string, any>} ServerGroup */
 
-/**
- * @typedef {Record<string, any>} FieldsMap
- */
+/** @typedef {Record<string, any>} FieldsMap */
 
-/**
- * @typedef {{ fieldName: string, spec: string, [key: string]: any }} GroupByLevel
- */
+/** @typedef {{ fieldName: string, spec: string, [key: string]: any }} GroupByLevel */
 
-/**
- * @typedef {Record<string, Record<string, number>>} Numbering
- */
+/** @typedef {Record<string, Record<string, number>>} Numbering */
 
-/**
- * @typedef {{
- * count: any,
- * domain: any,
- * value: any,
- * labels: any[],
- * isFalsyXGroup: boolean,
- * identifier: string,
- * xIdentifier: string,
- * datasetId: string,
- * cumulatedStart: any,
- * convertedCumulatedStart?: any,
- * currencyId?: any,
- * convertedValue?: any,
- * }} GraphDataPoint
- */
+/** @typedef {{ */
 
-/**
- * @typedef {{
- * currencyId?: any,
- * value?: any,
- * cumulatedStart?: any,
- * convertedValue?: any,
- * convertedCumulatedStart?: any,
- * [key: string]: any,
- * }} CurrencyResolvable
- */
+/** @typedef {{ */
 
 /**
  * @param {string} measure

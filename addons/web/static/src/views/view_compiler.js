@@ -66,9 +66,7 @@ export const DEFAULT_COMPILER_SEQUENCE = 50;
  */
 function findInterpolationEnd(str, start, opener) {
     const closer = INTERP_OPENERS[opener];
-    /**
-     * @type {string[]}
-     */
+    /** @type {string[]} */
     const stack = [];
     let depth = 0;
     let i = start + opener.length;
@@ -302,28 +300,17 @@ export function makeIsVisibleExpr(invisible, recordExpr = "__comp__.props.record
     )},${recordExpr}.evalContextWithVirtualIds)`;
 }
 
-/**
- * @type {Set<string>}
- */
+/** @type {Set<string>} */
 const warnedShadowedSelectors = new Set();
 
-/**
- * @type {Set<string>}
- */
+/** @type {Set<string>} */
 const shadowedCompilerReports = new Set();
 
 export function getShadowedCompilerReports() {
     return [...shadowedCompilerReports].map((entry) => JSON.parse(entry));
 }
 
-/**
- * The Owl directives a view's *record* template may use — the set an arch-embedded
- * template needs beyond the empty base whitelist. Declared once here because it
- * had been copied per view: `kanban`, `web_gantt` and `web_threed` each carried a
- * byte-identical list, and `geoengine` a silently shorter one.
- *
- * @type {string[]}
- */
+/** @type {string[]} */
 export const RECORD_TEMPLATE_DIRECTIVES = [
     "t-name",
     "t-esc",
@@ -341,9 +328,7 @@ export const RECORD_TEMPLATE_DIRECTIVES = [
 ];
 
 export class ViewCompiler {
-    /**
-     * @type {string[]}
-     */
+    /** @type {string[]} */
     static OWL_DIRECTIVE_WHITELIST = [];
 
     constructor(templates) {
@@ -525,9 +510,7 @@ export class ViewCompiler {
         }
     }
 
-    /**
-     * @param {Element} root
-     */
+    /** @param {Element} root */
     pairArchDialogs(root) {
         for (const trigger of root.querySelectorAll(MODAL_TRIGGER_SELECTOR)) {
             const selector = MODAL_TARGET_ATTRS.map((a) =>
@@ -835,13 +818,9 @@ export class ViewCompiler {
 }
 
 let templateCache = new Set();
-/**
- * @type {WeakMap<Element, string>}
- */
+/** @type {WeakMap<Element, string>} */
 const archKeyCache = new WeakMap();
-/**
- * @type {WeakMap<Function, string>}
- */
+/** @type {WeakMap<Function, string>} */
 const compilerClassKeys = new WeakMap();
 let nextCompilerClassId = 1;
 function getCompilerClassKey(ViewCompiler) {

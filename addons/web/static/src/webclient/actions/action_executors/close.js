@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { ActionManager } from "../action_service.js" */
-
 /**
  * @param {ActionManager} am
  * @param {{ infos?: any }} [action]

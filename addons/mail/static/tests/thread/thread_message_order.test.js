@@ -39,6 +39,5 @@ test("message list desc order", async () => {
     await scroll(".o-mail-Chatter", "bottom");
     await contains(".o-mail-Message", { count: 60 });
     await scroll(".o-mail-Chatter", 0);
-    // weak test, no guaranteed that we waited long enough for potential extra messages to be loaded
     await contains(".o-mail-Message", { count: 60 });
 });

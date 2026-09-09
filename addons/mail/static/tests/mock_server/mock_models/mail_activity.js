@@ -323,9 +323,7 @@ export class MailActivity extends models.ServerModel {
     }
 }
 
-/**
- * @this {import("@web/../tests/web_test_helpers").ServerModel}
- */
+/** @this {import("@web/../tests/web_test_helpers").ServerModel} */
 export function computeActivityNext() {
     /** @type {import("mock_models").MailActivity} */
     const MailActivity = this.env["mail.activity"];

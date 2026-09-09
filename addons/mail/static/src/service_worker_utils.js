@@ -55,7 +55,7 @@ export function planPushNotification(notification, { isAndroid = false } = {}) {
 }
 
 /**
- * @template {{id: string, url: string, focused?: boolean, visibilityState?: string}} T
+ * @template {{id: string, url: string, focused?: boolean, visibilityState?: string}}
  * @param {readonly T[]} clients
  * @param {Object} [options]
  * @param {{id: string}} [options.source]

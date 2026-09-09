@@ -82,7 +82,6 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         cls.alt_company = cls.env["res.company"].create({"name": "Backup Company"})
 
     def _create_so_form(self, **values):
-        """Default values limited to preexisting ones. No Command"""
         SaleOrder = self.env["sale.order"].with_context(
             default_partner_id=self.partner.id
         )
@@ -117,25 +116,19 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         )
         sol_1, sol_2 = self.sale_order.line_ids
         form_field_expected_value_map = {
-            new_form_fields[0]: "No",  # boolean
-            new_form_fields[1]: self.sale_order.name,  # char
-            new_form_fields[2]: "11/04/2020",  # date
-            new_form_fields[3]: "",  # datetime missing
-            new_form_fields[4]: "1.0",  # float
-            new_form_fields[5]: "1",  # integer
+            new_form_fields[0]: "No",
+            new_form_fields[1]: self.sale_order.name,
+            new_form_fields[2]: "11/04/2020",
+            new_form_fields[3]: "",
+            new_form_fields[4]: "1.0",
+            new_form_fields[5]: "1",
             new_form_fields[6]: dict(self.sale_order._fields["state"].selection)[
                 "draft"
-            ],  # selection
-            new_form_fields[7]: "$\xa0725.00",  # monetary
-            new_form_fields[
-                8
-            ]: f"{sol_1.display_name}, {sol_2.display_name}",  # one2many
-            new_form_fields[
-                9
-            ]: f"{self.sale_order.company_id.display_name}",  # many2one
-            new_form_fields[
-                10
-            ]: f"{self.sale_order.company_id.display_name}",  # many2many
+            ],
+            new_form_fields[7]: "$\xa0725.00",
+            new_form_fields[8]: f"{sol_1.display_name}, {sol_2.display_name}",
+            new_form_fields[9]: f"{self.sale_order.company_id.display_name}",
+            new_form_fields[10]: f"{self.sale_order.company_id.display_name}",
         }
         for form_field, expected_value in form_field_expected_value_map.items():
             result = self.env["ir.actions.report"]._get_value_from_path(
@@ -200,7 +193,6 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         dialog_param = sale_order_internal_user.with_user(
             self.internal_user.id
         ).get_update_included_pdf_params()
-        # should return all document data regardless of access
         self.assertEqual("Header", dialog_param["headers"]["files"][0]["name"])
         self.assertEqual("Product > Test Product", dialog_param["lines"][0]["name"])
 
@@ -250,12 +242,9 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
                 doc_form.attached_on_sale = "inside"
 
     def test_onchange_product_removes_previously_selected_documents(self):
-        """Check that changing a line that has a selected document unselect said document."""
 
         available_doc = self.sale_order.line_ids[0].available_product_document_ids
-        self.sale_order.line_ids[
-            0
-        ].product_document_ids = available_doc  # select the document
+        self.sale_order.line_ids[0].product_document_ids = available_doc
 
         self.assertTrue(
             available_doc, msg="Default order line should have an available document."
@@ -342,13 +331,11 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         )
 
     def test_quotation_document_upload_no_template(self):
-        """Check that uploading quotation documents get assigned the active company."""
         if "website" not in self.env:
             self.skipTest("Module `website` not found")
         else:
             from odoo.addons.http_routing.tests.common import MockRequest
 
-        # Upload document without Sale Order Template
         with (
             MockRequest(self.env) as request,
             file_open(plain_pdf, "rb") as file,
@@ -390,13 +377,11 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         )
 
     def test_quotation_document_upload_for_template(self):
-        """Check that uploading quotation documents get assigned the the quotation company."""
         if "website" not in self.env:
             self.skipTest("Module `website` not found")
         else:
             from odoo.addons.http_routing.tests.common import MockRequest
 
-        # Upload a document for a Sale Order Template without company id
         self.empty_order_template.company_id = False
         with (
             MockRequest(self.env) as request,
@@ -439,13 +424,11 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         )
 
     def _test_custom_content_kanban_like(self):
-        # TODO VCR finish tour and uncomment
         self.start_tour(
             f"/odoo/sales/{self.sale_order.id}",
             "custom_content_kanban_like_tour",
             login="admin",
         )
-        # Assert documents are selected
 
     def test_quotation_document_is_added_iff_default(self):
         self.assertFalse(self._create_so().quotation_document_ids)
@@ -455,7 +438,6 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
         self.assertEqual(self._create_so().quotation_document_ids, self.header)
 
     def test_default_quotation_document_is_added_iff_available(self):
-        # header is default but only for quote_tmpl
         so_tmpl = self.env["sale.order.template"].create({"name": "Awesome Template"})
         self.header.write(
             {
@@ -489,10 +471,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
 
 @tagged("-at_install", "post_install")
 class TestQuotationDocumentBinSize(SaleManagementCommon):
-    """The PDF validity constraint must not observe `bin_size`."""
-
     def test_check_pdf_validity_under_bin_size(self):
-        """A constraint gets none of the `bin_size` clearing a Binary compute does."""
         with file_open(plain_pdf, "rb") as plain_file:
             plain_data = b64encode(plain_file.read())
         document = self.env["quotation.document"].create(
@@ -506,11 +485,9 @@ class TestQuotationDocumentBinSize(SaleManagementCommon):
         self.env.flush_all()
         document.invalidate_recordset()
 
-        # must not raise
         document.with_context(bin_size=True)._check_pdf_validity()
 
     def test_check_pdf_validity_still_rejects_encrypted(self):
-        """Reading through the attachment must not weaken the check."""
         with file_open(
             "sale_pdf_quote_builder/tests/files/test_AES.pdf", "rb"
         ) as encrypted_file:

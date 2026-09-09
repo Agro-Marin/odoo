@@ -4,10 +4,6 @@
 import { session } from "@web/session";
 
 /**
- * @import { Action, ActWindowAction, ActionManager, ActionProps, BaseView, Config, Controller } from "./action_service.js"
- */
-
-/**
  * @param {any} a
  * @param {any} b
  * @returns {boolean}
@@ -42,10 +38,10 @@ function makeActionStateUpdater(currentState, target, am) {
 
 /**
  * @param {Action} action
- * @param {ActionProps} props mutated: gains `updateActionState`
+ * @param {ActionProps} props
  * @param {any} resId
  * @param {ActionManager} am
- * @returns {Record<string, any>} the live `currentState` the updater patches
+ * @returns {Record<string, any>}
  */
 function attachActionState(action, props, resId, am) {
     const currentState = { resId, active_id: action.context?.active_id };

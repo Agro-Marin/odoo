@@ -9,9 +9,7 @@ import { InvalidTransitionError, StateMachine } from "@web/core/utils/state_mach
  * @typedef {"begin" | "end"} UrgentSaveEvent
  */
 
-/**
- * @type {Record<UrgentSaveStatus, Partial<Record<UrgentSaveEvent, UrgentSaveStatus>>>}
- */
+/** @type {Record<UrgentSaveStatus, Partial<Record<UrgentSaveEvent, UrgentSaveStatus>>>} */
 const TRANSITIONS = {
     idle: { begin: "active" },
     active: { end: "idle" },
@@ -33,17 +31,13 @@ export class UrgentSaveCoordinator extends StateMachine {
     static transitions = TRANSITIONS;
     static invalidTransitionError = InvalidUrgentSaveTransitionError;
 
-    /**
-     * @param {{ trigger: (event: string, payload?: any) => void } | null} [bus]
-     */
+    /** @param {{ trigger: (event: string, payload?: any) => void } | null} [bus] */
     constructor(bus = null) {
         super();
         /** @type {UrgentSaveStatus} */
         this.status = "idle";
         this._bus = bus;
-        /**
-         * @type {Promise<unknown>[]}
-         */
+        /** @type {Promise<unknown>[]} */
         this._reentrantProms = [];
     }
 
@@ -53,7 +47,7 @@ export class UrgentSaveCoordinator extends StateMachine {
     }
 
     /**
-     * @template T
+     * @template
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}
      */
@@ -99,7 +93,7 @@ export class UrgentSaveCoordinator extends StateMachine {
     }
 
     /**
-     * @template T
+     * @template
      * @param {Promise<T> | undefined} promise
      * @returns {Promise<T | undefined>}
      */
@@ -112,7 +106,7 @@ export class UrgentSaveCoordinator extends StateMachine {
     }
 
     /**
-     * @template T
+     * @template
      * @param {() => T | Promise<T>} fn
      * @returns {T | undefined | Promise<T>}
      */

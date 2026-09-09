@@ -17,10 +17,6 @@ export class ProjectSharingMediaPlugin extends MediaPlugin {
 
 export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
     async createAttachment({ el, imageData, resId }) {
-        // Raw fetch instead of services.http: the route answers its rejection
-        // payload (e.g. disallowed mimetype) with HTTP 400, and http.post
-        // throws an opaque NetworkError on any non-ok status — the JSON error
-        // body would never reach us.
         const formData = new FormData();
         for (const [key, value] of Object.entries({
             name: el.dataset.fileName || "",
@@ -38,8 +34,6 @@ export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
         try {
             attachment = await response.json();
         } catch {
-            // Non-JSON body (e.g. a proxy error page): fall through to the
-            // generic error handling below.
         }
         if (!response.ok || !attachment || attachment.error) {
             this.services.notification.add(
@@ -48,9 +42,6 @@ export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
                 { type: "danger" },
             );
             el.remove();
-            // Abort: the base saveB64Image treats a falsy return as "no
-            // attachment". Without this the error object falls through and is
-            // returned as a bogus attachment (src="/web/image/undefined-...").
             return;
         }
         attachment.image_src = "/web/image/" + attachment.id + "-" + attachment.name;
@@ -58,9 +49,6 @@ export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
     }
 }
 
-// Swap the base media plugins for the project-sharing variants. Guard each
-// indexOf: a bare splice(indexOf(...), 1) would remove the LAST element when
-// the target plugin is absent (indexOf → -1 → splice(-1, 1)).
 function replacePlugin(oldPlugin, newPlugin) {
     const index = MAIN_PLUGINS.indexOf(oldPlugin);
     if (index !== -1) {

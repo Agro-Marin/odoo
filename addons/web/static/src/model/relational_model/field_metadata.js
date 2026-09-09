@@ -26,17 +26,7 @@ function convertBoolToPyExpr(value) {
     return value;
 }
 
-/**
- * @typedef {{
- * context?: string;
- * invisible?: boolean | string | null;
- * readonly?: boolean | string | null;
- * required?: boolean | string | null;
- * onChange?: boolean | string;
- * forceSave?: boolean;
- * isHandle?: boolean;
- * }} ActiveFieldOptions
- */
+/** @typedef {{ */
 
 export const FIELD_DEPENDENCIES_VALIDATION = {
     type: [

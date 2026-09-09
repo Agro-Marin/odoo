@@ -81,9 +81,7 @@ afterEach(() => {
     service?.destroy();
 });
 
-/**
- * @returns {Promise<any>}
- */
+/** @returns {Promise<any>} */
 async function flush() {
     browser.dispatchEvent(new Event("pagehide"));
     const last = beacons.at(-1);

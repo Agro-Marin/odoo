@@ -159,9 +159,7 @@ class WebVitalsService {
         } catch {}
     }
 
-    /**
-     * @param {PageTransitionEvent} ev
-     */
+    /** @param {PageTransitionEvent} ev */
     onPagehide(ev) {
         this.flush();
         if (!ev.persisted) {
@@ -187,9 +185,7 @@ class WebVitalsService {
 }
 
 export const webVitalsService = {
-    /**
-     * @returns {WebVitalsService | undefined}
-     */
+    /** @returns {WebVitalsService | undefined} */
     start() {
         if (!browser.PerformanceObserver) {
             return;

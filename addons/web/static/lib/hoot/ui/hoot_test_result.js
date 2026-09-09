@@ -198,13 +198,7 @@ const R_STACK_LINE_START = isFirefox()
     ? /^\s*(?<prefix>@)(?<rest>.*)/i
     : /^\s*(?<prefix>at)(?<rest>.*)/i;
 
-/**
- * @typedef {{
- *  open?: boolean | "always";
- *  slots: any;
- *  test: Test;
- * }} TestResultProps
- */
+/** @typedef {{ */
 
 /** @extends {Component<TestResultProps, import("../hoot").Environment>} */
 export class HootTestResult extends Component {
@@ -361,9 +355,7 @@ export class HootTestResult extends Component {
         }
     }
 
-    /**
-     * @param {number} nType
-     */
+    /** @param {number} nType */
     getTypeName(nType) {
         return CASE_EVENT_TYPES_INVERSE[nType];
     }
@@ -373,9 +365,7 @@ export class HootTestResult extends Component {
         this.filteredEvents = filterEvents(this.filteredResults, this.config.events);
     }
 
-    /**
-     * @param {string} stack
-     */
+    /** @param {string} stack */
     parseStack(stack) {
         const result = [];
         for (const line of stack.split("\n")) {

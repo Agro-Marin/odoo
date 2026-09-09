@@ -2,17 +2,6 @@ from odoo import fields, models
 
 
 class ResPartnerIap(models.Model):
-    """Technical model which stores the response returned by IAP.
-
-    The goal of this model is to not enrich 2 times the same company. We do it in a
-    separate model to not add heavy field (iap_enrich_info) on the <res.partner>
-    model.
-
-    We also save the requested domain, so whatever the values are on the <res.partner>,
-    we will always retrieve the already enriched <res.partner> and the corresponding
-    IAP information.
-    """
-
     _name = "res.partner.iap"
     _description = "Partner IAP"
 

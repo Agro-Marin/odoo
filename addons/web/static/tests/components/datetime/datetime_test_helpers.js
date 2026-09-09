@@ -6,21 +6,9 @@ import { animationFrame } from "@odoo/hoot-mock";
 
 const PICKER_COLS = 7;
 
-/**
- * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
- */
+/** @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps */
 
-/**
- * @param {false | {
- * title?: string | string[],
- * date?: {
- * cells: (number | string | [number] | [string])[][],
- * daysOfWeek?: string[],
- * weekNumbers?: number[],
- * }[],
- * time?: ([number, number] | [number, number, "AM" | "PM"])[],
- * }} expectedParams
- */
+/** @param {false | { */
 export function assertDateTimePicker(expectedParams) {
     if (expectedParams) {
         expect(".o_datetime_picker").toHaveCount(1);

@@ -47,43 +47,20 @@ const {
  * @typedef {(records: ModelRecord[], fieldName: string) => any} AggregatorFunction
  * @typedef {typeof Model} ModelConstructor
  * @typedef {{
- * create_date: string;
- * display_name: string;
- * id: number | false;
- * name: string;
- * write_date: string;
- * [key: string]: any;
- * }} ModelRecord
  * @typedef {{
- * __domain: any;
- * __extra_domain: any[];
- * [key: string]: any;
- * }} ModelRecordGroup
  * @typedef {{
- * context?: Context;
- * domain?: DomainListRepr;
- * fields?: string[];
- * limit?: number;
- * modelName?: string;
- * offset?: number;
- * order?: string;
- * }} SearchParams
  * @typedef {ViewType | `${ViewType},${number | string}`} ViewKey
  * @typedef {import("@web/views/view").ViewType} ViewType
  */
 
 /**
- * @template T
+ * @template
  * @typedef {T | Iterable<T>} MaybeIterable
  */
 
 /**
- * @template [T={}]
+ * @template
  * @typedef {{
- * args?: any[];
- * context?: Context;
- * [key: string]: any;
- * } & Partial<T>} KwArgs
  */
 
 /**
@@ -98,7 +75,7 @@ function aggregateFields(aggregatedFields, group, records) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T[]} target
  * @param {...T[]} arrays
  */
@@ -165,9 +142,7 @@ function convertToOnChange(model, values, specification) {
     return values;
 }
 
-/**
- * @param {typeof Model} ModelClass
- */
+/** @param {typeof Model} ModelClass */
 function createRawInstance(ModelClass) {
     modelInstanceLock++;
     const model = new ModelClass();
@@ -258,9 +233,7 @@ function formatFieldValue(fieldType, groupByField, val) {
     }
 }
 
-/**
- * @param {unknown} value
- */
+/** @param {unknown} value */
 function isEmptyValue(value) {
     if (!value) {
         return true;
@@ -359,9 +332,7 @@ function getOrderByField({ _fields, _name }, fieldNameSpec) {
     return _fields[fieldName];
 }
 
-/**
- * @param {unknown} value
- */
+/** @param {unknown} value */
 function getReferenceValue(value) {
     const [modelName, id] = safeSplit(value);
     return [modelName, JSON.parse(id)];
@@ -482,32 +453,24 @@ function getViewKey(viewType, viewId) {
     return /** @type {ViewKey} */ ([viewType, nViewId || false].join(","));
 }
 
-/**
- * @param {FieldDefinition | FieldType} field
- */
+/** @param {FieldDefinition | FieldType} field */
 function isDateField(field) {
     const fieldType = typeof field === "string" ? field : field.type;
     return fieldType === "date" || fieldType === "datetime";
 }
 
-/**
- * @param {FieldDefinition | FieldType} field
- */
+/** @param {FieldDefinition | FieldType} field */
 function isM2OField(field) {
     const fieldType = typeof field === "string" ? field : field.type;
     return fieldType === "many2one" || fieldType === "many2one_reference";
 }
 
-/**
- * @param {ViewType} viewType
- */
+/** @param {ViewType} viewType */
 function isRelationalView(viewType) {
     return ["form", "kanban", "list"].includes(viewType);
 }
 
-/**
- * @param {any[]} command
- */
+/** @param {any[]} command */
 function isValidCommand(command) {
     const [action, id, data] = command;
     if (!command.length) {
@@ -637,9 +600,7 @@ function isViewEditable(element, modelName) {
     }
 }
 
-/**
- * @param {FieldDefinition | FieldType} field
- */
+/** @param {FieldDefinition | FieldType} field */
 function isX2MField(field) {
     const fieldType = typeof field === "string" ? field : field.type;
     return fieldType === "many2many" || fieldType === "one2many";
@@ -805,13 +766,6 @@ function orderByField(model, orderBy, records) {
 /**
  * @param {Model} model
  * @param {{
- * arch: string | Node;
- * editable?: boolean;
- * fields?: Record<string, FieldDefinition>;
- * level?: number;
- * modelName?: string;
- * processedNodes?: Node[];
- * }} params
  */
 function parseView(model, params) {
     const processedNodes = params.processedNodes || [];
@@ -1017,12 +971,6 @@ function searchPanelDomainImage(
  * @param {Model} model
  * @param {string} fieldName
  * @param {KwArgs<{
- * enable_counters: boolean;
- * extra_domain: DomainListRepr;
- * limit: number;
- * only_counters: boolean;
- * set_limit: number;
- * }>} [kwargs={}]
  */
 function searchPanelFieldImage(model, fieldName, kwargs) {
     const enableCounters = kwargs.enable_counters;
@@ -1157,9 +1105,7 @@ function searchPanelSelectionRange(model, fieldName, kwargs) {
     return selectionRange;
 }
 
-/**
- * @param {ModelRecord} record
- */
+/** @param {ModelRecord} record */
 function toIdDisplayName(record) {
     return record && [record.id, record.display_name];
 }
@@ -1358,9 +1304,7 @@ function sum(records, fieldName) {
     return records.reduce((acc, record) => acc + record[fieldName], 0);
 }
 
-/**
- * @type {AggregatorFunction}
- */
+/** @type {AggregatorFunction} */
 function avg(records, fieldName) {
     if (!records.length) {
         return false;
@@ -1368,9 +1312,7 @@ function avg(records, fieldName) {
     return sum(records, fieldName) / records.length;
 }
 
-/**
- * @type {AggregatorFunction}
- */
+/** @type {AggregatorFunction} */
 function sum_currency(records, fieldName) {
     if (!records.length) {
         return false;
@@ -1444,9 +1386,7 @@ const READ_GROUP_NUMBER_GRANULARITY = /** @type {const} */ ([
     "year_number",
 ]);
 
-/**
- * @typedef {READ_GROUP_NUMBER_GRANULARITY[number]} ReadGroupNumberGranularity
- */
+/** @typedef {READ_GROUP_NUMBER_GRANULARITY[number]} ReadGroupNumberGranularity */
 
 const MAX_NUMBER_OPENED_GROUPS = 10;
 
@@ -1476,9 +1416,7 @@ export function registerInlineViewArchs(modelName, archs) {
     }
 }
 
-/**
- * @extends {Array<ModelRecord>}
- */
+/** @extends {Array<ModelRecord>} */
 export class Model extends Array {
     /** @type {ReturnType<typeof createJobScopedGetter<typeof getModelDefinition>> | null} */
     static definitionGetter = null;
@@ -1579,9 +1517,7 @@ export class Model extends Array {
         this.definition._views = value;
     }
 
-    /**
-     * @param {Model} [instance]
-     */
+    /** @param {Model} [instance] */
     static getModelName(instance) {
         instance ||= createRawInstance(this);
         return (
@@ -1664,9 +1600,7 @@ export class Model extends Array {
         }
     }
 
-    /**
-     * @param {MaybeIterable<number>} idOrIds
-     */
+    /** @param {MaybeIterable<number>} idOrIds */
     action_archive(idOrIds) {
         const kwargs = getKwArgs(arguments, "ids");
         ({ ids: idOrIds } = kwargs);
@@ -1674,9 +1608,7 @@ export class Model extends Array {
         return this.write(idOrIds, { active: false }, kwargs);
     }
 
-    /**
-     * @param {MaybeIterable<number>} idOrIds
-     */
+    /** @param {MaybeIterable<number>} idOrIds */
     action_unarchive(idOrIds) {
         const kwargs = getKwArgs(arguments, "ids");
         ({ ids: idOrIds } = kwargs);
@@ -1684,9 +1616,7 @@ export class Model extends Array {
         return this.write(idOrIds, { active: true }, kwargs);
     }
 
-    /**
-     * @param {MaybeIterable<number>} idOrIds
-     */
+    /** @param {MaybeIterable<number>} idOrIds */
     browse(idOrIds) {
         const ids = ensureArray(idOrIds);
         const records = new /** @type {any} */ (this.constructor)();
@@ -1738,9 +1668,7 @@ export class Model extends Array {
         });
     }
 
-    /**
-     * @param {Iterable<ModelRecord>} valuesList
-     */
+    /** @param {Iterable<ModelRecord>} valuesList */
     create(valuesList) {
         const kwargs = getKwArgs(arguments, "vals_list");
         ({ vals_list: valuesList } = kwargs);
@@ -1766,9 +1694,7 @@ export class Model extends Array {
         return shouldReturnList ? ids : ids[0];
     }
 
-    /**
-     * @param {Iterable<string>} fields
-     */
+    /** @param {Iterable<string>} fields */
     default_get(fields) {
         const kwargs = getKwArgs(arguments, "fields_list");
         ({ fields_list: fields } = kwargs);
@@ -2141,9 +2067,7 @@ export class Model extends Array {
         return { models, views: result };
     }
 
-    /**
-     * @param {string} name
-     */
+    /** @param {string} name */
     name_create(name) {
         const kwargs = getKwArgs(arguments, "name");
         ({ name } = kwargs);
@@ -2280,9 +2204,7 @@ export class Model extends Array {
         return this._read_format(idOrIds, fieldNames, load);
     }
 
-    /**
-     * @param {KwArgs<{ domain: DomainListRepr, group_by: string, progress_bar: any }>} [kwargs={}]
-     */
+    /** @param {KwArgs<{ domain: DomainListRepr, group_by: string, progress_bar: any }>} [kwargs={}] */
     /**
      * @param {DomainListRepr} domain
      * @param {string} groupBy
@@ -2359,20 +2281,9 @@ export class Model extends Array {
         return this._search(/** @type {any} */ (kwargs)).length;
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     search_panel_select_range(fieldName) {
-        /**
-         * @type {KwArgs<{
-         * category_domain: DomainListRepr;
-         * comodel_domain: DomainListRepr;
-         * enable_counters: boolean;
-         * filter_domain: DomainListRepr;
-         * limit: number;
-         * search_domain: DomainListRepr;
-         * }>}
-         */
+        /** @type {KwArgs<{ */
         const kwargs = getKwArgs(arguments, "field_name");
         ({ field_name: fieldName } = kwargs);
 
@@ -2511,16 +2422,7 @@ export class Model extends Array {
      * @param {string} [groupBy]
      */
     search_panel_select_multi_range(fieldName, groupBy) {
-        /**
-         * @type {KwArgs<{
-         * category_domain: DomainListRepr;
-         * comodel_domain: DomainListRepr;
-         * enable_counters: boolean;
-         * filter_domain: DomainListRepr;
-         * limit: number;
-         * search_domain: DomainListRepr;
-         * }>}
-         */
+        /** @type {KwArgs<{ */
         const kwargs = getKwArgs(arguments, "field_name", "group_by");
         ({ field_name: fieldName, group_by: groupBy } = kwargs);
 
@@ -2743,9 +2645,7 @@ export class Model extends Array {
         );
     }
 
-    /**
-     * @param {MaybeIterable<number>} idOrIds
-     */
+    /** @param {MaybeIterable<number>} idOrIds */
     unlink(idOrIds) {
         const kwargs = getKwArgs(arguments, "ids");
         ({ ids: idOrIds } = kwargs);
@@ -3328,9 +3228,7 @@ export class Model extends Array {
         return result;
     }
 
-    /**
-     * @param {unknown} user
-     */
+    /** @param {unknown} user */
     with_user(user) {
         return this;
     }
@@ -3424,9 +3322,7 @@ export class Model extends Array {
         }
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _compute_display_name() {
         if (this._rec_name) {
             for (const record of this) {
@@ -3580,9 +3476,7 @@ export class Model extends Array {
         return [value, currentField];
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     _getNextId() {
         return Math.max(0, ...this.map((record) => record?.id || 0)) + 1;
     }
@@ -4038,25 +3932,15 @@ export class ServerModel extends Model {
 
 export const Command = {
     clear: () => [5, false, false],
-    /**
-     * @param {Partial<ModelRecord>} values
-     */
+    /** @param {Partial<ModelRecord>} values */
     create: (values) => [0, 0, values],
-    /**
-     * @param {number} id
-     */
+    /** @param {number} id */
     delete: (id) => [2, id, false],
-    /**
-     * @param {number} id
-     */
+    /** @param {number} id */
     link: (id) => [4, id, false],
-    /**
-     * @param {number[]} ids
-     */
+    /** @param {number[]} ids */
     set: (ids) => [6, false, ids],
-    /**
-     * @param {number} id
-     */
+    /** @param {number} id */
     unlink: (id) => [3, id, false],
     /**
      * @param {number} id

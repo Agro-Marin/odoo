@@ -230,9 +230,7 @@ export class FormCompiler extends ViewCompiler {
         return hasContent ? buttonBox : null;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     compileField(el, params) {
         const field = super.compileField(el, params);
 

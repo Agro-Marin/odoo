@@ -234,9 +234,7 @@ function makeCacheKey(model, method, args = []) {
     });
 }
 
-/**
- * @returns {RPCCache}
- */
+/** @returns {RPCCache} */
 function installFreshRpcCache() {
     const cache = new RPCCache(
         "mockRpc",

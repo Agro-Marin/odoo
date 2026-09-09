@@ -594,9 +594,7 @@ export class Composer extends Component {
         return ev.isTrusted;
     }
 
-    /**
-     * @param {(value: ReturnType<markup>|string) => Promise<void>} cb
-     */
+    /** @param {(value: ReturnType<markup>|string) => Promise<void>} cb */
     async processMessage(cb) {
         if (this.props.composer.attachments.some(({ uploading }) => uploading)) {
             this.env.services.notification.add(

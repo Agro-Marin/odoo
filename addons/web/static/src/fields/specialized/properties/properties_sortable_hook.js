@@ -44,9 +44,7 @@ function resolveDropTarget({ parent, next, previous }, getGroupedPropertiesList)
     };
 }
 
-/**
- * @param {PropertiesSortableOptions} options
- */
+/** @param {PropertiesSortableOptions} options */
 function useSortableProperties(options) {
     const { propertiesRef, getEnabled, getRenderedColumnsCount } = options;
     useSortable({
@@ -94,9 +92,7 @@ function useSortableProperties(options) {
     });
 }
 
-/**
- * @param {PropertiesSortableOptions} options
- */
+/** @param {PropertiesSortableOptions} options */
 function useSortableGroups({ propertiesRef, getEnabled, onGroupMoveTo }) {
     useSortable({
         enable: getEnabled,
@@ -121,9 +117,7 @@ function useSortableGroups({ propertiesRef, getEnabled, onGroupMoveTo }) {
     });
 }
 
-/**
- * @param {PropertiesSortableOptions} options
- */
+/** @param {PropertiesSortableOptions} options */
 export function usePropertiesSortable(options) {
     useSortableProperties(options);
     useSortableGroups(options);

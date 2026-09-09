@@ -12,9 +12,7 @@ import {
 } from "@web/fields/relational/many2many_tags";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { usePopover } from "@web/ui/popover";
-/**
- * @typedef {import("@web/model/relational_model/record").RelationalRecord} RelationalRecord
- */
+/** @typedef {import("@web/model/relational_model/record").RelationalRecord} RelationalRecord */
 export class FieldMany2ManyTagsEmailTagsList extends RecipientsInputTagsList {
     static template = "FieldMany2ManyTagsEmailTagsList";
 }

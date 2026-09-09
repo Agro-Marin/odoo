@@ -347,7 +347,6 @@ test("project.task: Parent id is set when creating new task from subtask form's 
     await click(
         "tbody .o_data_row:nth-child(1) .o_list_record_open_form_view button.btn-link",
     );
-    // Destroying this view for sanicity of display
     destroy(taskFormView);
     await animationFrame();
 

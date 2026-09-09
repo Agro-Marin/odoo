@@ -88,7 +88,7 @@ async function waitForTrigger(trigger, signal) {
 }
 
 /**
- * @template T
+ * @template
  * @param {() => T} predicate
  * @param {{ signal?: AbortSignal }} [options]
  * @returns {Promise<T>}
@@ -132,14 +132,10 @@ export async function waitUntil(predicate, { signal } = {}) {
     });
 }
 
-/**
- * @typedef {{ action?: Function, timeout?: number, trigger?: Function | string }} MacroStep
- */
+/** @typedef {{ action?: Function, timeout?: number, trigger?: Function | string }} MacroStep */
 
 export class Macro {
-    /**
-     * @type {symbol}
-     */
+    /** @type {symbol} */
     static STOP = Symbol("Macro.STOP");
 
     currentIndex = 0;
@@ -152,9 +148,7 @@ export class Macro {
     steps = [];
     /** @type {AbortController | undefined} */
     abortController;
-    /**
-     * @param {{ name?: string, timeout?: number, steps?: MacroStep[], onComplete?: Function, onStep?: Function, onError?: Function }} descr
-     */
+    /** @param {{ name?: string, timeout?: number, steps?: MacroStep[], onComplete?: Function, onStep?: Function, onError?: Function }} descr */
     constructor(descr) {
         try {
             validate(descr, macroSchema);
@@ -240,9 +234,7 @@ export class Macro {
         }
     }
 
-    /**
-     * @param {Error} [error]
-     */
+    /** @param {Error} [error] */
     stop(error) {
         if (this.isComplete) {
             return;
@@ -265,9 +257,7 @@ export class MacroMutationObserver {
         subtree: true,
         characterData: true,
     };
-    /**
-     * @param {Function} callback
-     */
+    /** @param {Function} callback */
     constructor(callback) {
         this.callback = callback;
         this.abortController = new AbortController();
@@ -325,9 +315,7 @@ export class MacroMutationObserver {
         }
         return shadowRoots;
     }
-    /**
-     * @param {Element} target
-     */
+    /** @param {Element} target */
     observe(target) {
         this.observer.observe(target, this.observerOptions);
         target

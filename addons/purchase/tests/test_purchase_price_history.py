@@ -86,7 +86,6 @@ class TestPurchasePriceHistory(TransactionCase):
 
     def test_average_is_quantity_weighted_across_units(self):
         wizard = self._create_wizard()
-        # 100 x 10 units + 120 x 5 units + 100 x 24 units (2 dozen at 1200)
         self.assertAlmostEqual(
             wizard.avg_price_unit,
             round(4000 / 39, 2),
@@ -314,13 +313,11 @@ class TestPurchasePriceHistory(TransactionCase):
             }
         ).action_confirm()
         wizard = self._create_wizard()
-        # 100x10 + 120x5 + 100x24 + 150x1, over 40 reference units
         self.assertAlmostEqual(wizard.avg_price_unit_exact, 4150 / 40, places=4)
         self.assertEqual(wizard.avg_sample_count, 4)
 
     def test_partner_average_is_scoped_to_the_commercial_group(self):
         wizard = self._create_wizard(partner_id=self.vendor_a.id)
-        # vendor A bought 10 units at 100, its branch 24 units at 100
         self.assertAlmostEqual(wizard.partner_avg_price_unit, 100.0)
         self.assertEqual(wizard.partner_avg_sample_count, 2)
         self.assertLess(

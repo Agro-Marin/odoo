@@ -148,9 +148,7 @@ export class DomainField extends FieldComponent {
         }
     }
 
-    /**
-     * @param {Object} [props]
-     */
+    /** @param {Object} [props] */
     reportDomainExpressions(props = this.props) {
         const domainStringRepr = this.getDomain(props);
         if (
@@ -329,9 +327,7 @@ export class DomainField extends FieldComponent {
         return rpc("/web/domain/validate", { model: resModel, domain });
     }
 
-    /**
-     * @param {boolean} isDirty
-     */
+    /** @param {boolean} isDirty */
     _setIsDirty(isDirty) {
         this.setFieldDirty(isDirty);
     }

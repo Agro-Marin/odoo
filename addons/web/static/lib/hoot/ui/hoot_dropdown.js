@@ -4,13 +4,7 @@ import { Component, useRef, useState, xml } from "@odoo/owl";
 
 import { useAutofocus, useHootKey, useWindowListener } from "../hoot_utils.js";
 
-/**
- * @typedef {{
- *  buttonClassName?: string:
- *  className?: string:
- *  slots: Record<string, any>;
- * }} HootDropdownProps
- */
+/** @typedef {{ */
 
 /** @extends {Component<HootDropdownProps, import("../hoot").Environment>} */
 export class HootDropdown extends Component {
@@ -73,9 +67,7 @@ export class HootDropdown extends Component {
         );
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     close(ev) {
         if (this.state.open) {
             ev.preventDefault();

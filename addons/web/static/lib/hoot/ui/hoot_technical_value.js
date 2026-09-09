@@ -23,19 +23,13 @@ import {
     toExplicitString,
 } from "../hoot_utils.js";
 
-/**
- * @typedef {{
- *  value?: any;
- * }} TechnicalValueProps
- */
+/** @typedef {{ */
 
 const {
     Object: { keys: $keys },
 } = globalThis;
 
-/**
- * @type {typeof String.raw}
- */
+/** @type {typeof String.raw} */
 function xml(template, ...substitutions) {
     return owlXml({
         raw: String.raw(template, ...substitutions)
@@ -228,9 +222,7 @@ export class HootTechnicalValue extends Component {
         logger.debug(this.value);
     }
 
-    /**
-     * @param {Symbol} symbol
-     */
+    /** @param {Symbol} symbol */
     symbolValue(symbol) {
         return symbol.toString().slice(7, -1);
     }

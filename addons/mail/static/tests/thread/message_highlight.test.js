@@ -117,8 +117,6 @@ test("Chatter jumps when navigating to a specific message link", async () => {
         }),
     );
     await mountWebClient();
-    // navigating to a link: the whole state comes from the URL, none of it from
-    // the action the client opened at start, whose own push may still be queued
     router.cancelPushes();
     router.replaceState(
         router.urlToState(

@@ -10,13 +10,7 @@ import { FieldComponent } from "@web/fields/field_component";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-/**
- * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- * maxValueField?: string;
- * maxValue?: number;
- * title?: string;
- * }} GaugeFieldProps
- */
+/** @typedef {import("@web/fields/standard_field_props").StandardFieldProps & { */
 /** @extends {FieldComponent<GaugeFieldProps>} */
 export class GaugeField extends FieldComponent {
     static template = "web.GaugeField";
@@ -61,9 +55,7 @@ export class GaugeField extends FieldComponent {
         return this.formatValue(this.field.value);
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get configuredMaxValue() {
         const raw = this.props.maxValueField
             ? /** @type {Record<string, any>} */ (this.props.record.data)[

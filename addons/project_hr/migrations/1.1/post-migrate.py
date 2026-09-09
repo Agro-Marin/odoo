@@ -1,25 +1,3 @@
-"""Backfill resource.reservation rows for legacy project.task records (t20171).
-
-When ``mixin.resource.scheduling`` was introduced (t21163), its CRUD
-hooks created reservations on every create/write of project.task.
-Pre-existing tasks (with planned dates and assigned employees but no
-edits since the mixin landed) have no reservations, leaving
-``allocated_hours = 0`` after the t20171 PMI refactor (where
-``allocated_hours = sum(reservation_ids.allocated_hours)``).
-
-This migration triggers ``_sync_reservations()`` on every active task
-with the canonical scheduling triple (planned_date_begin + date_end +
-at least one employee_id) that does not yet have a reservation.  It
-processes in batches of 500 with intermediate commits so the upgrade
-transaction stays bounded.
-
-Idempotent: tasks that already have reservations are skipped by the
-SQL filter; running this migration twice is a no-op on the second run.
-
-Empirical scope at design time (marin190 production clone): 2250 tasks
-need backfill, ~2348 reservations to create.
-"""
-
 import logging
 
 from odoo import SUPERUSER_ID, api

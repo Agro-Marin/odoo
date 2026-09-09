@@ -6,9 +6,6 @@ class SaleOrderLine(models.Model):
 
     @api.depends("analytic_line_ids.amount", "qty_transferred_method")
     def _compute_purchase_price(self):
-        # filter out the sale.order.lines called by this override of _compute_purchase_price for which
-        # we don't want the purchase price to be recomputed. Without filtring out the sale.order.lines
-        # for which the recomputation was triggered by a depency from another override of _compute_purchase_price
         service_non_timesheet_sols = self.filtered(
             lambda sol: (
                 not sol.is_expense

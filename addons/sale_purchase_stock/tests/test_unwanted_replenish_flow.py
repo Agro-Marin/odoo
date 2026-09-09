@@ -13,14 +13,8 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
         cls.env.company.horizon_days = 0
         cls.buy_route = cls.env.ref("purchase_stock.route_warehouse0_buy")
 
-        # Create a vendor (& suppliers) and a customer
         cls.vendor = cls.env["res.partner"].create({"name": "Vendor"})
         cls.customer = cls.env["res.partner"].create({"name": "Customer"})
-
-        # Create a "A" and a "B" Product :
-        # No Stock
-        # Partner/Customer Lead Time = 0
-        # Manual reordering 0 0
 
         cls.product_A = cls.env["product.product"].create(
             {
@@ -82,11 +76,6 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
         cls.orderpoint_B = orderpoint_form.save()
         cls.orderpoint_B.trigger = "manual"
 
-        # Create Sales
-        # For A and for B
-        # Delivered today
-        # Confirm SO
-
         cls.sale_order = cls.env["sale.order"].create(
             {
                 "partner_id": cls.customer.id,
@@ -109,10 +98,6 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
 
         cls.sale_order.action_confirm()
 
-        # Create PO for Product A
-        # Confirm PO with date planned : TODAY
-        # Incoming Picking : reschedule in one week
-
         cls.po_A = cls.env["purchase.order"].create(
             {
                 "partner_id": cls.vendor.id,
@@ -123,8 +108,6 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
                             "product_id": cls.product_A.id,
                             "product_qty": 10.0,
                             "price_unit": 10.0,
-                            # Appendix A: purchase's `date_planned` is `date_commitment` here.
-                            # `stock.picking.date_planned` below is the one that kept its name.
                             "date_commitment": datetime.today(),
                         }
                     )
@@ -138,16 +121,6 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
         cls.picking_A.date_planned = datetime.today() + timedelta(days=10)
 
     def test_01_pre_updateA_post(self):
-        """
-        TEST 1
-          Replenishment ->
-            Product A
-                unwanted_replenish SHALL be TRUE
-            Product B
-                unwanted_replenish SHALL be FALSE
-            Product A
-                Modify Horizon Days past 1 Week -> unwanted_replenish SHALL be FALSE
-        """
         self.assertTrue(
             self.orderpoint_A.unwanted_replenish,
             "Orderpoint A not set to unwanted_replenish",
@@ -156,7 +129,6 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
             self.orderpoint_B.unwanted_replenish,
             "Orderpoint B is set to unwanted_replenish",
         )
-        # Update Orderpoint A
         self.env.company.horizon_days = 20
         self.orderpoint_A.invalidate_recordset(fnames=["lead_horizon_date"])
         self.orderpoint_A._compute_qty_to_order_computed()
@@ -166,7 +138,6 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
         )
 
     def test_rfq_grouping_for_dropshipping(self):
-        # RFQ's should not be grouped when dropshipping.
         try:
             dropship_route = self.env.ref("stock_dropshipping.route_drop_shipping")
         except ValueError:
@@ -215,13 +186,6 @@ class TestWarnUnwantedReplenish(common.TransactionCase):
         self.assertNotEqual(len(po.ids), 1)
 
     def test_get_sale_order_line_product_on_dropship_line(self):
-        # `_get_sale_order_line_product` is defined independently in both
-        # this module and purchase_mrp (a sibling auto_install module this
-        # one shares no dependency with); neither calls super(), so which
-        # implementation wins is decided by module-load order rather than
-        # by any explicit contract. Pin the correct resolution here so a
-        # future regression (e.g. purchase_mrp's `False` stub winning
-        # instead) fails loudly.
         try:
             dropship_route = self.env.ref("stock_dropshipping.route_drop_shipping")
         except ValueError:

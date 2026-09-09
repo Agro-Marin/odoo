@@ -78,7 +78,6 @@ for (const [viewType, newButtonClass] of [
                 "The “New” button should not be a dropdown since there is no template",
         });
 
-        // Test that we can create a new record without errors
         await contains(`${newButtonClass}`).click();
     });
 

@@ -33,9 +33,7 @@ export async function mountForTest(ComponentClass, config) {
     }
 }
 
-/**
- * @param {string} url
- */
+/** @param {string} url */
 export function parseUrl(url) {
     return url.replace(/^.*hoot\/tests/, "@hoot").replace(/(\.test)?\.js$/, "");
 }

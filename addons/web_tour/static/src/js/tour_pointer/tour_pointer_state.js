@@ -6,11 +6,8 @@ import { getScrollParent } from "@web_tour/js/utils/tour_utils";
 
 /**
  * @typedef {import("@web/core/position/utils").Direction} Direction
- *
  * @typedef {"in" | "out-below" | "out-above" | "unknown"} IntersectionPosition
- *
  * @typedef {ReturnType<createPointerState>["methods"]} TourPointerMethods
- *
  * @typedef TourPointerState
  * @property {HTMLElement} [anchor]
  * @property {string} [content]
@@ -22,7 +19,6 @@ import { getScrollParent } from "@web_tour/js/utils/tour_utils";
  * @property {boolean} isZone
  * @property {Direction} position
  * @property {number} rev
- *
  * @typedef {import("../tour_service").TourStep} TourStep
  */
 
@@ -75,9 +71,7 @@ class Intersection {
         }
     }
 
-    /**
-     * @param {Element} newTarget
-     */
+    /** @param {Element} newTarget */
     setTarget(newTarget) {
         if (this.currentTarget !== newTarget) {
             if (this.currentTarget) {
@@ -96,9 +90,7 @@ class Intersection {
 }
 
 export function createPointerState() {
-    /**
-     * @param {Partial<TourPointerState>} newState
-     */
+    /** @param {Partial<TourPointerState>} newState */
     const setState = (newState) => {
         Object.assign(state, newState);
     };
@@ -106,7 +98,7 @@ export function createPointerState() {
     /**
      * @param {TourStep} step
      * @param {HTMLElement} [anchor]
-     * @param {boolean} [isZone] will border de zone. e.g.: a dropzone
+     * @param {boolean} [isZone]
      */
     const pointTo = (anchor, step, isZone) => {
         intersection.setTarget(anchor);
@@ -114,7 +106,6 @@ export function createPointerState() {
             let { tooltipPosition, content } = step;
             switch (intersection.targetPosition) {
                 case "unknown": {
-                    // Do nothing for unknown target position.
                     break;
                 }
                 case "in": {
@@ -151,8 +142,6 @@ export function createPointerState() {
                     }
                     let { x, y, width, height } = scrollParent.getBoundingClientRect();
 
-                    // If the scrolling element is within an iframe the offsets
-                    // must be computed taking into account the iframe.
                     const iframeEl =
                         scrollParent.ownerDocument.defaultView.frameElement;
                     if (iframeEl) {

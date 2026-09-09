@@ -51,9 +51,7 @@ export function observeKey(target, key, callback) {
     };
 }
 export class Store extends Record {
-    /**
-     * @returns {any|void}
-     */
+    /** @returns {any|void} */
     _makeInsertContext() {}
     /**
      * @param {any} ctx
@@ -97,9 +95,7 @@ export class Store extends Record {
         this._.ERRORS.push(err);
     }
 
-    /**
-     * @type {boolean}
-     */
+    /** @type {boolean} */
     logErrors = true;
 
     /** @param {Map} FC_QUEUE */
@@ -274,15 +270,7 @@ export class Store extends Record {
             this._.RHD_QUEUE.size > 0
         );
     }
-    /**
-     * Take one snapshot of every queue, clear them all, then drain the
-     * snapshots in the order below. The order is load-bearing and pinned by
-     * "@mail/core/store_update"; the clear happens before any drain so that
-     * work a hook queues is picked up by the next iteration rather than by
-     * this one.
-     *
-     * @param {Map} deletingRecordsByLocalId
-     */
+    /** @param {Map} deletingRecordsByLocalId */
     _drainQueuesOnce(deletingRecordsByLocalId) {
         const FC_QUEUE = new Map(this._.FC_QUEUE);
         const FS_QUEUE = new Map(this._.FS_QUEUE);

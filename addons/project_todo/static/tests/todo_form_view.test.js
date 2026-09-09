@@ -108,7 +108,6 @@ test("Check that todo_form view contains the TodoDoneCheckmark and remaining_day
 });
 test.tags("desktop");
 test("Check if opening form view from activity view does open with chatter visble", async () => {
-    // Basic/Minimum data needed for activity view to be displayed
     onRpc("web_search_read", function ({ model }) {
         return {
             length: 1,
@@ -145,9 +144,7 @@ test("Check if opening form view from activity view does open with chatter visbl
     });
     expect(".o_activity_record").toHaveCount(1);
     click(".o_activity_record");
-    // First animationFrame for rendering form view
     await animationFrame();
-    // Second animationFrame for re-rendering as chatter is toggled by change in state
     await animationFrame();
     expect("a.todo_toggle_chatter.active").toHaveCount(1);
     expect(browser.localStorage.getItem("isChatterOpened")).toBe(null);

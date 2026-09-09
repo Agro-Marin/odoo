@@ -8,14 +8,7 @@ import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 let nextId = 0;
-/**
- * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- * orientation?: string;
- * label?: string;
- * domain?: any[] | Function;
- * context?: object;
- * }} RadioFieldProps
- */
+/** @typedef {import("@web/fields/standard_field_props").StandardFieldProps & { */
 /** @extends {SelectionLikeField} */
 export class RadioField extends SelectionLikeField {
     static template = "web.RadioField";
@@ -47,9 +40,7 @@ export class RadioField extends SelectionLikeField {
         }
     }
 
-    /**
-     * @param {[any, string]} value
-     */
+    /** @param {[any, string]} value */
     onChange(value) {
         switch (this.type) {
             case "selection":

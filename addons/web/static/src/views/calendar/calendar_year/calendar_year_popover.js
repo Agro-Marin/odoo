@@ -40,9 +40,7 @@ export class CalendarYearPopover extends Component {
         const recordGroups = this.groupRecords();
         return this.getSortedRecordGroups(recordGroups);
     }
-    /**
-     * @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>}
-     */
+    /** @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>} */
     groupRecords() {
         const recordGroups = {};
         for (const record of this.props.records) {
@@ -114,9 +112,7 @@ export class CalendarYearPopover extends Component {
         });
         this.props.close();
     }
-    /**
-     * @param {Object} record
-     */
+    /** @param {Object} record */
     onRecordClick(record) {
         this.props.editRecord(record);
         this.props.close();

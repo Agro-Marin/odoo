@@ -6,9 +6,7 @@ import { registry } from "@web/core/registry";
 import { MAX_ACTION_DEPTH } from "@web/webclient/actions/action_constants";
 import { executeClientAction } from "@web/webclient/actions/action_executors/client";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
     /** @type {Record<string, any[]>} */
     const calls = { updateUI: [], doAction: [], confirmLeave: [], actionInfo: [] };

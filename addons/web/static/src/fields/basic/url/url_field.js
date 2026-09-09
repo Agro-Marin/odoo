@@ -15,9 +15,7 @@ export class UrlField extends SimpleInputFieldBase {
         websitePath: { type: Boolean, optional: true },
     };
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get formattedHref() {
         let value = this.field.value;
         if (!value) {

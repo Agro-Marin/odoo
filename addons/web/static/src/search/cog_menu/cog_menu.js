@@ -53,9 +53,7 @@ export class CogMenu extends ActionMenus {
         return Boolean(this.cogItems.length || this.props.items.print?.length);
     }
 
-    /**
-     * @returns {Promise<Array<{Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}>>}
-     */
+    /** @returns {Promise<Array<{Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}>>} */
     _registryItems() {
         return getDisplayedRegistryItems(
             cogMenuRegistry,
@@ -63,12 +61,7 @@ export class CogMenu extends ActionMenus {
         );
     }
 
-    /**
-     * @returns {Array<
-     * | {Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}
-     * | {key: string, groupNumber: number, description?: string, action?: any, callback?: Function}
-     * >}
-     */
+    /** @returns {Array< */
     get cogItems() {
         return [...this.registryItems, ...(this.actionItems ?? [])].toSorted(
             (item1, item2) => (item1.groupNumber || 0) - (item2.groupNumber || 0),

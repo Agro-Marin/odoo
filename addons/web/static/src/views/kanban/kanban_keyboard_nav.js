@@ -14,9 +14,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
  * @property {any} [searchModel]
  */
 
-/**
- * @param {KanbanKeyboardNavOptions} options
- */
+/** @param {KanbanKeyboardNavOptions} options */
 export function useKanbanKeyboardNavigation(options) {
     const {
         rootRef,

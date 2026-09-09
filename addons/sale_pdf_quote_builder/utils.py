@@ -24,13 +24,6 @@ def _ensure_document_not_encrypted(document):
 
 
 def _get_form_fields_from_pdf(pdf_data):
-    """Get the form text fields present in the pdf file.
-
-    :param binary pdf_data: the pdf from where we should extract the new form fields that might
-                            need to be mapped.
-    :return: set of form fields that are in the pdf.
-    :rtype: set
-    """
     pdf_bytes = base64.b64decode(pdf_data)
     _ensure_document_not_encrypted(pdf_bytes)
 

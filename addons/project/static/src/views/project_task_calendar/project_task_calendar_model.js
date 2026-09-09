@@ -31,9 +31,6 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
         const { default_planned_date_start, ...context } = super.makeContextDefaults(
             record,
         );
-        // `planned_date_start` is computed with an inverse, so a default on it
-        // writes through to `date_end`; the window's own start field is what a
-        // task created from this click should carry.
         if (this.planStartsAtCalendarClick(default_planned_date_start, context)) {
             context.default_planned_date_begin = default_planned_date_start;
         }
@@ -42,11 +39,8 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     }
 
     /**
-     * Whether a task created from a calendar click starts where the click landed
-     * rather than only inheriting the deadline.
-     *
-     * @param {string} start serialized `planned_date_start` of the clicked slot
-     * @param {Object} context the defaults built so far
+     * @param {string} start
+     * @param {Object} context
      * @returns {boolean}
      */
     planStartsAtCalendarClick(start, context) {
@@ -59,9 +53,7 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
         );
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get defaultFilterLabel() {
         this.isCheckProject = "project_id" in this.meta.filtersInfo;
         if (this.isCheckProject) {
@@ -77,20 +69,12 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     }
 
     async load(params = {}) {
-        // Domain processing is handled by ProjectTaskModelMixin.load(); this
-        // override only resets the planTask flag on regular loads.
         return super.load({
             planTask: false,
             ...params,
         });
     }
 
-    /**
-     * The to-plan list is staged on `data` and only becomes visible when the
-     * base load() commits it (`this.data = data`), so a superseded or failed
-     * load can never leave the side panel out of sync with the calendar
-     * records (the base epoch/rollback protection covers it too).
-     */
     get tasksToPlan() {
         return this.data?.tasksToPlan;
     }
@@ -109,7 +93,6 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     async loadMoreTasksToPlan() {
         const { records, length } = this.tasksToPlan;
         const offset = records.length;
-        // `limit` is a page size, not an end index.
         const limit = Math.min(20, length - offset);
         if (limit <= 0) {
             return;
@@ -148,8 +131,6 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     }
 
     _getPlanTaskVals(taskToPlan, date, timeSlotSelected = false) {
-        // NB: subclasses receive (taskToPlan, date, timeSlotSelected) via
-        // ...arguments (cf. industry_fsm).
         const [, end] = this.getAllDayDates(date, date);
         const vals = { date_end: serializeDateTime(end) };
         if (timeSlotSelected) {
@@ -185,9 +166,6 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
                 context,
             },
         );
-        // Only drop the task from the side panel once the server accepted the
-        // plan: if the RPC rejects, the task must stay droppable. Decrement
-        // `length` in step with `records` (drives the "Load more" count).
         const taskToPlanIndex = this.tasksToPlan.records.indexOf(taskToPlan);
         if (taskToPlanIndex >= 0) {
             this.tasksToPlan.records.splice(taskToPlanIndex, 1);

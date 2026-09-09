@@ -42,9 +42,7 @@ export function isFieldRequired(activeField, evalContext) {
     return evaluateFieldAttr(activeField.required, evalContext);
 }
 
-/**
- * @type {null}
- */
+/** @type {null} */
 const UNKNOWN_DEPENDENCIES = null;
 
 /**
@@ -65,27 +63,19 @@ export function extractFieldNamesFromExpr(expr) {
     }
 }
 
-/**
- * @typedef {{ dependents: Map<string, Set<string>>, always: Set<string> }} ModifierDependencies
- */
+/** @typedef {{ dependents: Map<string, Set<string>>, always: Set<string> }} ModifierDependencies */
 
-/**
- * @type {WeakMap<object, { epoch: number, value: ModifierDependencies }>}
- */
+/** @type {WeakMap<object, { epoch: number, value: ModifierDependencies }>} */
 const _modifierDependencyCache = new WeakMap();
 
 let _modifierEpoch = 0;
 
-/**
- * @param {Object} activeFields
- */
+/** @param {Object} activeFields */
 export function invalidateModifierDependencies(activeFields) {
     _modifierDependencyCache.delete(activeFields);
 }
 
-/**
- * @returns {void}
- */
+/** @returns {void} */
 export function invalidateAllModifierDependencies() {
     _modifierEpoch++;
 }

@@ -24,18 +24,14 @@ export class ProjectSharingWebClient extends Component {
         });
         onMounted(() => {
             this.loadRouterState();
-            // the chat window and dialog services listen to 'web_client_ready' event in
-            // order to initialize themselves:
             this.env.bus.trigger("WEB_CLIENT_READY");
         });
         useExternalListener(window, "click", this.onGlobalClick, { capture: true });
     }
 
     async loadRouterState() {
-        // ** url-retrocompatibility **
         const stateLoaded = await this.actionService.loadState();
 
-        // Scroll to anchor after the state is loaded
         if (stateLoaded) {
             if (browser.location.hash !== "") {
                 try {
@@ -44,19 +40,13 @@ export class ProjectSharingWebClient extends Component {
                         el.scrollIntoView(true);
                     }
                 } catch {
-                    // do nothing if the hash is not a correct selector.
                 }
             }
         }
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onGlobalClick(ev) {
-        // When a ctrl-click occurs inside an <a href/> element
-        // we let the browser do the default behavior and
-        // we do not want any other listener to execute.
         if (
             (ev.ctrlKey || ev.metaKey) &&
             !ev.target.isContentEditable &&

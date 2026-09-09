@@ -101,10 +101,6 @@ class MixinMailActivity(models.AbstractModel):
         groups="base.group_user",
     )
 
-    # Most urgent first. `activity_state`'s own selection happens to be in this
-    # order and sorting it alphabetically happens to agree, which is how one
-    # consumer came to rely on `sorted(states)[0]` -- true only for as long as
-    # "overdue" keeps sorting before "today".
     ACTIVITY_STATE_URGENCY = ("overdue", "today", "planned")
 
     @api.model
@@ -114,27 +110,11 @@ class MixinMailActivity(models.AbstractModel):
         among: Sequence[str] | None = None,
         fallback: Any = False,
     ) -> Any:
-        """Reduce a set of child activity states to the one that should show.
-
-        A parent record summarising its children's activities wants the most
-        urgent of them. `among` narrows the answer to the values the caller's
-        own field can hold -- a field offering only overdue/today must not be
-        handed "planned".
-        """
         present = {state for state in states if state}
         order = among if among is not None else self.ACTIVITY_STATE_URGENCY
         return next((state for state in order if state in present), fallback)
 
     def _open_activities(self) -> MailActivity:
-        """This record's unfinished activities, in no particular order.
-
-        Deliberately unsorted: a list view reading the activity columns calls
-        this six times per record -- once each for state, exception type, the
-        `_compute_activity_next` trio, the deadline and the assignee's deadline
-        -- and only `_next_activity` wants an order, which it takes in one pass
-        rather than by sorting. The other two callers ask for `mapped("state")`
-        and a `grouped()` over the types, where order cannot be observed.
-        """
         activities = self.activity_ids
         return activities.filtered("active").with_prefetch(activities._prefetch_ids)
 
@@ -145,16 +125,6 @@ class MixinMailActivity(models.AbstractModel):
             activities = (
                 activity for activity in activities if activity.user_id.id == user_id
             )
-        # `min`, not `sorted(...)[0]`: one pass rather than n log n, and the
-        # generator above stays lazy instead of materialising a recordset. The
-        # sort it replaces was re-sorting an already-sorted list -- `activity_ids`
-        # is a One2many, so it arrives in `mail.activity._order`, which is
-        # `date_deadline ASC, id ASC`: exactly this key. The key is spelled out
-        # anyway so the answer does not silently depend on that `_order` staying
-        # what it is. One consequence worth knowing: the `id` half cannot be
-        # exercised by a test today, because no reachable input arrives out of
-        # order, so it is defence against a future `_order` rather than a path
-        # anything currently takes.
         return min(
             activities,
             key=lambda activity: (
@@ -613,13 +583,6 @@ class MixinMailActivity(models.AbstractModel):
         notes: Mapping[int, str],
         act_values: dict,
     ) -> MailActivity:
-        # `_assignee_of` rather than reading `user_id` straight out of
-        # `act_values`: it also honours a `default_user_id` in the context, which
-        # is how the form action and several callers carry the assignee. Read
-        # from the values alone, an activity scheduled for somebody whose day is
-        # already tomorrow was given the server's today and was born `overdue`
-        # in their list. One spelling of "who is this for", shared with
-        # `mail.activity.create`, so the two cannot drift again.
         assignee = (
             self.env["mail.activity"]._assignee_of(act_values)
             or activity_type.default_user_id

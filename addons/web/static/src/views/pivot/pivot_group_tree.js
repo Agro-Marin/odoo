@@ -70,9 +70,7 @@ export function sortTree(sortFunction, tree) {
     }
 }
 
-/**
- * @param {Object} tree
- */
+/** @param {Object} tree */
 export function stripSortedKeys(tree) {
     delete tree.sortedKeys;
     for (const subTree of tree.directSubTrees.values()) {

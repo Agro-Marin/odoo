@@ -6,12 +6,7 @@ import { session } from "@web/session";
 
 /** @typedef {boolean | number | string | null} FeatureFlagValue */
 
-/**
- * @typedef {{
- * default?: FeatureFlagValue;
- * description?: string;
- * }} FeatureFlagOptions
- */
+/** @typedef {{ */
 
 const LS_PREFIX = "feature.";
 const URL_PARAM_NAME = "features";
@@ -63,9 +58,7 @@ function _serializeValue(value) {
     return value;
 }
 
-/**
- * @type {Map<string, FeatureFlagValue> | null}
- */
+/** @type {Map<string, FeatureFlagValue> | null} */
 let _urlOverrides = null;
 
 /**
@@ -95,9 +88,7 @@ function _parseUrlFeatures(raw) {
     return out;
 }
 
-/**
- * @returns {Map<string, FeatureFlagValue>}
- */
+/** @returns {Map<string, FeatureFlagValue>} */
 function _getUrlOverrides() {
     if (_urlOverrides !== null) {
         return _urlOverrides;
@@ -115,9 +106,7 @@ function _getUrlOverrides() {
     return _urlOverrides;
 }
 
-/**
- * @type {Map<string, FeatureFlagValue | undefined>}
- */
+/** @type {Map<string, FeatureFlagValue | undefined>} */
 const _fromSources = new Map();
 
 /**
@@ -192,9 +181,7 @@ export function setFeatureFlag(name, value) {
     } catch {}
 }
 
-/**
- * @param {string} name
- */
+/** @param {string} name */
 export function clearFeatureFlag(name) {
     _fromSources.delete(name);
     try {
@@ -207,13 +194,9 @@ export function _resetFeatureFlagsCache() {
     _fromSources.clear();
 }
 
-/**
- * @returns {Array<{ name: string; value: FeatureFlagValue; source: "url" | "localStorage" | "server"; }>}
- */
+/** @returns {Array<{ name: string; value: FeatureFlagValue; source: "url" | "localStorage" | "server"; }>} */
 export function getFeatureFlagsSnapshot() {
-    /**
-     * @type {{ name: string; value: FeatureFlagValue; source: "url" | "server" | "localStorage" }[]}
-     */
+    /** @type {{ name: string; value: FeatureFlagValue; source: "url" | "server" | "localStorage" }[]} */
     const out = [];
     const seen = new Set();
     const urlOverrides = _getUrlOverrides();

@@ -97,9 +97,7 @@ function getValue(record, fieldName) {
  */
 export function getFormattedRecord(record) {
     const entries = Object.create(null);
-    /**
-     * @type {Set<string> | null}
-     */
+    /** @type {Set<string> | null} */
     let fieldNameSet = null;
     let memoKey = null;
     const getFieldNames = () => {
@@ -271,9 +269,7 @@ export class KanbanRecord extends Component {
         return getFormattedValue(record, name, archInfo.fieldNodes[fieldId]);
     }
 
-    /**
-     * @param {Object} props
-     */
+    /** @param {Object} props */
     createWidget(props) {
         const { archInfo, groupByField } = props;
         const { activeActions } = archInfo;
@@ -323,9 +319,7 @@ export class KanbanRecord extends Component {
         return classes.join(" ");
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onGlobalClick(ev, newWindow) {
         if (/** @type {HTMLElement} */ (ev.target).closest(CANCEL_GLOBAL_CLICK)) {
             return;
@@ -362,9 +356,7 @@ export class KanbanRecord extends Component {
         this.longTouch.onTouchMove();
     }
 
-    /**
-     * @param {Object} params
-     */
+    /** @param {Object} params */
     triggerAction(params) {
         const { archInfo, openRecord, deleteRecord, record, archiveRecord } =
             this.props;
@@ -417,9 +409,7 @@ export class KanbanRecord extends Component {
         }
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get renderingContext() {
         const renderingContext = {
             context: this.props.record.context,

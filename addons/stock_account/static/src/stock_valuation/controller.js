@@ -35,9 +35,6 @@ export class StockValuationReportController {
             kwargs,
         );
         if (requestId !== this.loadRequestId) {
-            // A more recent loadReportData() call started after this one; discard
-            // this stale response so an out-of-order resolution can't overwrite
-            // the data of the request the user is actually waiting on.
             return;
         }
         this.data = res.data;

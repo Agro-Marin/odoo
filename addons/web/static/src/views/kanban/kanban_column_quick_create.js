@@ -82,9 +82,7 @@ export class KanbanColumnQuickCreate extends Component {
         }
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onInputKeydown(ev) {
         if (ev.key === "Enter") {
             this.validate();

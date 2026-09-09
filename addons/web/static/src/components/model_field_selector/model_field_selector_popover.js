@@ -77,9 +77,7 @@ class Page {
         return _t("Select a field");
     }
 
-    /**
-     * @param {"previous" | "next"} direction
-     */
+    /** @param {"previous" | "next"} direction */
     focus(direction) {
         if (!this.fieldNames.length) {
             return;
@@ -108,9 +106,7 @@ class Page {
         }
     }
 
-    /**
-     * @param {string} [query]
-     */
+    /** @param {string} [query] */
     searchFields(query = "") {
         this.query = query;
         this.fieldNames = this.sortedFieldNames;
@@ -215,17 +211,13 @@ export class ModelFieldSelectorPopover extends Component {
         return index === -1 ? undefined : this.getItemId(index);
     }
 
-    /**
-     * @param {string} query
-     */
+    /** @param {string} query */
     onSearchInput(query) {
         this.hasPendingSearch = true;
         this.debouncedSearchFields(query);
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     flushPendingSearch() {
         const wasPending = this.hasPendingSearch;
         this.debouncedSearchFields.cancel(true);
@@ -380,9 +372,7 @@ export class ModelFieldSelectorPopover extends Component {
         }
     }
 
-    /**
-     * @param {Page} page
-     */
+    /** @param {Page} page */
     openPage(page) {
         this.dropPendingSearch();
         this.state.page = page;
@@ -390,17 +380,13 @@ export class ModelFieldSelectorPopover extends Component {
         this.props.update(page.path);
     }
 
-    /**
-     * @param {string} [query]
-     */
+    /** @param {string} [query] */
     searchFields(query) {
         this.hasPendingSearch = false;
         this.state.page.searchFields(query);
     }
 
-    /**
-     * @param {Object} field
-     */
+    /** @param {Object} field */
     selectField(field) {
         if (field.type === "properties") {
             return this.followRelation(field);
@@ -411,9 +397,7 @@ export class ModelFieldSelectorPopover extends Component {
         this.props.close(true);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onDebugInputKeydown(ev) {
         switch (ev.key) {
             case "Enter": {

@@ -4,13 +4,7 @@ import { describe, expect, globals, test } from "@odoo/hoot";
 
 describe.current.tags("headless");
 
-/**
- * @type {Promise<{
- * extractSessionInfo: (html: string) => string | null,
- * isStaleWhileRevalidateURL: (url: URL) => boolean,
- * restoreSessionInfo: (htmlBody: string, info: string) => string,
- * }> | null}
- */
+/** @type {Promise<{ */
 let hooksPromise = null;
 function loadServiceWorkerHooks() {
     hooksPromise ??= (async () => {

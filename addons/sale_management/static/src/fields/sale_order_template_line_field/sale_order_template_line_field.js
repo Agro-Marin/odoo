@@ -26,11 +26,7 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         return this.shouldCollapse(record, "is_optional");
     }
 
-    /**
-     * The optional-section members the row template calls (see ListRowApi).
-     *
-     * @override
-     */
+    /** @override */
     buildRowApi() {
         return {
             ...super.buildRowApi(),
@@ -40,12 +36,7 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         };
     }
 
-    /**
-     * Per-row optional-muting derivation (see the sale_management order line
-     * patch for the rationale).
-     *
-     * @override
-     */
+    /** @override */
     getRowProps(record, group, groupId) {
         return {
             ...super.getRowProps(record, group, groupId),
@@ -63,10 +54,6 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         );
     }
 
-    /**
-     * Override to set the default `product_uom_qty` to 0 for new lines created under an optional
-     * section.
-     */
     add(params) {
         params.context = this.getCreateContext(params);
         super.add(params);
@@ -74,7 +61,6 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
 
     getCreateContext(params) {
         const evaluatedContext = makeContext([params.context]);
-        // A falsy context indicates a product line (no `display_type` specified)
         if (
             !evaluatedContext[`default_display_type`] &&
             this.isCurrentSectionOptional
@@ -84,10 +70,6 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         return params.context;
     }
 
-    /**
-     * Override to set the default `product_uom_qty` to 0 for new lines inserted by optional
-     * sections from dropdown.
-     */
     getInsertLineContext(record, addSubSection) {
         if (this.shouldCollapse(record, "is_optional", true) && !addSubSection) {
             return {
@@ -132,17 +114,7 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         await this.props.list.applyCommands(commands, { sort: true });
     }
 
-    /**
-     * @override
-     * Handles product line quantity adjustments when a record is dragged and dropped.
-     *
-     * Behavior:
-     * - If a product line is moved under an optional section, its quantity is set to `0`.
-     * - If a product line is dragged out of an optional section and had `0` quantity,
-     *   its quantity is reset to `1`.
-     * - Non-product lines (`display_type` set) are ignored.
-     *
-     */
+    /** @override */
     async sortDrop(dataRowId, dataGroupId, { element, previous }) {
         const record = this.props.list.records.find((r) => r.id === dataRowId);
         const recordMap = this._getRecordsToRecompute(
@@ -155,19 +127,12 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         await this._handleQuantityAdjustment(recordMap);
     }
 
-    /**
-     * @see getRecordsToRecompute in section_optional_line_utils.js — shared
-     * with the sale_order_line_field patch, which used to carry a
-     * byte-for-byte copy of this method.
-     */
+    /** @see getRecordsToRecompute in section_optional_line_utils.js — shared */
     _getRecordsToRecompute(record, targetId) {
         return getRecordsToRecompute(this, record, targetId);
     }
 
-    /**
-     * @see handleQuantityAdjustment in section_optional_line_utils.js —
-     * shared with the sale_order_line_field patch, same as above.
-     */
+    /** @see handleQuantityAdjustment in section_optional_line_utils.js — */
     async _handleQuantityAdjustment(recordMap) {
         return handleQuantityAdjustment(this, recordMap);
     }

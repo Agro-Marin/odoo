@@ -13,15 +13,11 @@ import {
     sprintf,
 } from "@web/core/utils/format/strings";
 
-/**
- * @typedef {ReturnType<markup>} Markup
- */
+/** @typedef {ReturnType<markup>} Markup */
 
 const Markup = markup("").constructor;
 
-/**
- * @param {string | Markup} content
- */
+/** @param {string | Markup} content */
 export function createDocumentFragmentFromContent(content) {
     return new DOMParser().parseFromString(
         /** @type {string} */ (htmlEscape(content)),
@@ -176,9 +172,7 @@ export function isHtmlEmpty(content = "") {
     return (createElementWithContent("div", content).textContent ?? "").trim() === "";
 }
 
-/**
- * @param {unknown} content
- */
+/** @param {unknown} content */
 export function isMarkup(content) {
     return content instanceof Markup;
 }

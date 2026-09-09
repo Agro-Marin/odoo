@@ -24,8 +24,6 @@ export class ProjectRatingImage extends Interaction {
                 return ratingEl.outerHTML;
             },
         });
-        // Dispose on teardown so the Bootstrap instance and its hover listeners
-        // on this.el don't leak when the interaction is destroyed/re-rendered.
         this.registerCleanup(() => popover.dispose());
     }
 }

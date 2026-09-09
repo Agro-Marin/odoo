@@ -20,9 +20,7 @@ export class SupersededError extends Error {
     }
 }
 
-/**
- * @template T
- */
+/** @template */
 export class KeepLast {
     /**
      * @param {Object} [options]
@@ -31,18 +29,12 @@ export class KeepLast {
     constructor({ rejectSuperseded = false } = {}) {
         this._id = 0;
         this._rejectSuperseded = rejectSuperseded;
-        /**
-         * @type {((reason: unknown) => void) | null}
-         */
+        /** @type {((reason: unknown) => void) | null} */
         this._rejectPending = null;
-        /**
-         * @type {(() => void) | null}
-         */
+        /** @type {(() => void) | null} */
         this._abortPending = null;
     }
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get generation() {
         return this._id;
     }
@@ -117,7 +109,7 @@ export class Mutex {
     }
 
     /**
-     * @template T
+     * @template
      * @param {() => (T | Promise<T>)} action
      * @returns {Promise<T>}
      */
@@ -150,17 +142,13 @@ export class Mutex {
         this._lock = this._lock.then(always, always);
         return this._lock;
     }
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     getUnlockedDef() {
         return this._unlockedProm || Promise.resolve();
     }
 }
 
-/**
- * @template T
- */
+/** @template */
 export class KeepLastByKey {
     /**
      * @param {Object} [options]
@@ -193,9 +181,7 @@ export class KeepLastByKey {
     add(key, promise, options) {
         return this._for(key).add(promise, options);
     }
-    /**
-     * @param {string} [key]
-     */
+    /** @param {string} [key] */
     cancel(key) {
         if (key === undefined) {
             for (const keepLast of this._byKey.values()) {
@@ -205,18 +191,14 @@ export class KeepLastByKey {
         }
         this._byKey.get(key)?.cancel();
     }
-    /**
-     * @param {string} key
-     */
+    /** @param {string} key */
     forget(key) {
         this._byKey.get(key)?.cancel();
         this._byKey.delete(key);
     }
 }
 
-/**
- * @template T
- */
+/** @template */
 export class Race {
     constructor() {
         /** @type {Promise<T> | null} */
@@ -260,9 +242,7 @@ export class Race {
         promise.then(this.currentPromResolver, this.currentPromRejecter);
         return this.currentProm;
     }
-    /**
-     * @returns {Promise<T>|null}
-     */
+    /** @returns {Promise<T>|null} */
     getCurrentProm() {
         return this.currentProm;
     }
@@ -279,7 +259,7 @@ export class InFlight {
         return this._count > 0;
     }
     /**
-     * @template T
+     * @template
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
      */
@@ -296,16 +276,14 @@ export class InFlight {
         promise.then(settled, settled);
         return promise;
     }
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     whenIdle() {
         return this._idle || Promise.resolve();
     }
 }
 
 /**
- * @template [T=unknown]
+ * @template
  * @returns {Promise<T> & { resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void }}
  */
 export class Deferred {

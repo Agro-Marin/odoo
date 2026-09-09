@@ -3,9 +3,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 
-/**
- * @typedef {{data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}} Upload
- */
+/** @typedef {{data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}} Upload */
 
 export class AttachmentUploadService {
     /**
@@ -102,8 +100,7 @@ export class AttachmentUploadService {
     /**
      * @param {Upload} upload
      * @param {number} tmpId
-     * @returns {Object|undefined} the parsed body, or undefined once the
-     *  failure has been reported and the upload cleaned up
+     * @returns {Object|undefined}
      */
     _parseUploadResponse(upload, tmpId) {
         if (upload.xhr.status === 413) {

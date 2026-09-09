@@ -96,9 +96,7 @@ class NotificationService {
         return closeFn;
     }
 
-    /**
-     * @param {number} id
-     */
+    /** @param {number} id */
     _close(id) {
         if (this.notifications[id]) {
             const notification = this.notifications[id];
@@ -125,9 +123,7 @@ export const notificationService = {
     notificationContainer: NotificationContainer,
     notificationContainerKey: "NotificationContainer",
 
-    /**
-     * @returns {NotificationService}
-     */
+    /** @returns {NotificationService} */
     start() {
         return new NotificationService(
             this.notificationContainer,

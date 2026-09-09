@@ -22,9 +22,6 @@ export class PurchaseOrderLineProductField extends ProductLabelSectionAndNoteFie
                     !this.currentValue ||
                     this.currentValue.id != record.data[this.props.name].id
                 ) {
-                    // Field was updated if line was open in edit mode,
-                    //      field is not emptied,
-                    //      new value is different than existing value.
 
                     this._onProductTemplateUpdate();
                 }
@@ -50,7 +47,6 @@ export class PurchaseOrderLineProductField extends ProductLabelSectionAndNoteFie
         if (result && result.product_id) {
             if (this.props.record.data.product_id != result.product_id.id) {
                 this.props.record.update({
-                    // TODO right name get (same problem as configurator)
                     product_id: {
                         id: result.product_id,
                         display_name: result.product_name,

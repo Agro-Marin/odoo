@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @typedef {[number, number]} FlowPoint
- */
+/** @typedef {[number, number]} FlowPoint */
 
 const BOUNDARY_MARGIN = 1;
 
@@ -206,7 +204,7 @@ function pathCollidesWithObstacles(points, obstacles) {
 /**
  * @param {FlowPoint[]} points
  * @param {import("./nodes").FlowRect[]} obstacles
- * @returns {import("./nodes").FlowRect[]} every obstacle hit by at least one segment
+ * @returns {import("./nodes").FlowRect[]}
  */
 function blockingObstacles(points, obstacles) {
     /** @type {import("./nodes").FlowRect[]} */
@@ -244,7 +242,7 @@ function validateCandidate(startPoint, endPoint, routePoints, obstacles) {
 /**
  * @param {number} anchorX
  * @param {number} y
- * @param {1 | -1} direction leaving the anchor (+x for a source, -x for a target)
+ * @param {1 | -1} direction
  * @param {number} maxLead
  * @param {import("./nodes").FlowRect[]} obstacles
  * @returns {number}
@@ -427,8 +425,8 @@ const SELF_LOOP_MARGINS = [40, 72, 104];
  * @param {Object} params
  * @param {import("../flow_types").FlowPosition} params.start
  * @param {import("../flow_types").FlowPosition} params.end
- * @param {import("./nodes").FlowRect} params.nodeRect the loop's own node - never in `obstacles`
- * @param {import("./nodes").FlowRect[]} [params.obstacles] every *other* node
+ * @param {import("./nodes").FlowRect} params.nodeRect
+ * @param {import("./nodes").FlowRect[]} [params.obstacles]
  * @param {number} [params.lead]
  * @param {number} [params.cornerRadius]
  * @returns {{ points: FlowPoint[], path: string, midpoint: { x: number, y: number } }}
@@ -495,8 +493,7 @@ export function buildSelfLoopPath({
  * @param {Object} params
  * @param {import("../flow_types").FlowPosition} params.start
  * @param {import("../flow_types").FlowPosition} params.end
- * @param {import("./nodes").FlowRect[]} [params.obstacles] already expanded by
- *  the caller's own padding, so no padding is reapplied here.
+ * @param {import("./nodes").FlowRect[]} [params.obstacles]
  * @param {number} [params.lead]
  * @param {number} [params.cornerRadius]
  * @returns {{ points: FlowPoint[], path: string, midpoint: { x: number, y: number } }}

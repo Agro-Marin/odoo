@@ -18,17 +18,12 @@ class FooterComponent extends Component {
     }
 }
 
-/**
- * @param {{ onQueryChanged: () => void }} params called when the query moves,
- *  since what it invalidates -- a keyboard selection into the grid -- belongs
- *  to the component and not here
- */
+/** @param {{ onQueryChanged: () => void }} params */
 export function useHomeMenuSearch({ onQueryChanged }) {
     const command = useService("command");
     const ui = useService("ui");
     const inputRef = useRef("input");
     const state = useState({ query: "" });
-    /** Mid-composition (an IME): the box holds a half-typed character. */
     let composing = false;
 
     /** @returns {HTMLInputElement | null} */

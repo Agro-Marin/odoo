@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- We want to activate pay and sign by default for easier demoing. -->
     <record id="base.main_company" model="res.company">
         <field name="portal_confirmation_pay" eval="True" />
     </record>
@@ -250,7 +249,6 @@
         <field name="price_unit">120.50</field>
     </record>
 
-    <!-- additional demo data for pretty graphs in sales dashboard -->
     <record id="sale_order_9" model="sale.order">
         <field name="partner_id" ref="base.res_partner_3" />
         <field name="partner_invoice_id" ref="base.res_partner_address_25" />
@@ -589,13 +587,11 @@
         <field name="price_unit">38.25</field>
     </record>
 
-    <!-- Confirm some Sales Orders-->
     <function
         model="sale.order"
         name="action_confirm"
         eval="[[         ref('sale_order_4'),         ref('sale_order_6'),         ref('sale_order_7'),         ref('sale_order_8'),         ref('sale_order_9'),         ref('sale_order_10'),         ref('sale_order_11'),         ref('sale_order_12'),         ref('sale_order_13'),         ref('sale_order_14'),         ref('sale_order_15'),         ref('sale_order_16'),         ref('sale_order_17'),         ref('sale_order_18'),         ref('portal_sale_order_2'),     ]]" />
 
-    <!-- Setting date_order in the past for beautiful spread -->
     <record id="sale_order_9" model="sale.order">
         <field name="date_order" eval="datetime.now() - relativedelta(days=7)" />
     </record>
@@ -620,7 +616,6 @@
         <field name="date_order" eval="datetime.now() - relativedelta(months=1)" />
     </record>
 
-    <!-- Mail messages in SO's chatter -->
     <record id="message_sale_1" model="mail.message">
         <field name="model">sale.order</field>
         <field name="res_id" ref="sale_order_2" />
@@ -655,7 +650,6 @@ Thanks!</field>
         <field name="author_id" ref="base.partner_demo" />
     </record>
 
-    <!-- Activities of sales order -->
     <record id="sale_activity_2" model="mail.activity">
         <field name="res_id" ref="sale.sale_order_3" />
         <field name="res_model_id" ref="sale.model_sale_order" />

@@ -22,19 +22,13 @@ export function getCurrency(id) {
     return currencies[id];
 }
 
-/**
- * @type {Record<number, {toCompanyRate: number, date: import("@web/core/l10n/dates").NullableDateTime}>}
- */
+/** @type {Record<number, {toCompanyRate: number, date: import("@web/core/l10n/dates").NullableDateTime}>} */
 const rates = reactive({});
-/**
- * @type {Promise<void> | null}
- */
+/** @type {Promise<void> | null} */
 let ratesPromise = null;
 let ratesEpoch = 0;
 
-/**
- * @param {Array<{id: number, inverse_rate: number, date: string}>} records
- */
+/** @param {Array<{id: number, inverse_rate: number, date: string}>} records */
 function applyRates(records) {
     const newRates = Object.fromEntries(
         records.map((r) => [
@@ -94,9 +88,7 @@ userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
     ratesPromise = null;
 });
 
-/**
- * @returns {Promise<Record<number, {toCompanyRate: number, date: import("@web/core/l10n/dates").NullableDateTime}>>}
- */
+/** @returns {Promise<Record<number, {toCompanyRate: number, date: import("@web/core/l10n/dates").NullableDateTime}>>} */
 export async function getCurrencyRates() {
     if (!ratesPromise) {
         const prom = fetchCurrencyRates().finally(() => {

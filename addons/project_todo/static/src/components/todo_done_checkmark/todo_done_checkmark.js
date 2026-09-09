@@ -12,9 +12,6 @@ export class TodoDoneCheckmark extends StateSelectionField {
 
     setup() {
         super.setup();
-        // While the pointer rests on the checkmark its appearance is frozen, so
-        // the icon does not flip under the cursor. `null` means "not frozen":
-        // read the record instead.
         this.frozen = useState({ isDone: null });
         onMounted(() => {
             const value = this.props.record.data[this.props.name];
@@ -30,31 +27,22 @@ export class TodoDoneCheckmark extends StateSelectionField {
         return this.isDone ? _t("Mark as to-do") : _t("Mark as done");
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     actualizeDoneState() {
         this.frozen.isDone = null;
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     freezeDoneState() {
         this.frozen.isDone = this.isDone;
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     async onDoneToggled() {
         const value =
             this.props.record.data[this.props.name] !== "done"
                 ? "done"
                 : this.notDoneState;
-        // Whether this saves is the `autosave` option's job: the list and kanban
-        // want it, the form saves through its own buttons and sets
-        // options="{'autosave': false}".
         await this.updateRecord(value);
     }
 }

@@ -4,9 +4,7 @@
 import { localization } from "@web/core/l10n/localization";
 import { pyToJsLocale } from "@web/core/l10n/utils/locales";
 
-/**
- * @typedef {keyof typeof LIST_STYLES} FormatListStyle
- */
+/** @typedef {keyof typeof LIST_STYLES} FormatListStyle */
 
 const LIST_STYLES = /** @type {const} */ ({
     standard: {
@@ -45,9 +43,6 @@ const _listFormatCache = new Map();
 /**
  * @param {Iterable<string>} values
  * @param {{
- * localeCode?: string;
- * style?: FormatListStyle;
- * }} [options]
  * @returns {string}
  */
 export function formatList(values, { localeCode, style } = {}) {

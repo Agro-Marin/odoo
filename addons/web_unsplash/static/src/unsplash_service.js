@@ -34,19 +34,6 @@ export const unsplashService = {
                         };
                     }
 
-                    // No upload progress to report, and there never really was.
-                    // This posts a small JSON of image URLs; the server is what
-                    // downloads the images, so the old XMLHttpRequest
-                    // `upload.progress` listener was measuring the request body
-                    // and reached 100% immediately. That listener was passed to
-                    // `rpc()` as an `{ xhr }` setting, which stopped being
-                    // honoured when rpc moved to `fetch()` (34d4d0640a6) and
-                    // became a hard error once settings were validated
-                    // (8e7a2fc2e8e) -- so every Unsplash upload threw
-                    // `Invalid RPC setting(s): "xhr"` before sending anything.
-                    // fetch() cannot report request-body progress, and there is
-                    // nothing meaningful to report here anyway: mark the request
-                    // as sent and let `uploaded` signal the real completion.
                     file.progress = 100;
                     const attachments = await rpc("/web_unsplash/attachment/add", {
                         res_id: resId,
@@ -73,8 +60,6 @@ export const unsplashService = {
             async getImages(query, offset = 0, pageSize = 30, orientation) {
                 const from = offset;
                 const to = offset + pageSize;
-                // Use orientation in the cache key to not show images in cache
-                // when using the same query word but changing the orientation
                 let cachedData = orientation
                     ? _cache[query + orientation]
                     : _cache[query];
@@ -95,9 +80,6 @@ export const unsplashService = {
                     isMaxed: to > cachedData.totalImages,
                 };
             },
-            /**
-             * Fetches images from unsplash and stores it in cache
-             */
             async _fetchImages(query, orientation) {
                 const key = orientation ? query + orientation : query;
                 if (!_cache[key]) {
@@ -112,7 +94,7 @@ export const unsplashService = {
                 const payload = {
                     query: query,
                     page: cachedData.pageCached + 1,
-                    per_page: 30, // max size from unsplash API
+                    per_page: 30,
                 };
                 if (orientation) {
                     payload.orientation = orientation;

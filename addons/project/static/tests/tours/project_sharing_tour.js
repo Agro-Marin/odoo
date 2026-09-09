@@ -175,7 +175,6 @@ registry.category("web_tour.tours").add("project_sharing_tour", {
 registry.category("web_tour.tours").add("portal_project_sharing_tour", {
     url: "/my/projects",
     steps: () => {
-        // The begining of the project sharing feature
         const projectSharingStepIndex = projectSharingSteps.findIndex(
             (s) => s?.id === "project_sharing_feature",
         );
@@ -293,28 +292,11 @@ registry
             },
             { trigger: ".o_project_sharing" },
             { trigger: ".o_kanban_record:contains('Test Task')", run: "click" },
-            // Type all but the last character, then press it for real.
-            // `edit` assigns the textarea's value and fires `input`, but does
-            // not move the caret the composer tracks in `composer.selection`;
-            // `UseSuggestion.detect()` scans *backwards from that caret* for a
-            // delimiter, so with the caret still at 0 it never sees the "@" and
-            // no suggestion is ever fetched -- no request reached the server at
-            // all. One real keystroke updates the selection and arms the
-            // search. Without it both assertions below pass vacuously: the
-            // "no suggestions" one because nothing is ever fetched.
             { trigger: ".o-mail-Composer-input", run: "edit @xx" },
             { trigger: ".o-mail-Composer-input", run: "press x" },
             {
                 trigger: "body:not(:has(.o-mail-Composer-suggestion))",
                 run: async () => {
-                    // `DELAY_FETCH` is the debounce before the request is sent,
-                    // not the round trip. Waiting only that long lets the empty
-                    // "xxx" response land *after* the "Georges" one and clear
-                    // the list that had just been filled -- and since the search
-                    // term does not change again, nothing re-fetches and the
-                    // dropdown stays empty for good. Observed as roughly a
-                    // one-in-three failure of the step below. Give the first
-                    // request time to come back before typing over it.
                     const delay_fetch = odoo.loader.modules.get(
                         "@mail/core/common/suggestion_hook",
                     ).DELAY_FETCH;

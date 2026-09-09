@@ -20,13 +20,9 @@ export class FollowerSubtypeDialog extends Component {
         super.setup();
         this.store = useService("mail.store");
         this.state = useState({
-            /**
-             * @type {import("models").MailMessageSubtype[]}
-             */
+            /** @type {import("models").MailMessageSubtype[]} */
             subtypes: [],
-            /**
-             * @type {number[]}
-             */
+            /** @type {number[]} */
             selectedIds: [],
         });
         onWillStart(async () => {
@@ -46,9 +42,7 @@ export class FollowerSubtypeDialog extends Component {
         });
     }
 
-    /**
-     * @returns {import("models").MailMessageSubtype[]}
-     */
+    /** @returns {import("models").MailMessageSubtype[]} */
     get unmanagedSubtypes() {
         const managedIds = new Set(this.state.subtypes.map((subtype) => subtype.id));
         return [...this.props.follower.subtype_ids].filter(

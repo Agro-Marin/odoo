@@ -2,15 +2,10 @@ from odoo.addons.sale_loyalty.tests.common import TestSaleCouponCommon
 
 
 class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
-    # Test some basic operation (create, write, unlink) on an immediate coupon program on which we should
-    # apply or remove the reward automatically, as there's no program code.
-
     def test_immediate_program_basic_operation(self):
 
-        # 2 products A are needed
         self.immediate_promotion_program.rule_ids.write({"minimum_qty": 2.0})
         order = self.empty_order
-        # Test case 1 (1 A): Assert that no reward is given, as the product B is missing
         order.write(
             {
                 "line_ids": [
@@ -34,7 +29,6 @@ class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
             "The promo offer shouldn't have been applied as the product B isn't in the order",
         )
 
-        # Test case 2 (1 A 1 B): Assert that no reward is given, as the product A is not present in the correct quantity
         order.write(
             {
                 "line_ids": [
@@ -58,7 +52,6 @@ class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
             "The promo offer shouldn't have been applied as 2 product A aren't in the order",
         )
 
-        # Test case 3 (2 A 1 B): Assert that the reward is given as the product B is now in the order
         order.write({"line_ids": [(1, order.line_ids[0].id, {"product_qty": 2.0})]})
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
@@ -68,7 +61,6 @@ class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
             "The promo offer should have been applied, the discount is not created",
         )
 
-        # Test case 4 (1 A 1 B): Assert that the reward is removed as we don't buy 2 products B anymore
         order.write({"line_ids": [(1, order.line_ids[0].id, {"product_qty": 1.0})]})
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
@@ -88,7 +80,6 @@ class TestProgramWithoutCodeOperations(TestSaleCouponCommon):
             "The wrong line has been removed",
         )
 
-        # Test case 5 (1 B): Assert that the reward is removed when the order is modified and doesn't match the rules anymore
         order.write(
             {
                 "line_ids": [

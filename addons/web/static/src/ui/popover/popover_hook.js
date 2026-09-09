@@ -4,9 +4,6 @@
 import { onWillUnmount, status, useComponent } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { useService } from "@web/core/utils/hooks";
-/**
- * @import { PopoverServiceAddFunction, PopoverServiceAddOptions } from "@web/ui/popover/popover_service"
- */
 
 /**
  * @typedef PopoverHookReturnType

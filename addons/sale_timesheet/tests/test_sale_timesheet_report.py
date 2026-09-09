@@ -7,12 +7,8 @@ from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 @tagged("post_install", "-at_install")
 class TestSaleTimesheetReport(TestCommonSaleTimesheet):
     def test_timesheet_report_uom_difference(self):
-        """Test the timesheet revenue are correctly computed in case of a
-        fixed price service
-        """
         uom_days = self.env.ref("uom.product_uom_day")
 
-        # Change product uom from hours to days
         self.product_order_timesheet3.write(
             {
                 "uom_id": uom_days,
@@ -38,7 +34,6 @@ class TestSaleTimesheetReport(TestCommonSaleTimesheet):
         sale_order.action_confirm()
         task = self.env["project.task"].search([("sale_line_id", "=", so_line.id)])
 
-        # Register a timesheet entry of 24 hours
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",

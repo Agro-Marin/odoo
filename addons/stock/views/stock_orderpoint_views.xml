@@ -134,15 +134,7 @@
                 <field name="product_category_id" column_invisible="True" />
                 <field name="product_tmpl_id" column_invisible="True" />
                 <field name="unwanted_replenish" column_invisible="True" />
-                <field name="route_id_placeholder" column_invisible="True"/> <!-- Needed for the
-                placeholder widget -->
-                <field name="replenishment_uom_id_placeholder" column_invisible="True"/> <!-- Needed
-                for the placeholder widget -->
-                <field
-                    name="product_id"
-                    readonly="product_id"
-                    force_save="1"
-                    context="{'default_is_storable': True}" />
+                <field name="route_id_placeholder" column_invisible="True" />                <field name="replenishment_uom_id_placeholder" column_invisible="True" />                <field name="product_id" readonly="product_id" force_save="1" context="{'default_is_storable': True}" />
                 <field
                     name="location_id"
                     options="{'no_create': True}"

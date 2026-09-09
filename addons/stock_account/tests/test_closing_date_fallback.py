@@ -6,10 +6,6 @@ from odoo.addons.stock_account.tests.common import TestStockValuationCommon
 
 @tagged("post_install", "-at_install")
 class TestClosingDateLegacyFallback(TestStockValuationCommon):
-    """Cover `_get_last_closing_date`'s legacy fallback branch: only reachable
-    in production via the 1.2 migration leaving `stock_valuation_closing_cutoff`
-    NULL on an old closing move, never through live code."""
-
     def _state_tracking(self, closing):
         am_state_field = (
             self.env["ir.model.fields"]
@@ -21,16 +17,6 @@ class TestClosingDateLegacyFallback(TestStockValuationCommon):
         ).sorted("id")
 
     def _simulate_state_change_tracking(self, closing):
-        # `BaseCommon` disables mail tracking for every test in this suite
-        # (`DISABLED_MAIL_CONTEXT`), and on top of that the write that flips a
-        # closing move to "posted" happens in the very same transaction as its
-        # own `create()` -- a combination that never lets the real tracking
-        # machinery record a state change here even with tracking forced back
-        # on (`_track_prepare`/`_track_finalize` are precommit-bound and the
-        # entry `create()`'s own `_track_discard()` leaves behind is not
-        # reliably rebuilt in time). Build the tracking row a real, separate
-        # posting transaction would leave behind directly instead, the same
-        # way `test_message_track.py` does to test tracking-value ordering.
         am_state_field = (
             self.env["ir.model.fields"]
             .sudo()
@@ -71,9 +57,6 @@ class TestClosingDateLegacyFallback(TestStockValuationCommon):
         closing = self.company._close_stock_valuation(auto_post=True)
         closing.stock_valuation_closing_cutoff = False
         self._simulate_state_change_tracking(closing)
-        # Simulate a closing whose state-change history is unavailable
-        # (e.g. old data with no tracking values), the other legacy shape
-        # the 1.2 migration can leave behind.
         self._state_tracking(closing).unlink()
         self.assertEqual(
             self.company._get_last_closing_date(),

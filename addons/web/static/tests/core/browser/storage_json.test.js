@@ -13,9 +13,7 @@ describe.current.tags("headless");
 
 const KEY = "test.storage_json";
 
-/**
- * @param {{ store?: Record<string, string>, throwOn?: string[] }} [options]
- */
+/** @param {{ store?: Record<string, string>, throwOn?: string[] }} [options] */
 function mockStorage({ store = {}, throwOn = [] } = {}) {
     /** @type {any[]} */
     const calls = [];

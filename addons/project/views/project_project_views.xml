@@ -293,8 +293,6 @@
                     <page name="settings" string="Settings">
                         <group>
                             <group>
-                                <!-- Always display the whole alias in edit mode. It depends in read only -->
-                                <!-- Need to add alias_id in view for getting alias_domain_id by default -->
                                 <field name="alias_id" invisible="1" />
                                 <label
                                     for="alias_name"
@@ -317,8 +315,6 @@
                                         placeholder="e.g. mycompany.com"
                                         options="{'no_create': True, 'no_open': True}" />
                                 </div>
-                                <!-- the alias contact must appear when the user start typing and it must disappear
-                                    when the string is deleted. -->
                                 <field
                                     name="alias_contact"
                                     class="oe_inline"
@@ -1120,7 +1116,6 @@
         </field>
     </record>
 
-    <!-- Please update both act_window when modifying one (open_view_project_all or open_view_project_all_group_stage) as one or the other is used in the menu menu_project -->
     <record id="open_view_project_all" model="ir.actions.act_window">
         <field name="name">Projects</field>
         <field name="res_model">project.project</field>
@@ -1141,7 +1136,6 @@
         </field>
     </record>
 
-    <!-- Please update both act_window when modifying one (open_view_project_all or open_view_project_all_group_stage) as one or the other is used in the menu menu_project -->
     <record id="open_view_project_all_group_stage" model="ir.actions.act_window">
         <field name="name">Projects</field>
         <field name="res_model">project.project</field>
@@ -1179,7 +1173,6 @@
         <field name="act_window_id" ref="open_view_project_all_group_stage" />
     </record>
 
-    <!-- Please update both act_window when modifying one (open_view_project_all_config or open_view_project_all_config_group_stage) as one or the other is used in the menu menu_project_config -->
     <record id="open_view_project_all_config" model="ir.actions.act_window">
         <field name="name">Projects</field>
         <field name="res_model">project.project</field>
@@ -1201,7 +1194,6 @@
             eval="[(5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('view_project_config')}),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_project_config_kanban')})]" />
     </record>
 
-    <!-- Please update both act_window when modifying one (open_view_project_all_config or open_view_project_all_config_group_stage) as one or the other is used in the menu menu_project_config -->
     <record id="open_view_project_all_config_group_stage" model="ir.actions.act_window">
         <field name="name">Projects</field>
         <field name="res_model">project.project</field>

@@ -129,9 +129,7 @@ export class ActionMenus extends Component {
         }
     }
 
-    /**
-     * @returns {Promise<Array<{action: Object, class: string, description: string, key: number}>>}
-     */
+    /** @returns {Promise<Array<{action: Object, class: string, description: string, key: number}>>} */
     async loadAvailablePrintItems() {
         const printActions = this.props.items.print || [];
         /** @type {number[]} */

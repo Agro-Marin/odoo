@@ -25,11 +25,6 @@ class TestActivitySystrayCounter(TransactionCase):
 
     @classmethod
     def _create_task_scenarios(cls, is_todo=False):
-        """
-        Helper method to create a standard set of test tasks/to-dos and activities.
-        :param bool is_todo: If True, creates tasks without a project_id (To-Dos).
-                             If False, creates tasks with a project_id.
-        """
         today = fields.Date.today()
         yesterday = today - datetime.timedelta(days=1)
         tomorrow = today + datetime.timedelta(days=1)
@@ -40,7 +35,6 @@ class TestActivitySystrayCounter(TransactionCase):
 
         name_prefix = "To-Do" if is_todo else "Task"
 
-        # SCENARIO 1: A single record with TWO overdue activities.
         record_overdue = cls.env["project.task"].create(
             {**task_details, "name": f"{name_prefix} Overdue Record"}
         )
@@ -63,7 +57,6 @@ class TestActivitySystrayCounter(TransactionCase):
             ]
         )
 
-        # SCENARIO 2: A single record with 'today' and 'planned' activities.
         record_today = cls.env["project.task"].create(
             {**task_details, "name": f"{name_prefix} Today Record"}
         )
@@ -86,7 +79,6 @@ class TestActivitySystrayCounter(TransactionCase):
             ]
         )
 
-        # SCENARIO 3: A single record with one 'planned' activity.
         record_planned = cls.env["project.task"].create(
             {**task_details, "name": f"{name_prefix} Planned Record"}
         )
@@ -101,7 +93,6 @@ class TestActivitySystrayCounter(TransactionCase):
         )
 
     def test_systray_task_and_todo_split(self):
-        """Tests that activities are correctly split into Task and To-Do groups."""
         activity_groups = (
             self.env["res.users"].with_user(self.test_user)._get_activity_groups()
         )
@@ -111,11 +102,9 @@ class TestActivitySystrayCounter(TransactionCase):
             (g for g in activity_groups if g.get("name") == "To-Do"), None
         )
 
-        # 1. Check that both groups were created
         self.assertTrue(task_group)
         self.assertTrue(todo_group)
 
-        # 2. Check counts for the 'Task' group
         self.assertEqual(task_group["overdue_count"], 1)
         self.assertEqual(task_group["today_count"], 1)
         self.assertEqual(task_group["planned_count"], 1)
@@ -123,7 +112,6 @@ class TestActivitySystrayCounter(TransactionCase):
             task_group["due_count"], 2, "Task due_count should be: overdue + today"
         )
 
-        # 3. Check counts for the 'To-Do' group
         self.assertEqual(todo_group["overdue_count"], 1)
         self.assertEqual(todo_group["today_count"], 1)
         self.assertEqual(todo_group["planned_count"], 1)

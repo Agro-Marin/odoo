@@ -183,9 +183,7 @@ export class GraphRenderer extends Component {
         tooltip.style.left = `${left}px`;
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getBarChartData() {
         return styleBarChartData(
             this.model.data,
@@ -194,9 +192,7 @@ export class GraphRenderer extends Component {
         );
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getChartConfig() {
         const { mode } = this.model.metaData;
         let data;
@@ -223,9 +219,7 @@ export class GraphRenderer extends Component {
         return config;
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getLegendOptions() {
         const { mode } = this.model.metaData;
         const legendOptions = {
@@ -249,30 +243,22 @@ export class GraphRenderer extends Component {
         return legendOptions;
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getLineChartData() {
         return styleLineChartData(this.model.data, this.model.metaData);
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getPieChartData() {
         return stylePieChartData(this.model.data);
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getScatterChartData() {
         return styleScatterChartData(this.model.data);
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getScaleOptions() {
         return buildScaleOptions(this.model.data, this.model.metaData);
     }
@@ -281,9 +267,7 @@ export class GraphRenderer extends Component {
         return this.model.forceLoadAll();
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getTooltipOptions() {
         const { data, metaData } = this.model;
         const { mode } = metaData;
@@ -311,9 +295,7 @@ export class GraphRenderer extends Component {
         return tooltipOptions;
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onGraphClicked(ev, isMiddleClick) {
         const { disableLinking, mode } = this.model.metaData;
         if (disableLinking || mode === "line" || mode === "scatter") {
@@ -412,9 +394,7 @@ export class GraphRenderer extends Component {
         return options;
     }
 
-    /**
-     * @param {Object} context
-     */
+    /** @param {Object} context */
     resizeChart(context) {
         const { mode } = this.model.metaData;
         if (mode === "pie") {
@@ -473,9 +453,7 @@ export class GraphRenderer extends Component {
     openView(domain, views, context, newWindow) {
         openDrillDownView(this, domain, views, context, newWindow);
     }
-    /**
-     * @param {any[]} domain
-     */
+    /** @param {any[]} domain */
     onGraphClickedFinal(domain, isMiddleClick = false) {
         this.openView(
             domain,
@@ -493,18 +471,14 @@ export class GraphRenderer extends Component {
         this.model.updateMetaData({ measure });
     }
 
-    /**
-     * @param {"bar"|"line"|"pie"|"scatter"} mode
-     */
+    /** @param {"bar"|"line"|"pie"|"scatter"} mode */
     onModeSelected(mode) {
         if (this.model.metaData.mode !== mode) {
             this.model.updateMetaData({ mode });
         }
     }
 
-    /**
-     * @param {"ASC"|"DESC"} order
-     */
+    /** @param {"ASC"|"DESC"} order */
     toggleOrder(order) {
         const { order: currentOrder } = this.model.metaData;
         const nextOrder = currentOrder === order ? null : order;

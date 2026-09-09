@@ -5,7 +5,6 @@ from odoo.tests.common import TransactionCase
 @tagged("-at_install", "post_install")
 class TestProjectProject(TransactionCase):
     def test_projects_to_make_billable(self):
-        """Test the projects fetched in the post init are the ones expected"""
         Project = self.env["project.project"]
         Task = self.env["project.task"]
         partner = self.env["res.partner"].create({"name": "Mur en béton"})

@@ -11,9 +11,7 @@ import {
 import { serverState } from "./mock_server_state.hoot.js";
 import { patchWithCleanup } from "./patch_test_helpers.js";
 
-/**
- * @param {Record<string, string>} languages
- */
+/** @param {Record<string, string>} languages */
 export function installLanguages(languages) {
     serverState.multiLang = true;
     patchWithCleanup(loadLanguages, {
@@ -28,9 +26,7 @@ export function allowTranslations() {
     });
 }
 
-/**
- * @param {Record<string, Record<string, string>>} [terms]
- */
+/** @param {Record<string, Record<string, string>>} [terms] */
 export function patchTranslations(terms = {}) {
     allowTranslations();
     for (const addonName in terms) {

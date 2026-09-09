@@ -16,28 +16,10 @@ export const PATH_KEYS = ["resId", "action", "active_id", "model"];
 
 /**
  * @typedef {{
- * bus: EventBus,
- * started: boolean,
- * state: Record<string, any>,
- * pushTimeout: ReturnType<typeof browser.setTimeout> | undefined,
- * pushArgs: PushArgs,
- * lockedKeys: Set<string>,
- * hiddenKeysFromUrl: Set<string>,
- * ephemeralStack: (object | null)[],
- * unwindingEphemerals: boolean,
- * }} RouterState
  * @typedef {{
- * replace: boolean,
- * reload: boolean,
- * state: Record<string, any>,
- * mode: "push" | "replace",
- * title?: string,
- * }} PushArgs
  */
 
-/**
- * @type {RouterState}
- */
+/** @type {RouterState} */
 const _router = globalSingleton(
     "router",
     () =>
@@ -188,9 +170,7 @@ export function startUrl() {
     return isScopedApp() ? "scoped_app" : "odoo";
 }
 
-/**
- * @param {{ [key: string]: any }} state
- */
+/** @param {{ [key: string]: any }} state */
 function stateToUrl(state) {
     let path = "";
     const keysToOmit = new Set(_router.hiddenKeysFromUrl);
@@ -306,9 +286,7 @@ function urlToState(/** @type {URL} */ urlObj) {
     return state;
 }
 
-/**
- * @returns {PushArgs}
- */
+/** @returns {PushArgs} */
 function makePushArgs() {
     return { replace: false, reload: false, state: {}, mode: "replace" };
 }
@@ -427,9 +405,7 @@ function onClick(/** @type {any} */ ev) {
     }
 }
 
-/**
- * @param {string} mode
- */
+/** @param {string} mode */
 function makeDebouncedPush(mode) {
     function doPush() {
         const pushArgs = _router.pushArgs;
@@ -507,9 +483,7 @@ export const router = {
     addLockedKey: (/** @type {string} */ key) => _router.lockedKeys.add(key),
     hideKeyFromUrl: (/** @type {string} */ key) => _router.hiddenKeysFromUrl.add(key),
 
-    /**
-     * @param {object} marker
-     */
+    /** @param {object} marker */
     pushEphemeral: (marker) => {
         _router.ephemeralStack.push(marker);
         browser.history.pushState(
@@ -527,9 +501,7 @@ export const router = {
         _router.ephemeralStack.length = 0;
     },
 
-    /**
-     * @param {object} marker
-     */
+    /** @param {object} marker */
     releaseEphemeral: (marker) => {
         const index = _router.ephemeralStack.indexOf(marker);
         if (index === -1) {

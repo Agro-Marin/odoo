@@ -265,7 +265,6 @@ class IrHttp(models.AbstractModel):
         }
 
     def _get_home_menu_default(self) -> dict[str, Any] | None:
-        """Match the browser's active company, filtering the untrusted cookie."""
         user = self.env.user
         allowed = set(user._get_company_ids())
         selected = (

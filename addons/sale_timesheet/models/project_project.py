@@ -13,7 +13,6 @@ class ProjectProject(models.Model):
 
     @api.model
     def default_get(self, fields):
-        """Pre-fill timesheet product as "Time" data product when creating new project allowing billable tasks by default."""
         result = super().default_get(fields)
         if (
             "timesheet_product_id" in fields
@@ -112,13 +111,6 @@ class ProjectProject(models.Model):
         (self - billable_projects).update({"pricing_type": False})
 
     def _search_pricing_type(self, operator, value):
-        """Search method for pricing_type field.
-
-        :param operator: the supported operator is either '=' or '!='.
-        :param value: the value than the field should be is among these values into the following tuple: (False, 'task_rate', 'fixed_rate', 'employee_rate').
-
-        :returns: the domain to find the expected projects.
-        """
         if operator != "in":
             return NotImplemented
         domains = []
@@ -214,7 +206,6 @@ class ProjectProject(models.Model):
                 and p.pricing_type == "employee_rate"
             )
         ):
-            # Give a SOL by default either the last SOL with service product and remaining_hours > 0
             SaleOrderLine = self.env["sale.order.line"]
             sol = SaleOrderLine.search(
                 Domain.AND(
@@ -234,7 +225,7 @@ class ProjectProject(models.Model):
             )
             project.sale_line_id = (
                 sol or project.sale_line_employee_ids.sale_line_id[:1]
-            )  # get the first SOL containing in the employee mappings if no sol found in the search
+            )
 
     @api.depends("sale_line_employee_ids.sale_line_id", "allow_billable")
     def _compute_sale_order_count(self):
@@ -384,10 +375,6 @@ class ProjectProject(models.Model):
                 "hide_so_line": True,
             }
         return action
-
-    # ----------------------------
-    #  Project Updates
-    # ----------------------------
 
     def get_panel_data(self):
         panel_data = super().get_panel_data()
@@ -583,17 +570,17 @@ class ProjectProject(models.Model):
             ids,
         ) in aa_line_read_group:
             if category == "vendor_bill":
-                continue  # This is done to prevent expense duplication with product re-invoice policies
+                continue
             amount = currency._convert(amount, self.currency_id, convert_company)
             invoice_type = timesheet_invoice_type
             cost = costs_dict.setdefault(invoice_type, {"billed": 0.0, "to_bill": 0.0})
             revenue = revenues_dict.setdefault(
                 invoice_type, {"invoiced": 0.0, "to_invoice": 0.0}
             )
-            if amount < 0:  # cost
+            if amount < 0:
                 cost["billed"] += amount
                 total_costs["billed"] += amount
-            else:  # revenues
+            else:
                 revenue["invoiced"] += amount
                 total_revenues["invoiced"] += amount
             if can_see_timesheets and invoice_type not in [
@@ -630,7 +617,7 @@ class ProjectProject(models.Model):
                     if (
                         invoice_type not in ["other_costs", "other_revenues"]
                         and can_see_timesheets
-                    ):  # action to see the timesheets
+                    ):
                         action = get_timesheets_action(invoice_type, record_ids)
                         data["action"] = action
                 profitability_data.append(data)
@@ -682,7 +669,6 @@ class ProjectProject(models.Model):
         return profitability_items
 
     def _get_domain_aal_with_no_move_line(self):
-        # we add the tuple 'project_id = False' in the domain to remove the timesheets from the search.
         return Domain.AND(
             [super()._get_domain_aal_with_no_move_line(), [("project_id", "=", False)]]
         )

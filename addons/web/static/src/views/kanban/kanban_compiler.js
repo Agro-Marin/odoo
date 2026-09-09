@@ -42,9 +42,7 @@ export class KanbanCompiler extends ViewCompiler {
         );
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     compileButton(el, params) {
         const type = el.getAttribute("type");
         if (!SPECIAL_TYPES.includes(type)) {
@@ -83,18 +81,14 @@ export class KanbanCompiler extends ViewCompiler {
 
         return compiled;
     }
-    /**
-     * @returns {Element}
-     */
+    /** @returns {Element} */
     compileImage(el) {
         const element = el.cloneNode(true);
         element.setAttribute("loading", "lazy");
         return element;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     compileField(el, params) {
         let compiled;
         const recordExpr = params.recordExpr || "__comp__.props.record";

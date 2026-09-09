@@ -10,7 +10,7 @@ export class SignalStore {
 }
 
 /**
- * @template {object[]} T
+ * @template {object[]}
  * @param {(...args: [...T]) => any} cb
  * @param {[...T]} deps
  * @returns {() => void}

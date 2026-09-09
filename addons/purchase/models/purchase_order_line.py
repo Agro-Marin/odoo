@@ -411,21 +411,6 @@ class PurchaseOrderLine(models.Model):
             return datetime.today() + relativedelta(days=seller.delay if seller else 0)
 
     def _get_line_description_from_product(self, product_lang):
-        """Render a line description from a product record already carrying the
-        language and seller context to describe it under.
-
-        Distinct from the mixin's `_get_line_description`, which this used to
-        shadow: that one answers "describe *this line*" and takes no argument, and
-        an override that demands one breaks it for every caller holding only a
-        line. Purchase asks the other question -- "describe *this product*, as seen
-        through this vendor and this language" -- three times while deciding whether
-        a hand-edited name may be overwritten, which is why it needs the product
-        rather than the line.
-
-        :param product_lang: product record with proper language context
-        :return: the description for the purchase order line
-        :rtype: string
-        """
         self.check_singleton()
         name = product_lang.display_name
         if product_lang.description_purchase:
@@ -443,14 +428,6 @@ class PurchaseOrderLine(models.Model):
         return name
 
     def _get_default_line_description(self):
-        """The mixin's hook: describe this line from its product.
-
-        `_compute_name` does not go through it -- purchase needs the seller context
-        and its own comparison against the previous defaults, so it overrides the
-        compute outright and calls `_set_product_description`. This answers the same
-        question for a caller that holds only the line, and until now inherited the
-        mixin's `NotImplementedError`.
-        """
         self.check_singleton()
         return self._get_line_description_from_product(
             self.product_id.with_context(
@@ -644,11 +621,6 @@ class PurchaseOrderLine(models.Model):
         po,
         seller=None,
     ):
-        """
-        :param seller: vendor pricelist line already chosen by the caller. Pass it
-            when the vendor decided *which* purchase order this line joins, so the
-            two decisions cannot resolve to different supplierinfo records.
-        """
         values = self.env.context.get("procurement_values", {})
         uom_po_qty = product_uom_id._compute_quantity(
             product_qty,
@@ -807,10 +779,6 @@ class PurchaseOrderLine(models.Model):
                 return
 
     def _convert_invoiced_amount(self, inv_line, amount, round=True):
-        # A refund must subtract. Both summers below route their conversion
-        # through here so the sign cannot be applied in one and forgotten in the
-        # other, which is how a credit note came to be *added* to the amount
-        # already invoiced.
         return inv_line.move_id.direction_sign * inv_line.currency_id._convert(
             amount,
             self.currency_id,

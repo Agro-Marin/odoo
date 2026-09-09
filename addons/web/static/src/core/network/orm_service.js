@@ -7,9 +7,7 @@ import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 
-/**
- * @param {any} value
- */
+/** @param {any} value */
 function validateModel(value) {
     if (typeof value !== "string" || !value.length) {
         throw new Error(`Invalid model name: ${value}`);
@@ -85,9 +83,7 @@ export class ORM {
         return Object.assign(Object.create(this), { _cache: options });
     }
 
-    /**
-     * @returns {ORM}
-     */
+    /** @returns {ORM} */
     get dedup() {
         return Object.assign(Object.create(this), { _dedup: true });
     }

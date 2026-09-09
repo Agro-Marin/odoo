@@ -3,9 +3,7 @@ import { markRaw, reactive, toRaw } from "@odoo/owl";
 
 import { isOne as isOneField, isRecord } from "./misc.js";
 
-/**
- * @typedef {import("./record").Record} Record
- */
+/** @typedef {import("./record").Record} Record */
 /** @typedef {import("./record").StoreModels} StoreModels */
 
 /**
@@ -35,7 +33,7 @@ function isOne(reclist) {
 }
 
 /**
- * @template {Record} R
+ * @template {Record}
  * @param {RecordList<R>} recordList
  * @param {RecordList<R>} recordListFullProxy
  * @returns {Map<string, R>}
@@ -51,7 +49,7 @@ function recordByLocalIdFor(recordList, recordListFullProxy) {
 }
 
 /**
- * @template {Record} R
+ * @template {Record}
  * @param {RecordList<R>} receiver
  * @returns {{list: RecordList<R>, proxy: RecordList<R>, byLocalId: Map<string, R>, data: string[]}}
  */
@@ -198,7 +196,7 @@ function makeRecordListProxy(recordList) {
     });
 }
 /**
- * @template {Record} R
+ * @template {Record}
  * @param {RecordList<R>} receiver
  * @returns {{list: RecordList<R>, proxy: RecordList<R>, store: import("models").Store}}
  */
@@ -211,11 +209,6 @@ function mutatorOf(receiver) {
     };
 }
 
-/**
- * Membership engine of a record list. `insert` is the only place that writes
- * the inverse side (`withdraw` is its DELETE spelling); `attach`, `detach`,
- * `replace` and `release` touch this list's data and bookkeeping alone.
- */
 class RecordListInternal {
     /** @type {string} */
     name;
@@ -225,7 +218,7 @@ class RecordListInternal {
     /**
      * @param {RecordList} recordList
      * @param {Record} record
-     * @param {number} [index] appended when omitted
+     * @param {number} [index]
      */
     attach(recordList, record, index) {
         const data = recordList._proxy.data;
@@ -258,7 +251,7 @@ class RecordListInternal {
      * @param {RecordList} recordList
      * @param {number} index
      * @param {Record} record
-     * @returns {Record|undefined} the record previously at that index
+     * @returns {Record|undefined}
      */
     replace(recordList, index, record) {
         const old = this.release(recordList, recordList.data[index]);
@@ -268,7 +261,6 @@ class RecordListInternal {
         return old;
     }
     /**
-     * Bookkeeping of a record that has left (or is leaving) this list's data.
      * @param {RecordList} recordList
      * @param {string} localId
      * @returns {Record|undefined}
@@ -284,7 +276,6 @@ class RecordListInternal {
         return record;
     }
     /**
-     * Withdraws the owner from the inverse of the record with that localId.
      * @param {RecordList} recordList
      * @param {string} localId
      */
@@ -515,7 +506,7 @@ class RecordListInternal {
 }
 
 /**
- * @template {Record} [R=Record]
+ * @template {Record}
  * @extends {Array<R>}
  */
 export class RecordList extends Array {
@@ -600,7 +591,7 @@ export class RecordList extends Array {
      * @param {number} [start]
      * @param {number} [deleteCount]
      * @param {...R} [newRecordsProxy]
-     * @returns {R[]} the removed records
+     * @returns {R[]}
      */
     splice(start, deleteCount, ...newRecordsProxy) {
         const { list: recordList, store } = mutatorOf(this);

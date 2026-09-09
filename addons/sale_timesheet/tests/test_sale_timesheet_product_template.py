@@ -7,10 +7,6 @@ from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 @tagged("-at_install", "post_install")
 class TestProductTemplate(TestCommonSaleTimesheet):
     def test_delete_master_timesheet_product(self):
-        """
-        Test that the master timesheet product cannot be deleted, archived nor linked
-        to a company but regular products still can.
-        """
         time_product = self.env.ref("sale_timesheet.time_product").product_tmpl_id
         with self.assertRaises(ValidationError):
             time_product.unlink()

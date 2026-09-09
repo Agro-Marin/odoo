@@ -1,17 +1,4 @@
 /** @odoo-module native */
-// ``tour_helpers_hoot`` is a side-effect-only module: it ``patch()``es
-// ``TourHelpers.prototype`` with the actual click/edit/hover/check/...
-// methods that ``run: "click"`` (and friends) reach for at line ~117.
-// The import has to be explicit here because nothing in
-// ``tour_helpers.js`` exports forces this module to load — esbuild
-// keeps it inside concatenated bundles by virtue of being in the
-// glob, but ``esm.dynamic_children`` bundles (web_tour.automatic) are
-// served as individual specs to the browser's import map and the
-// browser only loads modules that are statically reachable from the
-// dynamic ``import()`` entry points.  Without this line, every
-// ``run: "click"`` step in a tour throws
-// ``TypeError: actionHelper.click is not a function`` because the
-// patch never executed in the dynamic-import flow.
 import "@web_tour/js/tour_automatic/tour_helpers_hoot";
 
 import hoot from "@odoo/hoot-dom";
@@ -113,9 +100,6 @@ export class TourStepAutomatic extends TourStep {
         return errors;
     }
 
-    /**
-     * When return null or false, macro continues.
-     */
     async doAction() {
         if (this.skipped) {
             return false;
@@ -130,9 +114,6 @@ export class TourStepAutomatic extends TourStep {
                     .trim()
                     .match(/^(?<action>\w*) *\(? *(?<arguments>.*?)\)?$/);
                 const action = m.groups?.action;
-                // Resolves built-ins and registry-contributed actions alike:
-                // TourHelpers' proxy falls back to the "web_tour.helpers"
-                // registry (see tour_helpers.js).
                 const method = actionHelper[action];
                 if (typeof method !== "function") {
                     throw new Error(
@@ -150,11 +131,7 @@ export class TourStepAutomatic extends TourStep {
         }
     }
 
-    /**
-     * Each time it returns false, tour engine wait for a mutation
-     * to retry to find the trigger.
-     * @returns {(HTMLElement|Boolean)}
-     */
+    /** @returns {(HTMLElement|Boolean)} */
     findTrigger() {
         if (!this.active) {
             this.skipped = true;

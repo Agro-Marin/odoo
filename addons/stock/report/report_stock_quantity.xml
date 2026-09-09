@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Used in Forecasted Report -->
     <record id="stock_report_view_graph" model="ir.ui.view">
         <field name="name">stock_report_view_graph</field>
         <field name="model">report.stock.quantity</field>

@@ -10,9 +10,7 @@ import { HootTestResult } from "../../ui/hoot_test_result.js";
 import { makeUiState } from "../../ui/setup_hoot_ui.js";
 import { mountForTest, parseUrl } from "../local_helpers.js";
 
-/**
- * @param {(mockExpect: typeof expect) => any} callback
- */
+/** @param {(mockExpect: typeof expect) => any} callback */
 const mountTestResults = async (testFn, props) => {
     const runner = new Runner();
     const ui = makeUiState();

@@ -7,8 +7,6 @@ from odoo.exceptions import ValidationError
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
-    # if set, the matrix of the products configurable by matrix will be shown
-    # on the report of the order.
     report_grids = fields.Boolean(string="Print Variant Grids", default=True)
 
     """ Matrix loading and update: fields and methods :
@@ -22,7 +20,6 @@ class SaleOrder(models.Model):
     """
 
     grid_product_tmpl_id = fields.Many2one("product.template", store=False)
-    # Whether the grid field contains a new matrix to apply or not
     grid_update = fields.Boolean(default=False, store=False)
     grid = fields.Char(
         "Matrix local storage",
@@ -34,14 +31,12 @@ class SaleOrder(models.Model):
 
     @api.onchange("grid_product_tmpl_id")
     def _set_grid_up(self):
-        """Save locally the matrix of the given product.template, to be used by the matrix configurator."""
         if self.grid_product_tmpl_id:
             self.grid_update = False
             self.grid = json.dumps(self._get_matrix(self.grid_product_tmpl_id))
 
     @api.onchange("grid")
     def _apply_grid(self):
-        """Apply the given list of changed matrix cells to the current SO."""
         if self.grid and self.grid_update:
             grid = json.loads(self.grid)
             product_template = self.env["product.template"].browse(
@@ -57,7 +52,6 @@ class SaleOrder(models.Model):
                     combination - combination._without_no_variant_attributes()
                 )
 
-                # create or find product variant from combination
                 product = product_template._create_product_variant(combination)
                 order_lines = self.line_ids.filtered(
                     lambda line: (
@@ -68,7 +62,6 @@ class SaleOrder(models.Model):
                     )
                 )
 
-                # if product variant already exist in order lines
                 old_qty = sum(order_lines.mapped("product_qty"))
                 qty = cell["qty"]
                 diff = qty - old_qty
@@ -76,12 +69,9 @@ class SaleOrder(models.Model):
                 if not diff:
                     continue
 
-                # TODO keep qty check? cannot be 0 because we only get cell changes ...
                 if order_lines:
                     if qty == 0:
                         if self.state in ["draft", "sent"]:
-                            # Remove lines if qty was set to 0 in matrix
-                            # only if SO state = draft/sent
                             self.line_ids -= order_lines
                         else:
                             order_lines.update({"product_qty": 0.0})
@@ -104,12 +94,6 @@ class SaleOrder(models.Model):
                                 )
                             )
                         order_lines[0].product_qty = qty
-                        # If we want to support multiple lines edition:
-                        # removal of other lines.
-                        # For now, an error is raised instead
-                        # if len(order_lines) > 1:
-                        #     # Remove 1+ lines
-                        #     self.line_ids -= order_lines[1:]
                 else:
                     if not default_so_line_vals:
                         OrderLine = self.env["sale.order.line"]
@@ -132,19 +116,11 @@ class SaleOrder(models.Model):
                         )
                     )
             if new_lines:
-                # Add new SO lines
                 self.update({"line_ids": new_lines})
 
     def _get_matrix(self, product_template):
-        """Return the matrix of the given product, updated with current SOLines quantities.
-
-        :param product.template product_template:
-        :return: matrix to display
-        :rtype: dict
-        """
 
         def has_ptavs(line, sorted_attr_ids):
-            # TODO instead of sorting on ids, use odoo-defined order for matrix ?
             ptav = line.product_template_attribute_value_ids.ids
             pnav = line.product_no_variant_attribute_value_ids.ids
             pav = pnav + ptav
@@ -174,11 +150,6 @@ class SaleOrder(models.Model):
         return matrix
 
     def get_report_matrixes(self):
-        """Reporting method.
-
-        :return: array of matrices to display in the report
-        :rtype: list
-        """
         matrixes = []
         if self.report_grids:
             grid_configured_templates = self.line_ids.filtered(

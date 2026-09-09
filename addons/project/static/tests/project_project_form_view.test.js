@@ -105,7 +105,6 @@ test("project.project (form) show archive action for project manager", async () 
 });
 
 test("reload the page when allow_milestones is enabled on at least one project", async () => {
-    // No project has allow_milestones enabled
     await mountView(formViewParams);
 
     await click("div[name='allow_milestones'] input");
@@ -120,19 +119,16 @@ test("reload the page when allow_milestones is enabled on at least one project",
 });
 
 test("do not reload the page when allow_milestones is enabled and there already exists one project with the feature enabled", async () => {
-    // Set a project with allow_milestones enabled
     ProjectProject._records[1].allow_milestones = true;
     await mountView(formViewParams);
 
     await click("div[name='allow_milestones'] input");
     await clickSave();
 
-    // No reload should be triggered
     expect.verifySteps(["get_features_enabled", "web_save", "get_features_enabled"]);
 });
 
 test("reload the page when allow_milestones is disabled on all projects", async () => {
-    // Set a project with allow_milestones enabled
     ProjectProject._records[0].allow_milestones = true;
     await mountView(formViewParams);
 
@@ -148,7 +144,6 @@ test("reload the page when allow_milestones is disabled on all projects", async 
 });
 
 test("reload the page when allow_dependencies is enabled on at least one project", async () => {
-    // No project has allow_dependencies enabled
     await mountView(formViewParams);
 
     await click("div[name='allow_dependencies'] input");
@@ -163,19 +158,16 @@ test("reload the page when allow_dependencies is enabled on at least one project
 });
 
 test("do not reload the page when allow_dependencies is enabled and there already exists one project with the feature enabled", async () => {
-    // Set a project with allow_dependencies enabled
     ProjectProject._records[1].allow_dependencies = true;
     await mountView(formViewParams);
 
     await click("div[name='allow_dependencies'] input");
     await clickSave();
 
-    // No reload should be triggered
     expect.verifySteps(["get_features_enabled", "web_save", "get_features_enabled"]);
 });
 
 test("reload the page when allow_dependencies is disabled on all projects", async () => {
-    // Set a project with allow_dependencies enabled
     ProjectProject._records[0].allow_dependencies = true;
     await mountView(formViewParams);
 
@@ -191,7 +183,6 @@ test("reload the page when allow_dependencies is disabled on all projects", asyn
 });
 
 test("reload the page when allow_recurring_tasks is enabled on at least one project", async () => {
-    // No project has allow_recurring_tasks enabled
     await mountView(formViewParams);
 
     await click("div[name='allow_recurring_tasks'] input");
@@ -206,19 +197,16 @@ test("reload the page when allow_recurring_tasks is enabled on at least one proj
 });
 
 test("do not reload the page when allow_recurring_tasks is enabled and there already exists one project with the feature enabled", async () => {
-    // Set a project with allow_recurring_tasks enabled
     ProjectProject._records[1].allow_recurring_tasks = true;
     await mountView(formViewParams);
 
     await click("div[name='allow_recurring_tasks'] input");
     await clickSave();
 
-    // No reload should be triggered
     expect.verifySteps(["get_features_enabled", "web_save", "get_features_enabled"]);
 });
 
 test("reload the page when allow_recurring_tasks is disabled on all projects", async () => {
-    // Set a project with allow_recurring_tasks enabled
     ProjectProject._records[0].allow_recurring_tasks = true;
     await mountView(formViewParams);
 

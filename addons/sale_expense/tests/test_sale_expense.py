@@ -8,9 +8,7 @@ from odoo.addons.sale.tests.common import TestSaleCommon
 @tagged("post_install", "-at_install")
 class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
     def test_sale_expense(self):
-        """Test the behaviour of sales orders when managing expenses"""
 
-        # create a so with a product invoiced on delivery
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -36,7 +34,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         )
         init_price = so.amount_total
 
-        # create some expense and validate it (expense at cost)
         expense = self.create_expenses(
             {
                 "product_id": self.company_data["product_delivery_cost"].id,
@@ -49,7 +46,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         expense.action_approve()
         self.post_expenses_with_wizard(expense)
 
-        # expense should now be in sales order
         self.assertIn(
             self.company_data["product_delivery_cost"],
             so.mapped("line_ids.product_id"),
@@ -72,7 +68,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         )
         self.assertEqual(sol.analytic_distribution, {str(analytic_account.id): 100})
 
-        # create some expense and validate it (expense at sale price)
         init_price = so.amount_total
         prod_exp_2 = self.env["product.product"].create(
             {
@@ -100,7 +95,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         expense_2.action_approve()
         self.post_expenses_with_wizard(expense_2)
 
-        # expense should now be in sales order
         self.assertIn(
             prod_exp_2,
             so.mapped("line_ids.product_id"),
@@ -118,7 +112,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
             "Sale Expense: price of so should be updated after adding expense",
         )
 
-        # both expenses should be invoiced
         inv = so._create_invoices()
         self.assertEqual(
             inv.amount_untaxed,
@@ -127,10 +120,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_expense_multi_id_analytic_distribution(self):
-        """
-        Test conversion of analytic_distribution dict into account numbers when a hr.expense with an analytic_distribution
-        having 2+ account ids
-        """
         expensed_product = self.env["product.product"].create(
             {
                 "name": "test product",

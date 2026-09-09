@@ -8,9 +8,7 @@ import { useClickAway } from "@web/core/utils/dom/click_away";
 
 describe.current.tags("headless");
 
-/**
- * @param {Parameters<typeof useClickAway>[1]} [options]
- */
+/** @param {Parameters<typeof useClickAway>[1]} [options] */
 async function mountClickAway(options) {
     /** @type {Node[]} */
     const calls = [];
@@ -30,9 +28,7 @@ function fixture() {
     return /** @type {any} */ (getFixture());
 }
 
-/**
- * @param {EventTarget} target
- */
+/** @param {EventTarget} target */
 function pointerDown(target) {
     target.dispatchEvent(
         new PointerEvent("pointerdown", { bubbles: true, composed: true }),
@@ -90,9 +86,7 @@ describe("navigation", () => {
 });
 
 describe("iframes", () => {
-    /**
-     * @param {Element} parent
-     */
+    /** @param {Element} parent */
     async function addIframe(parent) {
         const iframe = document.createElement("iframe");
         parent.appendChild(iframe);

@@ -12,9 +12,7 @@ const FIELDS = {
     name: { name: "name", type: "char" },
 };
 
-/**
- * @param {any[][]} calls
- */
+/** @param {any[][]} calls */
 function makeRealOrm(calls) {
     return {
         rpc: (/** @type {any[]} */ ...args) => {

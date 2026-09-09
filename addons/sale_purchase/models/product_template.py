@@ -14,10 +14,6 @@ class ProductTemplate(models.Model):
 
     @api.constrains("service_to_purchase", "seller_ids", "type", "expense_policy")
     def _check_service_to_purchase(self):
-        # `service_to_purchase` is company-dependent while everything it needs --
-        # the vendors, the type, the expense policy -- is shared. Checking only the
-        # current company lets a write made from one company break another's setup,
-        # so every company this user answers for is checked.
         for company in self.env.user.company_ids or self.env.company:
             for template in self.with_company(company).filtered("service_to_purchase"):
                 template._check_service_to_purchase_in_company(company)

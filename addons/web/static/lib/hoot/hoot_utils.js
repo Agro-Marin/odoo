@@ -16,53 +16,27 @@ import { getRunner } from "./main_runner.js";
 /**
  * @typedef {ArgumentPrimitive | `${ArgumentPrimitive}[]` | null} ArgumentType
  * @typedef {"any"
- *  | "bigint"
- *  | "boolean"
- *  | "date"
- *  | "error"
- *  | "function"
- *  | "integer"
- *  | "node"
- *  | "null"
- *  | "number"
- *  | "object"
- *  | "regex"
- *  | "string"
- *  | "symbol"
- *  | "url"
- *  | "undefined"} ArgumentPrimitive
  * @typedef {{
- *  ignoreOrder?: boolean;
- *  partial?: boolean;
- * }} DeepEqualOptions
  * @typedef {[string, ArgumentType]} Label
  * @typedef {"expected" | "group" | "received" | "technical"} MarkupType
  * @typedef {string | RegExp | { new(): any }} Matcher
  * @typedef {QueryRegExp | QueryExactString | QueryPartialString} QueryPart
  * @typedef {{
- *  assertions: number;
- *  failed: number;
- *  passed: number;
- *  skipped: number;
- *  suites: number;
- *  tests: number;
- *  todo: number;
- * }} Reporting
  * @typedef {import("./core/runner").Runner} Runner
  */
 
 /**
- * @template {unknown[]} T
+ * @template {unknown[]}
  * @typedef {T extends [any, ...infer U] ? U : never} DropFirst
  */
 
 /**
- * @template T
+ * @template
  * @typedef {T | Iterable<T>} MaybeIterable
  */
 
 /**
- * @template T
+ * @template
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
@@ -118,9 +92,7 @@ const $removeItem = localStorage.removeItem.bind(localStorage);
 /** @type {Clipboard["writeText"]} */
 const $writeText = $clipboard?.writeText.bind($clipboard);
 
-/**
- * @param {(...args: any[]) => any} fn
- */
+/** @param {(...args: any[]) => any} fn */
 function getFunctionString(fn) {
     if (R_CLASS.test(fn.name)) {
         return `${fn.name ? `class ${fn.name}` : "anonymous class"} { ${ELLIPSIS} }`;
@@ -138,9 +110,7 @@ function getFunctionString(fn) {
     return `${prefix}(${args}) => { ${ELLIPSIS} }`;
 }
 
-/**
- * @param {unknown} value
- */
+/** @param {unknown} value */
 function getGenericSerializer(value) {
     for (const [constructor, serialize] of GENERIC_SERIALIZERS) {
         if (isInstanceOf(value, constructor)) {
@@ -170,7 +140,7 @@ function makeObjectCache() {
 }
 
 /**
- * @template T
+ * @template
  * @param {T | (() => T)} value
  * @returns {T}
  */
@@ -202,7 +172,7 @@ function truncate(value, length = MAX_HUMAN_READABLE_SIZE) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T} value
  * @param {ReturnType<makeObjectCache>} cache
  * @returns {T}

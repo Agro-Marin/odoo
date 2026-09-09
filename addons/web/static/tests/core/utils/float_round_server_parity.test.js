@@ -5,9 +5,7 @@ import { roundPrecision } from "@web/core/utils/format/numbers";
 
 describe.current.tags("headless");
 
-/**
- * @type {[number, number, string, number][]}
- */
+/** @type {[number, number, string, number][]} */
 const CORPUS = [
     [-3.5, 1, "HALF-UP", -4.0],
     [-3.5, 1, "HALF-DOWN", -3.0],

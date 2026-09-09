@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Base search view, contains the fields and filters common to project, project sharing and fsm -->
     <record id="view_task_search_form_base" model="ir.ui.view">
         <field name="name">project.task.search.form</field>
         <field name="model">project.task</field>
@@ -123,7 +122,6 @@
         </field>
     </record>
 
-    <!-- Contains the fields and filters common to projet and fsm -->
     <record id="view_task_search_form_project_fsm_base" model="ir.ui.view">
         <field name="name">project.task.search.form.project.base</field>
         <field name="model">project.task</field>
@@ -164,7 +162,6 @@
         </field>
     </record>
 
-    <!-- Base search view for project only -->
     <record id="view_task_search_form_project_base" model="ir.ui.view">
         <field name="name">project.task.search.form.project.base</field>
         <field name="model">project.task</field>
@@ -297,7 +294,6 @@
         </field>
     </record>
 
-    <!-- Task graph view when viewing records of a single project -->
     <record id="view_project_task_graph_inherit" model="ir.ui.view">
         <field name="name">project.task.graph.inherit</field>
         <field name="model">project.task</field>
@@ -313,7 +309,6 @@
         </field>
     </record>
 
-    <!-- Sprint backlog: tasks not assigned to any sprint -->
     <record id="action_view_backlog" model="ir.actions.act_window">
         <field name="name">Backlog</field>
         <field name="res_model">project.task</field>
@@ -333,7 +328,6 @@
         </field>
     </record>
 
-    <!-- Cycle time scatter plot: completion date on X, cycle time on Y -->
     <record id="view_project_task_scatter" model="ir.ui.view">
         <field name="name">project.task.scatter</field>
         <field name="model">project.task</field>
@@ -446,7 +440,6 @@
         <field name="action_id" ref="project.act_project_project_2_project_task_all" />
     </record>
 
-    <!-- Set pivot view and arrange in order -->
     <record id="project_task_kanban_action_view" model="ir.actions.act_window.view">
         <field name="sequence" eval="10" />
         <field name="view_mode">kanban</field>
@@ -583,7 +576,6 @@
                         domain="[('user_id', '=', uid)]"
                         string="Personal Stage" />
                 </header>
-                <!-- Used in inherited views to display the eventual warnings -->
                 <t name="warning_section">
                     <div
                         role="alert"
@@ -629,10 +621,8 @@
                 </div>
                 <sheet string="Task">
                 <div class="oe_button_box" name="button_box" groups="base.group_user">
-                    <!-- Dummy tag for organizing buttons, using position='replace' when inheriting -->
                     <span id="button_products" invisible="1" />
                     <span id="button_worksheet" invisible="1" />
-                    <!-- Dummy tag used to organize buttons, englobing the 3 buttons modifies the width of the button -->
                     <span id="start_rating_buttons" invisible="1" />
                     <field name="rating_avg" invisible="1" />
                     <field name="rating_active" invisible="1" />
@@ -658,7 +648,6 @@
                             <span class="o_stat_text">Last Rating</span>
                         </div>
                     </button>
-                    <!-- Dummy tag used to organize buttons -->
                     <span id="end_rating_buttons" invisible="1" />
                     <button
                         name="action_view_parent_task"
@@ -716,7 +705,6 @@
                         icon="fa-calendar"
                         string="Schedule"
                         invisible="not user_ids" />
-                    <!-- Dummy tag used to organize buttons -->
                     <span id="end_button_box" invisible="1" />
                 </div>
                 <widget
@@ -1180,7 +1168,6 @@
                                 <field name="cd3_score" invisible="not cd3_score" />
                             </group>
                             <group string="Scheduling">
-                                <!-- PMI hours: scheduled (Duration), planned_resources (Units), planned (Effort), allocated (commitment) -->
                                 <field
                                     name="scheduled_hours"
                                     widget="float_time"
@@ -1437,7 +1424,6 @@
         </field>
     </record>
 
-    <!-- View used in the Sub-tasks, Blocked by notebook page in the task form view in mobile -->
     <record id="project_sub_task_view_kanban_mobile" model="ir.ui.view">
         <field name="name">project.task.kanban</field>
         <field name="model">project.task</field>
@@ -1455,7 +1441,6 @@
         </field>
     </record>
 
-    <!-- The main base of the project.task list view -->
     <record id="project_task_view_tree_main_base" model="ir.ui.view">
         <field name="name">project.task.view.list.main.base</field>
         <field name="model">project.task</field>
@@ -1545,7 +1530,6 @@
         </field>
     </record>
 
-    <!-- common base of the list view in project app -->
     <record id="project_task_view_tree_base" model="ir.ui.view">
         <field name="name">project.task.view.list.base</field>
         <field name="model">project.task</field>
@@ -1602,7 +1586,6 @@
         </field>
     </record>
 
-    <!-- main list view -->
     <record id="view_task_tree2" model="ir.ui.view">
         <field name="name">project.task.list</field>
         <field name="model">project.task</field>
@@ -2013,7 +1996,6 @@
             eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
-    <!-- Views for 'Tasks' stat button via Contact form -->
     <record id="view_task_form_res_partner" model="ir.ui.view">
         <field name="name">project.task.form.res.partner</field>
         <field name="model">project.task</field>
@@ -2110,7 +2092,6 @@
             name="domain">[('is_closed', '=', False), ('date_end', '&lt;', 'today'), ('project_id', '!=', False), ('has_template_ancestor', '=', False), ('has_project_template', '=', False)]</field>
     </record>
 
-    <!-- Opening task when double clicking on project -->
     <record id="dblc_proj" model="ir.actions.act_window">
         <field name="name">Project's tasks</field>
         <field name="res_model">project.task</field>
@@ -2138,12 +2119,6 @@
         </field>
     </record>
 
-    <!--
-        Ordering pins for the action above. They existed only in the enterprise
-        bridge, so deleting that module made a gantt open where a kanban used to.
-        The three view types they name are project's own, so they belong here;
-        project_gantt and project_map slot theirs in at sequence 20 and 40.
-    -->
     <record
         id="action_view_task_from_milestone_kanban_view"
         model="ir.actions.act_window.view">

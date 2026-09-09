@@ -26,16 +26,12 @@ export class ProductComboItem {
         this.product = new ProductProduct(product);
     }
 
-    /**
-     * @return {Number}
-     */
+    /** @return {Number} */
     get totalExtraPrice() {
         return this.extra_price + this.product.selectedNoVariantPtavsPriceExtra;
     }
 
-    /**
-     * @return {ProductComboItem}
-     */
+    /** @return {ProductComboItem} */
     deepCopy() {
         return new ProductComboItem({ ...this });
     }

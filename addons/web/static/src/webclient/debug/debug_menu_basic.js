@@ -50,9 +50,7 @@ export class DebugMenuBasic extends Component {
         this.debugContext = useEnvDebugContext();
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async loadGroupedItems() {
         const items = await this.debugContext.getItems(this.env);
         const sections = groupBy(items, (item) => item.section || "");

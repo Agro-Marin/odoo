@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Sample stage-related template -->
         <record id="mail_template_data_project_task" model="mail.template">
             <field name="name">Project: Request Acknowledgment</field>
             <field name="model_id" ref="project.model_project_task" />
@@ -26,7 +25,6 @@
             </field>
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- Mail sent to request a rating for a task -->
         <record id="rating_project_request_email_template" model="mail.template">
             <field name="name">Project: Task Rating Request</field>
             <field name="model_id" ref="project.model_project_task" />
@@ -146,7 +144,6 @@
             <field name="lang">{{ object._rating_get_partner().lang }}</field>
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- You have been assigned email -->
         <template id="project_message_user_assigned">
             <div>
                 Dear <t t-esc="assignee_name" />,
@@ -154,7 +151,6 @@
                 <span style="margin-top: 8px;">You have been assigned to the <t t-esc="model_description or 'document'" /> <t t-esc="object.display_name" />.</span>
             </div>
         </template>
-        <!-- You have been invited to follow the task -->
         <template id="task_invitation_follower">
             <div>
                 Hello <t t-out="partner_name" />,

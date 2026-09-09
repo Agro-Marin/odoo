@@ -31,12 +31,12 @@ class ReportProjectTaskUser extends models.Model {
         { id: 9, project_id: 2, display_in_project: true },
     ];
     _views = {
-        graph: /* xml */ `
+        graph: `
             <graph string="Tasks Analysis" sample="1" js_class="project_task_analysis_graph">
                 <field name="project_id"/>
             </graph>
         `,
-        pivot: /* xml */ `
+        pivot: `
             <pivot string="Tasks Analysis" display_quantity="1" sample="1" js_class="project_task_analysis_pivot">
                 <field name="project_id"/>
             </pivot>
@@ -45,9 +45,9 @@ class ReportProjectTaskUser extends models.Model {
 }
 projectModels.ReportProjectTaskUser = ReportProjectTaskUser;
 projectModels.ProjectTask._views = {
-    form: /* xml */ `<form><field name="name"/></form>`,
-    list: /* xml */ `<list><field name="name"/></list>`,
-    search: /* xml */ `<search><field name="name"/></search>`,
+    form: `<form><field name="name"/></form>`,
+    list: `<list><field name="name"/></list>`,
+    search: `<search><field name="name"/></search>`,
 };
 defineProjectModels();
 setupChartJsForTests();
@@ -81,7 +81,6 @@ test("report.project.task.user (graph): clicking on a bar leads to project.task 
     expect(".o_list_renderer").toBeDisplayed({
         message: "Clicking on a bar should open a list view",
     });
-    // The model of the list view that is opened consequently should be "project.task"
     expect.verifySteps(["report.project.task.user", "project.task"]);
 });
 
@@ -101,7 +100,6 @@ test("report.project.task.user (pivot): clicking on a cell leads to project.task
     expect(".o_list_renderer").toBeDisplayed({
         message: "Clicking on a cell should open a list view",
     });
-    // The model of the list view that is opened consequently should be "project.task"
     expect.verifySteps(["report.project.task.user", "project.task"]);
 });
 
@@ -126,7 +124,7 @@ test("report.project.task.user: fix the domain, in case field is not present in 
         { id: 2, nbr: 1, task_id: 2, display_in_project: true },
     ];
     ReportProjectTaskUser._views = {
-        graph: /* xml */ `
+        graph: `
             <graph string="Tasks Analysis" sample="1" js_class="project_task_analysis_graph">
                 <field name="task_id"/>
                 <field name="nbr"/>

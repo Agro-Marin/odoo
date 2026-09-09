@@ -23,8 +23,8 @@ const SLIDE_IN_ANIMATION = "bottom-sheet-in";
 const SLIDE_OUT_ANIMATION = "bottom-sheet-out";
 
 /**
- * @param {string} value a CSS <time>, e.g. "200ms" or "0.2s"
- * @returns {number} milliseconds, or NaN
+ * @param {string} value
+ * @returns {number}
  */
 function parseCssDuration(value) {
     const match = /^\s*(-?[\d.]+)(ms|s)\s*$/.exec(value ?? "");
@@ -101,34 +101,17 @@ export class BottomSheet extends Component {
     };
 
     historyMarker = {};
-    /**
-     * @type {any}
-     */
+    /** @type {any} */
     closeParams = undefined;
     /** @type {(() => void)[]} */
     cleanups = [];
     /** @type {boolean} */
     skipsAnimation = false;
 
-    /**
-     * @type {{
-     *     isPositionedReady: boolean,
-     *     isSnappingEnabled: boolean,
-     *     isDismissing: boolean,
-     *     progress: number,
-     * }}
-     */
+    /** @type {{ */
     state;
 
-    /**
-     * @type {{
-     *     viewportHeight: number,
-     *     naturalHeight: number,
-     *     initialHeight: number,
-     *     maxHeight: number,
-     *     dismissThreshold: number,
-     * }}
-     */
+    /** @type {{ */
     measurements;
 
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
@@ -332,9 +315,7 @@ export class BottomSheet extends Component {
         }
     }
 
-    /**
-     * @param {number} scrollTop
-     */
+    /** @param {number} scrollTop */
     updateProgressValue(scrollTop) {
         const { initialHeight } = this.measurements;
         if (!initialHeight) {
@@ -385,9 +366,7 @@ export class BottomSheet extends Component {
         this.state.isSnappingEnabled = false;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isClosing() {
         return Boolean(this.props.presentation?.isClosing);
     }
@@ -398,9 +377,7 @@ export class BottomSheet extends Component {
         this.slideOut();
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onBackdropClick(ev) {
         if (this.props.closeOnClickAway(/** @type {any} */ (ev.target))) {
             this.slideOut();

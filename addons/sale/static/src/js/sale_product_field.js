@@ -129,9 +129,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         return _t("Edit Configuration");
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get sectionAndNoteClasses() {
         return {
             ...super.sectionAndNoteClasses,
@@ -383,16 +381,12 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         }
     }
 
-    /**
-     * @return {Object}
-     */
+    /** @return {Object} */
     _getAdditionalRpcParams() {
         return {};
     }
 
-    /**
-     * @return {Object}
-     */
+    /** @return {Object} */
     _getAdditionalDialogProps() {
         return {};
     }
@@ -401,23 +395,17 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         return product;
     }
 
-    /**
-     * @return {Number[]}
-     */
+    /** @return {Number[]} */
     _getVariantPtavIds(saleOrderLine) {
         return saleOrderLine.product_template_attribute_value_ids.currentIds;
     }
 
-    /**
-     * @return {Number[]}
-     */
+    /** @return {Number[]} */
     _getNoVariantPtavIds(saleOrderLine) {
         return saleOrderLine.product_no_variant_attribute_value_ids.currentIds;
     }
 
-    /**
-     * @return {Promise<CustomPtav[]>}
-     */
+    /** @return {Promise<CustomPtav[]>} */
     async _getCustomPtavs(saleOrderLine) {
         const customPtavIds = saleOrderLine.product_custom_attribute_value_ids;
         let customPtavs = [];

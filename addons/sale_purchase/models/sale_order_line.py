@@ -62,13 +62,8 @@ class SaleOrderLine(models.Model):
             and self.product_qty >= self.qty_transferred
         )
 
-    # --------------------------
-    # CRUD
-    # --------------------------
-
     def _hook_on_created_confirmed_lines(self):
         super()._hook_on_created_confirmed_lines()
-        # Expense lines are already delivered, so they must not create a purchase.
         self.filtered(
             lambda line: not line.is_expense
         ).sudo()._purchase_service_generation()
@@ -77,7 +72,6 @@ class SaleOrderLine(models.Model):
         super()._post_quantity_changes(field_name, changes)
         if field_name != "product_qty":
             return
-        # A sale person may not write on the purchase side; the system still must.
         purchased = (
             self.browse([change["line"].id for change in changes])
             .sudo()
@@ -102,16 +96,7 @@ class SaleOrderLine(models.Model):
         if decreased:
             purchased.browse(list(decreased))._purchase_decrease_ordered_qty(decreased)
 
-    # --------------------------
-    # Business Methods
-    # --------------------------
-
     def _purchase_decrease_ordered_qty(self, origin_values):
-        """Warn the buyer that a sale line they purchased for was cut back.
-
-        :param origin_values: map from sale line id to the ordered quantity before
-            the change, in the UoM of the sale line
-        """
         notify_orders_of_exception(
             group_by_order(self._get_open_purchase_lines(), lambda pol: pol.order_id),
             "sale_purchase.exception_purchase_on_sale_quantity_decreased",
@@ -123,21 +108,9 @@ class SaleOrderLine(models.Model):
         )
 
     def _purchase_increase_ordered_qty(self, origin_values):
-        """Carry an increase of the ordered quantity over to the purchase side.
-
-        A still-draft RfQ line is raised to the new total; once the purchase is
-        confirmed or cancelled the difference is bought on a new line instead.
-
-        :param origin_values: map from sale line id to the ordered quantity before
-            the change, in the UoM of the sale line
-        """
         for line in self:
             last_purchase_line = line._purchase_service_get_last_line()
             if last_purchase_line.state == "draft":
-                # Earlier purchases already cover part of the order; the open RfQ
-                # carries only what is left of the new total. Never negative: a
-                # confirmed purchase can exceed the sale line, and a negative line
-                # would corrupt the purchase totals rather than report the anomaly.
                 remaining = max(
                     line.product_qty
                     - line._purchase_service_get_ordered_qty(
@@ -154,14 +127,6 @@ class SaleOrderLine(models.Model):
                 )
 
     def _filter_subcontracted_services(self):
-        """Lines this module is responsible for keeping in step with a purchase.
-
-        A line can carry `purchase_line_ids` it did not create -- an MTO or dropship
-        product is bought by the procurement engine, which links its purchase line
-        back to the sale line all the same. Driving those from here means two
-        mechanisms buying the same quantity, so the product's own setting, read in
-        the order's company, is what says which ones are ours.
-        """
         return self.filtered("purchase_line_count").filtered(
             lambda line: (
                 line.product_id.with_company(
@@ -175,12 +140,9 @@ class SaleOrderLine(models.Model):
 
     def _purchase_service_get_last_line(self):
         self.check_singleton()
-        # Ordered by id, not create_date: two lines created in the same transaction
-        # share a create_date, and the tie would pick an arbitrary one.
         return self._get_open_purchase_lines().sorted("id", reverse=True)[:1]
 
     def _purchase_service_get_ordered_qty(self, purchase_lines):
-        """Sum of `purchase_lines` expressed in the UoM of this sale line."""
         self.check_singleton()
         return sum(
             purchase_line.product_uom_id._compute_quantity(
@@ -190,11 +152,6 @@ class SaleOrderLine(models.Model):
         )
 
     def _purchase_service_get_date_order(self, supplierinfo):
-        """Return the date to order on, computed as the SO commitment date minus the supplier delay.
-
-        :param supplierinfo: record of product.supplierinfo
-        :rtype: datetime
-        """
         date_commitment = fields.Datetime.from_string(
             self.order_id.date_commitment or fields.Datetime.now()
         )
@@ -204,10 +161,6 @@ class SaleOrderLine(models.Model):
         return self.company_id
 
     def _purchase_service_prepare_order_values(self, supplierinfo):
-        """Return the values to create the purchase order from the current SO line.
-        :param supplierinfo: record of product.supplierinfo
-        :rtype: dict
-        """
         self.check_singleton()
         company = self._purchase_service_get_company()
         partner_supplier = supplierinfo.partner_id.with_company(company)
@@ -223,7 +176,7 @@ class SaleOrderLine(models.Model):
             "company_id": company.id,
             "currency_id": partner_supplier.property_purchase_currency_id.id
             or company.currency_id.id,
-            "dest_address_id": False,  # False since only supported in stock
+            "dest_address_id": False,
             "origin": self.order_id.name,
             "payment_term_id": partner_supplier.property_supplier_payment_term_id.id,
             "date_order": self._purchase_service_get_date_order(supplierinfo),
@@ -233,13 +186,6 @@ class SaleOrderLine(models.Model):
     def _purchase_service_prepare_line_values(
         self, purchase_order, quantity=False, supplierinfo=None
     ):
-        """Return the values to create the purchase order line from the current SO line.
-        :param purchase_order: record of purchase.order
-        :param quantity: the quantity to force on the PO line, expressed in SO line UoM
-        :param supplierinfo: the vendor pricelist line the purchase order was chosen
-            from; resolved here when the caller has none
-        :rtype: dict
-        """
         self.check_singleton()
         if supplierinfo is None:
             supplierinfo = self._purchase_service_match_supplier(
@@ -261,8 +207,6 @@ class SaleOrderLine(models.Model):
             seller=supplierinfo,
         )
         purchase_line_vals["sale_line_id"] = self.id
-        # The variants belong on the vendor's document in the vendor's language, the
-        # same one `_prepare_purchase_order_line` described the product in.
         variants = self.with_context(
             lang=get_lang(self.env, purchase_order.partner_id.lang).code
         )._get_line_multiline_description_variants()
@@ -273,12 +217,6 @@ class SaleOrderLine(models.Model):
         return purchase_line_vals
 
     def _purchase_service_match_supplier(self, partner=None, warning=True):
-        """The vendor pricelist line this sale line buys from.
-
-        :param partner: restrict to this vendor. Left out when the question is
-            *which* vendor to buy from; passed once a purchase order has settled it.
-        :param warning: raise UserError when no vendor matches; pass False to test for one silently
-        """
         supplier = self.product_id._select_seller(
             partner_id=partner or self._get_purchase_partner(),
             quantity=self.product_qty,
@@ -337,7 +275,6 @@ class SaleOrderLine(models.Model):
         return purchase_order
 
     def _get_purchase_partner(self):
-        """In case we want to explicitly name a partner from whom we want to buy or receive products"""
         self.check_singleton()
         return False
 
@@ -349,13 +286,6 @@ class SaleOrderLine(models.Model):
             purchase_order.origin = ", ".join([*origins, self.order_id.name])
 
     def _purchase_service_create(self, quantity=False):
-        """Create a purchase order line (and maybe a purchase order) for `quantity` of this sale line.
-        If a line should create a RFQ, it will check for existing PO. If no one is find, the SO line will create one, then adds
-        a new PO line. The created purchase order line will be linked to the SO line.
-        :param quantity: the quantity to force on the PO line, expressed in SO line UoM
-        :return: map of sale.order.line to the created purchase.order.line records
-        :rtype: dict
-        """
         sale_line_purchase_map = {}
         for line in self:
             line = line.with_company(line._purchase_service_get_company())
@@ -373,16 +303,9 @@ class SaleOrderLine(models.Model):
         return sale_line_purchase_map
 
     def _purchase_service_generation(self):
-        """Create a Purchase for the first time from the sale line. If the SO line already created a PO, it
-        will not create a second one.
-
-        :return: map of sale.order.line to the created purchase.order.line records
-        :rtype: dict
-        """
         sale_line_purchase_map = {}
         for line in self:
             line = line.with_company(line._purchase_service_get_company())
-            # Do not regenerate PO line if the SO line has already created one in the past (SO cancel/reconfirmation case)
             if line.product_id.service_to_purchase and not line.purchase_line_count:
                 sale_line_purchase_map.update(line._purchase_service_create())
         return sale_line_purchase_map

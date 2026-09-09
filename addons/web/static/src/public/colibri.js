@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @import { Interaction } from "@web/public/interaction" */
-
 import { Component, markup } from "@odoo/owl";
 
 const Markup = markup("").constructor;
@@ -13,9 +11,7 @@ export const SKIP_IMPLICIT_UPDATE = Symbol();
 const EVENT_MODIFIER_RE =
     /^(?<event>.*)\.(?<suffix>prevent|stop|capture|once|noUpdate|withTarget|keepInHistory)$/;
 
-/**
- * @type {Record<string, (fn: Function, colibri: Colibri) => (...args: any[]) => any>}
- */
+/** @type {Record<string, (fn: Function, colibri: Colibri) => (...args: any[]) => any>} */
 const EVENT_MODIFIERS = {
     prevent:
         (fn, colibri) =>
@@ -110,9 +106,7 @@ function assertAttrObject(attr, value) {
     }
 }
 
-/**
- * @type {FinalizationRegistry<{ refs: Set<WeakRef<HTMLElement>>, ref: WeakRef<HTMLElement> }>}
- */
+/** @type {FinalizationRegistry<{ refs: Set<WeakRef<HTMLElement>>, ref: WeakRef<HTMLElement> }>} */
 const touchedRegistry = new FinalizationRegistry(({ refs, ref }) => refs.delete(ref));
 
 /**
@@ -226,9 +220,7 @@ export class Colibri {
         this.cleanups = [];
         /** @type {ListenerRecord[]} */
         this.listenerRecords = [];
-        /**
-         * @type {Map<string, Array<{ event: string, handler: EventListener, options: AddEventListenerOptions | undefined }>>}
-         */
+        /** @type {Map<string, Array<{ event: string, handler: EventListener, options: AddEventListenerOptions | undefined }>>} */
         this.listeners = new Map();
         this.dynamicNodes = new Map();
         this.core = core;
@@ -260,9 +252,7 @@ export class Colibri {
         };
     }
 
-    /**
-     * @returns {Error[]}
-     */
+    /** @returns {Error[]} */
     runCleanups() {
         const errors = [];
         while (this.cleanups.length) {
@@ -277,9 +267,7 @@ export class Colibri {
         return errors;
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     destroyInteraction() {
         const errors = this.core.domEffectScope(() => {
             const errors = this.runCleanups();
@@ -320,9 +308,7 @@ export class Colibri {
         this.hasStarted = true;
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async start() {
         try {
             const willStart = Promise.resolve(this.interaction.willStart());
@@ -576,9 +562,7 @@ export class Colibri {
         this.listenerRecords = kept;
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     refreshNodes() {
         for (const [sel, previousNodes] of this.dynamicNodes) {
             const nodes = this.getNodes(sel);
@@ -856,9 +840,7 @@ export class Colibri {
         }
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     updateContent() {
         if (this.isDestroyed) {
             throw new Error("Cannot update the content of a destroyed interaction");
@@ -1002,9 +984,7 @@ export class Colibri {
         }
     }
 
-    /**
-     * @returns {Error[]}
-     */
+    /** @returns {Error[]} */
     restoreContent() {
         const errors = [];
         for (const { attr, initialValues, touched } of this.dynamicAttrs) {
@@ -1032,9 +1012,7 @@ export class Colibri {
         return errors;
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     destroy() {
         this._teardown({ withInteractionDestroy: true, rethrow: true });
     }

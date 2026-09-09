@@ -9,28 +9,15 @@ import { HootJobButtons } from "./hoot_job_buttons.js";
 
 /**
  * @typedef {{
- *  multi?: number;
- *  name: string;
- *  hasSuites: boolean;
- *  reporting: import("../hoot_utils").Reporting;
- *  selected: boolean;
- *  unfolded: boolean;
- * }} HootSideBarSuiteProps
  * @typedef {{
- *  reporting: import("../hoot_utils").Reporting;
- *  statusFilter: import("./setup_hoot_ui").StatusFilter | null;
- * }} HootSideBarCounterProps
  * @typedef {{
- * }} HootSideBarProps
  */
 
 const { Boolean, location: actualLocation, Object, String } = globalThis;
 
 const SUITE_CLASSNAME = "hoot-sidebar-suite";
 
-/**
- * @extends {Component<HootSideBarSuiteProps, import("../hoot").Environment>}
- */
+/** @extends {Component<HootSideBarSuiteProps, import("../hoot").Environment>} */
 export class HootSideBarSuite extends Component {
     static props = {
         multi: { type: Number, optional: true },
@@ -123,9 +110,7 @@ export class HootSideBarCounter extends Component {
     }
 }
 
-/**
- * @extends {Component<HootSideBarProps, import("../hoot").Environment>}
- */
+/** @extends {Component<HootSideBarProps, import("../hoot").Environment>} */
 export class HootSideBar extends Component {
     static components = { HootJobButtons, HootSideBarSuite, HootSideBarCounter };
 
@@ -266,9 +251,7 @@ export class HootSideBar extends Component {
             rootSuites = runner.rootSuites;
         }
 
-        /**
-         * @param {Suite} suite
-         */
+        /** @param {Suite} suite */
         function addSuite(suite) {
             if (
                 !(suite instanceof Suite) ||
@@ -300,9 +283,7 @@ export class HootSideBar extends Component {
             : [];
     }
 
-    /**
-     * @param {import("../core/job").Job} job
-     */
+    /** @param {import("../core/job").Job} job */
     hasSuites(job) {
         return job.jobs.some((subJob) => subJob instanceof Suite);
     }
@@ -312,9 +293,7 @@ export class HootSideBar extends Component {
         this.uiState.resultsPage = 0;
     }
 
-    /**
-     * @param {KeyboardEvent & { currentTarget: HTMLInputElement }} ev
-     */
+    /** @param {KeyboardEvent & { currentTarget: HTMLInputElement }} ev */
     onSearchInputKeydown(ev) {
         switch (ev.key) {
             case "ArrowDown": {
@@ -376,9 +355,7 @@ export class HootSideBar extends Component {
         }
     }
 
-    /**
-     * @param {boolean} expanded
-     */
+    /** @param {boolean} expanded */
     toggleExpand(expanded) {
         if (expanded) {
             this.state.unfoldedIds.clear();
@@ -414,9 +391,7 @@ export class HootSideBar extends Component {
         }
     }
 
-    /**
-     * @param {Suite} suite
-     */
+    /** @param {Suite} suite */
     unfoldAndSelect(suite) {
         this.state.unfoldedIds.add(suite.id);
 

@@ -39,21 +39,6 @@ function getFormattedPlaceholder(value, type, options) {
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- * endDateField?: string;
- * maxDate?: string;
- * minDate?: string;
- * placeholder?: string;
- * required?: boolean;
- * rounding?: number;
- * startDateField?: string;
- * warnFuture?: boolean;
- * showSeconds?: boolean;
- * showTime?: boolean;
- * numeric?: boolean;
- * minPrecision?: string;
- * maxPrecision?: string;
- * alwaysRange?: boolean;
- * }} DateTimeFieldProps
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
  * @typedef {import("@web/core/l10n/dates").NullableDateRange} NullableDateRange
  */
@@ -180,9 +165,7 @@ export class DateTimeField extends FieldComponent {
         );
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async applyPickedValues() {
         const toUpdate = {};
         if (Array.isArray(this.state.value)) {
@@ -225,9 +208,7 @@ export class DateTimeField extends FieldComponent {
         }
     }
 
-    /**
-     * @returns {DateTimePickerProps}
-     */
+    /** @returns {DateTimePickerProps} */
     getPickerProps() {
         const value = this.getRecordValue();
         /** @type {DateTimePickerProps} */
@@ -260,9 +241,7 @@ export class DateTimeField extends FieldComponent {
         return pickerProps;
     }
 
-    /**
-     * @param {FocusEvent} ev
-     */
+    /** @param {FocusEvent} ev */
     onDateButtonFocus(ev) {
         if (this._suppressNextFocus) {
             this._suppressNextFocus = false;
@@ -273,9 +252,7 @@ export class DateTimeField extends FieldComponent {
         ).getAttribute("data-field");
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onDateButtonClick(ev) {
         this.picker.activeInput = /** @type {HTMLElement} */ (
             ev.currentTarget
@@ -310,9 +287,7 @@ export class DateTimeField extends FieldComponent {
         }
     }
 
-    /**
-     * @returns {DateTimePickerProps["value"]}
-     */
+    /** @returns {DateTimePickerProps["value"]} */
     getRecordValue() {
         if (this.relatedField) {
             return [
@@ -324,17 +299,13 @@ export class DateTimeField extends FieldComponent {
         }
     }
 
-    /**
-     * @param {number} index
-     */
+    /** @param {number} index */
     isDateInTheFuture(index) {
         const now = this.fieldDefinition.type === "date" ? today() : DateTime.local();
         return this.values[index] > now;
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     isEmpty(fieldName) {
         return fieldName === this.startDateField ? !this.values[0] : !this.values[1];
     }
@@ -372,9 +343,7 @@ export class DateTimeField extends FieldComponent {
         return deserializeDateTime(value);
     }
 
-    /**
-     * @return {boolean}
-     */
+    /** @return {boolean} */
     shouldShowSeparator() {
         const bothEnds =
             !this.isEmpty(this.startDateField) && !this.isEmpty(this.endDateField);
@@ -386,9 +355,7 @@ export class DateTimeField extends FieldComponent {
         return Boolean(this.state.range && (this.props.required || bothEnds));
     }
 
-    /**
-     * @param {boolean} [isDirty]
-     */
+    /** @param {boolean} [isDirty] */
     triggerIsDirty(isDirty) {
         this.setFieldDirty(
             isDirty ?? !areDatesEqual(this.getRecordValue(), this.state.value),
@@ -494,8 +461,6 @@ export const dateField = {
         },
         placeholderFieldOption(["date", "datetime", "char"]),
     ],
-    // A datetime may be rendered at day precision; a date can never grow a time.
-    // The widget name *is* the display precision, so it is asserted, not defaulted.
     supportedTypes: ["date", "datetime"],
     extractProps: (staticInfo, dynamicInfo) =>
         extractDateProps(staticInfo, dynamicInfo, {

@@ -20,15 +20,6 @@ class CustomerPortal(portal.CustomerPortal):
         input_quantity=False,
         **kwargs,
     ):
-        """Update the quantity of an optional SOline from a SO.
-
-        :param int order_id: `sale.order` id
-        :param int line_id: `sale.order.line` id
-        :param str access_token: portal access_token of the specified order
-        :param bool remove: if true, 1 unit will be removed from the line
-        :param float input_quantity: if specified, will be set as new line qty
-        :param dict kwargs: unused parameters
-        """
         try:
             order_sudo = self._document_check_access(
                 "sale.order", order_id, access_token=access_token
@@ -36,7 +27,6 @@ class CustomerPortal(portal.CustomerPortal):
         except AccessError, MissingError:
             return request.redirect("/my")
 
-        # Redundant with can be edited on portal for line, ask sales if can rbe removed
         if not order_sudo._can_be_edited_on_portal():
             return None
 
@@ -46,7 +36,6 @@ class CustomerPortal(portal.CustomerPortal):
             or order_line.order_id != order_sudo
             or not order_line._can_be_edited_on_portal()
         ):
-            # Do not allow updating non-optional lines from a quotation
             return None
 
         if input_quantity is not False:
@@ -56,7 +45,6 @@ class CustomerPortal(portal.CustomerPortal):
             quantity = max((order_line.product_qty + number), 0)
 
         if order_line.product_type == "combo":
-            # for combo products, we update the quantities of the combo items too
             combo_item_lines = order_line._get_lines_linked().filtered("combo_item_id")
             combo_item_lines.update({"product_qty": quantity})
 

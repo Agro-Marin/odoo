@@ -119,9 +119,6 @@ class TestMrpGroupReadonly(TransactionCase):
         )
 
     def test_no_server_action_reaches_readonly(self):
-        # The absorbed module's install hook linked the tier to every server
-        # action a manufacturing User may run: split, merge, mark done, lock,
-        # scrap, start and pause. All writes, none declared anywhere now.
         actions = self.env["ir.actions.server"].search(
             [("group_ids", "in", self.group_readonly.ids)]
         )
@@ -132,9 +129,6 @@ class TestMrpGroupReadonly(TransactionCase):
         )
 
     def test_models_read_through_base_group_user_stay_readable(self):
-        # These rows were dropped as redundant: base.group_user, which the
-        # tier implies, already reads every one of them. That grant is upstream's
-        # to change, so it is asserted rather than trusted.
         access = self.env["ir.model.access"].with_user(self.user_readonly)
         lost = [
             model
@@ -244,20 +238,12 @@ class TestMrpGroupReadonly(TransactionCase):
     def _assert_write_buttons_gated(
         self, view_xmlid, model, rung, buttons, user, feature_flags=()
     ):
-        """The gate is asserted where it is declared, and the tier where it lands.
-
-        Each write button is gated POSITIVELY on the transacting rung, which the
-        tier does not carry, and the rendered form for the tier drops it.
-        """
         view = self.env.ref(view_xmlid)
         arch = etree.fromstring(view.arch)
         for button in buttons:
             nodes = arch.xpath(f"//header/button[@name='{button}']")
             self.assertTrue(nodes, f"{button} is not in {view_xmlid}")
             for node in nodes:
-                # A feature-flag gate stays as it is: `groups` is an OR, so
-                # adding the rung would show the button to every salesperson
-                # with the flag off.
                 if node.get("groups") in feature_flags:
                     continue
                 self.assertEqual(node.get("groups"), rung, button)

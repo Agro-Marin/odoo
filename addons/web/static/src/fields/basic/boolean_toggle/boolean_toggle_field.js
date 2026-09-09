@@ -18,9 +18,7 @@ export class BooleanToggleField extends BooleanField {
         autosave: true,
     };
 
-    /**
-     * @returns {{ save: boolean }}
-     */
+    /** @returns {{ save: boolean }} */
     get updateOptions() {
         return { save: this.props.autosave };
     }

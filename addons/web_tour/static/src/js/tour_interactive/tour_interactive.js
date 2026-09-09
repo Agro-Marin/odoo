@@ -21,9 +21,7 @@ export class TourInteractive {
     anchorEls = [];
     removeListeners = () => {};
 
-    /**
-     * @param {Tour} data
-     */
+    /** @param {Tour} data */
     constructor(data) {
         Object.assign(this, data);
         this.steps = this.steps.map((step) => new TourStep(step, this));
@@ -70,9 +68,7 @@ export class TourInteractive {
         }
     }
 
-    /**
-     * @returns {HTMLElement[]}
-     */
+    /** @returns {HTMLElement[]} */
     findTriggers(anchor) {
         if (!anchor) {
             anchor = this.currentAction.anchor;
@@ -234,13 +230,8 @@ export class TourInteractive {
     }
 
     /**
-     *
      * @param {import("../tour_service").TourStep} step
      * @returns {{
-     *  event: string,
-     *  anchor: string,
-     *  pointerInfo: { tooltipPosition: string?, content: string? },
-     * }[]}
      */
     getSubActions(step) {
         const actions = [];
@@ -299,8 +290,6 @@ export class TourInteractive {
                 target: element,
             });
 
-            // Click on a field widget with an autocomplete should be also completed with a selection though Enter or Tab
-            // This case is for the steps that click on field_widget
             if (element.querySelector(".o-autocomplete--input")) {
                 consumeEvents.push({
                     name: "keydown",
@@ -313,8 +302,6 @@ export class TourInteractive {
                 });
             }
 
-            // Click on an element of a dropdown should be also completed with a selection though Enter or Tab
-            // This case is for the steps that click on a dropdown-item
             if (element.closest(".o-autocomplete--dropdown-menu")) {
                 consumeEvents.push({
                     name: "keydown",
@@ -323,7 +310,6 @@ export class TourInteractive {
                 });
             }
 
-            // Press enter on a button do the same as a click
             if (element.tagName === "BUTTON") {
                 consumeEvents.push({
                     name: "keydown",
@@ -331,7 +317,6 @@ export class TourInteractive {
                     conditional: (ev) => ev.key === "Enter",
                 });
 
-                // Pressing enter in the input group does the same as clicking on the button
                 if (element.closest(".input-group")) {
                     for (const inputEl of element.parentElement.querySelectorAll(
                         "input",
@@ -381,7 +366,6 @@ export class TourInteractive {
                                         .at(0)
                                         ?.closest(".o-autocomplete--dropdown-item")
                                 ) {
-                                    // Skip the next step if the next one is a click on a dropdown item
                                     this.currentActionIndex++;
                                 }
                                 return true;
@@ -401,7 +385,6 @@ export class TourInteractive {
                                         .at(0)
                                         ?.closest(".o-autocomplete--dropdown-item")
                                 ) {
-                                    // Skip the next step if the next one is a click on a dropdown item
                                     this.currentActionIndex++;
                                 }
                                 return true;
@@ -412,7 +395,6 @@ export class TourInteractive {
             }
         }
 
-        // Drag & drop run command
         if (runCommand === "drag") {
             consumeEvents.push({
                 name: "pointerdown",
@@ -443,15 +425,11 @@ export class TourInteractive {
     }
 
     /**
-     * Returns the element that will be used in listening to the `consumeEvent`.
      * @param {HTMLElement} el
      * @param {string} consumeEvent
      */
     getAnchorEl(el, consumeEvent) {
         if (consumeEvent === "drag") {
-            // jQuery-ui draggable triggers 'drag' events on the .ui-draggable element,
-            // but the tip is attached to the .ui-draggable-handle element which may
-            // be one of its children (or the element itself
             return el.closest(
                 ".ui-draggable, .o_draggable, .o_we_draggable, .o-draggable, [draggable='true']",
             );
@@ -464,8 +442,6 @@ export class TourInteractive {
             return el.closest("[contenteditable='true']");
         }
         if (consumeEvent === "sort") {
-            // when an element is dragged inside a sortable container (with classname
-            // 'ui-sortable'), jQuery triggers the 'sort' event on the container
             return el.closest(".ui-sortable, .o_sortable");
         }
         return el;

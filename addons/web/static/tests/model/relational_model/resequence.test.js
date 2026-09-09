@@ -6,9 +6,7 @@ import {
     resequenceRecords,
 } from "@web/model/relational_model/resequence";
 
-/**
- * @param {{ reject?: boolean }} [opts]
- */
+/** @param {{ reject?: boolean }} [opts] */
 function makeMockOrm({ reject = false } = {}) {
     const calls = [];
     return {

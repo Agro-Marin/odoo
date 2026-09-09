@@ -10,9 +10,7 @@ export class UncaughtError extends Error {
         this.name = getErrorTechnicalName(this);
         /** @type {string | null} */
         this.traceback = null;
-        /**
-         * @type {Event | PromiseRejectionEvent | null}
-         */
+        /** @type {Event | PromiseRejectionEvent | null} */
         this.event = null;
     }
 }

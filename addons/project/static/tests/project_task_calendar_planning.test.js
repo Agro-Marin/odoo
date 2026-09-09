@@ -32,9 +32,6 @@ const calendarMountParams = {
 
 test("Drag and drop task to schedule in month scale", async () => {
     let expectedDate = null;
-    // Set inside the test, not at module scope: every suite sharing this mock
-    // assigns `_views.form`, and at module scope whichever file the bundle
-    // evaluates last decides what every other one renders.
     ProjectTask._views.form = `
         <form>
             <field name="id"/>

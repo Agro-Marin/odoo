@@ -31,9 +31,7 @@ export class FilterableSelectionField extends SelectionField {
         );
     }
 
-    /**
-     * @returns {((value: string) => boolean) | null}
-     */
+    /** @returns {((value: string) => boolean) | null} */
     get allowedValuePredicate() {
         const { whitelistField, whitelistedValues, blacklistedValues } = this.props;
         if (whitelistField) {

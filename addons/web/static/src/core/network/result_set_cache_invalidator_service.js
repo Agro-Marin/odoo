@@ -15,9 +15,7 @@ export const RESULT_SET_REMOVING_METHODS = new Set([
 const RESULT_SET_TABLES = ["web_read", "web_search_read", "web_read_group"];
 
 const resultSetCacheInvalidatorService = {
-    /**
-     * @param {import("@web/env").OdooEnv} _env
-     */
+    /** @param {import("@web/env").OdooEnv} _env */
     start(_env) {
         const disposers = [
             onModelMutation(

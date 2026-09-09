@@ -25,9 +25,7 @@ import { ensureArray, zip, zipWith } from "@web/core/utils/collections/arrays";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makePopover } from "@web/ui/popover/popover_hook";
 
-/**
- * @typedef {any} DateTime
- */
+/** @typedef {any} DateTime */
 /**
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
  * @typedef {import("@web/ui/popover/popover_hook").PopoverHookReturnType} PopoverHookReturnType
@@ -35,28 +33,7 @@ import { makePopover } from "@web/ui/popover/popover_hook";
  * @typedef {import("@odoo/owl").Component} Component
  * @typedef {ReturnType<typeof import("@odoo/owl").useRef>} OwlRef
  * @typedef {{
- * createPopover?: (component: Component, options: PopoverServiceAddOptions) => PopoverHookReturnType;
- * ensureVisibility?: () => boolean;
- * format?: string;
- * getInputs?: () => HTMLElement[];
- * onApply?: (value: DateTimePickerProps["value"]) => any;
- * onChange?: (value: DateTimePickerProps["value"]) => any;
- * onClose?: () => any;
- * pickerProps?: DateTimePickerProps;
- * showSeconds?: boolean;
- * target?: HTMLElement | string;
- * useOwlHooks?: boolean;
- * }} DateTimePickerServiceParams
  * @typedef {{
- * enable: () => (() => void);
- * unregister: () => boolean;
- * dispose: () => void;
- * isOpen: () => boolean;
- * open: (inputIndex: number) => void;
- * close: () => void;
- * commitInputs: () => Promise<void>;
- * state: DateTimePickerProps;
- * }} DateTimePickerHandle
  */
 
 /**
@@ -76,9 +53,7 @@ function markValuesRaw(obj) {
     return copy;
 }
 
-/**
- * @param {Record<string, any>} props
- */
+/** @param {Record<string, any>} props */
 function stringifyProps(props) {
     const copy = {};
     for (const [key, value] of Object.entries(props)) {
@@ -166,9 +141,7 @@ export class DateTimePickerController {
             onClose: () => this.onPopoverClose(),
         });
 
-        /**
-         * @type {DateTimePickerHandle}
-         */
+        /** @type {DateTimePickerHandle} */
         this.picker = {
             enable: this.enable,
             unregister: () => this.dateTimePickerList.delete(this.picker),
@@ -348,9 +321,7 @@ export class DateTimePickerController {
         }
     };
 
-    /**
-     * @returns {HTMLElement | null}
-     */
+    /** @returns {HTMLElement | null} */
     getTarget = () =>
         this.targetRef
             ? /** @type {HTMLElement | null} */ (this.targetRef.el)
@@ -358,9 +329,7 @@ export class DateTimePickerController {
 
     isOpen = () => this.popover.isOpen;
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     onInputChange = (ev) => {
         this.updateValueFromInputs();
         this.inputsChanged[this.indexOfInput(ev.target)] = true;
@@ -369,25 +338,19 @@ export class DateTimePickerController {
         }
     };
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     onInputClick = (ev) => {
         this.open(this.indexOfInput(ev.target));
     };
 
-    /**
-     * @param {FocusEvent} ev
-     */
+    /** @param {FocusEvent} ev */
     onInputFocus = (ev) => {
         const target = /** @type {HTMLInputElement} */ (ev.target);
         this.pickerProps.focusedDateIndex = this.indexOfInput(target);
         this.setInputFocus(target);
     };
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onInputKeydown = (ev) => {
         const inputTarget = /** @type {HTMLInputElement} */ (ev.target);
         if (ev.key === "Enter" && ev.ctrlKey) {
@@ -413,9 +376,7 @@ export class DateTimePickerController {
         }
     };
 
-    /**
-     * @param {number} inputIndex
-     */
+    /** @param {number} inputIndex */
     open = (inputIndex) => {
         this.pickerProps.focusedDateIndex = inputIndex;
 
@@ -442,7 +403,7 @@ export class DateTimePickerController {
     };
 
     /**
-     * @template {"format" | "parse"} T
+     * @template {"format" | "parse"}
      * @param {T} operation
      * @param {T extends "format" ? DateTime : string} value
      * @returns {[T extends "format" ? string : DateTime, null] | [null, Error]}
@@ -476,9 +437,7 @@ export class DateTimePickerController {
         }
     };
 
-    /**
-     * @param {HTMLInputElement | null} input
-     */
+    /** @param {HTMLInputElement | null} input */
     setFocusClass = (input) => {
         for (const el of this.getInputs()) {
             if (el) {
@@ -487,9 +446,7 @@ export class DateTimePickerController {
         }
     };
 
-    /**
-     * @param {HTMLInputElement} inputEl
-     */
+    /** @param {HTMLInputElement} inputEl */
     setInputFocus = (inputEl) => {
         inputEl.selectionStart = 0;
         inputEl.selectionEnd = inputEl.value.length;

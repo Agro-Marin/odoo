@@ -135,9 +135,7 @@ export class ActionSwiper extends Component {
             }
         }
     }
-    /**
-     * @param {TouchEvent} ev
-     */
+    /** @param {TouchEvent} ev */
     onTouchMove(ev) {
         if (this.state.isSwiping) {
             if (this.props.swipeInvalid && this.props.swipeInvalid()) {
@@ -171,9 +169,7 @@ export class ActionSwiper extends Component {
             }
         }
     }
-    /**
-     * @param {TouchEvent} ev
-     */
+    /** @param {TouchEvent} ev */
     onTouchStart(ev) {
         this.scrollables = /** @type {HTMLElement[]} */ (
             ev.composedPath().filter((e) => {
@@ -206,9 +202,7 @@ export class ActionSwiper extends Component {
         this.isScrollValidated = false;
     }
 
-    /**
-     * @param {any} error
-     */
+    /** @param {any} error */
     reportActionError(error) {
         reportUncaught(error);
     }

@@ -741,10 +741,6 @@ class PurchaseOrder(models.Model):
                 ("state", "=", "done"),
                 ("acknowledged", "=", False),
                 ("receipt_reminder_email", "=", True),
-                # A reminder asks the vendor to confirm a *physical* receipt
-                # date, so an order buying nothing but services has nothing to
-                # confirm. Existential semantics on the x2many: keep the order
-                # when at least one line is not a service.
                 ("line_ids.product_id.type", "!=", "service"),
             ],
         )
@@ -801,9 +797,6 @@ class PurchaseOrder(models.Model):
 
     @api.model
     def _get_dashboard_count_domains(self):
-        # Each key is a dashboard card; each domain must stay identical to the search
-        # filter of the same name in `view_purchase_order_search_quotation`, which is
-        # what the card toggles when clicked.
         return {
             "draft": [("state", "=", "draft")],
             "sent": [("sent", "=", True), ("state", "=", "draft")],
@@ -855,11 +848,6 @@ class PurchaseOrder(models.Model):
 
         three_months_ago = fields.Datetime.now() - relativedelta(months=3)
 
-        # Route the average through `_search`, so it is scoped by the same record
-        # rules and allowed companies as the counts above. Querying
-        # `purchase_order` directly answered with orders the reader cannot open:
-        # two companies, 2 and 40 days to confirm, reported 21 to a user who
-        # could see only the first.
         confirmed = self._search(
             [
                 ("state", "=", "done"),
@@ -1036,12 +1024,6 @@ class PurchaseOrder(models.Model):
         }
 
     def _is_date_commitment_updatable(self):
-        # The portal route that reaches this is `auth="public"` and resolves to a
-        # sudo record on a *read*-level token, so this is the only thing standing
-        # between an emailed link and a write. A draft RFQ stays open on purpose
-        # -- proposing an arrival date is part of negotiating one -- but a
-        # cancelled order has no arrival left to promise, and a locked one is
-        # locked.
         self.check_singleton()
         return self.state != "cancel" and not self.locked
 

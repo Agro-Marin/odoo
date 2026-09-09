@@ -1,7 +1,7 @@
 /** @odoo-module native */
 
 /**
- * @template T
+ * @template
  * @param {string | false | null | undefined} raw
  * @param {T} fallback
  * @param {string} [label]

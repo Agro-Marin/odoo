@@ -13,17 +13,12 @@ export class ProjectTaskListController extends ListController {
 
     get deleteConfirmationDialogProps() {
         const deleteConfirmationDialogProps = super.deleteConfirmationDialogProps;
-        // With a domain selection ("Select all N"), off-page records are
-        // deleted too and cannot be inspected client-side: always warn about
-        // the subtask cascade in that case.
         const hasSubtasks =
             this.model.root.isDomainSelected ||
             this.model.root.selection.some((task) => task.data.subtask_count > 0);
         if (!hasSubtasks) {
             return deleteConfirmationDialogProps;
         }
-        // Only the body changes: the base confirm already deletes the records
-        // and reloads the view (deleting a parent cascades to its subtasks).
         return {
             ...deleteConfirmationDialogProps,
             body: subTaskDeleteConfirmationMessage,

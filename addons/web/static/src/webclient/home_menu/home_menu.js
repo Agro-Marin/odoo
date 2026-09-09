@@ -39,9 +39,7 @@ const APPS_PER_ROW = 6;
 const BADGE_DELAY = 200;
 const DIRECT_JUMP_HOTKEYS = 9;
 
-/**
- * @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp
- */
+/** @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp */
 
 export class HomeMenu extends Component {
     static template = "web.HomeMenu";
@@ -100,21 +98,9 @@ export class HomeMenu extends Component {
         },
     };
 
-    /**
-     * @type {{
-     *  isIosApp: boolean;
-     *  editing: boolean;
-     *  badges: Record<string, number>;
-     *  layoutAnnouncement: string;
-     * }}
-     */
+    /** @type {{ */
     state;
-    /**
-     * Which apps are pinned, hidden and in what order, and the writing of it
-     * down. The grid reads it; it owns it.
-     *
-     * @type {HomeMenuLayout}
-     */
+    /** @type {HomeMenuLayout} */
     layout;
     /** @type {boolean} */
     focusSelectedTile = false;
@@ -292,9 +278,7 @@ export class HomeMenu extends Component {
         return this.menus.selectMenu(menu);
     }
 
-    /**
-     * @param {HomeMenuApp[]} [apps] the apps to count for, when the ones on
-     */
+    /** @param {HomeMenuApp[]} [apps] */
     async _loadBadges(apps) {
         const request = ++this.badgeRequest;
         const badges = await loadHomeMenuBadges(
@@ -345,9 +329,7 @@ export class HomeMenu extends Component {
         }
     }
 
-    /**
-     * @param {number} index
-     */
+    /** @param {number} index */
     keyboardItem(index) {
         const apps = this.grid.visibleApps;
         return index < apps.length
@@ -355,7 +337,7 @@ export class HomeMenu extends Component {
             : this.grid.menuMatches[index - apps.length];
     }
 
-    /** @param {number} index into the flat keyboard order */
+    /** @param {number} index */
     _activate(index) {
         const item = this.keyboardItem(index);
         if (!item) {
@@ -385,9 +367,7 @@ export class HomeMenu extends Component {
         return this.menus.selectMenu(menu);
     }
 
-    /**
-     * @returns {number[][]} visible indices, row by row
-     */
+    /** @returns {number[][]} */
     get keyboardRows() {
         return gridRows(
             this.grid.keyboardRows,
@@ -420,14 +400,14 @@ export class HomeMenu extends Component {
                   .flatMap((item) => (item.xmlid ? [item.xmlid] : []));
     }
 
-    /** @param {HomeMenuApp} app @param {number} delta */
+    /** @param {HomeMenuApp} app */
     canMoveApp(app, delta) {
         const order = this.appOrder(app);
         const index = order.indexOf(app.xmlid ?? "");
         return index >= 0 && index + delta >= 0 && index + delta < order.length;
     }
 
-    /** @param {HomeMenuApp} app @param {number} delta */
+    /** @param {HomeMenuApp} app */
     moveApp(app, delta) {
         if (!this.canMoveApp(app, delta)) {
             return;
@@ -504,7 +484,7 @@ export class HomeMenu extends Component {
         this._openMenu(app);
     }
 
-    /** @param {number} index into the flat keyboard order */
+    /** @param {number} index */
     _onItemFocus(index) {
         this.keyboard.focus(index);
     }

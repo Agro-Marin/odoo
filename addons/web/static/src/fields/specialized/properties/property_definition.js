@@ -111,9 +111,7 @@ export class PropertyDefinition extends Component {
         });
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get availablePropertyTypes() {
         return [
             ["char", _t("Text")],
@@ -155,31 +153,23 @@ export class PropertyDefinition extends Component {
         return this.state.propertyIndex === this.props.propertiesSize - 1;
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get propertyTagValues() {
         return (this.state.propertyDefinition.tags || []).map((tag) => tag[0]);
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     getUniqueDomID(suffix) {
         return `property_definition_${this._domInputIdPrefix}_${suffix}`;
     }
 
-    /**
-     * @param {Event} event
-     */
+    /** @param {Event} event */
     onPropertyLabelChange(event) {
         const newString = /** @type {HTMLInputElement} */ (event.target).value;
         this._commitDefinition({ string: newString });
     }
 
-    /**
-     * @param {KeyboardEvent} event
-     */
+    /** @param {KeyboardEvent} event */
     onPropertyLabelKeypress(event) {
         if (event.key !== "Enter") {
             return;
@@ -187,16 +177,12 @@ export class PropertyDefinition extends Component {
         this.props.close();
     }
 
-    /**
-     * @param {object} newDefault
-     */
+    /** @param {object} newDefault */
     onDefaultChange(newDefault) {
         this._commitDefinition({ default: newDefault });
     }
 
-    /**
-     * @param {string} newType
-     */
+    /** @param {string} newType */
     onPropertyTypeChange(newType) {
         const propertyDefinition = {
             ...this.state.propertyDefinition,
@@ -232,9 +218,7 @@ export class PropertyDefinition extends Component {
         this.state.typeLabel = this._typeLabel(newType);
     }
 
-    /**
-     * @param {string} newModel
-     */
+    /** @param {string} newModel */
     async onModelChange(newModel) {
         const { label, technical } = /** @type {any} */ (newModel);
 
@@ -252,9 +236,7 @@ export class PropertyDefinition extends Component {
         await this._updateMatchingRecordsCount();
     }
 
-    /**
-     * @param {string} newDomain
-     */
+    /** @param {string} newDomain */
     async onDomainChange(newDomain) {
         this._commitDefinition({
             domain: newDomain,
@@ -275,9 +257,7 @@ export class PropertyDefinition extends Component {
         });
     }
 
-    /**
-     * @param {string} direction
-     */
+    /** @param {string} direction */
     onPropertyMove(direction) {
         if (direction === "up") {
             this.state.propertyIndex--;
@@ -287,37 +267,27 @@ export class PropertyDefinition extends Component {
         this.props.onPropertyMove(direction);
     }
 
-    /**
-     * @param {array} newOptions
-     */
+    /** @param {array} newOptions */
     onSelectionOptionChange(newOptions) {
         this._commitDefinition({ selection: newOptions });
     }
 
-    /**
-     * @param {Event & { target: HTMLInputElement }} ev
-     */
+    /** @param {Event & { target: HTMLInputElement }} ev */
     onSuffixChange(ev) {
         this._commitDefinition({ suffix: ev.target.value });
     }
 
-    /**
-     * @param {array} newTags
-     */
+    /** @param {array} newTags */
     onTagsChange(newTags) {
         this._commitDefinition({ tags: newTags });
     }
 
-    /**
-     * @param {boolean} newValue
-     */
+    /** @param {boolean} newValue */
     onViewInKanbanChange(newValue) {
         this._commitDefinition({ view_in_cards: newValue });
     }
 
-    /**
-     * @param {boolean} checked
-     */
+    /** @param {boolean} checked */
     onFoldByDefaultChange(checked) {
         this._commitDefinition({ fold_by_default: checked });
     }
@@ -327,8 +297,7 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * @param {Record<string, any>} patch fields to change, or the whole
-     *  definition with `replace`
+     * @param {Record<string, any>} patch
      * @param {{ replace?: boolean }} [options]
      */
     _commitDefinition(patch, { replace = false } = {}) {
@@ -339,9 +308,7 @@ export class PropertyDefinition extends Component {
         this.state.propertyDefinition = propertyDefinition;
     }
 
-    /**
-     * @param {object} propertyDefinition
-     */
+    /** @param {object} propertyDefinition */
     async _syncStateWithProps(propertyDefinition) {
         const newModel = propertyDefinition.comodel;
         const currentModel = this.state.resModel;

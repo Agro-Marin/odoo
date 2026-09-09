@@ -6,7 +6,7 @@ import { registry } from "@web/core/registry";
 export const inRangeProviderRegistry = registry.category("in_range_providers");
 
 /**
- * @template T
+ * @template
  * @param {string} what
  * @param {string} name
  * @param {any} provider
@@ -26,7 +26,7 @@ function askProvider(what, name, provider, ask) {
 }
 
 /**
- * @template T
+ * @template
  * @param {string} what
  * @param {(provider: any) => T | undefined | null | false} ask
  * @returns {T | null}

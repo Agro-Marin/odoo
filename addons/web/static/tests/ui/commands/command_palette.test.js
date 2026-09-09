@@ -1699,9 +1699,7 @@ test("category grouping is preserved while an async provider reloads", async () 
     expect(queryAllTexts(".o_command")).toEqual(["Command1", "Command2", "Command3"]);
 });
 
-/**
- * @param {any[] | (() => any[])} commands
- */
+/** @param {any[] | (() => any[])} commands */
 async function mountPalette(commands) {
     await mountWithCleanup(MainComponentsContainer);
     /** @type {any} */
@@ -2061,7 +2059,7 @@ test("a command that cannot render is dropped, and its namesake is not", async (
 
 /**
  * @param {number} n
- * @returns {Promise<string[]>} the truncation notice, if the palette shows one
+ * @returns {Promise<string[]>}
  */
 async function truncationNoticeFor(n) {
     const commands = Array.from({ length: n }, (_, i) => ({

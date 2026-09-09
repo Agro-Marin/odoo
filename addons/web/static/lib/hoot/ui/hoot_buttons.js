@@ -6,10 +6,7 @@ import { refresh, subscribeToURLParams } from "../core/url.js";
 import { STORAGE, storageSet } from "../hoot_utils.js";
 import { HootLink } from "./hoot_link.js";
 
-/**
- * @typedef {{
- * }} HootButtonsProps
- */
+/** @typedef {{ */
 
 const {
     clearTimeout,
@@ -117,9 +114,7 @@ export class HootButtons extends Component {
         return suiteIds;
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onPointerLeave(ev) {
         if (ev.pointerType !== "mouse") {
             return;
@@ -127,9 +122,7 @@ export class HootButtons extends Component {
         this.state.open = false;
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onPointerEnter(ev) {
         if (ev.pointerType !== "mouse") {
             return;

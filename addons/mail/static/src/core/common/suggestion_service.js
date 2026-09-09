@@ -92,9 +92,7 @@ export class SuggestionService {
      */
     makeOrmCall(model, method, args, kwargs, { abortSignal } = {}) {
         return new Promise((res, rej) => {
-            /**
-             * @type {Promise<any> & {abort?: () => void}}
-             */
+            /** @type {Promise<any> & {abort?: () => void}} */
             const req = this.orm.silent.call(model, method, args, kwargs);
             const onAbort = () => {
                 try {

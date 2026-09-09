@@ -169,9 +169,7 @@ export class Many2ManyTagsField extends FieldComponent {
         }
     }
 
-    /**
-     * @param {Array<{ id: number }>|false} recordList
-     */
+    /** @param {Array<{ id: number }>|false} recordList */
     update(recordList) {
         if (!recordList || !recordList.length) {
             return;
@@ -211,9 +209,7 @@ export class Many2ManyTagsField extends FieldComponent {
         };
     }
 
-    /**
-     * @returns {Array<Object>}
-     */
+    /** @returns {Array<Object>} */
     get tags() {
         const records = this.field.value.records;
         const tags = records.map((record) => this.getTagProps(record));
@@ -235,9 +231,7 @@ export class Many2ManyTagsField extends FieldComponent {
         return !this.props.readonly;
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get many2XAutocompleteProps() {
         return {
             activeActions: this.activeActions,
@@ -272,9 +266,7 @@ export class Many2ManyTagsField extends FieldComponent {
         return this.mutex.exec(() => this._forgetTag(id));
     }
 
-    /**
-     * @param {string} id
-     */
+    /** @param {string} id */
     _forgetTag(id) {
         const list = this.field.value;
         const tagRecord = list.records.find((record) => record.id === id);

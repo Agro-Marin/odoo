@@ -288,9 +288,7 @@ describe(parseUrl(import.meta.url), () => {
             const keyedItems = itemsList.map((item) => ({ [property]: item }));
             const result = lookup(parseQuery(query), keyedItems);
             return {
-                /**
-                 * @param {string[]} expected
-                 */
+                /** @param {string[]} expected */
                 toEqual: (expected) =>
                     expect(result).toEqual(
                         expected.map((item) => ({ [property]: item })),

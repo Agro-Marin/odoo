@@ -154,7 +154,6 @@ class SaleOrder(models.Model):
                 order.closed_task_count += state in CLOSED_STATES and tasks_count
                 so_with_tasks += order
             else:
-                # tasks that have no sale_order_id need to be associated with the SO from their sale_line_id
                 for task in tasks_ids:
                     task_so = task.sale_line_id.order_id
                     task_so.tasks_ids = [Command.link(task.id)]
@@ -169,8 +168,6 @@ class SaleOrder(models.Model):
 
     @api.depends("line_ids.product_id.service_tracking")
     def _compute_visible_project(self):
-        """Users should be able to select a project_id on the SO if at least one SO line has a product with its service tracking
-        configured as 'task_in_project'"""
         for order in self:
             order.visible_project = any(
                 service_tracking == "task_in_project"
@@ -208,25 +205,20 @@ class SaleOrder(models.Model):
             order.project_count = len(projects.filtered("active"))
 
     def _action_confirm(self):
-        """On SO confirmation, some lines should generate a task or a project."""
         if self.env.context.get("disable_project_task_generation"):
             return super()._action_confirm()
 
         if len(self.company_id) == 1:
-            # All orders are in the same company
             self.line_ids.sudo().with_company(
                 self.company_id
             )._timesheet_service_generation()
         else:
-            # Orders from different companies are confirmed together
             for order in self:
                 order.line_ids.sudo().with_company(
                     order.company_id
                 )._timesheet_service_generation()
 
-        # If the order has exactly one project and that project comes from a template, set the company of the template
-        # on the project.
-        for order in self.sudo():  # Salesman may not have access to projects
+        for order in self.sudo():
             if len(order.project_ids) == 1:
                 project = order.project_ids[0]
                 for sol in order.line_ids:
@@ -414,7 +406,6 @@ class SaleOrder(models.Model):
     def write(self, vals):
         res = super().write(vals)
         if "state" in vals and vals["state"] == "cancel":
-            # Remove sale line field reference from all projects
             self.env["project.project"].sudo().search(
                 [("sale_line_id.order_id", "in", self.ids)]
             ).sale_line_id = False
@@ -432,7 +423,6 @@ class SaleOrder(models.Model):
             and self.env.context.get("create_for_project_id")
             and self.state == "done"
         ):
-            # do nothing since the SO has been automatically confirmed during its creation
             return True
         return super().action_confirm()
 

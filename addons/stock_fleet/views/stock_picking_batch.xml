@@ -143,9 +143,7 @@
                     string="Today"
                     name="filter_today"
                     domain="[('date_planned', '&gt;=', 'today'), ('date_planned', '&lt;', 'today +1d')]" />
-                <filter string="Tomorrow" name="filter_tomorrow" domain="[('date_planned','&gt;=', 'today +1d')]"/><!-- wrong -->
-                <filter string="Next 7 Days" name="filter_next_7_days" domain="[('date_planned','&gt;=', 'today +7d')]"/><!-- wrong -->
-            </xpath>
+                <filter string="Tomorrow" name="filter_tomorrow" domain="[('date_planned','&gt;=', 'today +1d')]" />                <filter string="Next 7 Days" name="filter_next_7_days" domain="[('date_planned','&gt;=', 'today +7d')]" />            </xpath>
         </field>
     </record>
 

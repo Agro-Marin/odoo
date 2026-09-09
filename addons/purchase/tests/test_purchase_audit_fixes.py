@@ -72,17 +72,9 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
         return move
 
     def test_refund_is_subtracted_when_bill_discount_differs(self):
-        """A credit note must lower the amount invoiced on both summing paths.
-
-        `_sum_invoiced_with_discount_adjustment` used to omit `direction_sign`,
-        so a refund was *added* to the amount already invoiced. The line then
-        reported nothing left to invoice while its own `qty_to_invoice` still
-        said four units.
-        """
         order = self._confirmed_order(self.consu)
         line = order.line_ids
 
-        # Vendor bills at 0% where the order agreed 10%, then credits 4 units.
         self._post_move("in_invoice", self.consu, 10.0, 100.0, 0.0, line)
         self._post_move("in_refund", self.consu, 4.0, 100.0, 0.0, line)
         line.invalidate_recordset()
@@ -92,14 +84,11 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
             "the bill's discount differs from the line's, so the adjusted "
             "summer is the one under test",
         )
-        # 10 billed - 4 credited = 6 units, 1000.00 - 400.00 = 600.00 invoiced.
         self.assertAlmostEqual(line.qty_invoiced, 6.0, places=2)
-        # Ordered value is 10 x 100 x 0.9 = 900.00, so 300.00 remains.
         self.assertAlmostEqual(line.amount_taxexc_to_invoice, 300.0, places=2)
         self.assertAlmostEqual(line.qty_to_invoice, 4.0, places=2)
 
     def test_refund_symmetric_across_both_summing_paths(self):
-        """The two summers must agree about a refund's direction."""
         matching = self._confirmed_order(self.consu)
         self._post_move("in_invoice", self.consu, 10.0, 100.0, 10.0, matching.line_ids)
         self._post_move("in_refund", self.consu, 4.0, 100.0, 10.0, matching.line_ids)
@@ -135,12 +124,6 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
         )
 
     def test_service_only_orders_are_never_reminded(self):
-        """Two distinct service products used to defeat the service-only test.
-
-        The old filter compared `mapped(...)` to the literal `["service"]`, so
-        an order with two different service products produced
-        `["service", "service"]` and was reminded.
-        """
         vendor = self.env["res.partner"].create(
             {
                 "name": "Reminder Vendor",
@@ -192,11 +175,6 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
         )
 
     def test_dashboard_average_respects_allowed_companies(self):
-        """`days_to_order` used to be raw SQL over every company.
-
-        The five counts beside it go through `_read_group`, so they were scoped
-        while the average was not.
-        """
         other_company = self.env["res.company"].create({"name": "Audit Other Co"})
         buyer = new_test_user(
             self.env,
@@ -257,12 +235,6 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
         )
 
     def test_dashboard_counts_agree_with_searching_the_same_domains(self):
-        """Every card count must equal what its own domain returns for that user.
-
-        The five counts and the `days_to_order` average are produced by two
-        different mechanisms; this pins the counts to the domains so that
-        collapsing them into one loop cannot quietly change a bucket.
-        """
         buyer = new_test_user(
             self.env,
             login="auditcounts",
@@ -299,7 +271,6 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
             )
 
     def test_date_commitment_not_updatable_once_cancelled_or_locked(self):
-        """The portal route reaches this on a read-level token and a sudo record."""
         order = self._confirmed_order(self.consu)
         line = order.line_ids
         new_date = line._convert_to_middle_of_day(
@@ -321,7 +292,6 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
             )
 
     def test_date_commitment_updatable_while_still_a_draft_rfq(self):
-        """Proposing an arrival date is part of negotiating an RFQ."""
         order = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,
@@ -343,12 +313,6 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
         self.assertEqual(line.date_commitment, new_date)
 
     def test_procurement_line_keeps_the_product_lead_time(self):
-        """`_prepare_purchase_order_line` is `@api.model`; `self.order_id` is empty.
-
-        The `self.order_id.date_commitment or ...` prefix it carried could never
-        be true, and substituting the order's own date would have promised a
-        long-lead product on the shortest line's date.
-        """
         fast, slow = self.env["product.product"].create(
             [
                 {"name": "Audit Fast", "type": "consu", "purchase_ok": True},

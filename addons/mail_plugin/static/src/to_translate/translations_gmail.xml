@@ -1,9 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Terms to translate for the Gmail plugin.
-    Named string format is supported (e.g: %(param)s)
-    as well as standard string format (%s).
--->
 <resources>
     <string>Login</string>
     <string>Logout</string>

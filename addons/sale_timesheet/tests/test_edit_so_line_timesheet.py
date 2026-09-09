@@ -16,17 +16,6 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_sol_no_change_if_edited(self):
-        """Check if a sol manually edited, does not change with a change of sol in the task.
-
-        Test Case:
-        =========
-        1) create some timesheets on this task,
-        2) edit a SOL of a timesheet in this task,
-        3) check if the edited SOL has the one selected and is not the one in the task,
-        4) change the sol on the task,
-        5) check if the timesheet in which the sol has manually edited, does not change but the another ones are the case.
-        """
-        # 1) create some timesheets on this task
         timesheet = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -51,8 +40,6 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
             "The quantity timesheeted should be increased the quantity delivered in the linked SOL.",
         )
 
-        # 2) edit a SOL of a timesheet in this task
-        # Remark, we simulate the action done in the task form view
         edited_timesheet.write(
             {
                 "is_so_line_edited": True,
@@ -61,7 +48,6 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
         )
         self.so.line_ids._compute_qty_transferred()
 
-        # 3) check if the edited SOL has the one selected and is not the one in the task
         self.assertNotEqual(
             edited_timesheet.so_line,
             self.task_rate_task.sale_line_id,
@@ -78,7 +64,6 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
             "The quantity delivered should be the quantity defined in the first timesheet of the task since the so_line in the second timesheet has manually been changed.",
         )
 
-        # 4) change the sol on the task
         self.task_rate_task.update(
             {
                 "sale_line_id": self.so.line_ids[-1].id,
@@ -88,7 +73,6 @@ class TestEditSoLineTimesheet(TestCommonSaleTimesheet):
         edited_timesheet._compute_so_line()
         self.so.line_ids._compute_qty_transferred()
 
-        # 5) check if the timesheet in which the sol has manually edited, does not change but the another ones are the case.
         self.assertEqual(
             timesheet.so_line,
             self.task_rate_task.sale_line_id,

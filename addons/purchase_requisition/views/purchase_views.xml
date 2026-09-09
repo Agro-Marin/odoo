@@ -22,9 +22,6 @@
                     domain="[('state', '=', 'confirmed'), ('vendor_id', 'in', (partner_id, False)), ('company_id', '=', company_id)]"
                     options="{'no_create': True}" />
             </field>
-            <!-- Upstream's anchor was <page name="purchase_delivery_invoice">, whose
-                label was already "Other Information"; this fork renamed the page to
-                match its label. Same page, same resulting position. -->
             <xpath expr="//page[@name='other_information']" position="after">
                 <page
                     string="Alternatives"

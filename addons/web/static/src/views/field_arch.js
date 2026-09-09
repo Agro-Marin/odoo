@@ -115,9 +115,7 @@ function parseX2ManyViews(node, fieldInfo, models, field) {
     }
 }
 
-/**
- * @param {Record<string, any>} fieldInfo
- */
+/** @param {Record<string, any>} fieldInfo */
 function parseMany2OneViews(fieldInfo) {
     /** @type {any} */
     let relatedFields = fieldInfo.field.relatedFields;

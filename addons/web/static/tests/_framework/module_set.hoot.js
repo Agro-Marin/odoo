@@ -9,9 +9,7 @@ import { setupMockTemplates } from "./mock_templates.hoot.js";
 
 const { fetch: realFetch } = globals;
 
-/**
- * @param {Record<string, unknown>} field
- */
+/** @param {Record<string, unknown>} field */
 function freezeField(field) {
     delete field.name;
     if (field.groupable) {
@@ -35,9 +33,7 @@ function freezeField(field) {
     return Object.freeze(field);
 }
 
-/**
- * @param {Record<string, unknown>} model
- */
+/** @param {Record<string, unknown>} model */
 function freezeModel(model) {
     if (model.fields) {
         for (const [fieldName, field] of Object.entries(model.fields)) {
@@ -66,9 +62,7 @@ function freezeModel(model) {
     return Object.freeze(model);
 }
 
-/**
- * @param {Record<string, unknown>} model
- */
+/** @param {Record<string, unknown>} model */
 function unfreezeModel(model) {
     const fields = Object.create(null);
     if (model.fields) {
@@ -125,20 +119,6 @@ export function setupTestEnvironment() {
     const R_MINIFIED_DELEGATION = /^\(?[\w$]+\)?\s*=>\s*[\w$]+\([\w$]+\s*,\s*[\w$]+\)$/;
 
     /**
-     * Owl installs ONE delegation listener per event type on the document and
-     * memoizes that it has, so it never reinstalls. Removing it after a test
-     * kills every `t-on-*.synthetic` handler in the page for the rest of the
-     * run -- silently, because the elements keep their `__event__synthetic_*`
-     * data and the click still reaches the document.
-     *
-     * Its name is not a safe way to recognise it. The bundled test page serves
-     * `(event) => nativeToSyntheticEvent(eventKey, event)` as `i=>On(e,i)`, so
-     * the regex above matches nothing and the exemption silently stops
-     * applying. What the bundler cannot rename is the key Owl reads off the
-     * event target, built from the string literal `__event__synthetic_`: a
-     * listener of the right shape is handed a probe target and asked whether it
-     * reads that key.
-     *
      * @param {string} type
      * @param {EventListenerOrEventListenerObject} listener
      * @param {boolean | AddEventListenerOptions} [options]
@@ -284,9 +264,7 @@ export function clearServerModelCache() {
     serverModelCache.clear();
 }
 
-/**
- * @param {Iterable<string>} modelNames
- */
+/** @param {Iterable<string>} modelNames */
 export async function fetchModelDefinitions(modelNames) {
     const namesList = [...modelsToFetch];
     if (namesList.length) {
@@ -359,9 +337,7 @@ export function globalCachedFetch(input, init) {
     return globalFetchCache[key].then((response) => response.clone());
 }
 
-/**
- * @param {string} modelName
- */
+/** @param {string} modelName */
 export function registerModelToFetch(modelName) {
     if (!serverModelCache.has(modelName)) {
         modelsToFetch.add(modelName);

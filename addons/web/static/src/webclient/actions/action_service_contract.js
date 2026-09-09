@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const ACTION_MANAGER_SURFACE = [
     "breadcrumbCache",
     "controllerStack",
@@ -42,42 +40,4 @@ export const ACTION_MANAGER_SURFACE = [
     "updateUI",
 ];
 
-/**
- * @typedef {{
- * breadcrumbCache: any,
- * controllerStack: any[],
- * currentController: any,
- * destroy: () => void,
- * dialog: any,
- * doAction: (request: any, options?: any) => Promise<any>,
- * doActionButton: (params: any, options?: any) => Promise<any>,
- * effectService: any,
- * env: any,
- * loadAction: (request: any, context?: any) => Promise<any>,
- * loadState: (state?: any) => Promise<boolean | undefined>,
- * navigation: import("./navigation_token.js").NavigationTracker,
- * nextDialog: any,
- * notificationService: any,
- * pushState: (stack?: any[], options?: any) => void,
- * restore: (jsId: string) => Promise<any>,
- * router: any,
- * settlePendingDispatch: (dispatch: any) => void,
- * switchView: (viewType: string, props?: any, options?: any) => Promise<any>,
- * titleService: any,
- * uiService: any,
- * uninstallActionCacheInvalidation: () => void,
- * confirmLeave: (options?: any) => Promise<boolean>,
- * controllersFromState: (state: any) => Promise<any>,
- * executeCloseAction: (action?: any, options?: any) => any,
- * getActionInfo: (action: any, props: any) => any,
- * getActionParams: (state: any) => any,
- * getBreadcrumbs: (stack: any[]) => any,
- * getView: (viewType: string) => any,
- * getViewInfo: (view: any, action: any, views: any[], props?: any) => any,
- * fetchAction: (request: any, context?: any) => Promise<any>,
- * makeController: (params: any) => any,
- * nextId: () => number,
- * removeDialog: (closeParams?: any, removeFn?: any) => Promise<any>,
- * updateUI: (controller: any, options?: any) => Promise<any>,
- * }} ActionManagerContract
- */
+/** @typedef {{ */

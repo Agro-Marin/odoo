@@ -47,7 +47,6 @@
         </Dialog>
     </t>
 
-
     <t t-name="web.PromoteStudioAutomationDialog"
         t-inherit="web.PromoteStudioDialog" t-inherit-mode="primary">
         <xpath expr="//div[@id='studio_video']" position="replace">

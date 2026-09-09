@@ -75,8 +75,6 @@ test("test Project Task Calendar Popover with task_step_with_state_selection wid
 
     await click(".o_event[data-event-id='1']");
 
-    // Skipping setTimeout while clicking event in calendar for calendar popover to appear.
-    // There is a timeout set in the useCalendarPopover.
     await runAllTimers();
 
     expect(
@@ -98,8 +96,6 @@ test("test task_step_with_state_selection widget with non-editable state", async
 
     await click(".o_event[data-event-id='1']");
 
-    // Skipping setTimeout while clicking event in calendar for calendar popover to appear.
-    // There is a timeout set in the useCalendarPopover.
     await runAllTimers();
 
     await click("button[title='In Progress']");
@@ -121,17 +117,10 @@ test("test task_step_with_state_selection widget with editable state", async () 
 
     await click(".o_event[data-event-id='1']");
 
-    // Skipping setTimeout while clicking event in calendar for calendar popover to appear.
-    // There is a timeout set in the useCalendarPopover.
     await runAllTimers();
 
     await click(".o-dropdown div[title='In Progress']");
     await animationFrame();
-    // Unlike the state_readonly variant, the state menu opens and offers the
-    // task states. NB: persistence cannot be asserted here — calendar popover
-    // fields are mounted on a readonly-mode standalone Record, whose update()
-    // is a no-op by framework design (hence the shipped archs keep the
-    // default state_readonly=True and mark e.g. priority readonly="1").
     expect(".project_task_state_selection_menu").toHaveCount(1);
     expect(".project_task_state_selection_menu .o_status_green").toHaveCount(1);
 });

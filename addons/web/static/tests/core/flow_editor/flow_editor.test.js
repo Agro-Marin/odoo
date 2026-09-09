@@ -74,7 +74,7 @@ function wheelEvent(overrides = {}) {
 /**
  * @param {any} element
  * @param {() => any} callback
- * @returns {any} the callback's result, its promise settling after the unpatch
+ * @returns {any}
  */
 function withElementFromPoint(element, callback) {
     const unpatch = patch(document, { elementFromPoint: () => element });

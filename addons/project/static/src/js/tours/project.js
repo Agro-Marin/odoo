@@ -40,7 +40,7 @@ registry.category("web_tour.tours").add("project_tour", {
             run: "click",
         },
         {
-            isActive: [".o-kanban-button-new.dropdown"], // if the project template dropdown is active
+            isActive: [".o-kanban-button-new.dropdown"],
             trigger: 'button.o-dropdown-item:contains("New Project")',
             content: markup(_t("Let's create a regular <b>project</b>.")),
             tooltipPosition: "right",
@@ -63,21 +63,9 @@ registry.category("web_tour.tours").add("project_tour", {
             run: "click .modal:visible .btn.btn-primary",
         },
         {
-            // Wait for the kanban to settle before the conditional step below.
-            // `isActive` is evaluated once, immediately, and does *not* wait for
-            // its selector: probed live, the freshly opened kanban needs a few
-            // seconds to finish grouping, and until it does the quick create is
-            // not in the DOM at all -- so the condition read "not folded" off a
-            // view that had not rendered yet, and silently skipped the unfold.
             trigger: ".o_kanban_project_tasks .o_column_quick_create",
         },
         {
-            // A project here is created with a default "New" workflow step, so
-            // the column quick create starts *folded* -- it only unfolds itself
-            // when the kanban has no column at all. Upstream's project starts
-            // with no stage, which is why this step does not exist there.
-            // Conditional: once unfolded it stays that way across validate(),
-            // so the second pass through here skips it.
             isActive: [
                 ".o_kanban_project_tasks .o_column_quick_create.o_quick_create_folded",
             ],
@@ -106,21 +94,9 @@ registry.category("web_tour.tours").add("project_tour", {
             trigger: ".o_kanban_group",
         },
         {
-            // Wait for the kanban to settle before the conditional step below.
-            // `isActive` is evaluated once, immediately, and does *not* wait for
-            // its selector: probed live, the freshly opened kanban needs a few
-            // seconds to finish grouping, and until it does the quick create is
-            // not in the DOM at all -- so the condition read "not folded" off a
-            // view that had not rendered yet, and silently skipped the unfold.
             trigger: ".o_kanban_project_tasks .o_column_quick_create",
         },
         {
-            // A project here is created with a default "New" workflow step, so
-            // the column quick create starts *folded* -- it only unfolds itself
-            // when the kanban has no column at all. Upstream's project starts
-            // with no stage, which is why this step does not exist there.
-            // Conditional: once unfolded it stays that way across validate(),
-            // so the second pass through here skips it.
             isActive: [
                 ".o_kanban_project_tasks .o_column_quick_create.o_quick_create_folded",
             ],
@@ -373,7 +349,6 @@ registry.category("web_tour.tours").add("project_tour", {
         {
             isActive: ["auto"],
             trigger: ".o_kanban_renderer",
-            // last step to confirm we've come back before considering the tour successful
             run: "click",
         },
     ],

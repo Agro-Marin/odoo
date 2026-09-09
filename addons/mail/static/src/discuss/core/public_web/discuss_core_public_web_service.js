@@ -84,9 +84,7 @@ export class DiscussCorePublicWeb {
         }
     }
 
-    /**
-     * @param {{id: number, joinCall: boolean}} data
-     */
+    /** @param {{id: number, joinCall: boolean}} data */
     async openPushedChannel(data) {
         const channel = await this.store.Thread.getOrFetch({
             model: "discuss.channel",
@@ -102,7 +100,7 @@ export class DiscussCorePublicWeb {
         this.rtcService.joinCall(channel);
     }
 
-    /** @param {Object} [data] whatever the worker collected, possibly nothing */
+    /** @param {Object} [data] */
     downloadRtcLogs(data) {
         const logs = data || {};
         logs.odooInfo = odoo.info;

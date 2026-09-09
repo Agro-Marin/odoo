@@ -1,22 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @type {Map<Node, { observer: MutationObserver, watchers: Map<Node, Set<() => void>> }>}
- */
+/** @type {Map<Node, { observer: MutationObserver, watchers: Map<Node, Set<() => void>> }>} */
 const watchersByRoot = new Map();
 
-/**
- * @param {Node} root
- */
+/** @param {Node} root */
 function checkRoot(root) {
     const entry = watchersByRoot.get(root);
     if (!entry) {
         return;
     }
-    /**
-     * @type {Node[] | undefined}
-     */
+    /** @type {Node[] | undefined} */
     let detached;
     for (const target of entry.watchers.keys()) {
         if (!target.isConnected) {

@@ -6,8 +6,6 @@ from odoo.addons.sale_project.tests.common import TestSaleProjectCommon
 
 @tagged("post_install", "-at_install")
 class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
-    """Project creation from a sale order through the template wizard."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -27,7 +25,6 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
         cls.Wizard = cls.env["project.template.create.wizard"]
 
     def test_role_lines_follow_template(self):
-        """One role line per template task role; cleared without template."""
         role = self.env["resource.role"].create({"name": "Reviewer"})
         self.env["project.task"].create(
             {
@@ -36,8 +33,6 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
                 "role_ids": [Command.set(role.ids)],
             }
         )
-        # The wizard is UI-driven: instantiate through the onchange path
-        # (new), as the template action does via context defaults.
         wizard = self.Wizard.new(
             {
                 "name": "From template",
@@ -50,7 +45,6 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
         self.assertFalse(wizard.role_to_users_ids.role_id)
 
     def test_whitelist_partner_only_for_billable_template(self):
-        """partner_id joins the whitelist only when the template is billable."""
         wizard = self.Wizard.create(
             {
                 "name": "Non billable",
@@ -69,7 +63,6 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
         self.assertIn("partner_id", wizard_billable._get_fields_template_whitelist())
 
     def test_open_template_view_propagates_sale_defaults(self):
-        """Sale defaults reach the action context when opened from a SO."""
         so_line = self.sale_order.line_ids[:1]
         action = self.Wizard.with_context(
             from_sale_order_action=True,
@@ -88,7 +81,6 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
         self.assertEqual(action["context"]["default_sale_line_id"], so_line.id)
 
     def test_create_project_from_so_single_coded_line_name(self):
-        """Without template, a single coded line names the project SO - [CODE] product."""
         wizard = self.Wizard.with_context(
             default_sale_order_id=self.sale_order.id,
         ).create({"name": "ignored"})
@@ -102,7 +94,6 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
         self.assertEqual(project.company_id, self.sale_order.company_id)
 
     def test_create_project_from_so_uncoded_line_name(self):
-        """Without default_code the project is named SO - product name."""
         order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -125,7 +116,6 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
         self.assertTrue(self.env["project.project"].search([("name", "=", expected)]))
 
     def test_create_project_from_so_multiline_name(self):
-        """With several lines the project simply takes the SO name."""
         self.sale_order.line_ids = [
             Command.create(
                 {
@@ -146,7 +136,6 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
         )
 
     def test_create_project_from_so_with_template(self):
-        """With a template the project is created from it, named by the wizard."""
         wizard = self.Wizard.with_context(
             default_sale_order_id=self.sale_order.id,
         ).create(

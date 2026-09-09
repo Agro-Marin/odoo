@@ -7,8 +7,6 @@ import { isSafeUrlScheme } from "@web/core/utils/urls";
 
 import { actionStorage } from "../action_storage.js";
 
-/** @import { ActionManager, ActionOptions, ActURLAction } from "../action_service.js" */
-
 /**
  * @param {string} url
  * @param {ActionManager} am

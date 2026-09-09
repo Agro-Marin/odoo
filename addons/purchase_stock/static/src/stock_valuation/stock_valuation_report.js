@@ -16,12 +16,10 @@ patch(StockValuationReport.prototype, {
         return accrual;
     },
 
-    // Getters -----------------------------------------------------------------
     get notInvoicedReceivedValuation() {
         return this.formatMonetary(this.data.not_invoiced_received_goods.value);
     },
 
-    // On Click Methods --------------------------------------------------------
     openPurchaseOrder(line = false) {
         const action = {
             type: "ir.actions.act_window",

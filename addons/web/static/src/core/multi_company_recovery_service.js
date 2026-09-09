@@ -38,9 +38,7 @@ function _isAllowedCompany(suggestedCompany) {
 }
 
 const multiCompanyRecoveryService = {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     start(env) {
         return {
             /**

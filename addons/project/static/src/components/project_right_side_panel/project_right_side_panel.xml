@@ -103,7 +103,6 @@
                 </div>
             </ProjectRightSidePanelSection>
         </div>
-        <!-- If this is called from notif, multiples updates but no specific project -->
         <div t-else=""/>
     </t>
 

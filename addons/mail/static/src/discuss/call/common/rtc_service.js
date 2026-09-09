@@ -226,9 +226,7 @@ export class Rtc extends Record {
     microphonePermission;
     /** @type {"granted" | "denied" | "prompt" | undefined} */
     cameraPermission;
-    /**
-     * @type {ReturnType<typeof import("@mail/discuss/call/common/pip_service").callPipService.start>}
-     */
+    /** @type {ReturnType<typeof import("@mail/discuss/call/common/pip_service").callPipService.start>} */
     pipService;
     /** @type {ReturnType<typeof import("@mail/core/common/mail_fullscreen").fullscreenService.start>} */
     fullscreen;
@@ -278,9 +276,7 @@ export class Rtc extends Record {
     rootEl;
     /** @type {import("@mail/discuss/call/common/call_transport").CallTransport} */
     transport;
-    /**
-     * @type {import("@mail/discuss/call/common/local_media_controller").LocalMediaController}
-     */
+    /** @type {import("@mail/discuss/call/common/local_media_controller").LocalMediaController} */
     media;
     /** @type {import("@mail/discuss/call/common/cross_tab_sync").CrossTabSync} */
     crossTab;
@@ -1507,9 +1503,7 @@ export class Rtc extends Record {
             server.errors = this.sfuClient?.errors?.map((error) => error.message);
         }
         const sessions = this.state.channel.rtc_session_ids.map((session) => {
-            /**
-             * @type {{ id: number, channelMemberId: number|undefined, state: string, audioError: string|undefined, videoError: string|undefined, sfuConsumers: any, isSelf?: boolean, audio?: Object, peer?: Object, }}
-             */
+            /** @type {{ id: number, channelMemberId: number|undefined, state: string, audioError: string|undefined, videoError: string|undefined, sfuConsumers: any, isSelf?: boolean, audio?: Object, peer?: Object, }} */
             const sessionInfo = {
                 id: session.id,
                 channelMemberId: session.channel_member_id?.id,

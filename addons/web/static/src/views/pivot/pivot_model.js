@@ -78,9 +78,7 @@ import {
  * @property {Object} numbering
  */
 
-/**
- * @typedef {import("@web/model/types").SearchParams} SearchParams
- */
+/** @typedef {import("@web/model/types").SearchParams} SearchParams */
 
 /**
  * @typedef Config
@@ -116,9 +114,7 @@ export class PivotModel extends Model {
         this.loads = new InFlight();
         /** @type {(...args: any[]) => any} */
         const _loadData = this._loadData.bind(this);
-        /**
-         * @type {any}
-         */
+        /** @type {any} */
         this._loadData = (...args) => this.loads.track(_loadData(...args));
 
         let sortedColumn = params.metaData.sortedColumn || null;
@@ -321,9 +317,7 @@ export class PivotModel extends Model {
             }
         });
     }
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     exportData() {
         return formatPivotForExport(this.getTable(), this.metaData);
     }
@@ -375,9 +369,7 @@ export class PivotModel extends Model {
         const config = { metaData: this.metaData, data: this.data };
         return getGroupDomain(group, config);
     }
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getTable() {
         const headers = getTableHeaders(this.data, this.metaData);
         return {
@@ -390,9 +382,7 @@ export class PivotModel extends Model {
             ),
         };
     }
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     getTableWidth() {
         const leafCounts = getLeafCounts(this.data.colGroupTree);
         const leafCount =
@@ -402,15 +392,11 @@ export class PivotModel extends Model {
             this.metaData.activeMeasures.length,
         );
     }
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     hasData() {
         return hasData(this.data);
     }
-    /**
-     * @param {Object} context
-     */
+    /** @param {Object} context */
     _dropArchGroupBysHiddenByContext(context) {
         if (this._archGroupBysResolved) {
             return;
@@ -498,9 +484,7 @@ export class PivotModel extends Model {
             this.lastPivotMeasuresKey = pivotMeasuresKey;
         }
     }
-    /**
-     * @param {Object} sortedColumn
-     */
+    /** @param {Object} sortedColumn */
     sortRows(sortedColumn) {
         if (this.loads.isBusy) {
             return;
@@ -779,7 +763,7 @@ export class PivotModel extends Model {
 
     /**
      * @protected
-     * @param {[any[], any[]]} groupId row values and column values
+     * @param {[any[], any[]]} groupId
      * @param {string} measureName
      * @param {Config} config
      * @returns {number|undefined}

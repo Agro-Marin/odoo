@@ -1,5 +1,3 @@
-"""Tests for the Vendor Bills section of project profitability."""
-
 import json
 
 from odoo.tests import tagged
@@ -49,7 +47,6 @@ class TestPurchaseItems(AccountTestInvoicingCommon):
         return move
 
     def test_no_lines_yields_no_section(self):
-        """Without vendor-bill lines, no 'Vendor Bills' section is added."""
         profitability_items = {
             "costs": {"data": [], "total": {"billed": 0.0, "to_bill": 0.0}}
         }
@@ -59,7 +56,6 @@ class TestPurchaseItems(AccountTestInvoicingCommon):
         self.assertEqual(profitability_items["costs"]["total"]["to_bill"], 0.0)
 
     def test_posted_bill_lands_in_billed(self):
-        """A posted vendor bill's amount lands in 'billed', not 'to_bill'."""
         self._in_invoice(100.0, state="posted")
         profitability_items = {
             "costs": {"data": [], "total": {"billed": 0.0, "to_bill": 0.0}}
@@ -73,7 +69,6 @@ class TestPurchaseItems(AccountTestInvoicingCommon):
         self.assertEqual(costs["total"]["to_bill"], 0.0)
 
     def test_draft_bill_lands_in_to_bill(self):
-        """A draft vendor bill's amount lands in 'to_bill', not 'billed'."""
         self._in_invoice(50.0, state="draft")
         profitability_items = {
             "costs": {"data": [], "total": {"billed": 0.0, "to_bill": 0.0}}
@@ -86,7 +81,6 @@ class TestPurchaseItems(AccountTestInvoicingCommon):
         self.assertEqual(costs["total"]["to_bill"], -50.0)
 
     def test_with_action_adds_action_key(self):
-        """with_action=True adds an 'action' key to the section."""
         move = self._in_invoice(100.0, state="posted")
         profitability_items = {
             "costs": {"data": [], "total": {"billed": 0.0, "to_bill": 0.0}}
@@ -115,7 +109,6 @@ class TestActionProfitabilityItems(AccountTestInvoicingCommon):
         )
 
     def test_other_purchase_costs_action(self):
-        """action_profitability_items opens vendor bills for 'other_purchase_costs'."""
         action = self.project.action_profitability_items(
             "other_purchase_costs", domain=[]
         )
@@ -123,7 +116,6 @@ class TestActionProfitabilityItems(AccountTestInvoicingCommon):
         self.assertFalse(action["res_id"])
 
     def test_other_purchase_costs_action_with_res_id(self):
-        """Passing a res_id switches the action to a single-record form view."""
         action = self.project.action_profitability_items(
             "other_purchase_costs", domain=[], res_id=42
         )
@@ -132,7 +124,6 @@ class TestActionProfitabilityItems(AccountTestInvoicingCommon):
         self.assertEqual(action["views"], [(False, "form")])
 
     def test_other_revenues_aal_action(self):
-        """action_profitability_items opens the AAL entries pivot/graph for AAL sections."""
         action = self.project.action_profitability_items(
             "other_revenues_aal", domain=[("id", "in", [])]
         )
@@ -142,7 +133,6 @@ class TestActionProfitabilityItems(AccountTestInvoicingCommon):
         self.assertIn("graph", view_types)
 
     def test_action_view_analytic_items(self):
-        """action_view_analytic_items opens all analytic lines of the project's account."""
         action = self.project.action_view_analytic_items()
         self.assertEqual(
             action["domain"], [("account_id", "=", self.analytic_account.id)]

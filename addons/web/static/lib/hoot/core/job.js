@@ -5,13 +5,6 @@ import { applyTags } from "./tag.js";
 
 /**
  * @typedef {{
- *  debug?: boolean;
- *  multi?: number;
- *  only?: boolean;
- *  skip?: boolean;
- *  timeout?: number;
- *  todo?: boolean;
- * }} JobConfig
  * @typedef {import("./tag").Tag} Tag
  */
 
@@ -20,9 +13,7 @@ const {
     Symbol,
 } = globalThis;
 
-/**
- * @param {JobConfig} config
- */
+/** @param {JobConfig} config */
 function validateConfig(config) {
     for (const [key, value] of $entries(config)) {
         if (!isOfType(value, CONFIG_TAG_SCHEMA[key])) {
@@ -99,9 +90,7 @@ export class Job {
         }
     }
 
-    /**
-     * @param {JobConfig & { tags?: Iterable<Tag> }} config
-     */
+    /** @param {JobConfig & { tags?: Iterable<Tag> }} config */
     configure({ tags, ...config }) {
         $assign(this.config, config);
         validateConfig(this.config);
@@ -113,9 +102,7 @@ export class Job {
         this[S_MINIMIZED] = true;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     willRunAgain() {
         return this.runCount < (this.config.multi || 0) || this.parent?.willRunAgain();
     }

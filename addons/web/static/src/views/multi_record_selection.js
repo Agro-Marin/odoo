@@ -31,16 +31,12 @@ export class RecordSelection {
     /** @type {any} */
     shiftKeyedRecord = undefined;
 
-    /**
-     * @param {RecordSelectionContext} ctx
-     */
+    /** @param {RecordSelectionContext} ctx */
     constructor(ctx) {
         this.ctx = ctx;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     isAnchorPresent() {
         return indexOfRecord(this.ctx.getRecords(), this.lastCheckedRecord) !== -1;
     }
@@ -58,9 +54,7 @@ export class RecordSelection {
         this.lastCheckedRecord = record;
     }
 
-    /**
-     * @param {any} record
-     */
+    /** @param {any} record */
     toggleRangeSelection(record) {
         const records = this.ctx.getRecords();
         const lastCheckedRecordIndex = indexOfRecord(records, this.lastCheckedRecord);
@@ -162,11 +156,6 @@ export function useRecordSelection(ctx) {
  * @param {() => number} config.getLongTouchThreshold
  * @param {(record: any) => void} config.onLongTouch
  * @returns {{
- * onTouchStart: (record?: any) => void,
- * onTouchEnd: () => void,
- * onTouchMove: () => void,
- * resetLongTouchTimer: () => void,
- * }}
  */
 export function useLongTouchSelection({ getLongTouchThreshold, onLongTouch }) {
     /** @type {ReturnType<typeof browser.setTimeout> | null} */
@@ -181,9 +170,7 @@ export function useLongTouchSelection({ getLongTouchThreshold, onLongTouch }) {
             }
         },
 
-        /**
-         * @param {any} [record]
-         */
+        /** @param {any} [record] */
         onTouchStart(record) {
             touchStartMs = Date.now();
             if (longTouchTimer === null) {

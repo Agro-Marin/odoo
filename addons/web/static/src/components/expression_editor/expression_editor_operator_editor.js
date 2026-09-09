@@ -3,9 +3,7 @@
 
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 const EXPRESSION_VALID_OPERATORS = [
     "<",
     ">",

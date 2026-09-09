@@ -10,9 +10,7 @@ class DemoDataService {
         this.activeProm = undefined;
     }
 
-    /**
-     * @returns {Promise<boolean>}
-     */
+    /** @returns {Promise<boolean>} */
     isDemoDataActive() {
         this.activeProm ??= rpc("/base_setup/demo_active").catch(
             (/** @type {any} */ error) => {

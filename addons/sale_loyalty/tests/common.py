@@ -11,13 +11,10 @@ class TestSaleCouponCommon(SaleCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # set currency to not rely on demo data and avoid possible race condition
         cls.currency_ratio = 1.0
 
-        # Set all the existing programs to active=False to avoid interference
         cls.env["loyalty.program"].search([]).sudo().write({"active": False})
 
-        # Taxes
         tax_group_group = cls.env["account.tax.group"].create(
             {"name": "Test Account Tax Group"}
         )
@@ -83,7 +80,6 @@ class TestSaleCouponCommon(SaleCommon):
             }
         )
 
-        # products
         cls.product_A = cls.env["product.product"].create(
             {
                 "name": "Product A",
@@ -130,8 +126,6 @@ class TestSaleCouponCommon(SaleCommon):
             }
         )
 
-        # Immediate Program By A + B: get B free
-        # No Conditions
         cls.program_gift_card = cls.env["loyalty.program"].create(
             {
                 "name": "Gift Cards",
@@ -272,7 +266,6 @@ class TestSaleCouponCommon(SaleCommon):
         if "error" in status:
             raise ValidationError(status["error"])
         if not status and no_reward_fail:
-            # Can happen if global discount got filtered out in `_get_claimable_rewards`
             raise ValidationError("No reward to claim with this coupon")
         coupons = self.env["loyalty.card"]
         rewards = self.env["loyalty.reward"]
@@ -334,13 +327,6 @@ class TestSaleCouponCommon(SaleCommon):
 
 
 class TestSaleCouponCommonWithCode10pc(TestSaleCouponCommon):
-    """Shared 10%-on-orders promo code fixture.
-
-    Kept out of TestSaleCouponCommon itself: TestSaleCouponNumbersCommon (below)
-    also inherits from it and creates its own "test_10pc"-coded program (`p1`),
-    which would collide with this one on the promo code's uniqueness constraint.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

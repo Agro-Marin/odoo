@@ -280,9 +280,6 @@ class SaleOrderLine(models.Model):
                 continue
 
             if orig_price is not None:
-                # The shadow keeps the automatic price the precompute found, so
-                # an explicit price that differs from it is manual from the
-                # start, exactly as one set by write would be.
                 vals["price_unit"] = orig_price
                 if vals.get("price_unit_auto") is None:
                     vals["price_unit_auto"] = orig_price
@@ -481,19 +478,9 @@ class SaleOrderLine(models.Model):
             if not is_special_line and line.product_id and line.product_uom_id:
                 line_with_company = line.with_company(line.company_id)
 
-                # _get_price_display is the seam a line type overrides to price
-                # itself off something other than its product -- event_sale off
-                # the ticket, event_booth_sale off the booth, sale_loyalty off
-                # the reward. The regular-item case used to be inlined here
-                # instead, an exact copy of _get_price_display_regular_item
-                # (needs_base_price and _show_discount are equivalent, the
-                # latter already testing the discount feature), so all three
-                # overrides were dead for every non-combo line.
                 if is_combo_item or line.product_type == "combo":
                     display_price = line_with_company._get_price_display()
                 else:
-                    # the discount below needs these two anyway; hand them to
-                    # the seam so it does not price the line a second time
                     pricelist_price = line_with_company._get_pricelist_price()
                     if line.pricelist_item_id._show_discount():
                         base_price = (
@@ -541,25 +528,9 @@ class SaleOrderLine(models.Model):
                 continue
 
             if is_combo_item:
-                # mirrors the line it is linked to rather than any pricelist, so
-                # there is no automatic value of its own to shadow
                 line.discount = line._get_line_linked().discount
                 continue
 
-            # The automatic discount is computed into a local and only then
-            # written, through the same gate the price half above applies.
-            # `line.discount = 0.0` used to happen here unconditionally, before
-            # anything asked whether the current value was a manual override --
-            # so a discount set by hand was wiped by any recompute this method
-            # was triggered for, including one caused by an unrelated field.
-            #
-            # mixin_order_line_amount declares that contract for every order
-            # line: `discount_auto` shadows the last automatic value and
-            # `_should_update_discount` compares the two. This override
-            # reimplements the mixin's algorithm and had carried the price half
-            # of it (price_unit_auto / _should_update_price, thirty lines up)
-            # while omitting the discount half, leaving `discount_auto` a stored
-            # field that nothing on a sale line ever wrote.
             auto_discount = 0.0
             if line.pricelist_item_id._show_discount():
                 if not pricelist_price:
@@ -1064,14 +1035,6 @@ class SaleOrderLine(models.Model):
         return f"({commercial_partner.ref or commercial_partner.name})"
 
     def _get_price_display(self, pricelist_price=None, base_price=None):
-        """The price this line displays before its own discount.
-
-        :param pricelist_price: the line's pricelist price, when the caller has
-          already computed it. Purely an optimisation -- it is recomputed when
-          not given, and it is meaningless for a combo line, which prices
-          itself off the line it is linked to.
-        :param base_price: likewise for the pre-discount price.
-        """
         self.check_singleton()
 
         if self.product_type == "combo":

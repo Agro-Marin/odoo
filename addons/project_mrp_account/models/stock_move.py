@@ -22,7 +22,6 @@ class StockMove(models.Model):
     def _prepare_analytic_lines(self):
         res = super()._prepare_analytic_lines()
         if res and self.raw_material_production_id:
-            # Check that all mandatory plans are set on the project linked to the MO of the stock move before generating the AALs
             project = self.raw_material_production_id.project_id
             mandatory_plans = project._get_mandatory_plans(
                 self.company_id, business_domain="manufacturing_order"

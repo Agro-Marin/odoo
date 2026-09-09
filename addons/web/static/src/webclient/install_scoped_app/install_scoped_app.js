@@ -27,9 +27,7 @@ export class InstallScopedApp extends Component {
             this.state.showInstallUI = true;
         });
     }
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     onChangeName(ev) {
         const value = /** @type {any} */ (ev.target).value;
         if (value !== this.state.manifest.name) {

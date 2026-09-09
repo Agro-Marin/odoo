@@ -29,9 +29,7 @@ class FrequentEmojiService {
         browser.addEventListener("storage", this.onStorage);
     }
 
-    /**
-     * @param {StorageEvent} ev
-     */
+    /** @param {StorageEvent} ev */
     applyStorage(ev) {
         if (ev.key !== STORAGE_KEY && ev.key !== null) {
             return;
@@ -59,9 +57,7 @@ class FrequentEmojiService {
         }
     }
 
-    /**
-     * @param {string} codepoints
-     */
+    /** @param {string} codepoints */
     incrementEmojiUsage(codepoints) {
         const isNew = !(codepoints in this.all);
         this.all[codepoints] ??= 0;
@@ -73,9 +69,7 @@ class FrequentEmojiService {
         writeJSONStorage(STORAGE_KEY, this.all);
     }
 
-    /**
-     * @param {string} keep
-     */
+    /** @param {string} keep */
     forgetColdest(keep) {
         const tracked = Object.keys(this.all);
         const excess = tracked.length - MAX_TRACKED;

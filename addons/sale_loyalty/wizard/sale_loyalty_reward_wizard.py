@@ -18,7 +18,6 @@ class SaleLoyaltyRewardWizard(models.TransientModel):
     selected_reward_id = fields.Many2one(
         "loyalty.reward", domain="[('id', 'in', reward_ids)]"
     )
-    # In case of multi_product reward
     multi_product_reward = fields.Boolean(related="selected_reward_id.multi_product")
     reward_product_ids = fields.Many2many(
         related="selected_reward_id.reward_product_ids"

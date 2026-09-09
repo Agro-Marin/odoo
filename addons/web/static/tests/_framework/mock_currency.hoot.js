@@ -2,18 +2,14 @@
 
 import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
 
-/**
- * @param {import("./mock_server_state.hoot").ServerState} state
- */
+/** @param {import("./mock_server_state.hoot").ServerState} state */
 function makeCurrencies({ currencies }) {
     return Object.fromEntries(
         currencies.map((currency) => [currency.id, { digits: [69, 2], ...currency }]),
     );
 }
 
-/**
- * @param {{ modules: Map<string, any> }} loader
- */
+/** @param {{ modules: Map<string, any> }} loader */
 export function setupMockCurrencies(loader) {
     const currencyModule = loader.modules.get("@web/core/currency");
     if (!currencyModule?.currencies) {

@@ -24,9 +24,7 @@ function acquireGroup(id) {
     return groupData.group;
 }
 
-/**
- * @param {any} id
- */
+/** @param {any} id */
 function releaseGroup(id) {
     const groupData = GROUPS.get(id);
     if (!groupData) {

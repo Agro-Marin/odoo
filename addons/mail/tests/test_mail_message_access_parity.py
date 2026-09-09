@@ -599,13 +599,6 @@ class TestMailMessageLinkedMessages(MailCommon):
 
 @tagged("post_install", "-at_install")
 class TestMailMessageNotifiedParentCreate(MailCommon):
-    """Being notified on a parent grants a reply on the SAME document only.
-
-    Exercised through ``_get_forbidden_access("create")`` — the create-only
-    branch that ``_discard_notified_parents`` guards — so the assertion is on
-    that grant alone, not on the surrounding portal ACLs.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -634,8 +627,6 @@ class TestMailMessageNotifiedParentCreate(MailCommon):
 
     @classmethod
     def _create_child_message(cls, model, res_id):
-        # author is NOT the notified employee, so the "own message" grant does
-        # not apply and only the notified-parent grant can clear the child.
         return (
             cls.env["mail.message"]
             .sudo()

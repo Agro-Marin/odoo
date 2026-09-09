@@ -21,9 +21,7 @@ mockIndexedDBForTests();
 
 const S_PENDING = Symbol("Promise");
 
-/**
- * @param {Promise<any>} promise
- */
+/** @param {Promise<any>} promise */
 function promiseState(promise) {
     return Promise.race([promise, Promise.resolve(S_PENDING)]).then(
         (value) =>

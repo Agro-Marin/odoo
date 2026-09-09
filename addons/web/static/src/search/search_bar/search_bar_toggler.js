@@ -14,9 +14,7 @@ class SearchBarToggler extends Component {
     };
 }
 
-/**
- * @returns {{ state: { isSmall: boolean, showSearchBar: boolean }, component: typeof SearchBarToggler, props: Object }}
- */
+/** @returns {{ state: { isSmall: boolean, showSearchBar: boolean }, component: typeof SearchBarToggler, props: Object }} */
 export function useSearchBarToggler() {
     const ui = useService("ui");
 

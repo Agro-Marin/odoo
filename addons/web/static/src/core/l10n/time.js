@@ -31,9 +31,7 @@ export class Time {
         }
     }
 
-    /**
-     * @param {{ hour?: number, minute?: number, second?: number }} [params]
-     */
+    /** @param {{ hour?: number, minute?: number, second?: number }} [params] */
     constructor({ hour = 0, minute = 0, second = 0 } = {}) {
         /** @type {number} */
         this.hour = hour;
@@ -43,9 +41,7 @@ export class Time {
         this.second = second;
     }
 
-    /**
-     * @param {number} rounding
-     */
+    /** @param {number} rounding */
     roundMinutes(rounding) {
         const rounded = Math.round(this.minute / rounding) * rounding;
         if (rounded >= 60) {
@@ -60,9 +56,7 @@ export class Time {
         }
     }
 
-    /**
-     * @returns {Time}
-     */
+    /** @returns {Time} */
     copy() {
         return new Time(this);
     }
@@ -100,9 +94,7 @@ export class Time {
         return DateTime.fromObject(this.toObject());
     }
 
-    /**
-     * @returns {{hour: number, minute: number, second: number}}
-     */
+    /** @returns {{hour: number, minute: number, second: number}} */
     toObject() {
         return {
             hour: this.hour,
@@ -112,16 +104,12 @@ export class Time {
     }
 }
 
-/**
- * @param {string} [format]
- */
+/** @param {string} [format] */
 export function is24HourFormat(format) {
     return /H/.test(format || localization.timeFormat);
 }
 
-/**
- * @param {string} [format]
- */
+/** @param {string} [format] */
 function isMeridiemFormat(format) {
     return /a/.test(format || localization.timeFormat);
 }

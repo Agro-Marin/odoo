@@ -105,9 +105,7 @@ export class ComboConfiguratorDialog extends Component {
         }
     }
 
-    /**
-     * @param {Number} quantity
-     */
+    /** @param {Number} quantity */
     async setQuantity(quantity) {
         if (quantity <= 0) {
             quantity = 1;
@@ -141,9 +139,7 @@ export class ComboConfiguratorDialog extends Component {
         return _t("Total: %s", this.formattedTotalPrice);
     }
 
-    /**
-     * @return {String}
-     */
+    /** @return {String} */
     get formattedTotalPrice() {
         return formatCurrency(
             this.state.quantity * this._comboPrice,
@@ -151,9 +147,7 @@ export class ComboConfiguratorDialog extends Component {
         );
     }
 
-    /**
-     * @return {Boolean}
-     */
+    /** @return {Boolean} */
     get areAllCombosSelected() {
         return (
             this.state.selectedComboItems.size ===
@@ -191,9 +185,7 @@ export class ComboConfiguratorDialog extends Component {
         }
     }
 
-    /**
-     * @return {Number}
-     */
+    /** @return {Number} */
     get _comboPrice() {
         const extraPrice = Array.from(this.state.selectedComboItems.values()).reduce(
             (price, item) => price + item.totalExtraPrice,
@@ -202,16 +194,12 @@ export class ComboConfiguratorDialog extends Component {
         return this.state.basePrice + extraPrice;
     }
 
-    /**
-     * @return {Object}
-     */
+    /** @return {Object} */
     get _comboProductData() {
         return { quantity: this.state.quantity };
     }
 
-    /**
-     * @return {ProductComboItem[]}
-     */
+    /** @return {ProductComboItem[]} */
     get _selectedComboItems() {
         const sortedItems = new Map(
             [...this.state.selectedComboItems.entries()].sort(
@@ -223,16 +211,12 @@ export class ComboConfiguratorDialog extends Component {
         return Array.from(sortedItems.values());
     }
 
-    /**
-     * @return {Object}
-     */
+    /** @return {Object} */
     _getAdditionalRpcParams() {
         return {};
     }
 
-    /**
-     * @return {Object}
-     */
+    /** @return {Object} */
     _getAdditionalDialogProps() {
         return {};
     }

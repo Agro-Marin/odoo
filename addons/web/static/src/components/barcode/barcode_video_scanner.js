@@ -63,9 +63,7 @@ export class BarcodeVideoScanner extends Component {
     /** @type {{ isReady: boolean, zoom: {min: number, max: number, step: number, value: number} | null }} */
     state;
 
-    /**
-     * @override
-     */
+    /** @override */
     setup() {
         this.videoPreviewRef = /** @type {any} */ (useRef("videoPreview"));
         this.state = useState({
@@ -89,9 +87,7 @@ export class BarcodeVideoScanner extends Component {
         onWillUnmount(() => this.cleanStreamAndTimeout());
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async startScanning() {
         const stream = await this.requestStream();
         if (!stream) {
@@ -124,9 +120,7 @@ export class BarcodeVideoScanner extends Component {
         );
     }
 
-    /**
-     * @returns {Promise<MediaStream | null>}
-     */
+    /** @returns {Promise<MediaStream | null>} */
     async requestStream() {
         try {
             return await browser.navigator.mediaDevices.getUserMedia({
@@ -152,9 +146,7 @@ export class BarcodeVideoScanner extends Component {
         }
     }
 
-    /**
-     * @param {MediaStream} stream
-     */
+    /** @param {MediaStream} stream */
     bindTrack(stream) {
         const [track] = stream.getVideoTracks();
         const settings = track?.getSettings();
@@ -165,9 +157,7 @@ export class BarcodeVideoScanner extends Component {
         this.addZoomSlider(track, settings);
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get zoomRatio() {
         const el = this.videoPreviewRef.el;
         const settings = this.streamSettings;
@@ -194,9 +184,7 @@ export class BarcodeVideoScanner extends Component {
         return Boolean(this.detector?.constructor.cropsAtSource);
     }
 
-    /**
-     * @returns {Promise}
-     */
+    /** @returns {Promise} */
     async isVideoReady() {
         while (!isVideoElementReady(this.videoPreviewRef.el)) {
             await delay(10);
@@ -314,9 +302,7 @@ export class BarcodeVideoScanner extends Component {
         };
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     onZoomInput(ev) {
         if (!this.state.zoom) {
             return;
@@ -329,9 +315,7 @@ export class BarcodeVideoScanner extends Component {
     }
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function isBarcodeScannerSupported() {
     return Boolean(
         browser.navigator.mediaDevices && browser.navigator.mediaDevices.getUserMedia,

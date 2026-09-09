@@ -7,9 +7,7 @@ import { Component, xml } from "@odoo/owl";
 import { defineParams, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 
-/**
- * @param {string} decimalPoint
- */
+/** @param {string} decimalPoint */
 function useSeparator(decimalPoint) {
     defineParams(
         { lang_parameters: { decimal_point: decimalPoint } },
@@ -17,9 +15,7 @@ function useSeparator(decimalPoint) {
     );
 }
 
-/**
- * @param {string} [inner]
- */
+/** @param {string} [inner] */
 async function mountHost(inner = `<input type="text" class="target"/>`) {
     class Host extends Component {
         static template = xml`<div t-ref="numpadDecimal">${inner}</div>`;
@@ -37,7 +33,7 @@ async function mountHost(inner = `<input type="text" class="target"/>`) {
  * @param {HTMLElement} el
  * @param {string} key
  * @param {string} code
- * @returns {boolean} whether the default was prevented
+ * @returns {boolean}
  */
 function keydown(el, key, code) {
     const ev = new KeyboardEvent("keydown", {

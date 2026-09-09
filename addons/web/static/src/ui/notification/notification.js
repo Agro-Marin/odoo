@@ -54,9 +54,7 @@ export class Notification extends Component {
     /** @type {number} */
     timerStart = 0;
     remainingDelay = 0;
-    /**
-     * @type {Set<"hover" | "focus">}
-     */
+    /** @type {Set<"hover" | "focus">} */
     holds = new Set();
 
     setup() {
@@ -67,9 +65,7 @@ export class Notification extends Component {
         onWillUnmount(() => this.stopNotificationTimer());
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isAssertive() {
         return ["danger", "warning"].includes(this.props.type);
     }

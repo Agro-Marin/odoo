@@ -21,12 +21,6 @@ class TestOnboardingFlow(MailBotCommon):
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_full_tour_walks_every_step(self):
-        """Drive the tour end to end, including the two-message finish.
-
-        The pre-existing suite stopped after the attachment step, so the branch
-        that returns a *list* of answers -- and the canned-response cleanup it
-        performs -- was never exercised.
-        """
         self.assertEqual(self.bot_user.odoobot_state, "onboarding_emoji")
 
         self.assertIn("special commands", self._say_one("tagada 😊"))
@@ -79,13 +73,6 @@ class TestCannedResponseCleanup(MailBotCommon):
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_cleanup_keeps_the_users_own_canned_response(self):
-        """The tour must delete its own record and nothing else.
-
-        The cleanup matched `source = _("Thanks")` for the whole user, so a
-        canned response the user had abbreviated "Thanks" was silently deleted
-        along with the throw-away one. `start the tour` makes that reachable at
-        any point in an established account's life.
-        """
         mine = (
             self.env["mail.canned.response"]
             .with_user(self.bot_user)
@@ -104,12 +91,6 @@ class TestCannedResponseCleanup(MailBotCommon):
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_cleanup_survives_a_language_change(self):
-        """Cleanup is by identity, not by a re-translated literal.
-
-        Created as "Gracias" under es_ES and searched for as "Merci" under
-        fr_FR, the throw-away record used to be stranded for ever -- the state
-        still advanced to idle, so nothing ever revisited it.
-        """
         self.env["res.lang"]._activate_lang("es_ES")
         self.env["res.lang"]._activate_lang("fr_FR")
         self.bot_user.sudo().lang = "es_ES"

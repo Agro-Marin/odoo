@@ -112,9 +112,7 @@ export class TimePicker extends Component {
         });
     }
 
-    /**
-     * @returns {import("@web/core/navigation/navigation").NavigationOptions}
-     */
+    /** @returns {import("@web/core/navigation/navigation").NavigationOptions} */
     getNavigationOptions() {
         const handleArrow = (/** @type {any} */ navigator) => {
             const value = this.suggestions[navigator.activeItemIndex];
@@ -169,9 +167,7 @@ export class TimePicker extends Component {
         };
     }
 
-    /**
-     * @param {TimePickerProps} props
-     */
+    /** @param {TimePickerProps} props */
     onPropsUpdated(props) {
         const step = this.getSuggestionStep(props);
         if (step !== this.suggestionsStep) {
@@ -242,9 +238,7 @@ export class TimePicker extends Component {
         return distance(nextIndex) < distance(floorIndex) ? nextIndex : floorIndex;
     }
 
-    /**
-     * @param {Time|null} newValue
-     */
+    /** @param {Time|null} newValue */
     setValue(newValue) {
         if (newValue) {
             newValue = newValue.copy();
@@ -290,17 +284,13 @@ export class TimePicker extends Component {
         this.state.isValid = true;
     }
 
-    /**
-     * @param {Time} value
-     */
+    /** @param {Time} value */
     onItemSelected(value) {
         this.setValue(value);
         this.close();
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     commitNavigatedValue() {
         const value = this.navigatedValue;
         if (!value) {
@@ -315,9 +305,7 @@ export class TimePicker extends Component {
         this.commitNavigatedValue();
     }
 
-    /**
-     * @param {InputEvent} event
-     */
+    /** @param {InputEvent} event */
     onInput(event) {
         this.ensureOpen();
         this.isDirty = true;
@@ -355,9 +343,7 @@ export class TimePicker extends Component {
         }
     }
 
-    /**
-     * @param {{ selectAll?: boolean }} [options]
-     */
+    /** @param {{ selectAll?: boolean }} [options] */
     ensureOpen({ selectAll = false } = {}) {
         if (this.dropdownState.isOpen) {
             return;
@@ -373,9 +359,7 @@ export class TimePicker extends Component {
         this.dropdownState.close();
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     getPlaceholder() {
         if (typeof this.props.placeholder === "string") {
             return this.props.placeholder;

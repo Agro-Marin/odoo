@@ -6,15 +6,6 @@ class HomeMenuBadge(models.AbstractModel):
 
     @api.model
     def _get_badges(self) -> dict[str, int]:
-        # The reader's own open tasks. `is_closed` rather than an enumeration
-        # of the states that happen to be closed today, which is what the
-        # Open Tasks filter reads.
-        #
-        # `project_id` set, because a task without one is a personal to-do and
-        # belongs to the To-do tile, which counts them itself. project_todo
-        # auto-installs and gives every internal user an onboarding to-do, so
-        # without this clause every user in the database carries a Project
-        # badge for work that is not in a project.
         return {
             **super()._get_badges(),
             **self._count_for(

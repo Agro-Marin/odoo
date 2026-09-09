@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
-    <!-- The hover freeze is a no-op on touch devices, where mouseover/mouseleave
-         do not fire, so both layouts can share one element. -->
     <t t-name="project_todo.TodoDoneCheckmark">
         <a t-att-title="toggleTitle"
            t-on-click.stop="onDoneToggled"

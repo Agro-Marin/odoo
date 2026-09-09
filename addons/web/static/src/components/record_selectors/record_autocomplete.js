@@ -45,9 +45,7 @@ export class RecordAutocomplete extends Component {
     nameService;
     /** @type {import("services").ServiceFactories["orm"]} */
     orm;
-    /**
-     * @type {any}
-     */
+    /** @type {any} */
     lastProm = null;
 
     setup() {
@@ -76,9 +74,7 @@ export class RecordAutocomplete extends Component {
         return avatarUrl(this.props.resModel, resId);
     }
 
-    /**
-     * @param {Array<{ id: number, display_name: any }>} records
-     */
+    /** @param {Array<{ id: number, display_name: any }>} records */
     addNames(records) {
         const displayNames = Object.fromEntries(
             records.map(({ id, display_name }) => [id, display_name]),
@@ -90,9 +86,7 @@ export class RecordAutocomplete extends Component {
         return this.props.getIds();
     }
 
-    /**
-     * @param {string} name
-     */
+    /** @param {string} name */
     async loadOptionsSource(name) {
         this.lastProm?.abort(true);
         const prom = (this.lastProm = this.search(name, SEARCH_LIMIT + 1));
@@ -130,9 +124,7 @@ export class RecordAutocomplete extends Component {
         return options;
     }
 
-    /**
-     * @param {string} name
-     */
+    /** @param {string} name */
     async onSearchMore(name) {
         const { fieldString, multiSelect, resModel } = this.props;
         let operator;
@@ -199,9 +191,7 @@ export class RecordAutocomplete extends Component {
         }));
     }
 
-    /**
-     * @param {{ inputValue: string }} param0
-     */
+    /** @param {{ inputValue: string }} param0 */
     onChange({ inputValue }) {
         if (!inputValue.length) {
             this.props.update([]);

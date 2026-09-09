@@ -13,7 +13,6 @@ import { HootCopyButton } from "./hoot_copy_button.js";
 /**
  * @typedef {"dark" | "light"} ColorScheme
  * @typedef {{
- * }} HootConfigMenuProps
  */
 
 const {
@@ -291,32 +290,24 @@ export class HootConfigMenu extends Component {
         return $keys(this.env.runner.presets).filter(Boolean).length > 0;
     }
 
-    /**
-     * @param {keyof CASE_EVENT_TYPES} sType
-     */
+    /** @param {keyof CASE_EVENT_TYPES} sType */
     isEventDisplayed(sType) {
         return this.config.events & CASE_EVENT_TYPES[sType].value;
     }
 
-    /**
-     * @param {Event & { currentTarget: HTMLInputElement }} ev
-     */
+    /** @param {Event & { currentTarget: HTMLInputElement }} ev */
     onBailChange(ev) {
         this.config.bail = ev.currentTarget.checked ? 1 : 0;
     }
 
-    /**
-     * @param {Event & { currentTarget: HTMLInputElement }} ev
-     */
+    /** @param {Event & { currentTarget: HTMLInputElement }} ev */
     onLogLevelChange(ev) {
         this.config.loglevel = ev.currentTarget.checked
             ? LOG_LEVELS.suites
             : LOG_LEVELS.runner;
     }
 
-    /**
-     * @param {string} presetId
-     */
+    /** @param {string} presetId */
     onPresetChange(presetId) {
         this.config.preset = this.config.preset === presetId ? "" : presetId;
     }
@@ -327,9 +318,7 @@ export class HootConfigMenu extends Component {
         internalRandom.seed = newSeed;
     }
 
-    /**
-     * @param {"fifo" | "lifo" | "random"} order
-     */
+    /** @param {"fifo" | "lifo" | "random"} order */
     setExecutionOrder(order) {
         this.config.order = order;
 

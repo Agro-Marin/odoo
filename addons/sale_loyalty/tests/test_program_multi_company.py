@@ -128,12 +128,10 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
         )
 
     def test_applicable_programs_on_branch(self):
-        # create a branch
         branch_a = self.env["res.company"].create(
             {"name": "Branch A", "parent_id": self.company_a.id}
         )
 
-        # create an order
         order = self.env["sale.order"].create(
             {
                 "line_ids": [
@@ -161,7 +159,6 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
         self.assertIn(self.immediate_promotion_program, order._get_applied_programs())
 
     def test_applicable_programs_confirm_on_branch(self):
-        # create a branch
         self.env["loyalty.program"].search([]).write({"active": False})
         branch_a = self.env["res.company"].create(
             {"name": "Branch A", "parent_id": self.company_a.id}
@@ -174,7 +171,6 @@ class TestSaleCouponMultiCompany(TestSaleCouponCommon):
             {"company_ids": [Command.set((branch_a + self.company_a).ids)]}
         )
 
-        # create an order
         order = self.empty_order
         order.update(
             {

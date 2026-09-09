@@ -40,11 +40,9 @@ test("reorderApps: a newly installed app does not scramble the customized order"
     expect(xmlids(apps)).toEqual(["new", "e3", "e1", "e2"]);
 });
 
-/**
- * @param {any[]} spec
- */
+/** @param {any[]} spec */
 function makeTree(spec) {
-    /** @param {any} node @param {number | undefined} appID @returns {any} */
+    /** @param {any} node */
     const build = (node, appID) => {
         const id = node.id;
         const ownAppID = appID ?? id;

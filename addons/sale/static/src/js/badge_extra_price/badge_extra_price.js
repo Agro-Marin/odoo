@@ -9,9 +9,7 @@ export class BadgeExtraPrice extends Component {
         currencyId: Number,
     };
 
-    /**
-     * @return {String}
-     */
+    /** @return {String} */
     getFormattedPrice() {
         return formatCurrency(Math.abs(this.props.price), this.props.currencyId);
     }

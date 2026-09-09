@@ -28,27 +28,7 @@ class ResourceCalendarLeaves(models.Model):
         return calendars
 
     def _work_time_per_day(self, resource_calendars=False):
-        """Get work time per day based on the calendar and its attendances
-
-        1) Gets all calendars with their characteristics (i.e.
-            (a) the leaves in it,
-            (b) the resources which have a leave,
-            (c) the oldest and
-            (d) the latest leave dates
-           ) for leaves in self (first for calendar's leaves, then for company's global leaves)
-        2) Search the attendances based on the characteristics retrieved for each calendar.
-            The attendances found are the ones between the date_from of the oldest leave
-            and the date_to of the most recent leave.
-        3) Create a dict as result of this method containing:
-            {
-                leave: {
-                        max(date_start of work hours, date_start of the leave):
-                            the duration in days of the work including the leave
-                }
-            }
-        """
         resource_calendars = resource_calendars or self._get_resource_calendars()
-        # to easily find the calendar with its id.
         calendars_dict = {calendar.id: calendar for calendar in resource_calendars}
 
         leaves_read_group = self.env["resource.calendar.leaves"]._read_group(
@@ -56,8 +36,6 @@ class ResourceCalendarLeaves(models.Model):
             ["calendar_id"],
             ["id:recordset", "resource_id:recordset", "date_from:min", "date_to:max"],
         )
-        # dict of keys: calendar_id
-        #   and values : { 'date_from': datetime, 'date_to': datetime, resources: self.env['resource.resource'] }
         cal_attendance_intervals_dict = {}
         for (
             calendar,
@@ -90,7 +68,7 @@ class ResourceCalendarLeaves(models.Model):
                 if (
                     calendar_company := calendars_dict[calendar_id].company_id
                 ) and calendar_company != company:
-                    continue  # only consider global leaves of the same company as the calendar
+                    continue
                 calendar_data = cal_attendance_intervals_dict.get(calendar_id)
                 if calendar_data is None:
                     calendar_data = {
@@ -113,10 +91,6 @@ class ResourceCalendarLeaves(models.Model):
                         leaves=leaves | calendar_data["leaves"],
                     )
 
-        # dict of keys: calendar_id
-        #   and values: a dict of keys: leave.id
-        #         and values: a dict of keys: date
-        #              and values: number of days
         results = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
         for (
             calendar_id,
@@ -147,10 +121,6 @@ class ResourceCalendarLeaves(models.Model):
         return results
 
     def _timesheet_create_lines(self):
-        """Create timesheet leaves for each employee using the same calendar containing in self.calendar_id
-
-        If the employee has already a time off in the same day then no timesheet should be created.
-        """
         resource_calendars = self._get_resource_calendars()
         work_hours_data = self._work_time_per_day(resource_calendars)
         employees_groups = self.env["hr.employee"]._read_group(
@@ -298,7 +268,6 @@ class ResourceCalendarLeaves(models.Model):
         return self.env["account.analytic.line"].sudo().create(timesheet_vals_list)
 
     def _get_overlapping_hr_leaves(self, domain=None):
-        """Find leaves with potentially missing timesheets."""
         self.check_singleton()
         leave_domain = domain or []
         leave_domain += [
@@ -359,7 +328,6 @@ class ResourceCalendarLeaves(models.Model):
         for global_leave in global_leaves:
             overlapping_leaves += global_leave._get_overlapping_hr_leaves()
         if overlapping_leaves:
-            # we need to ignore the global time off since it hasn't been deleted yet
             overlapping_leaves.sudo()._generate_timesheets(
                 ignored_resource_calendar_leaves=global_leaves.ids
             )

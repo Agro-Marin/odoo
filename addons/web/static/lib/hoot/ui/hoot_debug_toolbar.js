@@ -30,9 +30,7 @@ function useMovable(containerRefName, handleRefName, allowDrag) {
         return [(currentContainer = containerRef.el), (currentHandle = handleRef.el)];
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     function drag(ev) {
         if (!currentContainer || !isDragging) {
             return;
@@ -48,9 +46,7 @@ function useMovable(containerRefName, handleRefName, allowDrag) {
         });
     }
 
-    /**
-     * @param {PointerEvent} [ev]
-     */
+    /** @param {PointerEvent} [ev] */
     function dragEnd(ev) {
         if (!currentContainer || !isDragging) {
             return;
@@ -63,9 +59,7 @@ function useMovable(containerRefName, handleRefName, allowDrag) {
         removeWindowListener("pointerup", dragEnd);
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     function dragStart(ev) {
         if (!currentContainer || !allowDrag()) {
             return;
@@ -140,8 +134,6 @@ function useMovable(containerRefName, handleRefName, allowDrag) {
 /**
  * @typedef {import("../core/expect").Assertion} Assertion
  * @typedef {{
- *  test: Test;
- * }} HootDebugToolBarProps
  * @typedef {import("../core/expect").CaseResult} CaseResult
  */
 
@@ -292,9 +284,7 @@ export class HootDebugToolBar extends Component {
         return ["running", "cyan"];
     }
 
-    /**
-     * @param {Assertion[]} [assertions]
-     */
+    /** @param {Assertion[]} [assertions] */
     groupAssertions(assertions) {
         let passed = 0;
         let failed = 0;

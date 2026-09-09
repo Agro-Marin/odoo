@@ -247,9 +247,7 @@ test("Numeric fields: NumpadDecimal key is different from the decimalPoint", asy
 });
 
 test("useNumpadDecimal should synchronize handlers on input elements", async () => {
-    /**
-     * @param {HTMLInputElement[]} inputEls
-     */
+    /** @param {HTMLInputElement[]} inputEls */
     async function testInputElements(inputEls) {
         for (const inputEl of inputEls) {
             await pointerDown(inputEl);

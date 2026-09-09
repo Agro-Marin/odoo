@@ -123,20 +123,10 @@ export class SelectMenu extends Component {
         distanceBeforeReload: 500,
     };
 
-    /**
-     * @type {ReturnType<typeof useDropdownState>}
-     */
+    /** @type {ReturnType<typeof useDropdownState>} */
     dropdownState;
 
-    /**
-     * @type {{
-     *     choices: any[],
-     *     displayedOptions: any[],
-     *     searchValue: string | null,
-     *     appliedSearch: string,
-     *     isFocused: boolean,
-     * }}
-     */
+    /** @type {{ */
     state;
 
     setup() {
@@ -167,14 +157,10 @@ export class SelectMenu extends Component {
 
         /** @type {Map<any, any>} */
         this._choiceMemory = new Map();
-        /**
-         * @type {any[]}
-         */
+        /** @type {any[]} */
         this._choiceSignature = [];
         this.choicesRevision = 0;
-        /**
-         * @type {any | any[] | undefined}
-         */
+        /** @type {any | any[] | undefined} */
         this.selectedChoice = undefined;
         /** @type {WeakMap<any[], { revision: number, sorted: any[] }>} */
         this._sortedChoicesCache = new WeakMap();
@@ -227,16 +213,12 @@ export class SelectMenu extends Component {
         };
     }
 
-    /**
-     * @returns {any[]}
-     */
+    /** @returns {any[]} */
     get selectedValues() {
         return this.props.value ?? [];
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get hasSelection() {
         if (this.props.multiSelect) {
             return this.selectedValues.length > 0;
@@ -382,9 +364,7 @@ export class SelectMenu extends Component {
         }
     }
 
-    /**
-     * @returns {Set<any>}
-     */
+    /** @returns {Set<any>} */
     get selectedValueSet() {
         this._selectedValueSet ??= new Set(this.selectedValues);
         return this._selectedValueSet;
@@ -473,9 +453,7 @@ export class SelectMenu extends Component {
         }
     }
 
-    /**
-     * @returns {Map<any, any>}
-     */
+    /** @returns {Map<any, any>} */
     get choiceByValue() {
         if (this._choiceIndex?.revision === this.choicesRevision) {
             return this._choiceIndex.byValue;
@@ -556,16 +534,12 @@ export class SelectMenu extends Component {
         return `${this.choicesRevision}\x00${searchString}`;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get derivationKey() {
         return this.derivationKeyFor(this.state.appliedSearch);
     }
 
-    /**
-     * @param {String} searchString
-     */
+    /** @param {String} searchString */
     filterOptions(searchString = "") {
         this._selectedValueSet = null;
         this._derivedKey = this.derivationKeyFor(searchString);

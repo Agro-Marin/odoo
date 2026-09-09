@@ -18,7 +18,7 @@ describe.current.tags("headless");
 
 /**
  * @param {(node: HTMLLinkElement | HTMLScriptElement) => any} callback
- * @param {HTMLHeadElement} [head] the iframe cases pass their own
+ * @param {HTMLHeadElement} [head]
  */
 const mockHeadAppendChild = (callback, head = document.head) => {
     patchWithCleanup(head, {
@@ -40,9 +40,7 @@ beforeEach(() => {
     assetCacheByDocument.delete(document);
 });
 
-/**
- * @type {Promise<any>[]}
- */
+/** @type {Promise<any>[]} */
 let pendingLoads = [];
 
 /**
@@ -176,9 +174,7 @@ test("loadCSS: content-addressed bundle URLs fail fast without retries", async (
     expect(appended).toBe(1);
 });
 
-/**
- * @param {(node: Node) => void} [afterAppend]
- */
+/** @param {(node: Node) => void} [afterAppend] */
 const attachForRealThenFail = (afterAppend) => {
     const realAppendChild = document.head.appendChild.bind(document.head);
     mockHeadAppendChild((node) => {
@@ -503,9 +499,7 @@ test("loadBundle: a compiled runtime bundle reaches another document as a module
     iframe.remove();
 });
 
-/**
- * @param {Map<string, object>} modules
- */
+/** @param {Map<string, object>} modules */
 const makeCrossDocTarget = (modules) => {
     const iframe = document.createElement("iframe");
     document.body.appendChild(iframe);

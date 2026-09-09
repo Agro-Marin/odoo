@@ -4,9 +4,7 @@
 import { onWillDestroy, useComponent } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
 
-/**
- * @typedef {{ id: symbol, isDirty: boolean }} FieldDirtyPayload
- */
+/** @typedef {{ id: symbol, isDirty: boolean }} FieldDirtyPayload */
 
 /**
  * @param {Set<symbol>} owners

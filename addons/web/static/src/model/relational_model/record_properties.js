@@ -9,8 +9,6 @@ import { createPropertyActiveField } from "./field_metadata.js";
 import { invalidateAggregateSpecs } from "./field_values.js";
 import { invalidateModifierDependencies } from "./record_utils.js";
 
-/** @import { RecordContract } from "@web/model/relational_model/record_contract" */
-
 /**
  * @param {Record<string, any>} property
  * @param {string} propertyFieldName

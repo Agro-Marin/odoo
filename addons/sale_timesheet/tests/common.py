@@ -29,8 +29,6 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
             company_id=cls.company_data_2["company"].id,
             company_ids=[cls.company_data_2["company"].id, cls.env.company.id],
         )
-        # What's important here is that this user does not have access to read Sales data,
-        # but can still log time on a timesheet.
         cls.user_employee_without_sales_access = mail_new_test_user(
             cls.env,
             name="Tyrion Lannister Employee",
@@ -74,7 +72,6 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
             ]
         )
 
-        # Account and project
         cls.analytic_account_sale.name = "Project for selling timesheet - AA"
         cls.analytic_plan, _other_plans = cls.env[
             "account.analytic.plan"
@@ -90,7 +87,6 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
             }
         )
 
-        # Create projects
         Project = cls.env["project.project"]
         cls.project_global.write(
             {
@@ -103,7 +99,6 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
                 "name": "Project TEMPLATE for services",
             }
         )
-        # Projects: at least one per billable type
         cls.project_task_rate = Project.create(
             {
                 "name": 'Project with pricing_type="task_rate"',
@@ -131,9 +126,6 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
             }
         )
 
-        # Create service products
-
-        # -- ordered quantities (ordered, timesheet)
         cls.product_order_timesheet1 = cls.env["product.product"].create(
             {
                 "name": "Service Ordered, create no task",
@@ -177,7 +169,7 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
                 "default_code": "SERV-ORDERED3",
                 "service_type": "timesheet",
                 "service_tracking": "task_in_project",
-                "project_id": False,  # will create a project
+                "project_id": False,
                 "taxes_id": False,
                 "property_account_income_id": cls.account_sale.id,
             }
@@ -216,7 +208,6 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
             }
         )
 
-        # -- timesheet on tasks (delivered, timesheet)
         cls.product_delivery_timesheet1 = cls.env["product.product"].create(
             {
                 "name": "Service delivered, create no task",
@@ -260,7 +251,7 @@ class TestCommonSaleTimesheet(TestSaleProjectCommon):
                 "default_code": "SERV-DELI3",
                 "service_type": "timesheet",
                 "service_tracking": "task_in_project",
-                "project_id": False,  # will create a project
+                "project_id": False,
                 "taxes_id": False,
                 "property_account_income_id": cls.account_sale.id,
             }

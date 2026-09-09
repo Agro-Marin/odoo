@@ -5,7 +5,7 @@ import { browser } from "@web/core/browser/browser";
 import { isObject } from "@web/core/utils/collections/objects";
 
 /**
- * @template [T=unknown]
+ * @template
  * @typedef {[Record<string, T>] | T[]} Substitutions
  */
 
@@ -154,7 +154,7 @@ export function isNumeric(value) {
 }
 
 /**
- * @template T, M
+ * @template
  * @param {Substitutions<T>} substitutions
  * @param {(value: T) => M} mapFn
  * @returns {Substitutions<M>}
@@ -177,7 +177,7 @@ export function mapSubstitutions(substitutions, mapFn) {
 }
 
 /**
- * @template T
+ * @template
  * @param {string} str
  * @param {Substitutions<T>} substitutions
  * @returns {string}
@@ -216,9 +216,7 @@ export function sprintf(str, ...substitutions) {
     }
 }
 
-/**
- * @returns {string}
- */
+/** @returns {string} */
 export function uuid() {
     let id = "";
     for (const b of browser.crypto.getRandomValues(new Uint8Array(8))) {

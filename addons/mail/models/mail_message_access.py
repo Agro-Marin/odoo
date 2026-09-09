@@ -193,9 +193,6 @@ class MailMessage(models.Model):
 
         messages = self - result[0] if result else self
         if messages and (forbidden := messages._get_forbidden_access(operation)):
-            # Name the full forbidden set in the error, not just super()'s half:
-            # keeping result[1] described only result[0], so a raised error
-            # listed a subset of the records the caller was actually denied.
             denied = (result[0] + forbidden) if result else forbidden
             result = (denied, lambda: denied._prepare_access_error(operation))
         return result
@@ -361,10 +358,6 @@ class MailMessage(models.Model):
         )
         for parent_id, parent_model, parent_res_id in self.env.execute_query(query):
             for mid in parent_ids_msg_ids[parent_id]:
-                # Being notified on the parent only grants creating a reply on
-                # the SAME document. Without the model/res_id match, a user
-                # notified anywhere could create a message pointing at any
-                # record, since create() never runs _check_parent_on_same_document.
                 child = remaining.get(mid)
                 if (
                     child

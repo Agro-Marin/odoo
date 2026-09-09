@@ -232,9 +232,7 @@ export class SearchPanel extends Component {
         return ancestorIds;
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     getCategorySelection() {
         const activeCategories = this.env.searchModel.getSections(isActiveCategory);
         const selection = [];
@@ -255,9 +253,7 @@ export class SearchPanel extends Component {
         return selection;
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     getFilterSelection() {
         const filters = this.env.searchModel.getSections(isFilter);
         const selection = [];
@@ -285,9 +281,7 @@ export class SearchPanel extends Component {
         return [...section.values.values()].some((value) => value.checked);
     }
 
-    /**
-     * @param {Number} sectionId
-     */
+    /** @param {Number} sectionId */
     hasSelection(sectionId = 0) {
         const sections = sectionId
             ? this.env.searchModel.getSections((s) => s.id === sectionId)
@@ -295,9 +289,7 @@ export class SearchPanel extends Component {
         return sections.some((section) => this.isSelected(section));
     }
 
-    /**
-     * @param {Number} sectionId
-     */
+    /** @param {Number} sectionId */
     clearSelection(sectionId = 0) {
         const sectionIds = sectionId
             ? [sectionId]

@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Project Template -->
         <record id="so_template_project" model="project.project">
             <field name="name">Sales Order</field>
             <field name="active">False</field>
@@ -48,7 +47,6 @@
                 search="[('id', '=', ref('project.project_home_construction'))]" />
             <value eval="{                 'allow_billable': 'True',             }" />
         </function>
-        <!-- Task in project product -->
         <record id="product_product_painting" model="product.product">
             <field name="name">Painting</field>
             <field name="categ_id" ref="product.product_category_construction" />
@@ -127,7 +125,6 @@
             <field name="product_id" ref="sale_project.product_product_screw_driver" />
             <field name="product_uom_qty">50</field>
         </record>
-        <!-- Sale order for Project Home Construction -->
         <record id="sale_order_construction" model="sale.order">
             <field name="partner_id" ref="base.res_partner_2" />
             <field name="client_order_ref">MANUAL</field>
@@ -171,7 +168,6 @@
             model="sale.order"
             name="action_confirm"
             eval="[[ref('sale_order_construction')]]" />
-        <!-- Set users and state to task -->
         <function model="project.task" name="write">
             <value
                 model="project.task"

@@ -356,7 +356,6 @@ export class MailMessage extends models.ServerModel {
                 ],
             });
             const [partner] = ResPartner.read(this.env.user.partner_id);
-            // as the server: the message travels before the toggle, so another tab never holds a stub
             BusBus._sendone(
                 partner,
                 "mail.record/insert",
@@ -602,7 +601,6 @@ export class MailMessage extends models.ServerModel {
         if (after) {
             domain.push(["id", ">", after]);
         }
-        // as the server: the page after `after` is the oldest `limit` messages, then newest first
         const messages = this._filter(domain).sort((m1, m2) =>
             after ? m1.id - m2.id : m2.id - m1.id,
         );
@@ -650,9 +648,7 @@ export class MailMessage extends models.ServerModel {
         return domain;
     }
 
-    /**
-     * @param {import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store} store
-     */
+    /** @param {import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store} store */
     _store_add_linked_messages(store) {
         const mids = [];
         for (const message of this) {

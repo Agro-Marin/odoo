@@ -30,7 +30,6 @@ class StockMove(models.Model):
     def _prepare_analytic_lines(self):
         res = super()._prepare_analytic_lines()
         if res and self.picking_id:
-            # Check that all mandatory plans are set on the project linked to the picking of the stock move before generating the AALs
             project = self.picking_id.project_id
             mandatory_plans = project._get_mandatory_plans(
                 self.company_id, business_domain="stock_picking"

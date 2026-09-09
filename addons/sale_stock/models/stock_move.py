@@ -232,12 +232,4 @@ class StockMove(models.Model):
             self.env["stock.move"].browse(ids_to_reset).sale_line_id = False
 
     def _get_sale_line_price_unit(self):
-        """Unit cost of the *sale line's* product that these moves fulfil.
-
-        Distinct from :meth:`_get_price_unit`, which answers for the moves' own
-        product. The two coincide until a module makes a line's moves carry
-        something else -- ``sale_mrp``'s kits do -- and asking the second
-        question through the first is how a component came to be priced as a
-        whole kit for every valuation caller that had no interest in kits.
-        """
         return self._get_price_unit()

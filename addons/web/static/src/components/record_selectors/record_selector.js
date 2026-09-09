@@ -73,9 +73,7 @@ export class RecordSelector extends BaseRecordSelector {
         return [];
     }
 
-    /**
-     * @param {number[]} resIds
-     */
+    /** @param {number[]} resIds */
     update(resIds) {
         this.props.update(resIds[0] || false);
     }

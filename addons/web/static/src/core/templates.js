@@ -55,26 +55,18 @@ export class TemplateRegistry {
         this.blockId = 0;
         /** @type {Set<string>} */
         this._inheritanceChain = new Set();
-        /**
-         * @type {Map<string, Set<string>>}
-         */
+        /** @type {Map<string, Set<string>>} */
         this._dependents = new Map();
-        /**
-         * @type {Set<string> | null}
-         */
+        /** @type {Set<string> | null} */
         this._currentSources = null;
     }
 
-    /**
-     * @param {string} name
-     */
+    /** @param {string} name */
     _recordSource(name) {
         this._currentSources?.add(name);
     }
 
-    /**
-     * @param {string} name
-     */
+    /** @param {string} name */
     _invalidateProcessed(name) {
         const stale = [name];
         const seen = new Set(stale);
@@ -210,9 +202,7 @@ export class TemplateRegistry {
         return processedTemplate;
     }
 
-    /**
-     * @param {string} name
-     */
+    /** @param {string} name */
     getTemplate(name) {
         if (!this.processedTemplates.has(name)) {
             log("compile", name);
@@ -340,17 +330,13 @@ export class TemplateRegistry {
         this._dependents.clear();
     }
 
-    /**
-     * @param {(document: Document) => void} processor
-     */
+    /** @param {(document: Document) => void} processor */
     registerTemplateProcessor(processor) {
         this.templateProcessors.push(processor);
         this._invalidateAllDerived();
     }
 
-    /**
-     * @param {string[]} namesToCheck
-     */
+    /** @param {string[]} namesToCheck */
     checkPrimaryTemplateParents(namesToCheck) {
         const missing = new Set(
             namesToCheck.filter((name) => !(name in this.templates)),
@@ -362,9 +348,7 @@ export class TemplateRegistry {
         }
     }
 
-    /**
-     * @param {((url: string) => boolean)[]} filters
-     */
+    /** @param {((url: string) => boolean)[]} filters */
     setUrlFilters(filters) {
         const prev = this.urlFilters;
         this.urlFilters = filters;
@@ -378,14 +362,10 @@ export class TemplateRegistry {
     }
 }
 
-/**
- * @type {TemplateRegistry}
- */
+/** @type {TemplateRegistry} */
 export const templates = globalSingleton("templates", () => new TemplateRegistry());
 
-/**
- * @param {string} name
- */
+/** @param {string} name */
 export function getTemplate(name) {
     return templates.getTemplate(name);
 }
@@ -408,23 +388,17 @@ export function registerTemplateExtension(inheritFrom, url, templateString) {
     return templates.registerTemplateExtension(inheritFrom, url, templateString);
 }
 
-/**
- * @param {(document: Document) => void} processor
- */
+/** @param {(document: Document) => void} processor */
 export function registerTemplateProcessor(processor) {
     return templates.registerTemplateProcessor(processor);
 }
 
-/**
- * @param {string[]} namesToCheck
- */
+/** @param {string[]} namesToCheck */
 export function checkPrimaryTemplateParents(namesToCheck) {
     return templates.checkPrimaryTemplateParents(namesToCheck);
 }
 
-/**
- * @param {((url: string) => boolean)[]} filters
- */
+/** @param {((url: string) => boolean)[]} filters */
 export function setUrlFilters(filters) {
     return templates.setUrlFilters(filters);
 }

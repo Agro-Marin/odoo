@@ -31,9 +31,7 @@ const NAMES = {
 const readable = (/** @type {[number, number][]} */ commands) =>
     commands.map(([code, id]) => `${NAMES[code]}:${id}`);
 
-/**
- * @param {{ resIds?: number[], limit?: number, deleted?: Set<number> }} [options]
- */
+/** @param {{ resIds?: number[], limit?: number, deleted?: Set<number> }} [options] */
 function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
     /** @type {any} */
     const model = {

@@ -127,9 +127,7 @@ export class PropertyValue extends Component {
         return currency && currency.id;
     }
 
-    /**
-     * @returns {object}
-     */
+    /** @returns {object} */
     get propertyValue() {
         const value = this.props.value;
 
@@ -192,9 +190,7 @@ export class PropertyValue extends Component {
         return value;
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get propertyDomain() {
         if (!this.props.domain || !this.props.domain.length) {
             return [];
@@ -209,9 +205,7 @@ export class PropertyValue extends Component {
         return domain.toList();
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get displayValue() {
         const value = this.propertyValue;
 
@@ -241,16 +235,12 @@ export class PropertyValue extends Component {
         return value.toString();
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get clickableRelational() {
         return !this.env.config || this.env.config.viewType !== "kanban";
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get showAvatar() {
         return (
             ["many2one", "many2many"].includes(this.props.type) &&
@@ -258,9 +248,7 @@ export class PropertyValue extends Component {
         );
     }
 
-    /**
-     * @param {object} newValue
-     */
+    /** @param {object} newValue */
     async onValueChange(newValue) {
         if (this.props.type === "datetime") {
             newValue = newValue && serializeDateTime(newValue);
@@ -316,9 +304,7 @@ export class PropertyValue extends Component {
         }
     }
 
-    /**
-     * @param {event} event
-     */
+    /** @param {event} event */
     async onMany2oneClick(event) {
         if (this.props.readonly) {
             event.stopPropagation();
@@ -334,18 +320,14 @@ export class PropertyValue extends Component {
         });
     }
 
-    /**
-     * @param {integer} many2manyId
-     */
+    /** @param {integer} many2manyId */
     onMany2manyDelete(many2manyId) {
         const currentValue = deepCopy(this.props.value || []);
         const newValue = currentValue.filter((value) => value[0] !== many2manyId);
         this.props.onChange(newValue);
     }
 
-    /**
-     * @param {string} name
-     */
+    /** @param {string} name */
     async onQuickCreate(name) {
         const result = await this.orm.call(this.props.comodel, "name_create", [name], {
             context: this.props.context,

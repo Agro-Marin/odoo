@@ -28,8 +28,8 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @property {boolean} [isTopStickyPinned]
  */
 /**
- * @template {Props} [P=Props]
- * @template {State} [S=State]
+ * @template {Props}
+ * @template {State}
  * @extends {Component<P, import("@web/env").OdooEnv>}
  */
 export class Chatter extends Component {

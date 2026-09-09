@@ -49,9 +49,7 @@ export function useEmojiPicker(
     return usePicker(EmojiPicker, ref, props, options);
 }
 
-/**
- * @type {WeakMap<Emoji, string[]>}
- */
+/** @type {WeakMap<Emoji, string[]>} */
 const searchStringsByEmoji = new WeakMap();
 
 /**
@@ -74,9 +72,7 @@ function getEmojiSearchStrings(emoji) {
 
 export const loader = reactive({
     loadEmoji: () => loadBundle("web.assets_emoji"),
-    /**
-     * @type {{ emojiValueToShortcodes: {[key: string]: string[]}, emojiRegex: RegExp } | undefined}
-     */
+    /** @type {{ emojiValueToShortcodes: {[key: string]: string[]}, emojiRegex: RegExp } | undefined} */
     loaded: undefined,
 });
 
@@ -148,9 +144,7 @@ export class EmojiPicker extends Component {
     ui;
     /** @type {boolean} */
     isMobileOS;
-    /**
-     * @type {{activeEmojiIndex: number, categoryId: number | null, searchTerm: string, emojiNavbarRepr: any[][] | undefined}}
-     */
+    /** @type {{activeEmojiIndex: number, categoryId: number | null, searchTerm: string, emojiNavbarRepr: any[][] | undefined}} */
     state;
     /** @type {any} */
     frequentEmojiService;
@@ -160,9 +154,7 @@ export class EmojiPicker extends Component {
     emojis;
     /** @type {{[key: string]: Emoji}} */
     emojiByCodepoints;
-    /**
-     * @type {Map<string, {name: string, displayName: string, sortId: number, title?: string}>}
-     */
+    /** @type {Map<string, {name: string, displayName: string, sortId: number, title?: string}>} */
     categoryByName;
     /** @type {Emoji[] | undefined} */
     _recentEmojis;
@@ -193,9 +185,7 @@ export class EmojiPicker extends Component {
     /** @type {string | undefined} */
     lastSearchTerm;
     keyboardNavigated = false;
-    /**
-     * @type {number[][]}
-     */
+    /** @type {number[][]} */
     emojiMatrix = [];
 
     setup() {
@@ -457,9 +447,7 @@ export class EmojiPicker extends Component {
         return this.hoveredEmoji?.shortcodes.join(" ") ?? _t("Search emoji");
     }
 
-    /**
-     * @param {Emoji|undefined} emoji
-     */
+    /** @param {Emoji|undefined} emoji */
     setHoveredEmoji(emoji) {
         if (this.hoveredEmoji === emoji) {
             return;
@@ -694,10 +682,7 @@ export class EmojiPicker extends Component {
 }
 
 class MobilePickerHost {
-    /**
-     * @param {{ PickerComponent: any, component: any, addDialog: Function,
-     *   state: { isOpen: boolean }, props: Record<string, any> }} deps
-     */
+    /** @param {{ PickerComponent: any, component: any, addDialog: Function, */
     constructor({ PickerComponent, component, addDialog, state, props }) {
         this.PickerComponent = PickerComponent;
         this.component = component;

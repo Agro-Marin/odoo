@@ -42,9 +42,7 @@ export class Notebook extends Component {
     state;
     /** @type {string[]} */
     disabledPages;
-    /**
-     * @type {boolean | undefined}
-     */
+    /** @type {boolean | undefined} */
     defaultVisible;
 
     setup() {
@@ -95,9 +93,7 @@ export class Notebook extends Component {
         return page.Component ? page : undefined;
     }
 
-    /**
-     * @param {string} pageId
-     */
+    /** @param {string} pageId */
     async activatePage(pageId) {
         const exists = this.pages.some(([id]) => id === pageId);
         if (
@@ -124,9 +120,7 @@ export class Notebook extends Component {
         }
     }
 
-    /**
-     * @param {Object} props
-     */
+    /** @param {Object} props */
     readPages(props) {
         const { pages, disabledPages } = this.computePages(props);
         this.pages = pages;

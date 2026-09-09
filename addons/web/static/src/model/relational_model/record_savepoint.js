@@ -3,17 +3,11 @@
 
 import { isX2Many } from "@web/core/field_types";
 
-/** @import { RecordContract } from "@web/model/relational_model/record_contract" */
-
-/**
- * @typedef {RecordContract} ConstructedRecord
- */
+/** @typedef {RecordContract} ConstructedRecord */
 
 export { createSavePoint } from "./record_edit_state.js";
 
-/**
- * @param {ConstructedRecord} record
- */
+/** @param {ConstructedRecord} record */
 export function addSavePoint(record) {
     record.snapshotEditState();
     for (const fieldName of Object.keys(record.changes)) {
@@ -31,9 +25,7 @@ export function restoreFromSavePoint(record) {
     return record.restoreEditState();
 }
 
-/**
- * @param {ConstructedRecord} record
- */
+/** @param {ConstructedRecord} record */
 export function discard(record) {
     for (const fieldName of Object.keys(record.changes)) {
         if (isX2Many(record.fields[fieldName])) {

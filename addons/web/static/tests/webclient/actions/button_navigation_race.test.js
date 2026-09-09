@@ -34,12 +34,6 @@ class SlowDestinationAction extends Component {
     }
 }
 
-/**
- * Registered per test, not at module scope: the framework snapshots the registry
- * in a global `beforeEach` (tests/_framework/env_test_helpers.js), so a
- * module-scope add is already present when the first snapshot is taken and
- * survives every restore, leaking into every suite that runs after this file.
- */
 beforeEach(() => {
     registry.category("actions").add("test_destination", DestinationAction);
     registry.category("actions").add("test_slow_destination", SlowDestinationAction);

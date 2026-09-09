@@ -32,7 +32,6 @@ class TestProjectHrExpenseProfitability(
 ):
     def test_project_profitability(self):
         self.project.company_id = False
-        # Create a new company with the foreign currency.
         foreign_company = self.company_data_2["company"]
         foreign_company.currency_id = self.foreign_currency
         foreign_employee = (
@@ -76,7 +75,6 @@ class TestProjectHrExpenseProfitability(
             "No data should be found since the expenses are not posted.",
         )
 
-        # Create an expense in a foreign company, the expense is linked to the AA of the project.
         expense_foreign = self.create_expenses(
             {
                 "name": "Car Travel Expenses foreign",
@@ -97,7 +95,6 @@ class TestProjectHrExpenseProfitability(
         self.post_expenses_with_wizard(expense)
         self.assertEqual(expense.state, "posted")
 
-        # Both costs should now be computed in the project profitability, since both expenses were posted
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -121,7 +118,6 @@ class TestProjectHrExpenseProfitability(
             },
         )
 
-        # Reset to approved the expense of the main company. Only the total from the foreign company should be computed
         expense.account_move_id.action_draft()
         expense.account_move_id.unlink()
         self.assertEqual(expense.state, "approved")
@@ -146,7 +142,6 @@ class TestProjectHrExpenseProfitability(
             },
         )
 
-        # Reset to approved the expense of the foreign company. No data should be computed now.
         expense_foreign.account_move_id.action_draft()
         expense_foreign.account_move_id.unlink()
         self.assertEqual(expense_foreign.state, "approved")

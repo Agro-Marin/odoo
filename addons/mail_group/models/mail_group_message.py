@@ -11,12 +11,6 @@ _logger = logging.getLogger(__name__)
 
 
 class MailGroupMessage(models.Model):
-    """Emails belonging to a discussion group.
-
-    Those are build on <mail.message> with additional information related to specific
-    features of <mail.group> like better parent / children management and moderation.
-    """
-
     _name = "mail.group.message"
     _description = "Mailing List Message"
     _rec_name = "subject"
@@ -144,10 +138,6 @@ class MailGroupMessage(models.Model):
         return vals_list
 
     def action_moderate_accept(self):
-        """Accept the incoming email.
-
-        Will send the incoming email to all members of the group.
-        """
         self._assert_moderable()
         self.write(
             {
@@ -196,7 +186,6 @@ class MailGroupMessage(models.Model):
         same_author.action_moderate_reject()
 
     def _get_pending_same_author_same_group(self):
-        """Return the pending messages of the same authors in the same groups."""
         return self.search(
             Domain.OR(
                 [
@@ -211,11 +200,6 @@ class MailGroupMessage(models.Model):
         )
 
     def _create_moderation_rule(self, status):
-        """Create a moderation rule <mail.group.moderation> with the given status.
-
-        Update existing moderation rule for the same email address if found,
-        otherwise create a new rule.
-        """
         if status not in ("ban", "allow"):
             raise ValueError(_("Wrong status (%s)", status))
 
@@ -255,11 +239,6 @@ class MailGroupMessage(models.Model):
         )
 
     def _assert_moderable(self):
-        """Raise an error if one of the current message can not be moderated.
-
-        A <mail.group.message> can only be moderated
-        if it's moderation status is "pending_moderation".
-        """
         non_moderable_messages = self.filtered_domain(
             [
                 ("moderation_status", "!=", "pending_moderation"),

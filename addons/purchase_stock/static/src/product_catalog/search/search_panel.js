@@ -39,14 +39,14 @@ export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSear
     }
     onDaysInput(ev) {
         const value = parseInt(ev.target.value, 10) || 0;
-        const boundedVal = clamp(value, 0, 999); // 999 because input is 3 digits wide
+        const boundedVal = clamp(value, 0, 999);
         this.suggest.numberOfDays = boundedVal;
         ev.target.value = boundedVal;
         this.debouncedReloadKanban();
     }
     onPercentFactorInput(ev) {
         const value = parseInt(ev.target.value, 10) || 0;
-        const boundedVal = clamp(value, 0, 999); // 999 because input is 3 digits wide
+        const boundedVal = clamp(value, 0, 999);
         this.suggest.percentFactor = boundedVal;
         ev.target.value = boundedVal;
         this.debouncedReloadKanban();
@@ -70,7 +70,6 @@ export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSear
         };
     }
 
-    /* Emulate the behavior of input click from standard forms, list ... on custom inputs */
     selectAllOnClick(ev) {
         const el = ev.currentTarget;
         if (el.disabled || el.readOnly) {

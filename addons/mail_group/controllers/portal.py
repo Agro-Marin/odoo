@@ -22,7 +22,6 @@ class PortalMailGroup(http.Controller):
         return [("moderation_status", "!=", "rejected")]
 
     def _get_archives(self, group_id):
-        """Return the different date range and message count for the group messages."""
         domain = Domain.AND(
             [self._get_website_domain(), [("mail_group_id", "=", group_id)]]
         )
@@ -268,11 +267,6 @@ class PortalMailGroup(http.Controller):
         csrf=False,
     )
     def group_unsubscribe_oneclick(self, group_id, token, email):
-        """Unsubscribe ``email`` from the group, over rfc8058's one-click header.
-
-        POST only, so that an anti-spam probe following the link cannot
-        unsubscribe anybody.
-        """
         group_sudo = request.env["mail.group"].sudo().browse(group_id).exists()
         if group_sudo and token and email:
             correct_token = group_sudo._generate_email_access_token(email)
@@ -285,11 +279,6 @@ class PortalMailGroup(http.Controller):
 
     @http.route("/group/subscribe", type="jsonrpc", auth="public", website=True)
     def group_subscribe(self, group_id=0, email=None, token=None, **kw):
-        """Subscribe the logged user, or ``email`` when the caller is public.
-
-        :return: ``'added'``, ``'email_sent'`` when a public caller must confirm
-            by email, or ``'is_already_member'``
-        """
         group_sudo, is_member, partner_id = self._group_subscription_get_group(
             group_id, email, token
         )
@@ -306,11 +295,6 @@ class PortalMailGroup(http.Controller):
 
     @http.route("/group/unsubscribe", type="jsonrpc", auth="public", website=True)
     def group_unsubscribe(self, group_id=0, email=None, token=None, **kw):
-        """Unsubscribe the logged user, or ``email`` when the caller is public.
-
-        :return: ``'removed'``, ``'email_sent'`` when a public caller must
-            confirm by email, or ``'is_not_member'``
-        """
         group_sudo, is_member, partner_id = self._group_subscription_get_group(
             group_id, email, token
         )
@@ -326,11 +310,6 @@ class PortalMailGroup(http.Controller):
         return "email_sent"
 
     def _group_subscription_get_group(self, group_id, email, token):
-        """Return ``(group_sudo, is_member, partner_id)``.
-
-        :raise NotFound: the group does not exist, the token does not match it,
-            or the caller may not read it
-        """
         group = request.env["mail.group"].browse(int(group_id)).exists()
         if not group:
             raise werkzeug.exceptions.NotFound()

@@ -10,9 +10,7 @@ import { browser } from "@web/core/browser/browser";
 
 const STORAGE_KEY = "o-barcode-scanner-overlay";
 
-/**
- * @param {{ onResize?: Function }} [hooks]
- */
+/** @param {{ onResize?: Function }} [hooks] */
 function makeHost({ onResize = () => {} } = {}) {
     class Host extends Component {
         static props = ["*"];

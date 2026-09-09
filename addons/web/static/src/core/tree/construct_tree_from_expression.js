@@ -5,9 +5,6 @@
 /** @typedef {import("../py_js/ast_type.js").ASTName} ASTName */
 /** @typedef {import("../py_js/ast_type.js").ASTBinaryOperator} ASTBinaryOperator */
 /** @typedef {import("../py_js/ast_type.js").ASTFunctionCall} ASTFunctionCall */
-/**
- * @import { Tree, Condition, ComplexCondition, Options } from "@web/core/tree/condition_tree"
- */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { isNot, isValidPath, not } from "@web/core/tree/ast_utils";

@@ -144,9 +144,7 @@ export const browser =
         browserImpl
     );
 
-/**
- * @returns {typeof window["localStorage"]}
- */
+/** @returns {typeof window["localStorage"]} */
 function makeRAMLocalStorage() {
     /** @type {{[key: string]: string}} */
     let store = Object.create(null);

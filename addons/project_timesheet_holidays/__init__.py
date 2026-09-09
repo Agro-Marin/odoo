@@ -2,10 +2,6 @@ from . import models
 
 
 def post_init(env):
-    """Set the timesheet project and task on existing leave type. Do it in post_init to
-    be sure the internal project/task of res.company are set. (Since timesheet_generate field
-    is true by default, those 2 fields are required on the leave type).
-    """
     type_ids_ref = env.ref(
         "hr_timesheet.internal_project_default_stage", raise_if_not_found=False
     )

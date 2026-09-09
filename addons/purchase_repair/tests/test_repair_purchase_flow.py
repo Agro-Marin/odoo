@@ -11,13 +11,6 @@ class TestRepairPurchaseFlow(PurchaseTestCommon):
         super().setUpClass()
 
     def test_repair_with_purchase_mto_link(self):
-        """
-        Test the integration between a repair order and a purchase order (MTO)
-        for a product with 'Make to Order' (MTO) and 'Buy' routes.
-
-        Validates that a repair order triggers a purchase order with correct product
-        and quantity, and ensures proper linking via the procurement group.
-        """
         self.route_mto.active = True
         rule = self.route_mto.rule_ids.filtered(
             lambda r: r.picking_type_id.code == "repair_operation"

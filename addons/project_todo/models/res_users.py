@@ -10,11 +10,6 @@ class ResUsers(models.Model):
 
     @api.model
     def _activity_bucket_subkeys(self, model_name, res_ids):
-        """Split the systray's ``project.task`` entry into "Task" and "To-Do".
-
-        A to-do *is* a ``project.task`` with no project, so the base's one
-        group per model would count both together.
-        """
         if model_name != "project.task":
             return super()._activity_bucket_subkeys(model_name, res_ids)
         tasks = self.env["project.task"].browse(res_ids).with_context(active_test=False)
@@ -33,10 +28,6 @@ class ResUsers(models.Model):
         group["icon"] = modules.Manifest.for_addon(
             "project_todo" if is_todo else "project"
         ).icon
-        # Plain id membership, like the base's own group domain, but narrowed:
-        # both halves share project.task's domain and would otherwise open the
-        # same list. A traversal through ``activity_ids`` would re-apply that
-        # comodel's active test and silently drop records the badge counted.
         group["domain"] = [
             ("active", "in", [True, False]),
             ("id", "in", res_ids),
@@ -70,9 +61,6 @@ class ResUsers(models.Model):
                 }
             )
         if create_vals:
-            # clean_context, not a bare dict: the onboarding to-do must not
-            # inherit a ``default_project_id`` from whatever created the user,
-            # but it does want the environment's language and company scope.
             self.env["project.task"].with_user(SUPERUSER_ID).with_context(
                 clean_context(self.env.context),
                 mail_auto_subscribe_no_notify=True,

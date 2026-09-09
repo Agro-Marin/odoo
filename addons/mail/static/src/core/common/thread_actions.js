@@ -10,12 +10,8 @@ export const threadActionsRegistry = registry.category("mixin.mail.thread/action
 
 /** @typedef {import("@odoo/owl").Component} Component */
 /** @typedef {import("models").Thread} Thread */
-/**
- * @typedef {Component & { threadActions?: UseThreadActions, isDiscussSidebarChannelActions?: boolean, isDiscussContent?: boolean, root?: {el?: HTMLElement|null}, state?: Object, thread?: Thread, close?: () => void, toggleFold?: () => void, }} ThreadActionOwner
- */
-/**
- * @typedef {import("@mail/core/common/action").ActionDefinition<ThreadActionOwner, ActionParams, ThreadAction>} ActionDefinition
- */
+/** @typedef {Component & { threadActions?: UseThreadActions, isDiscussSidebarChannelActions?: boolean, isDiscussContent?: boolean, root?: {el?: HTMLElement|null}, state?: Object, thread?: Thread, close?: () => void, toggleFold?: () => void, }} ThreadActionOwner */
+/** @typedef {import("@mail/core/common/action").ActionDefinition<ThreadActionOwner, ActionParams, ThreadAction>} ActionDefinition */
 /** @typedef {import("@mail/core/common/action").ActionParams<ThreadActionOwner> & { action: ThreadAction, thread: Thread }} ActionParams */
 /**
  * @typedef {Object} ThreadActionSpecificDefinition
@@ -28,9 +24,7 @@ export const threadActionsRegistry = registry.category("mixin.mail.thread/action
  * @property {string|((this: ThreadAction, params: ActionParams) => string)} [panelOuterClass]
  * @property {boolean} [toggle]
  */
-/**
- * @typedef {ActionDefinition & ThreadActionSpecificDefinition} ThreadActionDefinition
- */
+/** @typedef {ActionDefinition & ThreadActionSpecificDefinition} ThreadActionDefinition */
 /**
  * @param {string} id
  * @param {ThreadActionDefinition} definition
@@ -108,9 +102,7 @@ registerThreadAction("search-messages", {
 });
 /** @extends {Action<ThreadActionOwner, ThreadActionDefinition>} */
 export class ThreadAction extends Action {
-    /**
-     * @type {import("@web/ui/popover/popover_hook").PopoverHookReturnType|null}
-     */
+    /** @type {import("@web/ui/popover/popover_hook").PopoverHookReturnType|null} */
     popover = null;
     /** @type {() => Thread} */
     threadFn;

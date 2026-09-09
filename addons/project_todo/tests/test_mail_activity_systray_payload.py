@@ -6,10 +6,6 @@ from odoo.tools import json as ojson
 
 
 class TestActivitySystrayPayload(TransactionCase):
-    """The To-Do/Task split is two buckets over one model, so every guarantee
-    the base gives a single-bucket model has to survive the split.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -47,10 +43,6 @@ class TestActivitySystrayPayload(TransactionCase):
         return {g["name"]: g for g in groups if g.get("model") == "project.task"}
 
     def test_payload_is_json_serialisable(self):
-        """A stray Python set does not raise here — json_default stringifies it —
-        so the browser silently receives ``"{1, 2, 3}"``. Assert on the encoder
-        the response really uses.
-        """
         self._todo("serialisable")
         groups = self._groups()
         self.assertTrue(groups)
@@ -76,10 +68,6 @@ class TestActivitySystrayPayload(TransactionCase):
             self.assertIsInstance(group["domain"], list)
 
     def test_badge_and_the_list_it_opens_agree(self):
-        """Including when an activity has been archived: a traversal through
-        ``activity_ids`` re-applies that model's active test and drops records
-        the badge just counted.
-        """
         tasks = [self._todo(f"agree {i}") for i in range(3)]
         self.env["mail.activity"].search([("res_id", "=", tasks[0].id)]).active = False
         self.env.flush_all()
@@ -102,7 +90,6 @@ class TestActivitySystrayPayload(TransactionCase):
                     )
 
     def test_unreadable_tasks_are_not_counted(self):
-        """The base filters through record rules; raw SQL does not."""
         other = new_test_user(self.env, login="systray_other", groups="base.group_user")
         hidden = self._todo("not yours", user=other)
         self.env.flush_all()
@@ -111,7 +98,6 @@ class TestActivitySystrayPayload(TransactionCase):
             groups,
             "an activity on a task this user cannot read must not raise a badge",
         )
-        # and the owner does see it
         self.assertEqual(self._groups(user=other)["To-Do"]["due_count"], 1)
         self.assertTrue(hidden.exists())
 
@@ -168,8 +154,6 @@ class TestActivitySystrayPayload(TransactionCase):
         self.assertFalse(groups["Task"]["is_todo"])
 
     def test_group_order_is_stable(self):
-        """Both groups carry the same ir.model id, so the client's sort-by-id is
-        a tie: the server has to decide the order, not the query planner."""
         self._todo("ordered todo")
         project = self.env["project.project"].create({"name": "Ordered"})
         task = self.env["project.task"].create(
@@ -201,13 +185,6 @@ class TestActivitySystrayPayload(TransactionCase):
             self.assertEqual(names, ["Task", "To-Do"])
 
     def test_the_split_counts_under_the_same_cap_as_every_other_group(self):
-        """The cap bounds ACTIVITIES, and must not quietly bound tasks here.
-
-        The split used to run its own query, which grouped by task before
-        applying the limit -- so the Task badge was capped at N tasks while
-        every other badge in the same systray was capped at N activities, and
-        the two disagreed on identical data (1 against 3 at a cap of 5).
-        """
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.activity.systray.limit", "5"
         )
@@ -244,13 +221,8 @@ class TestActivitySystrayPayload(TransactionCase):
         self.assertEqual(split, unsplit["project.task"])
 
     def test_the_split_reads_the_deadline_in_the_assignee_timezone(self):
-        """The base buckets on ``mail.activity.state``, which uses the stored
-        ``user_tz``. The split used to compute its own ``today`` from
-        ``context_today``, so an explicit context timezone moved a deadline
-        between buckets and the badge disagreed with the activity view.
-        """
-        self.user.tz = "Pacific/Kiritimati"  # UTC+14
-        elsewhere = "Pacific/Midway"  # UTC-11, a day behind
+        self.user.tz = "Pacific/Kiritimati"
+        elsewhere = "Pacific/Midway"
         today_elsewhere = fields.Date.context_today(
             self.env["res.users"].with_context(tz=elsewhere)
         )

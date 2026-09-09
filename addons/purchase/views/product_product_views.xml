@@ -71,7 +71,6 @@
         </field>
     </record>
 
-    <!-- Product catalog -->
     <record id="view_product_product_kanban_catalog_purchase_only" model="ir.ui.view">
         <field name="name">product.view.kanban.catalog.purchase</field>
         <field name="model">product.product</field>

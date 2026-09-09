@@ -2,9 +2,7 @@
 
 import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
 
-/**
- * @param {typeof serverState} serverState
- */
+/** @param {typeof serverState} serverState */
 export const makeSession = ({
     companies,
     db,

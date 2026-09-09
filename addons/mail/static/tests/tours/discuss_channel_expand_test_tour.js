@@ -1,11 +1,6 @@
 import { registry } from "@web/core/registry";
 
-/**
- * This tour depends on data created by python test in charge of launching it.
- * It is not intended to work when launched from interface. It is needed to test
- * an action (action manager) which is not possible to test with hoot.
- * @see mail/tests/test_discuss_channel_expand.py
- */
+/** @see mail/tests/test_discuss_channel_expand.py */
 registry
     .category("web_tour.tours")
     .add("mail/static/tests/tours/discuss_channel_expand_test_tour.js", {

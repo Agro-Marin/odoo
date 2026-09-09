@@ -21,9 +21,7 @@ export class VoiceMessageService {
 }
 
 export const voiceMessageService = {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     start(env) {
         return new VoiceMessageService(env);
     },

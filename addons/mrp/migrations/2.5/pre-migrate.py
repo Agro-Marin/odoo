@@ -64,11 +64,6 @@ def migrate(cr, version):
     adopt_xmlids(cr, FROM_MODULE, MODULE, ADOPTED)
     remove_xmlid_records(cr, FROM_MODULE, DROPPED)
 
-    # The absorbed module's install hook had linked the readonly tier to every
-    # server action on an mrp model that mrp.group_mrp_user may run -- split,
-    # merge, mark done, lock, scrap, start and pause: all writes. Nothing
-    # declares those links now, so nothing re-applies them; the rows a database
-    # already holds are the hook's residue and go with it.
     cr.execute(
         SQL(
             """

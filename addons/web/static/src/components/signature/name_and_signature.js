@@ -188,9 +188,7 @@ export class NameAndSignature extends Component {
         this.props.onSignatureChange(this.state.signMode);
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     getCleanedName() {
         const text = (this.props.signature.name ?? "").replaceAll("\u00a0", " ");
         if (this.props.signatureType === "initial" && text) {
@@ -285,9 +283,7 @@ export class NameAndSignature extends Component {
         this.drawCurrentName();
     }
 
-    /**
-     * @param {string} imgSrc
-     */
+    /** @param {string} imgSrc */
     async printImage(imgSrc) {
         this.clear();
         const c = this.signaturePad.canvas;
@@ -359,9 +355,7 @@ export class NameAndSignature extends Component {
         this.props.onSignatureChange(this.state.signMode);
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isSignatureEmpty() {
         return !this.hasPaintedImage && this.signaturePad.isEmpty();
     }

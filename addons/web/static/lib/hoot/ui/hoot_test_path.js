@@ -7,15 +7,7 @@ import { HootCopyButton } from "./hoot_copy_button.js";
 import { HootLink } from "./hoot_link.js";
 import { HootTagButton } from "./hoot_tag_button.js";
 
-/**
- * @typedef {{
- *  canCopy?: boolean;
- *  full?: boolean;
- *  inert?: boolean;
- *  showStatus?: boolean;
- *  test: Test;
- * }} HootTestPathProps
- */
+/** @typedef {{ */
 
 /** @extends {Component<HootTestPathProps, import("../hoot").Environment>} */
 export class HootTestPath extends Component {
@@ -122,9 +114,7 @@ export class HootTestPath extends Component {
         }
     }
 
-    /**
-     * @param {import("../core/suite").Suite} suite
-     */
+    /** @param {import("../core/suite").Suite} suite */
     getSuiteInfo(suite) {
         let suites = 0;
         let tests = 0;

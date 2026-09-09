@@ -25,15 +25,6 @@ class TestEmployee(TransactionCase):
 
     @freeze_time("2020-01-01")
     def test_create_employee(self):
-        """Test the timesheets representing the time off of this new employee
-        is correctly generated once the employee is created
-
-        Test Case:
-        =========
-        1) Create a new employee
-        2) Check the timesheets representing the time off of this new employee
-           is correctly generated
-        """
         existing_employee = self.env["hr.employee"].create(
             {
                 "name": "Test Employee",
@@ -63,7 +54,6 @@ class TestEmployee(TransactionCase):
                 "resource_calendar_id": self.company.resource_calendar_id.id,
             }
         )
-        # Check resource-specific leave does not create a timesheet
         resource_timesheet = self.env["account.analytic.line"].search(
             [
                 ("employee_id", "=", employee.id),
@@ -97,7 +87,6 @@ class TestEmployee(TransactionCase):
             "The timesheet should be created for the correct duration",
         )
 
-        # simulate the company of the employee updated is not in the allowed_company_ids of the current user
         employee2 = (
             self.env["hr.employee"]
             .with_company(self.env.company)
@@ -133,18 +122,6 @@ class TestEmployee(TransactionCase):
 
     @freeze_time("2020-01-01")
     def test_write_employee(self):
-        """Test the timesheets representing the time off of this employee
-        is correctly generated once the employee is updated
-
-        Test Case:
-        =========
-        1) Create a new employee
-        2) Check the timesheets representing the time off of this new employee
-           is correctly generated
-        3) Update the employee
-        4) Check the timesheets representing the time off of this employee
-           is correctly updated
-        """
         employee = self.env["hr.employee"].create(
             {
                 "name": "Test Employee",
@@ -209,7 +186,6 @@ class TestEmployee(TransactionCase):
             "The timesheet should be created for the correct duration",
         )
 
-        # test unarchiving on an already active employee does not create duplicate public leaves
         employee.write({"active": True})
         timesheet = self.env["account.analytic.line"].search(
             [
@@ -223,7 +199,6 @@ class TestEmployee(TransactionCase):
             "We should not have created duplicate public holiday leaves",
         )
 
-        # simulate the company of the employee updated is not in the allowed_company_ids of the current user
         employee.with_company(self.env.company).write(
             {"resource_calendar_id": self.company.resource_calendar_id.id}
         )

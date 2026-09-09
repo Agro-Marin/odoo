@@ -38,9 +38,6 @@
     </t>
 
     <t t-name="sale_pdf_quote_builder.section">
-        <!-- Context:
-            - section: The Object describing the section, its documents, and custom form fields.
-        -->
         <t t-set="id" t-value="section.id or section.name"/>
         <div class="mb-4">
             <div class="mb-2">

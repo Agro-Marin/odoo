@@ -33,9 +33,7 @@ function makeList() {
     return { list, applied };
 }
 
-/**
- * @param {{ resId: number | false, virtualId: string | false }} ids
- */
+/** @param {{ resId: number | false, virtualId: string | false }} ids */
 function makeRecord({ resId, virtualId }) {
     return {
         id: "datapoint_1",

@@ -15,9 +15,7 @@ beforeEach(() => {
     });
 });
 
-/**
- * @param {{ onClose?: () => any }} options
- */
+/** @param {{ onClose?: () => any }} options */
 function makeFakePopover(options) {
     let open = false;
     return {
@@ -65,9 +63,7 @@ function createController(params = {}, opts = {}) {
     return { controller, dateTimePickerList, getPopover: () => popover };
 }
 
-/**
- * @param {number} count
- */
+/** @param {number} count */
 function makeInputs(count = 1) {
     const fixture = getFixture();
     const inputs = [];

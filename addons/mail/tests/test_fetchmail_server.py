@@ -748,9 +748,6 @@ class TestFetchmailPolling(FetchmailCommon):
         self.assertEqual(captured, [["p1", "p2", "p3"]])
 
     def test_teardown_time_is_reserved_from_the_cron_budget_not_added_to_it(self):
-        """The deadline handed to the servers used to be the cron's plus one
-        teardown budget per server, so the poll overran the cron by exactly the
-        time it was meant to keep in hand."""
         Server = self.env["fetchmail.server"]
         Server.create(
             [

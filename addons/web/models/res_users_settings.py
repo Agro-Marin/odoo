@@ -42,7 +42,6 @@ class ResUsersSettings(models.Model):
 
     @api.model
     def _normalize_homemenu_config(self, value: Any) -> dict[str, Any] | None:
-        """Read legacy layouts without treating an explicit empty layout as absent."""
         if isinstance(value, str):
             try:
                 value = json.loads(value)
@@ -70,7 +69,6 @@ class ResUsersSettings(models.Model):
         return result
 
     def update_homemenu_config(self, changes: list[dict[str, Any]]) -> dict[str, Any]:
-        """Apply idempotent edits to the latest layout, preserving other tabs' pins."""
         self.check_singleton()
         self.check_access("write")
         if self.user_id != self.env.user:
@@ -80,8 +78,6 @@ class ResUsersSettings(models.Model):
         try:
             self.lock_for_update()
         except LockError as error:
-            # The backend uses SKIP LOCKED. Retry the whole transaction with a
-            # fresh snapshot rather than losing the competing tab's edit.
             raise ConcurrencyError("Concurrent launcher customization") from error
         self.invalidate_recordset(["homemenu_config"])
         config = self._normalize_homemenu_config(self.homemenu_config)
@@ -103,7 +99,6 @@ class ResUsersSettings(models.Model):
                     not isinstance(v, str) or not v for v in values
                 ):
                     raise ValidationError(self.env._("Invalid launcher order."))
-                # A stale reorder cannot remove another tab's newly pinned apps.
                 requested = list(dict.fromkeys(values))
                 if key == "pinned":
                     requested = [item for item in requested if item in config[key]]

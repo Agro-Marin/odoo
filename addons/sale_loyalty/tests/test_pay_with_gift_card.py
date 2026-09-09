@@ -100,7 +100,6 @@ class TestPayWithGiftCard(TestSaleCouponCommonWithCode10pc):
         self.assertEqual(order.amount_total, before_gift_card_payment - 200)
 
     def test_paying_with_gift_card_and_discount(self):
-        # Test that discounts take precedence on payment rewards
         self.env["loyalty.generate.wizard"].with_context(
             active_id=self.program_gift_card.id
         ).create(
@@ -128,12 +127,10 @@ class TestPayWithGiftCard(TestSaleCouponCommonWithCode10pc):
         self._apply_promo_code(order, gift_card_1.code)
         self.assertEqual(order.amount_total, 50)
         self._apply_promo_code(order, "test_10pc")
-        # real flows also have to update the programs and rewards
         order._update_programs_and_rewards()
-        self.assertEqual(order.amount_total, 40)  # 100 - 10% - 50
+        self.assertEqual(order.amount_total, 40)
 
     def test_paying_with_gift_card_blocking_discount(self):
-        # Test that a payment program making the order total 0 still allows the user to claim discounts
         self.env["loyalty.generate.wizard"].with_context(
             active_id=self.program_gift_card.id
         ).create(
@@ -161,9 +158,8 @@ class TestPayWithGiftCard(TestSaleCouponCommonWithCode10pc):
         self._apply_promo_code(order, gift_card_1.code)
         self.assertEqual(order.amount_total, 0)
         self._apply_promo_code(order, "test_10pc")
-        # real flows also have to update the programs and rewards
         order._update_programs_and_rewards()
-        self.assertEqual(order.amount_total, 0)  # 100 - 10% - 90
+        self.assertEqual(order.amount_total, 0)
 
     def test_gift_card_product_has_no_taxes_on_creation(self):
         gift_card_program = self.env["loyalty.program"].create(
@@ -222,7 +218,6 @@ class TestPayWithGiftCard(TestSaleCouponCommonWithCode10pc):
         ).generate_coupons()
         gift_card = self.program_gift_card.coupon_ids[0]
 
-        # TAX EXCL
         self.program_gift_card.reward_ids.discount_line_product_id.taxes_id = [
             Command.link(self.tax_15pc_excl.id)
         ]
@@ -233,8 +228,7 @@ class TestPayWithGiftCard(TestSaleCouponCommonWithCode10pc):
         self.assertTrue(all(line.tax_ids for line in order.line_ids))
         self.assertEqual(order.line_ids.tax_ids, self.tax_15pc_excl)
 
-        # TAX INCL
-        gift_card_line.unlink()  # Remove gift card
+        gift_card_line.unlink()
         self.program_gift_card.reward_ids.discount_line_product_id.taxes_id = [
             Command.set(self.tax_10pc_incl.ids)
         ]
@@ -245,8 +239,7 @@ class TestPayWithGiftCard(TestSaleCouponCommonWithCode10pc):
         self.assertTrue(all(line.tax_ids for line in order.line_ids))
         self.assertEqual(gift_card_line.tax_ids, self.tax_10pc_incl)
 
-        # TAX INCL + TAX EXCL
-        gift_card_line.unlink()  # Remove gift card
+        gift_card_line.unlink()
         self.program_gift_card.reward_ids.discount_line_product_id.taxes_id = [
             Command.link(self.tax_15pc_excl.id)
         ]
@@ -260,7 +253,6 @@ class TestPayWithGiftCard(TestSaleCouponCommonWithCode10pc):
         )
 
     def test_paying_with_gift_card_fixed_tax(self):
-        """Test payment of sale order with fixed tax using gift card"""
         self.env["loyalty.generate.wizard"].with_context(
             active_id=self.program_gift_card.id
         ).create(

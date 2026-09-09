@@ -28,12 +28,6 @@
             <field
                 name="comment">Users in this group can unlock locked purchase orders</field>
         </record>
-        <!--
-            Read-only is the lowest rung, implied by "User: All Documents" and
-            not by "Own Documents Only": the tier's read rules OR with the
-            buyer's personal rule, so a narrower rung implying it would read
-            every order. Gates spell `group_purchase_user,group_purchase_readonly`.
-        -->
         <record id="group_purchase_readonly" model="res.groups">
             <field name="name">Read-only</field>
             <field name="sequence">5</field>

@@ -21,7 +21,6 @@ export class CustomContentKanbanLikeWidget extends Component {
             footers: {},
         });
 
-        // Initialize the state and update available documents when updating the quotation template.
         useEffect(
             () => {
                 this.updateState();
@@ -29,12 +28,11 @@ export class CustomContentKanbanLikeWidget extends Component {
             () => [this.props.record.data.sale_order_template_id],
         );
 
-        // Make quotation tab readonly on confirmation
         useEffect(
             (saleOrderState) => {
                 if (saleOrderState === "sale") {
                     this.props.readonly = true;
-                    this.props.record.save(); // trigger refresh to update form
+                    this.props.record.save();
                 }
             },
             () => [this.props.record.data.state],
@@ -42,9 +40,8 @@ export class CustomContentKanbanLikeWidget extends Component {
     }
 
     async updateState() {
-        const saved = await this.props.record.save(); // To display documents of potentially unsaved SOL.
+        const saved = await this.props.record.save();
         if (saved) {
-            // do not fetch wrong form data if record was not saved.
             const { headers, lines, footers } = await this.orm.call(
                 "sale.order",
                 "get_update_included_pdf_params",
@@ -131,9 +128,6 @@ export class CustomContentKanbanLikeWidget extends Component {
         const sol = this.props.record.data.line_ids.records.find(
             (sol) => sol.resId === lineId,
         );
-        // `save` keeps the onchange from firing; `withoutParentUpdate` keeps the
-        // parent from saving. The latter used to be `sol._noUpdateParent = true`,
-        // a sticky private that nothing here ever cleared.
         const command = isSelected
             ? x2ManyCommands.link(docId)
             : x2ManyCommands.unlink(docId);

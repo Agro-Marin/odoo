@@ -59,7 +59,7 @@ const mapKeyboardEvent = (args) => ({
 });
 
 /**
- * @template {typeof Event} T
+ * @template {typeof Event}
  * @param {EventType} eventType
  * @returns {[T, (attrs: EventInit) => EventInit]}
  */
@@ -159,7 +159,7 @@ function findElement(el, selector) {
 }
 
 /**
- * @template {EventType} T
+ * @template {EventType}
  * @param {Element} el
  * @param {string | null | undefined | false} selector
  * @param {T} eventType

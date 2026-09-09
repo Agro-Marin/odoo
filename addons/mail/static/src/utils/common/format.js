@@ -328,9 +328,7 @@ function generateMentionsLinks(
  * @property {string[]} emoticons
  * @property {string} codepoints
  */
-/**
- * @type {{ emojis: EmojiRecord[], codepointsBySource: Map<string, string>, regex: RegExp|null, }|undefined}
- */
+/** @type {{ emojis: EmojiRecord[], codepointsBySource: Map<string, string>, regex: RegExp|null, }|undefined} */
 let emojiSourceCache;
 
 /**

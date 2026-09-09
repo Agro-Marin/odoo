@@ -5,9 +5,7 @@ import { compareDatetime } from "@mail/utils/common/misc";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
-/**
- * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
- */
+/** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const threadPatch = {
     setup() {
         super.setup(...arguments);

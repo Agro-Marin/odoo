@@ -4,11 +4,6 @@ import { _t } from "@web/core/translation";
 import { registerCallAction } from "@mail/discuss/call/common/call_actions";
 
 /**
- * The recording service depends on `discuss.rtc`, and a bundle that never
- * evaluates that provider leaves it undefined rather than absent -- so every
- * read here is guarded. Without this an action definition evaluated during
- * store startup takes the whole store down with it.
- *
  * @param {Object} store
  * @returns {import("./call_recording_service").CallRecordingService|undefined}
  */

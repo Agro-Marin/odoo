@@ -40,8 +40,6 @@ test("the wizard opens on an unsaved record, so nothing is left behind on discar
     await animationFrame();
 
     expect(".modal-dialog .o_field_widget[name='summary']").toHaveCount(1);
-    // Opening the dialog must not have written anything: the old implementation
-    // RPC-created the transient record first, orphaning a row on every cancel.
     expect.verifySteps([]);
 });
 
@@ -79,7 +77,6 @@ test("global shortcut", async () => {
         "My first todo",
     );
     await click(".modal-dialog .btn.btn-primary:contains(Add To-Do)");
-    // The save RPC resolves asynchronously after the click.
     await animationFrame();
     expect.verifySteps(["My first todo"]);
 });

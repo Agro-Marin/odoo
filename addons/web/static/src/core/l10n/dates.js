@@ -187,18 +187,14 @@ function parseSmartDateInput(value) {
     return now;
 }
 
-/**
- * @type {(str: string) => string}
- */
+/** @type {(str: string) => string} */
 const stripAlphaDupes = memoize(function stripAlphaDupes(str) {
     return str.replace(/[a-z]/gi, (letter, index, str) =>
         letter === str[index - 1] ? "" : letter,
     );
 });
 
-/**
- * @type {(format: string) => string}
- */
+/** @type {(format: string) => string} */
 export const strftimeToLuxonFormat = memoize(function strftimeToLuxonFormat(format) {
     const output = [];
     let inToken = false;
@@ -265,9 +261,7 @@ export function formatDateTime(value, options = {}) {
     return value.setZone(options.tz || "default").toFormat(format);
 }
 
-/**
- * @param {NullableDateTime} value
- */
+/** @param {NullableDateTime} value */
 export function toLocaleDateString(value) {
     if (!value) {
         return "";

@@ -2,10 +2,9 @@ import { assert } from "@stock/../tests/tours/tour_helper";
 
 export const catalogSuggestion = {
     /**
-     * Sets the Suggest UI parameters.
-     * @param {string} [basedOn] The label value of the "Replenish based on" select options (eg. "Last 3 months")
-     * @param {number} [nbDays] The value of the "Replenish for" input (eg. 90)
-     * @param {number} [factor] The value of the "x ...%" input (eg. 50)
+     * @param {string} [basedOn]
+     * @param {number} [nbDays]
+     * @param {number} [factor]
      */
     setParameters({ basedOn = false, nbDays = false, factor = false }) {
         const steps = [];
@@ -21,8 +20,6 @@ export const catalogSuggestion = {
                 run: `edit ${factor}`,
             });
         }
-        // Little trick to add the the basedOn step last because it doesn't have a debounce
-        // meaning it will trigger a kanbanReload with the params above already set.
         if (basedOn) {
             steps.push(
                 {
@@ -43,10 +40,9 @@ export const catalogSuggestion = {
     },
 
     /**
-     * Asserts the Suggest UI parameters are saved as expected.
-     * @param {string} [basedOn] The label value of the "Replenish based on" select options (eg. "Last 3 months")
-     * @param {number} [nbDays] The value of the "Replenish for" input (eg. 90)
-     * @param {number} [factor] The value of the "x ...%" input (eg. 50)
+     * @param {string} [basedOn]
+     * @param {number} [nbDays]
+     * @param {number} [factor]
      */
     assertParameters({ basedOn = false, nbDays = false, factor = false }) {
         const steps = [];
@@ -94,11 +90,10 @@ export const catalogSuggestion = {
     },
 
     /**
-     * Checks catalog kanban record fields match expectations
-     * @param {string} productName The product display name of the card to check
-     * @param {number} [monthly] The product monthly demand
-     * @param {number} [suggest] The product suggested quantity
-     * @param {number} [forecast] The product forecasted quantity
+     * @param {string} productName
+     * @param {number} [monthly]
+     * @param {number} [suggest]
+     * @param {number} [forecast]
      */
     assertCatalogRecord(productName, { monthly, suggest, forecast } = {}) {
         const steps = [];
@@ -123,9 +118,7 @@ export const catalogSuggestion = {
         return steps;
     },
 
-    /**
-     * @param {boolean} turnOn True to turn Suggest ON, false to turn it OFF
-     */
+    /** @param {boolean} turnOn */
     toggleSuggest(turnOn) {
         return [
             {
@@ -141,9 +134,8 @@ export const catalogSuggestion = {
     },
 
     /**
-     * Checks a product's record order in Kanban
-     * @param {string} product product display name
-     * @param {number } expectedOrder 0 is the first card
+     * @param {string} product
+     * @param {number } expectedOrder
      */
     checkKanbanRecordPosition(product, expectedOrder) {
         const trigger = `.o_purchase_product_kanban_catalog_view article.o_kanban_record:nth-child(${expectedOrder + 1}):contains("${product}")`;

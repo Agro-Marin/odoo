@@ -5,9 +5,7 @@ import { ASTType } from "./ast_type.js";
 import { PyDate, PyDateTime, PyTime } from "./py_date.js";
 import { bp } from "./py_parser.js";
 
-/**
- * @typedef {import("./ast_type.js").AST} AST
- */
+/** @typedef {import("./ast_type.js").AST} AST */
 
 /**
  * @param {any} value
@@ -68,8 +66,8 @@ const COMPARATORS = new Set([
 
 /**
  * @param {string} str
- * @param {number} abp binding power of the node itself
- * @param {number} lbp binding power the caller binds with
+ * @param {number} abp
+ * @param {number} lbp
  * @returns {string}
  */
 function parenthesize(str, abp, lbp) {
@@ -79,7 +77,7 @@ function parenthesize(str, abp, lbp) {
 /**
  * @param {AST} ast
  * @param {number} lbp
- * @returns {string | null} null when `ast` is not an operator node
+ * @returns {string | null}
  */
 function formatOperatorAST(ast, lbp) {
     switch (ast.type) {
@@ -141,7 +139,7 @@ function formatOperatorAST(ast, lbp) {
 
 /**
  * @param {AST} ast
- * @returns {string | null} null when `ast` is not a collection or access node
+ * @returns {string | null}
  */
 function formatCollectionAST(ast) {
     switch (ast.type) {
@@ -199,9 +197,7 @@ export function formatAST(ast, lbp = 0) {
     return formatted;
 }
 
-/**
- * @type {WeakSet<object>}
- */
+/** @type {WeakSet<object>} */
 const PY_DICTS = new WeakSet();
 
 /**

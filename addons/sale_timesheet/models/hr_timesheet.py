@@ -62,7 +62,6 @@ class AccountAnalyticLine(models.Model):
         falsy_value_label="Non-billable",
         help="Sales order item to which the time spent will be added in order to be invoiced to your customer. Remove the sales order item for the timesheet entry to be non-billable.",
     )
-    # we needed to store it only in order to be able to groupby in the portal
     order_id = fields.Many2one(
         related="so_line.order_id", store=True, readonly=True, index=True
     )
@@ -84,7 +83,7 @@ class AccountAnalyticLine(models.Model):
     @api.depends("so_line.product_id", "project_id.billing_type", "amount")
     def _compute_timesheet_invoice_type(self):
         for timesheet in self:
-            if timesheet.project_id:  # AAL will be set to False
+            if timesheet.project_id:
                 invoice_type = False
                 if not timesheet.so_line:
                     invoice_type = (
@@ -127,7 +126,7 @@ class AccountAnalyticLine(models.Model):
     def _compute_so_line(self):
         for timesheet in self.filtered(
             lambda t: not t.is_so_line_edited and t._is_not_billed()
-        ):  # Get only the timesheets are not yet invoiced
+        ):
             timesheet.so_line = (
                 timesheet.project_id.allow_billable
                 and timesheet._timesheet_determine_sale_line()
@@ -164,7 +163,6 @@ class AccountAnalyticLine(models.Model):
         )
 
     def _check_can_write(self, values):
-        # prevent to update invoiced timesheets if one line is of type delivery
         if self.sudo().filtered(
             lambda aal: aal.so_line.product_id.invoice_policy == "transferred"
         ) and self.filtered(
@@ -189,11 +187,6 @@ class AccountAnalyticLine(models.Model):
         return super()._check_can_write(values)
 
     def _timesheet_determine_sale_line(self):
-        """Deduce the SO line associated to the timesheet line:
-        1/ timesheet on task rate: the so line will be the one from the task
-        2/ timesheet on employee rate task: find the SO line in the map of the project (even for subtask), or fallback on the SO line of the task, or fallback
-            on the one on the project
-        """
         self.check_singleton()
 
         if not self.task_id:
@@ -206,7 +199,7 @@ class AccountAnalyticLine(models.Model):
         if self.task_id.allow_billable and self.task_id.sale_line_id:
             if self.task_id.pricing_type in ("task_rate", "fixed_rate"):
                 return self.task_id.sale_line_id
-            else:  # then pricing_type = 'employee_rate'
+            else:
                 map_entry = self.project_id.sale_line_employee_ids.filtered(
                     lambda map_entry: (
                         map_entry.employee_id
@@ -221,10 +214,6 @@ class AccountAnalyticLine(models.Model):
         return False
 
     def _timesheet_get_portal_domain(self):
-        """Only the timesheets with a product invoiced on delivered quantity are concerned.
-        since in ordered quantity, the timesheet quantity is not invoiced,
-        thus there is no meaning of showing invoice with ordered quantity.
-        """
         domain = super()._timesheet_get_portal_domain()
         return Domain.AND(
             [
@@ -254,7 +243,6 @@ class AccountAnalyticLine(models.Model):
             "|",
             "&",
             ("timesheet_invoice_id", "in", invoice_ids.ids),
-            # TODO : Master: Check if non_billable should be removed ?
             ("timesheet_invoice_type", "in", ["billable_time", "non_billable"]),
             "&",
             ("timesheet_invoice_type", "=", "billable_fixed"),
@@ -382,7 +370,6 @@ class AccountAnalyticLine(models.Model):
     def _timesheet_postprocess(self, values):
         if values.get("so_line"):
             for timesheet in self.sudo():
-                # If no account_id was found in the SOL's distribution, we fallback on the project's account_id
                 if not timesheet.account_id:
                     timesheet.account_id = timesheet.project_id.account_id
         return super()._timesheet_postprocess(values)

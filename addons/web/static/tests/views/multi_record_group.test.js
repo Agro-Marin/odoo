@@ -4,9 +4,7 @@ import { expect, test } from "@odoo/hoot";
 import { registry } from "@web/core/registry";
 import { useGroupManagement } from "@web/views/multi_record_group";
 
-/**
- * @param {object} [overrides]
- */
+/** @param {object} [overrides] */
 function makeCtx(overrides = {}) {
     const list = {
         groupByField: { type: "many2one", name: "product_id" },

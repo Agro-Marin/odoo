@@ -38,9 +38,6 @@ function createProvisionalStore(env) {
  * @param {Record} receiver
  */
 function recordProxyGet(record, Model, name, receiver) {
-    // `receiver`, not the downgraded proxy: the trap this came from read
-    // `arguments`, which in a module is unlinked from the reassigned parameter
-    // and so still held the receiver the proxy was invoked with.
     const recordFullProxy = record._.downgradeProxy(record, receiver);
     const kind = Model._.fields.get(name);
     if (record._.gettingField || kind === undefined) {

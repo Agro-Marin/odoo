@@ -39,9 +39,7 @@ onRpc("has_group", () => true);
 
 defineModels([Partner, Turtle]);
 
-/**
- * @param {string} value
- */
+/** @param {string} value */
 async function addTag(value) {
     await contains("[name='partner_ids'] .o_input_dropdown input").edit(value, {
         confirm: false,

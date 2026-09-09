@@ -27,9 +27,7 @@ export class PropertiesGroupByItem extends Component {
         });
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     get modelGroupByItems() {
         return this.env.searchModel.getSearchItems(
             (/** @type {any} */ searchItem) =>
@@ -39,23 +37,17 @@ export class PropertiesGroupByItem extends Component {
         );
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     get groupByItems() {
         return this.state.definitionsLoaded ? this.modelGroupByItems : [];
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isActive() {
         return this.modelGroupByItems.some((/** @type {any} */ item) => item.isActive);
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isSingleParent() {
         const uniqueNames = new Set(
             this.groupByItems.map((/** @type {any} */ item) => item.definitionRecordId),
@@ -63,9 +55,7 @@ export class PropertiesGroupByItem extends Component {
         return uniqueNames.size < 2;
     }
 
-    /**
-     * @returns {Promise<void>}
-     */
+    /** @returns {Promise<void>} */
     async loadDefinitions() {
         if (this.state.definitionsLoaded || this._loadingDefinitions) {
             return;
@@ -79,9 +69,7 @@ export class PropertiesGroupByItem extends Component {
         }
     }
 
-    /**
-     * @param {number[]} ids
-     */
+    /** @param {number[]} ids */
     onGroup(ids) {
         this.props.onGroup(ids);
     }

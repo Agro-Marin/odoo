@@ -6,9 +6,7 @@ import { Component, reactive, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 
-/**
- * @param {Record<string, any>} data
- */
+/** @param {Record<string, any>} data */
 function makeRecord(data) {
     return reactive({ data });
 }

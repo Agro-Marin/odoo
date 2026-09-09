@@ -24,9 +24,7 @@ const { Date, Intl } = globalThis;
 const { now: $now, UTC: $UTC } = Date;
 const { DateTimeFormat, Locale } = Intl;
 
-/**
- * @param {Date} baseDate
- */
+/** @param {Date} baseDate */
 function computeTimeZoneOffset(baseDate) {
     const utcDate = new Date(
         baseDate.toLocaleString(DEFAULT_LOCALE, { timeZone: "UTC" }),
@@ -37,9 +35,7 @@ function computeTimeZoneOffset(baseDate) {
     return (utcDate - tzDate) / 60000;
 }
 
-/**
- * @param {number} id
- */
+/** @param {number} id */
 function getDateParams() {
     return [
         ...dateParams.slice(0, -1),
@@ -51,9 +47,7 @@ function getTimeStampDiff() {
     return isTimeFrozen() ? 0 : $now() - dateTimeStamp;
 }
 
-/**
- * @param {string | DateSpecs} dateSpecs
- */
+/** @param {string | DateSpecs} dateSpecs */
 function parseDateParams(dateSpecs) {
     /** @type {DateSpecs} */
     const specs =
@@ -71,9 +65,7 @@ function parseDateParams(dateSpecs) {
     ].map(Number);
 }
 
-/**
- * @param {typeof dateParams} newDateParams
- */
+/** @param {typeof dateParams} newDateParams */
 function setDateParams(newDateParams) {
     dateParams = newDateParams;
     dateTimeStamp = $now();
@@ -81,9 +73,7 @@ function setDateParams(newDateParams) {
     resetTimeOffset();
 }
 
-/**
- * @param {string | number | null | undefined} tz
- */
+/** @param {string | number | null | undefined} tz */
 function setTimeZone(tz) {
     if (typeof tz === "string") {
         if (!tz.includes("/")) {
@@ -166,9 +156,7 @@ export function mockDate(date, tz) {
     }
 }
 
-/**
- * @param {string} newLocale
- */
+/** @param {string} newLocale */
 export function mockLocale(newLocale) {
     ensureTest("mockLocale");
     locale = newLocale;
@@ -181,17 +169,13 @@ export function mockLocale(newLocale) {
     }
 }
 
-/**
- * @param {string | number | null} [tz]
- */
+/** @param {string | number | null} [tz] */
 export function mockTimeZone(tz) {
     ensureTest("mockTimeZone");
     setTimeZone(tz);
 }
 
-/**
- * @param {(tz: string | number) => any} callback
- */
+/** @param {(tz: string | number) => any} callback */
 export function onTimeZoneChange(callback) {
     timeZoneChangeCallbacks.push(callback);
 }

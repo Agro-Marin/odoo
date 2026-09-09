@@ -6,12 +6,6 @@ import { catalogSuggestion } from "./tour_helper.js";
 
 registry.category("web_tour.tours").add("test_purchase_order_suggest_search_panel_ux", {
     steps: () => [
-        /*
-         * -----------------  PART 1 : Suggest Component -----------------
-         * Checks that the Suggest UI in the search panel works well
-         * (estimated price, warehouse logic, toggling, saving defaults)
-         * ----------------------------------------------------------------
-         */
         { trigger: ".o_purchase_order" },
         ...purchaseForm.createNewPO(),
         ...purchaseForm.selectVendor("Test Vendor"),
@@ -29,8 +23,6 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
             },
         },
 
-        // --- Check that suggestion feature does not appear on non draft POs ---
-        // First add a product so we can confirm the PO (empty POs cannot be confirmed)
         ...productCatalog.addProduct("test_product"),
         ...productCatalog.waitForQuantity("test_product", 1),
         ...productCatalog.goBackToOrder(),
@@ -41,7 +33,7 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
             run: "click",
         },
         ...purchaseForm.openCatalog(),
-        { trigger: 'body:not(:has(div[name="search_panel_suggestion"]))' }, // Suggest should not show on non draft POs
+        { trigger: 'body:not(:has(div[name="search_panel_suggestion"]))' },
         ...productCatalog.goBackToOrder(),
         {
             content: "Cancel PO",
@@ -60,12 +52,11 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
         },
         ...purchaseForm.openCatalog(),
 
-        // --- Check suggestion uses PO warehouse (this WH only has 1 delivery) ---
         ...catalogSuggestion.toggleSuggest(true),
         {
             content:
                 "Toggling Suggestion activates filter for products in PO or suggested",
-            trigger: '.o_facet_value:contains("Suggested")', // Suggested
+            trigger: '.o_facet_value:contains("Suggested")',
         },
         ...catalogSuggestion.setParameters({
             basedOn: "Last 3 months",
@@ -81,14 +72,9 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
             nbDays: 28,
             factor: 50,
         }),
-        { trigger: "span[name='suggest_total']:visible:contains('$ 480.00')" }, // 12 units/week * 4 weeks * 20$/ unit * 50% = 480$
+        { trigger: "span[name='suggest_total']:visible:contains('$ 480.00')" },
 
-        // --- Check Add All: suggest qty added and suggest parameters are saved on vendor
         ...catalogSuggestion.addAllSuggestions(),
-        // Wait for the catalog to reflect the added suggestion before leaving the
-        // catalog: the PO line added before confirming the PO already renders a
-        // row in the order form, so going back too early would assert against
-        // the stale quantity while "Add All" is still being applied.
         ...productCatalog.waitForQuantity("test_product", 24),
         ...productCatalog.goBackToOrder(),
         {
@@ -110,17 +96,11 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
             nbDays: 28,
             factor: 50,
         }),
-        /*
-         * -----------------  PART 2 : Kanban Interactions -----------------
-         * Checks the Suggest UI and the Kanban record interactions
-         * (monthly demand, suggested_qty, forecasted + record ordering)
-         * ------------------------------------------------------------------
-         */
         ...catalogSuggestion.setParameters({
             basedOn: "Last 7 days",
             nbDays: 28,
             factor: 50,
-        }), // 1 order of 12 used in computation of demand // 28 days --> forecast uses both 50 delivery
+        }),
         { trigger: "span[name='suggest_total']:visible:contains('480')" },
         ...catalogSuggestion.assertCatalogRecord("test_product", {
             monthly: 52,
@@ -132,7 +112,7 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
         ...catalogSuggestion.setParameters({
             basedOn: "Last 30 days",
             factor: 10,
-        }), // 2 orders of 12
+        }),
         { trigger: "span[name='suggest_total']:visible:contains('60')" },
         ...catalogSuggestion.assertCatalogRecord("test_product", {
             monthly: 24,
@@ -142,14 +122,13 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
         ...catalogSuggestion.setParameters({
             basedOn: "Last 3 months",
             factor: 500,
-        }), // 2 orders of 12
+        }),
         { trigger: "span[name='suggest_total']:visible:contains('740')" },
         ...catalogSuggestion.assertCatalogRecord("test_product", {
             monthly: 8,
             suggest: 37,
         }),
 
-        // --- Check with Forecasted quantities
         ...catalogSuggestion.setParameters({
             basedOn: "Forecasted",
             nbDays: 18,
@@ -159,13 +138,12 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
         ...catalogSuggestion.assertCatalogRecord("test_product", {
             forecast: 50,
             suggest: 50,
-        }), // 18 days --> forecast uses only one 50 delivery
+        }),
 
         ...catalogSuggestion.setParameters({ nbDays: 7 }),
-        { trigger: "span[name='suggest_total']:visible:contains('$ 0.00')" }, // Move out of 100 in 20days, so no suggest for 7 days
-        { trigger: ".o_view_nocontent_smiling_face" }, // Should suggest no products
+        { trigger: "span[name='suggest_total']:visible:contains('$ 0.00')" },
+        { trigger: ".o_view_nocontent_smiling_face" },
 
-        // --- Check with suggest OFF we come back to normal
         ...catalogSuggestion.toggleSuggest(false),
         ...catalogSuggestion.assertCatalogRecord("test_product", {
             forecast: 100,
@@ -174,43 +152,28 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
         ...catalogSuggestion.checkKanbanRecordPosition("Other product", 0),
         {
             trigger: "span[name='kanban_monthly_demand_qty']:visible:contains('24')",
-        }, // Should come back to normal monthly demand
+        },
 
-        /*
-         * -------------------  PART 3 : KANBAN FILTERS ---------------------
-         * Checks suggest and searchModel (filters) interactions
-         * (Add / Remove with filters), category filters
-         * ------------------------------------------------------------------
-         */
-
-        // ---- Check Adding non suggested product works with suggest
         ...productCatalog.addProduct("Other product"),
         ...productCatalog.waitForQuantity("Other product", 1),
         ...catalogSuggestion.toggleSuggest(true),
 
-        // ---- Check toggling suggest OFF with filters manually removed still works
         ...catalogSuggestion.removeSuggestFilter(),
         ...catalogSuggestion.toggleSuggest(false),
-        ...catalogSuggestion.checkKanbanRecordPosition("Other product", 0), // == suggest is off
+        ...catalogSuggestion.checkKanbanRecordPosition("Other product", 0),
 
-        // --- Turning suggest on with non suggested product works as expected
-        // Because Add product can be slow to reach server and because when toggling suggest we filter
-        // products in the order, we go back to catalog and come back (similar to an await).
-        // (This will probably not be need in following PR when we remove debounce on AddProduct)
         ...productCatalog.goBackToOrder(),
         ...purchaseForm.openCatalog(),
         ...catalogSuggestion.toggleSuggest(true),
-        ...catalogSuggestion.checkKanbanRecordPosition("Other product", 1), // Other product still shown because in order but after suggested products
+        ...catalogSuggestion.checkKanbanRecordPosition("Other product", 1),
 
-        // Check that categories work well with suggestions
         ...productCatalog.selectSearchPanelCategory("Goods"),
-        { trigger: "span[name='suggest_total']:visible:contains('$ 0.00')" }, // Should recompute estimated price
+        { trigger: "span[name='suggest_total']:visible:contains('$ 0.00')" },
         ...productCatalog.selectSearchPanelCategory("Test Category"),
         { trigger: "span[name='suggest_total']:visible:contains('$ 480.00')" },
-        ...catalogSuggestion.removeSuggestFilter(), // Shouldn't impact categories
+        ...catalogSuggestion.removeSuggestFilter(),
         { trigger: "span[name='suggest_total']:visible:contains('$ 480.00')" },
 
-        // ---- Finally done :)
         ...productCatalog.goBackToOrder(),
         {
             content: "Go back to the dashboard",

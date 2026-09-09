@@ -25,21 +25,15 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
             reloadKanban: () => this._kanbanReload(),
             debouncedReloadKanban: useDebounced(async () => {
                 this._kanbanReload();
-            }, 500), // Enough to type eg. 110 in percent input without rendering 3 times
+            }, 500),
         });
     }
 
-    // Reloads catalog with suggestions
     async _kanbanReload() {
-        // Changing the suggestion can change which categories exist, and that is
-        // invisible to the search domain -- so ask for the sections explicitly
-        // rather than waiting for a domain change that will not come. One
-        // reload, through the model's own notification path.
         await this.env.searchModel.invalidateSections();
         await this._computeTotalEstimatedPrice();
     }
 
-    /** Add all suggested products to the purchase order */
     async onAddAll() {
         const { searchModel } = this.env;
         const { sectionId } = searchModel.selectedSection;
@@ -58,8 +52,6 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
 
     toggleSuggest() {
         this.suggest.suggestToggle.isOn = !this.suggest.suggestToggle.isOn;
-        // Same accessor as the reader in utils.js: through `browser` so HOOT can
-        // mock it, and the key from one constant rather than two string literals.
         browser.localStorage.setItem(
             SUGGEST_TOGGLE_STORAGE_KEY,
             JSON.stringify({ isOn: this.suggest.suggestToggle.isOn }),

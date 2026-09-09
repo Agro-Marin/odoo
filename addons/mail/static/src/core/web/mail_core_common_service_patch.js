@@ -11,9 +11,6 @@ patch(MailCoreCommon.prototype, {
         const { id: notifId } = metadata;
         const { message_ids: messageIds, starred } = payload;
         const starredBox = this.store.starred;
-        // The server sends the message before the toggle, so `message.starred`
-        // already holds the new value here; what the counter has and has not
-        // seen is the box's membership.
         const wasCountedById = new Map(
             messageIds.map((id) => {
                 const message = this.store["mail.message"].get({ id });
@@ -28,7 +25,6 @@ patch(MailCoreCommon.prototype, {
                 if (!wasCounted) {
                     applyCounterDelta(starredBox, "counter", 1, { busId: notifId });
                 }
-                // a message known by id alone is a stub the base handler just inserted
                 if (message.thread) {
                     starredBox.messages.add(message);
                 } else {

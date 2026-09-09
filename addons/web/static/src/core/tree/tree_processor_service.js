@@ -232,9 +232,7 @@ function extractIdsFromTree(tree, getFieldDef) {
  */
 
 class TreeProcessorService {
-    /**
-     * @param {{ field: any, name: any }} services
-     */
+    /** @param {{ field: any, name: any }} services */
     constructor({ field: fieldService, name: nameService }) {
         this.fieldService = fieldService;
         this.nameService = nameService;
@@ -431,7 +429,6 @@ class TreeProcessorService {
             case "in":
             case "not in":
                 addParenthesis = !values.length;
-            // falls through
             default:
                 join = _t("or");
         }

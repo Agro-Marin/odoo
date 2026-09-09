@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Todo Kanban view -->
     <record id="project_task_view_todo_kanban" model="ir.ui.view">
         <field name="name">project.task.kanban</field>
         <field name="model">project.task</field>
@@ -76,7 +75,6 @@
         </field>
     </record>
 
-    <!-- To-do List View -->
     <record id="project_task_view_todo_tree" model="ir.ui.view">
         <field name="name">project.task.todo.list</field>
         <field name="model">project.task</field>
@@ -112,7 +110,6 @@
         </field>
     </record>
 
-    <!-- Todo Form view -->
     <record id="project_task_view_todo_form" model="ir.ui.view">
         <field name="name">project.task.view.todo.form</field>
         <field name="model">project.task</field>
@@ -146,9 +143,6 @@
                                 class="o_task_name text-truncate w-md-75 w-100 pe-2"
                                 placeholder="Task Title..." />
                         </h1>
-                        <!-- autosave is off here: the form owns saving through its
-                            own buttons, so ticking the checkmark must not commit
-                            the rest of the record behind the user's back. -->
                         <div
                             class="d-flex justify-content-end align-items-center px-1"
                             invisible="not active">
@@ -195,10 +189,6 @@
                                 decoration-danger="date_end &lt; current_date" />
                         </group>
                     </group>
-                    <!-- No default_focus: the html field has no id for the form
-                        renderer's autofocus lookup to resolve, so it silently
-                        falls through to the first textarea (the title) anyway.
-                        The declaration is on `name` above, where it holds. -->
                     <field
                         name="description"
                         type="html"
@@ -211,7 +201,6 @@
         </field>
     </record>
 
-    <!-- To-do Quick create form  view -->
     <record id="project_task_view_todo_quick_create_form" model="ir.ui.view">
         <field name="name">project.task.view.todo.quick.create.todo</field>
         <field name="model">project.task</field>
@@ -233,7 +222,6 @@
         </field>
     </record>
 
-    <!-- Todo conversion form (used by an action added in TodoFormView (contoller) -->
     <record id="project_task_view_todo_conversion_form" model="ir.ui.view">
         <field name="name">project.task.view.todo.conversion.form</field>
         <field name="model">project.task</field>
@@ -242,9 +230,6 @@
             <form string="Convert to Task" js_class="todo_conversion_form">
                 <sheet>
                     <group>
-                        <!-- company_id field is used in the domain filtering project_id in
-                            hr_timesheet. Creating a bridge module just to add that field is
-                            overkill so it is added here. -->
                         <field name="company_id" invisible="1" />
                         <field name="project_id" required="1" default_focus="1" />
                         <field
@@ -272,7 +257,6 @@
         </field>
     </record>
 
-    <!-- Todo Calendar View -->
     <record id="project_task_view_todo_calendar" model="ir.ui.view">
         <field name="name">project.task.calendar</field>
         <field name="model">project.task</field>
@@ -303,7 +287,6 @@
         </field>
     </record>
 
-    <!-- Todo Activity  -->
     <record id="project_task_view_todo_activity" model="ir.ui.view">
         <field name="name">project.task.view.todo.activity</field>
         <field name="model">project.task</field>
@@ -334,7 +317,6 @@
         </field>
     </record>
 
-    <!-- Todo Search  -->
     <record id="project_task_view_todo_search" model="ir.ui.view">
         <field name="name">project.task.view.todo.search</field>
         <field name="model">project.task</field>
@@ -420,7 +402,6 @@
         </field>
     </record>
 
-    <!-- Todo main action + view links-->
     <record id="project_task_action_todo" model="ir.actions.act_window">
         <field name="name">To-dos</field>
         <field name="res_model">project.task</field>
@@ -483,7 +464,6 @@
         <field name="act_window_id" ref="project_task_action_todo" />
     </record>
 
-    <!-- Conversion actions-->
     <record id="project_task_action_convert_todo_to_task" model="ir.actions.act_window">
         <field name="name">Convert to Task</field>
         <field name="res_model">project.task</field>

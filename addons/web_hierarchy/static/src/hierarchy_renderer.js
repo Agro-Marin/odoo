@@ -9,9 +9,6 @@ import { HierarchyCard } from "./hierarchy_card.js";
 import { useHierarchyNodeDraggable } from "./hierarchy_node_draggable.js";
 
 /**
- * Node ids travel through the DOM as `data-node-id` strings; the model indexes
- * them as numbers. Parse them here, at the boundary.
- *
  * @param {String | undefined} rawNodeId
  * @returns {Number | undefined}
  */

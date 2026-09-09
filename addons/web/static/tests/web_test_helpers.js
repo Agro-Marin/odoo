@@ -40,12 +40,12 @@ import { globalCachedFetch } from "./_framework/module_set.hoot.js";
  */
 
 /**
- * @template T
+ * @template
  * @typedef {import("./_framework/mock_server/mock_server").KwArgs<T>} KwArgs
  */
 
 /**
- * @template T
+ * @template
  * @typedef {import("./_framework/mock_server/mock_server").RouteCallback<T>} RouteCallback
  */
 
@@ -191,9 +191,7 @@ export function defineWebModels() {
     return defineModels(webModels);
 }
 
-/**
- * @param {string} bundleName
- */
+/** @param {string} bundleName */
 export function preloadBundle(bundleName) {
     before(async function preloadBundle() {
         globalBundleCache.delete(bundleName);

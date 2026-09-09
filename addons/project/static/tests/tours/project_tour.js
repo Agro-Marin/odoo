@@ -17,7 +17,7 @@ registry.category("web_tour.tours").add("project_test_tour", {
             run: "click",
         },
         {
-            isActive: [".o-kanban-button-new.dropdown"], // if the project template dropdown is active
+            isActive: [".o-kanban-button-new.dropdown"],
             trigger: 'button.o-dropdown-item:contains("New Project")',
             run: "click",
         },

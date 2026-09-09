@@ -14,9 +14,7 @@ export class BadgeSelectionWithFilterField extends BadgeSelectionField {
         allowedSelectionField: { type: String, optional: true },
     };
 
-    /**
-     * @returns {Array<[string, string]>}
-     */
+    /** @returns {Array<[string, string]>} */
     get options() {
         if (!this.props.allowedSelectionField) {
             return super.options;

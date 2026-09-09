@@ -3,9 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { executeActWindowAction } from "@web/webclient/actions/action_executors/act_window";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
     /** @type {Record<string, any[]>} */
     const calls = { updateUI: [], confirmLeave: [] };

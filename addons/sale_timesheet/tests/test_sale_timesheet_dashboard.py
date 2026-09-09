@@ -27,7 +27,6 @@ class TestSaleTimesheetDashboard(Common):
         )
 
     def test_get_sale_item_data_various_sol_with_timesheet_installed(self):
-        """This test ensures that when the timesheet module is installed, the sols are computed and put into the new profitability sections."""
         sols = self.dashboardSaleOrderLine.create(
             [
                 {
@@ -53,9 +52,6 @@ class TestSaleTimesheetDashboard(Common):
             ]
         )
 
-        # The dashboard reports items of *confirmed* orders (`_get_sale_items_domain`
-        # filters on the order state, as upstream does): a quotation's lines are not
-        # project revenue yet, so without this the sections come back empty.
         self.dashboard_sale_order.action_confirm()
 
         sale_item_data = self.dashboard_project.get_sale_items_data(

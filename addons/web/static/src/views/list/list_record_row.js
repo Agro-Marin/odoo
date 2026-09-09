@@ -211,9 +211,7 @@ export class ListRecordRow extends Component {
         return this.props.api.onCellKeydown(ev, group, record);
     }
 
-    /**
-     * @param {any} record
-     */
+    /** @param {any} record */
     toggleRecordSelection(record) {
         return this.props.api.toggleRecordSelection(record);
     }

@@ -7,9 +7,9 @@ import { useBus } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 
 /**
- * @param {() => Promise<any> | undefined | void} commit writes the staged edits
- * @param {number} delay debounce, in ms
- * @returns {ReturnType<typeof useDebounced>} schedules a debounced commit
+ * @param {() => Promise<any> | undefined | void} commit
+ * @param {number} delay
+ * @returns {ReturnType<typeof useDebounced>}
  */
 export function useDebouncedFieldCommit(commit, delay) {
     const component = /** @type {any} */ (useComponent());

@@ -10,8 +10,6 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isActivationKey } from "@web/core/browser/hotkeys";
 import { EmbeddedActions } from "@web/search/embedded_actions_bar/embedded_actions";
 
-/** @import { EmbeddedAction } from "@web/search/embedded_actions_bar/embedded_actions" */
-
 export class EmbeddedActionsDropdown extends Component {
     static template = "web.EmbeddedActionsDropdown";
     static components = { Dropdown, DropdownItem, AccordionItem, CheckBox };
@@ -47,23 +45,17 @@ export class EmbeddedActionsDropdown extends Component {
         return (this.env.isSmall ? isCurrent : isVisible) ? "selected" : "";
     }
 
-    /**
-     * @param {EmbeddedAction} action
-     */
+    /** @param {EmbeddedAction} action */
     onEmbeddedActionClick(action) {
         return this.props.embeddedActions.openAction(action);
     }
 
-    /**
-     * @param {number|false} actionId
-     */
+    /** @param {number|false} actionId */
     setVisibility(actionId) {
         return this.props.embeddedActions.toggleActionVisibility(actionId);
     }
 
-    /**
-     * @param {EmbeddedAction} action
-     */
+    /** @param {EmbeddedAction} action */
     openConfirmationDialog(action) {
         return this.props.embeddedActions.confirmDelete(action);
     }
@@ -86,9 +78,7 @@ export class EmbeddedActionsDropdown extends Component {
             !this.state.embeddedInfos.newActionIsShared;
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     async saveNewAction(ev) {
         const saved = await this.props.embeddedActions.saveNewAction();
         if (!saved) {

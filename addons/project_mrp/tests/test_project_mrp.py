@@ -24,31 +24,26 @@ class TestProjectMrp(TransactionCase):
         )
 
     def test_bom_count_reflects_linked_boms(self):
-        """The project counts the bills of materials linked to it."""
         self.assertEqual(self.project.bom_count, 1)
 
     def test_action_view_mrp_bom_is_scoped_to_project(self):
-        """The BoM smart button filters and defaults to the project."""
         action = self.project.action_view_mrp_bom()
         self.assertEqual(action["res_model"], "mrp.bom")
         self.assertEqual(action["domain"], [("project_id", "=", self.project.id)])
         self.assertEqual(action["context"]["default_project_id"], self.project.id)
 
     def test_production_inherits_project_from_bom(self):
-        """A manufacturing order derives its project from its bill of materials."""
         production = self._production()
         self.assertEqual(production.project_id, self.project)
         self.assertEqual(self.project.production_count, 1)
 
     def test_action_view_project_targets_the_project(self):
-        """The MO open-project action points at the linked project."""
         production = self._production()
         action = production.action_view_project()
         self.assertEqual(action["res_model"], "project.project")
         self.assertEqual(action["res_id"], self.project.id)
 
     def test_action_view_mrp_production_is_scoped_to_project(self):
-        """The MO smart button filters and defaults to the project."""
         action = self.project.action_view_mrp_production()
         self.assertEqual(action["res_model"], "mrp.production")
         self.assertEqual(action["domain"], [("project_id", "=", self.project.id)])
@@ -56,7 +51,6 @@ class TestProjectMrp(TransactionCase):
         self.assertTrue(action["context"]["from_project_action"])
 
     def test_stat_buttons_include_mrp_entries(self):
-        """A project exposes BoM and manufacturing-order stat buttons."""
         buttons = {
             b["action"]: b for b in self.project._get_stat_buttons() if "action" in b
         }

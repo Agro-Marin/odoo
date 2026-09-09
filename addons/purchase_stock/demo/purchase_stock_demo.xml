@@ -47,8 +47,6 @@
             model="purchase.order"
             name="action_confirm"
             eval="[[ref('purchase_order_8')]]" />
-        <!-- PURCHASE ORDER SUGGEST DEMO DATA -->
-        <!-- Generate needed stock. -->
         <record id="stock_inventory_product_product_8" model="stock.quant">
             <field name="product_id" ref="product.product_product_8" />
             <field name="inventory_quantity">8.0</field>
@@ -71,7 +69,6 @@
                 name="search"
                 eval="[[('id', 'in', (ref('stock_inventory_product_product_8'), ref('stock_inventory_product_delivery_01'),))]]" />
         </function>
-        <!-- Generate deliveries in the past for purchase suggest testing purpose. -->
         <record id="picking_delivery_1" model="stock.picking">
             <field name="location_id" ref="stock.stock_location_stock" />
             <field name="location_dest_id" ref="stock.stock_location_customers" />
@@ -482,7 +479,6 @@
                 model="stock.picking"
                 eval="[                 obj().env.ref('purchase_stock.picking_delivery_30').id,                 obj().env.ref('purchase_stock.picking_delivery_31').id,             ]" />
         </function>
-        <!-- Rewrite deliveries' effective date. -->
         <function model="stock.picking" name="write">
             <value
                 model="stock.picking"

@@ -25,12 +25,6 @@ import { useCommand } from "@web/ui/commands/command_hook";
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- * domain?: [Array, Function];
- * foldField?: string;
- * isDisabled?: boolean;
- * visibleSelection?: string[];
- * withCommand?: boolean;
- * }} StatusBarFieldProps
  * @typedef StatusBarItem
  * @property {number} value
  * @property {string} label
@@ -41,14 +35,10 @@ import { useCommand } from "@web/ui/commands/command_hook";
  * @property {StatusBarItem[]} items
  */
 
-/**
- * @param {...HTMLElement} els
- */
+/** @param {...HTMLElement} els */
 const hide = (...els) => els.forEach((el) => el.classList.add("d-none"));
 
-/**
- * @param {...HTMLElement} els
- */
+/** @param {...HTMLElement} els */
 const show = (...els) => els.forEach((el) => el.classList.remove("d-none"));
 
 /**
@@ -69,9 +59,7 @@ function sameStatusBarItems(a, b) {
     );
 }
 
-/**
- * @param {any} component
- */
+/** @param {any} component */
 function useOverflowAdjust(component) {
     let status = "idle";
     /** @type {StatusBarItem[] | null} */
@@ -223,9 +211,7 @@ export class StatusBarField extends FieldComponent {
         );
     }
 
-    /**
-     * @returns {{ selection?: [string, string][], string: string, type: "many2one" | "selection" }}
-     */
+    /** @returns {{ selection?: [string, string][], string: string, type: "many2one" | "selection" }} */
     get fieldDefinition() {
         return /** @type {any} */ (this.field.definition);
     }
@@ -312,9 +298,7 @@ export class StatusBarField extends FieldComponent {
         return root.getBoundingClientRect().height > this._rowHeight;
     }
 
-    /**
-     * @returns {StatusBarItem[]}
-     */
+    /** @returns {StatusBarItem[]} */
     getAllItems() {
         const { foldField } = this.props;
         const currentValue = this.field.value;
@@ -349,9 +333,7 @@ export class StatusBarField extends FieldComponent {
         return this.allItems.find((item) => item.isSelected)?.label || _t("More");
     }
 
-    /**
-     * @param {StatusBarItem} item
-     */
+    /** @param {StatusBarItem} item */
     getDropdownItemClassNames(item) {
         const classNames = [];
         if (item.isSelected) {
@@ -377,9 +359,7 @@ export class StatusBarField extends FieldComponent {
         return { inline, before, after, folded };
     }
 
-    /**
-     * @param {StatusBarItem} item
-     */
+    /** @param {StatusBarItem} item */
     async selectItem(item) {
         const value =
             this.fieldDefinition.type === "many2one"
@@ -389,9 +369,7 @@ export class StatusBarField extends FieldComponent {
         await this.props.record.save();
     }
 
-    /**
-     * @param {CustomEvent<{ payload: StatusBarItem }>} ev
-     */
+    /** @param {CustomEvent<{ payload: StatusBarItem }>} ev */
     onDropdownItemSelected(ev) {
         this.selectItem(ev.detail.payload);
     }

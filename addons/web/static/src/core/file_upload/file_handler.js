@@ -43,9 +43,7 @@ export class FileUploader extends Component {
         });
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     async onFileChange(ev) {
         const inputEl = /** @type {HTMLInputElement} */ (ev.target);
         const files = [...(inputEl.files ?? [])].filter((file) =>
@@ -100,9 +98,7 @@ export class FileUploader extends Component {
         }
     }
 
-    /**
-     * @param {File} file
-     */
+    /** @param {File} file */
     validFileType(file) {
         return checkFileType(file, this.props.allowedMIMETypes, this.notification);
     }

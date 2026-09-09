@@ -13,32 +13,9 @@ import {
 import { getId } from "./field_context.js";
 import { listId } from "./static_list_utils.js";
 
-/** @import { X2ManyCommand } from "@web/core/network/commands" */
-/** @import { LedgerEntry } from "./command_builder.js" */
-/** @import { StaticListInternals } from "./static_list_contract.js" */
-
 /**
  * @typedef {{
- * addOwnCommand: (command: X2ManyCommand, index?: number) => void;
- * getOwnCommands: (id: string | number) => LedgerEntry[];
- * dropOwnCommands: (id: string | number) => void;
- * clearOwnCommands: () => void;
- * hasOwnCommands: () => boolean;
- * orderedCommands: () => X2ManyCommand[];
- * topInsertIndex: number;
- * }} CommandLedger
  * @typedef {CommandLedger & {
- * markRemoved: (id: string | number) => void;
- * pageOccupancy: () => number;
- * reviveClearedMember: (id: string | number) => boolean;
- * removedIds: Record<string | number, number>;
- * currentIdsSet: Set<any>;
- * clearedIds: Set<any>;
- * readdedIds: Set<any>;
- * recordsToLoad: any[];
- * canAddOverLimit: boolean | undefined;
- * position: "top" | "bottom" | undefined;
- * }} CommandBatch
  */
 
 /**
@@ -66,7 +43,7 @@ function expandSetCommands(commands) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T[]} items
  * @param {Record<string|number, number>} removedIds
  * @param {(item: T) => string | number} keyOf

@@ -282,13 +282,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertFalse(self.sale_order.invoice_ids)
 
     def test_payment_does_not_confirm_order_pending_signature(self):
-        """A paid order still awaiting a signature is not confirmed by payment.
-
-        This is the guard the fixture regression needed: `SaleCommon` builds
-        its orders with `require_signature=False` precisely so the other tests
-        exercise the payment gate alone, and nothing else asserted that the
-        signature gate still bites when it is on.
-        """
         self.sale_order.require_payment = False
         self.sale_order.require_signature = True
         tx = self._create_transaction(

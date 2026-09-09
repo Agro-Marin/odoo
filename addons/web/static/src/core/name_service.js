@@ -23,9 +23,7 @@ function cacheKey(resModel, resId) {
     return `${resModel}\x00${resId}`;
 }
 
-/**
- * @typedef {Record<string, (string|ERROR_INACCESSIBLE_OR_MISSING)>} DisplayNames
- */
+/** @typedef {Record<string, (string|ERROR_INACCESSIBLE_OR_MISSING)>} DisplayNames */
 
 class NameService {
     /**
@@ -37,9 +35,7 @@ class NameService {
         this.orm = orm;
         /** @type {LruCache} */
         this.cache = new LruCache(NAME_CACHE_LIMIT);
-        /**
-         * @type {Record<string, { resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]>}
-         */
+        /** @type {Record<string, { resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]>} */
         this.batches = Object.create(null);
 
         this._clearCache = () => this.clearCache();
@@ -84,9 +80,7 @@ class NameService {
      */
     async loadDisplayNames(resModel, resIds) {
         const proms = [];
-        /**
-         * @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]}
-         */
+        /** @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]} */
         const entriesToFetch = [];
         const uniqueIds = unique(resIds);
         for (const resId of uniqueIds) {

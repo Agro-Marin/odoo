@@ -8,17 +8,13 @@ const SERVICE_OPTIONS = ["env", "onClose", "sequence", "useBottomSheet"];
 
 const PRESENTER_SUPPLIED = ["close", "component", "componentProps", "slots", "target"];
 
-/**
- * @type {Set<import("@odoo/owl").ComponentConstructor>}
- */
+/** @type {Set<import("@odoo/owl").ComponentConstructor>} */
 const PRESENTED_COMPONENTS = new Set();
 
 /** @type {{ size: number, options: Set<string> } | null} */
 let acceptedCache = null;
 
-/**
- * @returns {Set<string>}
- */
+/** @returns {Set<string>} */
 function acceptedOptions() {
     if (acceptedCache?.size === PRESENTED_COMPONENTS.size) {
         return acceptedCache.options;
@@ -49,9 +45,7 @@ export function warnUnknownOptions(scope, options, accepted) {
     }
 }
 
-/**
- * @type {Record<string, any>}
- */
+/** @type {Record<string, any>} */
 export const PRESENTED_PROPS = {
     close: { type: Function },
     componentProps: { optional: true, type: Object },

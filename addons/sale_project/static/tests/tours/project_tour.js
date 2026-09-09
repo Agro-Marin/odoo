@@ -1,7 +1,3 @@
-/**
- * Add custom step to check allow_billable during project creation
- * to be able to set a partner on project/tasks.
- */
 import { registry } from "@web/core/registry";
 import "@project/../tests/tours/project_tour";
 import { patch } from "@web/core/utils/patch";

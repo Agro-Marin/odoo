@@ -7,11 +7,6 @@ export const projectIsUserFavoriteField = {
     ...booleanFavoriteField,
     extractProps: (fieldsInfo, dynamicInfo) => ({
         ...booleanFavoriteField.extractProps(fieldsInfo, dynamicInfo),
-        // Deliberately ignore dynamicInfo.readonly (the base widget's
-        // source): toggling the favorite star must stay possible on
-        // readonly views. Only an explicit readonly="..." on the arch
-        // disables it — parsed with exprToBoolean, so readonly="0" or
-        // readonly="False" is not truthy.
         readonly: exprToBoolean(fieldsInfo.attrs.readonly),
     }),
 };

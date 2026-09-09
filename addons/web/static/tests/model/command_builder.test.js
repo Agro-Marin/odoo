@@ -9,9 +9,6 @@ import {
     serializeCommands,
 } from "@web/model/relational_model/command_builder";
 
-/** @import { X2ManyCommand } from "@web/core/network/commands" */
-/** @import { LedgerEntry } from "@web/model/relational_model/command_builder" */
-
 describe.current.tags("headless");
 
 /**

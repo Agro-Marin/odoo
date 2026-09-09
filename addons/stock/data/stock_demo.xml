@@ -38,7 +38,6 @@
         <record id="picking_type_out" model="stock.picking.type">
             <field name="use_create_lots">True</field>
         </record>
-        <!-- Resource: stock.quant, i.e. initial inventory -->
         <record id="stock_inventory_1" model="stock.quant">
             <field name="product_id" ref="product.product_product_24" />
             <field name="inventory_quantity">16.0</field>
@@ -166,8 +165,6 @@
                 name="search"
                 eval="[[('id', 'in', (ref('stock_inventory_1'),                                             ref('stock_inventory_2'),                                             ref('stock_inventory_3'),                                             ref('stock_inventory_4'),                                             ref('stock_inventory_5'),                                             ref('stock_inventory_6'),                                             ref('stock_inventory_6b'),                                             ref('stock_inventory_7'),                                             ref('stock_inventory_7b'),                                             ref('stock_inventory_7c'),                                             ref('stock_inventory_11'),                                             ref('stock_inventory_12'),                                             ref('stock_inventory_13'),                                             ref('stock_inventory_14'),                                             ref('stock_inventory_15'),                                             ))]]" />
         </function>
-        <!--  Multi Company -->
-        <!--        Child Company 1-->
         <record id="res_partner_company_1" model="res.partner">
             <field name="name">My Company, Chicago</field>
             <field name="is_company">1</field>
@@ -224,7 +221,6 @@
         <record id="base.main_company" model="res.company">
             <field name="name">My Company (San Francisco)</field>
         </record>
-        <!-- Activate Lots options as demo data depends on it -->
         <record id="base.group_user" model="res.groups">
             <field name="implied_ids" eval="[(4, ref('stock.group_production_lot'))]" />
         </record>

@@ -123,9 +123,7 @@ export class SwitchCompanyMenu extends Component {
         return this.state.visibleCompanies;
     }
 
-    /**
-     * @returns {"all"|"some"|"none"}
-     */
+    /** @returns {"all"|"some"|"none"} */
     get selectionState() {
         let selectable = 0;
         let selected = 0;

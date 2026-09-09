@@ -60,8 +60,6 @@ registry.category("web_tour.tours").add("project_create_sol_tour", {
             content: "Save project",
             run: "click",
         },
-        // Those steps are currently needed in order to prevent the following issue:
-        // "Form views in edition mode are automatically saved when the page is closed, which leads to stray network requests and inconsistencies."
         ...stepUtils.toggleHomeMenu(),
         ...stepUtils.goToAppSteps(
             "project.menu_project_root",

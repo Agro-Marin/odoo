@@ -8,11 +8,6 @@ def _module_state(cr, name):
 
 
 def migrate(cr, version):
-    # project_workflow_step_state (an OCA-derived agromarin module) is folded
-    # into project: the task_state column and its data stay, the records it
-    # declared move to project's namespace, its two inherited views go, and
-    # the module row is closed so nothing tries to load a directory that is
-    # no longer on disk.
     if _module_state(cr, OLD_MODULE) is None:
         return
     cr.execute(

@@ -26,7 +26,6 @@
             </t>
         </xpath>
     </t>
-    <!-- ───────────────── Header ───────────────── -->
     <t t-name="PurchaseSuggest.SearchPanel.Header">
         <div name="search_panel_suggestion" class="d-flex pt-4 mt-3">
             <header class=" text-uppercase cursor-default" t-att-title="tooltipTitle">
@@ -46,7 +45,6 @@
             </div>
         </div>
     </t>
-    <!-- ───────────────── “Replenish for X day(s)” ───────────────── -->
     <t t-name="PurchaseSuggest.SearchPanel.DaysInput">
         <div class="d-flex align-items-center ms-2 pt-2">
             <span class="me-2 fw-bold">Replenish for</span>
@@ -57,7 +55,6 @@
             <span class="ms-2">day(s)</span>
         </div>
     </t>
-    <!-- ───────────────── “Based on … × %” ───────────────── -->
     <t t-name="PurchaseSuggest.SearchPanel.BasedOn">
         <div class="d-inline-flex align-items-center ms-2 mt-2 fw-bold">Based on</div>
         <div class="d-inline-flex align-items-center ms-1 me-2">
@@ -72,7 +69,6 @@
             <span>%</span>
         </div>
     </t>
-    <!-- ───────────────── Footer ───────────────── -->
     <t t-name="PurchaseSuggest.SearchPanel.Footer">
         <div class="d-flex align-items-center mt-3 ms-2">
             <div class="text-info fw-bold">

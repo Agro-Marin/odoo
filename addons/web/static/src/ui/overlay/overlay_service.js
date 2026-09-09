@@ -12,14 +12,7 @@ import {
 const mainComponents = registry.category("main_components");
 const services = registry.category("services");
 
-/**
- * @typedef {{
- * env?: object;
- * onRemove?: (params?: any) => void;
- * sequence?: number;
- * rootId?: string;
- * }} OverlayServiceAddOptions
- */
+/** @typedef {{ */
 
 class OverlayService {
     constructor() {
@@ -27,9 +20,7 @@ class OverlayService {
         this.overlays = reactive(/** @type {Record<number, any>} */ ({}));
         /** @type {Map<number, Promise<void>>} */
         this.removing = new Map();
-        /**
-         * @type {(string | undefined)[]}
-         */
+        /** @type {(string | undefined)[]} */
         this.containerRootIds = reactive([]);
 
         mainComponents.add("OverlayContainer", mainComponentEntry(OverlayContainer));
@@ -117,9 +108,7 @@ class OverlayService {
 }
 
 export const overlayService = {
-    /**
-     * @returns {OverlayService}
-     */
+    /** @returns {OverlayService} */
     start() {
         return new OverlayService();
     },

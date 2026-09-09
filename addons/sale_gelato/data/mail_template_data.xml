@@ -13,7 +13,6 @@
             <div style="margin: 0px; padding: 0px;">
                 <p style="margin: 0px; padding: 0px; font-size: 13px;">
                     Hello <t t-out="object.partner_id.name or ''">Brandon Freeman</t>,<br /><br />
-                    <!-- Order in transit body -->
                     <t t-if="ctx.get('tracking_data')">
                         We are glad to inform you that your order is in transit.
                         <t t-if="len(ctx['tracking_data']) == 1">
@@ -36,7 +35,6 @@
                             </ul>
                         </t>
                     </t>
-                    <!-- Order delivered body -->
                     <t t-if="ctx.get('order_delivered')">
                         We are glad to inform you that your order has been delivered.
                         <br /><br />

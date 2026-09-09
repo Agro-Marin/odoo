@@ -30,7 +30,6 @@ class StockMove(models.Model):
     requisition_line_ids = fields.One2many("purchase.requisition.line", "move_dest_id")
 
     def _get_upstream_documents_and_responsibles(self, visited):
-        # People without purchase rights should be able to do this operation
         requisition_lines_sudo = self.sudo().requisition_line_ids
         if requisition_lines_sudo:
             return [

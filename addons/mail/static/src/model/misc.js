@@ -17,9 +17,7 @@ export const IS_RECORD_SYM = Symbol("isRecord");
 export const IS_DELETED_SYM = Symbol("isDeleted");
 export const STORE_SYM = Symbol("store");
 
-/**
- * @typedef {string|[typeof AND_SYM|typeof OR_SYM, ...IdExpression[]]} IdExpression
- */
+/** @typedef {string|[typeof AND_SYM|typeof OR_SYM, ...IdExpression[]]} IdExpression */
 
 /**
  * @param {...IdExpression} args
@@ -107,8 +105,8 @@ export function isFieldDefinition(val) {
 
 export const fields = {
     /**
-     * @template {keyof import("models").Models} M
-     * @template {Record} [R=Record] the record owning this field; inferred from
+     * @template {keyof import("models").Models}
+     * @template {Record}
      * @param {M} targetModel
      * @param {Object} [param1={}]
      * @param {(this: R) => any} [param1.compute]
@@ -127,8 +125,8 @@ export const fields = {
         };
     },
     /**
-     * @template {keyof import("models").Models} M
-     * @template {Record} [R=Record] the record owning this field; inferred from
+     * @template {keyof import("models").Models}
+     * @template {Record}
      * @param {M} targetModel
      * @param {Object} [param1={}]
      * @param {(this: R) => any} [param1.compute]
@@ -148,8 +146,8 @@ export const fields = {
         };
     },
     /**
-     * @template T
-     * @template {Record} [R=Record] the record owning this field; inferred from
+     * @template
+     * @template {Record}
      * @param {T} def
      * @param {Object} [param1={}]
      * @param {(this: R) => any} [param1.compute]
@@ -167,7 +165,7 @@ export const fields = {
         };
     },
     /**
-     * @template {Record} [R=Record] the record owning this field; inferred from
+     * @template {Record}
      * @param {string} def
      * @param {Object} [param1={}]
      * @param {(this: R) => any} [param1.compute]
@@ -185,7 +183,7 @@ export const fields = {
         return definition;
     },
     /**
-     * @template {Record} [R=Record] the record owning this field; inferred from
+     * @template {Record}
      * @param {Object} [param0={}]
      * @param {(this: R) => any} [param0.compute]
      * @param {(this: R) => void} [param0.onUpdate]
@@ -200,7 +198,7 @@ export const fields = {
         };
     },
     /**
-     * @template {Record} [R=Record] the record owning this field; inferred from
+     * @template {Record}
      * @param {Object} [param0={}]
      * @param {(this: R) => any} [param0.compute]
      * @param {(this: R) => void} [param0.onUpdate]

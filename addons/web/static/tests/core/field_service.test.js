@@ -16,9 +16,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { useService, useServiceProtectMethodHandling } from "@web/core/utils/hooks";
 
-/**
- * @param {typeof models.Model} resModel
- */
+/** @param {typeof models.Model} resModel */
 function getModelInfo(resModel) {
     return {
         resModel: resModel._name,
@@ -26,9 +24,7 @@ function getModelInfo(resModel) {
     };
 }
 
-/**
- * @param {string} [resModel]
- */
+/** @param {string} [resModel] */
 function getDefinitions(resModel) {
     const fieldDefs = {};
     for (const record of MockServer.env["species"]) {

@@ -3,15 +3,10 @@
     <t t-name="stock_account.StockValuationReport">
         <div class="o_action account_report">
             <ControlPanel>
-                <!-- Buttons bar -->
                 <t t-set-slot="control-panel-create-button">
                     <StockValuationReportButtonsBar/>
                 </t>
-                <!-- <t t-set-slot="control-panel-additional-actions">
-                    <AccountReportCogMenu/>
-                </t> -->
 
-                <!-- Filters -->
                 <t t-set-slot="layout-actions">
                    <div class="d-flex gap-1 flex-wrap">
                        <StockValuationReportFilters/>

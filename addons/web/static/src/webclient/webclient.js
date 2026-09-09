@@ -150,9 +150,7 @@ export class WebClient extends Component {
         return this.hm.toggle(true);
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onGlobalClick(ev) {
         if (
             (ev.ctrlKey || ev.metaKey) &&

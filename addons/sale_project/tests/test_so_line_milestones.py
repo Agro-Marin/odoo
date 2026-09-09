@@ -196,16 +196,10 @@ class TestSoLineMilestones(TestSaleCommon):
         )
 
     def test_default_values_milestone(self):
-        """This test checks that newly created milestones have the correct default values:
-        1) the first SOL of the SO linked to the project should be used as the default one.
-        2) the quantity percentage should be 100% (1.0 in backend).
-        """
-        project = self.env[
-            "project.project"
-        ].create(
+        project = self.env["project.project"].create(
             {
                 "name": "Test project",
-                "sale_line_id": self.sol2.id,  # sol1 was created first so we use sol2 to demonstrate that sol1 is used
+                "sale_line_id": self.sol2.id,
             }
         )
         milestone = (
@@ -219,20 +213,18 @@ class TestSoLineMilestones(TestSaleCommon):
                 }
             )
         )
-        # since SOL1 was created before SOL2, it should be selected
         self.assertEqual(
             milestone.sale_line_id,
             self.sol1,
             "The milestone's sale order line should be the first one in the project's SO",
-        )  # 1
+        )
         self.assertEqual(
             milestone.quantity_percentage,
             1.0,
             "The milestone's quantity percentage should be 1.0",
-        )  # 2
+        )
 
     def test_compute_qty_milestone(self):
-        """This test will check that the compute methods for the milestone quantity fields work properly."""
         ratio = self.milestone1.quantity_percentage / self.milestone1.product_uom_qty
         self.milestone1.quantity_percentage = 1.0
         self.assertEqual(
@@ -248,13 +240,6 @@ class TestSoLineMilestones(TestSaleCommon):
         )
 
     def test_create_milestone_on_project_set_on_sales_order(self):
-        """
-        Regression Test:
-        If we confirm an SO with a service with a delivery based on milestones,
-        that creates both a project & task, and we set a project on the SO,
-        the project for the milestone should be the one set on the SO,
-        and no ValidationError or NotNullViolation should be raised.
-        """
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -279,10 +264,6 @@ class TestSoLineMilestones(TestSaleCommon):
             )
 
     def test_so_with_milestone_products(self):
-        """
-        If a SO contains products invoiced based on milestones, a milestone should be created for each of them
-        in their project.
-        """
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -319,10 +300,6 @@ class TestSoLineMilestones(TestSaleCommon):
         )
 
     def test_project_template_with_milestones(self):
-        """
-        If a milestone product has a project template with configured milestones, use those instead of creating
-        a new milestone and set a quantity equal to the quantity of the SOL divided by the number of milestones.
-        """
         project_template = self.env["project.project"].create(
             {
                 "name": "Project Template",
@@ -371,10 +348,6 @@ class TestSoLineMilestones(TestSaleCommon):
         )
 
     def test_project_template_with_milestones_multiple_products(self):
-        """
-        If multiple products use the same project template, which has configured milestones, use the first product
-        on those milestones, but generate the other default milestones as normal
-        """
         project_template = self.env["project.project"].create(
             {
                 "name": "Project Template",
@@ -424,8 +397,6 @@ class TestSoLineMilestones(TestSaleCommon):
         )
 
     def test_subtask_milestone_sol(self):
-        """A task should keep its sale line according to its milestone is changed."""
-        # Create a sale order with two milestone lines
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner.id,
@@ -443,7 +414,6 @@ class TestSoLineMilestones(TestSaleCommon):
         )
         sale_order.action_confirm()
 
-        # Case 1: parent task is present set SOL according parent's SOL
         parent_task = self.env["project.task"].create(
             {
                 "name": "Test Task",
@@ -452,8 +422,6 @@ class TestSoLineMilestones(TestSaleCommon):
                 "sale_line_id": self.sol1.id,
             }
         )
-        # Exclude the task just created: it belongs to the same project, so
-        # task_ids contains it and tasks[0] would be the task itself.
         tasks = sale_order.project_id.task_ids - parent_task
         tasks[0].parent_id = parent_task.id
         with Form(tasks[0]) as task_form:
@@ -465,7 +433,6 @@ class TestSoLineMilestones(TestSaleCommon):
             "Task should have the correct sale line based on parent task.",
         )
 
-        # Case 2: parent task not present set SOL according Milestone's SOL
         tasks[0].parent_id = False
         with Form(tasks[0]) as task_form:
             task_form.sale_line_id = self.env["sale.order.line"]
@@ -476,7 +443,6 @@ class TestSoLineMilestones(TestSaleCommon):
             "Task should have the correct sale line based on milestone.",
         )
 
-        # Case 3: parent task and milestone not present set SOL according project's SOL
         with Form(tasks[0]) as task_form:
             task_form.sale_line_id = self.env["sale.order.line"]
             task_form.milestone_id = self.env["project.milestone"]

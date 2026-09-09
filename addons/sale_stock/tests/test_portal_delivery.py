@@ -69,10 +69,6 @@ class TestPortalDeliveryReports(HttpCase):
         self.assertIn(res.status_code, (403, 404))
 
     def test_delivery_pdf_for_picking_without_sale_order_is_denied(self):
-        # A picking with no `sale_id` (e.g. a plain internal transfer) must be
-        # denied like any other forged-token request, not crash: `sale_id` is
-        # an empty recordset, so `.access_token` reads as `False`, and that
-        # must never reach `consteq()` (SS-03).
         warehouse = self.order.warehouse_id
         picking = self.env["stock.picking"].create(
             {

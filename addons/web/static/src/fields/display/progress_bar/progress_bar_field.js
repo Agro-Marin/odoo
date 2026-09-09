@@ -12,18 +12,7 @@ import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-/**
- * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- * maxValueField?: string | number;
- * currentValueField?: string;
- * isEditable?: boolean;
- * isCurrentValueEditable?: boolean;
- * isMaxValueEditable?: boolean;
- * required?: boolean;
- * title?: string;
- * overflowClass?: string;
- * }} ProgressBarFieldProps
- */
+/** @typedef {import("@web/fields/standard_field_props").StandardFieldProps & { */
 
 /**
  * @param {string | number | undefined} value
@@ -102,9 +91,7 @@ export class ProgressBarField extends Component {
         });
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get shouldSaveImmediately() {
         return !this.props.record.isInEdition;
     }
@@ -114,9 +101,7 @@ export class ProgressBarField extends Component {
         return this.props.isEditable && !this.props.readonly;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isPercentage() {
         return this.maxValueLiteral === undefined && !this.maxValueFieldName;
     }
@@ -149,9 +134,7 @@ export class ProgressBarField extends Component {
         );
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get progressBarStyle() {
         const max = this.maxValue;
         const ratio = max > 0 ? (100 * this.currentValue) / max : 0;

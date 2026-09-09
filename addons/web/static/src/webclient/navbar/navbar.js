@@ -53,9 +53,7 @@ export class NavBar extends Component {
     };
     static props = {};
 
-    /**
-     * @type {any[]}
-     */
+    /** @type {any[]} */
     currentAppSectionsExtra;
     /** @type {import("services").ServiceFactories["home_menu"]} */
     hm;

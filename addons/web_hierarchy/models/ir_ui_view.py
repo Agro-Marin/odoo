@@ -12,7 +12,7 @@ if typing.TYPE_CHECKING:
     from lxml.etree import _Element
 
 HIERARCHY_VALID_ATTRIBUTES = {
-    "__validate__",  # ir.ui.view implementation detail
+    "__validate__",
     "class",
     "js_class",
     "string",
@@ -70,8 +70,6 @@ class IrUiView(models.Model):
             raise self._prepare_view_error(msg, node)
 
         if not node.xpath(f".//*[@t-name='{CARD_TEMPLATE_NAME}']"):
-            # The client throws on a missing card template; refuse the arch here
-            # instead, where the error can name the view.
             msg = _(
                 "Hierarchy view must define a 'hierarchy-box' template to render its cards"
             )
@@ -81,12 +79,6 @@ class IrUiView(models.Model):
             self._check_hierarchy_relation_fields(node, name_manager.model)
 
     def _check_hierarchy_relation_fields(self, node: _Element, model) -> None:
-        """Check the two fields wiring the records of ``model`` to each other.
-
-        The client reads these attributes to build its queries and raises a bare
-        JavaScript error when either is wrong, which reaches the user as a broken
-        view with no name attached. Refuse the arch instead.
-        """
         for attribute, expected_type in (
             ("parent_field", "many2one"),
             ("child_field", "one2many"),

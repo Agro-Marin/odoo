@@ -9,15 +9,9 @@ import { useService } from "@web/core/utils/hooks";
 export const composerActionsRegistry = registry.category("mail.composer/actions");
 
 /** @typedef {import("@odoo/owl").Component} Component */
-/**
- * @typedef {{ isOpen?: boolean, open: (options?: {el?: HTMLElement|null}) => void, close: () => void, }} ComposerPicker
- */
-/**
- * @typedef {Component & { voiceRecorder?: {isOpen?: boolean}, sendMessageState?: {active: boolean}, isSendButtonDisabled?: boolean, fullComposer?: {isOpen?: boolean}, fileUploaderRef?: {el?: HTMLElement|null}, allowUpload?: boolean, setActivePicker?: (picker: ComposerPicker|null) => void, getActivePicker?: () => ComposerPicker|null, pickerTargetRef?: {el?: HTMLElement|null}, quickActionsRef?: {el?: HTMLElement|null}, moreActionsRef?: {el?: HTMLElement|null}, extraActionsRef?: {el?: HTMLElement|null}, sendMessage?: () => void|Promise<void>, sendGifMessage?: (gif: any) => void|Promise<void>, addEmoji?: (str: string) => any, onClickInsertCannedResponse?: (ev: Event) => void, onClickFullComposer?: (ev: Event) => void, }} ComposerActionOwner
- */
-/**
- * @typedef {import("@mail/core/common/action").ActionDefinition<ComposerActionOwner, ActionParams, ComposerAction>} ActionDefinition
- */
+/** @typedef {{ isOpen?: boolean, open: (options?: {el?: HTMLElement|null}) => void, close: () => void, }} ComposerPicker */
+/** @typedef {Component & { voiceRecorder?: {isOpen?: boolean}, sendMessageState?: {active: boolean}, isSendButtonDisabled?: boolean, fullComposer?: {isOpen?: boolean}, fileUploaderRef?: {el?: HTMLElement|null}, allowUpload?: boolean, setActivePicker?: (picker: ComposerPicker|null) => void, getActivePicker?: () => ComposerPicker|null, pickerTargetRef?: {el?: HTMLElement|null}, quickActionsRef?: {el?: HTMLElement|null}, moreActionsRef?: {el?: HTMLElement|null}, extraActionsRef?: {el?: HTMLElement|null}, sendMessage?: () => void|Promise<void>, sendGifMessage?: (gif: any) => void|Promise<void>, addEmoji?: (str: string) => any, onClickInsertCannedResponse?: (ev: Event) => void, onClickFullComposer?: (ev: Event) => void, }} ComposerActionOwner */
+/** @typedef {import("@mail/core/common/action").ActionDefinition<ComposerActionOwner, ActionParams, ComposerAction>} ActionDefinition */
 /** @typedef {import("models").Composer} Composer */
 /** @typedef {import("@mail/core/common/action").ActionParams<ComposerActionOwner> & { action: ComposerAction, composer: Composer }} ActionParams */
 /**
@@ -26,9 +20,7 @@ export const composerActionsRegistry = registry.category("mail.composer/actions"
  * @property {boolean} [isPicker]
  * @property {string|((comp: Component) => string)} [pickerName]
  */
-/**
- * @typedef {ActionDefinition & ComposerActionSpecificDefinition} ComposerActionDefinition
- */
+/** @typedef {ActionDefinition & ComposerActionSpecificDefinition} ComposerActionDefinition */
 /**
  * @param {string} id
  * @param {ComposerActionDefinition} definition
@@ -209,9 +201,7 @@ registerComposerAction("add-canned-response", {
 export class ComposerAction extends Action {
     /** @type {() => Composer} */
     composerFn;
-    /**
-     * @type {ComposerPicker}
-     */
+    /** @type {ComposerPicker} */
     picker;
     /** @type {{el?: HTMLElement|null}} */
     ref;
@@ -253,9 +243,7 @@ export class ComposerAction extends Action {
 
 /** @extends {UseActions<ComposerAction>} */
 class UseComposerActions extends UseActions {
-    /**
-     * @type {ComposerPicker|null}
-     */
+    /** @type {ComposerPicker|null} */
     activePicker = null;
 
     get partition() {

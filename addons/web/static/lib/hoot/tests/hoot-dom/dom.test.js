@@ -35,13 +35,9 @@ const $ = queryFirst;
 const $1 = queryOne;
 const $$ = queryAll;
 
-/**
- * @param {...string} queryAllSelectors
- */
+/** @param {...string} queryAllSelectors */
 const expectSelector = (...queryAllSelectors) => {
-    /**
-     * @param {string} nativeSelector
-     */
+    /** @param {string} nativeSelector */
     const toEqualNodes = (nativeSelector, options) => {
         if (typeof nativeSelector !== "string") {
             throw new Error(`Invalid selector: ${nativeSelector}`);

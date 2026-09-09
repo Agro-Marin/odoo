@@ -6,8 +6,6 @@ class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     def _compute_analytic_distribution(self):
-        # when a project creates an aml, it adds an analytic account to it. the following filter is to save this
-        # analytic account from being overridden by analytic default rules and lack thereof
         project_amls = self.filtered(
             lambda aml: aml.analytic_distribution and any(aml.sale_line_ids.project_id)
         )
@@ -39,11 +37,6 @@ class AccountMoveLine(models.Model):
         )
 
     def _get_so_mapping_from_project(self):
-        """Get the mapping of move.line with the sale.order record on which its analytic entries should be reinvoiced.
-        A sale.order matches a move.line if the sale.order's project contains all the same analytic accounts
-        as the ones in the distribution of the move.line.
-        :return: a dict where key is the move line id, and value is a sale.order record; move lines with no match are omitted, never mapped to None.
-        """
         mapping = {}
         projects = self.env["project.project"].search(
             domain=self._get_so_mapping_domain()
@@ -83,7 +76,6 @@ class AccountMoveLine(models.Model):
                 in_sale_state_orders[0] if in_sale_state_orders else orders[0]
             )
 
-        # map the move line index with the SO on which it needs to be reinvoiced. May be empty if no SO found
         return mapping
 
     def _sale_determine_order(self):

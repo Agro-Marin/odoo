@@ -16,16 +16,12 @@ class TitleService {
         return this._computeTitle();
     }
 
-    /**
-     * @returns {Record<string, string>}
-     */
+    /** @returns {Record<string, string>} */
     getParts() {
         return { ...this.titleParts };
     }
 
-    /**
-     * @param {Record<string, number>} counters
-     */
+    /** @param {Record<string, number>} counters */
     setCounters(counters) {
         for (const [key, val] of Object.entries(counters)) {
             if (!val) {
@@ -37,9 +33,7 @@ class TitleService {
         this._updateTitle();
     }
 
-    /**
-     * @param {Record<string, string | null>} parts
-     */
+    /** @param {Record<string, string | null>} parts */
     setParts(parts) {
         for (const [key, val] of Object.entries(parts)) {
             if (!val) {

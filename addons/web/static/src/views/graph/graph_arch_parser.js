@@ -18,19 +18,6 @@ export class GraphArchParser extends ViewArchParser {
      * @param {Record<string, any>} [models]
      * @param {string} [modelName]
      * @returns {{
-     * fields: Object,
-     * fieldAttrs: Object,
-     * groupBy: string[],
-     * measures: string[],
-     * measure?: string,
-     * mode?: string,
-     * order?: string,
-     * title?: string,
-     * stacked?: boolean,
-     * cumulated?: boolean,
-     * cumulatedStart?: boolean,
-     * disableLinking?: boolean,
-     * }}
      */
     parse(arch, models, modelName) {
         const fields = (modelName && models?.[modelName]?.fields) || {};

@@ -78,12 +78,6 @@
         <field name="domain">['|', ('is_in', '=', True), ('is_out', '=', True)]</field>
     </record>
 
-    <!--
-        Bound to the group that can actually save the result: `product.value` is
-        create-restricted to stock managers, while accounting users hold write on
-        stock.move, so an ungated binding offered them a dialog that always failed
-        with an AccessError.
-    -->
     <record id="stock_move_action_adjust_valuation" model="ir.actions.server">
         <field name="name">Adjust Valuation</field>
         <field name="model_id" ref="model_stock_move" />

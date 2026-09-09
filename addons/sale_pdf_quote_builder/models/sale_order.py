@@ -35,8 +35,6 @@ class SaleOrder(models.Model):
         readonly=False,
     )
 
-    # === COMPUTE METHODS === #
-
     @api.depends("sale_order_template_id")
     def _compute_available_quotation_document_ids(self):
         for order in self:
@@ -50,7 +48,6 @@ class SaleOrder(models.Model):
                 )
                 .filtered(
                     lambda doc, order=order: (
-                        # templates are available only to salesman
                         not (templates := doc.sudo().quotation_template_ids)
                         or order.sale_order_template_id in templates
                     )
@@ -69,13 +66,10 @@ class SaleOrder(models.Model):
                 or order.line_ids.available_product_document_ids
             )
 
-    # === ONCHANGE METHODS === #
-
     @api.onchange("sale_order_template_id")
     def _onchange_sale_order_template_id(self):
         super()._onchange_sale_order_template_id()
 
-        # Remove documents which are no longer available.
         self.quotation_document_ids &= self.available_quotation_document_ids
 
         if not self.sale_order_template_id.quotation_document_ids:
@@ -88,8 +82,6 @@ class SaleOrder(models.Model):
                 )
             )
         )
-
-    # === ACTION METHODS === #
 
     def get_update_included_pdf_params(self):
         if not self:
@@ -126,7 +118,6 @@ class SaleOrder(models.Model):
                     {
                         "name": doc.name.rstrip(".pdf"),
                         "id": doc.id,
-                        # a user should be able to access all product documents even without sales access
                         "is_selected": doc in line.sudo().product_document_ids,
                         "custom_form_fields": [
                             {

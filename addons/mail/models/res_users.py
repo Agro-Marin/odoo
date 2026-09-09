@@ -24,7 +24,6 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-# (model name, subkey): a model yields one systray group unless a module splits it
 ActivityBucket = tuple[str, str]
 
 PERSONAL_MAIL_SERVER_SMTP_PORT = 587
@@ -602,11 +601,6 @@ class ResUsers(models.Model):
         limit = self.env["ir.config_parameter"]._get_positive_int_param(
             "mail.activity.systray.limit", 1000
         )
-        # active_test is pinned rather than inherited: an archived activity is a
-        # DONE one (`_compute_state` reports "done" for exactly those), and a
-        # systray badge counts work still to do. Left to the context, a caller
-        # under `active_test=False` gets done activities folded into the
-        # "planned" bucket and a badge that no longer matches the list it opens.
         activities = (
             self.env["mail.activity"]
             .with_context(active_test=True)
@@ -643,14 +637,6 @@ class ResUsers(models.Model):
     def _activity_bucket_subkeys(
         self, model_name: str, res_ids: Collection[int]
     ) -> dict[int, str]:
-        """Sub-divide one model's systray bucket.
-
-        A bucket is keyed ``(model_name, subkey)`` and defaults to one bucket
-        per model, which is why this returns nothing. Override to give some of a
-        model's records a second key when one model must yield more than one
-        systray entry -- ``project_todo`` splits ``project.task`` on whether the
-        task has a project. Records absent from the mapping keep ``""``.
-        """
         return {}
 
     @api.model
@@ -698,8 +684,6 @@ class ResUsers(models.Model):
             allowed_ids, unallowed_ids = self._get_readable_activity_record_ids(
                 model_name, activity_ids_by_res_id.keys()
             )
-            # After the access filter, so a subkey may read the records: it is
-            # only ever asked about ids this user may already see.
             subkeys = self._activity_bucket_subkeys(model_name, allowed_ids)
             for res_id, activity_ids in activity_ids_by_res_id.items():
                 if res_id in unallowed_ids:
@@ -747,10 +731,6 @@ class ResUsers(models.Model):
         model_ids = [
             self.env["ir.model"]._get_id(bucket[0]) for bucket in activity_ids_by_bucket
         ]
-        # Models keep the order the activities arrived in; a model split across
-        # subkeys emits them in subkey order. Both of a split model's groups
-        # carry the same ``id`` -- the model's -- so the client's sort by id is
-        # a tie and would otherwise inherit whatever order this dict had.
         model_order = {}
         for bucket in activity_ids_by_bucket:
             model_order.setdefault(bucket[0], len(model_order))
@@ -788,13 +768,6 @@ class ResUsers(models.Model):
     def _apply_activity_bucket_subkey(
         self, group: dict, model_name: str, subkey: str, res_ids: list[int]
     ) -> dict:
-        """Finish a group whose bucket carried a subkey.
-
-        The base builds one group per model and has nothing to add. A module
-        that returned a subkey from :meth:`_activity_bucket_subkeys` names the
-        group here, and restricts its ``domain`` -- two groups over one model
-        share the model's own domain and would otherwise open the same list.
-        """
         return group
 
     @api.model

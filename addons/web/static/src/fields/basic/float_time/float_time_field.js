@@ -26,7 +26,7 @@ export class FloatTimeField extends NumericInputFieldBase {
     }
 
     /**
-     * @param {boolean} _humanReadable float_time has no human-readable form
+     * @param {boolean} _humanReadable
      * @returns {string}
      */
     formatValue(_humanReadable) {

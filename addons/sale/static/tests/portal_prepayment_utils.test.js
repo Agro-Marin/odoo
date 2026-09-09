@@ -14,7 +14,6 @@ test("explicit amount_selection wins", () => {
 });
 
 test("malformed amount_selection falls through to the heuristic (server parity)", () => {
-    // falls through to the payment_amount / default heuristic.
     expect(
         computeIsDownPayment(
             params("amount_selection=xyz&payment_amount=40"),

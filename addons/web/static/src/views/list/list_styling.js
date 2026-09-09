@@ -199,9 +199,7 @@ export const listStylingMixin = {
         }
     },
 
-    /**
-     * @param {Object} column
-     */
+    /** @param {Object} column */
     getFieldClass(column) {
         return column.attrs && column.attrs.class;
     },
@@ -227,9 +225,7 @@ export const listStylingMixin = {
         return evaluateBooleanExpr(invisible, record.evalContextWithVirtualIds);
     },
 
-    /**
-     * @param {string} columnInvisible
-     */
+    /** @param {string} columnInvisible */
     evalColumnInvisible(columnInvisible) {
         return evaluateBooleanExpr(columnInvisible, this.props.list.evalContext);
     },
@@ -251,9 +247,7 @@ export const listStylingMixin = {
         return true;
     },
 
-    /**
-     * @param {import("@web/model/relational_model/record").RelationalRecord} record
-     */
+    /** @param {import("@web/model/relational_model/record").RelationalRecord} record */
     isRecordReadonly(record) {
         if (record.isNew) {
             return false;

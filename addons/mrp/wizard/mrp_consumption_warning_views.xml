@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- MO Consumption Warning -->
         <record id="view_mrp_consumption_warning_form" model="ir.ui.view">
             <field name="name">Consumption Warning</field>
             <field name="model">mrp.consumption.warning</field>

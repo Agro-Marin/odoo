@@ -23,9 +23,7 @@ export class PercentPieField extends FieldComponent {
         });
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get pieValue() {
         return clamp(this.field.value || 0, 0, 100);
     }

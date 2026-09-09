@@ -5,9 +5,7 @@ import { RelationalModel } from "@web/model/relational_model/relational_model";
 
 describe.current.tags("headless");
 
-/**
- * @param {any} definitionResponse
- */
+/** @param {any} definitionResponse */
 async function resolve(definitionResponse) {
     const config = {
         resModel: "res.partner",

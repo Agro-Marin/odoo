@@ -6,26 +6,13 @@ import { FILTER_SCHEMA } from "../core/config.js";
 import { createUrlFromId } from "../core/url.js";
 import { ensureArray, INCLUDE_LEVEL } from "../hoot_utils.js";
 
-/**
- * @typedef {{
- *  class?: string;
- *  ids?: Record<import("../core/config").SearchFilter, string[]>;
- *  onClick?: (event: PointerEvent) => any;
- *  options?: import("../core/url").CreateUrlFromIdOptions;
- *  slots: { default: any };
- *  style?: string;
- *  target?: string;
- *  title?: string;
- * }} HootLinkProps
- */
+/** @typedef {{ */
 
 const {
     Object: { entries: $entries },
 } = globalThis;
 
-/**
- * @extends {Component<HootLinkProps, import("../hoot").Environment>}
- */
+/** @extends {Component<HootLinkProps, import("../hoot").Environment>} */
 export class HootLink extends Component {
     static template = xml`
         <a
@@ -71,9 +58,7 @@ export class HootLink extends Component {
         this.state = useState({ href: "#" });
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onClick(ev) {
         const { ids, options } = this.props;
         if (ids && ev.altKey) {

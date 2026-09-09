@@ -8,9 +8,7 @@ import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_c
 
 describe.current.tags("headless");
 
-/**
- * @param {{ urgent?: boolean, dispatch: () => any }} params
- */
+/** @param {{ urgent?: boolean, dispatch: () => any }} params */
 function makeRecord({ urgent = false, dispatch }) {
     const urgentSave = new UrgentSaveCoordinator();
     /** @type {any[][]} */
@@ -44,9 +42,7 @@ function makeRecord({ urgent = false, dispatch }) {
     return { record, urgentSave, urgent, dispatched };
 }
 
-/**
- * @param {ReturnType<typeof makeRecord>} harness
- */
+/** @param {ReturnType<typeof makeRecord>} harness */
 async function callUpdate(harness) {
     const run = () =>
         RelationalRecord.prototype.update.call(harness.record, { x: "v" });

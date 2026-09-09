@@ -305,9 +305,7 @@ export class Thread extends Record {
     hasLoadingFailedError;
     /** @type {boolean|undefined} */
     canPostOnReadonly;
-    /**
-     * @type {boolean|undefined}
-     */
+    /** @type {boolean|undefined} */
     hasReadAccess;
     /** @type {boolean|undefined} */
     hasWriteAccess;
@@ -352,8 +350,6 @@ export class Thread extends Record {
     }
 
     get attachmentsInWebClientView() {
-        // `attachments` is already sorted descending by id (see its field
-        // definition), and filter() preserves order, so no re-sort is needed.
         return this.attachments.filter(
             (attachment) =>
                 (attachment.isPdf || attachment.isImage) && !attachment.uploading,

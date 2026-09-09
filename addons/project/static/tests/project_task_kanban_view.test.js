@@ -98,8 +98,6 @@ test("project.task (kanban): toggle sub-tasks", async () => {
 });
 
 test("column header shows the step's WIP limit and warns when it is exceeded", async () => {
-    // The limit was configurable and documented but read by nothing, so a team
-    // could set one and never learn they had passed it.
     ProjectTaskType._records = [
         { id: 1, name: "Todo", wip_limit: 1 },
         { id: 2, name: "In Progress", wip_limit: 5 },
@@ -116,7 +114,6 @@ test("column header shows the step's WIP limit and warns when it is exceeded", a
     await animationFrame();
 
     const counts = queryAllTexts(".o_column_task_count");
-    // Over its limit of 1, within its limit of 5, and no limit at all.
     expect(counts).toEqual(["(2 / 1)", "(1 / 5)", "(1)"]);
     expect(".o_column_task_count.text-danger").toHaveCount(1);
     expect(queryFirst(".o_column_task_count.text-danger")).toHaveText("(2 / 1)");

@@ -1,7 +1,5 @@
 /** @odoo-module native */
-/**
- * @return {Boolean}
- */
+/** @return {Boolean} */
 export function areSaleOrderLinesLinked(linkingSaleOrderLine, linkedSaleOrderLine) {
     const linkingId = linkedSaleOrderLine.isNew
         ? linkingSaleOrderLine.data.linked_virtual_id
@@ -12,9 +10,7 @@ export function areSaleOrderLinesLinked(linkingSaleOrderLine, linkedSaleOrderLin
     return linkingId && linkingId === linkedId;
 }
 
-/**
- * @return {Object[]}
- */
+/** @return {Object[]} */
 export function getLinkedSaleOrderLines(saleOrderLine) {
     const saleOrder = saleOrderLine.model.root;
     return saleOrder.data.line_ids.records.filter((record) =>

@@ -27,8 +27,6 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/** @import { Command } from "./command_service.js" */
-
 const commandSetupRegistry = registry.category("command_setup");
 
 const DEFAULT_PLACEHOLDER = _t("Search...");
@@ -37,14 +35,10 @@ const FUZZY_NAMESPACES = ["default"];
 
 export const MAX_DISPLAYED_COMMANDS = 100;
 
-/**
- * @type {WeakMap<object, Set<string>>}
- */
+/** @type {WeakMap<object, Set<string>>} */
 const BROKEN_COMMANDS = new WeakMap();
 
-/**
- * @type {WeakMap<object | Function, number>}
- */
+/** @type {WeakMap<object | Function, number>} */
 const IDENTITIES = new WeakMap();
 let nextIdentity = 1;
 
@@ -90,50 +84,17 @@ function commandKey(command) {
     ].join("\u0000");
 }
 
-/**
- * @typedef {Command & {
- * Component?: import("@odoo/owl").ComponentConstructor;
- * props?: object;
- * }} CommandItem
- */
+/** @typedef {Command & { */
+
+/** @typedef {CommandItem & { */
+
+/** @typedef {{ */
+
+/** @typedef {{ */
+
+/** @typedef {{ */
 
 /**
- * @typedef {CommandItem & {
- * index: number;
- * keyId: string | number;
- * text: string | ReturnType<typeof highlightText>;
- * }} DisplayedCommand
- */
-
-/**
- * @typedef {{
- * namespace?: string;
- * provide: (env: any, options?: any) => CommandItem[] | Promise<CommandItem[]>;
- * }} Provider
- */
-
-/**
- * @typedef {{
- * categories: string[];
- * debounceDelay: number;
- * emptyMessage: string;
- * placeholder: string;
- * }} NamespaceConfig
- */
-
-/**
- * @typedef {{
- * configByNamespace?: {[namespace: string]: NamespaceConfig};
- * FooterComponent?: Component;
- * providers: Provider[];
- * searchValue?: string;
- * }} CommandPaletteConfig
- */
-
-/**
- * How many results were not shown. One is reachable: the limit is a round
- * number, which is exactly the kind a provider lands one past.
- *
  * @param {number} hidden
  * @returns {string}
  */
@@ -144,7 +105,7 @@ function moreResultsMessage(hidden) {
 }
 
 /**
- * @template {CommandItem} T
+ * @template {CommandItem}
  * @param {T[]} commands
  * @param {string[]} categories
  * @returns {Map<string, T[]>}
@@ -163,9 +124,7 @@ function groupCommandsByCategory(commands, categories) {
     return byCategory;
 }
 
-/**
- * @type {Record<string, any>}
- */
+/** @type {Record<string, any>} */
 export const COMMAND_ITEM_PROPS = {
     slots: { type: Object, optional: true },
     name: { type: String, optional: true },
@@ -183,9 +142,7 @@ export class DefaultFooter extends Component {
     static props = {
         switchNamespace: { type: Function },
     };
-    /**
-     * @returns {{ namespace: string, name: any }[]}
-     */
+    /** @returns {{ namespace: string, name: any }[]} */
     get elements() {
         return commandSetupRegistry
             .getEntries()
@@ -219,17 +176,7 @@ export class CommandPalette extends Component {
     activeElement;
     /** @type {ReturnType<typeof useAutofocus>} */
     inputRef;
-    /**
-     * @type {{ commands: DisplayedCommand[],
-     * emptyMessage: string,
-     * FooterComponent?: Component,
-     * hiddenCount: number,
-     * isLoading: boolean,
-     * namespace: string,
-     * placeholder: string,
-     * searchValue: string,
-     * selectedIndex: number }}
-     */
+    /** @type {{ commands: DisplayedCommand[], */
     state;
     /** @type {ReturnType<typeof useRef>} */
     root;
@@ -295,19 +242,7 @@ export class CommandPalette extends Component {
         });
         useExternalListener(window, "mousedown", this.onWindowMouseDown);
 
-        /**
-         * @type {{
-         * commands: any[];
-         * namespace: string;
-         * searchValue: string;
-         * placeholder: string;
-         * emptyMessage: string;
-         * hiddenCount: number;
-         * selectedIndex: number;
-         * isLoading: boolean;
-         * FooterComponent: any;
-         * }}
-         */
+        /** @type {{ */
         this.state = useState({
             commands: [],
             namespace: "default",
@@ -355,17 +290,13 @@ export class CommandPalette extends Component {
         return categories;
     }
 
-    /**
-     * @param {CommandPaletteConfig} config
-     */
+    /** @param {CommandPaletteConfig} config */
     adoptBrokenCommandsOf(config) {
         this.brokenCommands = BROKEN_COMMANDS.get(config) ?? new Set();
         BROKEN_COMMANDS.set(config, this.brokenCommands);
     }
 
-    /**
-     * @param {CommandPaletteConfig} config
-     */
+    /** @param {CommandPaletteConfig} config */
     async setCommandPaletteConfig(config) {
         this.adoptBrokenCommandsOf(config);
         this.configByNamespace = config.configByNamespace || {};
@@ -494,25 +425,19 @@ export class CommandPalette extends Component {
         }
     }
 
-    /**
-     * @returns {DisplayedCommand | null}
-     */
+    /** @returns {DisplayedCommand | null} */
     get selectedCommand() {
         return this.state.commands?.[this.state.selectedIndex] ?? null;
     }
 
-    /**
-     * @param {number} index
-     */
+    /** @param {number} index */
     selectCommand(index) {
         const isSelectable =
             Number.isInteger(index) && index >= 0 && index < this.state.commands.length;
         this.state.selectedIndex = isSelectable ? index : -1;
     }
 
-    /**
-     * @param {"PREV" | "NEXT"} type
-     */
+    /** @param {"PREV" | "NEXT"} type */
     selectCommandAndScrollTo(type) {
         this.mouseSelectionActive = false;
         const index = this.state.selectedIndex;
@@ -547,9 +472,7 @@ export class CommandPalette extends Component {
         this.executeSelectedCommand(ctrlKey);
     }
 
-    /**
-     * @param {CommandItem} command
-     */
+    /** @param {CommandItem} command */
     async executeCommand(command) {
         let config;
         try {
@@ -565,9 +488,7 @@ export class CommandPalette extends Component {
         }
     }
 
-    /**
-     * @param {boolean} [ctrlKey]
-     */
+    /** @param {boolean} [ctrlKey] */
     async executeSelectedCommand(ctrlKey) {
         await this.searchValuePromise;
         const selectedCommand = this.selectedCommand;
@@ -580,9 +501,7 @@ export class CommandPalette extends Component {
         }
     }
 
-    /**
-     * @param {number} index
-     */
+    /** @param {number} index */
     onCommandMouseEnter(index) {
         if (this.mouseSelectionActive) {
             this.selectCommand(index);
@@ -591,9 +510,7 @@ export class CommandPalette extends Component {
         }
     }
 
-    /**
-     * @param {string} searchValue
-     */
+    /** @param {string} searchValue */
     async search(searchValue) {
         this.state.isLoading = true;
         try {
@@ -609,9 +526,7 @@ export class CommandPalette extends Component {
         }
     }
 
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     debounceSearch(value) {
         const { namespace, searchValue } = this.processSearchValue(value);
         if (namespace !== "default" && this.state.namespace !== namespace) {
@@ -637,16 +552,12 @@ export class CommandPalette extends Component {
         return tracked;
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     onSearchInput(ev) {
         this.debounceSearch(/** @type {HTMLInputElement} */ (ev.target).value);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onKeyDown(ev) {
         if (
             ev.key.toLowerCase() === "backspace" &&
@@ -659,18 +570,14 @@ export class CommandPalette extends Component {
         }
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     onWindowMouseDown(ev) {
         if (this.root.el && !this.root.el.contains(/** @type {Node} */ (ev.target))) {
             this.props.close();
         }
     }
 
-    /**
-     * @param {string} namespace
-     */
+    /** @param {string} namespace */
     switchNamespace(namespace) {
         if (this.lastDebounceSearch) {
             this.lastDebounceSearch.cancel();

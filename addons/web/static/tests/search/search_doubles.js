@@ -2,16 +2,10 @@
 
 import { Mutex } from "@web/core/utils/concurrency";
 
-/** @import { QueryElement } from "@web/search/search_types" */
-
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const DOUBLE_ONLY_MEMBERS = ["_notifications"];
 
-/**
- * @param {string[]} steps
- */
+/** @param {string[]} steps */
 function notificationChannel(steps) {
     return {
         blockNotification: false,
@@ -192,7 +186,7 @@ export function doubleMembersFor(module) {
 }
 
 /**
- * @param {string} module — the unit's path, as SEARCH_COMPOSITION_ORDER spells it
+ * @param {string} module
  * @param {Record<string, any>} [overrides]
  * @returns {any}
  */

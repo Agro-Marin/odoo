@@ -2,13 +2,11 @@
 /** @odoo-module native */
 
 /**
- * @overload
  * @param {Function} getList
  * @param {true} isMany2Many
  * @returns {{linkRecords: Function, saveAndLink: Function, updateRecord: Function, removeRecord: Function}}
  */
 /**
- * @overload
  * @param {Function} getList
  * @param {boolean} isMany2Many
  * @returns {{linkRecords: Function|undefined, saveAndLink: Function, updateRecord: Function, removeRecord: Function}}

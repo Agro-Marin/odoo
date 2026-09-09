@@ -16,7 +16,6 @@ patch(StockValuationReport.prototype, {
         return accrual;
     },
 
-    // On Click Methods --------------------------------------------------------
     openSaleOrder(line = false) {
         const action = {
             type: "ir.actions.act_window",

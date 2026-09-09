@@ -10,26 +10,7 @@ from odoo.tools import html2plaintext
 
 ODOOBOT_XMLID = "base.partner_root"
 
-# Emoji detection.
-#
-# The BMP half is an exact transcription of the codepoints this module has
-# always accepted -- 78 ranges, 155 codepoints -- kept verbatim so the check
-# cannot silently narrow. Everything above the BMP is covered by one range
-# instead of a hand-maintained list: U+1F000..U+1FAFF spans every block Unicode
-# has ever used for emoji, so a new release adds nothing here to update. That
-# is the whole point: the previous table stopped at U+1F9FF and therefore
-# rejected 87 of the 1 452 emoji in `web`'s own picker -- 🥱 🧊 🤍 and the rest
-# of Unicode 12 onward -- telling a user who had just clicked Odoo's emoji
-# button that they had not sent an emoji.
-#
-# U+FE0F (variation selector-16) and U+20E3 (combining enclosing keycap) are
-# the two unambiguous "this is emoji presentation" markers; they cover the
 # sequence forms -- arrows, double-bang, copyright, keycap digits -- that no
-# single-codepoint range can.
-#
-# `test_emoji.py::test_every_picker_emoji_is_recognised` pins this against
-# `web/static/src/components/emoji_picker/emoji_data.js`, so the two cannot
-# drift apart again.
 _EMOJI_BMP_RANGES = (
     (0x231A, 0x231B),
     (0x2328, 0x2328),
@@ -115,13 +96,11 @@ _EMOJI_RE = re.compile(
         chr(low) if low == high else f"{chr(low)}-{chr(high)}"
         for low, high in _EMOJI_BMP_RANGES
     )
-    + "\U0001f000-\U0001faff"  # every supplementary-plane emoji block
-    + "️⃣"  # variation selector-16, combining enclosing keycap
+    + "\U0001f000-\U0001faff"
+    + "️⃣"
     + "]"
 )
 
-# Markup is immutable, so one shared mapping is safe and there is nothing to
-# rebuild per answer.
 _STYLE = {
     "new_line": Markup("<br>"),
     "bold_start": Markup("<b>"),
@@ -140,14 +119,6 @@ _STYLE = {
 }
 
 
-# One row per onboarding step, in order.
-#
-# `trigger` decides whether the user did the thing the step asked for; `success`
-# produces the congratulation and any side effect; `retry` produces the hint
-# shown when they did something else. Splitting the four concerns out of the
-# branch chain is what makes each one testable without posting a message, and
-# it is why `odoobot_state` and `odoobot_failed` are now written in exactly one
-# place each rather than six and nine.
 class _Step(NamedTuple):
     state: str
     next_state: str
@@ -237,7 +208,6 @@ _ONBOARDING_STEPS = (
 
 _STEPS_BY_STATE = {step.state: step for step in _ONBOARDING_STEPS}
 
-# States that are not mid-tour: the bot is either idle or has never started.
 _RESTARTABLE_STATES = (False, "idle", "not_initialized")
 
 
@@ -246,19 +216,9 @@ class MailBot(models.AbstractModel):
     _description = "Mail Bot"
 
     def _get_odoobot(self):
-        """The OdooBot partner. One lookup, one spelling, for every call site."""
         return self.env.ref(ODOOBOT_XMLID)
 
     def _apply_logic(self, channel, values, command=None):
-        """Apply bot logic to generate an answer (or not) for the user.
-
-        An answer is only produced in a chat where odoobot is a member; a ping in
-        any other channel type is ignored.
-
-        :param channel: the discuss channel where the user message was posted/odoobot will answer.
-        :param values: msg_values of the message_post or other values needed by logic
-        :param command: the name of the called command if the logic is not triggered by a message_post
-        """
         channel.check_singleton()
         odoobot = self._get_odoobot()
         if values.get("author_id") == odoobot.id or (
@@ -279,21 +239,11 @@ class MailBot(models.AbstractModel):
 
     @staticmethod
     def _normalise_body(body):
-        """The text the user actually typed, as the matching rules assume.
-
-        A message body is HTML: the client sends `<p>I love you</p>`, not
-        `I love you`. Matching against the raw markup meant the exact-match
-        rules below could only ever fire for a caller that passed a bare
-        string -- a test -- and never for a real user.
-        """
         return (
             html2plaintext(body or "").replace("\xa0", " ").strip().lower().strip(".!")
         )
 
     def _get_answer(self, channel, values, command=False):
-        # Cheapest and most selective tests first: outside a chat odoobot is a
-        # member of, nothing else here can produce an answer, and there is no
-        # reason to parse the body.
         if channel.channel_type != "chat":
             return False
         odoobot = self._get_odoobot()
@@ -302,10 +252,6 @@ class MailBot(models.AbstractModel):
 
         user = self.env.user
         odoobot_state = user.odoobot_state
-        # "Disabled" means disabled. Without this the state only stopped the
-        # onboarding chat from being created and left the bot answering for
-        # ever -- and, because it is not one of `_RESTARTABLE_STATES`, it was
-        # the state most likely to reach the random banter below.
         if odoobot_state == "disabled":
             return False
 
@@ -334,13 +280,6 @@ class MailBot(models.AbstractModel):
         if self._is_help_requested(body) or odoobot_state == "idle":
             return self._documentation_answer()
         if step:
-            # The user is mid-tour and did something else. Show the step's own
-            # hint -- every time, not only the first time. `odoobot_failed` used
-            # to be OR-ed into `_is_help_requested`, so the branch above swallowed
-            # every attempt after the first and answered with generic links that
-            # do not say what to do next. It now does the opposite: from the
-            # second mistake on, the hint is *followed* by those links rather
-            # than replaced by them.
             answer = step.retry(self)
             if user.odoobot_failed:
                 answer += _STYLE["new_line"] + self._documentation_answer()
@@ -366,7 +305,6 @@ class MailBot(models.AbstractModel):
         )
 
     def _advance_to(self, next_state, success):
-        """Move the user to `next_state` and return that step's answer."""
         answer = success(self)
         self.env.user.sudo().write(
             {"odoobot_state": next_state, "odoobot_failed": False}
@@ -374,7 +312,6 @@ class MailBot(models.AbstractModel):
         return answer
 
     def _begin_canned_response_step(self):
-        """Create the throw-away canned response the next step asks the user to use."""
         user = self.env.user
         canned_response = self.env["mail.canned.response"].create(
             {
@@ -382,9 +319,6 @@ class MailBot(models.AbstractModel):
                 "substitution": self.env._("Thanks for your feedback. Goodbye!"),
             }
         )
-        # Remember which record we made. Matching on the translated source later
-        # deleted whatever else the user happened to abbreviate "Thanks", and
-        # missed our own record entirely once their language had changed.
         user.sudo().odoobot_canned_response_id = canned_response
         return self.env._(
             "Wonderful! 😇%(new_line)sTry typing %(command_start)s::%(command_end)s to use "
@@ -393,7 +327,6 @@ class MailBot(models.AbstractModel):
         )
 
     def _finish_canned_response_step(self):
-        """Remove the throw-away canned response and close the tour."""
         user = self.env.user
         user.sudo().odoobot_canned_response_id.sudo().unlink()
         return [
@@ -409,7 +342,6 @@ class MailBot(models.AbstractModel):
         ]
 
     def _documentation_answer(self):
-        """The generic "here are the docs" answer, shared by both callers."""
         return self.env._(
             "Unfortunately, I'm just a bot 😞 I don't understand! If you need help "
             "discovering our product, please check %(document_link_start)sour "
@@ -422,13 +354,6 @@ class MailBot(models.AbstractModel):
         return bool(_EMOJI_RE.search(body))
 
     def _is_help_requested(self, body):
-        """Whether the user asked for help.
-
-        Strictly a question about `body`. It used to also return True whenever
-        `odoobot_failed` was set, which turned every message after a single
-        mistake into a help request and hid the onboarding hints -- see
-        `_get_answer`.
-        """
         return "?" in body or any(
             re.search(rf"\b{re.escape(token)}\b", body)
             for token in ("help", self.env._("help"))

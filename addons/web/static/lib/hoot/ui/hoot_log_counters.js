@@ -2,11 +2,7 @@
 
 import { Component, xml } from "@odoo/owl";
 
-/**
- * @typedef {{
- *  logs: { error: number, warn: number };
- * }} HootLogCountersProps
- */
+/** @typedef {{ */
 
 /** @extends {Component<HootLogCountersProps, import("../hoot").Environment>} */
 export class HootLogCounters extends Component {

@@ -14,9 +14,7 @@ const BOOT_CLASSES = ["o_rtl", "o_is_superuser", "o_touch_device", "o_debug"];
 
 afterEach(() => document.body.classList.remove(...BOOT_CLASSES));
 
-/**
- * @param {{ direction?: "ltr" | "rtl", userId?: number, touch?: boolean }} world
- */
+/** @param {{ direction?: "ltr" | "rtl", userId?: number, touch?: boolean }} world */
 function given({ direction, userId = 2, touch = false }) {
     if (direction !== undefined) {
         patchWithCleanup(localization, { direction });

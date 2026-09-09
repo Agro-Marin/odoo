@@ -37,9 +37,7 @@ export class AccordionItem extends Component {
     state;
     /** @type {AccordionParent | undefined} */
     parentComponent;
-    /**
-     * @type {boolean}
-     */
+    /** @type {boolean} */
     _reportedOpen;
 
     setup() {

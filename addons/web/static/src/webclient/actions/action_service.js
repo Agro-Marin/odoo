@@ -105,19 +105,11 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Record<ViewType, Controller>} [controllers]
  * @property {CallableFunction} [onClose]
  */
-/**
- * @typedef {Omit<Action, "views"> & { type: "ir.actions.act_window", views: any[][],
- * mobile_view_mode?: string }} ActWindowAction
- */
-/**
- * @typedef {Action & { type: "ir.actions.act_url", url?: string, close?: boolean }} ActURLAction
- */
+/** @typedef {Omit<Action, "views"> & { type: "ir.actions.act_window", views: any[][], */
+/** @typedef {Action & { type: "ir.actions.act_url", url?: string, close?: boolean }} ActURLAction */
 /** @typedef {Action & { type: "ir.actions.client" }} ClientAction */
 /** @typedef {Action & { type: "ir.actions.server" }} ServerAction */
-/**
- * @typedef {Action & { type: "ir.actions.report", report_name?: string, report_file?: string,
- * data?: Record<string, any>, close_on_report_download?: boolean }} ReportAction
- */
+/** @typedef {Action & { type: "ir.actions.report", report_name?: string, report_file?: string, */
 /**
  * @typedef {Object} Controller
  * @property {string} jsId
@@ -240,9 +232,7 @@ export class ActionManager {
         this._id = 0;
         /** @type {any[]} */
         this.controllerStack = [];
-        /**
-         * @type {ActionDispatch|null}
-         */
+        /** @type {ActionDispatch|null} */
         this._pendingDispatch = null;
         this.dialog = null;
         this.nextDialog = null;
@@ -299,24 +289,18 @@ export class ActionManager {
         }
     }
 
-    /**
-     * @returns {Controller[]}
-     */
+    /** @returns {Controller[]} */
     get _effectiveStack() {
         return this._pendingDispatch?.baseStack ?? this.controllerStack;
     }
 
-    /**
-     * @returns {Controller|null}
-     */
+    /** @returns {Controller|null} */
     get currentController() {
         const stack = this._effectiveStack;
         return stack.at(-1) ?? null;
     }
 
-    /**
-     * @returns {Promise<any>}
-     */
+    /** @returns {Promise<any>} */
     async getCurrentAction() {
         const currentController = this.currentController;
         let action = null;
@@ -341,9 +325,7 @@ export class ActionManager {
         return action;
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     nextId() {
         return ++this._id;
     }
@@ -520,9 +502,7 @@ export class ActionManager {
         }
     }
 
-    /**
-     * @param {ActionDispatch} dispatch
-     */
+    /** @param {ActionDispatch} dispatch */
     settlePendingDispatch(dispatch) {
         if (this._pendingDispatch === dispatch) {
             this._pendingDispatch = null;
@@ -861,9 +841,7 @@ export class ActionManager {
         return this.updateUI(newController, { newWindow, spliceAt });
     }
 
-    /**
-     * @param {string} [jsId]
-     */
+    /** @param {string} [jsId] */
     async restore(jsId) {
         let index;
         if (!jsId) {

@@ -53,21 +53,15 @@ export class Pager extends Component {
         );
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get minimum() {
         return this.props.offset + 1;
     }
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get maximum() {
         return Math.min(this.props.offset + this.props.limit, this.props.total);
     }
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get value() {
         const parts = [this.minimum];
         if (this.props.limit > 1) {
@@ -75,9 +69,7 @@ export class Pager extends Component {
         }
         return parts.join("-");
     }
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isSinglePage() {
         return (
             !this.props.updateTotal &&
@@ -85,9 +77,7 @@ export class Pager extends Component {
             this.maximum === this.props.total
         );
     }
-    /**
-     * @param {-1 | 1} direction
-     */
+    /** @param {-1 | 1} direction */
     async navigate(direction) {
         if (this.state.isDisabled) {
             return;
@@ -126,9 +116,7 @@ export class Pager extends Component {
             maximum: clamp(maximum, 1, this.props.total),
         };
     }
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     async setValue(value) {
         const { minimum, maximum } = this.parse(value);
 
@@ -163,9 +151,7 @@ export class Pager extends Component {
         await this.whileDisabled(() => this.props.updateTotal());
     }
 
-    /**
-     * @param {() => Promise<any> | any} operation
-     */
+    /** @param {() => Promise<any> | any} operation */
     async whileDisabled(operation) {
         if (this.state.isDisabled) {
             return;
@@ -181,15 +167,11 @@ export class Pager extends Component {
     stopEditing() {
         this.state.isEditing = false;
     }
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     onInputChange(ev) {
         this.setValue(/** @type {HTMLInputElement} */ (ev.target).value);
     }
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onInputKeydown(ev) {
         switch (ev.key) {
             case "Enter":

@@ -11,11 +11,7 @@ from odoo.addons.sale_loyalty.tests.common import TestSaleCouponCommon
 
 
 class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
-    # Test all the validity rules to allow a customer to have a reward.
-    # The check based on the products is already done in the basic operations test
-
     def test_program_rules_minimum_purchased_amount(self):
-        # Test case: Based on the minimum purchased
 
         self.immediate_promotion_program.rule_ids.write(
             {
@@ -85,7 +81,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         )
         order._update_programs_and_rewards()
         self._claim_reward(order, self.immediate_promotion_program)
-        # 10*100 + 5 = 1005
         self.assertEqual(
             len(order.line_ids.ids),
             2,
@@ -101,7 +96,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             "The promo offer should be applied as the purchased amount is now enough",
         )
 
-        # 10*(100*1.15) + (5*1.15) = 10*115 + 5.75 = 1155.75
         self.immediate_promotion_program.rule_ids.minimum_amount = 1006
         self.immediate_promotion_program.rule_ids.minimum_amount_tax_mode = "incl"
         order._update_programs_and_rewards()
@@ -113,10 +107,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         )
 
     def test_program_rules_min_amount_not_reached_and_specific_product(self):
-        """
-        Test that the discount isn't applied if the min amount isn't reached for the specified
-        product.
-        """
         self.env["loyalty.program"].search([]).active = False
         order = self.empty_order
         program = self.env["loyalty.program"].create(
@@ -171,9 +161,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         self.assertEqual(order.amount_untaxed, 300)
 
     def test_program_rules_min_amount_reached_and_specific_product(self):
-        """
-        Test that the discount is applied if the min amount is reached for the specified product.
-        """
         self.env["loyalty.program"].search([]).active = False
         order = self.empty_order
         program = self.env["loyalty.program"].create(
@@ -228,14 +215,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         self.assertEqual(order.amount_untaxed, 280)
 
     def test_program_rules_coupon_qty_and_amount_remove_not_eligible(self):
-        """This test will:
-        * Check quantity and amount requirements works as expected (since it's slightly different from a promotion_program)
-        * Ensure that if a reward from a coupon_program was allowed and the conditions are not met anymore,
-          the reward will be removed on recompute.
-        """
-        self.immediate_promotion_program.active = (
-            False  # Avoid having this program to add rewards on this test
-        )
+        self.immediate_promotion_program.active = False
         order = self.empty_order
 
         program = self.env["loyalty.program"].create(
@@ -288,19 +268,16 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             }
         )
 
-        # Default value for coupon generate wizard is generate by quantity and generate only one coupon
         self.env["loyalty.generate.wizard"].with_context(active_id=program.id).create(
             {"coupon_qty": 1, "points_granted": 1}
         ).generate_coupons()
         coupon = program.coupon_ids[0]
 
-        # Not enough amount since we only have 220 (100*2 + 5*4)
         with self.assertRaises(ValidationError):
             self._apply_promo_code(order, coupon.code)
 
         sol2.product_qty = 24
 
-        # Not enough qty since we only have 3 Product A (Amount is ok: 100*2 + 5*24 = 320)
         with self.assertRaises(ValidationError):
             self._apply_promo_code(order, coupon.code)
 
@@ -325,10 +302,7 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         )
 
     def test_program_rules_promotion_use_best(self):
-        """This test verifies that only the best global discount is applied."""
-        self.immediate_promotion_program.active = (
-            False  # Avoid having this program to add rewards on this test
-        )
+        self.immediate_promotion_program.active = False
         order = self.empty_order
 
         p1 = self.env["loyalty.program"].create(
@@ -421,8 +395,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             1,
             "The order should contains the Product A line and a discount",
         )
-        # The name of the discount is dynamically changed to smth looking like:
-        # "Discount Get 5% discount if buy at least 2 Product - On product with following tax: Tax 15.00%"
         self.assertTrue(
             "Discount 5% on your order" in discounts.pop(),
             "The discount should be a 5% discount",
@@ -445,7 +417,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
 
     @freeze_time("2011-11-02 09:00:21")
     def test_program_rules_validity_dates(self):
-        # Test date_to (no date_from)
         today = date.today()
         past_day = today - timedelta(days=2)
         future_day = today + timedelta(days=2)
@@ -480,7 +451,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         msg = "The promo should have been applied we're between the validity dates."
         self.assertEqual(len(order.line_ids.ids), 3, msg)
 
-        # Test date_from (no date_to)
         self.immediate_promotion_program.write(
             {
                 "date_from": future_day,
@@ -496,7 +466,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         msg = "The promo should have been applied we're between the validity dates."
         self.assertEqual(len(order.line_ids.ids), 3, msg)
 
-        # Test date_from and date_to
         self.immediate_promotion_program.write(
             {"date_from": past_day, "date_to": future_day}
         )
@@ -530,7 +499,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         self.assertEqual(len(order.line_ids.ids), 3, msg)
 
     def test_program_rules_number_of_uses(self):
-        # Test case: Based on the number of allowed uses
         self.immediate_promotion_program.write(
             {
                 "limit_usage": True,
@@ -573,7 +541,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
                 ]
             }
         )
-        # Invalidate total_order_count
         self.immediate_promotion_program.invalidate_recordset(
             ["order_count", "total_order_count"]
         )
@@ -582,7 +549,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         self.assertEqual(len(order.line_ids.ids), 1, msg)
 
     def test_program_rules_validity_date_timezones(self):
-        """Test that the validity dates are checked according to the company's time zone"""
         self.env.company.partner_id.tz = "Europe/London"
         self.partner.tz = "America/Los_Angeles"
         midnight = Datetime.today()
@@ -601,7 +567,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         ]
 
         with freeze_time(midnight):
-            # Try apply reward at UTC midnight with LA time zone in context (expired)
             self._auto_rewards(order, self.immediate_promotion_program)
             self.assertFalse(
                 order.line_ids.filtered("is_reward_line"),
@@ -611,7 +576,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
         with freeze_time(
             midnight.replace(tzinfo=timezone(self.env.company.partner_id.tz))
         ):
-            # Try apply reward at London midnight (expired)
             self._auto_rewards(order, self.immediate_promotion_program)
             self.assertFalse(
                 order.line_ids.filtered("is_reward_line"),
@@ -620,7 +584,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
 
         self.partner.tz = "Europe/Brussels"
         with freeze_time(midnight.replace(tzinfo=timezone(self.partner.tz))):
-            # Apply reward at Brussels midnight (still valid in company's time zone)
             self._auto_rewards(order, self.immediate_promotion_program)
             self.assertTrue(
                 order.line_ids.filtered("is_reward_line"),
@@ -628,7 +591,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             )
 
     def test_program_rules_validity_date_transactions(self):
-        """Test that the validity dates are checked according to the time of transaction."""
         today = Datetime.today()
         tomorrow = today + timedelta(days=1)
         self.immediate_promotion_program.update(
@@ -658,7 +620,6 @@ class TestProgramRules(TestSaleCouponCommon, PaymentCommon):
             reference=order.name,
             amount=order.amount_total,
         )
-        # Our slow provider only gets around to confirming the transaction the next day
         with freeze_time(tomorrow):
             tx._set_done()
             tx._post_process()

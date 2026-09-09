@@ -57,9 +57,7 @@ export class ExpressionEditorDialog extends EditorDialog {
         return record;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     isValueValid() {
         try {
             evaluateExpr(this.state.value, {

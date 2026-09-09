@@ -50,7 +50,7 @@ export class ViewArchParser {
     }
 
     /**
-     * @template {object} T
+     * @template {object}
      * @param {Element} arch
      * @param {T} archInfo
      * @param {Record<string, (node: Element, archInfo: T) => any>} handlers

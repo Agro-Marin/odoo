@@ -5,7 +5,7 @@ import { onWillUnmount, useComponent } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 
 /**
- * @template {(...args: any[]) => any} T
+ * @template {(...args: any[]) => any}
  * @param {T} callback
  * @param {() => Promise<void>} [synchronize]
  * @returns {(...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>}
@@ -88,7 +88,7 @@ function debounceEdges(options) {
 }
 
 /**
- * @template {Function} T
+ * @template {Function}
  * @param {T} func
  * @param {number | "animationFrame" | (() => number)} delay
  * @param {boolean | {leading?: boolean, trailing?: boolean}} [options]
@@ -191,16 +191,14 @@ export function setRecurringAnimationFrame(callback) {
 }
 
 /**
- * @template {Function} T
+ * @template {Function}
  * @param {T} func
  * @returns {T & { cancel: () => void }}
  */
 export function throttleForAnimation(func) {
     /** @type {any} */
     let handle = null;
-    /**
-     * @type {{ args: any[], resolve: (value: any) => any, reject: (reason?: any) => any } | null}
-     */
+    /** @type {{ args: any[], resolve: (value: any) => any, reject: (reason?: any) => any } | null} */
     let lastCall = null;
     const funcName = func.name
         ? `${func.name} (throttleForAnimation)`
@@ -261,7 +259,7 @@ export function throttleForAnimation(func) {
 }
 
 /**
- * @template {Function} T
+ * @template {Function}
  * @param {T} callback
  * @param {number | "animationFrame" | (() => number)} delay
  * @param {{execBeforeUnmount?: boolean, immediate?: boolean, trailing?: boolean}} [options]
@@ -282,7 +280,7 @@ export function useDebounced(
 }
 
 /**
- * @template {Function} T
+ * @template {Function}
  * @param {T} func
  * @returns {T & { cancel: () => void }}
  */

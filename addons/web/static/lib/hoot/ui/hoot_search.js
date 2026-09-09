@@ -27,7 +27,6 @@ import { HootTagButton } from "./hoot_tag_button.js";
 
 /**
  * @typedef {{
- * }} HootSearchProps
  * @typedef {import("../core/config").SearchFilter} SearchFilter
  * @typedef {import("../core/tag").Tag} Tag
  * @typedef {import("../core/test").Test} Test
@@ -38,44 +37,32 @@ const {
     Object: { entries: $entries, values: $values },
 } = globalThis;
 
-/**
- * @param {string} query
- */
+/** @param {string} query */
 function addExact(query) {
     return EXACT_MARKER + query + EXACT_MARKER;
 }
 
-/**
- * @param {string} query
- */
+/** @param {string} query */
 function addRegExp(query) {
     return REGEX_MARKER + query + REGEX_MARKER;
 }
 
-/**
- * @param {"suite" | "tag" | "test"} category
- */
+/** @param {"suite" | "tag" | "test"} category */
 function categoryToType(category) {
     return category === "tag" ? category : "id";
 }
 
-/**
- * @param {string} query
- */
+/** @param {string} query */
 function removeExact(query) {
     return query.replaceAll(EXACT_MARKER, "");
 }
 
-/**
- * @param {string} query
- */
+/** @param {string} query */
 function removeRegExp(query) {
     return query.slice(1, -1);
 }
 
-/**
- * @param {string} tagName
- */
+/** @param {string} tagName */
 const templateIncludeWidget = (tagName) => `
     <t t-set="type" t-value="category === 'tag' ? category : 'id'" />
     <t t-set="includeStatus" t-value="runnerState.includeSpecs[type][job.id] or 0" />
@@ -150,13 +137,9 @@ const templateIncludeWidget = (tagName) => `
     </${tagName}>
 `;
 
-/**
- * @param {ReturnType<typeof useRef<HTMLInputElement>>} ref
- */
+/** @param {ReturnType<typeof useRef<HTMLInputElement>>} ref */
 function useKeepSelection(ref) {
-    /**
-     * @param {number} nextOffset
-     */
+    /** @param {number} nextOffset */
     function keepSelection(nextOffset) {
         offset = nextOffset || 0;
     }
@@ -449,9 +432,7 @@ export class HootSearch extends Component {
         this.keepSelection = useKeepSelection(this.searchInputRef);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     closeDropdown(ev) {
         if (!this.state.showDropdown) {
             return;
@@ -550,9 +531,7 @@ export class HootSearch extends Component {
         return storageGet(STORAGE.searches) || [];
     }
 
-    /**
-     * @param {(Suite | Test)[]} path
-     */
+    /** @param {(Suite | Test)[]} path */
     getShortPath(path) {
         if (path.length <= 3) {
             return path.slice(0, -1);
@@ -561,9 +540,7 @@ export class HootSearch extends Component {
         }
     }
 
-    /**
-     * @param {Iterable<Suite | Tag>} items
-     */
+    /** @param {Iterable<Suite | Tag>} items */
     getTop(items) {
         return [...items].sort((a, b) => b.weight - a.weight).slice(0, 5);
     }
@@ -586,22 +563,16 @@ export class HootSearch extends Component {
         );
     }
 
-    /**
-     * @param {number} value
-     */
+    /** @param {number} value */
     isReadonly(value) {
         return $abs(value) > INCLUDE_LEVEL.url;
     }
 
-    /**
-     * @param {unknown} item
-     */
+    /** @param {unknown} item */
     isTag(item) {
         return item instanceof Tag;
     }
-    /**
-     * @param {number} inc
-     */
+    /** @param {number} inc */
     navigate(inc) {
         const elements = [
             this.searchInputRef.el,
@@ -616,9 +587,7 @@ export class HootSearch extends Component {
         elements.at(nextIndex).focus();
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onExactKeyDown(ev) {
         switch (ev.key) {
             case "Enter":
@@ -646,9 +615,7 @@ export class HootSearch extends Component {
         }
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onKeyDown(ev) {
         switch (ev.key) {
             case "ArrowDown": {
@@ -665,9 +632,7 @@ export class HootSearch extends Component {
         }
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     onRegExpKeyDown(ev) {
         switch (ev.key) {
             case "Enter":
@@ -687,9 +652,7 @@ export class HootSearch extends Component {
         storageSet(STORAGE.searches, [...new Set(latestSearches)].slice(0, 5));
     }
 
-    /**
-     * @param {InputEvent & { currentTarget: HTMLInputElement }} ev
-     */
+    /** @param {InputEvent & { currentTarget: HTMLInputElement }} ev */
     onSearchInputInput(ev) {
         this.state.query = ev.currentTarget.value;
 
@@ -699,9 +662,7 @@ export class HootSearch extends Component {
         this.debouncedUpdateSuggestions();
     }
 
-    /**
-     * @param {KeyboardEvent & { currentTarget: HTMLInputElement }} ev
-     */
+    /** @param {KeyboardEvent & { currentTarget: HTMLInputElement }} ev */
     onSearchInputKeyDown(ev) {
         switch (ev.key) {
             case "Backspace": {
@@ -730,9 +691,7 @@ export class HootSearch extends Component {
         this.env.runner.include(type, id, value);
     }
 
-    /**
-     * @param {string} query
-     */
+    /** @param {string} query */
     setQuery(query) {
         this.state.query = query;
 
@@ -745,9 +704,7 @@ export class HootSearch extends Component {
         this.config.debugTest = !this.config.debugTest;
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     toggleExact(ev) {
         ev.preventDefault();
 
@@ -783,9 +740,7 @@ export class HootSearch extends Component {
         }
     }
 
-    /**
-     * @param {Event} ev
-     */
+    /** @param {Event} ev */
     toggleRegExp(ev) {
         ev.preventDefault();
 
@@ -829,9 +784,7 @@ export class HootSearch extends Component {
         this.state.showDropdown = true;
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     verifySecretSequenceStep(ev) {
         this.secretSequence ||= 0;
         if (ev.keyCode === SECRET_SEQUENCE[this.secretSequence]) {

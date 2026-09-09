@@ -19,20 +19,9 @@ import { session } from "@web/session";
 
 const log = makeAssetLog("env");
 
-/**
- * @typedef {{
- * bus: EventBus;
- * debug: string;
- * services: import("services").ServiceFactories;
- * readonly isSmall: boolean;
- * config?: Record<string, any>;
- * [key: string]: any;
- * }} OdooEnv
- */
+/** @typedef {{ */
 
-/**
- * @returns {OdooEnv}
- */
+/** @returns {OdooEnv} */
 export function makeEnv() {
     log("makeEnv: creating OdooEnv — debug=", odoo.debug || "(empty)");
     const bus = new EventBus();
@@ -99,9 +88,7 @@ serviceRegistry.addEventListener("UPDATE", (ev) => {
     });
 });
 
-/**
- * @type {Set<string>}
- */
+/** @type {Set<string>} */
 const _seenCascadeWarnings = new Set();
 
 export function _resetCascadeWarningCache() {
@@ -178,9 +165,7 @@ async function _startServices(env, toStart) {
         isLoaded: (dep) => dep in services,
     });
 
-    /**
-     * @param {string} name
-     */
+    /** @param {string} name */
     function _trackService(name) {
         const service = toStart.get(name);
         if (!service) {
@@ -401,8 +386,6 @@ export const globalValues = {
  * @param {import("@odoo/owl").ComponentConstructor} component
  * @param {HTMLElement | ShadowRoot} target
  * @param {Partial<ConstructorParameters<typeof App>[1]> & {
- * beforeMount?: (env: OdooEnv) => void | Promise<void>
- * }} [appConfig]
  */
 export async function mountComponent(component, target, appConfig = {}) {
     const { beforeMount, ...owlConfig } = appConfig;

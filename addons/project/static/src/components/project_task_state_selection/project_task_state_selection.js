@@ -22,11 +22,6 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         this.state = useState({
             isStateButtonHighlighted: false,
         });
-        // 'todo' is consumed by project_workflow_step_state (step.task_state='todo').
-        // Removing it from any of icons/colorIcons/colorButton or from the unshift
-        // list in get options() breaks 1,300+ active tasks — see t19628, t21386.
-        // The Hoot test in tests/project_task_state_selection.test.js asserts the
-        // dropdown still includes "To Do" — it is the primary safeguard.
         this.icons = {
             todo: "o_status o_status_todo",
             in_progress: "o_status",
@@ -105,18 +100,11 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         return this.icons[value] || "";
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     statusColor(value) {
         return this.colorIcons[value] || "";
     }
 
-    /**
-     * determine if a single click will trigger the toggleState() method
-     * which will switch the state from in progress to done.
-     * Either the isToggleMode is active on the record OR the task is_private
-     */
     get isToggleMode() {
         return this.props.isToggleMode || !this.props.record.data.project_id;
     }

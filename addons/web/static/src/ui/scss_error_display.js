@@ -7,9 +7,7 @@ import { _t, translationIsReady } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { getOrigin } from "@web/core/utils/urls";
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 export function canActOnScssErrors() {
     return Boolean(user.isAdmin || odoo.debug);
 }

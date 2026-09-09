@@ -2,18 +2,10 @@ from odoo.tests.common import TransactionCase
 
 
 class TestTodoNameFromDescription(TransactionCase):
-    """A to-do created with a description but no title derives one from it.
-
-    The To-Do form requires a title, so this path is only reached over RPC or
-    from another module — which is exactly why it needs a test: nothing in the
-    UI would surface a regression here.
-    """
-
     def _name_for(self, description):
         return self.env["project.task"].create({"description": description}).name
 
     def test_description_with_no_text_falls_back_to_untitled(self):
-        """An empty editor document is ``<p><br></p>`` — truthy, but blank."""
         for description in (
             "<p><br></p>",
             "<p>   </p>",
@@ -37,7 +29,6 @@ class TestTodoNameFromDescription(TransactionCase):
         )
 
     def test_first_list_item_is_the_first_line(self):
-        """html2plaintext runs sibling <li> together; the title is one item."""
         self.assertEqual(
             self._name_for("<ul><li>first bullet</li><li>second</li></ul>"),
             "first bullet",
@@ -47,7 +38,6 @@ class TestTodoNameFromDescription(TransactionCase):
         self.assertEqual(self._name_for("<p><b>Bold</b> title</p>"), "Bold title")
 
     def test_asterisks_are_content_not_markup(self):
-        """A stray strip of '*' silently rewrites arithmetic and dimensions."""
         self.assertEqual(
             self._name_for("<p>Buy 2 * 4 planks at 3*5cm</p>"),
             "Buy 2 * 4 planks at 3*5cm",
@@ -56,7 +46,6 @@ class TestTodoNameFromDescription(TransactionCase):
     def test_long_first_line_is_truncated(self):
         self.assertEqual(len(self._name_for("<p>%s</p>" % ("x" * 300))), 100)
         self.assertTrue(self._name_for("<p>%s</p>" % ("x" * 300)).endswith("..."))
-        # exactly at the limit, nothing is cut
         self.assertEqual(self._name_for("<p>%s</p>" % ("x" * 100)), "x" * 100)
 
     def test_derivation_is_skipped_when_a_title_is_given(self):
@@ -69,7 +58,6 @@ class TestTodoNameFromDescription(TransactionCase):
         self.assertEqual(task.name, "My title")
 
     def test_derivation_is_skipped_for_project_tasks(self):
-        """A task inside a project is not a to-do; its title is not derived."""
         project = self.env["project.project"].create({"name": "P"})
         task = self.env["project.task"].create(
             {
@@ -81,8 +69,6 @@ class TestTodoNameFromDescription(TransactionCase):
         self.assertEqual(task.name, "Real task")
 
     def test_helper_is_pure(self):
-        """The helper reports emptiness rather than inventing a title, so the
-        caller decides what the fallback is."""
         helper = self.env["project.task"]._todo_name_from_description
         self.assertEqual(helper(False), "")
         self.assertEqual(helper(""), "")

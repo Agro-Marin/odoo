@@ -53,7 +53,7 @@ export class ResUsersSettings extends ServerModel {
         return res;
     }
 
-    /** @param {number | number[]} ids @param {{operation: string, xmlid?: string, value?: any}[]} changes */
+    /** @param {number | number[]} ids */
     update_homemenu_config(ids, changes) {
         const [id] = ensureArray(ids);
         const [settings] = this.browse(id);

@@ -16,16 +16,12 @@ export const pttExtensionServiceInternal = {
 };
 
 export class PttExtensionService {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
         this.env = env;
         this.isEnabled = undefined;
         this.voiceActivated = undefined;
         this.downloadURL = `https://chromewebstore.google.com/detail/discuss-push-to-talk/${EXT_ID}`;
-        // markRaw: reactive() would proxy the promise, and awaiting a proxied
-        // promise calls then() on an incompatible receiver.
         this.versionPromise = markRaw(
             window.chrome?.runtime
                 ?.sendMessage(EXT_ID, { type: "ask-version" })
@@ -134,9 +130,7 @@ export class PttExtensionService {
 }
 
 export const pttExtensionHookService = {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     start(env) {
         const ptt = reactive(new PttExtensionService(env));
         ptt.setup();

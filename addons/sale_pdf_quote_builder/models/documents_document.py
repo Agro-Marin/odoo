@@ -29,8 +29,6 @@ class DocumentsDocument(models.Model):
         store=True,
     )
 
-    # === CONSTRAINT METHODS ===#
-
     @api.constrains("attached_on_sale", "datas", "type")
     def _check_attached_on_and_datas_compatibility(self):
         for doc in self.filtered(lambda doc: doc.attached_on_sale == "inside"):
@@ -49,11 +47,8 @@ class DocumentsDocument(models.Model):
                     doc.attachment_id._get_content_prefix()
                 )
 
-    # === COMPUTE METHODS === #
-
     @api.depends("datas", "attached_on_sale")
     def _compute_form_field_ids(self):
-        # Empty the linked form fields as we want all and only those from the current datas
         self.form_field_ids = [Command.clear()]
         document_to_parse = self.filtered(
             lambda doc: (
@@ -68,8 +63,6 @@ class DocumentsDocument(models.Model):
             self.env[
                 "sale.pdf.form.field"
             ]._create_or_update_form_fields_on_pdf_records(document_to_parse, doc_type)
-
-    # === ACTION METHODS ===#
 
     def action_view_pdf_form_fields(self):
         self.check_singleton()

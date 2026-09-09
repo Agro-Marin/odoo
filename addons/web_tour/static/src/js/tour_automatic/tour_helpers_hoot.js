@@ -5,16 +5,9 @@ import { TourHelpers } from "@web_tour/js/tour_automatic/tour_helpers";
 
 patch(TourHelpers.prototype, {
     /**
-     * Ensures that the given {@link Selector} is checked.
-     * @description
-     * If it is not checked, a click is triggered on the input.
-     * If the input is still not checked after the click, an error is thrown.
-     *
      * @param {string|Node} selector
      * @example
-     *  run: "check", //Checks the action element
      * @example
-     *  run: "check input[type=checkbox]", // Checks the selector
      */
     async check(selector) {
         const element = this._get_action_element(selector);
@@ -22,18 +15,9 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Clears the **value** of the **{@link Selector}**.
-     * @description
-     * This is done using the following sequence:
-     * - pressing "Control" + "A" to select the whole value;
-     * - pressing "Backspace" to delete the value;
-     * - (optional) triggering a "change" event by pressing "Enter".
-     *
      * @param {Selector} selector
      * @example
-     *  run: "clear", // Clears the value of the action element
      * @example
-     *  run: "clear input#my_input", // Clears the value of the selector
      */
     async clear(selector) {
         const element = this._get_action_element(selector);
@@ -42,32 +26,20 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Performs a click sequence on the given **{@link Selector}**
-     * @description Let's see more informations about click sequence here: {@link hoot.click}
      * @param {Selector} selector
      * @param {import("@odoo/hoot-dom").PointerOptions} options
      * @example
-     *  run: "click", // Click on the action element
      * @example
-     *  run: "click .o_rows:first", // Click on the selector
      */
     async click(selector, options = { interactive: false }) {
         const element = this._get_action_element(selector);
-        // FIXME: should always target interactive element, but some tour steps are
-        // targetting elements affected by 'pointer-events: none' for some reason.
-        // This option should ultimately disappear, with all affected cased fixed
-        // individually (no common cause found during a quick investigation).
         await hoot.click(element, options);
     },
 
     /**
-     * Performs two click sequences on the given **{@link Selector}**.
-     * @description Let's see more informations about click sequence here: {@link hoot.dblclick}
      * @param {Selector} selector
      * @example
-     *  run: "dblclick", // Double click on the action element
      * @example
-     *  run: "dblclick .o_rows:first", // Double click on the selector
      */
     async dblclick(selector) {
         const element = this._get_action_element(selector);
@@ -75,28 +47,10 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Starts a drag sequence on the active element (anchor) and drop it on the given **{@link Selector}**.
      * @param {Selector} selector
      * @param {hoot.PointerOptions} options
      * @example
-     *  run: "drag_and_drop .o_rows:first", // Drag the active element and drop it in the selector
-     *
-     * The string form above drops at `position: "top"`, which hoot resolves to
-     * one pixel ABOVE the target's top edge -- the right thing between list
-     * rows, where it reads as "insert before this one", and the wrong thing for
-     * a target you mean to drop INTO: in a grid that pixel belongs to the
-     * neighbour above. Pass options for those, where `{}` alone means the
-     * target's centre.
      * @example
-     *  async run(helpers) {
-     *      await helpers.drag_and_drop(".o_rows:first", {
-     *          position: {
-     *              top: 40,
-     *              left: 5,
-     *          },
-     *          relative: true,
-     *      });
-     *  }
      */
     async drag_and_drop(selector, options) {
         if (typeof options !== "object") {
@@ -129,11 +83,9 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Edit input or textarea given by **{@link selector}**
      * @param {string} text
      * @param {Selector} selector
      * @example
-     *  run: "edit Hello Mr. Doku",
      */
     async edit(text, selector) {
         const element = this._get_action_element(selector);
@@ -142,7 +94,6 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Edit only editable wysiwyg element given by **{@link Selector}**
      * @param {string} text
      * @param {Selector} selector
      */
@@ -163,11 +114,6 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Fills the **{@link Selector}** with the given `value`.
-     * @description This helper is intended for `<input>` and `<textarea>` elements,
-     * with the exception of `"checkbox"` and `"radio"` types, which should be
-     * selected using the {@link check} helper.
-     * In tour, it's mainly usefull for autocomplete components.
      * @param {string} value
      * @param {Selector} selector
      */
@@ -178,11 +124,9 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Performs a hover sequence on the given **{@link Selector}**.
      * @param {Selector} selector
      * @param {import("@odoo/hoot-dom").PointerOptions} options
      * @example
-     *  run: "hover",
      */
     async hover(selector, options) {
         const element = this._get_action_element(selector);
@@ -190,7 +134,6 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Only for input[type="range"]
      * @param {string|number} value
      * @param {Selector} selector
      */
@@ -200,11 +143,7 @@ patch(TourHelpers.prototype, {
         await hoot.setInputRange(element, value);
     },
 
-    /**
-     * Performs a keyboard event sequence.
-     * @example
-     *  run : "press Enter",
-     */
+    /** @example */
     async press(...args) {
         await hoot.press(
             args.flatMap((arg) => typeof arg === "string" && arg.split("+")),
@@ -212,17 +151,10 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Performs a selection event sequence on **{@link Selector}**. This helper is intended
-     * for `<select>` elements only.
-     * @description Select the option by its value
      * @param {string} value
      * @param {Selector} selector
      * @example
-     * run(helpers) => {
-     *  helpers.select("Kevin17", "select#mySelect");
-     * },
      * @example
-     * run: "select Foden47",
      */
     async select(value, selector) {
         const element = this._get_action_element(selector);
@@ -231,12 +163,9 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Performs a selection event sequence on **{@link Selector}**
-     * @description Select the option by its index
-     * @param {number} index starts at 0
+     * @param {number} index
      * @param {Selector} selector
      * @example
-     *  run: "selectByIndex 2", //Select the third option
      */
     async selectByIndex(index, selector) {
         const element = this._get_action_element(selector);
@@ -249,12 +178,9 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Performs a selection event sequence on **{@link Selector}**
-     * @description Select option(s) by there labels
      * @param {string|RegExp} contains
      * @param {Selector} selector
      * @example
-     *  run: "selectByLabel Jeremy Doku", //Select all options where label contains Jeremy Doku
      */
     async selectByLabel(contains, selector) {
         const element = this._get_action_element(selector);
@@ -266,16 +192,9 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Ensures that the given {@link Selector} is unchecked.
-     * @description
-     * If it is checked, a click is triggered on the input.
-     * If the input is still checked after the click, an error is thrown.
-     *
      * @param {string|Node} selector
      * @example
-     *  run: "uncheck", // Unchecks the action element
      * @example
-     *  run: "uncheck input[type=checkbox]", // Unchecks the selector
      */
     async uncheck(selector) {
         const element = this._get_action_element(selector);
@@ -283,11 +202,8 @@ patch(TourHelpers.prototype, {
     },
 
     /**
-     * Navigate to {@link url}.
-     *
      * @param {string} url
      * @example
-     *  run: "goToUrl /shop", // Go to /shop
      */
     async goToUrl(url) {
         const linkEl = document.createElement("a");
@@ -295,10 +211,7 @@ patch(TourHelpers.prototype, {
         await hoot.click(linkEl);
     },
 
-    /**
-     * Ensures that the given canvas selector **{@link Selector}** contains pixels.
-     * @param {string|Node} selector
-     */
+    /** @param {string|Node} selector */
     async canvasNotEmpty(selector) {
         const canvas = this._get_action_element(selector);
         if (canvas.tagName.toLowerCase() !== "canvas") {
@@ -308,15 +221,13 @@ patch(TourHelpers.prototype, {
             const context = canvas.getContext("2d");
             const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
             const pixels = new Uint32Array(imageData.data.buffer);
-            return pixels.some((pixel) => pixel !== 0); // pixel is on
+            return pixels.some((pixel) => pixel !== 0);
         });
     },
 
     /**
-     * Get Node for **{@link Selector}**
      * @param {Selector} selector
      * @returns {Node}
-     * @default this.anchor
      */
     _get_action_element(selector) {
         if (typeof selector === "string" && selector.length) {
@@ -328,7 +239,6 @@ patch(TourHelpers.prototype, {
         return this.anchor;
     },
 
-    // Useful for wysiwyg editor.
     _set_range(element, start_or_stop) {
         function _node_length(node) {
             if (node.nodeType === Node.TEXT_NODE) {

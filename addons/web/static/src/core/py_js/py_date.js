@@ -197,9 +197,7 @@ class PyCalendarDate {
 }
 
 export class PyDate extends PyCalendarDate {
-    /**
-     * @returns {PyDate}
-     */
+    /** @returns {PyDate} */
     static today() {
         const now = new Date();
         return new PyDate(
@@ -209,9 +207,7 @@ export class PyDate extends PyCalendarDate {
         );
     }
 
-    /**
-     * @returns {PyDate}
-     */
+    /** @returns {PyDate} */
     static contextToday() {
         const now = DateTime.now();
         return new PyDate(now.year, now.month, now.day);
@@ -325,16 +321,12 @@ export class PyDate extends PyCalendarDate {
         return this.strftime("%Y-%m-%d");
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     toString() {
         return this.toJSON();
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     valueOf() {
         return this.toordinal();
     }
@@ -343,9 +335,7 @@ export class PyDate extends PyCalendarDate {
 const UNIX_EPOCH_ORDINAL = 719163;
 
 export class PyDateTime extends PyCalendarDate {
-    /**
-     * @returns {PyDateTime}
-     */
+    /** @returns {PyDateTime} */
     static now() {
         const d = new Date();
         return new PyDateTime(
@@ -540,24 +530,18 @@ export class PyDateTime extends PyCalendarDate {
         );
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     toJSON() {
         return this.strftime("%Y-%m-%d %H:%M:%S");
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     toString() {
         const base = this.strftime("%Y-%m-%d %H:%M:%S");
         return this.microsecond ? `${base}.${this.strftime("%f")}` : base;
     }
 
-    /**
-     * @returns {PyDateTime}
-     */
+    /** @returns {PyDateTime} */
     to_utc() {
         const utc = DateTime.fromObject({
             year: this.year,
@@ -578,9 +562,7 @@ export class PyDateTime extends PyCalendarDate {
         );
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     valueOf() {
         return (
             (this.toordinal() - UNIX_EPOCH_ORDINAL) * 86400e6 +
@@ -669,9 +651,7 @@ export class PyTime {
         return this.toJSON();
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     valueOf() {
         return this.hour * 3600 + this.minute * 60 + this.second;
     }
@@ -696,9 +676,7 @@ const ABSOLUTE_KEYS =
         " ",
     );
 
-/**
- * @type {[string, string, number][]}
- */
+/** @type {[string, string, number][]} */
 const OVERFLOW_CASCADE = [
     ["microseconds", "seconds", 1000000],
     ["seconds", "minutes", 60],
@@ -941,9 +919,7 @@ export class PyRelativeDelta {
         return new PyRelativeDelta(this, -1);
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     isTrue() {
         return Boolean(
             this.years ||

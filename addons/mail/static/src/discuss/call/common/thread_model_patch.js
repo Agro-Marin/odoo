@@ -9,9 +9,7 @@ export const CALL_PROMOTE_FULLSCREEN = Object.freeze({
     DISCARDED: "DISCARDED",
 });
 
-/**
- * @type {Partial<import("models").Thread> & ThisType<import("models").Thread>}
- */
+/** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const ThreadPatch = {
     setup() {
         super.setup(...arguments);

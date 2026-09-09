@@ -25,10 +25,6 @@ import {
 } from "./draggable_hook_builder_utils.js";
 
 /**
- * @import { DraggableHookContext, DraggableHookCurrentContext } from "./draggable_hook_builder.js"
- */
-
-/**
  * @param {PointerEvent} ev
  * @param {HTMLElement} target
  * @param {HTMLElement} currentTarget
@@ -64,14 +60,7 @@ function neutralizeTouchInterference(
 }
 
 export class DragSession {
-    /**
-     * @param {{
-     * ctx: DraggableHookContext,
-     * state: { dragging: boolean, willDrag: boolean },
-     * params: Record<string, any>,
-     * hookParams: Record<string, any>,
-     * }} deps
-     */
+    /** @param {{ */
     constructor({ ctx, state, params, hookParams }) {
         this.ctx = ctx;
         this.state = state;

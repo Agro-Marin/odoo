@@ -94,9 +94,7 @@ export class SelectCreateDialog extends Component {
         return props;
     }
 
-    /**
-     * @param {() => Promise<void>} callback
-     */
+    /** @param {() => Promise<void>} callback */
     async executeOnceAndClose(callback) {
         if (!this.busy) {
             this.busy = true;

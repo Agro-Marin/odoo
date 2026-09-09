@@ -12,9 +12,7 @@ export class FileUploadProgressRecord extends Component {
     static props = {
         fileUpload: Object,
     };
-    /**
-     * @returns {{ left: string, right: string }}
-     */
+    /** @returns {{ left: string, right: string }} */
     getProgressTexts() {
         const fileUpload = this.props.fileUpload;
         const percent = Math.round(fileUpload.progress * 100);

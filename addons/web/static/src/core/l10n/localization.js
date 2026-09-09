@@ -23,9 +23,7 @@ const ALLOWED_PROTOCOL_KEYS = new Set([
     "destroy",
 ]);
 
-/**
- * @type {Localization}
- */
+/** @type {Localization} */
 export const localization = new Proxy(/** @type {any} */ ({}), {
     get: (target, p) => {
         if (typeof p === "symbol" || p in target || ALLOWED_PROTOCOL_KEYS.has(p)) {

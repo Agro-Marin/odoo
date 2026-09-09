@@ -3,9 +3,7 @@
 import { DEFAULT_EVENT_TYPES } from "../hoot_utils.js";
 import { generateSeed } from "../mock/math.js";
 
-/**
- * @typedef {keyof typeof FILTER_SCHEMA} SearchFilter
- */
+/** @typedef {keyof typeof FILTER_SCHEMA} SearchFilter */
 
 const {
     Number: { parseFloat: $parseFloat },
@@ -13,7 +11,7 @@ const {
 } = globalThis;
 
 /**
- * @template {Record<string, any>} T
+ * @template {Record<string, any>}
  * @param {T} schema
  * @returns {{ [key in keyof T]: ReturnType<T[key]["parse"]> }}
  */
@@ -22,7 +20,7 @@ function getSchemaDefaults(schema) {
 }
 
 /**
- * @template {Record<string, any>} T
+ * @template {Record<string, any>}
  * @param {T} schema
  * @returns {(keyof T)[]}
  */
@@ -31,7 +29,7 @@ function getSchemaKeys(schema) {
 }
 
 /**
- * @template T
+ * @template
  * @param {(values: string[]) => T} parse
  * @returns {(valueIfEmpty: T) => (values: string[]) => T}
  */

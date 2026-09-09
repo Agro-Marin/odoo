@@ -6,15 +6,6 @@ from odoo.tests import TransactionCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestPartnerOrderActivity(TransactionCase):
-    """Pins that sale.order actually reaches base_order's activity figures.
-
-    ``recent_orders_count`` and ``days_since_last_order`` are declared in
-    base_order, which cannot name sale.order; sale registers it through
-    ``_get_order_activity_sources``. Nothing else asserts that the
-    registration takes effect, so a silently-dropped override would leave both
-    figures reading zero with every suite still green.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -98,15 +89,6 @@ class TestPartnerOrderActivity(TransactionCase):
         self.assertEqual(self.partner.recent_orders_count, 1)
 
     def test_a_user_without_sale_access_gets_zero_instead_of_an_access_error(self):
-        """res.partner is readable by every internal user; sale.order is not.
-
-        Both figures live on res.partner and carry no ``groups=``, so before
-        the readable-source filter an ungated ``_read_group`` turned any full
-        read of a partner into an AccessError for an internal user outside the
-        sales groups. Asserted on the source list rather than on the figures,
-        because another installed module may register a source this user *can*
-        read.
-        """
         self._make_sale_order(days_ago=5)
         outsider = new_test_user(
             self.env,
@@ -153,14 +135,6 @@ class TestPartnerOrderActivity(TransactionCase):
         self.assertEqual(partner.days_since_last_order, 5)
 
     def test_the_figures_do_not_vary_with_who_reads_them(self):
-        """The figure is a property of the customer, not of the reader.
-
-        ``sale_order_personal_rule`` restricts a plain salesman to orders whose
-        ``user_id`` is theirs. Read unsudoed, the same customer would report a
-        different count to every salesperson, and would report to the merge
-        cron whatever the cron user happens to see -- which decides whether the
-        partner gets merged away.
-        """
         self._make_sale_order(days_ago=5)
         restricted = new_test_user(
             self.env,
@@ -182,13 +156,6 @@ class TestPartnerOrderActivity(TransactionCase):
         self.assertEqual(partner.days_since_last_order, 5)
 
     def test_the_cache_is_partitioned_by_reader(self):
-        """A value that varies with the reader must be keyed by the reader.
-
-        The ACL gate makes these figures user-dependent, and the ORM caches a
-        computed field once per ``cache_key``. Without ``uid`` in
-        ``depends_context`` a restricted user reads back whatever the previous
-        reader computed, with no invalidation in between.
-        """
         self._make_sale_order(days_ago=5)
         outsider = new_test_user(
             self.env,
@@ -209,12 +176,6 @@ class TestPartnerOrderActivity(TransactionCase):
         )
 
     def test_orders_of_another_company_are_outside_the_cycle(self):
-        """Sudo drops the multi-company rule, so the scope is restated.
-
-        The cycle is read from ``env.company``; counting an order booked in a
-        company whose cycle was never consulted would make the window and the
-        population disagree.
-        """
         other_company = self.env["res.company"].create({"name": "Second company"})
         self._make_sale_order(days_ago=5, company=other_company)
 

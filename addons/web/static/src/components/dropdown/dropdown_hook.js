@@ -4,9 +4,7 @@
 import { useEnv, useState } from "@odoo/owl";
 import { DROPDOWN_NESTING } from "@web/components/dropdown/_behaviours/dropdown_nesting";
 import { SignalStore } from "@web/core/utils/reactive";
-/**
- * @param {{ onOpen?: Function, onClose?: Function }} [callbacks]
- */
+/** @param {{ onOpen?: Function, onClose?: Function }} [callbacks] */
 export class DropdownState extends SignalStore {
     isOpen = false;
     constructor({ onOpen, onClose } = /** @type {any} */ ({})) {

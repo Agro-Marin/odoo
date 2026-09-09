@@ -6,10 +6,6 @@ class ProjectProject(models.Model):
     _name = "project.project"
     _inherit = "project.project"
 
-    # ----------------------------
-    #  Project Updates
-    # ----------------------------
-
     def _get_profitability_labels(self):
         labels = super()._get_profitability_labels()
         labels["manufacturing_order"] = self.env._("Manufacturing Orders")

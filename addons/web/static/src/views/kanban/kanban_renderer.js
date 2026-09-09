@@ -84,9 +84,7 @@ export class KanbanRenderer extends Component {
 
     /** @type {any[]} */
     dialogClose;
-    /**
-     * @type {{ selectionAvailable: boolean; processedIds: string[]; columnQuickCreateIsFolded: boolean }}
-     */
+    /** @type {{ selectionAvailable: boolean; processedIds: string[]; columnQuickCreateIsFolded: boolean }} */
     state;
     /** @type {any} */
     dialog;
@@ -331,9 +329,7 @@ export class KanbanRenderer extends Component {
         return this.props.list.selection || [];
     }
 
-    /**
-     * @returns {any[]}
-     */
+    /** @returns {any[]} */
     getGroupsOrRecords() {
         const { list } = this.props;
         if (list.isGrouped) {

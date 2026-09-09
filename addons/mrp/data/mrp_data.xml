@@ -3,9 +3,6 @@
 
     <data noupdate="1">
         <function model="res.company" name="create_missing_unbuild_sequences" />
-        <!--
-            Stock rules and routes
-        -->
         <record id="route_warehouse0_manufacture" model="stock.route">
             <field name="name">Manufacture</field>
             <field name="company_id" />
@@ -14,11 +11,9 @@
             <field name="warehouse_selectable" eval="True" />
             <field name="warehouse_ids" eval="[(4, ref('stock.warehouse0'))]" />
         </record>
-        <!-- Enable the manufacturing in warehouse0 -->
         <record id="stock.warehouse0" model="stock.warehouse">
             <field name="manufacture_to_resupply" eval="True" />
         </record>
-        <!--  Category for Blocking Reasons Workcenter -->
         <record
             id="category_availability"
             model="mrp.workcenter.productivity.loss.type">
@@ -33,7 +28,6 @@
         <record id="category_productive" model="mrp.workcenter.productivity.loss.type">
             <field name="loss_type">productive</field>
         </record>
-        <!-- Reasons To Block Workcenter -->
         <record id="block_reason0" model="mrp.workcenter.productivity.loss">
             <field name="name">Material Availability</field>
             <field name="loss_id" ref="mrp.category_availability" />

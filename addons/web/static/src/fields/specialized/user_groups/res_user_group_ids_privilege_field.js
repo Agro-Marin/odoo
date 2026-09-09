@@ -25,17 +25,13 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
         this.groups = this.env.resUserGroupsInfo.groups;
     }
 
-    /**
-     * @returns {number[]}
-     */
+    /** @returns {number[]} */
     get disjointGroupIds() {
         const group = this.group || this.impliedGroup;
         return group ? group.disjointIds : [];
     }
 
-    /**
-     * @returns {Object | false}
-     */
+    /** @returns {Object | false} */
     get group() {
         const value = this.field.value;
         if (!value) {
@@ -48,27 +44,21 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
         return this.groups[gid] || false;
     }
 
-    /**
-     * @returns {Object | false}
-     */
+    /** @returns {Object | false} */
     get impliedGroup() {
         const groups = this.groups;
         const gid = this.findGroupId((gid) => groups[gid].impliedByIds.length);
         return gid !== false ? groups[gid] || false : false;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get impliedGroupDisplayName() {
         return !this.isSet && this.impliedGroup
             ? this.groups[this.impliedGroup.id].name
             : "";
     }
 
-    /**
-     * @returns {Record<string, boolean>}
-     */
+    /** @returns {Record<string, boolean>} */
     get infoButtonClassnames() {
         const invisible = !this.isSet && !this.impliedGroup?.id;
         const isDisjoint = this.isDisjoint;
@@ -85,30 +75,22 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
         };
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isDisjoint() {
         return this.disjointGroupIds.length > 0;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isImplied() {
         return !this.isSet && !!this.impliedGroup;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isSet() {
         return !!this.field.value;
     }
 
-    /**
-     * @returns {"selection" | "boolean"}
-     */
+    /** @returns {"selection" | "boolean"} */
     get type() {
         return /** @type {"selection" | "boolean"} */ (this.field.type);
     }
@@ -129,9 +111,7 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
         }
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onClickInfoButton(ev) {
         if (this.popover.isOpen) {
             this.popover.close();

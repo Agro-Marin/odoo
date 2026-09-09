@@ -38,15 +38,11 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         )
 
     def test_get_project_profitability_items(self):
-        """Test _get_project_profitability_items method to ensure the project profitability
-        is computed as expected.
-        """
         foreign_company = self.company_data_2["company"]
         foreign_company.currency_id = self.foreign_currency
         self.project_task_rate.account_id.company_id = False
         self.project_task_rate.company_id = False
 
-        # Create and confirm a SO with the main company
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_b.id,
@@ -71,7 +67,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             "No timesheets has been recorded in the task and no product has been deelivered in the SO linked so the project profitability has no data found.",
         )
 
-        # Create and confirm a SO with the foreign company
         sale_order_foreign = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_b.id,
@@ -92,7 +87,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
         )
         sale_order_foreign.action_confirm()
         self.task.write({"sale_line_id": delivery_service_order_line.id})
-        # Create the foreign users needed for the foreign timesheets
         foreign_partner = self.env["res.partner"].create(
             {
                 "name": "Foreign Employee address",
@@ -115,7 +109,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
                 "hourly_cost": 500,
             }
         )
-        # Create 2 new timesheets linked to the task of the project
         Timesheet = self.env["account.analytic.line"].with_context(
             default_task_id=self.task.id,
         )
@@ -156,7 +149,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             "The service type is not timesheet but manual so the quantity delivered is not increased by the timesheets linked.",
         )
 
-        # Adding an extra cost/revenue to ensure those are computed correctly.
         self.env["account.analytic.line"].create(
             [
                 {
@@ -219,7 +211,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             },
         )
 
-        # Create 2 new timesheets linked to the task of the project
         timesheet1 = Timesheet.create(
             {
                 "name": "Timesheet 1",
@@ -295,7 +286,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             },
         )
 
-        # Create a 3rd foreign timesheet and manually update it.
         foreign_timesheet3 = Timesheet.create(
             {
                 "name": "Foreign_Timesheet 3",
@@ -374,7 +364,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             },
         )
 
-        # Create a 3rd timesheet and manually update it.
         timesheet3 = Timesheet.create(
             {
                 "name": "Timesheet 3",
@@ -456,7 +445,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             },
         )
 
-        # Create a new foreign sol, and link this sol to the so_line of the task.
         foreign_delivery_timesheet_order_line = SaleOrderLineForeign.create(
             {
                 "product_id": self.product_delivery_timesheet1.id,
@@ -557,7 +545,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
                 },
             },
         )
-        # Create a new task in the project, link to it a new SO form the main company SO with a delivery timesheet product.
         delivery_timesheet_order_line = SaleOrderLine.create(
             {
                 "product_id": self.product_delivery_timesheet1.id,
@@ -666,7 +653,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
                 },
             },
         )
-        # Create a SOL in the foreign SO with a milestone service product.
         milestone_foreign_order_line = SaleOrderLineForeign.create(
             {
                 "product_id": self.product_milestone.id,
@@ -728,7 +714,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
                 "invoiced": 0.0,
             },
         )
-        # Create a second timesheet in the new task, with an employee from the main company.
         task2_timesheet = Timesheet.with_context(
             default_task_id=task2_foreign.id
         ).create(
@@ -769,7 +754,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
                 "invoiced": 0.0,
             },
         )
-        # Create a SOL in the foreign SO with a milestone service product.
         milestone_order_line = SaleOrderLine.create(
             {
                 "product_id": self.product_milestone.id,
@@ -827,7 +811,6 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             },
         )
 
-        # Cancel the milestone timesheets
         task2_timesheet.unlink()
         task2_foreign_timesheet.unlink()
         task3_timesheet.unlink()

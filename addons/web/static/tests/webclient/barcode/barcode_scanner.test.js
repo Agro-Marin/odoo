@@ -260,9 +260,7 @@ function mockBlankCamera() {
     });
 }
 
-/**
- * @param {() => any} onDetect
- */
+/** @param {() => any} onDetect */
 function mockDetector(onDetect) {
     class ScriptedDetector {
         static async getSupportedFormats() {
@@ -428,9 +426,7 @@ test("the bounding box spans every result point, not the first two", async () =>
     ]).toEqual([30, 40, 160, 160]);
 });
 
-/**
- * @param {{ resultPoints?: any[], text?: string }} [found]
- */
+/** @param {{ resultPoints?: any[], text?: string }} [found] */
 function makeFakeZXing(found) {
     return {
         BarcodeFormat: new Proxy({}, { get: (_t, k) => `fmt:${String(k)}` }),

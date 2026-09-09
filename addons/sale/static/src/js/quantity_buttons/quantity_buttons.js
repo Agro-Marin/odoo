@@ -20,9 +20,7 @@ export class QuantityButtons extends Component {
         this.props.setQuantity(this.props.quantity - 1);
     }
 
-    /**
-     * @param {Event} event
-     */
+    /** @param {Event} event */
     async setQuantity(event) {
         const quantity = parseFloat(event.target.value);
         const didUpdateQuantity = await this.props.setQuantity(

@@ -17,14 +17,9 @@ import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
  * @property {() => boolean} shouldSave
  * @property {(isDirty: boolean) => void} setFieldDirty
  * @property {{
- * isDirty: boolean,
- * lastSetValue: string | null,
- * }} edit
  */
 
-/**
- * @param {InputFieldContext} ctx
- */
+/** @param {InputFieldContext} ctx */
 function syncDirtyFromInput(ctx) {
     const { inputRef, edit } = ctx;
     ctx.setFieldDirty(Boolean(inputRef.el && inputRef.el.value !== edit.lastSetValue));
@@ -111,9 +106,7 @@ async function commitUrgently(ctx) {
     await component.props.record.update({ [fieldName]: value }, { save: false });
 }
 
-/**
- * @param {InputFieldContext} ctx
- */
+/** @param {InputFieldContext} ctx */
 function bindInputListeners(ctx) {
     const { component, params, inputRef, fieldName, edit } = ctx;
 

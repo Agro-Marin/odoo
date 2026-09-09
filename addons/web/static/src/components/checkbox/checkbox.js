@@ -50,9 +50,7 @@ export class CheckBox extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
 
-    /**
-     * @type {() => boolean}
-     */
+    /** @type {() => boolean} */
     syncWithValue;
 
     setup() {

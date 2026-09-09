@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!--Sample sale orders with carrier defined-->
         <record id="outgoing_shipment_with_carrier_confirmed" model="stock.picking">
             <field name="picking_type_id" ref="stock.picking_type_out" />
             <field name="origin">outgoing shipment</field>

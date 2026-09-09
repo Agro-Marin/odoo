@@ -75,9 +75,7 @@ export function becomeSuperuser({ env }) {
     };
 }
 
-/**
- * @returns {DebugMenuItemDescriptor}
- */
+/** @returns {DebugMenuItemDescriptor} */
 function leaveDebugMode() {
     return {
         type: "item",

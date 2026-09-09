@@ -6,40 +6,12 @@ import { CommandPaletteEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
 import { CommandPalette, DefaultFooter } from "./command_palette.js";
-/** @import { CommandPaletteConfig } from "./command_palette.js" */
-/** @import { HotkeyOptions } from "@web/core/hotkeys/hotkey_service" */
 
-/**
- * @typedef {{
- * name: string;
- * action: ()=>(void | CommandPaletteConfig);
- * category?: string;
- * href?: string;
- * className?: string;
- * }} Command
- */
+/** @typedef {{ */
 
-/**
- * @typedef {{
- * category?: string;
- * isAvailable?: (...args: any[]) => boolean;
- * global?: boolean;
- * hotkey?: string;
- * hotkeyOptions?: HotkeyOptions;
- * activeElement?: HTMLElement;
- * scope?: () => Document | HTMLElement;
- * identifier?: string;
- * href?: string;
- * className?: string;
- * }} CommandOptions
- */
+/** @typedef {{ */
 
-/**
- * @typedef {Command & CommandOptions & {
- * removeHotkey?: ()=>void;
- * getScope: () => Document | HTMLElement;
- * }} CommandRegistration
- */
+/** @typedef {Command & CommandOptions & { */
 
 const commandCategoryRegistry = registry.category("command_categories");
 const commandProviderRegistry = registry.category("command_provider");
@@ -232,9 +204,7 @@ class CommandService {
         return token;
     }
 
-    /**
-     * @param {number} token
-     */
+    /** @param {number} token */
     unregisterCommand(token) {
         const cmd = this.registeredCommands.get(token);
         if (cmd?.removeHotkey) {

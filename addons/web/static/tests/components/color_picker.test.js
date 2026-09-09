@@ -486,9 +486,7 @@ test("useColorPicker re-reads its props on every open when given a getter", asyn
     expect(opened).toEqual(["first-", "second-"]);
 });
 
-/**
- * @param {string} tab
- */
+/** @param {string} tab */
 async function focusCycleOnSwatch(tab) {
     /** @type {string[]} */
     const applied = [];

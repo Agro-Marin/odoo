@@ -24,8 +24,8 @@ import { getMockEnv, makeMockEnv } from "./env_test_helpers.js";
  */
 
 /**
- * @template [P=any]
- * @template [E=any]
+ * @template
+ * @template
  * @typedef {import("@odoo/owl").ComponentConstructor<P, E>} ComponentConstructor
  */
 
@@ -90,17 +90,9 @@ export function getDropdownMenu(togglerSelector) {
 }
 
 /**
- * @template {import("@odoo/owl").Component} TComponent
+ * @template {import("@odoo/owl").Component}
  * @param {(new (...args: any[]) => TComponent) | string} ComponentClass
  * @param {AppConfig & {
- * componentEnv?: Partial<OdooEnv>;
- * containerEnv?: Partial<OdooEnv>;
- * fixtureClassName?: string | string[] | null;
- * env?: any;
- * noMainContainer?: boolean;
- * props?: any;
- * target?: Target;
- * }} [options]
  * @returns {Promise<TComponent>}
  */
 export async function mountWithCleanup(ComponentClass, options) {

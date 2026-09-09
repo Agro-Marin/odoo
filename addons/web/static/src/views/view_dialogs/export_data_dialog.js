@@ -291,9 +291,7 @@ export class ExportDataDialog extends Component {
         return this.knownFields[id].children && id.split("/").length < 3;
     }
 
-    /**
-     * @param {string | number} value
-     */
+    /** @param {string | number} value */
     async loadExportList(value) {
         this.state.templateId = value === "new_template" ? value : Number(value);
         this.state.isEditingTemplate = value === "new_template";

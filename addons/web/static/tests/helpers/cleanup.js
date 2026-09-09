@@ -2,9 +2,7 @@
 
 const cleanups = [];
 
-/**
- * @param {Function} callback
- */
+/** @param {Function} callback */
 export function registerCleanup(callback) {
     cleanups.push(callback);
 }

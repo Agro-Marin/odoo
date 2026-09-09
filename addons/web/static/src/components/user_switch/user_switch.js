@@ -15,9 +15,7 @@ export class UserSwitch extends Component {
     root;
     /** @type {{ users: any[], displayUserChoice: boolean }} */
     state;
-    /**
-     * @type {HTMLFormElement | null}
-     */
+    /** @type {HTMLFormElement | null} */
     form = null;
 
     setup() {

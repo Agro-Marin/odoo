@@ -22,7 +22,6 @@
         <record id="base.group_user" model="res.groups">
             <field name="implied_ids" eval="[(4, ref('uom.group_uom'))]" />
         </record>
-        <!-- Timesheets export template -->
         <record
             id="account_analytic_line_export_template_line_so_line"
             model="ir.exports.line">
@@ -31,7 +30,6 @@
                 ref="hr_timesheet.account_analytic_line_export_template" />
             <field name="name">so_line</field>
         </record>
-        <!-- Timesheets export template 2 -->
         <record id="aal_costs_revenues_export_template" model="ir.exports">
             <field name="name">Project Costs &amp; Revenues</field>
             <field name="resource">account.analytic.line</field>

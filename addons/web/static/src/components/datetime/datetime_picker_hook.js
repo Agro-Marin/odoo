@@ -3,16 +3,9 @@
 
 import { useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-/**
- * @typedef {import("@web/components/datetime/datetime_picker_service").DateTimePickerServiceParams & {
- * endDateRefName?: string;
- * startDateRefName?: string;
- * }} DateTimePickerHookParams
- */
+/** @typedef {import("@web/components/datetime/datetime_picker_service").DateTimePickerServiceParams & { */
 
-/**
- * @param {DateTimePickerHookParams} params
- */
+/** @param {DateTimePickerHookParams} params */
 export function useDateTimePicker(params) {
     function getInputs() {
         return inputRefs.map((ref) => ref.el);

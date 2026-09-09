@@ -34,9 +34,7 @@ function markSubmitting(buttonEl) {
     };
 }
 
-/**
- * @returns {() => void}
- */
+/** @returns {() => void} */
 export function setupGlobalPageBehaviors() {
     /** @type {Array<() => void>} */
     const cleanups = [];
@@ -96,9 +94,7 @@ export function setupGlobalPageBehaviors() {
     };
 }
 
-/**
- * @returns {Promise<import("@web/env").OdooEnv>}
- */
+/** @returns {Promise<import("@web/env").OdooEnv>} */
 export async function startPublicApp() {
     /** @type {any} */ (odoo).isReady = false;
     /** @type {import("@web/env").OdooEnv | undefined} */

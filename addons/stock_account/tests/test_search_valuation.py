@@ -20,10 +20,6 @@ class TestSearchValuation(TestStockValuationCommon):
             }
         )
         cls.category_no_valuation = cls.env["product.category"].create(
-            # `stock_account_data.xml` seeds an `ir.default` of "periodic" for
-            # every new category's `property_valuation`; override it
-            # explicitly so this category actually has none set, which is
-            # the state this test means to exercise.
             {"name": "No categ valuation", "property_valuation": False}
         )
         cls.product_company_fallback = cls.env["product.template"].create(
@@ -61,9 +57,6 @@ class TestSearchValuation(TestStockValuationCommon):
         self.assertEqual(found, self.product_real_time)
 
     def test_falls_back_to_company_inventory_valuation(self):
-        # category_no_valuation carries no property_valuation, so the product
-        # resolves through company_id.inventory_valuation instead (defaults
-        # to "periodic" on cls.company, per res.company's field default).
         self.assertFalse(self.category_no_valuation.property_valuation)
         self.assertEqual(self.company.inventory_valuation, "periodic")
         found = self.env["product.template"].search(

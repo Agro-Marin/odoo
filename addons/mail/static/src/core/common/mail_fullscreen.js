@@ -16,9 +16,7 @@ export class MailFullscreen extends Component {
 }
 
 export class MailFullscreenService {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
         this.env = env;
         this.id = undefined;
@@ -92,9 +90,7 @@ export class MailFullscreenService {
 }
 
 export const fullscreenService = {
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     */
+    /** @param {import("@web/env").OdooEnv} env */
     start(env) {
         const fullscreen = reactive(new MailFullscreenService(env));
         fullscreen.setup();

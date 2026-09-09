@@ -18,13 +18,9 @@ import {
     x2manyLists,
 } from "./x2many_tree.js";
 
-/** @import { RelationalRecord } from "@web/model/relational_model/record" */
-
 const PENDING_COMMANDS_MAX_ITERATIONS = 100;
 
-/**
- * @param {RelationalRecord} record
- */
+/** @param {RelationalRecord} record */
 async function waitForPendingCommands(record) {
     for (let i = 0; i < PENDING_COMMANDS_MAX_ITERATIONS; i++) {
         const proms = collectPendingCommands(record);
@@ -148,7 +144,6 @@ function collectOrderBys(record, nextId) {
 /**
  * @param {RelationalRecord} record
  * @param {{ reload: boolean, nextId: number | undefined, orderBys: Record<string, any>,
- * concurrencyBaseline: Record<string, any> }} params
  * @returns {Record<string, any>}
  */
 function buildSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline }) {
@@ -175,7 +170,6 @@ function buildSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline
  * @param {RelationalRecord} record
  * @param {Record<string, any>[]} records
  * @param {{ reload: boolean, nextId: number | undefined, creation: boolean,
- * changes: Record<string, any>, orderBys: Record<string, any> }} params
  * @returns {Promise<void>}
  */
 async function applySaveResult(

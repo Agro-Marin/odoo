@@ -3,17 +3,9 @@
 
 import { registry } from "@web/core/registry";
 
-/**
- * @typedef {"list" | "form" | "kanban" | "calendar" | "hierarchy" | "base_settings" | (string & {})} FieldViewPrefix
- */
+/** @typedef {"list" | "form" | "kanban" | "calendar" | "hierarchy" | "base_settings" | (string & {})} FieldViewPrefix */
 
-/**
- * @typedef {{
- * name: string;
- * view?: FieldViewPrefix;
- * aliases?: Array<string | { name: string; view?: FieldViewPrefix }>;
- * }} FieldRegistrationSpec
- */
+/** @typedef {{ */
 
 /**
  * @param {FieldRegistrationSpec} spec
@@ -24,7 +16,7 @@ export function fieldKey(spec) {
 }
 
 /**
- * @template {Partial<import("registries").FieldsRegistryItemShape>} T
+ * @template {Partial<import("registries").FieldsRegistryItemShape>}
  * @param {string | FieldRegistrationSpec} nameOrSpec
  * @param {T} widget
  * @param {...any} rest
@@ -35,7 +27,7 @@ export function registerField(nameOrSpec, widget, ...rest) {
 }
 
 /**
- * @template T
+ * @template
  * @param {string | FieldRegistrationSpec} nameOrSpec
  * @param {T} widget
  * @param {any[]} rest

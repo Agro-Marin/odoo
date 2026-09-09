@@ -25,9 +25,7 @@ function dispatchPointer(target, type, pos) {
     );
 }
 
-/**
- * @param {Record<string, any>} [hookParams]
- */
+/** @param {Record<string, any>} [hookParams] */
 function makeDraggableList(hookParams = {}) {
     class List extends Component {
         static template = xml`

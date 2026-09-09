@@ -3,7 +3,7 @@
 
 /**
  * @param {import("@odoo/owl").Component} component
- * @param {object} [fromProps] the record handed in as a prop, if any
+ * @param {object} [fromProps]
  * @returns {Record<string | number, any>}
  */
 export function serviceBackedItems(component, fromProps) {

@@ -16,20 +16,11 @@ patch(SaleOrderLineListRenderer.prototype, {
         this.copyFields.push("is_optional");
     },
 
-    /**
-     * @see handleQuantityAdjustment in section_optional_line_utils.js —
-     * `sale.order.line`'s own `product_uom_qty` is a computed, guarded
-     * reference-UoM projection (`mixin_order_line_amount.py`); the writable
-     * quantity field here is `product_qty`.
-     */
+    /** @see handleQuantityAdjustment in section_optional_line_utils.js — */
     get optionalQuantityField() {
         return "product_qty";
     },
 
-    /**
-     * Disable "Hide Composition" and "Hide Prices" buttons for optional sections and their
-     * subsections.
-     */
     disableCompositionButton(record) {
         return (
             super.disableCompositionButton(record) ||
@@ -44,12 +35,6 @@ patch(SaleOrderLineListRenderer.prototype, {
         );
     },
 
-    /**
-     * Disable "Set Optional" button if
-     *  - Parent section is optional
-     *  - Parent section hides prices or composition
-     *  - Section itself hides prices or composition
-     */
     disableOptionalButton(record) {
         return (
             this.shouldCollapse(record, "is_optional") ||
@@ -58,11 +43,7 @@ patch(SaleOrderLineListRenderer.prototype, {
         );
     },
 
-    /**
-     * The optional-section members the row template calls (see ListRowApi).
-     *
-     * @override
-     */
+    /** @override */
     buildRowApi() {
         return {
             ...super.buildRowApi(),
@@ -72,13 +53,7 @@ patch(SaleOrderLineListRenderer.prototype, {
         };
     },
 
-    /**
-     * Per-row optional-muting derivation: it depends on the parent section's
-     * `is_optional`, which the row never reads itself — computing it here
-     * subscribes the renderer and prop-flips exactly the affected rows.
-     *
-     * @override
-     */
+    /** @override */
     getRowProps(record, group, groupId) {
         return {
             ...super.getRowProps(record, group, groupId),
@@ -96,10 +71,6 @@ patch(SaleOrderLineListRenderer.prototype, {
         );
     },
 
-    /**
-     * Override to set the default quantity to 0 for new lines created under an optional
-     * section.
-     */
     add(params) {
         params.context = this.getCreateContext(params);
         super.add(params);
@@ -107,7 +78,6 @@ patch(SaleOrderLineListRenderer.prototype, {
 
     getCreateContext(params) {
         const evaluatedContext = makeContext([params.context]);
-        // A falsy context indicates a product line (no `display_type` specified)
         if (
             !evaluatedContext[`default_display_type`] &&
             this.isCurrentSectionOptional
@@ -120,10 +90,6 @@ patch(SaleOrderLineListRenderer.prototype, {
         return params.context;
     },
 
-    /**
-     * Override to set the default quantity to 0 for new lines inserted by optional
-     * sections from dropdown.
-     */
     getInsertLineContext(record, addSubSection) {
         if (this.shouldCollapse(record, "is_optional", true) && !addSubSection) {
             return {
@@ -142,10 +108,7 @@ patch(SaleOrderLineListRenderer.prototype, {
         return rowClasses;
     },
 
-    /**
-     * @override
-     * This override resets optional state of subsections when their parent sections is collapsed
-     */
+    /** @override */
     async toggleCollapse(record, fieldName) {
         await super.toggleCollapse(record, fieldName);
 
@@ -168,11 +131,6 @@ patch(SaleOrderLineListRenderer.prototype, {
         }
     },
 
-    /**
-     * Toggles optional state on a section:
-     * - Product lines → qty = 0 when set optional, reset to 1 when unset.
-     * - Subsections → force hide composition/prices to false.
-     */
     async toggleIsOptional(record) {
         const setOptional = !record.data.is_optional;
         const qtyField = this.optionalQuantityField;
@@ -213,16 +171,7 @@ patch(SaleOrderLineListRenderer.prototype, {
         await Promise.all(proms);
     },
 
-    /**
-     * @override
-     * Handles product line quantity adjustments when a record is dragged and dropped.
-     *
-     * Behavior:
-     * - If a product line is moved under an optional section, its quantity is set to `0`.
-     * - If a product line is dragged out of an optional section and had `0` quantity,
-     *   its quantity is reset to `1`.
-     * - Non-product lines (`display_type` set) are ignored.
-     */
+    /** @override */
     async sortDrop(dataRowId, dataGroupId, { element, previous }) {
         const record = this.props.list.records.find((r) => r.id === dataRowId);
         const recordMap = this._getRecordsToRecompute(
@@ -235,28 +184,17 @@ patch(SaleOrderLineListRenderer.prototype, {
         await this._handleQuantityAdjustment(recordMap);
     },
 
-    /**
-     * @see getRecordsToRecompute in section_optional_line_utils.js — shared
-     * with SaleOrderTemplateLineListRenderer, which used to carry a
-     * byte-for-byte copy of this method.
-     */
+    /** @see getRecordsToRecompute in section_optional_line_utils.js — shared */
     _getRecordsToRecompute(record, targetId) {
         return getRecordsToRecompute(this, record, targetId);
     },
 
-    /**
-     * @see handleQuantityAdjustment in section_optional_line_utils.js —
-     * shared with SaleOrderTemplateLineListRenderer, same as above.
-     */
+    /** @see handleQuantityAdjustment in section_optional_line_utils.js — */
     async _handleQuantityAdjustment(recordMap) {
         return handleQuantityAdjustment(this, recordMap);
     },
 
-    /**
-     * @override
-     * Reset fields when a subsection is moved under an optional section,
-     * since optional sections cannot contain hidden subsections or hidden prices.
-     */
+    /** @override */
     resetOnResequence(record, parentSection) {
         return (
             super.resetOnResequence(record, parentSection) ||

@@ -5,9 +5,7 @@ import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
 
-/**
- * @returns {{ bus: EventBus, isOpen: boolean, open: () => Promise<void>, saveContent: () => void, }}
- */
+/** @returns {{ bus: EventBus, isOpen: boolean, open: () => Promise<void>, saveContent: () => void, }} */
 /**
  * @param {import("@odoo/owl").Component} comp
  * @returns {Promise<any[]>}

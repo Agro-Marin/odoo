@@ -6,9 +6,6 @@ import { Domain } from "@web/core/domain";
 import { DynamicList } from "./dynamic_list.js";
 import { getGroupServerValue } from "./field_values.js";
 
-/** @import { DynamicListContract } from "./dynamic_list_contract.js" */
-/** @import { RelationalRecord } from "./record.js" */
-
 export const MOVABLE_RECORD_TYPES = [
     "char",
     "boolean",
@@ -20,9 +17,7 @@ export const MOVABLE_RECORD_TYPES = [
 export class DynamicGroupList extends DynamicList {
     static type = "DynamicGroupList";
 
-    /**
-     * @type {DynamicList["setup"]}
-     */
+    /** @type {DynamicList["setup"]} */
     setup(_config, data) {
         super.setup(_config);
 
@@ -33,9 +28,7 @@ export class DynamicGroupList extends DynamicList {
         this.setData(/** @type {any} */ (data));
     }
 
-    /**
-     * @param {{ groups: any[], length: number, [key: string]: any }} data
-     */
+    /** @param {{ groups: any[], length: number, [key: string]: any }} data */
     setData(data) {
         if (
             this._nbRecordsMatchingDomain !== null &&
@@ -65,18 +58,14 @@ export class DynamicGroupList extends DynamicList {
         return this.count <= this.limit || this._nbRecordsMatchingDomain !== null;
     }
 
-    /**
-     * @returns {RelationalRecord[]}
-     */
+    /** @returns {RelationalRecord[]} */
     get records() {
         return this.groups
             .filter((group) => !group.isFolded)
             .flatMap((group) => group.records);
     }
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     get recordCount() {
         if (this._nbRecordsMatchingDomain !== null) {
             return this._nbRecordsMatchingDomain;
@@ -84,9 +73,7 @@ export class DynamicGroupList extends DynamicList {
         return this.groups.reduce((acc, group) => acc + group.count, 0);
     }
 
-    /**
-     * @type {DynamicList["clearSampleData"]}
-     */
+    /** @type {DynamicList["clearSampleData"]} */
     clearSampleData() {
         this.count = 0;
         this.groups = [];

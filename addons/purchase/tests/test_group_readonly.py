@@ -22,10 +22,6 @@ class TestPurchaseReadonlyGroup(TransactionCase):
         base_user = self.env.ref("base.group_user")
         self.assertIn(base_user, self.group_readonly.implied_ids)
 
-    # Models the readonly role exists to expose. base.group_user does not grant
-    # read on any of them, so these rows are what the tier contributes. The
-    # account.* rows are deliberately absent: their breadth is still under
-    # review, so pinning them here would freeze an open question.
     REQUIRED_MODELS = (
         "purchase.order",
         "purchase.order.line",
@@ -55,8 +51,6 @@ class TestPurchaseReadonlyGroup(TransactionCase):
             .mapped("name")
         )
         for model in self.REQUIRED_MODELS:
-            # The rows on stock and mrp models live in the bridge that joins
-            # purchase to that app; without the bridge there is no row to find.
             if self.BRIDGE_OF.get(model, "purchase") not in installed:
                 continue
             with self.subTest(model=model):
@@ -73,8 +67,6 @@ class TestPurchaseReadonlyGroup(TransactionCase):
             self.assertFalse(acl.perm_unlink, f"ACL {acl.name} should block unlink")
 
     def test_the_all_documents_rung_implies_readonly(self) -> None:
-        # Not "Own Documents Only": the tier's read rules OR with the buyer's
-        # personal rule, so a narrower rung implying it would read every order.
         user_all = self.env.ref("purchase.group_purchase_user_all")
         user_own = self.env.ref("purchase.group_purchase_user")
         manager = self.env.ref("purchase.group_purchase_manager")
@@ -107,9 +99,6 @@ class TestPurchaseReadonlyPermissions(TransactionCase):
             {"partner_id": cls.partner.id}
         )
 
-    # Dropped from ir.model.access.csv: base.group_user, which the readonly
-    # group implies, already grants read on every one of them, so the rows
-    # were duplicates rather than grants.
     IMPLIED_READ_MODELS = (
         "account.account",
         "account.account.tag",
@@ -139,8 +128,6 @@ class TestPurchaseReadonlyPermissions(TransactionCase):
 
     def test_implied_models_stay_readable(self) -> None:
         for model in self.IMPLIED_READ_MODELS:
-            # Some of these belong to modules this one does not depend on, so
-            # they are simply absent from a minimal install.
             if model not in self.env:
                 continue
             with self.subTest(model=model):
@@ -177,20 +164,12 @@ class TestPurchaseReadonlyPermissions(TransactionCase):
     def _assert_write_buttons_gated(
         self, view_xmlid, model, rung, buttons, user, feature_flags=()
     ):
-        """The gate is asserted where it is declared, and the tier where it lands.
-
-        Each write button is gated POSITIVELY on the transacting rung, which the
-        tier does not carry, and the rendered form for the tier drops it.
-        """
         view = self.env.ref(view_xmlid)
         arch = etree.fromstring(view.arch)
         for button in buttons:
             nodes = arch.xpath(f"//header/button[@name='{button}']")
             self.assertTrue(nodes, f"{button} is not in {view_xmlid}")
             for node in nodes:
-                # A feature-flag gate stays as it is: `groups` is an OR, so
-                # adding the rung would show the button to every salesperson
-                # with the flag off.
                 if node.get("groups") in feature_flags:
                     continue
                 self.assertEqual(node.get("groups"), rung, button)
@@ -217,14 +196,11 @@ class TestPurchaseReadonlyPermissions(TransactionCase):
 
 @tagged("post_install", "-at_install", "fast")
 class TestPurchaseReadonlyMenus(TransactionCase):
-    # Menus core gates itself: linking the readonly group genuinely widens them.
     GATED_IN_CORE = (
         "purchase.menu_purchase_root",
         "purchase.menu_purchase_reporting",
         "purchase.menu_purchase_report",
     )
-    # Menus core leaves ungrouped. An empty group_ids means visible-to-all, so
-    # linking a group here RESTRICTS instead of widening.
     UNGROUPED_IN_CORE = (
         "purchase.menu_purchase_rfq",
         "purchase.menu_purchase_form_action",
@@ -271,8 +247,6 @@ class TestPurchaseReadonlyMenus(TransactionCase):
                     f"{xmlid} is ungrouped in core, so granting a group hides it "
                     f"from every other purchase user",
                 )
-                # Some of these are deactivated downstream (marin), and an
-                # inactive menu is never visible to anyone.
                 if menu.active:
                     self.assertIn(
                         menu.id,
@@ -314,8 +288,6 @@ class TestPurchaseReadonlyRecordRules(TransactionCase):
         partner = cls.env["res.partner"].create(
             {"name": "Test Rule Vendor", "supplier_rank": 1}
         )
-        # Owned by neither buyer: core's "Personal Purchase Orders" rule must
-        # keep it out of reach for a group_purchase_user.
         cls.other_order = cls.env["purchase.order"].create(
             {"partner_id": partner.id, "user_id": cls.env.ref("base.user_admin").id}
         )
@@ -325,9 +297,6 @@ class TestPurchaseReadonlyRecordRules(TransactionCase):
             self.other_order.with_user(self.buyer).read(["id"])
 
     def test_readonly_is_a_decision_to_see_every_order(self) -> None:
-        # The tier carries a read rule on purchase.order, so a buyer who is
-        # ALSO given the tier reads every order and still writes only their
-        # own: record rules OR across groups per permission.
         self.other_order.with_user(self.buyer_with_readonly).read(["id"])
         with self.assertRaises(AccessError):
             self.other_order.with_user(self.buyer_with_readonly).write({"notes": "x"})

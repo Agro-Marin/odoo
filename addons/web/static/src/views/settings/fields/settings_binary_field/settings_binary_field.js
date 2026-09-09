@@ -6,9 +6,7 @@ import { BinaryField, binaryField } from "@web/fields/media/binary/binary_field"
 export class SettingsBinaryField extends BinaryField {
     static template = "web.SettingsBinaryField";
 
-    /**
-     * @returns {{ model: string, field: string, id: number } & Record<string, any>}
-     */
+    /** @returns {{ model: string, field: string, id: number } & Record<string, any>} */
     getDownloadData() {
         const related = this.props.record.fields[this.props.name].related;
         const [fieldName, relatedFieldName, ...rest] = related?.split(".") || [];

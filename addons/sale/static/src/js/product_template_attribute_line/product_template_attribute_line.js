@@ -55,9 +55,7 @@ export class ProductTemplateAttributeLine extends Component {
         show_extra_price: { type: Boolean },
     };
 
-    /**
-     * @param {Event} event
-     */
+    /** @param {Event} event */
     updateSelectedPTAV(event) {
         this.env.updateProductTemplateSelectedPTAV(
             this.props.productTmplId,
@@ -67,9 +65,7 @@ export class ProductTemplateAttributeLine extends Component {
         );
     }
 
-    /**
-     * @param {Event} event
-     */
+    /** @param {Event} event */
     updateCustomValue(event) {
         this.env.updatePTAVCustomValue(
             this.props.productTmplId,
@@ -78,9 +74,7 @@ export class ProductTemplateAttributeLine extends Component {
         );
     }
 
-    /**
-     * @return {String}
-     */
+    /** @return {String} */
     getPTAVTemplate() {
         switch (this.props.attribute.display_type) {
             case "select":
@@ -115,9 +109,7 @@ export class ProductTemplateAttributeLine extends Component {
         }
     }
 
-    /**
-     * @return {Boolean}
-     */
+    /** @return {Boolean} */
     isSelectedPTAVCustom() {
         return !!getSelectedCustomPtav(this.props);
     }
@@ -134,9 +126,7 @@ export class ProductTemplateAttributeLine extends Component {
         return _t("Enter a customized value");
     }
 
-    /**
-     * @return {Boolean}
-     */
+    /** @return {Boolean} */
     hasPTAVCustom() {
         return this.props.attribute_values.some((ptav) => ptav.is_custom);
     }

@@ -2,13 +2,6 @@ from . import models
 
 
 def post_init_hook(env):
-    """Populate employee_ids / employee_id from existing user assignments.
-
-    Without this hook, installing the module on a live database would
-    immediately zero out all task assignments: employee_ids starts empty,
-    _compute_user_ids fires, and user_ids becomes [].
-    """
-    # project.task — migrate user_ids → employee_ids
     tasks = (
         env["project.task"]
         .with_context(active_test=False)
@@ -19,7 +12,6 @@ def post_init_hook(env):
         if employees:
             task.employee_ids = employees
 
-    # project.project — migrate user_id → employee_id
     projects = (
         env["project.project"]
         .with_context(active_test=False)

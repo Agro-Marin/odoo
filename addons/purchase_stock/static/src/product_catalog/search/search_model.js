@@ -20,13 +20,7 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
         });
     }
 
-    /*
-     * -------------------  Overrides ---------------------
-     */
-
-    /**
-     * @override to add suggest context and filters if suggest is ON on first load.
-     */
+    /** @override to add suggest context and filters if suggest is ON on first load. */
     async load(config) {
         Object.assign(this.suggest, {
             numberOfDays:
@@ -39,7 +33,6 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
             ),
         });
         if (this.suggest.suggestToggle.isOn) {
-            // Add default filters for suggest before loading
             config.context["search_default_suggested"] = true;
             config.context["search_default_products_in_purchase_order"] = true;
         }
@@ -49,18 +42,13 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
         }
     }
 
-    /**
-     * @override inside of _notify (but only when searchpanel exists) to add ctx for
-     * web_search_read but also to load correct categories, to compute correct total price ...
-     */
+    /** @override inside of _notify (but only when searchpanel exists) to add ctx for */
     async _fetchSections() {
         this._editSuggestContext();
         await super._fetchSections(...arguments);
     }
 
-    /**
-     * @override to recompute total price and add category_id to domain when selecting a category
-     */
+    /** @override to recompute total price and add category_id to domain when selecting a category */
     toggleCategoryValue() {
         super.toggleCategoryValue(...arguments);
         if (this.suggest.suggestToggle.isOn) {
@@ -68,12 +56,6 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
         }
     }
 
-    /*
-     * -------------------  Suggestion methods ---------------------
-     */
-
-    /** Calculate estimated price (might differ from actual PO price on purpose)
-     *  if all suggestions where added to PO (ie. not only the ones displayed) */
     async _computeTotalEstimatedPrice() {
         this._editSuggestContext();
         const product_prices = await this.orm.searchRead(
@@ -89,9 +71,8 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
     }
 
     /**
-     * Toggles one or more filters based on filter name and desired states. Forces a refresh if no filter toggled
-     * @param {Array[string]} filterNames eg. "suggested_or_ordered"
-     * @param {boolean} turnOn eg. toggles filter "On" if turnOn = true and filter is currently "Off"
+     * @param {Array[string]} filterNames
+     * @param {boolean} turnOn
      */
     toggleFilters(filterNames, turnOn) {
         const searchFilters = new Map(
@@ -108,7 +89,6 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
             }
         }
 
-        // Prevent toggleSearchItem from trying to reload with partial domain
         for (let i = 0; i < toToggle.length; i++) {
             const isLast = i === toToggle.length - 1;
             this.blockNotification = !isLast;
@@ -119,14 +99,11 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
             this._computeTotalEstimatedPrice();
         }
         if (toToggle.length === 0) {
-            this._notify(); // Force reload, useful for eg. when toggling suggest off with filter already deactivated
+            this._notify();
         }
     }
 
-    /**
-     * Adds / Removes suggest parameters from globalContext depending if suggest feature is activated
-     * @returns {Object} base context if suggest is OFF or base + suggest context
-     */
+    /** @returns {Object} */
     _editSuggestContext() {
         const suggestContext = {
             suggest_domain: this.domain,

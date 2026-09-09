@@ -5,14 +5,6 @@ import { getShowSubtasks } from "../utils/project_utils.js";
 
 export const ProjectTaskModelMixin = (T) =>
     class ProjectTaskModelMixin extends T {
-        /**
-         * Process the search domain only when the caller actually provides one
-         * (search-driven loads). Parameterless reloads (view buttons, archive
-         * refresh, calendar navigation) reuse the domain the base class already
-         * stores — which is the OUTPUT of a previous _processSearchDomain call:
-         * re-processing it would append a duplicate injected leaf per reload, and
-         * a truthy params.domain needlessly resets pagination to offset 0.
-         */
         async load(params = {}) {
             if (params.domain) {
                 params.domain = this._processSearchDomain(params.domain);

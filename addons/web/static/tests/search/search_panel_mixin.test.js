@@ -754,9 +754,7 @@ describe("invalidateSections", () => {
 });
 
 describe("_reloadSections choreography", () => {
-    /**
-     * @param {Object} [overrides]
-     */
+    /** @param {Object} [overrides] */
     function makeReloadModel(overrides = {}) {
         /** @type {any[]} */
         const steps = [];

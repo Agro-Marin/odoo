@@ -3,9 +3,7 @@
 
 import { SignalStore } from "@web/core/utils/reactive";
 
-/**
- * @typedef {Record<string, Partial<Record<string, string>>>} TransitionTable
- */
+/** @typedef {Record<string, Partial<Record<string, string>>>} TransitionTable */
 
 export class InvalidTransitionError extends Error {
     /**

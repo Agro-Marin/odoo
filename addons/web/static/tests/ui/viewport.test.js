@@ -17,9 +17,7 @@ import {
     utils,
 } from "@web/ui/viewport";
 
-/**
- * @param {() => number} getWidth
- */
+/** @param {() => number} getWidth */
 function mockMatchMediaAtWidth(getWidth) {
     patchWithCleanup(browser, {
         matchMedia: (/** @type {string} */ query) => {

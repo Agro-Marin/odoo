@@ -15,9 +15,7 @@ export class ProductCard extends Component {
         isConfigurable: { type: Boolean, optional: true },
     };
 
-    /**
-     * @param {KeyboardEvent} event
-     */
+    /** @param {KeyboardEvent} event */
     onKeydown(event) {
         if (event.key !== "Enter" && event.key !== " ") {
             return;

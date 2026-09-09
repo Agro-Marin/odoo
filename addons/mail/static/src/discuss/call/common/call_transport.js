@@ -11,13 +11,9 @@ export const getSequence = () => sequence++;
 /** @typedef {'audio' | 'camera' | 'screen' } streamType */
 export const CONNECTION_TYPES = { P2P: "p2p", SERVER: "server" };
 
-/**
- * @return {Promise<{ SfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: import("@mail/../lib/odoo_sfu/odoo_sfu").SFU_CLIENT_STATE }>}
- */
+/** @return {Promise<{ SfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: import("@mail/../lib/odoo_sfu/odoo_sfu").SFU_CLIENT_STATE }>} */
 
-/**
- * @returns {Promise<{ sfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: Object }>}
- */
+/** @returns {Promise<{ sfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: Object }>} */
 export async function loadSfuClient() {
     const load = async () => {
         const sfuModule = await import("@odoo/sfu");

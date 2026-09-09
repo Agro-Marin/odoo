@@ -3,9 +3,7 @@
 import { expect, test } from "@odoo/hoot";
 import { executeCloseAction } from "@web/webclient/actions/action_executors/close";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
     /** @type {Record<string, any[]>} */
     const calls = { removeDialog: [] };

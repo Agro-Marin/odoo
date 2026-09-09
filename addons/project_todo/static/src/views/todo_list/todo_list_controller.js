@@ -4,10 +4,6 @@ import { ListController } from "@web/views/list";
 export class TodoListController extends ListController {
     setup() {
         super.setup();
-        // The To-Do list arch carries no `active` field, so computeArchiveEnabled
-        // would hide Archive/Unarchive. The records are archivable server-side,
-        // so force it on here rather than adding a column nobody wants. This has
-        // to happen before actionMenuItems is read, which is why it is in setup.
         this.archiveEnabled = true;
     }
 

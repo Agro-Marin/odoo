@@ -33,8 +33,6 @@ class TestPortalQuoteOptionUpdate(HttpCase, SaleManagementCommon):
         cls.optional_line = cls._get_optional_product_lines(cls.sale_order_with_option)
 
     def test_negative_input_quantity_is_clamped_to_zero(self):
-        """A negative `input_quantity` posted to the public update_line_dict route
-        must not be able to set a negative `product_qty` on the line (R1-03)."""
         self.authenticate(None, None)
 
         self.call_jsonrpc(

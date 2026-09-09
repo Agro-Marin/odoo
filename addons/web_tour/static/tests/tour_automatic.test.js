@@ -106,18 +106,9 @@ test("Step Tour validity", async () => {
 });
 
 test("a step waits for an RPC the previous step left in flight", async () => {
-    // The runner dispatches a step's action into the page; it does not await
-    // whatever that action starts.  Clicking a form's statusbar button returns
-    // as soon as the click is delivered, while the handler goes on to save, call
-    // the button and re-read -- so the runner used to walk into the *next* step
-    // mid-save, and a tour that navigated there silently lost the navigation.
-    // `main_flow_tour` failed that way on roughly half its runs.
-    //
-    // Step 1 here leaves an RPC in flight exactly as that click does.  Step 2
-    // must not act until it has answered.
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -146,8 +137,6 @@ test("a step waits for an RPC the previous step left in flight", async () => {
     });
 
     await odoo.startTour("tour_settle", { mode: "auto" });
-    // Several frames with the request still open: the second step must sit on
-    // its hands.  Before the fix it acted on the first of them.
     for (let i = 0; i < 5; i++) {
         await animationFrame();
         await advanceTime(265);
@@ -160,16 +149,9 @@ test("a step waits for an RPC the previous step left in flight", async () => {
 });
 
 test("a step that expects the page to unload does not wait for the client to settle", async () => {
-    // The request a previous step left in flight is, for an `expectUnloadPage`
-    // step, the very one whose response navigates away: `configurator_apply`
-    // answers and its continuation redirects in the same microtask chain, so a
-    // settle-wait sitting on it lets `beforeunload` fire before this step's
-    // action has set `allowUnload`. The runner then reports the tour as
-    // missing the flag it declared. Such a step must act with the request
-    // still open.
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -208,10 +190,6 @@ test("a step that expects the page to unload does not wait for the client to set
 });
 
 test("a request that never answers costs the settle budget once, not per step", async () => {
-    // `RPC:REQUEST` is balanced by `RPC:RESPONSE` everywhere in `rpc.js`
-    // today, aborts included, so this should not happen -- but if one ever
-    // escaped, every remaining step would pay the settle budget again and a
-    // 300-step tour would never finish. The stragglers are dropped once.
     const tour = new TourAutomatic({ name: "t", steps: [] });
     tour.pendingRPCs.add(1);
 
@@ -220,9 +198,6 @@ test("a request that never answers costs the settle budget once, not per step", 
     expect(await first).toBe(false);
     expect(tour.pendingRPCs.size).toBe(0);
 
-    // The budget is a timer, not a `Date.now()` bound: a wall-clock bound
-    // cannot end a wait made of timers, and under mocked time the loop would
-    // re-arm forever rather than return at all.
     expect(await tour.whenClientSettles(500)).toBe(true);
 });
 
@@ -257,7 +232,7 @@ test("a tour with invalid step trigger", async () => {
             },
         ],
     });
-    await odoo.startTour("tour_invalid_trigger", { mode: "auto" }); // Use odoo to run tour from registry because this is a test tour
+    await odoo.startTour("tour_invalid_trigger", { mode: "auto" });
     await waitForMacro();
     const expectedSteps = [
         "log: [1/2] Tour tour_invalid_trigger → Step .button0:contins(brol)",
@@ -274,13 +249,13 @@ test("a failing tour logs the step that failed in run", async () => {
         log: (s) => expect.step(`log: ${s}`),
         warn: (s) => {},
         error: (s) => {
-            s = s.replace(/\n +at.*/g, ""); // strip stack trace
+            s = s.replace(/\n +at.*/g, "");
             expect.step(`error: ${s}`);
         },
     });
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -306,7 +281,7 @@ test("a failing tour logs the step that failed in run", async () => {
             },
         ],
     });
-    await odoo.startTour("tour2", { mode: "auto" }); // Use odoo to run tour from registry because this is a test tour
+    await odoo.startTour("tour2", { mode: "auto" });
     await waitForMacro();
     const expectedError = [
         "log: [1/2] Tour tour2 → Step .button0",
@@ -327,7 +302,7 @@ test("a failing tour with disabled element", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1" disabled="">Button 1</button>
@@ -377,7 +352,7 @@ test("a failing tour logs the step that failed", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -459,20 +434,15 @@ TIMEOUT step failed to complete within 111 ms.`,
 });
 
 test("a tour action can be contributed through the web_tour.helpers registry", async () => {
-    // TourHelpers lives in the lazily-loaded web_tour.automatic child bundle, so
-    // an addon in another bundle that patches its prototype patches a different
-    // copy of the class and its actions are silently never seen. Registering is
-    // the identity-safe way to add one; this is the contract that makes it work.
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `<t><button class="button0">Button 0</button></t>`;
+        static template = xml `<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
     const helpers = registry.category("web_tour.helpers");
     clearRegistry(helpers);
     helpers.add("shout", async function (argument) {
-        // `this` must be the TourHelpers instance bound to the step's anchor.
         expect.step(`shout:${argument}:${this.anchor.className}`);
     });
     registry.category("web_tour.tours").add("registry_action_tour", {
@@ -486,7 +456,7 @@ test("a tour action can be contributed through the web_tour.helpers registry", a
 test("a built-in TourHelpers action wins over a registry entry of the same name", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `<t><button class="button0">Button 0</button></t>`;
+        static template = xml `<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
@@ -520,7 +490,7 @@ test("an unknown tour action names the registry in its error", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `<t><button class="button0">Button 0</button></t>`;
+        static template = xml `<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
@@ -536,7 +506,7 @@ test("an unknown tour action names the registry in its error", async () => {
 test("check tour with inactive steps", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -591,7 +561,7 @@ test("automatic tour with invisible element", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -643,7 +613,7 @@ test("automatic tour with invisible element but use :not(:visible))", async () =
 
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -716,7 +686,7 @@ test("automatic tour with alternative trigger", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -755,7 +725,7 @@ test("check not possible to click below modal", async () => {
     }
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <div class="container">
                     <div class="p-3"><button class="button0" t-on-click="openDialog">Button 0</button></div>
@@ -807,7 +777,7 @@ test("a tour where hoot trigger failed", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml /*html*/ `
+        static template = xml `
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>

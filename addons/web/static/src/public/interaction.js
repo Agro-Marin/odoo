@@ -27,26 +27,18 @@ function asDeferredHandler(interaction, fn) {
 }
 
 export class Interaction {
-    /**
-     * @type {string}
-     */
+    /** @type {string} */
     static selector = "";
 
-    /**
-     * @type {string}
-     */
+    /** @type {string} */
     static selectorHas = "";
 
-    /**
-     * @type {string}
-     */
+    /** @type {string} */
     static selectorNotHas = "";
 
     static INITIAL_VALUE = INITIAL_VALUE;
 
-    /**
-     * @type {Object.<string, Function>}
-     */
+    /** @type {Object.<string, Function>} */
     dynamicSelectors = {
         _root: () => this.el,
         _body: () => this.el.ownerDocument.body,
@@ -54,9 +46,7 @@ export class Interaction {
         _document: () => this.el.ownerDocument,
     };
 
-    /**
-     * @type {Record<string, Record<string, any>>}
-     */
+    /** @type {Record<string, Record<string, any>>} */
     dynamicContent = {};
 
     /**
@@ -125,9 +115,7 @@ export class Interaction {
         this.services["public.interactions"].reportError(error);
     }
 
-    /**
-     * @returns {void}
-     */
+    /** @returns {void} */
     _updateContentIfLive() {
         if (this.isReady && !this.isDestroyed) {
             this.updateContent();

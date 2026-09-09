@@ -23,13 +23,6 @@ class Authenticate(http.Controller):
         website=True,
     )
     def auth(self, **values):
-        """
-        Once authenticated this route renders the view that shows an app wants to access Odoo.
-        The user is invited to allow or deny the app. The form posts to `/mail_client_extension/auth/confirm`.
-
-        old route name "/mail_client_extension/auth is deprecated as of saas-14.3,it is not needed for newer
-        versions of the mail plugin but necessary for supporting older versions
-        """
         if not request.env.user._is_internal():
             return request.render(
                 "mail_plugin.app_error",
@@ -48,15 +41,6 @@ class Authenticate(http.Controller):
         methods=["POST"],
     )
     def auth_confirm(self, scope, friendlyname, redirect, info=None, do=None, **kw):
-        """
-        Called by the `app_auth` template. If the user decided to allow the app to access Odoo, a temporary auth code
-        is generated and they are redirected to `redirect` with this code in the URL. It should redirect to the app, and
-        the app should then exchange this auth code for an access token by calling
-        `/mail_client/auth/access_token`.
-
-        old route name "/mail_client_extension/auth/confirm is deprecated as of saas-14.3,it is not needed for newer
-        versions of the mail plugin but necessary for supporting older versions
-        """
         parsed_redirect = urlsplit(redirect)
         params = dict(parse_qsl(parsed_redirect.query))
         if do:
@@ -78,7 +62,6 @@ class Authenticate(http.Controller):
         methods=["POST", "OPTIONS"],
     )
     def auth_check_version(self):
-        """Allow to know if the module is installed and which addin version is supported."""
         return 1
 
     @http.route(
@@ -89,13 +72,6 @@ class Authenticate(http.Controller):
         methods=["POST", "OPTIONS"],
     )
     def auth_access_token(self, auth_code="", **kw):
-        """
-        Called by the external app to exchange an auth code, which is temporary and was passed in a URL, for an
-        access token, which is permanent, and can be used in the `Authorization` header to authorize subsequent requests
-
-        old route name "/mail_client_extension/auth/access_token is deprecated as of saas-14.3,it is not needed for newer
-        versions of the mail plugin but necessary for supporting older versions
-        """
         if not auth_code:
             return {"error": "Invalid code"}
         auth_message = self._get_auth_code_data(auth_code)

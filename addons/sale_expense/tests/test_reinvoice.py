@@ -7,20 +7,6 @@ from odoo.addons.sale.tests.common import TestSaleCommon
 
 @tagged("-at_install", "post_install")
 class TestReInvoice(TestExpenseCommon, TestSaleCommon):
-    """
-    Test that expenses, when linked to a sale order and invoiced are correctly re-invoiced on the sale order.
-    It should cover the following rules:
-        - Lines are never grouped together (even if re-invoiced at sale price and with a re-invoice delivered policy)
-        - When posting the move of an expense, it creates the corresponding SOLs with the correct expense quantity
-        - The amount of analytic account linked do not impact the quantities on the SOLs
-        - The quantities ordered and delivered are reset to 0 when:
-            - the expense move has been reset to draft
-            - the expense move is reversed
-            - the expense move has been reset to draft
-        - As it should be a one-to-one relation between model, we need to ensure that one expense only impacts one SOL
-    The test tries to cover all the possible combinations of expense and invoicing policies, as well as the different actions
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -141,7 +127,6 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
                 ),
             }
         )
-        # create SO line and confirm SO (with only one line)
         cls.expense_sale_order = (
             cls.env["sale.order"]
             .with_context(mail_notrack=True, mail_create_nolog=True)
@@ -154,7 +139,6 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
                         Command.create(
                             {
                                 "name": "expense_employee: expense_1 invoicing=order, expense=sales_price",
-                                # Using the same name as one of the expense
                                 "product_id": cls.company_data[
                                     "product_order_sales_price"
                                 ].id,
@@ -170,7 +154,6 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         )
         cls.expense_sale_order.action_confirm()
 
-        # Create 6 expenses, covering all the expense & invoicing policies combinaisons
         cls.sale_exp_order_sale_1 = cls.create_expenses(
             {
                 "name": "expense_1 invoicing=order, expense=sales_price",
@@ -238,25 +221,20 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
             | cls.sale_exp_order_cost_6
         )
         cls.sale_expense_all.action_submit()
-        cls.sale_expense_all._do_approve()  # Skip duplicate wizard
+        cls.sale_expense_all._do_approve()
 
     def test_expenses_reinvoice_case_1_create_moves(self):
-        """
-        CASE 1: Creation of the expenses moves. The sale order lines are created.
-        """
         self.post_expenses_with_wizard(self.sale_expense_all)
 
         self.assertRecordValues(
             self.expense_sale_order.line_ids,
             [
-                # [0] Line not created from a re-invoiced, should never be changed
                 {
                     "qty_transferred": 0.0,
                     "product_qty": 3.0,
                     "is_expense": False,
                     "expense_ids": [],
                 },
-                # [1-6] Expenses Lines: created with the correct quantities and linked to the expense
                 {
                     "qty_transferred": 1.0,
                     "product_qty": 1.0,
@@ -297,13 +275,8 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_expenses_reinvoice_case_2_reset_expense_to_draft(self):
-        """
-        CASE 2: Reset to draft of the expenses, the quantities of the corresponding SOL are set to 0
-        """
-        # CASE 1 steps
         self.post_expenses_with_wizard(self.sale_expense_all)
 
-        # CASE 2 steps
         self.sale_expense_all.account_move_id.action_draft()
         self.sale_expense_all.account_move_id.unlink()
         self.sale_expense_all.action_reset()
@@ -311,9 +284,7 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         self.assertRecordValues(
             self.expense_sale_order.line_ids,
             [
-                # [0] Line not created from a re-invoiced, should never be changed
                 {"qty_transferred": 0.0, "product_qty": 3.0, "expense_ids": []},
-                # [1-6] Expense Lines: quantities are reset to 0 and expenses are unlinked
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
@@ -324,35 +295,26 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_expenses_reinvoice_case_3_recreate_move_after_reset(self):
-        """
-        CASE 3: Re-Approve and Re-Post the expense after a reset, creating new SOLs with the correct quantities
-        """
-        # CASE 1 steps
         self.post_expenses_with_wizard(self.sale_expense_all)
 
-        # CASE 2 steps
         self.sale_expense_all.account_move_id.action_draft()
         self.sale_expense_all.account_move_id.unlink()
         self.sale_expense_all.action_reset()
 
-        # CASE 3 steps
         self.sale_expense_all.action_submit()
-        self.sale_expense_all._do_approve()  # Skip duplicate wizard
+        self.sale_expense_all._do_approve()
         self.post_expenses_with_wizard(self.sale_expense_all)
 
         self.assertRecordValues(
             self.expense_sale_order.line_ids,
             [
-                # [0] Line not created from a re-invoiced, should never be changed
                 {"qty_transferred": 0.0, "product_qty": 3.0, "expense_ids": []},
-                # [1-6] CASE 2 Lines: no change
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
-                # [7-12] CASE 3 Lines: created with the correct quantities and linked to the expense
                 {
                     "qty_transferred": 1.0,
                     "product_qty": 1.0,
@@ -387,21 +349,14 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_expenses_reinvoice_case_4_reset_expense_move_to_draft(self):
-        """
-        CASE 4: Reset to draft of the expenses move, the quantities of the corresponding SOL are set to 0
-        """
-        # CASE 1 steps
         self.post_expenses_with_wizard(self.sale_expense_all)
 
-        # CASE 4 steps
         self.sale_expense_all.account_move_id.action_draft()
 
         self.assertRecordValues(
             self.expense_sale_order.line_ids,
             [
-                # [0] Line not created from a re-invoiced, should never be changed
                 {"qty_transferred": 0.0, "product_qty": 3.0, "expense_ids": []},
-                # [1-6] EXPENSES Lines: quantities are reset to 0 and expenses are unlinked
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
@@ -412,31 +367,22 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_expenses_reinvoice_case_5_repost_expense_move_after_reset_to_draft(self):
-        """
-        CASE 5: Re-Post the expenses move, creating new SOLs with the correct quantities
-        """
-        # CASE 1 steps
         self.post_expenses_with_wizard(self.sale_expense_all)
 
-        # CASE 4 steps
         self.sale_expense_all.account_move_id.action_draft()
 
-        # CASE 5 steps
         self.sale_expense_all.account_move_id.action_post()
 
         self.assertRecordValues(
             self.expense_sale_order.line_ids,
             [
-                # [0] Line not created from a re-invoiced, should never be changed
                 {"qty_transferred": 0.0, "product_qty": 3.0, "expense_ids": []},
-                # [1-6] EXPENSE CASE 4 Lines: no change
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
-                # [7-12] EXPENSE CASE 5 Lines: created with the correct quantities and linked to the expense
                 {
                     "qty_transferred": 1.0,
                     "product_qty": 1.0,
@@ -471,21 +417,14 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_expenses_reinvoice_case_6_reverse_expense_move(self):
-        """
-        CASE 6: Reverse the expenses move, the quantities of the corresponding SOL are reset to 0
-        """
-        # CASE 1 steps
         self.post_expenses_with_wizard(self.sale_expense_all)
 
-        # CASE 6 steps
         self.sale_expense_all.account_move_id._reverse_moves()
 
         self.assertRecordValues(
             self.expense_sale_order.line_ids,
             [
-                # [0] Line not created from a re-invoiced, should never be changed
                 {"qty_transferred": 0.0, "product_qty": 3.0, "expense_ids": []},
-                # [1-6] EXPENSE Lines: quantities are reset to 0 and expenses are unlinked
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
@@ -496,12 +435,6 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_expenses_reinvoice_case_7_ensure_one2one_relationship(self):
-        """
-        CASE 7: Test that two exact same sols are not both reset to 0 when the expense of one of them is resetting the quantities to 0
-        """
-        # For every expense, we duplicate it.
-        # - the former will be linked to the same sol
-        # - the latter will go on a different
         sale_exp_order_sale_1_copy = self.sale_exp_order_sale_1.copy()
         sale_exp_order_sale_2_copy = self.sale_exp_order_sale_2.copy()
         sale_exp_deliv_sale_3_copy = self.sale_exp_deliv_sale_3.copy()
@@ -521,19 +454,14 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         self.sale_expense_all |= sale_expense_copies_all
 
         sale_expense_copies_all.action_submit()
-        sale_expense_copies_all._do_approve()  # Skip duplicate wizard
+        sale_expense_copies_all._do_approve()
         self.post_expenses_with_wizard(sale_expense_original_all)
-        self.post_expenses_with_wizard(
-            sale_expense_copies_all
-        )  # To ensure there are two different moves
+        self.post_expenses_with_wizard(sale_expense_copies_all)
 
-        # Check that all the expenses can be found on the sale order
         self.assertRecordValues(
             self.expense_sale_order.line_ids,
             [
-                # [0] Line not created from a re-invoiced, should never be changed
                 {"qty_transferred": 0.0, "product_qty": 3.0, "expense_ids": []},
-                # [1-6] Original Lines: Created with the correct quantities
                 {
                     "qty_transferred": 1.0,
                     "product_qty": 1.0,
@@ -564,7 +492,6 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
                     "product_qty": 6.0,
                     "expense_ids": [self.sale_exp_order_cost_6.id],
                 },
-                # [7-12] Copy Lines: Created with the correct quantities
                 {
                     "qty_transferred": 1.0,
                     "product_qty": 1.0,
@@ -598,21 +525,17 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
             ],
         )
 
-        # Reset the six expenses to draft and check that only them are unlinked
         sale_expense_original_all.account_move_id.action_draft()
         self.assertRecordValues(
             self.expense_sale_order.line_ids,
             [
-                # [0] Line not created from a re-invoiced, should never be changed
                 {"qty_transferred": 0.0, "product_qty": 3.0, "expense_ids": []},
-                # [1-6] Original Lines: quantities are reset to 0 and expenses are unlinked
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
                 {"qty_transferred": 0.0, "product_qty": 0.0, "expense_ids": []},
-                # [7-12] Copy Lines: Not caught by the reset
                 {
                     "qty_transferred": 1.0,
                     "product_qty": 1.0,
@@ -647,7 +570,6 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_expenses_reinvoice_analytic_distribution(self):
-        """Test expense line with multiple analytic accounts is re-invoiced correctly"""
 
         (
             self.company_data["product_order_sales_price"]
@@ -658,7 +580,6 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
             }
         )
 
-        # create SO line and confirm SO (with only one line)
         sale_order = (
             self.env["sale.order"]
             .with_context(mail_notrack=True, mail_create_nolog=True)
@@ -708,17 +629,12 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         self.assertRecordValues(
             sale_order.line_ids,
             [
-                # Original SO line:
                 {"qty_transferred": 0.0, "product_qty": 2.0, "is_expense": False},
-                # Expense line:
                 {"qty_transferred": 2.0, "product_qty": 2.0, "is_expense": True},
             ],
         )
 
     def test_expense_reinvoice_tax_multine_line(self):
-        """
-        Tests that when a tax has multine distribution, the creation of an expense can go forward without issues
-        """
         multi_distribution_tax = self.env["account.tax"].create(
             {
                 "name": "Tax 10.00%",
@@ -786,7 +702,6 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
             }
         )
 
-        # create SO line and confirm SO (with only one line)
         sale_order = (
             self.env["sale.order"]
             .with_context(mail_notrack=True, mail_create_nolog=True)
@@ -835,13 +750,11 @@ class TestReInvoice(TestExpenseCommon, TestSaleCommon):
         self.assertRecordValues(
             sale_order.line_ids,
             [
-                # Original SO line:
                 {
                     "qty_transferred": 0.0,
                     "product_qty": 1.0,
                     "is_expense": False,
                 },
-                # Expense lines:
                 {
                     "qty_transferred": 1.0,
                     "product_qty": 1.0,

@@ -12,7 +12,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
     def setUpClass(cls):
         super().setUpClass()
 
-        # patch expense products to make them services creating task/project
         service_values = {
             "type": "service",
             "service_type": "timesheet",
@@ -26,7 +25,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
         cls.company_data["product_order_sales_price"].write(service_values)
         cls.company_data["product_delivery_sales_price"].write(service_values)
 
-        # create AA, SO and invoices
         cls.analytic_plan = cls.env["account.analytic.plan"].create(
             {
                 "name": "Timesheet Plan",
@@ -66,10 +64,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
         )
 
     def test_at_cost(self):
-        """Test vendor bill at cost for product based on ordered and delivered quantities."""
-        # Required for `analytic_distribution` to be visible in the view
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
-        # create SO line and confirm SO (with only one line)
         sale_order_line1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.company_data["product_order_cost"].id,
@@ -98,7 +93,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
             "Delivered quantity of 'service' SO line should be computed by timesheet amount",
         )
 
-        # let's log some timesheets (on the project created by sale_order_line1)
         task_sol1 = sale_order_line1.task_id
         self.env["account.analytic.line"].create(
             {
@@ -213,7 +207,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
             "Delivered quantity of 'expense' SO line should be computed by analytic amount",
         )
 
-        # create second invoice lines and validate it
         move_form = Form(self.Invoice)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -282,12 +275,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
         )
 
     def test_sales_price(self):
-        """Test invoicing vendor bill at sales price for products based on delivered and ordered quantities. Check no existing SO line is incremented, but when invoicing a
-        second time, increment only the delivered so line.
-        """
-        # Required for `analytic_distribution` to be visible in the view
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
-        # create SO line and confirm SO (with only one line)
         sale_order_line1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.company_data["product_delivery_sales_price"].id,
@@ -306,7 +294,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
         )
         self.sale_order.action_confirm()
 
-        # let's log some timesheets (on the project created by sale_order_line1)
         task_sol1 = sale_order_line1.task_id
         self.env["account.analytic.line"].create(
             {
@@ -318,7 +305,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
             }
         )
 
-        # create invoice lines and validate it
         move_form = Form(self.Invoice)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -421,7 +407,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
             "Delivered quantity of 'expense' SO line 4 should be computed by analytic amount",
         )
 
-        # create second invoice lines and validate it
         move_form = Form(self.Invoice)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -480,10 +465,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
         )
 
     def test_no_expense(self):
-        """Test invoicing vendor bill with no policy. Check nothing happen."""
-        # Required for `analytic_distribution` to be visible in the view
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
-        # confirm SO
         sale_order_line = self.env["sale.order.line"].create(
             {
                 "product_id": self.company_data["product_order_no"].id,
@@ -494,7 +476,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
         )
         self.sale_order.action_confirm()
 
-        # create invoice lines and validate it
         move_form = Form(self.Invoice)
         move_form.partner_id = self.partner_a
         with move_form.invoice_line_ids.new() as line_form:
@@ -504,7 +485,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
         invoice_a = move_form.save()
         invoice_a.action_post()
 
-        # let's log some timesheets (on the project created by sale_order_line1)
         task_sol1 = sale_order_line.task_id
         self.env["account.analytic.line"].create(
             {
@@ -532,30 +512,12 @@ class TestReInvoice(TestCommonSaleTimesheet):
         )
 
     def test_reversed_invoice_reinvoice_with_period(self):
-        """
-        Tests that when reversing an invoice of timesheet and selecting a time
-        period, the qty to invoice is correctly found
-        Business flow:
-          Create a sale order and deliver some hours (invoiced = 0)
-          Create an invoice
-          Confirm (invoiced = 1)
-          Add Credit Note
-          Confirm (invoiced = 0)
-          Go back to the SO
-          Create an invoice
-          Select a time period [1 week ago, 1 week in the future]
-          Confirm
-          -> Fails if there is nothing to invoice
-        """
         product = self.env["product.product"].create(
             {
                 "name": "Service delivered, create task in global project",
                 "standard_price": 30,
                 "list_price": 90,
                 "type": "service",
-                # Delivered by timesheet, so it has to be sold in a time unit: the
-                # delivered quantity comes from analytic lines in hours, and a quantity
-                # (or a price) cannot cross unit categories.
                 "uom_id": self.env.ref("uom.product_uom_hour").id,
                 "service_policy": "delivered_timesheet",
                 "invoice_policy": "transferred",
@@ -569,7 +531,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
         )
         today = Date.context_today(self.env.user)
 
-        # Creates a sales order for quantity 3
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.env["res.partner"].create({"name": "Toto"})
         with so_form.line_ids.new() as line:
@@ -578,7 +539,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
         sale_order = so_form.save()
         sale_order.action_confirm()
 
-        # "Deliver" 1 of 3
         task = sale_order.tasks_ids
         self.env["account.analytic.line"].create(
             {
@@ -596,18 +556,15 @@ class TestReInvoice(TestCommonSaleTimesheet):
             "active_ids": [sale_order.id],
             "active_id": sale_order.id,
         }
-        # Invoice the 1
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(context)
             .create({"advance_payment_method": "delivered"})
         )
         invoice_dict = wizard.create_invoices()
-        # Confirm the invoice
         invoice = self.env["account.move"].browse(invoice_dict["res_id"])
         invoice.action_post()
 
-        # Refund the invoice
         wiz_context = {
             "active_model": "account.move",
             "active_ids": [invoice.id],
@@ -627,9 +584,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
             refund_invoice_wiz.refund_moves()["res_id"]
         )
         refund_invoice.action_post()
-        # reversing with action_reverse and then action_post does not reset the invoice_state to 'to invoice' in tests
 
-        # Recreate wizard to get the new invoices created
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(context)
@@ -642,8 +597,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
             )
         )
 
-        # The actual test :
-        wizard.create_invoices()  # No exception should be raised, there is indeed something to be invoiced since it was reversed
+        wizard.create_invoices()
 
     def test_project_update_reinvoiced_vendor_bill_product(self):
         project_product, expense_product = self.env["product.product"].create(
@@ -696,7 +650,7 @@ class TestReInvoice(TestCommonSaleTimesheet):
                 "price_unit": 20,
             }
         )
-        vendor_bill.action_post()  # An analytic line is created for the vendor bill move line
+        vendor_bill.action_post()
         self.assertEqual(
             project.account_id.vendor_bill_count,
             1,
@@ -711,7 +665,6 @@ class TestReInvoice(TestCommonSaleTimesheet):
             "Analytic line should be linked to the sale order line created by the re-invoiced expense product",
         )
 
-        # Only the original vendor bill amount should appear on the project update, to stay consistent with the corresponding hr_expense behavior
         updates = project._get_profitability_items()
         data_line = updates["costs"]["data"][0]
         self.assertEqual(data_line["id"], "other_purchase_costs")

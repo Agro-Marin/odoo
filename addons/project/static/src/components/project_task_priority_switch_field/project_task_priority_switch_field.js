@@ -7,12 +7,6 @@ import {
 } from "@web/fields/selection/priority/priority_field";
 
 export class PrioritySwitchField extends PriorityField {
-    /**
-     * Unlike the base "Set priority..." palette command, register one direct
-     * command per priority level; alt+r therefore switches straight to the
-     * other level (task priority only has two). Keep the base readonly guard:
-     * without it the palette/hotkey writes readonly records.
-     */
     get commands() {
         return this.options.map(([id, name]) => [
             _t("Set priority as %s", name),

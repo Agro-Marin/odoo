@@ -11,9 +11,7 @@ import { EvaluationError } from "./py_js/py_builtin.js";
 import { isEqual, isIn } from "./py_js/py_compare.js";
 import { toPyValue } from "./py_js/py_utils.js";
 
-/**
- * @typedef {import("./py_js/ast_type.js").AST} AST
- */
+/** @typedef {import("./py_js/ast_type.js").AST} AST */
 /** @typedef {import("./py_js/ast_type.js").ASTList} ASTList */
 
 /**
@@ -25,9 +23,7 @@ import { toPyValue } from "./py_js/py_utils.js";
 export class InvalidDomainError extends Error {}
 
 export class Domain {
-    /**
-     * @type {ASTList}
-     */
+    /** @type {ASTList} */
     ast;
 
     /**
@@ -203,9 +199,7 @@ export class Domain {
         return domain;
     }
 
-    /**
-     * @param {DomainRepr} [descr]
-     */
+    /** @param {DomainRepr} [descr] */
     constructor(descr = []) {
         if (descr instanceof Domain) {
             this.ast = { type: descr.ast.type, value: [...descr.ast.value] };
@@ -233,9 +227,7 @@ export class Domain {
         return this.compile()(record);
     }
 
-    /**
-     * @returns {RecordPredicate}
-     */
+    /** @returns {RecordPredicate} */
     compile() {
         const ast = this.ast;
         let predicate = compiledDomains.get(ast);
@@ -255,7 +247,7 @@ export class Domain {
     }
 
     /**
-     * @template {Record<string, any>} T
+     * @template {Record<string, any>}
      * @param {T[]} records
      * @returns {T[]}
      */
@@ -263,9 +255,7 @@ export class Domain {
         return records.filter(this.compile());
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     toString() {
         return formatAST(this.ast);
     }
@@ -285,9 +275,7 @@ export class Domain {
         }
     }
 
-    /**
-     * @returns {DomainListRepr | string}
-     */
+    /** @returns {DomainListRepr | string} */
     toJson() {
         try {
             const evaluatedAsList = this.toList({});
@@ -307,7 +295,7 @@ const TRUE_LEAF = [1, "=", 1];
 /** @type {Condition} */
 const FALSE_LEAF = [0, "=", 1];
 /**
- * @template {Domain} T
+ * @template {Domain}
  * @param {T} domain
  * @returns {T}
  */
@@ -426,9 +414,7 @@ function normalizeDomainAST(domain, op = "&") {
     return { type: ASTType.List, value: values };
 }
 
-/**
- * @typedef {{ lit?: string, any?: boolean, one?: boolean }[]} LikePattern
- */
+/** @typedef {{ lit?: string, any?: boolean, one?: boolean }[]} LikePattern */
 
 /**
  * @param {any} value
@@ -544,9 +530,7 @@ function isAbsentValue(value) {
     return value === undefined;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 function serverFoldsAccents() {
     return session.has_unaccent ?? true;
 }
@@ -678,8 +662,8 @@ function compileMembership(value, readField, isNot) {
 }
 
 /**
- * @param {string} op lower-cased
- * @param {string} operator as written
+ * @param {string} op
+ * @param {string} operator
  * @param {any} value
  * @param {FieldReader} readField
  * @param {boolean} isNot
@@ -858,9 +842,7 @@ function matchDomain(record, domain) {
     return compileDomainList(domain)(record);
 }
 
-/**
- * @type {Set<AST["type"]>}
- */
+/** @type {Set<AST["type"]>} */
 const LITERAL_AST_TYPES = new Set([
     ASTType.List,
     ASTType.Tuple,
@@ -882,12 +864,8 @@ function isLiteralAST(ast) {
     return Array.isArray(value) ? value.every(isLiteralAST) : true;
 }
 
-/**
- * @type {WeakMap<ASTList, RecordPredicate>}
- */
+/** @type {WeakMap<ASTList, RecordPredicate>} */
 const compiledDomains = new WeakMap();
 
-/**
- * @type {LruCache}
- */
+/** @type {LruCache} */
 const compiledDomainsByKey = new LruCache(512);

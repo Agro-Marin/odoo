@@ -72,7 +72,6 @@ export class HierarchyController extends Component {
     }
 
     get displayNoContent() {
-        // Sample records are drawn behind the helper, not instead of it.
         return this.model.useSampleModel || !this.model.hasData();
     }
 

@@ -71,9 +71,6 @@ export class AceField extends FieldComponent {
     }
 
     /**
-     * Render a record value as editor text. A json value arrives parsed, so it
-     * has to be printed; every other supported type is already a string.
-     *
      * @param {any} value
      * @returns {string}
      */
@@ -87,11 +84,9 @@ export class AceField extends FieldComponent {
     }
 
     /**
-     * Turn editor text back into a record value.
-     *
      * @param {string} text
      * @returns {any}
-     * @throws {SyntaxError} when a json field holds malformed text
+     * @throws {SyntaxError}
      */
     deserialize(text) {
         if (!this.isJson) {
@@ -117,8 +112,6 @@ export class AceField extends FieldComponent {
                 try {
                     value = this.deserialize(this.editedValue);
                 } catch {
-                    // Refuse the write rather than store malformed json. The
-                    // buffer stays dirty, so the author keeps what they typed.
                     this.notification.add(
                         _t("Invalid JSON: your changes to this field were not saved."),
                         { type: "danger" },

@@ -147,15 +147,7 @@ class Foo extends models.Model {
 
 defineModels([Partner, Bar, Foo]);
 
-/**
- * @param {{
- * model?: string;
- * method?: string;
- * args?: any[];
- * kwargs?: Record<string, any>;
- * [key: string]: any;
- * }} params
- */
+/** @param {{ */
 function fetchCallKw(params) {
     return fetch(`/web/dataset/call_kw/${params.model}/${params.method}`, {
         method: "POST",
@@ -175,15 +167,7 @@ function fetchCallKw(params) {
     });
 }
 
-/**
- * @param {{
- * model?: string;
- * method?: string;
- * args?: any[];
- * kwargs?: Record<string, any>;
- * [key: string]: any;
- * }} params
- */
+/** @param {{ */
 const ormRequest = async (params) => {
     const response = await fetchCallKw(params);
     const { error, result } = await response.json();

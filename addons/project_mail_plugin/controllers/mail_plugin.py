@@ -9,16 +9,6 @@ _logger = logging.getLogger(__name__)
 
 class MailPluginController(mail_plugin.MailPluginController):
     def _get_contact_data(self, partner):
-        """
-        Overrides the base module's get_contact_data method by Adding the "tasks" key within the initial contact
-        information dict loaded when opening an email on Outlook.
-        This is structured this way to enable the "project" feature on the Outlook side only if the Odoo version
-        supports it.
-
-        Return the tasks key only if the current user can create tasks. So, if they can not
-        create tasks, the section won't be visible on the addin side (like if the project
-        module was not installed on the database).
-        """
         contact_values = super()._get_contact_data(partner)
 
         if not request.env["project.task"].has_access("create"):

@@ -48,7 +48,7 @@ function translationSprintf(str, substitutions) {
 }
 
 /**
- * @template [T=unknown]
+ * @template
  * @typedef {import("@web/core/utils/format/strings").Substitutions<T>} Substitutions
  */
 
@@ -68,7 +68,7 @@ export function _t(source, ...substitutions) {
 const _pluralRulesCache = new Map();
 
 /**
- * @template {string | TranslatedString | Markup} T
+ * @template {string | TranslatedString | Markup}
  * @param {number} count
  * @param {Partial<Record<Intl.LDMLPluralRule, T>> & { other: T }} forms
  * @returns {T}
@@ -108,9 +108,7 @@ export function appTranslateFn(source, moduleName, ...substitutions) {
     return string.lazy ? string : string.translate();
 }
 
-/**
- * @param {import("services").ServiceFactories["orm"]} orm
- */
+/** @param {import("services").ServiceFactories["orm"]} orm */
 export async function loadLanguages(orm) {
     if (!loadLanguages.installedLanguages) {
         loadLanguages.installedLanguages = await orm.call("res.lang", "get_installed");
@@ -145,9 +143,7 @@ export class TranslatedString extends String {
         this.context = context || DEFAULT_MODULE;
     }
 
-    /**
-     * @returns {string | Markup}
-     */
+    /** @returns {string | Markup} */
     translate() {
         const source = super.valueOf();
         if (this.lazy && !translatedTerms[translationLoaded]) {
@@ -185,9 +181,7 @@ export class TranslatedString extends String {
 /** @type {symbol} */
 export const translationLoaded = Symbol.for("@web/core/l10n/translationLoaded");
 
-/**
- * @type {{ translatedTerms: Record<string | symbol, any>, translatedTermsGlobal: Record<string, string>, translationIsReady: Deferred }}
- */
+/** @type {{ translatedTerms: Record<string | symbol, any>, translatedTermsGlobal: Record<string, string>, translationIsReady: Deferred }} */
 const _state = globalSingleton("l10n", () => ({
     translatedTerms: { [translationLoaded]: false },
     translatedTermsGlobal: Object.create(null),

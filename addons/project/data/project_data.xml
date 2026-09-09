@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- Project Stages -->
     <record id="project_phase_0" model="project.phase">
         <field name="sequence">10</field>
         <field name="name">To Do</field>
@@ -24,7 +23,6 @@
         <field name="fold" eval="True" />
     </record>
 
-    <!-- Project Task export template -->
     <record id="project_task_export_template" model="ir.exports">
         <field name="name">Tasks</field>
         <field name="resource">project.task</field>

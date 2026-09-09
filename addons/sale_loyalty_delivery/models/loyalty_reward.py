@@ -10,12 +10,6 @@ class LoyaltyReward(models.Model):
     )
 
     def _description_texts(self, products_per_reward):
-        # Overriding _description_texts (not _compute_description) means the
-        # "shipping" text goes through the base's per-installed-language,
-        # en_US-source-first loop like every other reward type -- a flat
-        # `self.description = _("Free shipping")` here bypassed that loop and
-        # wrote whatever language the caller happened to be in as the en_US
-        # source term.
         descriptions = super()._description_texts(products_per_reward)
         for index, reward in enumerate(self):
             if reward.reward_type != "shipping":

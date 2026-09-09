@@ -8,9 +8,7 @@ import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 
 describe.current.tags("headless");
 
-/**
- * @param {{ failIn?: "preprocess" | "onchange" | "onUpdate", required?: boolean }} [options]
- */
+/** @param {{ failIn?: "preprocess" | "onchange" | "onUpdate", required?: boolean }} [options] */
 function makeRecord({ failIn, required = false } = {}) {
     const record = Object.create(RelationalRecord.prototype);
     const urgentSave = {

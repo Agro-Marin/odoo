@@ -50,13 +50,7 @@ export class ActivityController extends Component {
         });
     }
 
-    /**
-     * `ViewLayout` puts `className` on the view root, and this view adds one
-     * more class there on a small screen. Extending the chassis props is how a
-     * view varies one of them without the component growing a hook for it.
-     *
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     get chassisProps() {
         return {
             ...this.chassis.props,

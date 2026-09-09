@@ -277,9 +277,7 @@ class ProbeMenuItem extends Component {
     static props = {};
 }
 
-/**
- * @param {() => any} isDisplayed
- */
+/** @param {() => any} isDisplayed */
 function registerProbeFavorite(isDisplayed) {
     favoriteMenuRegistry.add("probe-item", {
         Component: ProbeMenuItem,

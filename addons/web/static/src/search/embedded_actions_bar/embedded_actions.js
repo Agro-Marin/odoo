@@ -196,9 +196,7 @@ export class EmbeddedActions {
             this.notificationService,
         );
 
-        /**
-         * @type {{showEmbedded: boolean, embeddedActions: EmbeddedAction[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: (number|false)[], showAllEmbeddedActions: boolean, currentEmbeddedAction: EmbeddedAction}}
-         */
+        /** @type {{showEmbedded: boolean, embeddedActions: EmbeddedAction[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: (number|false)[], showAllEmbeddedActions: boolean, currentEmbeddedAction: EmbeddedAction}} */
         this.embeddedInfos = reactive({
             showEmbedded:
                 !!this.configHandler.getEmbeddedActionsConfig("embedded_visibility"),
@@ -226,9 +224,7 @@ export class EmbeddedActions {
         }
     }
 
-    /**
-     * @returns {EmbeddedAction}
-     */
+    /** @returns {EmbeddedAction} */
     get currentEmbeddedAction() {
         const { currentEmbeddedActionId } = this.env.config ?? {};
         return (
@@ -360,9 +356,7 @@ export class EmbeddedActions {
         }
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     _validateNewActionName() {
         const { newActionName, embeddedActions } = this.embeddedInfos;
         let problem;
@@ -378,9 +372,7 @@ export class EmbeddedActions {
         return true;
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     _newActionValues() {
         const actionConfig = /** @type {any} */ (this.env.config);
         const { newActionName, newActionIsShared, currentEmbeddedAction } =
@@ -415,9 +407,7 @@ export class EmbeddedActions {
         return values;
     }
 
-    /**
-     * @returns {Promise<boolean>}
-     */
+    /** @returns {Promise<boolean>} */
     async saveNewAction() {
         if (!this._validateNewActionName()) {
             return false;
@@ -467,9 +457,7 @@ export class EmbeddedActions {
         return true;
     }
 
-    /**
-     * @param {EmbeddedAction} action
-     */
+    /** @param {EmbeddedAction} action */
     confirmDelete(action) {
         const dialogProps = {
             title: _t("Warning"),
@@ -485,9 +473,7 @@ export class EmbeddedActions {
         this.dialogService.add(ConfirmationDialog, dialogProps);
     }
 
-    /**
-     * @param {EmbeddedAction} action
-     */
+    /** @param {EmbeddedAction} action */
     async deleteAction(action) {
         const { visibleEmbeddedActions, embeddedActions, currentEmbeddedAction } =
             this.embeddedInfos;
@@ -511,9 +497,7 @@ export class EmbeddedActions {
         }
     }
 
-    /**
-     * @param {EmbeddedAction} action
-     */
+    /** @param {EmbeddedAction} action */
     async openAction(action) {
         /** @type {Record<string, any>} */
         const context = {
@@ -536,9 +520,7 @@ export class EmbeddedActions {
         );
     }
 
-    /**
-     * @param {(number|false)[]} order
-     */
+    /** @param {(number|false)[]} order */
     sortActions(order) {
         this.embeddedInfos.embeddedActions = [
             ...this.embeddedInfos.embeddedActions,
@@ -592,9 +574,7 @@ export class EmbeddedActions {
     }
 }
 
-/**
- * @returns {EmbeddedActions | null}
- */
+/** @returns {EmbeddedActions | null} */
 export function useEmbeddedActions() {
     const component = useComponent();
     const env = /** @type {import("@web/env").OdooEnv} */ (component.env);

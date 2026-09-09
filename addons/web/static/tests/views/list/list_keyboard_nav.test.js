@@ -7,9 +7,7 @@ import { useListKeyboardNavigation } from "@web/views/list/list_keyboard_nav";
 
 describe.current.tags("desktop");
 
-/**
- * @param {Record<string, any>} [overrides]
- */
+/** @param {Record<string, any>} [overrides] */
 /**
  * @param {Record<string, any>} [overrides]
  * @returns {any}
@@ -80,9 +78,7 @@ async function mountNav(ctxOverrides = {}) {
     };
 }
 
-/**
- * @param {Record<string, any>} [overrides]
- */
+/** @param {Record<string, any>} [overrides] */
 function gridStateStub(overrides = {}) {
     return {
         steps: /** @type {any[]} */ ([]),
@@ -194,9 +190,7 @@ describe("findFocusMove — the virtualization handover", () => {
 });
 
 describe("resolvePendingVirtFocus", () => {
-    /**
-     * @param {Record<string, any>} [gridOverrides]
-     */
+    /** @param {Record<string, any>} [gridOverrides] */
     async function pending(gridOverrides = {}) {
         const grid = gridStateStub({
             moveFocus: () => ({ rowIndex: 99, colIndex: 0 }),

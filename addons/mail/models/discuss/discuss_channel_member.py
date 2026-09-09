@@ -37,13 +37,6 @@ AVATAR_CARD_FIELDS = ["avatar_128", "im_status", "name"]
 
 
 def escape_like_wildcards(value: str) -> str:
-    """Neutralise LIKE metacharacters in a value used as an `=ilike` pattern.
-
-    An address is data, not a pattern: unescaped, the `_` in `a_b@x.com` matches
-    the `-` in `a-b@x.com`, so the lookup can hit members it was not asking about.
-    `=ilike` stays the operator because guest emails are stored unnormalised and
-    the comparison has to remain case-insensitive.
-    """
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
@@ -870,18 +863,6 @@ class DiscussChannelMember(models.Model):
         self.new_message_separator = message_id
 
     def _notify_joined(self, invite_to_rtc_call: bool) -> None:
-        """Tell each of these members, on their own bus, that they joined.
-
-        Lives here rather than on discuss.channel: it reads only members, so the
-        channel it used to hang off was never used by the body. `_add_members`
-        still calls it once per channel from inside its loop -- the per-channel
-        bus order is asserted by test_rtc, so this must not be hoisted.
-
-        The Store per (channel, is-current-user) pair is built once and its data
-        copied, because the channel payload is identical for every member that
-        shares those two properties and rebuilding it per member is the cost
-        this method exists to avoid.
-        """
         channel_data = {}
         for member in self:
             channel = member.channel_id
@@ -903,28 +884,12 @@ class DiscussChannelMember(models.Model):
             member._bus_send("discuss.channel/joined", payload)
 
     def _get_persona_name(self) -> str:
-        """The member's display name, partner first, never a falsy sentinel.
-
-        `partner_id.name or guest_id.name` is NOT equivalent: for a member whose
-        partner carries an empty name that falls through to an empty recordset's
-        `.name`, which is False, and renders as the string "False".
-
-        Deliberately tolerates an empty recordset and returns "": `set_message_pin`
-        calls this through `_get_html_link_title` on a `self_member_id` that is
-        empty for a non-member admin, and `test_member_html_link_title_never_false`
-        pins it. Do not add `check_singleton`.
-        """
         return (self.partner_id.name if self.partner_id else self.guest_id.name) or ""
 
     def _get_html_link_title(self) -> str:
         return self._get_persona_name()
 
     def _format_html_link_list(self, extra_items: tuple = ()) -> Markup:
-        """Render these members as a translated, locale-aware list of links.
-
-        The `%(member_<id>)s` indirection keeps markup out of `format_list` so
-        the escaping happens exactly once, over the separators only.
-        """
         params = [f"%(member_{member.id})s" for member in self] + list(extra_items)
         if not params:
             return Markup()

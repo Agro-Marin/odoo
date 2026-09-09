@@ -117,9 +117,7 @@ export class SearchArchParser {
         this.optionsParams = null;
     }
 
-    /**
-     * @returns {{ labels: Function[], preSearchItems: Record<string, any>[][], searchPanelInfo: Object, sections: [number, Record<string, any>][] }}
-     */
+    /** @returns {{ labels: Function[], preSearchItems: Record<string, any>[][], searchPanelInfo: Object, sections: [number, Record<string, any>][] }} */
     parse() {
         visitXML(this.arch, (node, visitChildren) => {
             switch (node.tagName) {
@@ -155,9 +153,7 @@ export class SearchArchParser {
         };
     }
 
-    /**
-     * @param {string | null} [tag=null]
-     */
+    /** @param {string | null} [tag=null] */
     pushGroup(tag = null) {
         if (this.currentGroup.length) {
             if (this.currentTag === "groupBy") {
@@ -259,9 +255,7 @@ export class SearchArchParser {
         }
     }
 
-    /**
-     * @param {Element} node
-     */
+    /** @param {Element} node */
     visitField(node) {
         this.pushGroup("field");
         /** @type {Record<string, any>} */
@@ -500,9 +494,7 @@ export class SearchArchParser {
         this.currentGroup.push(preSearchItem);
     }
 
-    /**
-     * @param {Element} node
-     */
+    /** @param {Element} node */
     visitDateOption(node) {
         /** @type {Record<string, any>} */
         const preDateOption = { type: "dateOption" };

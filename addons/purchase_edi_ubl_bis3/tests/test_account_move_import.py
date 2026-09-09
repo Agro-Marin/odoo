@@ -64,13 +64,8 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
         )
 
     def test_import_purchase_order_reference_from_provided_field(self):
-        """
-        This test will try to match a purchase order when the purchase reference is in the provided field
-        """
         bill = self._create_bill_from_xml("ubl_bis3_PO.xml")
         self.assertEqual(bill.invoice_origin, self.purchase_order.name)
-        # Checks if all lines referencing a PO reference the PO we created in setup.
-        # The 'or [False]' makes sure that there's at least one line referencing a PO.
         self.assertTrue(
             all(
                 [
@@ -83,14 +78,8 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
         )
 
     def test_import_purchase_order_reference_from_lines_description(self):
-        """
-        This test will try to match a purchase order when the purchase reference is not
-        in the provided field but in the lines descriptions
-        """
         bill = self._create_bill_from_xml("ubl_bis3_PO_description.xml")
         self.assertEqual(bill.invoice_origin, self.purchase_order.name)
-        # Checks if all lines referencing a PO reference the PO we created in setup.
-        # The 'or [False]' makes sure that there's at least one line referencing a PO.
         self.assertTrue(
             all(
                 [
@@ -103,11 +92,6 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
         )
 
     def test_multiple_purchase_order_references(self):
-        """
-        This test checks that we find the purchase_order_id when giving multiple possible
-        references in the 'invoice_origin' field
-        """
-        # Test with reference
         bill = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -133,7 +117,6 @@ class TestAccountMoveImport(AccountTestInvoicingCommon):
             )
         )
 
-        # Test without ref
         bill_2 = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",

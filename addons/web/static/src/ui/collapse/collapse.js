@@ -38,9 +38,7 @@ export class Collapse extends Component {
         onWillDestroy(() => this.animation?.cancel());
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get classObj() {
         return mergeClasses(this.props.class);
     }

@@ -20,9 +20,7 @@ const SCALES = ["day", "week", "month", "year"];
 
 class CalendarParseArchError extends Error {}
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 const FILTER_ATTRIBUTE_NAMES = [
     "avatar_field",
     "write_model",

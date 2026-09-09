@@ -15,7 +15,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         self.product_a.product_tmpl_id = product_form.save()
 
         project = self.env["project.project"].sudo().create({"name": "SO Project"})
-        # Remove the analytic account auto-generated when creating a timesheetable project if it exists
         project.account_id = False
 
         so = self.env["sale.order"].create(
@@ -38,10 +37,7 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         self.assertFalse(so.project_account_id)
 
     def test_compute_analytic_distribution_expense(self):
-        """Test that the analytic distibution is well computed when we link a sale order to an expense"""
 
-        # Make sure the user has access to analytic accounting, otherwise the 'analytic_distribution' field will not appear
-        # in the view and will not be computed
         self.env.user.write(
             {
                 "group_ids": [
@@ -49,7 +45,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
                 ]
             }
         )
-        # Set the expense policy to 'sales_price' to make the 'sale_order_id' field visible on the form view
         self.product_c.expense_policy = "sales_price"
 
         self.analytic_plan_2 = self.env["account.analytic.plan"].create(
@@ -62,11 +57,9 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
             }
         )
 
-        # Project Will use another analytic plan than the product
         project = self.env["project.project"].sudo().create({"name": "SO Project"})
         project.account_id = self.analytic_account_3
 
-        # Set an analytic distribution using account_1 on the product that will be used on the expense
         self.env["account.analytic.distribution.model"].create(
             [
                 {
@@ -108,11 +101,9 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
             "The analytic distribution of the expense should be set to the account of the project and the one from the sale order.",
         )
 
-        # Check that it default to the one from the sale order if the project has no analytic distribution
         project.account_id = False
         so2 = self.env["sale.order"].create(so_values)
 
-        # We use the form to trigger the onchange on sale_order_id, which adds the 'analytic_distribution' field to the fields to recompute
         with Form(expense) as exp_form:
             exp_form.sale_order_id = so2
 
@@ -122,7 +113,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
             "The analytic distribution of the expense should be the one from the sale order only",
         )
 
-        # The analytic_account_2 has the same plan as the one from the sale order
         project.account_id = self.analytic_account_2
         so3 = self.env["sale.order"].create(so_values)
         with Form(expense) as exp_form:
@@ -134,7 +124,6 @@ class TestSaleExpense(TestExpenseCommon, TestSaleCommon):
         )
 
     def test_change_product_expense_policy_analytic_distribution(self):
-        """Test that analytic distribution is not recomputed when changing the expense policy of the expense product"""
         analytic_account_2 = self.analytic_account_1.copy()
         self.product_a.expense_policy = "sales_price"
         distribution_model = self.env["account.analytic.distribution.model"].create(

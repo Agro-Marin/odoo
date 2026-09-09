@@ -40,12 +40,6 @@ class TestNestedTaskUpdate(TransactionCase):
         cls.project.sale_line_id = False
         cls.user = new_test_user(cls.env, login="mla")
 
-    # ----------------------------------
-    #
-    # When creating tasks that have a parent_id, they pick some values from  their parent
-    #
-    # ----------------------------------
-
     def test_default_values_creating_subtask(self):
         parent = self.env["project.task"].create(
             {
@@ -110,10 +104,9 @@ class TestNestedTaskUpdate(TransactionCase):
         child = self.env["project.task"].create(
             {"name": "child", "parent_id": parent.id, "project_id": self.project.id}
         )
-        child._compute_partner_id()  # the compute will be triggered since the user set the parent_id.
+        child._compute_partner_id()
         self.assertEqual(child.partner_id, self.user.partner_id)
 
-        # Another case, it is the parent as a default value
         child = (
             self.env["project.task"]
             .with_context(
@@ -214,12 +207,6 @@ class TestNestedTaskUpdate(TransactionCase):
         )
         self.assertNotEqual(child.partner_id, parent.partner_id)
 
-    # ----------------------------------------
-    #
-    #   When writing on a parent task, some values adapt on their children
-    #
-    # ----------------------------------------
-
     def test_write_user_id_on_parent_dont_write_on_child(self):
         parent = self.env["project.task"].create(
             {"name": "parent", "user_ids": False, "project_id": self.project.id}
@@ -316,12 +303,6 @@ class TestNestedTaskUpdate(TransactionCase):
         self.assertFalse(child.sale_line_id)
         parent.write({"sale_line_id": self.line_ids.id})
         self.assertFalse(child.sale_line_id)
-
-    # ----------------------------------
-    #
-    #   When linking two existent task, some values go on the child
-    #
-    # ----------------------------------
 
     def test_linking_user_id_on_parent_dont_write_on_child(self):
         parent = self.env["project.task"].create(
@@ -436,7 +417,6 @@ class TestNestedTaskUpdate(TransactionCase):
         ]
         children = self.env["project.task"].create(children_values)
         children._compute_partner_id()
-        # test writing sale_line_id
         for child in children:
             self.assertFalse(child.sale_line_id)
         parent.write({"sale_line_id": self.line_ids.id})
@@ -458,7 +438,6 @@ class TestNestedTaskUpdate(TransactionCase):
             for i in range(5)
         ]
         children = self.env["project.task"].create(children_values)
-        # test writing user_ids and sale_line_id
 
         for child in children:
             self.assertFalse(child.user_ids)
@@ -513,18 +492,7 @@ class TestNestedTaskUpdate(TransactionCase):
         self.assertFalse(subtask2.allow_billable)
         self.assertFalse(subsubtask.allow_billable)
 
-    # ----------------------------------
-    #
-    #   When copying a project template, some values go on the child
-    #
-    # ----------------------------------
-
     def test_associate_copied_task_to_copied_project(self):
-        """
-        When confirming an SO with a product generating a project from a template,
-        check that the copied task and subtask are correctly assigned to the copied
-        project rather than its template.
-        """
         project_tempalte = self.env["project.project"].create({"name": "Super Project"})
         parent = self.env["project.task"].create(
             {"name": "parent task", "project_id": project_tempalte.id}

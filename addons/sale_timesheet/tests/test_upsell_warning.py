@@ -6,28 +6,12 @@ from .common import TestCommonSaleTimesheet
 @tagged("-at_install", "post_install")
 class TestUpsellWarning(TestCommonSaleTimesheet):
     def test_display_upsell_warning(self):
-        """Test to display an upsell warning
-
-
-        We display an upsell warning in SO when this following condition is satisfy in its SOL:
-        (qty_delivered / product_qty) >= product_id.service_upsell_threshold
-
-        Test Case:
-        =========
-        1) Configure the upsell warning in prepaid service product
-        2) Create SO with a SOL containing this updated product,
-        3) Create Project and Task,
-        4) Timesheet in the task to satisfy the condition for the SOL to display an upsell warning,
-        5) Check if the SO has an 'mail.mail_activity_data_todo' activity.
-        """
-        # 1) Configure the upsell warning in prepaid service product
         self.product_order_timesheet1.write(
             {
                 "service_upsell_threshold": 0.5,
             }
         )
 
-        # 2) Create SO with a SOL containing this updated product
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -45,7 +29,6 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         )
         so.action_confirm()
 
-        # 3) Create Project and Task
         project = self.env["project.project"].create(
             {
                 "name": "Project",
@@ -63,7 +46,6 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         )
         task._compute_sale_line_id()
 
-        # 4) Timesheet in the task to satisfy the condition for the SOL to display an upsell warning
         timesheet = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -77,7 +59,6 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         so.line_ids._compute_qty_transferred()
         so.line_ids._compute_invoice_state()
         so._compute_invoice_state()
-        # Normally this method is called at the end of _compute_invoice_state and other compute method. Here, we simulate for invoice_state field
         so._compute_field_value(so._fields["invoice_state"])
 
         self.assertEqual(
@@ -94,10 +75,8 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         so.line_ids._compute_qty_transferred()
         so.line_ids._compute_invoice_state()
         so._compute_invoice_state()
-        # Normally this method is called at the end of _compute_invoice_state and other compute method. Here, we simulate for invoice_state field
         so._compute_field_value(so._fields["invoice_state"])
 
-        # 5) Check if the SO has an 'mail.mail_activity_data_todo' activity.
         self.assertEqual(
             len(so.activity_search(["mail.mail_activity_data_todo"])),
             1,
@@ -105,29 +84,13 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         )
 
     def test_display_upsell_warning_when_invoiced(self):
-        """Test to display an upsell warning when threshold value (10000%) exceed while creating invoice.
 
-        We display an upsell warning in SO when this following condition is satisfy in its SOL:
-        (qty_delivered / product_qty) >= product_id.service_upsell_threshold
-
-        Test Case:
-        =========
-        1) Configure the upsell warning in prepaid service product
-        2) Create SO with a SOL containing this updated product,
-        3) Create Project and Task,
-        4) Timesheet in the task to satisfy the condition for the SOL to display an upsell warning,
-        5) Create Invoice of the SO,
-        6) Check if the SO has an 'mail.mail_activity_data_todo' activity.
-        """
-
-        # 1) Configure the upsell warning in prepaid service product with 100 (10000%)
         self.product_order_timesheet1.write(
             {
                 "service_upsell_threshold": 100,
             }
         )
 
-        # 2) Create SO with a SOL containing this updated product
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -147,7 +110,6 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         )
         so.action_confirm()
 
-        # 3) Create Project and Task
         project = self.env["project.project"].create(
             {
                 "name": "Project",
@@ -165,7 +127,6 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             }
         )
 
-        # 4) Timesheet in the task to satisfy the condition for the SOL to display an upsell warning
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -177,12 +138,9 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         )
         so.line_ids._compute_qty_transferred()
 
-        # 5) Create Invoice of the SO
         so._create_invoices()
-        # Normally this method is called at the end of _get_invoice_state and other compute method. Here, we simulate for invoice_state field
         so._compute_field_value(so._fields["invoice_state"])
 
-        # 6) Check if the SO has an 'mail.mail_activity_data_todo' activity.
         self.assertEqual(
             len(so.activity_search(["mail.mail_activity_data_todo"])),
             0,
@@ -190,32 +148,13 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         )
 
     def test_display_upsell_warning_multiple_times(self):
-        """Test to display an upsell warning caused by an SO line that has already produced an upsell warning previously.
 
-        We display an upsell warning in SO when this following condition is satisfy in its SOL:
-        (qty_delivered / product_qty) >= product_id.service_upsell_threshold
-
-        Test Case:
-        =========
-        1) Configure the upsell warning in prepaid service product
-        2) Create SO with a SOL containing this updated product,
-        3) Create Project and Task,
-        4) Timesheet in the task to satisfy the condition for the SOL to display an upsell warning,
-        5) Update the ordered quantity of the SOL to match its delivered quantity
-        6) Mark the upsell activity as done,
-        7) Create Invoice of the SO,
-        8) Timesheet again in the task to satisfy the condition for the SOL to display an upsell warning,
-        9) Check if the SO has an 'mail.mail_activity_data_todo' activity.
-        """
-
-        # 1) Configure the upsell warning in prepaid service product
         self.product_order_timesheet1.write(
             {
                 "service_upsell_threshold": 1.0,
             }
         )
 
-        # 2) Create SO with a SOL containing this updated product
         so = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -233,7 +172,6 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         )
         so.action_confirm()
 
-        # 3) Create Project and Task
         project = self.env["project.project"].create(
             {
                 "name": "Project",
@@ -251,7 +189,6 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
         )
         task._compute_sale_line_id()
 
-        # 4) Timesheet in the task to satisfy the condition for the SOL to display an upsell warning
         self.env["account.analytic.line"].create(
             {
                 "name": "Timesheet1",
@@ -262,7 +199,6 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             }
         )
         so.line_ids._compute_qty_transferred()
-        # Normally this method is called at the end of _get_invoice_state and other compute method. Here, we simulate for invoice_state field
         so._compute_field_value(so._fields["invoice_state"])
         self.assertEqual(
             len(so.activity_search(["mail.mail_activity_data_todo"])),
@@ -270,28 +206,22 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             "An upsell warning should appear in the SO.",
         )
 
-        # 5) Update the ordered quantity of the SOL to match its delivered quantity
         so.line_ids.write(
             {
                 "product_qty": so.line_ids.qty_transferred,
             }
         )
 
-        # 6) Mark the upsell activity as done
         so.activity_search(["mail.mail_activity_data_todo"])._action_done()
 
-        # 7) Create Invoice of the SO
         so._create_invoices()
-        # Normally this method is called at the end of _get_invoice_state and other compute method. Here, we simulate for invoice_state field
         so._compute_field_value(so._fields["invoice_state"])
-        # No 'mail.mail_activity_data_todo' activity should appear as it was marked as done
         self.assertEqual(
             len(so.activity_search(["mail.mail_activity_data_todo"])),
             0,
             "No upsell warning should appear in the SO.",
         )
 
-        # 8) Timesheet again in the task to satisfy the condition for the SOL to display an upsell warning
         self.env["account.analytic.line"].create(
             {
                 "name": "Timesheet2",
@@ -302,10 +232,8 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             }
         )
         so.line_ids._compute_qty_transferred()
-        # Normally this method is called at the end of _get_invoice_state and other compute method. Here, we simulate for invoice_state field
         so._compute_field_value(so._fields["invoice_state"])
 
-        # 9) Check if the SO has an 'mail.mail_activity_data_todo' activity
         self.assertEqual(
             len(so.activity_search(["mail.mail_activity_data_todo"])),
             1,

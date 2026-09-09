@@ -27,9 +27,7 @@ const {
     Object: { entries: $entries },
 } = globalThis;
 
-/**
- * @param {string} href
- */
+/** @param {string} href */
 function createLinkElement(href) {
     const link = document.createElement("link");
     link.rel = "stylesheet";
@@ -37,9 +35,7 @@ function createLinkElement(href) {
     return link;
 }
 
-/**
- * @param {string} content
- */
+/** @param {string} content */
 function createStyleElement(content) {
     const style = document.createElement("style");
     style.innerText = content;
@@ -115,9 +111,7 @@ export function makeUiState() {
     });
 }
 
-/**
- * @returns {Promise<void>}
- */
+/** @returns {Promise<void>} */
 export async function setupHootUI() {
     patchWindow();
 

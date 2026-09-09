@@ -10,13 +10,9 @@ const CONTENT_SELECTOR =
     ".o_component_with_search_panel > .o_renderer";
 
 export class CallbackRecorder {
-    /**
-     * @type {{ owner: any, callback: Function }[]}
-     */
+    /** @type {{ owner: any, callback: Function }[]} */
     _callbacks = [];
-    /**
-     * @returns {Function[]}
-     */
+    /** @returns {Function[]} */
     get callbacks() {
         return this._callbacks.map(({ callback }) => callback);
     }
@@ -30,9 +26,7 @@ export class CallbackRecorder {
         }
         this._callbacks.push({ owner, callback });
     }
-    /**
-     * @param {any} owner
-     */
+    /** @param {any} owner */
     remove(owner) {
         this._callbacks = this._callbacks.filter((s) => s.owner !== owner);
     }

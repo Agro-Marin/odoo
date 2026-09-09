@@ -42,14 +42,12 @@
                     invisible="not project_id or service_tracking != 'task_global_project'">
                     <label for="task_template_id" />
                 </div>
-                <!-- field for project manager -->
                 <field
                     name="task_template_id"
                     groups="project.group_project_manager"
                     context="{'default_is_template': True, 'default_project_id': project_id or project_template_id}"
                     invisible="not project_id or service_tracking != 'task_global_project'"
                     nolabel="1" />
-                <!-- field for non-project manager -->
                 <field
                     name="task_template_id"
                     groups="!project.group_project_manager"
@@ -65,7 +63,6 @@
         </field>
     </record>
 
-    <!-- TODO: remove me in master -->
     <record id="product_template_form_view_inherit_sale_project" model="ir.ui.view">
         <field name="name">product.template.sale.project.form</field>
         <field name="model">product.template</field>

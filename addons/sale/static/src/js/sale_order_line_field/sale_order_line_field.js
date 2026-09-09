@@ -68,9 +68,7 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         });
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     buildRowApi() {
         const rec = (record) => this.resolveRowRecord(record);
         return {

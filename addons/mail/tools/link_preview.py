@@ -29,12 +29,6 @@ class UrlSafety(enum.Enum):
 def _classify_url_safety(
     url: str, cache: dict[tuple[str, int], UrlSafety] | None = None
 ) -> UrlSafety:
-    # The verdict comes from one DNS answer and the request that follows
-    # resolves the name again, so a host whose record flips between the two
-    # lookups (DNS rebinding) is not caught here; pinning the connection to the
-    # resolved address would need a TLS stack that verifies the certificate
-    # against a name other than the one dialled. What the cache buys is one
-    # verdict per host for a whole batch instead of one per notification.
     split = urlsplit(url)
     if split.scheme not in ("http", "https"):
         return UrlSafety.UNRESOLVABLE

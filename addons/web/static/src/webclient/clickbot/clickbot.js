@@ -13,9 +13,7 @@ import {
     writeClickbotRun,
 } from "@web/webclient/clickbot/clickbot_state";
 
-/**
- * @typedef {import("@web/core/network/rpc").RpcEventDetail} RpcEventDetail
- */
+/** @typedef {import("@web/core/network/rpc").RpcEventDetail} RpcEventDetail */
 
 export const SUCCESS_SIGNAL = "clickbot test succeeded";
 
@@ -24,9 +22,7 @@ const STUDIO_SYSTRAY_ICON_SELECTOR = ".o_web_studio_navbar_item:not(.o_disabled)
 const STEP_TIMEOUT = 30000;
 const POLL_INTERVAL = 25;
 
-/**
- * @returns {Promise}
- */
+/** @returns {Promise} */
 async function waitForNextAnimationFrame() {
     await new Promise(/** @type {any} */ (browser.setTimeout));
     await new Promise((r) => browser.requestAnimationFrame(r));
@@ -56,9 +52,7 @@ async function triggerClick(target, elDescription) {
     await waitForNextAnimationFrame();
 }
 
-/**
- * @returns {number}
- */
+/** @returns {number} */
 function scheduledTaskCount() {
     let size = 0;
     for (const app of /** @type {any} */ (App).apps) {
@@ -67,9 +61,7 @@ function scheduledTaskCount() {
     return size;
 }
 
-/**
- * @returns {string}
- */
+/** @returns {string} */
 function scheduledTaskNames() {
     const names = [];
     for (const app of /** @type {any} */ (App).apps) {
@@ -268,9 +260,7 @@ class ClickBot {
         await this.waitForCondition(() => document.querySelector("div.o_home_menu"));
     }
 
-    /**
-     * @returns {Promise<Element | undefined>}
-     */
+    /** @returns {Promise<Element | undefined>} */
     async getNextMenu() {
         const menuToggles = document.querySelectorAll(
             ".o_menu_sections > .dropdown-toggle, .o_menu_sections > .dropdown-item",
@@ -319,9 +309,7 @@ class ClickBot {
         return menuToggle;
     }
 
-    /**
-     * @returns {Promise<string | undefined>}
-     */
+    /** @returns {Promise<string | undefined>} */
     async getNextApp() {
         if (!this.apps || !this.apps.length) {
             await this.openHomeMenu();
@@ -403,9 +391,7 @@ class ClickBot {
         }
     }
 
-    /**
-     * @returns {Promise}
-     */
+    /** @returns {Promise} */
     async testViews() {
         if (this.state.light === true) {
             return;
@@ -498,9 +484,7 @@ class ClickBot {
         }
     }
 
-    /**
-     * @returns {Promise}
-     */
+    /** @returns {Promise} */
     async testApp() {
         if (!this.state.testedApps.includes(this.state.app)) {
             await this.openHomeMenu();

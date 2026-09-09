@@ -66,45 +66,25 @@ const { isPrevented, mockPreventDefault } = _window;
 
 /**
  * @typedef {{
- *  readonly config: (config: JobConfig) => CurrentConfigurators;
- *  readonly debug: () => CurrentConfigurators;
- *  readonly multi: (count: number) => CurrentConfigurators;
- *  readonly only: () => CurrentConfigurators;
- *  readonly skip: () => CurrentConfigurators;
- *  readonly tags: (...tags: string[]) => CurrentConfigurators;
- *  readonly timeout: (ms: number) => CurrentConfigurators;
- *  readonly todo: () => CurrentConfigurators;
- * }} CurrentConfigurators
  * @typedef {{
- *  count: number;
- *  message: string;
- *  name: string;
- * }} GlobalIssueReport
  * @typedef {Suite | Test} Job
  * @typedef {import("./job").JobConfig} JobConfig
  * @typedef {{
- *  icon?: string;
- *  label: string;
- *  platform?: import("../mock/navigator").Platform;
- *  size?: [number, number];
- *  tags?: string[];
- *  touch?: boolean;
- * }} Preset
  * @typedef {import("./config").SearchFilter} SearchFilter
  */
 
 /**
- * @template T
+ * @template
  * @typedef {(payload: T) => MaybePromise<any>} Callback
  */
 
 /**
- * @template {unknown[]} T
+ * @template {unknown[]}
  * @typedef {import("../hoot_utils").DropFirst} DropFirst
  */
 
 /**
- * @template T
+ * @template
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
@@ -132,9 +112,7 @@ const {
 /** @type {Performance["now"]} */
 const $now = performance.now.bind(performance);
 
-/**
- * @param {Job[]} jobs
- */
+/** @param {Job[]} jobs */
 function filterReady(jobs) {
     return jobs.filter((job) => {
         if (job instanceof Suite) {
@@ -145,18 +123,14 @@ function filterReady(jobs) {
     });
 }
 
-/**
- * @param {Record<string, number>} values
- */
+/** @param {Record<string, number>} values */
 function formatIncludes(values) {
     return $entries(values)
         .filter(([, value]) => $abs(value) === INCLUDE_LEVEL.url)
         .map(([id, value]) => (value >= 0 ? id : `${EXCLUDE_PREFIX}${id}`));
 }
 
-/**
- * @param {import("./expect").Assertion[]} assertions
- */
+/** @param {import("./expect").Assertion[]} assertions */
 function formatAssertions(assertions) {
     const lines = [];
     for (const {
@@ -203,7 +177,7 @@ function formatAssertions(assertions) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T[]} array
  */
 function shuffle(array) {
@@ -240,9 +214,7 @@ function handleConsoleIssues(test, shouldSuppress) {
     }
 }
 
-/**
- * @param {Event} ev
- */
+/** @param {Event} ev */
 function warnUserEvent(ev) {
     if (!ev.isTrusted) {
         return;
@@ -281,10 +253,7 @@ export class Runner {
     /** @type {ReturnType<typeof makeExpect>[1]} */
     expectHooks;
     headless = false;
-    /**
-     * Suites whose last job was erased while they were still declaring.
-     * @type {Set<Suite>}
-     */
+    /** @type {Set<Suite>} */
     emptiedWhileDeclaring = new Set();
     /** @type {Record<string, Preset>} */
     presets = {
@@ -296,35 +265,23 @@ export class Runner {
     state = {
         /** @type {Test | null} */
         currentTest: null,
-        /**
-         * @type {Set<Test>}
-         */
+        /** @type {Set<Test>} */
         done: new Set(),
         failedIds: new Set(storageGet(STORAGE.failed)),
-        /**
-         * @type {Record<string, GlobalIssueReport>}
-         */
+        /** @type {Record<string, GlobalIssueReport>} */
         globalErrors: {},
-        /**
-         * @type {Record<string, GlobalIssueReport>}
-         */
+        /** @type {Record<string, GlobalIssueReport>} */
         globalWarnings: {},
-        /**
-         * @type {Record<"id" | "tag", Record<string, number>>}
-         */
+        /** @type {Record<"id" | "tag", Record<string, number>>} */
         includeSpecs: {
             id: {},
             tag: {},
         },
         /** @type {"ready" | "running" | "done"} */
         status: "ready",
-        /**
-         * @type {Suite[]}
-         */
+        /** @type {Suite[]} */
         suites: [],
-        /**
-         * @type {Test[]}
-         */
+        /** @type {Test[]} */
         tests: [],
     };
     /** @type {Map<string, Suite>} */
@@ -341,9 +298,7 @@ export class Runner {
     queryInclude = [];
     totalTime = "n/a";
 
-    /**
-     * @type {boolean}
-     */
+    /** @type {boolean} */
     get hasFilter() {
         for (const includeValues of $values(this.state.includeSpecs)) {
             if ($keys(includeValues).length > 0) {
@@ -353,9 +308,7 @@ export class Runner {
         return false;
     }
 
-    /**
-     * @type {boolean}
-     */
+    /** @type {boolean} */
     get hasRemovableFilter() {
         return this._removableFilterCount > 0;
     }
@@ -380,9 +333,7 @@ export class Runner {
     /** @type {null | (value?: any) => any} */
     _resolveCurrent = null;
 
-    /**
-     * @param {typeof DEFAULT_CONFIG} [config]
-     */
+    /** @param {typeof DEFAULT_CONFIG} [config] */
     constructor(config) {
         this.describe = this._addConfigurators(this.addSuite, () =>
             this.suiteStack.at(-1),
@@ -607,9 +558,7 @@ export class Runner {
         return test;
     }
 
-    /**
-     * @param {...Callback<Job>} callbacks
-     */
+    /** @param {...Callback<Job>} callbacks */
     after(...callbacks) {
         const { suite, test } = this.getCurrent();
         if (test) {
@@ -624,18 +573,14 @@ export class Runner {
         }
     }
 
-    /**
-     * @param {...Callback<never>} callbacks
-     */
+    /** @param {...Callback<never>} callbacks */
     afterAll(...callbacks) {
         for (const callback of callbacks) {
             this._callbacks.add("after-all", callback);
         }
     }
 
-    /**
-     * @param {...Callback<Test>} callbacks
-     */
+    /** @param {...Callback<Test>} callbacks */
     afterEach(...callbacks) {
         const { suite, test } = this.getCurrent();
         if (test) {
@@ -647,18 +592,14 @@ export class Runner {
         }
     }
 
-    /**
-     * @param {...Callback<Test>} callbacks
-     */
+    /** @param {...Callback<Test>} callbacks */
     afterPostTest(...callbacks) {
         for (const callback of callbacks) {
             this._callbacks.add("after-post-test", callback);
         }
     }
 
-    /**
-     * @param {...Callback<Job>} callbacks
-     */
+    /** @param {...Callback<Job>} callbacks */
     before(...callbacks) {
         const { suite, test } = this.getCurrent();
         if (test) {
@@ -673,18 +614,14 @@ export class Runner {
         }
     }
 
-    /**
-     * @param {...Callback<never>} callbacks
-     */
+    /** @param {...Callback<never>} callbacks */
     beforeAll(...callbacks) {
         for (const callback of callbacks) {
             this._callbacks.add("before-all", callback);
         }
     }
 
-    /**
-     * @param {...Callback<Test>} callbacks
-     */
+    /** @param {...Callback<Test>} callbacks */
     beforeEach(...callbacks) {
         const { suite, test } = this.getCurrent();
         if (test) {
@@ -738,9 +675,7 @@ export class Runner {
         this.presets[key] = preset;
     }
 
-    /**
-     * @param {() => Promise<void>} callback
-     */
+    /** @param {() => Promise<void>} callback */
     async dryRun(callback) {
         if (this.state.status !== "ready") {
             throw new HootError("cannot run a dry run after the test runner started", {
@@ -768,7 +703,7 @@ export class Runner {
     }
 
     /**
-     * @template {(...args: any[]) => any} T
+     * @template {(...args: any[]) => any}
      * @param {T} fn
      * @returns {T}
      */
@@ -776,12 +711,7 @@ export class Runner {
         return fn.bind(this);
     }
 
-    /**
-     * @returns {{
-     *  suite: Suite | null;
-     *  test: Test | null;
-     * }}
-     */
+    /** @returns {{ */
     getCurrent() {
         return {
             suite: this.suiteStack.at(-1) || null,
@@ -804,9 +734,7 @@ export class Runner {
         this._canStartDef.resolve(true);
     }
 
-    /**
-     * @param {...Callback<ErrorEvent | PromiseRejectionEvent>} callbacks
-     */
+    /** @param {...Callback<ErrorEvent | PromiseRejectionEvent>} callbacks */
     onError(...callbacks) {
         const { suite, test } = this.getCurrent();
         const callbackRegistry = suite ? suite.callbacks : this._callbacks;
@@ -815,9 +743,7 @@ export class Runner {
         }
     }
 
-    /**
-     * @param {Partial<Record<SearchFilter, Iterable<string>>>} specs
-     */
+    /** @param {Partial<Record<SearchFilter, Iterable<string>>>} specs */
     simplifyUrlIds(specs) {
         if (!specs) {
             return {};
@@ -839,9 +765,7 @@ export class Runner {
         };
     }
 
-    /**
-     * @param {...Job} jobs
-     */
+    /** @param {...Job} jobs */
     async start(...jobs) {
         jobs = jobs.filter(Boolean);
         if (!this._started) {
@@ -1170,8 +1094,8 @@ export class Runner {
     }
 
     /**
-     * @template {(...args: any[]) => any} T
-     * @template {false | () => Job} C
+     * @template {(...args: any[]) => any}
+     * @template {false | () => Job}
      * @param {T} fn
      * @param {C} getCurrent
      * @returns {typeof configurableFn}
@@ -1180,16 +1104,6 @@ export class Runner {
         /**
          * @typedef {((...args: DropFirst<Parameters<T>>) => Configurators) & Configurators} ConfigurableFunction
          * @typedef {{
-         *  readonly debug: ConfigurableFunction;
-         *  readonly only: ConfigurableFunction;
-         *  readonly skip: ConfigurableFunction;
-         *  readonly todo: ConfigurableFunction;
-         *  readonly config: (...configs: JobConfig[]) => Configurators;
-         *  readonly current: C extends false ? never : Configurators;
-         *  readonly multi: (count: number) => Configurators;
-         *  readonly tags: (...tagNames: string[]) => Configurators;
-         *  readonly timeout: (ms: number) => Configurators;
-         * }} Configurators
          */
 
         /** @type {Configurators["current"]} */
@@ -1220,9 +1134,7 @@ export class Runner {
             return configurableFn;
         }
 
-        /**
-         * @type {Configurators["config"]}
-         */
+        /** @type {Configurators["config"]} */
         function config(...configs) {
             $assign(currentConfig, ...configs);
             return configurators;
@@ -1234,9 +1146,7 @@ export class Runner {
             return configurators;
         }
 
-        /**
-         * @type {Configurators["tags"]}
-         */
+        /** @type {Configurators["tags"]} */
         function tags(...tagNames) {
             currentConfig.tags.push(...getTags(tagNames));
             return configurators;
@@ -1277,9 +1187,7 @@ export class Runner {
         return configurableFn;
     }
 
-    /**
-     * @param {Job} job
-     */
+    /** @param {Job} job */
     _applyTagModifiers(job) {
         let shouldSkip = false;
         let [ignoreSkip] = this._getExplicitIncludeStatus(job);
@@ -1294,7 +1202,6 @@ export class Runner {
                         );
                     }
                     this.debug = job;
-                // falls through
                 case Tag.ONLY:
                     if (!this.dry) {
                         logger.global.warn(
@@ -1332,22 +1239,16 @@ export class Runner {
         }
     }
 
-    /**
-     * @param {() => Job} getCurrent
-     */
+    /** @param {() => Job} getCurrent */
     _createCurrentConfigurators(getCurrent) {
-        /**
-         * @param {JobConfig} config
-         */
+        /** @param {JobConfig} config */
         function configureCurrent(config) {
             getCurrent().configure(config);
 
             return currentConfigurators;
         }
 
-        /**
-         * @param {...string} tagNames
-         */
+        /** @param {...string} tagNames */
         const addTagsToCurrent = (...tagNames) => {
             const current = getCurrent();
             current.configure({ tags: getTags(tagNames) });
@@ -1392,10 +1293,6 @@ export class Runner {
                 job.parent.jobs.splice(jobIndex, 1);
             }
             if (!job.parent.jobs.length) {
-                // A parent still on the suite stack has not finished declaring:
-                // "empty" there means "nothing declared YET". Erasing it drops
-                // every job declared after this one, so defer the decision to
-                // the pop, when the job list is final.
                 if (this.suiteStack.includes(job.parent)) {
                     this.emptiedWhileDeclaring.add(job.parent);
                 } else {
@@ -1406,9 +1303,7 @@ export class Runner {
         return job;
     }
 
-    /**
-     * @param {() => Promise<void>} callback
-     */
+    /** @param {() => Promise<void>} callback */
     async _execAfterCallback(callback) {
         if (this.debug) {
             this._missedCallbacks.push(callback);
@@ -1468,9 +1363,7 @@ export class Runner {
         return chain;
     }
 
-    /**
-     * @param {Job} job
-     */
+    /** @param {Job} job */
     _getExplicitIncludeStatus(job) {
         const explicitInclude = this.state.includeSpecs.id[job.id] || 0;
         return [explicitInclude > 0, explicitInclude < 0];
@@ -1758,9 +1651,7 @@ export class Runner {
         };
     }
 
-    /**
-     * @param {Error | ErrorEvent | PromiseRejectionEvent} ev
-     */
+    /** @param {Error | ErrorEvent | PromiseRejectionEvent} ev */
     _handleError(ev) {
         if (this.config.notrycatch) {
             return;
@@ -1840,9 +1731,7 @@ export class Runner {
         return false;
     }
 
-    /**
-     * @param {string} message
-     */
+    /** @param {string} message */
     _handleGlobalWarning(message) {
         const { globalWarnings } = this.state;
         const key = message;
@@ -1934,9 +1823,7 @@ export class Runner {
         await this._callbacks.call("before-all", this, logger.error);
     }
 
-    /**
-     * @param {Runner["state"]["includeSpecs"]["id"]} idSpecs
-     */
+    /** @param {Runner["state"]["includeSpecs"]["id"]} idSpecs */
     _simplifyIncludeSpecs(idSpecs) {
         let hasChanged = false;
         const unresolved = [];

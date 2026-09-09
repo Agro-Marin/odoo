@@ -27,9 +27,7 @@ export class JsonCheckboxes extends FieldComponent {
 
     setup() {
         this.checkboxes = useState(deepCopy(this.field.value || {}));
-        /**
-         * @type {Map<string, boolean>}
-         */
+        /** @type {Map<string, boolean>} */
         this.pendingToggles = new Map();
         this.debouncedCommitChanges = useDebouncedFieldCommit(
             () => this.commitChanges(),
@@ -54,9 +52,7 @@ export class JsonCheckboxes extends FieldComponent {
         });
     }
 
-    /**
-     * @returns {Promise<void>|undefined}
-     */
+    /** @returns {Promise<void>|undefined} */
     commitChanges() {
         if (!this.pendingToggles.size) {
             return;

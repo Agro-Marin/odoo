@@ -126,9 +126,7 @@ export class Popover extends Component {
         }
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isClosing() {
         return Boolean(this.props.presentation?.isClosing);
     }
@@ -186,9 +184,7 @@ export class Popover extends Component {
         return Boolean(/** @type {any} */ (this.env)[OVERLAY_SYMBOL]?.contains(target));
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isPositionFrozen() {
         return Boolean(
             this.props.fixedPosition ||
@@ -202,9 +198,7 @@ export class Popover extends Component {
         this.position.unlock();
     }
 
-    /**
-     * @param {boolean} locked
-     */
+    /** @param {boolean} locked */
     setPositionLocked(locked) {
         if (locked) {
             this.positionLocked = true;

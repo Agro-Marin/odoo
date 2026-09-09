@@ -642,9 +642,6 @@ class AccountMove(models.Model):
         self.check_singleton()
         purchase_line_vals = {}
         fpos = purchase.fiscal_position_id
-        # See sale's counterpart: `account.tax` serves several companies, and the
-        # domain helper is what knows about parent companies. Reading
-        # `company_ids` in Python needs `sudo()`.
         company_domain = self.env["account.tax"]._check_company_domain(self.company_id)
         for line in self.invoice_line_ids.filtered(
             lambda ln: ln.display_type == "product",

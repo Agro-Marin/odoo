@@ -70,40 +70,8 @@ export class ListArchParser extends ViewArchParser {
      * @param {Record<string, any>} models
      * @param {string} modelName
      * @returns {{
-     * controls: any[],
-     * headerButtons: any[],
-     * fieldNodes: Record<string, any>,
-     * widgetNodes: Record<string, any>,
-     * columns: any[],
-     * groupBy: { buttons: Record<string, any[]>, fields: Record<string, any> },
-     * xmlDoc: Element,
-     * activeActions: Record<string, any>,
-     * [key: string]: any,
-     * }}
      */
-    /**
-     * @typedef {{
-     * xmlDoc: Element,
-     * models: Record<string, any>,
-     * modelName: string,
-     * jsClass: string | undefined,
-     * fields: Record<string, any>,
-     * fieldNodes: Record<string, any>,
-     * widgetNodes: Record<string, any>,
-     * widgetNextId: number,
-     * columns: any[],
-     * buttonId: number,
-     * nextId: number,
-     * fieldNextIds: Record<string, number>,
-     * groupBy: { buttons: Record<string, any[]>, fields: Record<string, any> },
-     * headerButtons: any[],
-     * controls: any[],
-     * buttonGroup: any,
-     * handleField: string | null,
-     * treeAttr: { activeActions: Record<string, any>, defaultOrder: any[], [key: string]: any },
-     * groupListArchParser: GroupListArchParser,
-     * }} ListParseState
-     */
+    /** @typedef {{ */
 
     /**
      * @param {Element} xmlDoc
@@ -372,16 +340,6 @@ export class ListArchParser extends ViewArchParser {
      * @param {Record<string, any>} models
      * @param {string} modelName
      * @returns {{
-     * controls: any[],
-     * headerButtons: any[],
-     * fieldNodes: Record<string, any>,
-     * widgetNodes: Record<string, any>,
-     * columns: any[],
-     * groupBy: { buttons: Record<string, any[]>, fields: Record<string, any> },
-     * xmlDoc: Element,
-     * activeActions: Record<string, any>,
-     * [key: string]: any,
-     * }}
      */
     parse(xmlDoc, models, modelName) {
         const state = this.newParseState(xmlDoc, models, modelName);

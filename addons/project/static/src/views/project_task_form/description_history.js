@@ -11,21 +11,14 @@ import { ConfirmationDialog } from "@web/ui/dialog";
 const VERSIONED_FIELD_NAME = "description";
 
 /**
- * Open the version history of a project.task description, and restore a
- * revision from it if the user asks for one.
- *
- * The To-Do app shows the same feature on the same model behind its own
- * wording, so this lives here rather than in either form controller: the two
- * copies drifted once already, and only one of them was repaired.
- *
  * @param {Object} params
- * @param {Object} params.record the form's root record
+ * @param {Object} params.record
  * @param {string} params.resModel
  * @param {Object} params.dialogService
  * @param {Object} params.notificationService
- * @param {string} params.title dialog title
- * @param {string} params.emptyLabel shown for a revision whose content was empty
- * @param {string} params.noHistoryMessage notification when there is nothing to restore
+ * @param {string} params.title
+ * @param {string} params.emptyLabel
+ * @param {string} params.noHistoryMessage
  */
 export function openDescriptionHistoryDialog({
     record,
@@ -57,15 +50,9 @@ export function openDescriptionHistoryDialog({
                     "Restoring will replace the current content with the selected version. Any unsaved changes will be lost.",
                 ),
                 confirm: async () => {
-                    // Carry `data-last-history-steps` over from the current
-                    // value: a revision is old html that no longer holds it,
-                    // and writing it back bare severs the chain this dialog
-                    // reads from.
                     const contentMetadata = getHtmlFieldMetadata(
                         record.data[VERSIONED_FIELD_NAME],
                     );
-                    // Await so a failed restore surfaces in this dialog instead
-                    // of as an unhandled rejection after everything closed.
                     await record.update({
                         [VERSIONED_FIELD_NAME]: setHtmlFieldMetadata(
                             html,

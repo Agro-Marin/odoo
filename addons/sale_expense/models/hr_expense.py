@@ -12,8 +12,6 @@ class HrExpense(models.Model):
         readonly=False,
         index="btree_not_null",
         tracking=True,
-        # NOTE: only confirmed SO can be selected, but this domain in activated throught the name search with the `sale_expense_all_order`
-        # context key. So, this domain is not the one applied.
         domain="[('state', '=', 'done')]",
         check_company=True,
         help="If the category has an expense policy, it will be reinvoiced on this sales order",
@@ -54,14 +52,7 @@ class HrExpense(models.Model):
         self.env.add_to_compute(self._fields["analytic_distribution"], to_reset)
 
     def _sale_expense_reset_sol_quantities(self):
-        """
-        Resets the quantity of a SOL created by a reinvoiced expense to 0 when the expense or its move is reset to an unfinished state
-
-        Note: Resetting the qty_delivered will raise if the product is a storable product and sale_stock is installed,
-              but it's fine as it doesn't make much sense to have a stored product in an expense.
-        """
         self.check_access("write")
-        # If we can edit the expense, we may not be able to edit the sol without sudoing.
         self.sudo().sale_order_line_id.write(
             {
                 "qty_transferred": 0.0,
@@ -71,17 +62,12 @@ class HrExpense(models.Model):
         )
 
     def _get_split_values(self):
-        # EXTENDS hr_expense
         vals = super()._get_split_values()
         for split_value in vals:
             split_value["sale_order_id"] = self.sale_order_id.id
         return vals
 
     def action_post(self):
-        # EXTENDS hr_expense
-        # When posting expense, we need the analytic entries to be generated, because reinvoicing uses analytic accounts.
-        # We then ensure the proper analytic acocunt is given in the distribution and if not,
-        # we create an account and set the distribution to it.
         for expense in self:
             if expense.sale_order_id and not expense.analytic_distribution:
                 analytic_account = self.env["account.analytic.account"].create(

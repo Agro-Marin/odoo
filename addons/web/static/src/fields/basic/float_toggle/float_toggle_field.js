@@ -38,9 +38,7 @@ export class FloatToggleField extends FieldComponent {
         this.field.update(range[currentIndex] / this.factor);
     }
 
-    /**
-     * @returns {number[]}
-     */
+    /** @returns {number[]} */
     get range() {
         const range = this.props.range;
         const isUsable =

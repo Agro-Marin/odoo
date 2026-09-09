@@ -14,8 +14,6 @@ import { reposition } from "@web/core/position/utils";
 import { omit } from "@web/core/utils/collections/objects";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
-/** @import { ComputePositionOptions, PositioningSolution } from "@web/core/position/utils" */
-
 /**
  * @typedef {Object} UsePositionOptionsExtensionType
  * @property {(popperElement: HTMLElement, solution: PositioningSolution) => void} [onPositioned]

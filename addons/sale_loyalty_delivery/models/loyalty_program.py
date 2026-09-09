@@ -7,10 +7,6 @@ class LoyaltyProgram(models.Model):
     @api.model
     def _program_type_default_values(self):
         res = super()._program_type_default_values()
-        # Add a loyalty reward for free shipping, ordered (by loyalty.reward's
-        # `required_points asc` _order) after the other template rewards, so a
-        # DB-fresh read of reward_ids never surfaces it ahead of e.g. the base
-        # discount reward.
         if "loyalty" in res:
             highest_points = max(
                 (
@@ -34,7 +30,6 @@ class LoyaltyProgram(models.Model):
 
     @api.model
     def get_program_templates(self):
-        # Override 'promotion' template to say free shipping
         res = super().get_program_templates()
         if "promotion" in res:
             res["promotion"]["description"] = _(

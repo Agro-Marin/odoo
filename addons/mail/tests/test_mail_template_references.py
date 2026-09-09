@@ -14,7 +14,6 @@ EXPRESSION_FIELDS = (
     "scheduled_date",
 )
 
-# `object.a.b.c` and `env['some.model']` as they appear inside those fields.
 OBJECT_CHAIN = re.compile(r"\bobject((?:\.[a-z_][a-z0-9_]*)+)")
 MODEL_LITERAL = re.compile(r"""env\[['"]([a-z_][a-z0-9_.]*)['"]\]""")
 HASATTR_GUARD = re.compile(r"hasattr\(\s*object\s*,\s*['\"]([a-z_0-9]+)['\"]")
@@ -23,25 +22,7 @@ MEMBERSHIP_GUARD = re.compile(r"['\"]([a-z_0-9]+)['\"]\s+in\s+object\b")
 
 @tagged("mail_tools", "-at_install", "post_install")
 class TestMailTemplateReferences(TransactionCase):
-    """Every shipped mail template still names things that exist.
-
-    A ``mail.template`` is ``noupdate``, so an upgrade never rewrites its body.
-    When a refactor renames a model or a field, the source XML is corrected and
-    the copy in the database is not, and the template goes on raising until
-    something finally tries to send it -- which for a template nobody sends
-    daily can be months.
-
-    This reads the stored records rather than the XML on purpose: the XML is
-    always right, and the database is what actually renders.
-    """
-
     def _shipped_templates(self):
-        """Templates a module owns, archived ones included.
-
-        Archived is not deleted -- a template still reachable through a
-        many2one that does not filter on ``active`` can be sent -- and a
-        template a user wrote is their business, not ours.
-        """
         data = self.env["ir.model.data"].search([("model", "=", "mail.template")])
         return (
             self.env["mail.template"]
@@ -51,18 +32,9 @@ class TestMailTemplateReferences(TransactionCase):
         )
 
     def _expressions(self, template):
-        """The template's inline-template fields, as one string per field."""
         return [str(template[name] or "") for name in EXPRESSION_FIELDS]
 
     def _broken_hop(self, model, chain):
-        """The first name in ``chain`` its owner does not have, or None.
-
-        Walks the dotted chain while it stays relational, so a rename two hops
-        out -- ``object.employee_id.work_contact_id`` -- is caught as readily as
-        one on the template's own model. The walk stops at the first name that
-        is not a field, because past that point the expression is operating on
-        something that is no longer a recordset and cannot be resolved here.
-        """
         for name in chain.strip(".").split("."):
             field = model._fields.get(name)
             if field is None:
@@ -112,14 +84,6 @@ class TestMailTemplateReferences(TransactionCase):
         )
 
     def test_every_template_model_column_agrees_with_its_model_id(self):
-        """``model`` is a stored related on ``model_id.model``.
-
-        A stored related that was never recomputed leaves the two disagreeing,
-        and rendering then browses one model with the other's ids -- which
-        raises nothing and quietly reads the wrong records. Checked for every
-        template, not only shipped ones, because the drift is in our column
-        rather than in anyone's authored text.
-        """
         drifted = [
             f"{template.name} (id {template.id}): "
             f"model={template.model!r} but model_id names "

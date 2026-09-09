@@ -43,7 +43,6 @@ class TestMailGroupModeration(TestMailListCommon):
     )
     @users("employee")
     def test_moderation_rule_api(self):
-        """Test moderation rule creation / update through API"""
         mail_group = self.env["mail.group"].browse(self.test_group.ids)
         mail_group_2 = self.env["mail.group"].browse(self.test_group_2.ids)
         self.assertEqual(
@@ -138,7 +137,6 @@ class TestMailGroupModeration(TestMailListCommon):
 
     @users("employee")
     def test_moderation_rule_email_normalize(self):
-        """Test emails are automatically normalized"""
         rule = self.env["mail.group.moderation"].create(
             {
                 "mail_group_id": self.test_group.id,
@@ -218,7 +216,6 @@ class TestModeration(TestMailListCommon):
     )
     @users("employee")
     def test_moderation_flow_accept(self):
-        """Unknown email sends email on moderated group, test accept"""
         mail_group = self.env["mail.group"].browse(self.test_group.ids)
         self.assertEqual(len(mail_group.mail_group_message_ids), 3)
 
@@ -282,7 +279,6 @@ class TestModeration(TestMailListCommon):
     )
     @users("employee")
     def test_moderation_flow_allow(self):
-        """Unknown email sends email on moderated group, test allow"""
         mail_group = self.test_group
         mail_group_2_as2 = (
             self.env["mail.group"]
@@ -406,7 +402,6 @@ class TestModeration(TestMailListCommon):
     )
     @users("employee")
     def test_moderation_flow_ban(self):
-        """Unknown email sends email on moderated group, test ban"""
         mail_group = self.env["mail.group"].browse(self.test_group.ids)
         self.assertEqual(len(mail_group.mail_group_message_ids), 3)
 
@@ -473,7 +468,6 @@ class TestModeration(TestMailListCommon):
     )
     @users("employee")
     def test_moderation_flow_reject(self):
-        """Unknown email sends email on moderated group, test reject"""
         mail_group = self.env["mail.group"].browse(self.test_group.ids)
         self.assertEqual(len(mail_group.mail_group_message_ids), 3)
 
@@ -528,7 +522,6 @@ class TestModeration(TestMailListCommon):
     @mute_logger("odoo.addons.mail_group.models.mail_group")
     @users("employee")
     def test_moderation_send_guidelines(self):
-        """Test sending guidelines"""
         mail_group = self.env["mail.group"].browse(self.test_group.ids)
         mail_group.write(
             {
@@ -554,7 +547,6 @@ class TestModeration(TestMailListCommon):
     @mute_logger("odoo.addons.mail_group.models.mail_group")
     @users("employee")
     def test_moderation_send_guidelines_on_new_member(self):
-        """Test sending guidelines when having a new members"""
         mail_group = self.env["mail.group"].browse(self.test_group.ids)
         mail_group.write(
             {

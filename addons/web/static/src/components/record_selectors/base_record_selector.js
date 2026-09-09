@@ -36,9 +36,7 @@ export class BaseRecordSelector extends Component {
         return isAvatarModel(this.props.resModel);
     }
 
-    /**
-     * @param {Record<string, any>} [props]
-     */
+    /** @param {Record<string, any>} [props] */
     async computeDerivedParams(props = this.props) {
         let displayNames;
         try {

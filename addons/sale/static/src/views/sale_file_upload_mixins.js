@@ -3,9 +3,7 @@ import { _t } from "@web/core/translation";
 
 import { SaleActionHelper } from "../js/sale_action_helper/sale_action_helper.js";
 
-/**
- * @param {typeof import("@web/views/kanban/kanban_controller").KanbanController} Controller
- */
+/** @param {typeof import("@web/views/kanban/kanban_controller").KanbanController} Controller */
 export const saleFileUploadController = (Controller) =>
     class extends Controller {
         setup() {
@@ -14,9 +12,7 @@ export const saleFileUploadController = (Controller) =>
         }
     };
 
-/**
- * @param {typeof import("@web/views/kanban/kanban_renderer").KanbanRenderer} Renderer
- */
+/** @param {typeof import("@web/views/kanban/kanban_renderer").KanbanRenderer} Renderer */
 export const saleFileUploadRenderer = (Renderer) =>
     class extends Renderer {
         setup() {

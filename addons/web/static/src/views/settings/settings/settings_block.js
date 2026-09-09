@@ -65,17 +65,13 @@ export class SettingsBlock extends Component {
             this.showAllContainerState.showAllContainer = this.matchesTitleOrTip();
         });
     }
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     matchesTitleOrTip() {
         const searchValue = this.state.search.value;
         const blockText = [this.props.title, this.props.tip].join();
         return normalizedMatch(blockText, searchValue).start !== -1;
     }
-    /**
-     * @param {boolean} force
-     */
+    /** @param {boolean} force */
     toggleContainer(force) {
         if (this.settingsContainerTitleRef.el) {
             this.settingsContainerTitleRef.el.classList.toggle("d-none", force);

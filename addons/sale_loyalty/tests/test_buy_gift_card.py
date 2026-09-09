@@ -45,9 +45,6 @@ class TestBuyGiftCard(TestSaleCouponCommon):
         self.assertEqual(len(order._get_reward_coupons()), 1)
 
     def test_gift_card_email_sender(self):
-        """Ensure that sending gift card emails have a sender.
-        Either the order's salesman if available, otherwise the order's company.
-        """
         mail_template = self.env["mail.template"].create(
             {
                 "name": "Gift Card Mail",
@@ -55,8 +52,6 @@ class TestBuyGiftCard(TestSaleCouponCommon):
                 "auto_delete": False,
             }
         )
-        # Replace, not append: a gift card program is created with the "At Creation"
-        # plan its type implies, and this test counts the mails one plan produces.
         self.program_gift_card.communication_plan_ids = [
             Command.clear(),
             Command.create({"trigger": "create", "mail_template_id": mail_template.id}),
@@ -73,13 +68,10 @@ class TestBuyGiftCard(TestSaleCouponCommon):
         )
         order._update_programs_and_rewards()
 
-        # Create an order without salesman to test company-based fallback
         orders = order + order.copy({"user_id": None})
 
-        # Clear out the mailbox before sending mail
         self.env["mail.mail"].search([]).sudo().unlink()
 
-        # Confirm order as Public User to trigger loyalty mail
         public_user = self.env.ref("base.public_user")
         orders.with_user(public_user).with_company(
             order.company_id

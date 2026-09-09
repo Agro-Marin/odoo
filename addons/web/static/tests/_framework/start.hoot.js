@@ -117,23 +117,17 @@ function _selectTestSpecifiers(testSpecifiers) {
         : testSpecifiers;
 }
 
-/**
- * @param {...any} parts
- */
+/** @param {...any} parts */
 function _bootLog(...parts) {
     console.debug("[HOOT][boot]", ...parts);
 }
 
-/**
- * @param {...any} parts
- */
+/** @param {...any} parts */
 function _bootWarn(...parts) {
     console.warn("[HOOT][boot]", ...parts);
 }
 
-/**
- * @param {string[]} specifiers
- */
+/** @param {string[]} specifiers */
 function _preloadTestModules(specifiers) {
     const importMap = document.querySelector('script[type="importmap"]');
     if (!importMap?.textContent) {
@@ -162,9 +156,7 @@ function _preloadTestModules(specifiers) {
     document.head.append(fragment);
 }
 
-/**
- * @param {string} specifier
- */
+/** @param {string} specifier */
 async function _importInFileSuite(specifier) {
     const suiteName = _suiteNameFromSpecifier(specifier);
     /** @type {any} */
@@ -183,9 +175,7 @@ async function _importInFileSuite(specifier) {
     }
 }
 
-/**
- * @param {string[]} allTestSpecifiers
- */
+/** @param {string[]} allTestSpecifiers */
 export async function loadAndStart(allTestSpecifiers) {
     _bootLog(`called with ${allTestSpecifiers.length} specifier(s)`);
     if (!allTestSpecifiers.length) {

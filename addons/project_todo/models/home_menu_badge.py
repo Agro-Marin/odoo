@@ -6,9 +6,6 @@ class HomeMenuBadge(models.AbstractModel):
 
     @api.model
     def _get_badges(self) -> dict[str, int]:
-        # A to-do is a task with no project, which is what this app's own
-        # menus filter on. `project` excludes exactly these, so the two tiles
-        # partition the reader's open tasks instead of double-counting them.
         return {
             **super()._get_badges(),
             **self._count_for(

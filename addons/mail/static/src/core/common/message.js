@@ -102,9 +102,7 @@ export class Message extends Component {
         "isReadOnly?",
     ];
     static template = "mail.Message";
-    /**
-     * @type {{body: string, description: string, result: boolean}|undefined}
-     */
+    /** @type {{body: string, description: string, result: boolean}|undefined} */
     subtypeDescriptionCache;
 
     _setupServicesAndRefs() {
@@ -549,13 +547,7 @@ export class Message extends Component {
         this.optionsDropdown.open();
     }
 
-    /**
-     * The overlay root this message is rendered in, so a dialog it opens lands
-     * in the same app -- the portal chatter and the livechat embed mount into a
-     * shadow root, and an overlay with no rootId goes to the page behind them.
-     *
-     * @returns {string | undefined}
-     */
+    /** @returns {string | undefined} */
     get overlayRootId() {
         return rootIdOf(this.root.el);
     }

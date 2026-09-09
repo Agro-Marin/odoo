@@ -3,11 +3,7 @@ import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
-/**
- * What a voice message says, under the player that plays it.
- *
- * @extends {Component<{ attachment: import("models").Attachment }>}
- */
+/** @extends {Component<{ attachment: import("models").Attachment }>} */
 export class VoiceTranscript extends Component {
     static template = "mail_speech.VoiceTranscript";
     static props = { attachment: { type: Object } };

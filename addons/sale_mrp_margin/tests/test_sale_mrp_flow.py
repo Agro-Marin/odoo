@@ -7,16 +7,6 @@ from odoo.addons.sale_mrp.tests import test_sale_mrp_flow
 @common.tagged("post_install", "-at_install")
 class TestSaleMrpFlow(test_sale_mrp_flow.TestSaleMrpFlowCommon):
     def test_kit_cost_calculation(self):
-        """Check that the average cost price is computed correctly after SO confirmation:
-        BOM 1:
-            - 1 unit of “super kit”:
-                - 2 units of “component a”
-        BOM 2:
-            - 1 unit of “component a”:
-                - 3 units of "component b"
-        1 unit of "component b" = $10
-        1 unit of "super kit" = 2 * 3 * $10 = *$60
-        """
         super_kit = self._cls_create_product("Super Kit", self.uom_unit)
         (
             super_kit + self.component_a + self.component_b
@@ -68,16 +58,6 @@ class TestSaleMrpFlow(test_sale_mrp_flow.TestSaleMrpFlowCommon):
         self.assertEqual(so.line_ids.purchase_price, 60)
 
     def test_kit_cost_calculation_2(self):
-        """Check that the average cost price is computed correctly after receipt validation:
-        Lovely KIT BOM for 10:
-            - 1O unit of Kit $50
-            - 10 units of “component b” $10
-        -> $60 per Lovely Kit
-        SUB KIT BOM:
-            - 1 units of “component a” 1 x $30 = $30
-            - 2 units of “component b” 2 x $10 = $20
-        -> $50 per SUB Kit
-        """
         sub_kit, kit = (
             self._cls_create_product("Sub Kit", self.uom_unit),
             self._cls_create_product("Lovely Kit", self.uom_ten),

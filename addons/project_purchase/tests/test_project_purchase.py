@@ -25,7 +25,6 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
             }
         )
 
-        # Create additional analytic plans at setup to avoid adding fields in project.project between tests
         cls.analytic_plan_1 = cls.env["account.analytic.plan"].create(
             {"name": "Purchase Project Plan 1"}
         )
@@ -34,12 +33,6 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
         )
 
     def test_project_on_pol_with_analytic_distribution_model(self):
-        """If a line has a distribution coming from an analytic distribution model, and the PO has a project,
-        both the project account and the accounts from the ADM should still be in the line after confirmation.
-        The Project account should appear on all lines if there are several Analytic Distribution Models applying.
-        """
-        # We create one distribution model with two accounts in one line, based on product
-        # and a second model with a different plan, based on partner
         analytic_account_1 = self.env["account.analytic.account"].create(
             {
                 "name": "Analytic Account - Plan 1",
@@ -89,7 +82,6 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
             | distribution_model_partner.analytic_distribution,
         )
 
-        # When we add a project to the PO, it should keep the previous accounts + the project account
         purchase_order.project_id = self.project1
         expected_distribution_project = {
             f"{analytic_account_1.id},{analytic_account_2.id},{self.project1.account_id.id}": 100,
@@ -100,7 +92,7 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
         )
 
     def test_compute_purchase_orders_count(self):
-        self.project1.account_id = self.analytic_account  # Project with analytics
+        self.project1.account_id = self.analytic_account
         order_line_values = {
             "product_id": self.product_order.id,
             "product_qty": 1,
@@ -153,7 +145,7 @@ class TestProjectPurchase(TestProjectPurchaseProfitability):
         )
 
         project2 = self.env["project.project"].create({"name": "Project"})
-        project2.account_id = False  # Project without analytics
+        project2.account_id = False
         self.env["purchase.order"].create(
             [
                 {

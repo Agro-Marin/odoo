@@ -22,12 +22,6 @@ class AccountAnalyticAccount(models.Model):
 
     @api.depends("line_ids")
     def _compute_purchase_order_count(self):
-        # `for account in self:` is load-bearing, not habit. This is one
-        # `search_count` per record and `py_x2many_count` counts it as such --
-        # but only for a loop whose iterable is literally `self`, so spelling it
-        # `self.filtered("plan_id")` takes the debt off the gate's books without
-        # removing it. `fields.Count` cannot express this one: the orders are
-        # reached through a domain traversal, not an x2many on this record.
         for account in self:
             account.purchase_order_count = (
                 self.env["purchase.order"].search_count(

@@ -28,10 +28,6 @@ export { getActiveHotkey };
  * @property {() => HTMLElement} [withOverlay]
  * @property {() => Document | HTMLElement | null} [scope]
  * @typedef {HotkeyOptions & {
- * hotkey: string,
- * callback: HotkeyCallback,
- * getScope: () => Document | HTMLElement,
- * }} HotkeyRegistration
  */
 
 export class HotkeyService {
@@ -41,9 +37,7 @@ export class HotkeyService {
      */
     constructor({ ui }, { overlayModifier = hotkeyService.overlayModifier } = {}) {
         this.ui = ui;
-        /**
-         * @type {string}
-         */
+        /** @type {string} */
         this.overlayModifier = overlayModifier;
         /** @type {Map<number, HotkeyRegistration>} */
         this.registrations = new Map();
@@ -51,9 +45,7 @@ export class HotkeyService {
         this.registrationsByHotkey = new Map();
         this.nextToken = 0;
         this.overlaysVisible = false;
-        /**
-         * @type {HTMLElement[]}
-         */
+        /** @type {HTMLElement[]} */
         this.overlays = [];
         /** @type {Set<() => void>} */
         this.listenerRemovers = new Set();
@@ -88,9 +80,7 @@ export class HotkeyService {
         };
     }
 
-    /**
-     * @param {KeyboardEvent} event
-     */
+    /** @param {KeyboardEvent} event */
     onKeydown(event) {
         if (event.code?.startsWith("Numpad") && /^\d$/.test(event.key)) {
             return;
@@ -152,12 +142,6 @@ export class HotkeyService {
 
     /**
      * @param {{
-     * activeElement: HTMLElement,
-     * hotkey: string,
-     * isRepeated: boolean,
-     * target: EventTarget,
-     * shouldProtectEditable: boolean,
-     * }} infos
      * @returns {boolean}
      */
     dispatch(infos) {
@@ -242,9 +226,7 @@ export class HotkeyService {
         }));
     }
 
-    /**
-     * @param {HTMLElement} activeElement
-     */
+    /** @param {HTMLElement} activeElement */
     addHotkeyOverlays(activeElement) {
         const hotkeysFromHookToHighlight = [];
         for (const [, registration] of this.registrations) {
@@ -395,9 +377,7 @@ export class HotkeyService {
         return token;
     }
 
-    /**
-     * @param {number} token
-     */
+    /** @param {number} token */
     unregisterHotkey(token) {
         const registration = this.registrations.get(token);
         if (registration) {

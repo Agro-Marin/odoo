@@ -30,9 +30,7 @@ class ConnectionRecoveryService {
         return this.destroyed;
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get isSessionExpiredOpen() {
         return this.sessionExpiredOpen;
     }
@@ -50,9 +48,7 @@ class ConnectionRecoveryService {
         this.sessionExpiredOpen = false;
     }
 
-    /**
-     * @param {ConnectionAnnouncer} announce
-     */
+    /** @param {ConnectionAnnouncer} announce */
     reportLost(announce) {
         if (this.notifRemove) {
             return;

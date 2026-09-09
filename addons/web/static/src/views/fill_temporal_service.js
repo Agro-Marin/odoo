@@ -8,20 +8,10 @@ import { registry } from "@web/core/registry";
  * @typedef {import("@web/core/l10n/luxon").DateTime} DateTime
  * @typedef {{ name: string, type: "date" | "datetime" }} TemporalField
  * @typedef {{
- *     startOf: (dt: DateTime) => DateTime,
- *     cycle: number,
- *     cyclePos: (dt: DateTime) => number,
- * }} GranularityConfig
  * @typedef {{
- *     min_groups: number,
- *     fill_from?: string | false,
- *     fill_to?: string | false,
- * }} FillTemporalContext
  */
 
-/**
- * @type {Record<string, GranularityConfig>}
- */
+/** @type {Record<string, GranularityConfig>} */
 export const GRANULARITY_TABLE = {
     hour: {
         startOf: (x) => x.startOf("hour"),
@@ -58,9 +48,7 @@ export const GRANULARITY_TABLE = {
 const DEFAULT_MIN_GROUPS = 4;
 
 export class FillTemporalPeriod {
-    /**
-     * @type {DateTime}
-     */
+    /** @type {DateTime} */
     start;
 
     /** @type {DateTime} */
@@ -73,15 +61,10 @@ export class FillTemporalPeriod {
     minGroups;
 
     /**
-     * @param {string} modelName directly taken from model.loadParams.modelName.
-     *                           this is the `res_model` from the action (i.e. `crm.lead`)
-     * @param {TemporalField} field a dictionary with keys "name" and "type".
-     *                        name: Name of the field on which the fill_temporal should apply
-     *                              (i.e. 'date_deadline')
-     *                        type: 'date' or 'datetime'
-     * @param {string} granularity can either be : hour, day, week, month, quarter, year
-     * @param {number} minGroups minimum amount of groups to display, regardless of other
-     *                            constraints
+     * @param {string} modelName
+     * @param {TemporalField} field
+     * @param {string} granularity
+     * @param {number} minGroups
      */
     constructor(modelName, field, granularity, minGroups) {
         this.modelName = modelName;
@@ -92,15 +75,11 @@ export class FillTemporalPeriod {
         this._computeStart();
         this._computeEnd();
     }
-    /**
-     * @private
-     */
+    /** @private */
     _computeStart() {
         this.start = GRANULARITY_TABLE[this.granularity].startOf(luxon.DateTime.now());
     }
-    /**
-     * @private
-     */
+    /** @private */
     _computeEnd() {
         const cycle = GRANULARITY_TABLE[this.granularity].cycle;
         const cyclePos = GRANULARITY_TABLE[this.granularity].cyclePos(this.start);
@@ -111,7 +90,7 @@ export class FillTemporalPeriod {
         this.computedEnd = true;
     }
     /**
-     * @param {DateTime} bound the DateTime to be formatted (this.start or this.end)
+     * @param {DateTime} bound
      * @returns {string | false}
      */
     _getFormattedServerDate(bound) {
@@ -124,13 +103,9 @@ export class FillTemporalPeriod {
     /**
      * @param {Object} configuration
      * @param {any[]} configuration.domain
-     * @param {boolean} [configuration.forceStartBound=true] whether this.start DateTime must be
-     *                                         used as a domain constraint to limit read_group
-     *                                         results or not
-     * @param {boolean} [configuration.forceEndBound=true] whether this.end DateTime must be used
-     *                                       as a domain constraint to limit read_group results
-     *                                       or not
-     * @returns {any[]} new domain
+     * @param {boolean} [configuration.forceStartBound=true]
+     * @param {boolean} [configuration.forceEndBound=true]
+     * @returns {any[]}
      */
     getDomain({ domain, forceStartBound = true, forceEndBound = true }) {
         if (!forceEndBound && !forceStartBound) {
@@ -156,14 +131,9 @@ export class FillTemporalPeriod {
     /**
      * @param {Object} configuration
      * @param {Object} [configuration.context]
-     * @param {boolean} [configuration.forceFillingFrom=true] fill_temporal must apply from:
-     *                                          true: this.start
-     *                                          false: the first group with at least one record
-     * @param {boolean} [configuration.forceFillingTo=!this.computedEnd] fill_temporal must apply
-     *                                          until:
-     *                                          true: this.end
-     *                                          false: the last group with at least one record
-     * @returns {Record<string, any> & { fill_temporal: FillTemporalContext }} new context
+     * @param {boolean} [configuration.forceFillingFrom=true]
+     * @param {boolean} [configuration.forceFillingTo=!this.computedEnd]
+     * @returns {Record<string, any> & { fill_temporal: FillTemporalContext }}
      */
     getContext({
         context,
@@ -185,10 +155,7 @@ export class FillTemporalPeriod {
         }
         return { ...context, fill_temporal: fillTemporal };
     }
-    /**
-     * @param {number} minGroups minimum amount of groups to display, regardless of other
-     *                            constraints
-     */
+    /** @param {number} minGroups */
     setMinGroups(minGroups) {
         const next = minGroups || 1;
         if (next === this.minGroups) {
@@ -199,16 +166,12 @@ export class FillTemporalPeriod {
             this._computeEnd();
         }
     }
-    /**
-     * @param {DateTime} end
-     */
+    /** @param {DateTime} end */
     setEnd(end) {
         this.end = luxon.DateTime.max(this.start, end);
         this.computedEnd = false;
     }
-    /**
-     * @returns {boolean} whether the anchor moved
-     */
+    /** @returns {boolean} */
     refreshStart() {
         const start = GRANULARITY_TABLE[this.granularity].startOf(luxon.DateTime.now());
         if (start.equals(this.start)) {
@@ -235,18 +198,11 @@ export class FillTemporal {
 
     /**
      * @param {Object} configuration
-     * @param {string} configuration.modelName directly taken from model.loadParams.modelName.
-     *                             this is the `res_model` from the action (i.e. `crm.lead`)
-     * @param {TemporalField} configuration.field a dictionary with keys "name" and "type".
-     *                              name: name of the field on which the fill_temporal should
-     *                              apply (i.e. 'date_deadline')
-     *                              type: date field type: 'date' or 'datetime'
-     * @param {string} configuration.granularity can either be : hour, day, week, month,
-     *                              quarter, year
-     * @param {number} [configuration.minGroups] minimal amount of desired groups;
-     *                              omitted leaves a cached period's minimum untouched
-     * @param {boolean} [configuration.forceRecompute=false] optional whether the fill_temporal
-     *                                         period should be reinstancied
+     * @param {string} configuration.modelName
+     * @param {TemporalField} configuration.field
+     * @param {string} configuration.granularity
+     * @param {number} [configuration.minGroups]
+     * @param {boolean} [configuration.forceRecompute=false]
      * @returns {FillTemporalPeriod}
      */
     getFillTemporalPeriod({
@@ -278,8 +234,8 @@ export class FillTemporal {
     /**
      * @param {Object} configuration
      * @param {string} configuration.modelName
-     * @param {string} configuration.groupBySpec a groupBy entry, i.e. "date_deadline:week"
-     * @param {Record<string, any>} configuration.fields the model's field descriptors
+     * @param {string} configuration.groupBySpec
+     * @param {Record<string, any>} configuration.fields
      * @param {number} [configuration.minGroups]
      * @param {boolean} [configuration.forceRecompute]
      * @returns {FillTemporalPeriod}

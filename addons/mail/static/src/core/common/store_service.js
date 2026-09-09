@@ -22,9 +22,7 @@ import { session } from "@web/session";
 
 const log = makeModelLog("store");
 
-/**
- * @typedef {{isSpecial: true, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention
- */
+/** @typedef {{isSpecial: true, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention */
 const pyToJsModels = {
     "discuss.channel": "Thread",
     "mixin.mail.thread": "Thread",
@@ -244,9 +242,7 @@ export class Store extends BaseStore {
      * @param {boolean} [options.requestData=false]
      * @param {boolean} [options.readonly=true]
      * @param {boolean} [options.silent=true]
-     * @param {(queued: any, incoming: any) => any} [options.merge] folds `params`
-     *  into a same-named request still waiting in the batch, whose result is
-     *  then shared, instead of appending a second one
+     * @param {(queued: any, incoming: any) => any} [options.merge]
      * @returns {Promise<any>}
      */
     async fetchStoreData(
@@ -302,7 +298,6 @@ export class Store extends BaseStore {
         return this._initializePromise;
     }
 
-    /** The store requests batched into the first `/mail/data` round trip. */
     _getInitialFetchNames() {
         return ["init_messaging"];
     }
@@ -439,9 +434,7 @@ export class Store extends BaseStore {
         );
     }
 
-    /**
-     * @param {string} tab
-     */
+    /** @param {string} tab */
     setup() {
         super.setup();
         this._prevLastMessageId = null;

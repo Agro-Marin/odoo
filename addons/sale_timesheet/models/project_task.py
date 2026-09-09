@@ -9,7 +9,6 @@ class ProjectTask(models.Model):
     def _get_default_partner_id(self, project=None, parent=None):
         res = super()._get_default_partner_id(project, parent)
         if not res and project:
-            # project in sudo if the current user is a portal user.
             related_project = project
             if self.env.user._is_portal() and not self.env.user._is_internal():
                 related_project = related_project.sudo()
@@ -50,8 +49,6 @@ class ProjectTask(models.Model):
 
     @api.depends("sale_line_id", "timesheet_ids", "timesheet_ids.unit_amount")
     def _compute_remaining_hours_so(self):
-        # TODO This is not yet perfectly working as timesheet.so_line stick to its old value although changed
-        #      in the task From View.
         timesheets = self.timesheet_ids.filtered(
             lambda t: (
                 t.task_id.sale_line_id in (t.so_line, t._origin.so_line)
@@ -131,7 +128,6 @@ class ProjectTask(models.Model):
             )
 
     def _get_last_sol_of_customer_domain(self):
-        # Get the domain of the last SOL made for the customer in the current task where we need to compute
         self.check_singleton()
         if not self.partner_id.commercial_partner_id or not self.allow_billable:
             return []
@@ -160,7 +156,6 @@ class ProjectTask(models.Model):
         return domain
 
     def _get_timesheet(self):
-        # return not invoiced timesheet and timesheet without so_line or so_line linked to task
         timesheet_ids = super()._get_timesheet()
         return timesheet_ids.filtered(lambda t: t._is_not_billed())
 

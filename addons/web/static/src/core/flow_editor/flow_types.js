@@ -1,17 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @typedef {string | number} FlowNodeId
- */
+/** @typedef {string | number} FlowNodeId */
 
-/**
- * @typedef {string | number} FlowConnectionId
- */
+/** @typedef {string | number} FlowConnectionId */
 
-/**
- * @typedef {string} FlowPortId
- */
+/** @typedef {string} FlowPortId */
 
 /**
  * @typedef FlowPosition
@@ -39,9 +33,7 @@
  * @property {Record<string, any>} [data]
  */
 
-/**
- * @typedef {"input" | "output"} FlowPortDirection
- */
+/** @typedef {"input" | "output"} FlowPortDirection */
 
 /**
  * @typedef FlowPort
@@ -87,26 +79,10 @@
  * @property {FlowPortId} [sourceCandidatePortId]
  * @property {FlowNodeId} [targetNodeId]
  * @property {FlowPortId} [targetPortId]
- * @property {FlowConnectionId} [pendingConnectionId] the connection grabbed
- *  by this gesture, still in place until the pointer has actually moved
+ * @property {FlowConnectionId} [pendingConnectionId]
  */
 
-/**
- * @typedef {{
- *     type: "node_drag",
- *     nodeId: FlowNodeId,
- *     origin: FlowPosition,
- * } | {
- *     type: "node_resize",
- *     nodeId: FlowNodeId,
- *     origin: FlowSize,
- * } | {
- *     type: "connection_drag",
- *     connectionDraft: FlowConnectionDraft,
- * } | {
- *     type: "pan",
- * }} FlowInteraction
- */
+/** @typedef {{ */
 
 /**
  * @typedef FlowConnection

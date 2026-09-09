@@ -6,11 +6,6 @@ import { tourState } from "@web_tour/js/tour_state";
 
 describe.current.tags("headless");
 
-/**
- * `tourState` persists a running tour across page reloads, so every getter has
- * to answer sensibly for a key that is not there -- which is the normal state
- * before a tour starts and again after `clear()`.
- */
 describe("defaults for an unset key", () => {
     test("the index reads as the first step, not NaN", () => {
         browser.localStorage.removeItem("current_tour.index");

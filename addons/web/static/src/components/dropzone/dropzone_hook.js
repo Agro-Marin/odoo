@@ -13,9 +13,7 @@ function carriesFiles(ev) {
     return Boolean(ev.dataTransfer?.types.includes("Files"));
 }
 
-/**
- * @param {() => void} onDragSessionEnd
- */
+/** @param {() => void} onDragSessionEnd */
 function useSuppressWindowFileDrop(onDragSessionEnd) {
     useExternalListener(window, "dragover", (ev) => {
         if (carriesFiles(ev)) {
@@ -90,9 +88,7 @@ export function useCustomDropzone(
         }
     }
 
-    /**
-     * @param {DragEvent} [ev]
-     */
+    /** @param {DragEvent} [ev] */
     function onDragLeave(ev) {
         if (!dragCount) {
             return;

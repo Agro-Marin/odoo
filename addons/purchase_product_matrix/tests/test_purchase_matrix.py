@@ -9,9 +9,6 @@ class TestPurchaseMatrixUi(TestMatrixCommon):
     def test_purchase_matrix_ui(self):
         self.start_tour("/odoo", "purchase_matrix_tour", login="admin")
 
-        # Ensures some dynamic create variants have been created by the matrix
-        # Ensures a PO has been created with exactly x lines ...
-
         self.assertEqual(len(self.matrix_template.product_variant_ids), 7)
         self.assertEqual(
             len(
@@ -23,7 +20,6 @@ class TestPurchaseMatrixUi(TestMatrixCommon):
             len(self.matrix_template.attribute_line_ids.product_template_value_ids), 8
         )
 
-        # check variant (PAV11, PAV21, PAV31) is not created because the two cell on it were 0
         dyn = self.matrix_template.product_variant_ids.filtered(
             lambda p: (
                 p.product_template_variant_value_ids.mapped("name")
@@ -38,12 +34,8 @@ class TestPurchaseMatrixUi(TestMatrixCommon):
         self.matrix_template.flush_recordset()
         self.assertEqual(round(self.matrix_template.purchased_product_qty, 2), 51.8)
         for variant in self.matrix_template.product_variant_ids:
-            # 5 and 9.2 because of no variant attributes
             self.assertIn(round(variant.purchased_product_qty, 2), [5, 9.2])
 
-        # Ensure no duplicate line has been created on the PO.
-        # NB: the *2 is because the no_variant attribute doesn't create a variant
-        # but still gives different order lines.
         self.assertEqual(
             len(
                 self.env["purchase.order.line"].search(
@@ -54,7 +46,6 @@ class TestPurchaseMatrixUi(TestMatrixCommon):
         )
 
     def test_translate_never_variant_attributes_on_pol(self):
-        """Check that the attribute values set on a pol for never variant attribute are translated according to the seller language."""
         self.env["res.lang"]._activate_lang("fr_BE")
         french_partner = self.env["res.partner"].create(
             {

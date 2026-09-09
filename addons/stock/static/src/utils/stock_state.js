@@ -7,9 +7,7 @@ export function isTerminalState(state) {
     return TERMINAL_STATES.includes(state);
 }
 
-/**
- * @param {string | false | undefined} displayName
- */
+/** @param {string | false | undefined} displayName */
 export function leafPackageName(displayName) {
     return displayName ? displayName.split(" > ").pop() : displayName;
 }

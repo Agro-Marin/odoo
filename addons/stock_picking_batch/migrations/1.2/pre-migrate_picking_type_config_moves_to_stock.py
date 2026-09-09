@@ -21,10 +21,6 @@ MOVED_FIELDS = [
 
 
 def migrate(cr, version):
-    # Leaving a moved field's xmlid behind makes _process_end delete the
-    # ir.model.fields row, which drops the column and loses every operation
-    # type's batching configuration. Named rather than pattern-matched, because
-    # count_picking_batch and count_picking_wave stay in this module.
     cr.execute(
         """
             UPDATE ir_model_data d

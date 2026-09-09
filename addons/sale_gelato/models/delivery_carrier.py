@@ -17,16 +17,7 @@ class ProviderGelato(models.Model):
         default="normal",
     )
 
-    # === BUSINESS METHODS === #
-
     def _is_available_for_order(self, order):
-        """Override of `delivery` to exclude regular delivery methods from Gelato orders and Gelato
-        delivery methods from non-Gelato orders.
-
-        :param sale.order order: The current order.
-        :return: Whether the delivery method is available for the order.
-        :rtype: bool
-        """
         is_gelato_order = any(order.line_ids.product_id.mapped("gelato_product_uid"))
         is_gelato_delivery = self.delivery_type == "gelato"
         if (is_gelato_order and not is_gelato_delivery) or (
@@ -36,14 +27,6 @@ class ProviderGelato(models.Model):
         return super()._is_available_for_order(order)
 
     def available_carriers(self, partner, source):
-        """Override of `delivery` to filter out regular delivery methods from Gelato orders and
-        Gelato delivery methods from non-Gelato orders.
-
-        :param res.partner partner: The partner to check.
-        :param sale.order or stock.picking source: The current order or stock transfer.
-        :return: The available delivery methods.
-        :rtype: delivery.carrier
-        """
         available_delivery_methods = super().available_carriers(partner, source)
         if source._name == "sale.order":
             is_gelato_order = any(
@@ -65,16 +48,6 @@ class ProviderGelato(models.Model):
             )
 
     def gelato_rate_shipment(self, order):
-        """Fetch the Gelato delivery price based on products, quantity and address.
-
-        This method is called by `delivery`'s `rate_shipment` method.
-
-        Note: `self._ensure_one()` from `rate_shipment`
-
-        :param sale.order order: The order for which to fetch the delivery price.
-        :return: The shipment rate request results.
-        :rtype: dict
-        """
         if error_message := order._get_incomplete_address_error():
             return {
                 "success": False,
@@ -82,7 +55,6 @@ class ProviderGelato(models.Model):
                 "error_message": error_message,
             }
 
-        # Fetch the delivery price from Gelato.
         payload = {
             "orderReferenceId": order.id,
             "customerReferenceId": f"Odoo Partner #{order.partner_id.id}",
@@ -92,9 +64,7 @@ class ProviderGelato(models.Model):
             "recipient": order.partner_shipping_id._gelato_prepare_address_payload(),
         }
         try:
-            api_key = (
-                order.company_id.sudo().gelato_api_key
-            )  # In sudo mode to read on the company.
+            api_key = order.company_id.sudo().gelato_api_key
             order_data = utils.make_request(
                 api_key, "order", "v4", "orders:quote", payload=payload
             )
@@ -105,7 +75,6 @@ class ProviderGelato(models.Model):
                 "error_message": str(e),
             }
 
-        # Find the total delivery price by summing all products' matching methods' minimum price.
         total_delivery_price = 0
         for quote_data in order_data["quotes"]:
             matching_shipment_method_prices = [

@@ -21,7 +21,6 @@ export class ProjectTaskTemplateDropdown extends Component {
         },
         newButtonClasses: String,
         onCreate: Function,
-        // Can be a number, false (in to-do) or undefined
         projectId: {
             type: [Number, Boolean],
             optional: true,
@@ -65,10 +64,6 @@ export class ProjectTaskTemplateDropdown extends Component {
         if (this.props.getAdditionalContext) {
             Object.assign(context, this.props.getAdditionalContext());
         }
-        // Run the navigation guards BEFORE creating the record server-side:
-        // switchView aborts silently when they fail (dirty form, refused
-        // leave), which would strand a freshly created task the user never
-        // sees — and each retry would create another one.
         if (!(await clearUncommittedChanges(this.env))) {
             return;
         }

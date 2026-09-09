@@ -3,18 +3,13 @@
 
 import { CallbackRecorder } from "@web/core/action_hook";
 
-/**
- * @typedef {"__beforeLeave__" | "__getGlobalState__" | "__getLocalState__"
- * | "__getContext__" | "__getOrderBy__"} ActionContextSlot
- */
+/** @typedef {"__beforeLeave__" | "__getGlobalState__" | "__getLocalState__" */
 
 /** @type {readonly Function[]} */
 const NO_CALLBACKS = Object.freeze([]);
 
 class EmptyCallbackRecorder extends CallbackRecorder {
-    /**
-     * @returns {Function[]}
-     */
+    /** @returns {Function[]} */
     get callbacks() {
         return /** @type {Function[]} */ (NO_CALLBACKS);
     }
@@ -30,9 +25,7 @@ class EmptyCallbackRecorder extends CallbackRecorder {
                 "env (see useSetupAction) before recording.",
         );
     }
-    /**
-     * @param {any} _owner
-     */
+    /** @param {any} _owner */
     remove(_owner) {}
 }
 

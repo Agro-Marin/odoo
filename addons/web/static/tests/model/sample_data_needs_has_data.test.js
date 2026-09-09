@@ -40,7 +40,6 @@ async function mountAndCollectWarnings(ModelClass, useSampleModel) {
         props: {
             useSampleModel,
             resModel: "res.partner",
-            // `buildSampleORM` reads these straight through to `SampleServer`.
             fields: { name: { type: "char", string: "Name" } },
         },
     });

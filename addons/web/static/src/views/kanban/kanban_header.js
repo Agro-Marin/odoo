@@ -69,9 +69,7 @@ export class KanbanHeader extends Component {
         });
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     async onTitleMouseEnter(ev) {
         if (!this.hasTooltip) {
             return;
@@ -92,9 +90,7 @@ export class KanbanHeader extends Component {
         this.popover.close();
     }
 
-    /**
-     * @returns {Array<[string, Object]>}
-     */
+    /** @returns {Array<[string, Object]>} */
     get extraConfigItems() {
         return [
             [
@@ -145,9 +141,7 @@ export class KanbanHeader extends Component {
         );
     }
 
-    /**
-     * @returns {Promise<Array<{ title: string, value: any }>>}
-     */
+    /** @returns {Promise<Array<{ title: string, value: any }>>} */
     loadTooltip = () => {
         this._tooltipProm ||= this._fetchTooltip().catch((error) => {
             this._tooltipProm = null;
@@ -186,9 +180,7 @@ export class KanbanHeader extends Component {
         return this.props.canQuickCreate;
     }
 
-    /**
-     * @param {*} value
-     */
+    /** @param {*} value */
     async onBarClicked(value) {
         await this.progressBarState.selectBar(this.props.group.id, value);
         this.props.scrollTop();

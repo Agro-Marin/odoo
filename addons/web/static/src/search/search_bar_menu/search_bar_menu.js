@@ -13,7 +13,6 @@ import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { useBus } from "@web/core/utils/hooks";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
-/** @import { EnrichedSearchItem } from "@web/search/search_types" */
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import {
     editFavoriteFilter,
@@ -28,9 +27,7 @@ const favoriteMenuRegistry = registry.category("favoriteMenu");
 favoriteMenuRegistry.addValidation(MENU_REGISTRY_VALIDATION);
 
 export class SearchBarMenu extends Component {
-    /**
-     * @type {import("@web/core/action_port").ActionPort}
-     */
+    /** @type {import("@web/core/action_port").ActionPort} */
     actionService;
 
     static template = "web.SearchBarMenu";
@@ -56,9 +53,7 @@ export class SearchBarMenu extends Component {
     /** @type {{Component: Function, groupNumber: number, key: string}[]} */
     otherItems = [];
 
-    /**
-     * @type {{ sharedFavoritesExpanded: boolean }}
-     */
+    /** @type {{ sharedFavoritesExpanded: boolean }} */
     state;
 
     setup() {
@@ -86,9 +81,7 @@ export class SearchBarMenu extends Component {
         );
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     get fields() {
         const fields = [];
         for (const [fieldName, field] of Object.entries(
@@ -126,16 +119,12 @@ export class SearchBarMenu extends Component {
         }
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get hideCustomGroupBy() {
         return this.env.searchModel.hideCustomGroupBy || false;
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     get groupByItems() {
         return this.env.searchModel.getSearchItems(
             (/** @type {EnrichedSearchItem} */ searchItem) =>
@@ -167,9 +156,7 @@ export class SearchBarMenu extends Component {
         }
     }
 
-    /**
-     * @param {string} fieldName
-     */
+    /** @param {string} fieldName */
     onAddCustomGroup(fieldName) {
         this.env.searchModel.createNewGroupBy(fieldName);
     }

@@ -6,7 +6,6 @@ from odoo.addons.mail_plugin.tests.common import TestMailPluginControllerCommon
 
 class TestMailPluginProjectController(TestMailPluginControllerCommon):
     def test_user_lang(self):
-        """Verify that we translate field in the user language."""
         self.env["res.lang"]._activate_lang("fr_BE")
         self.env["res.lang"]._activate_lang("es_ES")
         project = self.env["project.project"].create({"name": "Test Mail Plugin"})
@@ -17,7 +16,7 @@ class TestMailPluginProjectController(TestMailPluginControllerCommon):
             (False, "Test Mail Plugin"),
             ("en_US", "Test Mail Plugin"),
             ("fr_BE", "[FR] Test Mail Plugin"),
-            ("es_ES", "Test Mail Plugin"),  # no translation
+            ("es_ES", "Test Mail Plugin"),
         ):
             self.user_test.lang = lang
 

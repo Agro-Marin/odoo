@@ -3,9 +3,7 @@
 
 import { validate } from "@odoo/owl";
 
-/**
- * @type {Record<string, any>}
- */
+/** @type {Record<string, any>} */
 export const SEARCH_PARAMS_SCHEMA = {
     context: { type: Object, optional: true },
     domain: { type: Array, optional: true },

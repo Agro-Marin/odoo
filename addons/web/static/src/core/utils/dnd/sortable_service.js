@@ -6,12 +6,7 @@ import { registry } from "@web/core/registry";
 import { useSortable } from "@web/core/utils/dnd/sortable";
 import { throttleForAnimation } from "@web/core/utils/timing";
 
-/**
- * @typedef {Record<string, any> & {
- * ref?: {el: HTMLElement} | ReturnType<typeof import("@odoo/owl").useRef>;
- * sortableId?: string | symbol;
- * }} SortableServiceHookParams
- */
+/** @typedef {Record<string, any> & { */
 
 const DEFAULT_SORTABLE_ID = Symbol.for("defaultSortable");
 
@@ -21,9 +16,7 @@ class SortableService {
         this.boundElements = new WeakMap();
     }
 
-    /**
-     * @param {{ ref: { el: Element | null }, [key: string]: any }} hookParams
-     */
+    /** @param {{ ref: { el: Element | null }, [key: string]: any }} hookParams */
     create(hookParams) {
         if (!hookParams?.ref) {
             throw new Error(
@@ -50,13 +43,9 @@ class SortableService {
                 };
             }
         }
-        /**
-         * @type {Map<Function, function(): any[]>}
-         */
+        /** @type {Map<Function, function(): any[]>} */
         const setupFunctions = new Map();
-        /**
-         * @type {Array<Function>}
-         */
+        /** @type {Array<Function>} */
         const cleanupFunctions = [];
 
         const cleanup = () => {
@@ -118,9 +107,7 @@ class SortableService {
 }
 
 const sortableService = {
-    /**
-     * @returns {SortableService}
-     */
+    /** @returns {SortableService} */
     start() {
         return new SortableService();
     },

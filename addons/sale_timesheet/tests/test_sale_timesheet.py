@@ -11,23 +11,7 @@ from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 
 @tagged("-at_install", "post_install")
 class TestSaleTimesheet(TestCommonSaleTimesheet):
-    """This test suite provide tests for the 3 main flows of selling services:
-        - Selling services based on ordered quantities
-        - Selling timesheet based on delivered quantities
-        - Selling milestones, based on manual delivered quantities
-    For that, we check the task/project created, the invoiced amounts, the delivered
-    quantities changes,  ...
-    """
-
     def test_compute_commercial_partner(self):
-        """Ensure user without project access can compute commercial partner without AccessError.
-        Steps:
-            1. Create a commercial partner and a sub-partner.
-            2. Create a project assigned to the sub-partner and a task under that project. Link both to a timesheet.
-            3. Create a restricted user with no access to the Project module but with Timesheet Administrator access.
-            4. Compute the commercial partner as the restricted user and verify it's derived from the project partner.
-            5. Set the task partner, recompute, and verify the commercial partner updates accordingly.
-        """
         commercial_partner = self.env["res.partner"].create(
             {"name": "Commercial Partner", "is_company": True}
         )
@@ -75,14 +59,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_order(self):
-        """Test timesheet invoicing with 'invoice on order' timetracked products
-        1. create SO with 2 ordered product and confirm
-        2. create invoice
-        3. log timesheet
-        4. add new SO line (ordered service)
-        5. create new invoice
-        """
-        # create SO and confirm it
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -128,10 +104,8 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The created project should be linked to the analytic account of the SO",
         )
 
-        # create invoice
         invoice1 = sale_order._create_invoices()[0]
 
-        # let's log some timesheets (on the project created by so_line_ordered_project_only)
         timesheet1 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -146,9 +120,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             10.5,
             "Timesheet directly on project does not increase delivered quantity on so line",
         )
-        # Only *posted* invoices count toward `qty_invoiced` in this fork, so a
-        # draft invoice leaves the state at 'to do'. What this asserts is the
-        # invariance the message describes: logging time does not move it.
         self.assertEqual(
             sale_order.invoice_state,
             "to do",
@@ -178,9 +149,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             50,
             "Sale Timesheet: timesheet does not increase delivered quantity on so line",
         )
-        # Only *posted* invoices count toward `qty_invoiced` in this fork, so a
-        # draft invoice leaves the state at 'to do'. What this asserts is the
-        # invariance the message describes: logging time does not move it.
         self.assertEqual(
             sale_order.invoice_state,
             "to do",
@@ -219,7 +187,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet should not be linked to the invoice, since we are in ordered quantity",
         )
 
-        # log timesheet on task in global project (higher than the initial ordrered qty)
         timesheet4 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -229,14 +196,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 "employee_id": self.employee_user.id,
             }
         )
-        # Upstream's 'upselling' invoice status has no equivalent here: this fork
-        # tracks the situation as `sale.order.has_upsell_opportunity`, a separate
-        # delivered-policy flag (pinned by sale's own `test_sale_order_state`). These
-        # lines are ordered-policy, so logging more time changes nothing at all --
-        # which is what the message has always claimed.
-        # Only *posted* invoices count toward `qty_invoiced` in this fork, so a
-        # draft invoice leaves the state at 'to do'. What this asserts is the
-        # invariance the message describes: logging time does not move it.
         self.assertEqual(
             sale_order.invoice_state,
             "to do",
@@ -247,7 +206,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet should not be linked to the invoice, since we are in ordered quantity",
         )
 
-        # add so line with produdct "create task in new project".
         so_line_ordered_task_in_project = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_order_timesheet3.id,
@@ -272,7 +230,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "No new project should have been created by the SO, when selling 'new task in new project' product, since it reuse the one from 'project only'.",
         )
 
-        # get first invoice line of sale line linked to timesheet1
         invoice_line_1 = so_line_ordered_global_project.invoice_line_ids.filtered(
             lambda line: line.move_id == invoice1
         )
@@ -283,7 +240,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The invoice (ordered) quantity should not change when creating timesheet",
         )
 
-        # timesheet can be modified
         timesheet1.write({"unit_amount": 12})
 
         self.assertEqual(
@@ -292,12 +248,8 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The invoice (ordered) quantity should not change when modifying timesheet",
         )
 
-        # Post the first invoice before drawing the second: only posted invoices
-        # count toward `qty_invoiced` here, so an unposted one leaves its quantity
-        # still to invoice and the next invoice would re-bill it.
         invoice1.action_post()
 
-        # create second invoice
         invoice2 = sale_order._create_invoices()[0]
 
         self.assertEqual(
@@ -352,19 +304,9 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet4 should not be linked to the invoice, since we are in ordered quantity",
         )
 
-        # timesheet can still be modified
         timesheet1.write({"unit_amount": 13})
 
     def test_timesheet_delivery(self):
-        """Test timesheet invoicing with 'invoice on delivery' timetracked products
-        1. Create SO and confirm it
-        2. log timesheet
-        3. create invoice
-        4. log other timesheet
-        5. create a second invoice
-        6. add new SO line (delivered service)
-        """
-        # create SO and confirm it
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -387,7 +329,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             }
         )
 
-        # confirm SO
         sale_order.action_confirm()
         task_serv1 = self.env["project.task"].search(
             [("sale_line_id", "=", so_line_deliver_global_project.id)]
@@ -441,11 +382,10 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The created project should be linked to the analytic account of the SO",
         )
 
-        # let's log some timesheets
         timesheet1 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
-                "project_id": task_serv1.project_id.id,  # global project
+                "project_id": task_serv1.project_id.id,
                 "task_id": task_serv1.id,
                 "unit_amount": 10.5,
                 "employee_id": self.employee_manager.id,
@@ -476,7 +416,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet1 should not be linked to the invoice yet",
         )
 
-        # invoice SO
         invoice1 = sale_order._create_invoices()
         self.assertTrue(
             float_is_zero(
@@ -491,16 +430,13 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             invoice1,
             "The timesheet1 should not be linked to the invoice 1, as we are in delivered quantity (even if invoice is in draft",
         )
-        with self.assertRaises(
-            UserError
-        ):  # We can not modify timesheet linked to invoice (even draft ones)
+        with self.assertRaises(UserError):
             timesheet1.write({"unit_amount": 42})
 
-        # log some timesheets again
         timesheet2 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
-                "project_id": task_serv1.project_id.id,  # global project
+                "project_id": task_serv1.project_id.id,
                 "task_id": task_serv1.id,
                 "unit_amount": 39.5,
                 "employee_id": self.employee_user.id,
@@ -531,7 +467,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet2 should not be linked to the invoice yet",
         )
 
-        # create a second invoice
         invoice2 = sale_order._create_invoices()[0]
         self.assertEqual(
             len(sale_order.invoice_ids),
@@ -553,12 +488,9 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             invoice2,
             "The timesheet2 should not be linked to the invoice 2",
         )
-        with self.assertRaises(
-            UserError
-        ):  # We can not modify timesheet linked to invoice (even draft ones)
+        with self.assertRaises(UserError):
             timesheet2.write({"unit_amount": 42})
 
-        # add a line on SO
         so_line_deliver_only_project = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_delivery_timesheet4.id,
@@ -572,7 +504,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "No new project should have been created by the SO, when selling 'project only' product, since it reuse the one from 'new task in new project'.",
         )
 
-        # let's log some timesheets on the project
         timesheet3 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -602,7 +533,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet3 should not be linked to the invoice yet",
         )
 
-        # let's log some timesheets on the task (new task/new project)
         timesheet4 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line 4",
@@ -617,7 +547,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet4 should not be linked to the invoice yet",
         )
 
-        # modify a non invoiced timesheet
         timesheet4.write({"unit_amount": 42})
 
         self.assertFalse(
@@ -625,7 +554,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet4 should not still be linked to the invoice",
         )
 
-        # validate the second invoice
         invoice2.action_post()
 
         self.assertEqual(
@@ -648,8 +576,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_manual(self):
-        """Test timesheet invoicing with 'invoice on delivery' timetracked products"""
-        # create SO and confirm it
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -672,7 +598,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             }
         )
 
-        # confirm SO
         sale_order.action_confirm()
         self.assertTrue(
             sale_order.project_ids, "Sales Order should have create a project"
@@ -696,11 +621,10 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The created project should be linked to the analytic account of the SO",
         )
 
-        # let's log some timesheets (on task and project)
         timesheet1 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
-                "project_id": self.project_global.id,  # global project
+                "project_id": self.project_global.id,
                 "task_id": so_line_manual_global_project.task_id.id,
                 "unit_amount": 6,
                 "employee_id": self.employee_manager.id,
@@ -710,7 +634,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         timesheet2 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
-                "project_id": self.project_global.id,  # global project
+                "project_id": self.project_global.id,
                 "unit_amount": 3,
                 "employee_id": self.employee_manager.id,
             }
@@ -774,7 +698,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet2 should not be linked to the invoice",
         )
 
-        # invoice SO
         sale_order.line_ids.write({"qty_transferred": 5})
         invoice1 = sale_order._create_invoices()
 
@@ -794,7 +717,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "The timesheet2 should not be linked to the invoice, since timesheets are used for time tracking in milestone",
         )
 
-        # validate the invoice
         invoice1.action_post()
 
         self.assertFalse(
@@ -807,14 +729,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_invoice(self):
-        """Test to create invoices for the sale order with timesheets
-
-        1) create sale order
-        2) try to create an invoice for the timesheets 10 days before
-        3) create invoice for the timesheets 6 days before
-        4) create invoice for the timesheets 4 days before
-        5) create invoice for the timesheets from today
-        """
         today = Date.context_today(self.env.user)
         sale_order = self.env["sale.order"].create(
             {
@@ -823,7 +737,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 "partner_shipping_id": self.partner_a.id,
             }
         )
-        # Section Line
         self.env["sale.order.line"].create(
             {
                 "name": "Section Name",
@@ -853,7 +766,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             }
         )
 
-        # confirm SO
         sale_order.action_confirm()
         task_serv1 = self.env["project.task"].search(
             [("sale_line_id", "=", so_line_deliver_global_project.id)]
@@ -912,8 +824,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 self.user_employee_without_sales_access
             ).read(["name"])
 
-        # invalidate cache to make sure the SOL set on the timesheet is not in the cache since the user
-        # should not be able to access on the SOL.
         self.env["sale.order.line"].invalidate_model()
         self.env["account.analytic.line"].with_user(
             self.user_employee_without_sales_access
@@ -932,7 +842,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         self.assertEqual(so_line_deliver_task_project.invoice_state, "to do")
         self.assertEqual(sale_order.invoice_state, "to do")
 
-        # Context for sale.advance.payment.inv wizard
         self.context = {
             "active_model": "sale.order",
             "active_ids": [sale_order.id],
@@ -940,7 +849,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "default_journal_id": self.company_data["default_journal_sale"].id,
         }
 
-        # invoice SO
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(self.context)
@@ -988,10 +896,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
         invoice = sale_order.invoice_ids[0]
-        # validate invoice
         invoice.action_post()
-        # An invoice contributes to `qty_invoiced` once posted, not while draft,
-        # so each one is validated before the quantity it carries is asserted.
         self.assertEqual(
             so_line_deliver_global_project.qty_invoiced, timesheet1.unit_amount
         )
@@ -1027,7 +932,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         invoice3 = sale_order.invoice_ids[-1]
         invoice3.action_post()
 
-        # Check if all timesheets have been invoiced
         self.assertEqual(
             so_line_deliver_global_project.qty_invoiced,
             timesheet1.unit_amount + timesheet2.unit_amount + timesheet3.unit_amount,
@@ -1038,7 +942,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_transfert_project(self):
-        """Transfert task with timesheet to another project."""
         self.env.user.employee_id = self.env["hr.employee"].create(
             {"user_id": self.env.uid}
         )
@@ -1076,7 +979,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             len(task.timesheet_ids), 1, "The timesheet should be linked to task"
         )
 
-        # change project of task, non-validated timesheets will follow the project of task
         task.write({"project_id": self.project_global.id})
 
         timesheet_count1 = Timesheet.search_count(
@@ -1091,7 +993,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             len(task.timesheet_ids), 1, "The timesheet still should be linked to task"
         )
 
-        # Create an invoice
         context = {
             "active_model": "sale.order",
             "active_ids": [self.so.id],
@@ -1126,7 +1027,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "2 timesheets in project_global",
         )
 
-        # change project of task, only the timesheet not billed gets its project changed
         task.write({"project_id": self.project_template.id})
 
         timesheet_count1 = Timesheet.search_count(
@@ -1262,7 +1162,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_upsell(self):
-        """Test timesheet upselling and email"""
 
         sale_order = self.env["sale.order"].create(
             {
@@ -1272,7 +1171,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 "user_id": self.user_employee_company_B.id,
             }
         )
-        # create SO and confirm it
         uom_days = self.env.ref("uom.product_uom_day")
         sale_order_line = self.env["sale.order.line"].create(
             {
@@ -1284,7 +1182,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         sale_order.action_confirm()
         task = sale_order_line.task_id
 
-        # let's log some timesheets
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -1314,10 +1211,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             }
         )
 
-        # Upstream's 'upselling' invoice status has no equivalent here (see
-        # `has_upsell_opportunity`, a separate delivered-policy flag). The subject of
-        # this test is the upsell *warning* below, which is sale_timesheet's own
-        # mechanism and keyed on the product's `service_upsell_threshold`.
         self.assertEqual(
             sale_order.invoice_state,
             "to do",
@@ -1363,7 +1256,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_upsell_copied_so(self):
-        """Test that copying a SO which had an upsell activity still create an upsell activity on the copy."""
 
         sale_order = self.env["sale.order"].create(
             {
@@ -1373,7 +1265,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 "user_id": self.user_employee_company_B.id,
             }
         )
-        # create SO and confirm it
         uom_days = self.env.ref("uom.product_uom_day")
         sale_order_line = self.env["sale.order.line"].create(
             {
@@ -1385,7 +1276,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         sale_order.action_confirm()
         task = sale_order_line.task_id
 
-        # let's log some timesheets
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -1415,10 +1305,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             }
         )
 
-        # Upstream's 'upselling' invoice status has no equivalent here (see
-        # `has_upsell_opportunity`, a separate delivered-policy flag). The subject of
-        # this test is the upsell *warning* below, which is sale_timesheet's own
-        # mechanism and keyed on the product's `service_upsell_threshold`.
         self.assertEqual(
             sale_order.invoice_state,
             "to do",
@@ -1467,7 +1353,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         sale_order.action_confirm()
         task = sale_order.line_ids.task_id
 
-        # let's log some timesheets
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -1497,10 +1382,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             }
         )
 
-        # Upstream's 'upselling' invoice status has no equivalent here (see
-        # `has_upsell_opportunity`, a separate delivered-policy flag). The subject of
-        # this test is the upsell *warning* below, which is sale_timesheet's own
-        # mechanism and keyed on the product's `service_upsell_threshold`.
         self.assertEqual(
             sale_order.invoice_state,
             "to do",
@@ -1565,7 +1446,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         sale_order.action_confirm()
         task = so_line.task_id
 
-        # let's log some timesheets
         analytic_line = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -1590,12 +1470,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_update_sol_price(self):
-        """This test ensure that when the price of a sol is updated, the project_profitability panel from the project linked to the SO of that sol is correctly updated too.
-        1) create new SO
-        2) add a sol with a service product with 'invoice on prepaid' and 'create project & task' setting.
-        3) confirm SO and check the project_profitability panel
-        4) update the price of the sol and check the project_profitability panel
-        """
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -1630,7 +1504,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_sale_order_with_multiple_project_templates(self):
-        """Test when creating multiple projects for one sale order every project has its own allocated hours"""
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -1657,7 +1530,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                     "uom_id": self.uom_hour.id,
                     "default_code": "c1",
                     "service_tracking": "task_in_project",
-                    "project_id": False,  # will create a project,
+                    "project_id": False,
                     "project_template_id": project_template_1.id,
                 },
                 {
@@ -1669,7 +1542,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                     "uom_id": self.uom_hour.id,
                     "default_code": "c2",
                     "service_tracking": "task_in_project",
-                    "project_id": False,  # will create a project,
+                    "project_id": False,
                     "project_template_id": project_template_2.id,
                 },
             ]
@@ -1704,7 +1577,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         uom_unit = self.env.ref("uom.product_uom_unit")
         uom_kg = self.env.ref("uom.product_uom_kgm")
 
-        # Create product (consumable that will be switch to service)
         product_1 = self.env["product.template"].create(
             [
                 {
@@ -1720,14 +1592,12 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             }
         )
 
-        # Initial uom should be unit
         self.assertEqual([product_1.uom_id.id, product_2.uom_id.id], [uom_unit.id] * 2)
         products = [
             product_1,
             product_2,
-        ]  # perform the tests for both product and variants
+        ]
         for product in products:
-            # 1. product.template form: [uom: unit] --> change to service --> [uom: hour]
             with Form(
                 product, view="sale_timesheet.view_product_timesheet_form"
             ) as product_form:
@@ -1735,7 +1605,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 product_form.service_policy = "delivered_timesheet"
                 self.assertEqual(product_form.uom_id.id, self.uom_hour.id)
 
-            # 2. product.template form: [uom: kgm] --> change to service --> [uom: hour] --> change to consumable --> [uom: kgm]
             product.write(
                 {
                     "type": "consu",
@@ -1752,7 +1621,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 self.assertEqual(product_form.uom_id.id, uom_kg.id)
 
     def test_allocated_hours_copy(self):
-        """This test ensures that the generated project's allocated_hours field is copied from the project template when it is set."""
         project_template = self.env["project.project"].create(
             {
                 "name": "Template",
@@ -1769,7 +1637,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
                 "uom_id": self.uom_hour.id,
                 "default_code": "c1",
                 "service_tracking": "task_in_project",
-                "project_id": False,  # will create a project,
+                "project_id": False,
                 "project_template_id": project_template.id,
             }
         )
@@ -1796,10 +1664,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_non_consolidated_billing_service_timesheet(self):
-        """
-        When consolidated_billing is set to False, an invoice is created for each sale order
-        Makes sure it works with sales orders linked to timesheets
-        """
 
         sale_orders = self.env["sale.order"].create(
             [
@@ -1859,7 +1723,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_with_negative_time_spent(self):
-        """Check the billable type of a timesheet with negative time spent"""
         sale_order = self.env["sale.order"].create(
             [
                 {
@@ -1890,9 +1753,7 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         self.assertEqual(timesheet.timesheet_invoice_type, "billable_time")
 
     def test_linked_timesheet_after_invoice_reversal(self):
-        """Test that uneditable timesheet entries aren't linked to a reversed invoice form"""
 
-        # Full refund credit note
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -1947,7 +1808,6 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
             "It Should be possible to edit timesheet after invoice reversal",
         )
 
-        # Partial refund credit note
         sale_order2 = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -2093,7 +1953,6 @@ class TestSaleTimesheetAnalyticPlan(TestCommonSaleTimesheet):
             timesheet[other_analytic_plan2._column_name()], analytic_account2
         )
 
-        # Create another analytic account and a new SOL to assign it to the timesheet
         other_analytic_plan3 = self.plan_c
         analytic_account3 = self.env["account.analytic.account"].create(
             {
@@ -2193,7 +2052,6 @@ class TestSaleTimesheetAnalyticPlan(TestCommonSaleTimesheet):
             }
         )
         with self.assertRaises(ValidationError):
-            # The analytic plan 'other_analytic_plan' is mandatory on the sale order line linked to the timesheet
             self.env["account.analytic.line"].create(
                 {
                     "name": "Test Line",

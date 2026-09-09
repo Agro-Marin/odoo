@@ -222,10 +222,6 @@
         </field>
     </record>
 
-    <!--
-        Receipt Picking (By Stock Move)
-        From stock_partial_move_view
-    -->
     <record id="view_stock_move_list_receipt_picking" model="ir.ui.view">
         <field name="name">stock.move.tree2</field>
         <field name="model">stock.move</field>

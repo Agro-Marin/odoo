@@ -21,14 +21,10 @@ export class PivotController extends ReportController {
 
     /** @override */
     get chassisHooks() {
-        // Pivot adds one condition of its own: a pivot with no active measure
-        // has nothing to draw even when the model has rows.
         return { displayNoContent: () => this.model.isReady && this.displayNoContent };
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get displayNoContent() {
         if (this.props.info.noContentHelp === false) {
             return false;
@@ -39,17 +35,13 @@ export class PivotController extends ReportController {
         );
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getLocalState() {
         const { data, metaData } = this.model;
         return { data, metaData };
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getContext() {
         return {
             pivot_measures: this.model.metaData.activeMeasures,

@@ -100,16 +100,12 @@ export async function mountWithSearch(
     );
 }
 
-/**
- * @param {string} label
- */
+/** @param {string} label */
 export async function toggleMenu(label) {
     await contains(`button.o-dropdown:text(${label})`).click();
 }
 
-/**
- * @param {string} label
- */
+/** @param {string} label */
 export async function toggleMenuItem(label) {
     const target = /** @type {any} */ (queryOne)`.o_menu_item:text(${label})`;
     if (target.classList.contains("dropdown-toggle")) {
@@ -135,9 +131,7 @@ export async function toggleMenuItemOption(itemLabel, optionLabel) {
     }
 }
 
-/**
- * @param {string} label
- */
+/** @param {string} label */
 export function isItemSelected(label) {
     return /** @type {any} */ (
         queryOne
@@ -184,9 +178,7 @@ export async function toggleGroupByMenu() {
     await contains(`.o_group_by_menu .dropdown-toggle`).click();
 }
 
-/**
- * @param {string} fieldName
- */
+/** @param {string} fieldName */
 export async function selectGroup(fieldName) {
     await ensureSearchBarMenu();
     await contains(`.o_add_custom_group_menu`).select(fieldName);
@@ -197,9 +189,7 @@ export async function toggleFavoriteMenu() {
     await contains(`.o_favorite_menu .dropdown-toggle`).click();
 }
 
-/**
- * @param {string} text
- */
+/** @param {string} text */
 export async function editFavorite(text) {
     await ensureSearchBarMenu();
     await contains(`.o_favorite_menu .o_menu_item:text(${text}) i.fa-pencil`, {
@@ -212,9 +202,7 @@ export async function toggleSaveFavorite() {
     await contains(`.o_favorite_menu .o_add_favorite`).click();
 }
 
-/**
- * @param {string} name
- */
+/** @param {string} name */
 export async function editFavoriteName(name) {
     await ensureSearchBarMenu();
     await contains(
@@ -236,17 +224,13 @@ export function getFacetTexts() {
     return queryAllTexts(`.o_searchview_facet`);
 }
 
-/**
- * @param {string} label
- */
+/** @param {string} label */
 export async function removeFacet(label) {
     await ensureSearchView();
     await contains(`.o_searchview_facet:text(${label}) .o_facet_remove`).click();
 }
 
-/**
- * @param {string} value
- */
+/** @param {string} value */
 export async function editSearch(value) {
     await ensureSearchView();
     await contains(`.o_searchview input`).edit(value, { confirm: false });
@@ -257,9 +241,7 @@ export async function validateSearch() {
     await contains(`.o_searchview input`).press("Enter");
 }
 
-/**
- * @param {string} viewType
- */
+/** @param {string} viewType */
 export async function switchView(viewType) {
     if (getMockEnv().isSmall) {
         await contains(".o_cp_switch_buttons .dropdown-toggle").click();
@@ -269,46 +251,34 @@ export async function switchView(viewType) {
     }
 }
 
-/**
- * @param {HTMLElement} [root]
- */
+/** @param {HTMLElement} [root] */
 export function getPagerValue(root) {
     return queryText(".o_pager .o_pager_value", { root })
         .split(/\s*-\s*/)
         .map(Number);
 }
 
-/**
- * @param {HTMLElement} [root]
- */
+/** @param {HTMLElement} [root] */
 export function getPagerLimit(root) {
     return parseInt(queryText(".o_pager .o_pager_limit", { root }), 10);
 }
 
-/**
- * @param {HTMLElement} [root]
- */
+/** @param {HTMLElement} [root] */
 export async function pagerNext(root) {
     await contains(".o_pager button.o_pager_next", { root }).click();
 }
 
-/**
- * @param {HTMLElement} [root]
- */
+/** @param {HTMLElement} [root] */
 export async function pagerPrevious(root) {
     await contains(".o_pager button.o_pager_previous", { root }).click();
 }
 
-/**
- * @param {string} value
- */
+/** @param {string} value */
 export async function editPager(value) {
     await contains(`.o_pager .o_pager_limit`).edit(value);
 }
 
-/**
- * @returns {Promise}
- */
+/** @returns {Promise} */
 export async function toggleActionMenu() {
     await contains(".o_cp_action_menus .dropdown-toggle").click();
 }

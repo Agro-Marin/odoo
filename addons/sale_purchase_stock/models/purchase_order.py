@@ -59,8 +59,6 @@ class PurchaseOrderLine(models.Model):
         company_id,
         values,
     ):
-        # if this is NOT defined, this is a dropshipping line —
-        # this is to correctly map delivered quantities to the so lines
         if not values.get("move_dest_ids") and values.get("sale_line_id"):
             lines = self.filtered(
                 lambda po_line: po_line.sale_line_id.id == values["sale_line_id"]
@@ -110,7 +108,6 @@ class PurchaseOrderLine(models.Model):
             values,
             po,
         )
-        # only set the sale line id in case of a dropshipping
         if not values.get("move_dest_ids"):
             res["sale_line_id"] = values.get("sale_line_id", False)
         return res

@@ -66,9 +66,7 @@ export class ActivityRenderer extends Component {
         this.setupStorageActiveColumns();
     }
 
-    /**
-     * @returns {Object} the four activity states, labelled from the selection
-     */
+    /** @returns {Object} */
     getActivityStateTypes() {
         const types = {
             done: {
@@ -100,9 +98,9 @@ export class ActivityRenderer extends Component {
     }
 
     /**
-     * @param {Object} types as returned by {@link getActivityStateTypes}, filled in place
+     * @param {Object} types
      * @param {number} typeId
-     * @returns {number} the tally of every state but done
+     * @returns {number}
      */
     countActivityStates(types, typeId) {
         let totalCountWithoutDone = 0;
@@ -123,7 +121,7 @@ export class ActivityRenderer extends Component {
     }
 
     /**
-     * @param {Object} types as returned by {@link getActivityStateTypes}
+     * @param {Object} types
      * @param {string|null} activeBar
      * @returns {Object}
      */

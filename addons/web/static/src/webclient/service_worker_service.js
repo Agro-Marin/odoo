@@ -53,9 +53,6 @@ export function watchServiceWorkerUpdates(registration) {
 /**
  * @param {Deferred} settledDeferred
  * @returns {Promise<{
- *   registration: ServiceWorkerRegistration | undefined,
- *   stopWatching: () => void,
- * }>}
  */
 export async function registerServiceWorker(settledDeferred) {
     const { serviceWorker } = browser.navigator;
@@ -111,9 +108,7 @@ export async function registerServiceWorker(settledDeferred) {
 
 class ServiceWorkerService {
     constructor() {
-        /**
-         * @type {Promise<void> & { resolve: (value?: any) => void, reject: (reason?: any) => void }}
-         */
+        /** @type {Promise<void> & { resolve: (value?: any) => void, reject: (reason?: any) => void }} */
         const settledDeferred = new Deferred();
         /** @type {Promise<void>} */
         this.registrationSettled = settledDeferred;

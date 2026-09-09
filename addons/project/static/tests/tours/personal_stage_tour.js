@@ -15,9 +15,6 @@ registry.category("web_tour.tours").add("personal_stage_tour", {
             run: "click",
         },
         {
-            // Default is grouped by stage, user should not be able to create/edit a
-            // column. NB: :has() is required — the classes live on descendants, so a
-            // plain body:not(.cls) selector would always match and check nothing.
             content: "Check that there is no create column",
             trigger: ".o_kanban_renderer:not(:has(.o_column_quick_create))",
         },
@@ -43,7 +40,7 @@ registry.category("web_tour.tours").add("personal_stage_tour", {
             run: "click",
         },
         {
-            content: "Go to my tasks", // My tasks is grouped by personal stage by default
+            content: "Go to my tasks",
             trigger: 'a[data-menu-xmlid="project.menu_project_management_my_tasks"]',
             run: "click",
         },

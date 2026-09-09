@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Search -->
     <record id="project_risk_search" model="ir.ui.view">
         <field name="name">project.risk.search</field>
         <field name="model">project.risk</field>
@@ -59,7 +58,6 @@
         </field>
     </record>
 
-    <!-- Form -->
     <record id="project_risk_form" model="ir.ui.view">
         <field name="name">project.risk.form</field>
         <field name="model">project.risk</field>
@@ -119,7 +117,6 @@
         </field>
     </record>
 
-    <!-- List -->
     <record id="project_risk_list" model="ir.ui.view">
         <field name="name">project.risk.list</field>
         <field name="model">project.risk</field>
@@ -148,7 +145,6 @@
         </field>
     </record>
 
-    <!-- Pivot (Risk Matrix) -->
     <record id="project_risk_pivot" model="ir.ui.view">
         <field name="name">project.risk.pivot</field>
         <field name="model">project.risk</field>
@@ -160,7 +156,6 @@
         </field>
     </record>
 
-    <!-- Action -->
     <record id="action_project_risk" model="ir.actions.act_window">
         <field name="name">Risk Register</field>
         <field name="res_model">project.risk</field>
@@ -178,7 +173,6 @@
         </field>
     </record>
 
-    <!-- Action for project-specific risks (used by smart button) -->
     <record id="action_project_risk_from_project" model="ir.actions.act_window">
         <field name="name">Risks</field>
         <field name="res_model">project.risk</field>

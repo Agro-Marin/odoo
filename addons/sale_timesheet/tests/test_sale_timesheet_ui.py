@@ -24,7 +24,6 @@ class TestSaleTimesheetUi(HttpCase):
             }
         )
 
-        # Enable the "Milestones" feature to be able to create milestones on this tour.
         cls.env.ref("base.group_user").sudo().implied_ids |= cls.env.ref(
             "project.group_project_milestone"
         )

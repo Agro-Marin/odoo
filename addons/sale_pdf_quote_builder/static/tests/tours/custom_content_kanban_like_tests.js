@@ -17,6 +17,5 @@ registry.category("web_tour.tours").add("custom_content_kanban_like_tour", {
             run: "edit Test",
         },
         ...stepUtils.saveForm(),
-        // TODO VCR: Finish this
     ],
 });

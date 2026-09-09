@@ -117,13 +117,7 @@ const useBlockSelection = /** @type {any} */ (makeDraggableHook)({
     },
 });
 
-/**
- * @typedef {{
- * allSelectedCells: Set<Element>,
- * prevSelectedCell: Element | null,
- * action: "add" | "toggle" | "replace" | null,
- * }} SquareSelectionState
- */
+/** @typedef {{ */
 
 /**
  * @param {SquareSelectionState} state
@@ -143,9 +137,7 @@ function combineCells(state, cells, action) {
     }
 }
 
-/**
- * @returns {() => boolean}
- */
+/** @returns {() => boolean} */
 function useCtrlKey() {
     let ctrlPressed = false;
     useExternalListener(window, "keydown", (ev) => {

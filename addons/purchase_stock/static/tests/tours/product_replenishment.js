@@ -2,7 +2,6 @@ import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("test_product_replenishment", {
     steps: () => [
-        // Show Route column
         {
             content: "Open line fields list",
             trigger: ".o_optional_columns_dropdown_toggle",
@@ -12,8 +11,6 @@ registry.category("web_tour.tours").add("test_product_replenishment", {
             content: "Show route column",
             trigger: '.o-dropdown-item input[name="route_id"]',
             run: async ({ anchor }) => {
-                // We need this condition because `route_id` field is hidden by
-                // default except if `purchase_mrp` is installed.
                 if (!anchor.checked) {
                     anchor.click();
                 }
@@ -24,7 +21,6 @@ registry.category("web_tour.tours").add("test_product_replenishment", {
             trigger: ".o_optional_columns_dropdown_toggle",
             run: "click",
         },
-        // Create reordering rule for product 'Book Shelf'
         {
             content: "Click New Button",
             trigger: 'button:contains("New")',
@@ -56,10 +52,6 @@ registry.category("web_tour.tours").add("test_product_replenishment", {
             run: "click",
         },
         {
-            // Must wait for the row to leave edit mode, not merely to exist:
-            // the editable row already renders the product name before the
-            // save round-trips, so a bare presence check lets the tour finish
-            // — and the browser tear down — with the write still in flight.
             content: "Wait for the reordering rule to be saved",
             trigger: '.o_data_row:not(.o_selected_row) td:contains("Book Shelf")',
         },

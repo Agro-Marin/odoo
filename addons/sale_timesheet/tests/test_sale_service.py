@@ -6,8 +6,6 @@ from odoo.addons.sale_timesheet.tests.common import TestCommonSaleTimesheet
 
 @tagged("-at_install", "post_install")
 class TestSaleService(TestCommonSaleTimesheet):
-    """This test suite provide checks for miscellaneous small things."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -21,7 +19,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_sale_service(self):
-        """Test task creation when confirming a sale_order with the corresponding product"""
         sale_order_line = self.env["sale.order.line"].create(
             {
                 "order_id": self.sale_order.id,
@@ -43,7 +40,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "so 'no' is now reserved for what will never be billed",
         )
 
-        # check task creation
         project = self.project_global
         task = project.task_ids.filtered(
             lambda t: (
@@ -59,7 +55,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Sale Service: customer should be the same on task and on SO",
         )
 
-        # log timesheet on task
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -74,8 +69,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "to do",
             "Sale Service: there should be sale_ordermething to invoice after registering timesheets",
         )
-        # `qty_invoiced` counts posted invoices only in this fork, so a draft
-        # invoice leaves the order 'to do'; post it to reach the invoiced state.
         self.sale_order._create_invoices().action_post()
 
         self.assertTrue(
@@ -93,7 +86,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "A task should have been created on SO confirmation.",
         )
 
-        # Add a line on the confirmed SO, and it should generate a new task directly
         product_service_task = self.env["product.product"].create(
             {
                 "name": "Delivered Service",
@@ -123,18 +115,11 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Adding a new service line on a confirmer SO should create a new task.",
         )
 
-        # Deletion is checked on the second task: the first one's timesheets are on
-        # the invoice posted above, and an invoiced timesheet cannot be removed. The
-        # point being made is that deleting a task unlinks it from its line, which
-        # this task makes just as well and without the unrelated guard in the way.
         second_task = second_line.task_id
         self.assertTrue(
             second_task, "The second service line should have created a task."
         )
-        # delete timesheets before deleting the task, so as to trigger the error
-        # about linked sales order lines and not the one about linked timesheets
         second_task.timesheet_ids.unlink()
-        # unlink automatically task from the SOL when deleting the task
         second_task.unlink()
         self.assertFalse(
             second_line.task_id,
@@ -142,8 +127,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_uom(self):
-        """Test timesheet invoicing and uom conversion"""
-        # create SO and confirm it
         uom_days = self.env.ref("uom.product_uom_day")
         sale_order_line = self.env["sale.order.line"].create(
             {
@@ -158,7 +141,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             [("sale_line_id", "=", sale_order_line.id)]
         )
 
-        # let's log some timesheets
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -183,8 +165,6 @@ class TestSaleService(TestCommonSaleTimesheet):
                 "employee_id": self.employee_user.id,
             }
         )
-        # `qty_invoiced` counts posted invoices only in this fork, so a draft
-        # invoice leaves the order 'to do'; post it to reach the invoiced state.
         self.sale_order._create_invoices().action_post()
         self.assertEqual(
             self.sale_order.invoice_state,
@@ -193,7 +173,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_task_so_line_assignation(self):
-        # create SO line and confirm it
         so_line_deliver_global_project = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_delivery_timesheet2.id,
@@ -206,7 +185,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             [("sale_line_id", "=", so_line_deliver_global_project.id)]
         )
 
-        # let's log some timesheets (on the project created by so_line_ordered_project_only)
         timesheets = self.env["account.analytic.line"]
         timesheets |= self.env["account.analytic.line"].create(
             {
@@ -239,11 +217,9 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Quantity to invoice should have been increased when logging timesheet on delivered quantities task",
         )
 
-        # invoice SO, and validate invoice
         invoice = self.sale_order._create_invoices()[0]
         invoice.action_post()
 
-        # make task non billable
         task_serv2.write({"sale_line_id": False})
         self.assertTrue(
             all(
@@ -258,12 +234,10 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Old invoiced timesheet are not modified when changing the task SO line",
         )
 
-        # try to update timesheets, catch error 'You cannot modify invoiced timesheet'
         with self.assertRaises(UserError):
             timesheets.write({"so_line": False})
 
     def test_delivered_quantity(self):
-        # create SO line and confirm it
         so_line_deliver_new_task_project = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_delivery_timesheet3.id,
@@ -276,7 +250,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             [("sale_line_id", "=", so_line_deliver_new_task_project.id)]
         )
 
-        # add a timesheet
         timesheet1 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line",
@@ -292,7 +265,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Delivered quantity should be the same then its only related timesheet.",
         )
 
-        # remove the only timesheet
         timesheet1.unlink()
         self.assertEqual(
             so_line_deliver_new_task_project.qty_transferred,
@@ -300,7 +272,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Delivered quantity should be reset to zero, since there is no more timesheet.",
         )
 
-        # log 2 new timesheets
         timesheet2 = self.env["account.analytic.line"].create(
             {
                 "name": "Test Line 2",
@@ -325,7 +296,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Delivered quantity should be the sum of the 2 timesheets unit amounts.",
         )
 
-        # remove timesheet2
         timesheet2.unlink()
         self.assertEqual(
             so_line_deliver_new_task_project.qty_transferred,
@@ -334,9 +304,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_sale_create_task(self):
-        """Check that confirming SO create correctly a task, and reconfirming it does not create a second one. Also check changing
-        the ordered quantity of a SO line that have created a task should update the planned hours of this task.
-        """
         so_line1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_delivery_timesheet3.id,
@@ -345,7 +312,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             }
         )
 
-        # confirm SO
         self.sale_order.action_confirm()
 
         self.assertTrue(
@@ -384,7 +350,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "The planned hours should have changed when updating the ordered quantity of the native SO line",
         )
 
-        # cancel SO
         self.sale_order._action_cancel()
 
         self.assertTrue(so_line1.task_id, "SO cancellation should keep the task")
@@ -405,7 +370,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "The planned hours should have changed when updating the ordered quantity, even after SO cancellation",
         )
 
-        # reconfirm SO
         self.sale_order.action_draft()
         self.sale_order.action_confirm()
 
@@ -430,19 +394,11 @@ class TestSaleService(TestCommonSaleTimesheet):
             so_line1.write({"product_qty": 20})
 
     def test_sale_create_project(self):
-        """A SO with multiple product that should create project (with and without template) like ;
-        Line 1 : Service 1 create project with Template A ===> project created with template A
-        Line 2 : Service 2 create project no template ==> empty project created
-        Line 3 : Service 3 create project with Template A ===> Don't create any project because line 1 has already created a project with template A
-        Line 4 : Service 4 create project no template ==> Don't create any project because line 2 has already created an empty project
-        Line 5 : Service 5 create project with Template B ===> project created with template B
-        """
-        # second project template and its associated product
         project_template2 = self.env["project.project"].create(
             {
                 "name": "Second Project TEMPLATE for services",
                 "allow_timesheets": True,
-                "active": False,  # this template is archived
+                "active": False,
             }
         )
         Stage = self.env["project.workflow.step"].with_context(
@@ -468,7 +424,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             }
         )
 
-        # create 5 so lines
         so_line1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_delivery_timesheet5.id,
@@ -505,10 +460,8 @@ class TestSaleService(TestCommonSaleTimesheet):
             }
         )
 
-        # confirm SO
         self.sale_order.action_confirm()
 
-        # check each line has or no generate something
         self.assertTrue(
             so_line1.project_id,
             "Line1 should have create a project based on template A",
@@ -535,12 +488,10 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Line5 should have create a project based on template B",
         )
 
-        # check all generated project should be active, even if the template is not
         self.assertTrue(so_line1.project_id.active, "Project of Line1 should be active")
         self.assertTrue(so_line2.project_id.active, "Project of Line2 should be active")
         self.assertTrue(so_line5.project_id.active, "Project of Line5 should be active")
 
-        # check generated stuff are correct
         self.assertTrue(
             so_line1.project_id in self.project_template_state.project_ids,
             "Stage 1 from template B should be part of project from so line 1",
@@ -595,18 +546,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_sale_task_in_project_without_project(self):
-        """This will test the new 'task_in_project' service tracking correctly creates tasks and projects
-        when the parent sale_order does NOT have a configured project_id (ref task #1915660).
-
-        Setup:
-        - SO line 1: a product with its delivery tracking set to 'task_in_project'
-        - Confirm sale_order
-
-        Expected result:
-        - 1 project created with the correct template for the 'task_in_project' because the SO
-          does not have a configured project_id
-        - 1 task created from this new project
-        """
 
         so_line1 = self.env["sale.order.line"].create(
             {
@@ -616,12 +555,10 @@ class TestSaleService(TestCommonSaleTimesheet):
             }
         )
 
-        # temporary project_template_id for our checks
         self.product_order_timesheet3.write(
             {"project_template_id": self.project_template.id}
         )
         self.sale_order.action_confirm()
-        # remove it after the confirm because other tests don't like it
         self.product_order_timesheet3.write({"project_template_id": False})
 
         self.assertTrue(
@@ -640,8 +577,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_billable_task_and_subtask(self):
-        """Test if subtasks and tasks are billed on the correct SO line"""
-        # create SO line and confirm it
         so_line_deliver_new_task_project = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_delivery_timesheet3.id,
@@ -673,7 +608,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "The created task should be linked to the so line",
         )
 
-        # create a new task and subtask
         subtask = self.env["project.task"].create(
             {
                 "parent_id": task.id,
@@ -701,7 +635,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "A new task in a billable project should have the same SO line as its project",
         )
 
-        # moving subtask in another project
         subtask.write({"project_id": self.project_global.id})
 
         self.assertEqual(
@@ -711,7 +644,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
         self.assertEqual(subtask.sale_line_id, so_line_deliver_new_task_project)
 
-        # changing the SO line of the mother task
         task.write({"sale_line_id": so_line_deliver_new_task_project_2.id})
 
         self.assertEqual(
@@ -725,7 +657,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "A mother task can have its SO line set manually",
         )
 
-        # changing the SO line of a subtask
         subtask.write({"sale_line_id": so_line_deliver_new_task_project_2.id})
 
         self.assertEqual(
@@ -735,7 +666,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_change_ordered_qty(self):
-        """Changing the ordered quantity of a SO line that have created a task should update the planned hours of this task"""
         sale_order_line = self.env["sale.order.line"].create(
             {
                 "order_id": self.sale_order.id,
@@ -784,7 +714,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
         project = sale_order_line.project_id
 
-        # copy the project
         project_copy = project.copy()
         self.assertFalse(
             project_copy.sale_line_id, "Duplicating project should erase its Sale line"
@@ -803,7 +732,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "The tasks of the duplicated project should not have a Sale Line set.",
         )
 
-        # copy the task
         task_copy = task.copy()
         self.assertEqual(
             task_copy.sale_line_id,
@@ -812,18 +740,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_remaining_hours_prepaid_services(self):
-        """Test if the remaining hours is correctly computed
-
-        Test Case:
-        =========
-        1) Check the remaining hours in the SOL containing a prepaid service product,
-        2) Create task in project with pricing type is equal to "task rate" and has the customer in the SO
-            and check if the remaining hours is equal to the remaining hours in the SOL,
-        3) Create timesheet in the task for this SOL and check if the remaining hours correctly decrease,
-        4) Change the SOL in the task and see if the remaining hours is correctly recomputed.
-        5) Create without storing the timesheet to check if remaining hours in SOL does not change.
-        """
-        # 1) Check the remaining hours in the SOL containing a prepaid service product
         prepaid_service_sol = self.so.line_ids.filtered(
             lambda sol: sol.product_id.service_policy == "ordered_prepaid"
         )
@@ -838,8 +754,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "The remaining hours of this SOL should be equal to the ordered quantity minus the delivered quantity.",
         )
 
-        # 2) Create task in project with pricing type is equal to "task rate" and has the customer in the SO
-        # and check if the remaining hours is equal to the remaining hours in the SOL,
         task = self.env["project.task"].create(
             {
                 "name": "Test task",
@@ -850,7 +764,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         self.assertEqual(task.partner_id, self.so.partner_id)
         self.assertEqual(task.remaining_hours_so, prepaid_service_sol.remaining_hours)
 
-        # 3) Create timesheet in the task for this SOL and check if the remaining hours correctly decrease
         self.env["account.analytic.line"].create(
             {
                 "name": "Test Timesheet",
@@ -871,7 +784,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "The remaining hours on the SOL should also be equal to 1 hour.",
         )
 
-        # 4) Change the SOL in the task and see if the remaining hours is correctly recomputed.
         task.update(
             {
                 "sale_line_id": self.so.line_ids[0].id,
@@ -888,7 +800,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "Since the timesheet on task has the same SOL than the one in the task, the remaining_hours should increase of 1 hour to be equal to 2 hours.",
         )
 
-        # 5) Create without storing the timesheet to check if remaining hours in SOL does not change
         timesheet = self.env["account.analytic.line"].new(
             {
                 "name": "Test Timesheet",
@@ -940,8 +851,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             product_vals.update(
                 {
                     "name": uom_name,
-                    # The product must carry the unit its line is sold in: a price
-                    # cannot be expressed in a unit outside the product's category.
                     "uom_id": uom_id.id,
                 }
             )
@@ -965,13 +874,9 @@ class TestSaleService(TestCommonSaleTimesheet):
             )
 
     def test_add_product_analytic_account(self):
-        """When we have a project with an analytic account and we add a product to the task,
-        the consequent invoice line should have the same analytic account as the project.
-        """
         Product = self.env["product.product"]
         SaleOrderLine = self.env["sale.order.line"]
 
-        # Create a SO with a service that creates a task
         product_create = Product.create(
             {
                 "name": "Product that creates the task",
@@ -992,7 +897,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
         self.sale_order.action_confirm()
 
-        # Add a SOL with a task_id to mimmic the "Add a product" flow on the task
         product_add = Product.create({"name": "Product added on task"})
         SaleOrderLine.create(
             {
@@ -1006,7 +910,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
         self.sale_order._create_invoices()
 
-        # Check that the resulting invoice line and the project have the same analytic account
         invoice_line = self.sale_order.invoice_ids.line_ids.filtered(
             lambda line: line.product_id == product_add
         )
@@ -1017,16 +920,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_sale_timesheet_invoice(self):
-        """Test timesheet is correctly linked to an invoice when its SOL is invoiced
-
-        Test Cases:
-        ==========
-        1) Create a SOL on a SO
-        2) Confirm the SO
-        3) Set the SOL on a new timesheet
-        4) Create an invoice for this SO
-        5) Check the timesheet is linked to the invoice
-        """
         so_line = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_delivery_timesheet2.id,
@@ -1053,20 +946,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         self.assertEqual(invoice, timesheet.timesheet_invoice_id)
 
     def test_prevent_update_project_allocated_hours_after_confirming_quotation(self):
-        """Test allocated hours in the project linked to a SO is not automatically updated
-
-        When the project is linked to a SO (confirmed quotation) the allocated
-        hours should not be recomputed when the quantity ordered of a product
-        is changed in the SO.
-
-        Test Cases:
-        ==========
-        1) Create a SOL on a SO
-        2) Confirm the SO
-        3) Store the project allocated hour
-        4) Modify the SOL product qty
-        5) Check the project allocated hour is modify
-        """
         order_line = self.env["sale.order.line"].create(
             {
                 "order_id": self.sale_order.id,
@@ -1084,19 +963,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_different_uom_to_hours_on_sale_order_confirmation(self):
-        """Verify correctness of a project's allocted hours for multiple UOMs.
-
-        The conversion to time should be processed as follows :
-            H : qty = uom_qty [Hours]
-            D : qty = uom_qty * 8 [Hours]
-
-        Test Cases:
-        ==========
-        1) Create a 2 SOL on a SO With different UOM
-        2) Confirm the SO
-        3) Check the project allocated hour is correctly set
-        4) Repeat with different timesheet encoding UOM
-        """
 
         self.env["sale.order.line"].create(
             [
@@ -1104,17 +970,13 @@ class TestSaleService(TestCommonSaleTimesheet):
                     "order_id": self.sale_order.id,
                     "product_id": self.product_delivery_timesheet3.id,
                     "product_qty": 2,
-                    "product_uom_id": self.env.ref(
-                        "uom.product_uom_day"
-                    ).id,  # 16 hours
+                    "product_uom_id": self.env.ref("uom.product_uom_day").id,
                 },
                 {
                     "order_id": self.sale_order.id,
                     "product_id": self.product_delivery_timesheet3.id,
                     "product_qty": 8,
-                    "product_uom_id": self.env.ref(
-                        "uom.product_uom_hour"
-                    ).id,  # 8 hours
+                    "product_uom_id": self.env.ref("uom.product_uom_hour").id,
                 },
             ]
         )
@@ -1136,8 +998,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_compute_project_and_task_button_with_ts(self):
-        """This test ensures that the button are correctly computed when there is a timesheet service product on a SO. The behavior was not modified in sale_timesheet, but since
-        the timesheet product case can not be tested in sale_project, we have to add the test here."""
         sale_order_1 = self.env["sale.order"].create(
             [
                 {
@@ -1147,7 +1007,6 @@ class TestSaleService(TestCommonSaleTimesheet):
                 }
             ]
         )
-        # delivered timesheet
         line_1 = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_service_delivered_timesheet.id,
@@ -1175,8 +1034,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_compute_show_timesheet_button(self):
-        """This test ensures that the hours recorded button is correctly computed. If there is a service product with an invoice policy of prepaid or timesheet, and there is
-        at least on project linked to the SO, then the button should be displayed"""
         sale_order_1, sale_order_2 = self.env["sale.order"].create(
             [
                 {
@@ -1191,7 +1048,6 @@ class TestSaleService(TestCommonSaleTimesheet):
                 },
             ]
         )
-        # consumable product, delivered milestone, and delivered manual
         self.env["sale.order.line"].create(
             [
                 {
@@ -1213,7 +1069,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             sale_order_1.show_hours_recorded_button,
             "There is no service product service with the correct service_policy set on 'delivered on timesheet' on the sale order, the button should be hidden",
         )
-        # adds a delivered timesheet product to the SO
         line_4 = self.env["sale.order.line"].create(
             {
                 "product_id": self.product_service_delivered_timesheet.id,
@@ -1248,7 +1103,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             sale_order_2.show_hours_recorded_button,
             "There is a product service with the service_policy set on 'delivered on timesheet' and a project on the sale order, the button should be displayed",
         )
-        # remove the project from the so and ensure the SO is back to its previous state
         line_1.project_id = False
         sale_order_2._compute_show_hours_recorded_button()
         self.assertFalse(
@@ -1256,7 +1110,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             "There is a product service with the service_policy set on 'delivered on timesheet' but no project on the sale order, the button should be hidden",
         )
 
-        # adds a task whose sale item is a sale order line from the SO, and adds a timesheet in that task. This should enable the display of the button
         task = self.env["project.task"].create(
             {
                 "name": "Test Task",
@@ -1281,9 +1134,6 @@ class TestSaleService(TestCommonSaleTimesheet):
         )
 
     def test_timesheet_hours_delivered_rounding(self):
-        """
-        Ensure hours are rounded consistently on SO & invoice.
-        """
         self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
         self.product_delivery_timesheet3.uom_id._invalidate_cache(["rounding"])
         self.env["sale.order.line"].create(
@@ -1328,7 +1178,6 @@ class TestSaleService(TestCommonSaleTimesheet):
             )
 
     def test_prepaid_pack_remaining_hours_rounding(self):
-        """Avoid double rounding with pack UoM"""
         uom_hour = self.env.ref("uom.product_uom_hour")
         pack20 = self.env["uom.uom"].create(
             {

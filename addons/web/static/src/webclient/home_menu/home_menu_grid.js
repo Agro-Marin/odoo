@@ -24,16 +24,7 @@ const MENU_MATCHES = 8;
 const EMPTY_MENU_TREE = { childrenTree: [] };
 
 export class HomeMenuGrid {
-    /**
-     * @param {{
-     *  apps: () => HomeMenuApp[],
-     *  query: () => string,
-     *  editing: () => boolean,
-     *  badges: () => Record<string, number>,
-     *  layout: import("./home_menu_layout.js").HomeMenuLayout,
-     *  menus: import("services").ServiceFactories["menu"],
-     * }} params
-     */
+    /** @param {{ */
     constructor({ apps, query, editing, badges, layout, menus }) {
         this.apps = apps;
         this.query = query;
@@ -50,7 +41,7 @@ export class HomeMenuGrid {
     }
 
     /**
-     * @template T
+     * @template
      * @param {string} key
      * @param {() => T} compute
      * @returns {T}
@@ -183,9 +174,7 @@ export class HomeMenuGrid {
         return this.query() ? [] : menuUsage.rank(this.visibleApps, RECENT_APPS);
     }
 
-    /**
-     * @returns {HomeMenuApp[]}
-     */
+    /** @returns {HomeMenuApp[]} */
     _attentionApps() {
         if (this.query() || this.editing()) {
             return [];

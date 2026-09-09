@@ -63,14 +63,10 @@ export class ListController extends MultiRecordController {
     /** @type {Record<string, any>} */
     optionalActiveFields;
 
-    /**
-     * @type {(() => void)[]}
-     */
+    /** @type {(() => void)[]} */
     nextActionsAfterMouseup;
 
-    /**
-     * @override
-     */
+    /** @override */
     setupModel() {
         this.activeActions = this.archInfo.activeActions;
         this.onOpenFormView = this.openRecord.bind(this);
@@ -91,9 +87,7 @@ export class ListController extends MultiRecordController {
         this.optionalActiveFields = useState({});
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     setupInteractions() {
         const { setScrollFromState } = useSetupAction({
             rootRef: this.rootRef,
@@ -161,9 +155,7 @@ export class ListController extends MultiRecordController {
         });
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     get modelParams() {
         const { rawExpand } = this.archInfo;
         const { activeFields, fields } = extractFieldsFromArchInfo(
@@ -220,9 +212,7 @@ export class ListController extends MultiRecordController {
         return this.props.className;
     }
 
-    /**
-     * @returns {any[]}
-     */
+    /** @returns {any[]} */
     getExportableFields() {
         const { activeFields, fields } = this.model.root;
         const visibleColumns = new Set(
@@ -253,9 +243,7 @@ export class ListController extends MultiRecordController {
         return this.model.root.leaveEditMode();
     }
 
-    /**
-     * @param {BeforeUnloadEvent} ev
-     */
+    /** @param {BeforeUnloadEvent} ev */
     beforeUnload(ev) {
         const record = this.editedRecord;
         return handleBeforeUnload(ev, {
@@ -266,19 +254,13 @@ export class ListController extends MultiRecordController {
         });
     }
 
-    /**
-     * @param {any} record
-     */
+    /** @param {any} record */
     async onRecordSaved(record) {}
 
-    /**
-     * @param {any} record
-     */
+    /** @param {any} record */
     async onWillSaveRecord(record) {}
 
-    /**
-     * @param {{ group?: any }} [options]
-     */
+    /** @param {{ group?: any }} [options] */
     async createRecord({ group } = /** @type {any} */ ({})) {
         if (!this.model.isReady && !this.model.config.groupBy.length && this.editable) {
             await this.model.whenReady;
@@ -354,9 +336,7 @@ export class ListController extends MultiRecordController {
         );
     }
 
-    /**
-     * @param {MouseEvent} mouseDownEvent
-     */
+    /** @param {MouseEvent} mouseDownEvent */
     onMouseDownDiscard(mouseDownEvent) {
         this.hasMousedownDiscard = true;
         document.addEventListener(

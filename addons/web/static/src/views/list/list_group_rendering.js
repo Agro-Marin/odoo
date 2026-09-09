@@ -13,9 +13,7 @@ export const listGroupRenderingMixin = {
         return this.groupOps.canCreateGroup();
     },
 
-    /**
-     * @param {Object} group
-     */
+    /** @param {Object} group */
     async addInGroup(group) {
         const left = await this.props.list.leaveEditMode({ canAbandon: false });
         if (left) {
@@ -23,9 +21,7 @@ export const listGroupRenderingMixin = {
         }
     },
 
-    /**
-     * @param {Object} group
-     */
+    /** @param {Object} group */
     editGroupRecord(group) {
         const { resId, resModel } = group.record;
         this.actionService.doAction({
@@ -45,9 +41,7 @@ export const listGroupRenderingMixin = {
         return countRecordsInGroup(group);
     },
 
-    /**
-     * @param {Object} group
-     */
+    /** @param {Object} group */
     getGroupConfigMenuProps(group) {
         return this.groupOps.getGroupConfigMenuProps(group);
     },
@@ -60,9 +54,7 @@ export const listGroupRenderingMixin = {
         return this.agg.formatGroupAggregate(group, column);
     },
 
-    /**
-     * @param {Object} group
-     */
+    /** @param {Object} group */
     getGroupLevel(group) {
         return this.props.list.groupBy.length - group.list.groupBy.length - 1;
     },
@@ -93,9 +85,7 @@ export const listGroupRenderingMixin = {
         );
     },
 
-    /**
-     * @param {Object} group
-     */
+    /** @param {Object} group */
     getGroupPagerProps(group) {
         const list = group.list;
         const total = list.isGrouped ? list.count : group.count;
@@ -113,16 +103,12 @@ export const listGroupRenderingMixin = {
         };
     },
 
-    /**
-     * @param {Object} group
-     */
+    /** @param {Object} group */
     showGroupPager(group) {
         return !group.isFolded && group.list.limit < group.list.count;
     },
 
-    /**
-     * @param {Object} group
-     */
+    /** @param {Object} group */
     showGroupConfigMenu(group) {
         return (
             group.value && ["many2one", "many2many"].includes(group.groupByField.type)
@@ -140,9 +126,7 @@ export const listGroupRenderingMixin = {
         }
     },
 
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     addNewGroup(value) {
         this.state.showGroupInput = false;
         this.groupOps.createGroup(value);

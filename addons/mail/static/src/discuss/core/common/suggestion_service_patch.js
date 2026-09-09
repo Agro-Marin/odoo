@@ -5,15 +5,9 @@ import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 const commandRegistry = registry.category("discuss.channel_commands");
 
-/**
- * @typedef {import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}} ChannelCommandSuggestion
- */
-/**
- * @typedef {SuggestionService & { getChannelCommands: (thread?: import("models").Thread) => ChannelCommandSuggestion[], searchChannelCommand: ( cleanedSearchTerm: string, thread?: import("models").Thread, ) => {type: string, suggestions: ChannelCommandSuggestion[]}, }} PatchedSuggestionService
- */
-/**
- * @type {Partial<PatchedSuggestionService> & ThisType<PatchedSuggestionService>}
- */
+/** @typedef {import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}} ChannelCommandSuggestion */
+/** @typedef {SuggestionService & { getChannelCommands: (thread?: import("models").Thread) => ChannelCommandSuggestion[], searchChannelCommand: ( cleanedSearchTerm: string, thread?: import("models").Thread, ) => {type: string, suggestions: ChannelCommandSuggestion[]}, }} PatchedSuggestionService */
+/** @type {Partial<PatchedSuggestionService> & ThisType<PatchedSuggestionService>} */
 const suggestionServicePatch = {
     /**
      * @param {import("models").Thread} [thread]

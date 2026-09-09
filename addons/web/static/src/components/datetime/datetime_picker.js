@@ -68,19 +68,13 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
  * @property {number} number
  */
 
-/**
- * @param {DateTime} date
- */
+/** @param {DateTime} date */
 const getStartOfDecade = (date) => Math.floor(date.year / 10) * 10;
 
-/**
- * @param {DateTime} date
- */
+/** @param {DateTime} date */
 const getStartOfCentury = (date) => Math.floor(date.year / 100) * 100;
 
-/**
- * @param {DateTime} date
- */
+/** @param {DateTime} date */
 const getStartOfWeek = (date) => {
     const { weekStart } = localization;
     return date.set({
@@ -143,9 +137,7 @@ const toWeekItem = (weekDayItems) => ({
     days: weekDayItems,
 });
 
-/**
- * @type {Map<PrecisionLevel, PrecisionInfo>}
- */
+/** @type {Map<PrecisionLevel, PrecisionInfo>} */
 const PRECISION_LEVELS = new Map()
     .set("days", {
         mainTitle: _t("Select month"),
@@ -351,21 +343,15 @@ export class DateTimePicker extends Component {
     static template = "web.DateTimePicker";
     static components = { TimePicker };
 
-    /**
-     * @type {[NullableDateTime] | NullableDateRange}
-     */
+    /** @type {[NullableDateTime] | NullableDateRange} */
     values;
     /** @type {DateTime} */
     maxDate;
     /** @type {DateTime} */
     minDate;
-    /**
-     * @type {NullableDateTime[]}
-     */
+    /** @type {NullableDateTime[]} */
     selectedRange;
-    /**
-     * @type {any[] | undefined}
-     */
+    /** @type {any[] | undefined} */
     _gridKey;
 
     get activePrecisionLevel() {
@@ -385,9 +371,7 @@ export class DateTimePicker extends Component {
         this.allowedPrecisionLevels = [];
         /** @type {Item[]} */
         this.items = [];
-        /**
-         * @type {Item[]}
-         */
+        /** @type {Item[]} */
         this._grid = [];
         this.title = "";
         this.shouldAdjustFocusDate = false;
@@ -409,9 +393,7 @@ export class DateTimePicker extends Component {
         onWillRender(() => this.onWillRender());
     }
 
-    /**
-     * @param {DateTimePickerProps} props
-     */
+    /** @param {DateTimePickerProps} props */
     onPropsUpdated(props) {
         const previousValues = this.values;
         this.values = /** @type {[NullableDateTime] | NullableDateRange} */ (
@@ -546,9 +528,7 @@ export class DateTimePicker extends Component {
         this.state.focusDate = this.clamp(dateToFocus.startOf("month"));
     }
 
-    /**
-     * @param {DateTime} value
-     */
+    /** @param {DateTime} value */
     clamp(value) {
         return clampDate(value, this.minDate, this.maxDate);
     }
@@ -565,9 +545,7 @@ export class DateTimePicker extends Component {
         );
     }
 
-    /**
-     * @param {DateItem} item
-     */
+    /** @param {DateItem} item */
     getActiveRangeInfo({ range }) {
         const result = {
             isSelected: isInRange(this.selectedRange, range),
@@ -591,9 +569,7 @@ export class DateTimePicker extends Component {
         return result;
     }
 
-    /**
-     * @param {DateTimePickerProps} props
-     */
+    /** @param {DateTimePickerProps} props */
     getTimeValues(props) {
         const timeValues = this.values.map((val, index) => {
             const isImplicitEnd = index === 1 && !this.values[1];
@@ -615,18 +591,14 @@ export class DateTimePicker extends Component {
         }
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     next(ev) {
         ev.preventDefault();
         const { step } = this.activePrecisionLevel;
         this.state.focusDate = this.clamp(this.state.focusDate.plus(step));
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     previous(ev) {
         ev.preventDefault();
         const { step } = this.activePrecisionLevel;
@@ -671,9 +643,7 @@ export class DateTimePicker extends Component {
         return true;
     }
 
-    /**
-     * @param {DateTime} date
-     */
+    /** @param {DateTime} date */
     zoomIn(date) {
         const index = this.allowedPrecisionLevels.indexOf(this.state.precision) - 1;
         if (index in this.allowedPrecisionLevels) {
@@ -693,9 +663,7 @@ export class DateTimePicker extends Component {
         return false;
     }
 
-    /**
-     * @param {DateItem} dateItem
-     */
+    /** @param {DateItem} dateItem */
     zoomOrSelect(dateItem) {
         if (!dateItem.isValid) {
             return;

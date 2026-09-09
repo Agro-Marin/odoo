@@ -24,9 +24,7 @@ export class BadgeSelectionField extends SelectionLikeField {
         size: "md",
     };
 
-    /**
-     * @returns {Array<[any, string]>}
-     */
+    /** @returns {Array<[any, string]>} */
     get options() {
         switch (this.type) {
             case "many2one":
@@ -51,9 +49,7 @@ export class BadgeSelectionField extends SelectionLikeField {
         }
     }
 
-    /**
-     * @param {string | number | false} value
-     */
+    /** @param {string | number | false} value */
     onChange(value) {
         switch (this.type) {
             case "many2one": {

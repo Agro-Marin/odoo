@@ -6,14 +6,13 @@ import { utils } from "@web/ui/viewport";
 
 /**
  * @typedef TourStep
- * @property {"enterprise"|"community"|"mobile"|"desktop"|HootSelector[][]} isActive Active the step following {@link isActiveStep} filter
+ * @property {"enterprise"|"community"|"mobile"|"desktop"|HootSelector[][]} isActive
  * @property {string} [id]
- * @property {HootSelector} trigger The node on which the action will be executed.
- * @property {string} [content] Description of the step.
- * @property {"top" | "bottom" | "left" | "right"} [position] The position where the UI helper is shown.
- * @property {RunCommand} [run] The action to perform when trigger conditions are verified.
- * @property {number} [timeout] By default, when the trigger node isn't found after 10000 milliseconds, it throws an error.
- * You can change this value to lengthen or shorten the time before the error occurs [ms].
+ * @property {HootSelector} trigger
+ * @property {string} [content]
+ * @property {"top" | "bottom" | "left" | "right"} [position]
+ * @property {RunCommand} [run]
+ * @property {number} [timeout]
  */
 export class TourStep {
     constructor(data, tour) {
@@ -21,11 +20,6 @@ export class TourStep {
         this.tour = tour;
     }
 
-    /**
-     * Check if a step is active dependant on step.isActive property
-     * When step.isActive is not defined, the step is active by default.
-     * When a step is not active, it's just skipped and the tour continues to the next step.
-     */
     get active() {
         this.checkHasTour();
         const mode = this.tour.mode;
@@ -46,7 +40,6 @@ export class TourStep {
             (key) => !standardKeyWords.includes(key),
         );
         if (selectors.length) {
-            // if one of selectors is not found, step is skipped
             for (const selector of selectors) {
                 const el = hoot.queryFirst(selector);
                 if (!el) {

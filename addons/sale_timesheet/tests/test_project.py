@@ -15,19 +15,6 @@ class TestProject(TestCommonSaleTimesheet):
         )
 
     def test_get_sale_order_items(self):
-        """Test the _get_sale_order_items and _get_sale_orders methods
-        This test will check we have the SOLs linked to the project and its tasks.
-        Test Case:
-        =========
-        1) No SOLs and SO should be found on a non billable project
-        2) Sol linked to the project should be fetched
-        3) SOL linked to the project and its task should be fetched
-        4) Add a employee mapping and check the SOL of this mapping is fetched with the others.
-        5) remove the SOL linked to the project and check the SOL linked to the task is fetched
-        6) Add an additional domain in the tasks to check if we can fetch with an additional filter
-            for instance, only the SOLs linked to the folded tasks.
-        7) Set allàw_billable=False and check no SOL is found since the project is not billable.
-        """
         self.assertFalse(self.project_non_billable._get_sale_order_items())
         self.assertFalse(self.project_non_billable._get_sale_orders())
 
@@ -106,10 +93,6 @@ class TestProject(TestCommonSaleTimesheet):
                 "fold": True,
             }
         )
-        # Fold every task carrying this line, not just the one created above: the
-        # order generated its own task for the same service line on confirmation, so
-        # the line stays reachable through an unfolded task unless both move. The
-        # filter under test selects tasks, and the line follows from them.
         self.env["project.task"].search(
             [
                 ("project_id", "=", self.project_global.id),
@@ -192,12 +175,6 @@ class TestProject(TestCommonSaleTimesheet):
         self.assertEqual(employee_mapping.cost, self.employee_company_B.hourly_cost)
 
     def test_analytic_account_balance(self):
-        """
-        1) Add new billable project
-        2) Add Employee/SOL mapping in the project
-        3) Add Task and Timesheet with the same user
-        4) Assert analytic_account_balance is calculated
-        """
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_b.id,
@@ -266,7 +243,6 @@ class TestProject(TestCommonSaleTimesheet):
         self.assertEqual("delivered_timesheet", form.service_policy)
 
     def test_open_product_form_with_default_uom_id(self):
-        """Test default product uom fallback when product is not service type"""
         uom_dozen = self.env.ref("uom.product_uom_dozen")
         product_form = Form(
             self.env["product.product"].with_context(

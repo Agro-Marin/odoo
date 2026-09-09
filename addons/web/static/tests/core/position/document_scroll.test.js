@@ -9,9 +9,7 @@ describe.current.tags("headless");
 
 beforeEach(() => patchWithCleanup(localization, { direction: "ltr" }));
 
-/**
- * @param {(win: Window, doc: Document) => any} callback
- */
+/** @param {(win: Window, doc: Document) => any} callback */
 async function withScrollableDocument(callback) {
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "width:600px;height:400px;border:0;";

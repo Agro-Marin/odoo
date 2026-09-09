@@ -457,7 +457,6 @@ class TestPurchaseAmountToInvoice(AccountTestInvoicingCommon):
         line.qty_transferred = 5.0
 
         bill = po.create_invoice()
-        # A draft bill claims the quantity; the amounts wait for it to post.
         self.assertEqual(line.qty_invoiced, 5.0)
         self.assertEqual(line.qty_to_invoice, 0.0)
         self.assertEqual(line.amount_taxinc_to_invoice, line.price_total)

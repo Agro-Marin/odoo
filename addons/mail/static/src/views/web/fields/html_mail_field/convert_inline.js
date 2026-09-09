@@ -14,12 +14,8 @@ import {
 
 export { splitSelectorAroundCommasOutsideParentheses };
 
-/**
- * @typedef {CSSStyleDeclaration & Record<string, string>} IndexableStyle
- */
-/**
- * @typedef {Object<string, string>} StyleMap
- */
+/** @typedef {CSSStyleDeclaration & Record<string, string>} IndexableStyle */
+/** @typedef {Object<string, string>} StyleMap */
 const IMPORTANT_KEYS = Symbol("importantKeys");
 /**
  * @typedef {Object} CssRule
@@ -194,9 +190,7 @@ export function addTables(element) {
         const table = _createTable(snippet.attributes);
 
         const row = document.createElement("tr");
-        /**
-         * @type {HTMLElement}
-         */
+        /** @type {HTMLElement} */
         let col = document.createElement("td");
         _markGenerated(row, col);
         row.appendChild(col);
@@ -971,12 +965,7 @@ function enforceTablesResponsivity(element) {
         tr.prepend(topTd);
     }
 }
-/**
- * Give the cells of one masonry row a shared height, and let a row that asks
- * for the full height take its share of the parent.
- *
- * @param {HTMLElement} tr
- */
+/** @param {HTMLElement} tr */
 function sizeMasonryRow(tr) {
     const height = _getHeight(tr);
     const tds = [.../** @type {HTMLCollectionOf<HTMLElement>} */ (tr.children)].filter(
@@ -1287,13 +1276,7 @@ function getIconBackgroundColor(font) {
     }
     return bg;
 }
-/**
- * Read the icon as authored, then let it size to its glyph so the intrinsic
- * dimensions can be measured. The style attribute is captured first on
- * purpose: the image carries what the author wrote, not "fit-content".
- *
- * @param {HTMLElement} font
- */
+/** @param {HTMLElement} font */
 function measureIcon(font) {
     const style = font.getAttribute("style");
     const width = _getWidth(font);
@@ -1392,9 +1375,7 @@ function replaceIconWithImage(font, icon, content) {
                 .replace(new RegExp("(^|\\s+)" + icon + "(-[^\\s]+)?", "gi"), ""),
     );
 }
-/**
- * @param {HTMLElement} element
- */
+/** @param {HTMLElement} element */
 function fontToImg(element) {
     for (const font of element.querySelectorAll(
         ".fa, .fa-solid, .fa-regular, .fa-brands",
@@ -1890,9 +1871,7 @@ async function convertToPng(source) {
     source.remove();
 }
 
-/**
- * @param {HTMLElement} element
- */
+/** @param {HTMLElement} element */
 async function svgToPng(element) {
     for (const svg of /** @type {NodeListOf<HTMLImageElement>} */ (
         element.querySelectorAll('img[src*=".svg"]')
@@ -1901,9 +1880,7 @@ async function svgToPng(element) {
     }
 }
 
-/**
- * @param {HTMLElement} element
- */
+/** @param {HTMLElement} element */
 async function webpToPng(element) {
     for (const webp of /** @type {NodeListOf<HTMLImageElement>} */ (
         element.querySelectorAll('img[src*=".webp"]')

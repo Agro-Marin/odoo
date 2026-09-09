@@ -28,9 +28,7 @@ const LANG_PARAMETERS = {
     week_start: 1,
 };
 
-/**
- * @param {Partial<{ hash: string, messages: { id: string, string: string }[] }>} [options]
- */
+/** @param {Partial<{ hash: string, messages: { id: string, string: string }[] }>} [options] */
 function makeTranslationsResult({ hash = "hash1", messages = [] } = {}) {
     return {
         lang: "en",
@@ -41,9 +39,7 @@ function makeTranslationsResult({ hash = "hash1", messages = [] } = {}) {
     };
 }
 
-/**
- * @param {{ read?: () => any, write?: (table: string, key: string, value: any) => any }} [impl]
- */
+/** @param {{ read?: () => any, write?: (table: string, key: string, value: any) => any }} [impl] */
 function mockLocalizationDB({
     read = async () => undefined,
     write = async () => {},

@@ -125,8 +125,6 @@ class MixinMailGateway(models.AbstractModel):
     ) -> None:
         return_path = decode_message_header(message, "Return-Path")
         if return_path and not email_normalize(return_path):
-            # RFC 5321 §4.5.5: a null reverse path asks for no delivery status
-            # notification; answering it would address a bounce to "<>".
             _logger.info(
                 "Not bouncing mail with Message-Id %s: its Return-Path %r is the "
                 "null reverse path.",
@@ -386,9 +384,6 @@ class MixinMailGateway(models.AbstractModel):
     ) -> bool:
         alias, model = route.alias, route.model
         message_id = message_dict["message_id"]
-        # `thread_id`, not `record_set`: a reply to a missing document arrives here
-        # with the id reset to None but `record_set` still a truthy browse of it,
-        # and it is the alias' owner that has to answer for the alias then.
         owner = alias._alias_get_document("owner") if not thread_id else None
         if not message_dict.get("author_id"):
             self._routing_find_author(
@@ -865,10 +860,6 @@ class MixinMailGateway(models.AbstractModel):
         if dest_aliases or not reply_thread_id:
             return dest_aliases
 
-        # A reply routed by References alone would otherwise escape the contact
-        # policy the thread is published under, so the alias *governing the
-        # record* still judges it. Only that alias: an alias the mail was never
-        # addressed to, belonging to another record, speaks for nothing here.
         target_record = self.env[reply_model].sudo().browse(reply_thread_id).exists()
         if not target_record:
             return dest_aliases
@@ -951,9 +942,6 @@ class MixinMailGateway(models.AbstractModel):
                     message, message_dict, route, raise_exception=True
                 )
             except ValueError as error:
-                # One broken alias among the addressees is that alias' problem.
-                # Raising here would discard the message for the *other* aliases
-                # it was legitimately addressed to as well.
                 unusable = unusable or error
                 continue
             if isinstance(route, Route):
@@ -1401,16 +1389,10 @@ class MixinMailGateway(models.AbstractModel):
             posted = True
 
             if new_msg and original_partner_ids:
-                # Recorded after the post so the incoming email's own recipients
-                # are not notified a second time. LINK, not a bare id list: that
-                # is a Command.SET and would drop the recipients message_post was
-                # just given -- the parent-author ping among them.
                 new_msg.write(
                     {"partner_ids": [Command.link(pid) for pid in original_partner_ids]}
                 )
         if posted:
-            # Only a delivered message proves the address alive again; a refused
-            # or unroutable one with a spoofed From must not clear its counters.
             self._routing_reset_bounce(message, message_dict)
         return thread_id
 
@@ -1435,10 +1417,6 @@ class MixinMailGateway(models.AbstractModel):
             msg_dict["attachments"] = []
 
         msg_id = msg_dict["message_id"]
-        # Serialise on the Message-Id, then ask the table. Two messages whose ids
-        # collide under `hashtextextended` wait for each other and are then told
-        # apart by the search; a `try` lock cannot tell a collision from a
-        # duplicate and answers "duplicate", which discards mail for good.
         self.env.cr.execute(
             SQL("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", msg_id)
         )

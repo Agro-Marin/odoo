@@ -53,8 +53,6 @@
                 </div>
             </div>
         </div>
-        <!-- leadTime is null when no product carries lead-time data (see
-             _computeLeadTime); leadTimeShort dereferences it. -->
         <div t-if="leadTime" class="d-flex flex-wrap pb-1 pt-2 justify-content-end">
             <div class="row">
                 <h6>Time to replenish:

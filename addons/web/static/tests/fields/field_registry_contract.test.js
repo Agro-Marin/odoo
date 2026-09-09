@@ -114,9 +114,7 @@ const FIELD_OF_TYPE = {
     text: "f_text",
 };
 
-/**
- * @returns {{ key: string, descr: any, viewType: string, widget: string }[]}
- */
+/** @returns {{ key: string, descr: any, viewType: string, widget: string }[]} */
 function registryEntries() {
     return registry
         .category("fields")
@@ -188,9 +186,7 @@ test("every widget renders each type it claims in supportedTypes", async () => {
     expect(attempted).toBeGreaterThan(100);
 });
 
-/**
- * @type {Record<string, string[]>}
- */
+/** @type {Record<string, string[]>} */
 const UNDECLARED_BY_DESIGN = {
     date: ["always_range", "end_date_field", "rounding", "start_date_field"],
     datetime: ["always_range", "end_date_field", "start_date_field"],
@@ -279,9 +275,7 @@ test("extractProps reads no option that supportedOptions does not declare", () =
     expect(checked).toBeGreaterThan(88);
 });
 
-/**
- * @type {Record<string, string[]>}
- */
+/** @type {Record<string, string[]>} */
 const UNDECLARED_ATTRS_BY_DESIGN = {
     boolean_favorite: ["nolabel"],
     statinfo: ["nolabel"],
@@ -355,9 +349,7 @@ test("supportedOptions and supportedAttributes declare nothing extractProps igno
     expect(checked).toBeGreaterThan(88);
 });
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 const NUMERIC_TYPES = ["integer", "float", "monetary"];
 
 test("every numeric widget opts out of the falsy-is-empty default", () => {
@@ -374,9 +366,7 @@ test("every numeric widget opts out of the falsy-is-empty default", () => {
     expect(missing).toEqual([]);
 });
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 const NO_DISPLAY_NAME_BY_DESIGN = [];
 
 test("every registry entry names itself", () => {
@@ -423,9 +413,7 @@ function overridesBelowNumericBase(component, name) {
     return false;
 }
 
-/**
- * @returns {{ key: string, descr: any }[]}
- */
+/** @returns {{ key: string, descr: any }[]} */
 function numericEntries() {
     return registryEntries().filter(
         ({ descr }) => descr.component?.prototype instanceof NumericInputFieldBase,

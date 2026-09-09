@@ -10,9 +10,7 @@ const VERSION_KEY = "webclient_menus_version";
 const HASH_KEY = "webclient_menus_hash";
 const CURRENT_APP_KEY = "menu_id";
 
-/**
- * @returns {string | undefined}
- */
+/** @returns {string | undefined} */
 function cacheVersion() {
     return session.menus_cache_version;
 }
@@ -46,9 +44,7 @@ function discard() {
 }
 
 export const menuStorage = {
-    /**
-     * @returns {{ menus: Object | null, raw: string | null, hash: string | undefined }}
-     */
+    /** @returns {{ menus: Object | null, raw: string | null, hash: string | undefined }} */
     read() {
         let raw, storedVersion, hash;
         try {
@@ -106,9 +102,7 @@ export const menuStorage = {
         }
     },
 
-    /**
-     * @returns {number}
-     */
+    /** @returns {number} */
     readCurrentApp() {
         try {
             return Number(browser.sessionStorage.getItem(CURRENT_APP_KEY)) || 0;

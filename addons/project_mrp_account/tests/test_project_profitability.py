@@ -15,12 +15,10 @@ class TestSaleProjectProfitabilityMrp(TestProjectProfitabilityCommon):
         )
 
     def test_profitability_mrp_project(self):
-        """This test ensures that when mrp are linked to the project, the total is correctly computed for the project profitability."""
 
         project = self.env["project.project"].create({"name": "new project"})
         project._create_analytic_account()
         account = project.account_id
-        # creates the aal for the project
         self.env["account.analytic.line"].create(
             [
                 {
@@ -41,7 +39,6 @@ class TestSaleProjectProfitabilityMrp(TestProjectProfitabilityCommon):
                 },
             ]
         )
-        # Ensures that if none of the mrp linked to the project have the same company as the current active company, the total is still converted into the current active company.
         self.assertDictEqual(
             project._get_profitability_items(with_action=False),
             {
@@ -79,7 +76,6 @@ class TestSaleProjectProfitabilityMrp(TestProjectProfitabilityCommon):
                 },
             ]
         )
-        # Adds mrp AAL with the default company
         self.assertDictEqual(
             project._get_profitability_items(with_action=False),
             {

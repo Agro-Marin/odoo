@@ -12,9 +12,7 @@ const Base = SearchModel;
  */
 export function makeReportSearchModel(contextKey) {
     const ReportSearchModel = class extends Base {
-        /**
-         * @returns {Record<string, any>}
-         */
+        /** @returns {Record<string, any>} */
         _getIrFilterDescription() {
             this.preparingIrFilterDescription = true;
             const result = super._getIrFilterDescription(...arguments);

@@ -10,9 +10,7 @@ const log = makeAssetLog("registry");
 
 class KeyNotFoundError extends Error {}
 
-/**
- * @param {string} message
- */
+/** @param {string} message */
 function reportRegistryAnomaly(message) {
     console.warn(`[registry] ${message}`);
     reportJsError({ message: `[registry] ${message}`, filename: "@web/core/registry" });
@@ -50,46 +48,36 @@ const validateSchema = (name, key, value, schema) => {
 };
 
 /**
- * @template S
- * @template C
+ * @template
+ * @template
  * @typedef {import("registries").RegistryData<S, C>} RegistryData
  */
 
 /**
- * @template T
+ * @template
  * @typedef {T extends RegistryData<any, any> ? T : RegistryData<T, {}>} ToRegistryData
  */
 
 /**
- * @template T
+ * @template
  * @typedef {ToRegistryData<T>["__itemShape"]} GetRegistryItemShape
  */
 
 /**
- * @template T
+ * @template
  * @typedef {ToRegistryData<T>["__categories"]} GetRegistryCategories
  */
 
-/**
- * @template T
- */
+/** @template */
 export class Registry extends EventBus {
-    /**
-     * @param {string} [name]
-     */
+    /** @param {string} [name] */
     constructor(name) {
         super();
-        /**
-         * @type {Record<string, [number, GetRegistryItemShape<T>, number]>}
-         */
+        /** @type {Record<string, [number, GetRegistryItemShape<T>, number]>} */
         this.content = Object.create(null);
-        /**
-         * @type {number}
-         */
+        /** @type {number} */
         this._insertionIndex = 0;
-        /**
-         * @type {{ [P in keyof GetRegistryCategories<T>]?: Registry<GetRegistryCategories<T>[P]> }}
-         */
+        /** @type {{ [P in keyof GetRegistryCategories<T>]?: Registry<GetRegistryCategories<T>[P]> }} */
         this.subRegistries = Object.create(null);
         /** @type {GetRegistryItemShape<T>[] | null} */
         this.elements = null;
@@ -193,9 +181,7 @@ export class Registry extends EventBus {
         return raw;
     }
 
-    /**
-     * @returns {ReadonlyArray<GetRegistryItemShape<T>>}
-     */
+    /** @returns {ReadonlyArray<GetRegistryItemShape<T>>} */
     getAll() {
         if (!this.elements) {
             const raw = this._sortedContent();
@@ -208,9 +194,7 @@ export class Registry extends EventBus {
         return /** @type {ReadonlyArray<GetRegistryItemShape<T>>} */ (this.elements);
     }
 
-    /**
-     * @returns {ReadonlyArray<[string, GetRegistryItemShape<T>]>}
-     */
+    /** @returns {ReadonlyArray<[string, GetRegistryItemShape<T>]>} */
     getEntries() {
         if (!this.entries) {
             const raw = this._sortedContent();
@@ -225,9 +209,7 @@ export class Registry extends EventBus {
         );
     }
 
-    /**
-     * @param {string} key
-     */
+    /** @param {string} key */
     remove(key) {
         if (!(key in this.content)) {
             return;
@@ -239,7 +221,7 @@ export class Registry extends EventBus {
     }
 
     /**
-     * @template {keyof GetRegistryCategories<T> & string} K
+     * @template {keyof GetRegistryCategories<T> & string}
      * @param {K} subcategory
      * @returns {Registry<GetRegistryCategories<T>[K]>}
      */
@@ -253,9 +235,7 @@ export class Registry extends EventBus {
         );
     }
 
-    /**
-     * @param {object | ((value: any) => boolean | void)} schema
-     */
+    /** @param {object | ((value: any) => boolean | void)} schema */
     addValidation(schema) {
         if (this.validationSchema) {
             if (this.validationSchema !== schema) {
@@ -280,7 +260,7 @@ export const registry = /** @type {any} */ (
 );
 
 /**
- * @template T
+ * @template
  * @param {Registry<T>} registry
  * @returns {{ entries: [string, GetRegistryItemShape<T>][] }}
  */

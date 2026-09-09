@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Purchase Orders -->
         <record id="action_purchase_requisition_to_so" model="ir.actions.act_window">
             <field name="name">Request for Quotation</field>
             <field name="res_model">purchase.order</field>

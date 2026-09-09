@@ -135,9 +135,7 @@ export class NavigableList extends Component {
         this.navigate("first");
     }
 
-    /**
-     * @param {boolean} [force]
-     */
+    /** @param {boolean} [force] */
     close(force = false) {
         if (force || this.props.closeOnSelect) {
             this.state.open = false;

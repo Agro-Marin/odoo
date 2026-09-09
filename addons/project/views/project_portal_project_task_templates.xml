@@ -34,7 +34,6 @@
             <t t-call="portal.portal_table">
                 <thead>
                     <tr>
-                        <!-- Allows overrides in modules -->
                         <t
                             t-set="group_by_in_header_list"
                             t-value="['priority', 'milestone_id']" />
@@ -42,7 +41,6 @@
                             t-if="multiple_projects"
                             t-set="group_by_in_header_list"
                             t-value="group_by_in_header_list + ['project_id']" />
-                        <!-- Computes the right colspan once and use it everywhere -->
                         <t
                             t-set="grouped_tasks_colspan"
                             t-value="5 if groupby in group_by_in_header_list else 6" />
@@ -73,7 +71,6 @@
                                 name="groupby_name_col"
                                 t-att-colspan="grouped_tasks_colspan">
                                 <t t-if="groupby == 'project_id' and multiple_projects">
-                                    <!-- This div is necessary for documents_project_sale -->
                                     <div
                                         name="project_name"
                                         class="d-flex w-100 align-items-center">
@@ -91,7 +88,6 @@
                                     <span t-else="">No Milestone</span>
                                 </t>
                                 <t t-if="groupby == 'step_id'">
-                                    <!-- This div is necessary for documents_project_sale -->
                                     <div
                                         name="stage_name"
                                         class="d-flex w-100 align-items-center">

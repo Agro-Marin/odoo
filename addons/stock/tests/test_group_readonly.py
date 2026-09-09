@@ -4,19 +4,11 @@ from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, tagged
 
-# Server actions that carry stock.group_stock_user but which the readonly tier
-# must NOT be able to run. Kept here so the assertion below is a whitelist with
-# a stated reason rather than a count that drifts.
 EXCLUDED_SERVER_ACTIONS = {
-    # Open product.replenish, which creates procurements.
     "stock.action_product_template_replenishment",
     "stock.action_product_replenishment",
 }
 
-# Models whose explicit ACL rows were dropped as redundant because
-# base.group_user already grants read and the readonly group implies it. The
-# grants now live upstream, on a different lifecycle, so this list is asserted:
-# if upstream ever narrows one, this test fails instead of access disappearing.
 READ_VIA_BASE_GROUP_USER = [
     "barcode.nomenclature",
     "barcode.rule",
@@ -48,15 +40,12 @@ READ_VIA_BASE_GROUP_USER = [
     "uom.uom",
 ]
 
-# Wizards the readonly tier may instantiate: they only read.
 READ_ONLY_WIZARDS = [
     "stock.quantity.history",
     "stock.rules.report",
     "stock.traceability.report",
 ]
 
-# Wizards that front a write. A readonly row on these buys nothing, so they
-# carry none and the readonly tier cannot even read them.
 WRITE_WIZARDS = [
     "product.replenish",
     "stock.quant.relocate",
@@ -69,12 +58,6 @@ WRITE_WIZARDS = [
 
 @tagged("post_install", "-at_install")
 class TestStockGroupReadonly(TransactionCase):
-    """The readonly tier's contract.
-
-    post_install because every assertion here reads the ACL union and the
-    group graph, both of which are only settled once every module has loaded.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -87,8 +70,6 @@ class TestStockGroupReadonly(TransactionCase):
         cls.user_stock = cls._create_user("test_sgr_user", cls.group_user)
         cls.user_manager = cls._create_user("test_sgr_manager", cls.group_manager)
 
-        # A readonly account must not carry the User tier, or every assertion
-        # below passes for the wrong reason.
         assert cls.group_user not in cls.user_readonly.all_group_ids, (
             "the readonly test user carries stock.group_stock_user"
         )
@@ -100,12 +81,6 @@ class TestStockGroupReadonly(TransactionCase):
 
     @classmethod
     def _create_user(cls, login, group):
-        """Create a real user in exactly one stock group.
-
-        The uid assertion is not ceremony. `with_user` on an empty recordset
-        runs as superuser, so a lookup that silently returns nothing turns this
-        whole suite green while checking nothing.
-        """
         user = cls.env["res.users"].create(
             {
                 "name": login,
@@ -118,8 +93,6 @@ class TestStockGroupReadonly(TransactionCase):
             "test user %s is not a real non-superuser account" % login
         )
         return user
-
-    # --- the privilege ladder -------------------------------------------
 
     def test_readonly_is_implied_by_the_user_tier(self):
         self.assertIn(
@@ -147,14 +120,7 @@ class TestStockGroupReadonly(TransactionCase):
             "which inverts the tier order: %s" % offenders,
         )
 
-    # --- server actions --------------------------------------------------
-
     def test_every_user_gated_server_action_reaches_readonly(self):
-        """The regression test for the hook's old "stock.%" model filter.
-
-        The hook searched ir.model for stock.% and so never saw the actions
-        declared on product models.
-        """
         actions = self.env["ir.actions.server"].search(
             [("group_ids", "in", self.group_user.ids)]
         )
@@ -193,8 +159,6 @@ class TestStockGroupReadonly(TransactionCase):
         )
         self.assertTrue(result, "the routes diagram action returned nothing")
 
-    # --- ACL surface -----------------------------------------------------
-
     def test_readonly_can_read_but_not_write_stock_data(self):
         for model in ("stock.picking", "stock.move", "stock.quant"):
             as_readonly = self.env[model].with_user(self.user_readonly)
@@ -224,11 +188,6 @@ class TestStockGroupReadonly(TransactionCase):
             picking.with_user(self.user_readonly).write({"note": "nope"})
 
     def test_models_read_through_base_group_user_stay_readable(self):
-        """Guards the redundant-row deletion.
-
-        Those rows were dropped because base.group_user already grants read.
-        That grant is upstream's to change, so assert it rather than trust it.
-        """
         access = self.env["ir.model.access"].with_user(self.user_readonly)
         lost = [
             model
@@ -240,8 +199,6 @@ class TestStockGroupReadonly(TransactionCase):
             "the readonly tier lost read on models whose explicit ACL rows were "
             "removed as redundant: %s" % lost,
         )
-
-    # --- wizards ---------------------------------------------------------
 
     def test_readonly_can_run_the_read_only_report_wizards(self):
         access = self.env["ir.model.access"].with_user(self.user_readonly)
@@ -273,8 +230,6 @@ class TestStockGroupReadonly(TransactionCase):
             self.assertFalse(access.check(model, "read", False), model)
             self.assertFalse(access.check(model, "create", False), model)
 
-    # --- menus -----------------------------------------------------------
-
     def test_readonly_sees_the_patched_menus(self):
         menus = self.env["ir.ui.menu"].with_user(self.user_readonly).load_menus(False)
         visible = {
@@ -288,21 +243,11 @@ class TestStockGroupReadonly(TransactionCase):
         ):
             self.assertIn(xml_id, visible, "%s is not visible to Read-only" % xml_id)
 
-    # --- view affordances -------------------------------------------------
-
     def _form_arch(self, model, user, view_id=False, view_type="form"):
         views = self.env[model].with_user(user).get_views([(view_id, view_type)])
         return views["views"][view_type]["arch"]
 
     def _assert_write_buttons_gated(self, view_xmlid, model, view_type, buttons):
-        """The gate is asserted where it is declared, and the tier where it lands.
-
-        A stock User seeing the button is not asserted: a downstream module may
-        narrow a write button further, and that is its decision. What stock
-        owns is that each button is gated POSITIVELY on the User tier, which
-        the readonly group does not carry, and that the rendered view for the
-        tier drops it.
-        """
         view = self.env.ref(view_xmlid)
         arch = etree.fromstring(view.arch)
         for button in buttons:
@@ -339,5 +284,4 @@ class TestStockGroupReadonly(TransactionCase):
                 "stock.action_stock_inventory_adjustement_name",
             ),
         )
-        # The history button only reads, so it stays for everyone.
         self.assertIn("action_inventory_history", readonly_arch)

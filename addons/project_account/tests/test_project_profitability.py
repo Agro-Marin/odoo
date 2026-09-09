@@ -8,10 +8,6 @@ from odoo.addons.project.tests.test_project_profitability import (
 @tagged("-at_install", "post_install")
 class TestProjectAccountProfitability(TestProjectProfitabilityCommon):
     def test_project_profitability(self):
-        """
-        In this module, the project profitability should be computed while checking the AAL data.
-        The Other Revenue and Other Cost sections should be displayed if some data are available.
-        """
         project = self.env["project.project"].create({"name": "new project"})
         project._create_analytic_account()
         self.assertDictEqual(
@@ -19,12 +15,10 @@ class TestProjectAccountProfitability(TestProjectProfitabilityCommon):
             self.project_profitability_items_empty,
             "The profitability data of the project should return no data and so 0 for each total amount.",
         )
-        # Create a new company with the foreign currency.
         foreign_company = self.env["res.company"].create(
             {"name": "My Test Company", "currency_id": self.foreign_currency.id}
         )
 
-        # Create new AAL with the new company.
         self.env["account.analytic.line"].create(
             [
                 {
@@ -53,7 +47,6 @@ class TestProjectAccountProfitability(TestProjectProfitabilityCommon):
                 },
             ]
         )
-        # Ensures that when all the AAL of the account belongs to another company, the total amount is still converted to the currency of the current active company
         self.assertDictEqual(
             project._get_profitability_items(False),
             {
@@ -110,7 +103,6 @@ class TestProjectAccountProfitability(TestProjectProfitabilityCommon):
                 },
             ]
         )
-        # Ensures that multiple AAL from different companies are correctly computed for the project profitability
         self.assertDictEqual(
             project._get_profitability_items(False),
             {

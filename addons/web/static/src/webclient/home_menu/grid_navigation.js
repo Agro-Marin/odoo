@@ -2,22 +2,10 @@
 /** @odoo-module native */
 
 /**
- * The arrow keys' view of the launcher: where each focusable item sits, and
- * where an arrow moves from there. Pure arithmetic over the shape on screen —
- * no DOM, no component — so the geometry can be read and tested on its own.
- *
- * Items carry one flat index across the whole surface, tiles first and the
- * matching menus after them, which is the index `focusedIndex` holds.
- */
-
-/**
- * The rows on screen: each tile section wraps at the grid's width, and each
- * matching menu is a row of its own beneath them.
- *
- * @param {number[]} sectionSizes how many tiles in each section, in order
- * @param {number} perRow the grid's width in tiles
- * @param {number} [singleRows] items below the grid, one row each
- * @returns {number[][]} flat indices, row by row
+ * @param {number[]} sectionSizes
+ * @param {number} perRow
+ * @param {number} [singleRows]
+ * @returns {number[][]}
  */
 export function gridRows(sectionSizes, perRow, singleRows = 0) {
     /** @type {number[][]} */
@@ -41,10 +29,10 @@ export function gridRows(sectionSizes, perRow, singleRows = 0) {
 /** @typedef {"previousColumn"|"nextColumn"|"previousLine"|"nextLine"} GridMove */
 
 /**
- * @param {number[][]} rows as `gridRows` returns them
- * @param {number | null} from the flat index the focus is on, or none yet
+ * @param {number[][]} rows
+ * @param {number | null} from
  * @param {GridMove | string} move
- * @returns {number | null} the flat index to focus, or null to leave it alone
+ * @returns {number | null}
  */
 export function nextFocusedIndex(rows, from, move) {
     if (!rows.length) {

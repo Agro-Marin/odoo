@@ -28,8 +28,8 @@ function wasRedirected(xhr, route) {
 /**
  * @param {XMLHttpRequest} xhr
  * @param {string} route
- * @returns {Record<string, any>|undefined} the parsed JSON body, when it is one
- * @throws {Error} carrying the most specific message the response offers
+ * @returns {Record<string, any>|undefined}
+ * @throws {Error}
  */
 function parseUploadResponse(xhr, route) {
     const resp = xhr.responseText ?? xhr.response;
@@ -41,7 +41,7 @@ function parseUploadResponse(xhr, route) {
         errorMessage = _t("Your session expired. Please log in again.");
     }
     if (resp) {
-        /** @type {any} Parsed JSON or an HTML error document. */
+        /** @type {any} */
         let content = resp;
         if (typeof content === "string") {
             try {
@@ -73,9 +73,7 @@ function parseUploadResponse(xhr, route) {
 }
 
 class FileUploadService {
-    /**
-     * @param {{ notification: any }} services
-     */
+    /** @param {{ notification: any }} services */
     constructor({ notification: notificationService }) {
         this.notificationService = notificationService;
         /** @type {Record<number, Object>} */
@@ -99,14 +97,6 @@ class FileUploadService {
      * @param {string} route
      * @param {FileList | File[]} files
      * @param {{
-     * buildFormData?: (formData: FormData) => void,
-     * displayErrorNotification?: boolean,
-     * directFile?: File,
-     * [key: string]: any,
-     * }} [params] `directFile` makes the upload two-phase: the route
-     *  receives an empty placeholder carrying the file's name and type and
-     *  must answer with an `upload_info`; the real bytes then go straight to
-     *  that URL, and LOADED fires only once both phases have succeeded.
      */
     async upload(route, files, params = {}) {
         const xhr = fileUploadService.createXhr();

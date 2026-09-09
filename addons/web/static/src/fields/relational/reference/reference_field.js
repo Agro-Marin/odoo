@@ -53,7 +53,7 @@ export class ReferenceField extends FieldComponent {
 
         const SUPERSEDED = Symbol("superseded");
         /**
-         * @template T
+         * @template
          * @param {Promise<T>} promise
          * @returns {Promise<T | typeof SUPERSEDED>}
          */
@@ -145,9 +145,7 @@ export class ReferenceField extends FieldComponent {
         }
     }
 
-    /**
-     * @returns {ReferenceValue|false}
-     */
+    /** @returns {ReferenceValue|false} */
     getValue() {
         if (this._isCharField(this.props)) {
             return this.state.formattedCharValue;
@@ -156,9 +154,7 @@ export class ReferenceField extends FieldComponent {
         }
     }
 
-    /**
-     * @returns {string|undefined}
-     */
+    /** @returns {string|undefined} */
     getModelName() {
         return this.hideModelSelector && this.state.modelName;
     }
@@ -189,9 +185,7 @@ export class ReferenceField extends FieldComponent {
         return props.record.fields[props.name].type === "char";
     }
 
-    /**
-     * @returns {Promise<{ resId: number, resModel: string, displayName: string }|false>}
-     */
+    /** @returns {Promise<{ resId: number, resModel: string, displayName: string }|false>} */
     async _fetchReferenceCharData(/** @type {any} */ props) {
         const recordData = props.record.data[props.name];
         if (!recordData) {
@@ -219,9 +213,7 @@ export class ReferenceField extends FieldComponent {
         }
     }
 
-    /**
-     * @returns {Promise<string|false>}
-     */
+    /** @returns {Promise<string|false>} */
     async _fetchModelTechnicalName(/** @type {any} */ props) {
         this._assertMany2OneToIrModel(props);
         const record = props.record;

@@ -6,12 +6,6 @@
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.view_task_form2" />
         <field name="arch" type="xml">
-            <!--
-                Replace the user_ids assignee field with:
-                1. user_ids kept invisible — preserves ACL rules, portal_user_names
-                    and any downstream module that reads the field.
-                2. employee_ids as the new visible primary assignee input.
-            -->
             <xpath
                 expr="//field[@name='user_ids'][hasclass('o_task_user_field')]"
                 position="replace">
@@ -27,10 +21,6 @@
                     options="{'no_open': True}"
                     domain="['|', ('company_id', '=', False), ('company_id', '=?', company_id)]" />
             </xpath>
-            <!--
-                Subtask list inside the form (child_ids O2M): swap user_ids for
-                employee_ids with the avatar widget, mirroring the main task list.
-            -->
             <xpath
                 expr="//field[@name='child_ids']/list//field[@name='user_ids']"
                 position="replace">
@@ -49,10 +39,6 @@
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.project_task_view_tree_main_base" />
         <field name="arch" type="xml">
-            <!--
-                Replace user_ids list column with employee_ids.
-                user_ids kept as column_invisible so the ORM still fetches it.
-            -->
             <xpath expr="//field[@name='user_ids']" position="replace">
                 <field name="user_ids" column_invisible="True" />
                 <field
@@ -68,7 +54,6 @@
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.view_task_search_form_project_fsm_base" />
         <field name="arch" type="xml">
-            <!-- Add employee search field alongside the existing user search. -->
             <xpath expr="//field[@name='user_ids']" position="after">
                 <field name="employee_ids" string="Assignee (Employee)" />
             </xpath>

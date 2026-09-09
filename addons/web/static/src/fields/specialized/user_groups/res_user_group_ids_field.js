@@ -17,11 +17,6 @@ const viewRegistry = registry.category("views");
 
 /**
  * @typedef {{
- * id: string | number,
- * name: string,
- * privilege_ids?: Array<string | number>,
- * privileges: Privilege[],
- * }} PrivilegeCategory
  * @typedef {{ id: string | number } & Record<string, any>} Privilege
  */
 
@@ -35,9 +30,7 @@ class ResUserGroupIdsField extends FieldComponent {
     }
     static props = { ...standardFieldProps };
 
-    /**
-     * @type {Record<string, any>}
-     */
+    /** @type {Record<string, any>} */
     hierarchyGroups;
 
     /** @type {PrivilegeCategory[]} */
@@ -182,9 +175,7 @@ class ResUserGroupIdsField extends FieldComponent {
         return selection;
     }
 
-    /**
-     * @returns {Object<string, any>}
-     */
+    /** @returns {Object<string, any>} */
     buildArch() {
         const arch = `
             <t>
@@ -209,9 +200,7 @@ class ResUserGroupIdsField extends FieldComponent {
         this.updateValues(selectedIds);
     }
 
-    /**
-     * @param {Set<number>} selectedIds
-     */
+    /** @param {Set<number>} selectedIds */
     updateGroupStates(selectedIds) {
         for (const group of Object.values(this.hierarchyGroups)) {
             const selected = selectedIds.has(group.id);
@@ -265,9 +254,7 @@ class ResUserGroupIdsField extends FieldComponent {
         }
     }
 
-    /**
-     * @param {Set<number>} selectedIds
-     */
+    /** @param {Set<number>} selectedIds */
     updateValues(selectedIds) {
         this.values = {};
         this.shadowedGroupIds = [];
@@ -292,9 +279,7 @@ class ResUserGroupIdsField extends FieldComponent {
         }
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     getExtraGroupsArch() {
         return `
             <group string="${escape(this.extraCategory.name)}" class="o_extra_rights_group">

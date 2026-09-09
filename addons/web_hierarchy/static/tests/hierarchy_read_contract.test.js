@@ -8,14 +8,6 @@ import {
 } from "@web/../tests/web_test_helpers";
 import "./hierarchy_mock_server.js";
 
-/**
- * What the real `Base.hierarchy_read` answers, captured from a live database
- * (`res.partner`, ids renumbered 1..n, `order="id asc"`, both values of
- * `only_roots`). The mock in
- * `hierarchy_mock_server.js` stands in for that method in every other suite in
- * this module, so a mock that answers a different question makes those suites
- * agree with nothing. Regenerate by re-running the probe against a scratch db.
- */
 const CONTRACT = [
     {
         name: "lone root",

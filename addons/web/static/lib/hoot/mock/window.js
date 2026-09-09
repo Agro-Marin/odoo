@@ -106,9 +106,7 @@ function applyPropertyDescriptors(target, descriptors) {
     }
 }
 
-/**
- * @param {string[]} [changedKeys]
- */
+/** @param {string[]} [changedKeys] */
 function callMediaQueryChanges(changedKeys) {
     for (const mediaQueryList of mediaQueryLists) {
         if (
@@ -125,7 +123,7 @@ function callMediaQueryChanges(changedKeys) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T} target
  * @param {keyof T} property
  */
@@ -155,9 +153,7 @@ function findPropertyOwner(object, property) {
     return object;
 }
 
-/**
- * @param {unknown} object
- */
+/** @param {unknown} object */
 function getTouchDescriptors(object) {
     const descriptors = {};
     const toDelete = [];
@@ -181,16 +177,12 @@ function getTouchDescriptors(object) {
     return result;
 }
 
-/**
- * @param {typeof globalThis} view
- */
+/** @param {typeof globalThis} view */
 function getTouchTargets(view) {
     return [view, view.Document.prototype];
 }
 
-/**
- * @param {typeof globalThis} view
- */
+/** @param {typeof globalThis} view */
 function getWatchedEventTargets(view) {
     return [
         view,
@@ -231,9 +223,7 @@ function makeEventDescriptor(type) {
     };
 }
 
-/**
- * @param {string} mediaQueryString
- */
+/** @param {string} mediaQueryString */
 function matchesQueryPart(mediaQueryString) {
     const [, key, value] = mediaQueryString.match(R_MEDIA_QUERY_PROPERTY) || [];
     let match = false;
@@ -284,9 +274,7 @@ function mockedElementFromPoint(...args) {
     return mockedElementsFromPoint.call(this, ...args)[0];
 }
 
-/**
- * @type {Document["elementsFromPoint"]}
- */
+/** @type {Document["elementsFromPoint"]} */
 function mockedElementsFromPoint(...args) {
     const { value: elementsFromPoint } = findOriginalDescriptor(
         this,
@@ -338,9 +326,7 @@ function mockedRemoveEventListener(...args) {
     return removeEventListener.call(this, ...args);
 }
 
-/**
- * @param {MutationRecord[]} mutations
- */
+/** @param {MutationRecord[]} mutations */
 function observeAddedNodes(mutations) {
     const runner = getRunner();
     for (const mutation of mutations) {
@@ -354,9 +340,7 @@ function observeAddedNodes(mutations) {
     }
 }
 
-/**
- * @param {PointerEvent} ev
- */
+/** @param {PointerEvent} ev */
 function onAnchorHrefClick(ev) {
     if (ev.defaultPrevented) {
         return;
@@ -383,9 +367,7 @@ function onWindowResize() {
     callMediaQueryChanges();
 }
 
-/**
- * @param {typeof globalThis} view
- */
+/** @param {typeof globalThis} view */
 function restoreTouch(view) {
     const touchObjects = getTouchTargets(view);
     for (let i = 0; i < touchObjects.length; i++) {
@@ -411,9 +393,7 @@ class MockMediaQueryList extends MockEventTarget {
             .some((orPart) => orPart.split(R_AND).every(matchesQueryPart));
     }
 
-    /**
-     * @param {string} mediaQueryString
-     */
+    /** @param {string} mediaQueryString */
     constructor(mediaQueryString) {
         super(...arguments);
 
@@ -573,16 +553,12 @@ export function getViewPortWidth() {
     }
 }
 
-/**
- * @param {Event} event
- */
+/** @param {Event} event */
 export function isPrevented(event) {
     return event.defaultPrevented || preventedEvents.has(event);
 }
 
-/**
- * @param {Record<string, string>} name
- */
+/** @param {Record<string, string>} name */
 export function mockMatchMedia(values) {
     ensureTest("mockMatchMedia");
     $assign(mockMediaValues, values);
@@ -590,18 +566,14 @@ export function mockMatchMedia(values) {
     callMediaQueryChanges($keys(values));
 }
 
-/**
- * @param {Event} event
- */
+/** @param {Event} event */
 export function mockPreventDefault(event) {
     $defineProperty(event, "preventDefault", {
         value: mockedPreventDefault,
     });
 }
 
-/**
- * @param {boolean} setTouch
- */
+/** @param {boolean} setTouch */
 export function mockTouch(setTouch) {
     ensureTest("mockTouch");
     const objects = getTouchTargets(getWindow());
@@ -627,9 +599,7 @@ export function mockTouch(setTouch) {
     }
 }
 
-/**
- * @param {typeof globalThis} [view=getWindow()]
- */
+/** @param {typeof globalThis} [view=getWindow()] */
 export function patchWindow(view = getWindow()) {
     applyPropertyDescriptors(view, WINDOW_MOCK_DESCRIPTORS);
 
@@ -644,9 +614,7 @@ export function patchWindow(view = getWindow()) {
     });
 }
 
-/**
- * @param {string} value
- */
+/** @param {string} value */
 export function setTitle(value) {
     const doc = getDocument();
     const titleDescriptor = findOriginalDescriptor(doc, "title");
@@ -664,9 +632,7 @@ export function setupWindow() {
     view.addEventListener("resize", onWindowResize);
 }
 
-/**
- * @param {typeof globalThis} [view=getWindow()]
- */
+/** @param {typeof globalThis} [view=getWindow()] */
 export function watchAddedNodes(view = getWindow()) {
     const observer = new MutationObserver(observeAddedNodes);
     observer.observe(view.document.head, { childList: true });
@@ -676,9 +642,7 @@ export function watchAddedNodes(view = getWindow()) {
     };
 }
 
-/**
- * @param {typeof globalThis} [view=getWindow()]
- */
+/** @param {typeof globalThis} [view=getWindow()] */
 export function watchListeners(view = getWindow()) {
     const targets = getWatchedEventTargets(view);
     for (const target of targets) {
@@ -695,7 +659,7 @@ export function watchListeners(view = getWindow()) {
 }
 
 /**
- * @template T
+ * @template
  * @param {T} target
  * @param {string[]} [whiteList]
  */

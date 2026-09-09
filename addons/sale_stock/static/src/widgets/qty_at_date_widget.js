@@ -60,10 +60,8 @@ export class QtyAtDateWidget extends Component {
     }
 
     initCalcData() {
-        // calculate data not in record
         const { data } = this.props.record;
         if (data.date_planned) {
-            // TODO: might need some round_decimals to avoid errors
             if (data.state === "done") {
                 this.calcData.will_be_fulfilled =
                     data.qty_free_today >= data.qty_to_transfer;
@@ -75,11 +73,9 @@ export class QtyAtDateWidget extends Component {
                 data.date_planned_forecast &&
                 data.date_planned_forecast > data.date_planned;
             if (data.state === "draft") {
-                // Moves aren't created yet, then the forecasted is only based on qty_available_virtual of quant
                 this.calcData.forecasted_issue =
                     !this.calcData.will_be_fulfilled && !data.is_mto;
             } else {
-                // Moves are created, using the forecasted data of related moves
                 this.calcData.forecasted_issue =
                     !this.calcData.will_be_fulfilled || this.calcData.will_be_late;
             }
@@ -93,9 +89,6 @@ export class QtyAtDateWidget extends Component {
         if (!lineUomId || !productId) {
             return;
         }
-        // Two round-trips, not three: the product tells us which reference unit
-        // to fetch, and both units are then read in one call. The pair is
-        // memoised per (product, unit) since a popover is typically reopened.
         const cacheKey = `${productId}/${lineUomId}`;
         let factors = this.constructor.uomCache.get(cacheKey);
         if (!factors) {
@@ -137,7 +130,6 @@ export class QtyAtDateWidget extends Component {
     }
 
     updateCalcData() {
-        // popup specific data
         const { data } = this.props.record;
         if (!data.date_planned) {
             return;

@@ -36,7 +36,6 @@ class TestAnalytics(TestStockCommon):
                 cls.plan2_name: cls.analytic_account2.id,
             }
         )
-        # Remove the analytic account auto-generated when creating a timesheetable project if it exists
         cls.project.account_id = False
         cls.product1, cls.product2 = cls.env["product.product"].create(
             [
@@ -101,12 +100,6 @@ class TestAnalytics(TestStockCommon):
         self.assertEqual(analytic_line2[self.plan2_name], self.analytic_account2)
 
     def test_analytic_lines_generation_receipt(self):
-        """
-        In this module, the project profitability should be computed while checking the AAL data from the pickings.
-        When the 'analytic costs' option from delivery order is enabled, it is expected for picking to generate
-        an aal for the move line created. These aals should be taken into account when computing the 'project
-        profitability' right side panel and displayed under the 'costs -> materials' section.
-        """
         picking_in = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -190,9 +183,7 @@ class TestAnalytics(TestStockCommon):
             }
         )
         picking_in.picking_type_id.analytic_costs = True
-        self.project[self.plan1_name] = (
-            False  # Remove the mandatory plan from the project linked to the picking
-        )
+        self.project[self.plan1_name] = False
         self.MoveObj.create(
             {
                 "product_uom_id": self.uom_unit.id,
@@ -205,4 +196,4 @@ class TestAnalytics(TestStockCommon):
         )
         picking_in.action_confirm()
         with self.assertRaises(ValidationError):
-            picking_in.button_validate()  # A missing mandatory plan is required on the project linked to the picking
+            picking_in.button_validate()

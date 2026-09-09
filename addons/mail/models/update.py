@@ -98,12 +98,6 @@ class Publisher_WarrantyContract(AbstractModel):
 
     @api.model
     def _get_verbose_maintenance(self) -> dict:
-        """can be called by a SA to debug cloc issue
-        Without running odoo-bin cloc which is not always possible
-
-        :return: cloc module/exclusion counts
-        :rtype: dict
-        """
         counter = cloc.Cloc()
         counter.count_env(self.env)
         return {

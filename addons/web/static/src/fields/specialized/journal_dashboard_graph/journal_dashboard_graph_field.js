@@ -25,26 +25,20 @@ export class JournalDashboardGraphField extends FieldComponent {
         graphType: "bar",
     };
 
-    /**
-     * @type {any}
-     */
+    /** @type {any} */
     data;
 
     /** @type {any} */
     chart;
 
-    /**
-     * @type {ReturnType<typeof useChartCanvas>}
-     */
+    /** @type {ReturnType<typeof useChartCanvas>} */
     canvasRef;
 
     setup() {
         this.canvasRef = useChartCanvas(() => [this.field.value]);
     }
 
-    /**
-     * @returns {any[] | null}
-     */
+    /** @returns {any[] | null} */
     parseSeries() {
         let data;
         try {

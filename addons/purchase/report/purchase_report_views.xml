@@ -146,7 +146,6 @@
         <field name="path">purchase-analysis</field>
         <field name="view_mode">graph,pivot</field>
         <field name="view_id" />
-        <!-- force empty -->
         <field name="target">current</field>
         <field
             name="context">{

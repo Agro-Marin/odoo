@@ -212,14 +212,6 @@
             eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_public'))]" />
     </record>
 
-    <!--
-        This rule only ever *grants*. `mail.activity._check_access` combines
-        it with document access using OR for write and unlink, so it cannot
-        stop anyone: an employee who can write the document may write its
-        activities whether or not this matches. What it does do is let the
-        creator or the assignee manage an activity on a document they
-        cannot write, which is why it must not be deleted.
-    -->
     <record id="mail_activity_rule_user" model="ir.rule">
         <field name="name">mail.activity: user: also allow creator and assignee</field>
         <field name="model_id" ref="model_mail_activity" />

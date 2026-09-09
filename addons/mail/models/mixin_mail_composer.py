@@ -81,11 +81,6 @@ class MixinMailComposer(models.AbstractModel):
         for composer_mixin in self:
             template_body = composer_mixin.template_id.body_html
             if template_body:
-                # `body` is stored through a field with sanitize_style=True,
-                # which rewrites inline CSS ("color:red;x" -> "color:red; x").
-                # Comparing the raw template body_html against it makes every
-                # styled template read as edited, wrongly denying non-editors.
-                # Normalize the template value through the same field first.
                 template_body = composer_mixin._fields["body"].convert_to_cache(
                     template_body, composer_mixin
                 )

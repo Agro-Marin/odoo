@@ -6,11 +6,6 @@ from odoo.tests.common import TransactionCase
 @tagged("post_install", "-at_install")
 class TestReorderingRuleProjectPurchase(TransactionCase):
     def test_po_creation_and_reuse_based_on_project(self):
-        """
-        Verify that purchase orders are reused only when their project_id matches:
-        - A PO with a project is reused only for procurements with the same project.
-        - A PO without a project is reused only for procurements without a project.
-        """
         partner = self.env["res.partner"].create({"name": "Test Partner"})
         buy_product = self.env["product.product"].create(
             {
@@ -25,7 +20,6 @@ class TestReorderingRuleProjectPurchase(TransactionCase):
                 ],
             }
         )
-        # Enable MTO + Buy routes
         mto_route = self.env.ref("stock.route_warehouse0_mto")
         mto_route.active = True
         buy_product.route_ids |= mto_route | self.env.ref(
@@ -33,7 +27,6 @@ class TestReorderingRuleProjectPurchase(TransactionCase):
         )
 
         ref = self.env["stock.reference"].create({"name": "Test mto buy procurement"})
-        # 1. First procurement → creates a PO with no project
         self.env["stock.rule"].run(
             [
                 self.env["stock.rule"].Procurement(
@@ -55,7 +48,6 @@ class TestReorderingRuleProjectPurchase(TransactionCase):
         self.assertEqual(
             len(po), 1, "Expected exactly one purchase order after first procurement"
         )
-        # 2. Add a project to the first PO → next procurement should not reuse it
         po.project_id = self.env["project.project"].create({"name": "Test Project"})
         self.env["stock.rule"].run(
             [
@@ -93,7 +85,6 @@ class TestReorderingRuleProjectPurchase(TransactionCase):
         )
         self.assertEqual(second_po.line_ids.product_uom_qty, 1)
 
-        # 3. Another procurement without project → should reuse the second PO
         self.env["stock.rule"].run(
             [
                 self.env["stock.rule"].Procurement(

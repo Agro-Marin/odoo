@@ -24,9 +24,7 @@ function makeRecord(id) {
     };
 }
 
-/**
- * @param {object} [ctxOverrides]
- */
+/** @param {object} [ctxOverrides] */
 async function mountSelectionHost(ctxOverrides = {}) {
     class Host extends Component {
         static template = xml`<div/>`;
@@ -149,9 +147,7 @@ test("shiftKeyMode mirrors the physical shift key", async () => {
 
 const LONG_TOUCH_THRESHOLD = 400;
 
-/**
- * @param {(record: any) => void} onLongTouch
- */
+/** @param {(record: any) => void} onLongTouch */
 async function mountLongTouchHost(onLongTouch) {
     class Host extends Component {
         static template = xml`<div/>`;

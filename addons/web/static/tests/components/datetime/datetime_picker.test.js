@@ -21,21 +21,17 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
 
 const { DateTime } = luxon;
 
-/**
- * @param {DateTimePickerProps["value"]} value
- */
+/** @param {DateTimePickerProps["value"]} value */
 const formatForStep = (value) =>
     ensureArray(value)
         .map((val) => val.toISO().split(".")[0])
         .join(",");
 
-/**
- * @param {any} value
- */
+/** @param {any} value */
 const pad2 = (value) => String(value).padStart(2, "0");
 
 /**
- * @template {any} [T=number]
+ * @template {any}
  * @param {number} length
  * @param {(index: number) => T} mapping
  */

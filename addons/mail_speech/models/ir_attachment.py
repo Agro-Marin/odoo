@@ -22,9 +22,6 @@ class IrAttachment(models.Model):
 
     def _speech_notify_owner(self, transcribed: bool) -> None:
         super()._speech_notify_owner(transcribed)
-        # A voice message is not a media segment, so the timeline hooks never
-        # reach it: its owner is the message it is attached to, and what has to
-        # learn the words is whoever has that conversation open.
         for attachment in self:
             for message in attachment._speech_messages():
                 Store(bus_channel=message._bus_channel()).add(

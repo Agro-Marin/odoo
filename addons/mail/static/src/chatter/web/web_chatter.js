@@ -25,15 +25,9 @@ import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 export const DELAY_FOR_SPINNER = 1000;
 
-/**
- * @typedef {import("@mail/chatter/web_portal/chatter").Props & { close?: function, compactHeight?: boolean, has_activities?: boolean, hasAttachmentPreview?: boolean, hasParentReloadOnActivityChanged?: boolean, hasParentReloadOnAttachmentsChanged?: boolean, hasParentReloadOnFollowersUpdate?: boolean, hasParentReloadOnMessagePosted?: boolean, highlightMessageId?: number, isAttachmentBoxVisibleInitially?: boolean, isChatterAside?: boolean, isInFormSheetBg?: boolean, saveRecord?: function, record?: Object, }} Props
- */
-/**
- * @typedef {import("@mail/chatter/web_portal/chatter").State & { composerType: "message"|"note"|false, isAttachmentBoxOpened: boolean, isCollapsed: boolean, isSearchOpen: boolean, showActivities: boolean, showAttachmentLoading: boolean, showScheduledMessages: boolean, }} State
- */
-/**
- * @extends {Chatter<Props, State>}
- */
+/** @typedef {import("@mail/chatter/web_portal/chatter").Props & { close?: function, compactHeight?: boolean, has_activities?: boolean, hasAttachmentPreview?: boolean, hasParentReloadOnActivityChanged?: boolean, hasParentReloadOnAttachmentsChanged?: boolean, hasParentReloadOnFollowersUpdate?: boolean, hasParentReloadOnMessagePosted?: boolean, highlightMessageId?: number, isAttachmentBoxVisibleInitially?: boolean, isChatterAside?: boolean, isInFormSheetBg?: boolean, saveRecord?: function, record?: Object, }} Props */
+/** @typedef {import("@mail/chatter/web_portal/chatter").State & { composerType: "message"|"note"|false, isAttachmentBoxOpened: boolean, isCollapsed: boolean, isSearchOpen: boolean, showActivities: boolean, showAttachmentLoading: boolean, showScheduledMessages: boolean, }} State */
+/** @extends {Chatter<Props, State>} */
 export class WebChatter extends Chatter {
     static template = "mail.Chatter";
     static components = {

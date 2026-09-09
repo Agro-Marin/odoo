@@ -52,9 +52,7 @@ function iconFromString(iconString) {
     return icon;
 }
 
-/**
- * @param {Record<string, any>} record
- */
+/** @param {Record<string, any>} record */
 export function recordResParams(record) {
     return pick(record, "context", "evalContext", "resModel", "resId", "resIds");
 }
@@ -115,9 +113,7 @@ export class ViewButton extends Component {
         return !this.hasBigTooltip && this.props.title;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     get tooltip() {
         return JSON.stringify({
             debug: Boolean(odoo.debug),
@@ -173,9 +169,7 @@ export class ViewButton extends Component {
         });
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     getClassName() {
         const classNames = [];
         let hasExplicitRank = false;

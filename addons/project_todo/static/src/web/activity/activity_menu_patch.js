@@ -14,7 +14,7 @@ patch(ActivityMenu.prototype, {
         useCommand(
             _t("Add a To-Do"),
             () => {
-                document.body.click(); // hack to close command palette
+                document.body.click();
                 this.createActivityTodo();
             },
             {
@@ -26,11 +26,6 @@ patch(ActivityMenu.prototype, {
     },
 
     createActivityTodo() {
-        // Opened on a *new* record rather than one pre-created over RPC: a
-        // cancelled dialog then leaves no orphan transient row behind, it costs
-        // one round trip less, and the form renderer only autofocuses records it
-        // considers new. `user_id` is readonly with a default of the current
-        // user, so it needs no context.
         this.dialogService.add(FormViewDialog, {
             title: _t("Add a To-Do"),
             resModel: "mail.activity.todo.create",
@@ -47,8 +42,6 @@ patch(ActivityMenu.prototype, {
     },
 
     async loadTodoViews() {
-        // The To-Do views are xmlids resolved server-side; they cannot change
-        // within a session, so resolve them once instead of on every click.
         this.todoViews ??= await this.orm.call("project.task", "get_todo_views_id", []);
         return this.todoViews;
     },

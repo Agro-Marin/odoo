@@ -60,9 +60,6 @@ class TestCompletionSequence(TestStockCommon):
         move.quantity = 1.0
         move.picked = True
         move._action_done()
-        # A plain copy keeps its picking, and a move joining a done picking is
-        # forced done by _prepare_create_vals, so it is sequenced -- with its
-        # own number, never the original's.
         joined = move.copy()
         self.assertEqual(joined.state, "done")
         self.assertTrue(joined.completion_sequence)

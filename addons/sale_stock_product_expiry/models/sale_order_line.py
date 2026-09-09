@@ -11,8 +11,6 @@ class SaleOrderLine(models.Model):
             SaleOrderLine, self.with_context(fresh_qty_forecast=True)
         )._read_qties(date, wh)
         if any(self.mapped("use_expiration_date")):
-            # res (from super()._read_qties) and the read() below both derive from
-            # self.mapped('product_id'), so they are equal-length and same-order
             for res_record, read_record in zip(
                 res,
                 self.mapped("product_id")

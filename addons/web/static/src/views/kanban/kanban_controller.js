@@ -97,9 +97,7 @@ export class KanbanController extends MultiRecordController {
         showButtons: true,
     };
 
-    /**
-     * @override
-     */
+    /** @override */
     setupModel() {
         this.model = useState(
             useModelWithSampleData(
@@ -139,9 +137,7 @@ export class KanbanController extends MultiRecordController {
         );
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     setupInteractions() {
         const { setScrollFromState } = useSetupAction({
             rootRef: this.rootRef,
@@ -183,9 +179,7 @@ export class KanbanController extends MultiRecordController {
         });
     }
 
-    /**
-     * @returns {Record<string, any>}
-     */
+    /** @returns {Record<string, any>} */
     getLocalState() {
         const state = {
             activeBars: this.progressBarState?.activeBars,
@@ -197,9 +191,7 @@ export class KanbanController extends MultiRecordController {
         return state;
     }
 
-    /**
-     * @returns {{ scrollLeft: number, columnScrollTops: [any, number][] }}
-     */
+    /** @returns {{ scrollLeft: number, columnScrollTops: [any, number][] }} */
     getColumnScrollPositions() {
         /** @type {[any, number][]} */
         const columnScrollTops = [];
@@ -246,9 +238,7 @@ export class KanbanController extends MultiRecordController {
         }
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get modelParams() {
         const { resModel, limit } = this.props;
         const { activeFields, fields } = extractFieldsFromArchInfo(
@@ -366,9 +356,7 @@ export class KanbanController extends MultiRecordController {
         return evaluateBooleanExpr(modifier, { context: this.props.context });
     }
 
-    /**
-     * @param {Object} record
-     */
+    /** @param {Object} record */
     deleteRecord(record) {
         this.deleteRecordsWithConfirmation(this.deleteConfirmationDialogProps, [
             record,
@@ -407,9 +395,7 @@ export class KanbanController extends MultiRecordController {
         }
     }
 
-    /**
-     * @param {Object} record
-     */
+    /** @param {Object} record */
     onRecordSaved(record) {
         if (this.model.root.isGrouped) {
             const group = this.model.root.groups.find((l) =>

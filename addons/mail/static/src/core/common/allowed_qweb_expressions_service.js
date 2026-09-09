@@ -3,13 +3,7 @@
 
 import { registry } from "@web/core/registry";
 
-/**
- * @type {{
- * dependencies: string[],
- * async: boolean,
- * start: (env: any, deps: any) => (resModel: string) => Promise<string[]>,
- * }}
- */
+/** @type {{ */
 export const allowedQwebExpressionsService = {
     dependencies: ["orm"],
     async: true,

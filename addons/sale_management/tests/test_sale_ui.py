@@ -24,7 +24,6 @@ class TestUi(AccountTestInvoicingCommon, HttpCase):
         self.start_tour("/odoo", "sale_tour", login="admin")
 
     def test_04_portal_sale_signature_without_name_tour(self):
-        """The goal of this test is to make sure the portal user can sign SO even witout a name."""
         self.agrolait.name = ""
 
         sales_order = (
@@ -54,10 +53,6 @@ class TestUi(AccountTestInvoicingCommon, HttpCase):
 @tagged("-at_install", "post_install")
 class TestSaleFlowTourPostInstall(TestSaleCommon, HttpCase):
     def test_basic_sale_flow_with_minimal_access_rights(self):
-        """
-        Test that a sale user with minimal access rights (own document only) can open both the
-        list and form view, create and process a sale order and open the associated invoice.
-        """
         sale_user = self.env["res.users"].create(
             {
                 "name": "Super Sale Woman",
@@ -67,7 +62,6 @@ class TestSaleFlowTourPostInstall(TestSaleCommon, HttpCase):
                 ],
             }
         )
-        # create and confirm a sale order to populate the list view
         sale_order = (
             self.env["sale.order"]
             .with_user(sale_user.id)

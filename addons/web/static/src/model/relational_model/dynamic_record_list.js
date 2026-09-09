@@ -3,9 +3,6 @@
 
 import { DynamicList } from "./dynamic_list.js";
 
-/** @import { ListInsertion } from "./editable_list_datapoint.js" */
-/** @import { RelationalRecord } from "./record.js" */
-
 export class DynamicRecordList extends DynamicList {
     static type = "DynamicRecordList";
 
@@ -58,9 +55,7 @@ export class DynamicRecordList extends DynamicList {
         });
     }
 
-    /**
-     * @type {DynamicList["clearSampleData"]}
-     */
+    /** @type {DynamicList["clearSampleData"]} */
     clearSampleData() {
         this.count = 0;
         this._records = [];
@@ -163,9 +158,7 @@ export class DynamicRecordList extends DynamicList {
         super._selectDomain(value);
     }
 
-    /**
-     * @param {{ length: number }} data
-     */
+    /** @param {{ length: number }} data */
     _adoptCount(data) {
         const length = data.length;
         if (length >= this.config.countLimit + 1) {

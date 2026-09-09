@@ -54,7 +54,6 @@ class ProjectTemplateCreateWizard(models.TransientModel):
         return action
 
     def action_create_project_from_so(self):
-        """Create a project either from template or directly if no template is set."""
         self.check_singleton()
         if self.template_id:
             project = self._create_project_from_template()

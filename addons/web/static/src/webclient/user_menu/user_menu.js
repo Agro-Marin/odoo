@@ -35,9 +35,7 @@ export class UserMenu extends Component {
         });
     }
 
-    /**
-     * @returns {Object[]}
-     */
+    /** @returns {Object[]} */
     getElements() {
         const sortedItems = userMenuRegistry
             .getEntries()

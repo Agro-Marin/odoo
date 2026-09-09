@@ -55,9 +55,7 @@ export class RainbowMan extends Component {
         }
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onBodyClick(ev) {
         if (
             this.props.Component &&

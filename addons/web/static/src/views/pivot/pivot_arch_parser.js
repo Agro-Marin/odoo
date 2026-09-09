@@ -8,9 +8,7 @@ import {
     staticModifier,
     ViewArchParser,
 } from "@web/views/view_arch_parser";
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 const PIVOT_FIELD_ATTRS = ["name", "type", "operator", "interval", "string", "widget"];
 
 export class PivotArchParser extends ViewArchParser {
@@ -19,16 +17,6 @@ export class PivotArchParser extends ViewArchParser {
      * @param {Record<string, any>} [_models]
      * @param {string} [_modelName]
      * @returns {{
-     * activeMeasures: string[],
-     * colGroupBys: string[],
-     * defaultOrder: string | null,
-     * fieldAttrs: Record<string, Record<string, any>>,
-     * rowGroupBys: string[],
-     * widgets: Object,
-     * title?: string,
-     * disableLinking?: boolean,
-     * displayQuantity?: boolean,
-     * }}
      */
     parse(arch, _models, _modelName) {
         return this.visitArch(

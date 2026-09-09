@@ -78,14 +78,13 @@ class SaleOrder(models.Model):
             super()._compute_field_value(field, validate=validate)
             return
 
-        # Get SOs which their state is not equal to upselling and if at least a SOL has warning prepaid service upsell set to True and the warning has not already been displayed
         upsellable_orders = self.filtered(
             lambda so: (
                 so.state == "done"
                 and so.invoice_state != "over done"
                 and so.id
                 and (so.user_id or so.partner_id.user_id)
-            )  # salesperson needed to assign upsell activity
+            )
         )
         super(
             SaleOrder,
@@ -95,7 +94,6 @@ class SaleOrder(models.Model):
             upsellable_lines = order._get_prepaid_service_lines_to_upsell()
             if upsellable_lines:
                 order._create_upsell_activity()
-                # We want to display only one time the warning for each SOL
                 upsellable_lines.write({"has_displayed_warning_upsell": True})
         super(SaleOrder, self - upsellable_orders)._compute_field_value(
             field, validate=validate
@@ -141,19 +139,13 @@ class SaleOrder(models.Model):
         )[0][0]
 
     def _get_prepaid_service_lines_to_upsell(self):
-        """Retrieve all sols which need to display an upsell activity warning in the SO
-
-        These SOLs should contain a product which has:
-            - type="service",
-            - service_policy="ordered_prepaid",
-        """
         self.check_singleton()
         precision = self.env["decimal.precision"].get_precision("Product Unit")
         return self.line_ids.filtered(
             lambda sol: (
                 sol.is_service
                 and sol.invoice_state != "done"
-                and not sol.has_displayed_warning_upsell  # we don't want to display many times the warning each time we timesheet on the SOL
+                and not sol.has_displayed_warning_upsell
                 and sol.product_id.service_policy == "ordered_prepaid"
                 and float_compare(
                     sol.qty_transferred,
@@ -186,7 +178,7 @@ class SaleOrder(models.Model):
             "search_default_billable_timesheet": True,
             "default_is_so_line_edited": True,
             "default_so_line": default_sale_line.id,
-        }  # erase default filters
+        }
 
         tasks = self.line_ids.task_id._filtered_access("write")
         if tasks:
@@ -230,9 +222,6 @@ class SaleOrder(models.Model):
                 line.has_displayed_warning_upsell = False
 
     def _create_invoices(self, grouped=False, final=False, date=None):
-        """Link timesheets to the created invoices. Date interval is injected in the
-        context in sale_make_invoice_advance_inv wizard.
-        """
         moves = super()._create_invoices(grouped=grouped, final=final, date=date)
         moves._link_timesheets_to_invoice(
             self.env.context.get("timesheet_start_date"),

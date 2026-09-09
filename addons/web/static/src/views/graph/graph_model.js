@@ -27,14 +27,10 @@ export const DATA_LIMIT = 80;
 
 const SEQUENTIAL_TYPES = ["date", "datetime"];
 
-/**
- * @typedef {import("@web/model/types").SearchParams} SearchParams
- */
+/** @typedef {import("@web/model/types").SearchParams} SearchParams */
 
 export class GraphModel extends Model {
-    /**
-     * @override
-     */
+    /** @override */
     setup(params) {
         this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.fetches = new InFlight();
@@ -65,9 +61,7 @@ export class GraphModel extends Model {
         });
     }
 
-    /**
-     * @param {SearchParams} searchParams
-     */
+    /** @param {SearchParams} searchParams */
     async load(searchParams) {
         const previousSearchParams = this.searchParams;
         this.searchParams = searchParams;
@@ -107,16 +101,12 @@ export class GraphModel extends Model {
         this.notify();
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     hasData() {
         return /** @type {any} */ (this).dataPoints?.length > 0;
     }
 
-    /**
-     * @param {Object} params
-     */
+    /** @param {Object} params */
     async updateMetaData(params) {
         if ("measure" in params) {
             const metaData = this._buildMetaData(params);
@@ -571,9 +561,7 @@ export class GraphModel extends Model {
         metaData.measure = processMeasure(metaData.measure);
     }
 
-    /**
-     * @protected
-     */
+    /** @protected */
     prepareData() {
         const processedDataPoints = this._getProcessedDataPoints();
         this.data = this._getData(processedDataPoints, this.forceAllDataPoints);

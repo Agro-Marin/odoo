@@ -54,7 +54,6 @@
                 name="search"
                 eval="[[('id', 'in', (ref('stock_inventory_icecream_lot_0'),                                             ref('stock_inventory_icecream_lot_1')                                             ))]]" />
         </function>
-        <!-- Create STOCK_MOVE for OUT -->
         <record id="outgoing_shipment_main_warehouse" model="stock.picking">
             <field name="picking_type_id" ref="stock.picking_type_out" />
             <field name="origin">outgoing shipment</field>
@@ -153,7 +152,6 @@
                 eval="[(0, 0, {                 'product_id': ref('product.product_product_6'),                 'product_uom_id': ref('uom.product_uom_unit'),                 'product_uom_qty': 50.0,                 'picking_type_id': ref('stock.picking_type_out'),                 'location_id': ref('stock.stock_location_stock'),                 'location_dest_id': ref('stock.stock_location_customers'),             })]"
                 model="stock.move" />
         </record>
-        <!-- Create STOCK_PICKING for IN -->
         <record id="incomming_shipment" model="stock.picking">
             <field name="user_id" />
             <field name="picking_type_id" ref="stock.picking_type_in" />
@@ -224,7 +222,6 @@
                 model="stock.picking"
                 eval="[                 obj().env.ref('stock.outgoing_shipment_main_warehouse1').id,                 obj().env.ref('stock.outgoing_shipment_main_warehouse5').id,                 obj().env.ref('stock.outgoing_shipment_main_warehouse6').id,             ]" />
         </function>
-        <!-- Adds move lines qty. done -->
         <function model="stock.move.line" name="write">
             <value
                 model="stock.move.line"

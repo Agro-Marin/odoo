@@ -19,12 +19,7 @@ const FAKE_PROPS = {
     editRecord() {},
 };
 
-/**
- * @param {{
- * props?: object;
- * dialogOptions?: import("@web/ui/dialog/dialog_service").DialogServiceInterfaceAddOptions;
- * }} [params]
- */
+/** @param {{ */
 async function start(params = {}) {
     await mountWithCleanup(MainComponentsContainer);
     getService("dialog").add(

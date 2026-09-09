@@ -65,13 +65,6 @@ defineModels([ProjectTaskBurndownChartReport]);
 
 describe.current.tags("desktop");
 
-// In `beforeEach`, not at module scope: `mockService` mutates the global
-// service registry, and at import time that happens outside any per-test
-// snapshot -- so the mock stayed installed for EVERY test in the bundle, and
-// every notification any other addon raised was recorded as a stray
-// `expect.step("notification")` in whatever test was running. It took
-// `@document/log_access` down (2 tests) as soon as `project` shared a HOOT run
-// with `documents`.
 beforeEach(() =>
     mockService("notification", () => ({
         add() {
@@ -136,7 +129,6 @@ test("burndown.chart: check that the sort buttons are invisible", async () => {
 test("burndown.chart: check that removing the group by 'Date: Month > Step' in the search bar triggers a notification", async () => {
     await mountViewWithSearch();
     await click(".o_facet_remove");
-    // Only the notification will be triggered and the file won't be uploaded.
     expect.verifySteps(["notification"]);
 });
 
@@ -144,7 +136,6 @@ test("burndown.chart: check that removing the group by 'Date' triggers a notific
     await mountViewWithSearch();
     await toggleGroupBy("Date");
     await toggleMenuItemOption("Date", "Month");
-    // Only the notification will be triggered and the file won't be uploaded.
     expect.verifySteps(["notification"]);
 });
 

@@ -131,7 +131,6 @@
         </field>
     </record>
 
-    <!-- Precedence-->
     <record id="act_product_location_open" model="ir.actions.act_window">
         <field name="name">Products</field>
         <field name="res_model">product.product</field>

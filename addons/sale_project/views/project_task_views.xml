@@ -465,7 +465,6 @@
         </field>
     </record>
 
-    <!-- Views for 'Tasks' stat button via Contact form -->
     <record id="view_task_form_res_partner" model="ir.ui.view">
         <field name="name">project.task.form.res.partner.inherit.sale_project</field>
         <field name="model">project.task</field>

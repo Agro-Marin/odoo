@@ -59,23 +59,17 @@ function readRaw(key) {
 }
 
 export const actionStorage = {
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getCurrentAction() {
         return readJSON(CURRENT_ACTION);
     },
 
-    /**
-     * @param {string} [serializedAction]
-     */
+    /** @param {string} [serializedAction] */
     setCurrentAction(serializedAction) {
         writeRaw(CURRENT_ACTION, serializedAction || "{}");
     },
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     getCurrentState() {
         return readJSON(CURRENT_STATE);
     },
@@ -102,7 +96,7 @@ export const actionStorage = {
     },
 
     /**
-     * @template T
+     * @template
      * @param {{ serializedAction?: string, state: Object }} entry
      * @param {() => T} fn
      * @returns {T}

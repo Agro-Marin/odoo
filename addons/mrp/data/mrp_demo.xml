@@ -10,11 +10,9 @@
         <record id="base.default_user_group" model="res.groups">
             <field name="implied_ids" eval="[(4, ref('mrp.group_mrp_manager'))]" />
         </record>
-        <!-- Groups -->
         <record id="base.group_user" model="res.groups">
             <field name="implied_ids" eval="[(4, ref('mrp.group_mrp_routings'))]" />
         </record>
-        <!-- Resource: mrp.workcenter -->
         <record id="mrp_workcenter_3" model="mrp.workcenter">
             <field name="name">Assembly 1</field>
             <field name="resource_calendar_id" ref="resource.resource_calendar_std" />
@@ -27,7 +25,6 @@
             <field name="name">Assembly 2</field>
             <field name="resource_calendar_id" ref="resource.resource_calendar_std" />
         </record>
-        <!-- Resource: mrp.bom -->
         <record
             id="product.product_product_3_product_template"
             model="product.template">
@@ -77,7 +74,6 @@
             <field name="product_qty">3</field>
             <field name="bom_id" ref="mrp_bom_manufacture" />
         </record>
-        <!-- Table -->
         <record id="product_product_computer_desk" model="product.product">
             <field name="name">Table</field>
             <field name="categ_id" ref="product.product_category_office" />
@@ -324,7 +320,6 @@
             <field name="sequence">4</field>
             <field name="bom_id" ref="mrp_bom_desk" />
         </record>
-        <!-- Table MO -->
         <record id="mrp_production_3" model="mrp.production">
             <field name="product_id" ref="product_product_computer_desk" />
             <field name="product_uom_id" ref="uom.product_uom_unit" />
@@ -418,7 +413,6 @@
             <field name="sequence">1</field>
             <field name="bom_id" ref="mrp_bom_wood_panel" />
         </record>
-        <!-- Table Top MO -->
         <record id="mrp_production_4" model="mrp.production">
             <field name="product_id" ref="product_product_computer_desk_head" />
             <field name="product_uom_id" ref="uom.product_uom_unit" />
@@ -427,7 +421,6 @@
             <field name="location_dest_id" ref="stock.stock_location_stock" />
             <field name="bom_id" ref="mrp_bom_table_top" />
         </record>
-        <!-- Table Kit -->
         <record id="product_product_table_kit" model="product.product">
             <field name="name">Table Kit</field>
             <field name="categ_id" ref="product.product_category_office" />
@@ -470,7 +463,6 @@
             <field name="product_uom_id" ref="uom.product_uom_unit" />
             <field name="bom_id" ref="mrp_bom_kit" />
         </record>
-        <!-- Manufacturing Order Demo With Lots-->
         <record id="product_product_drawer_drawer" model="product.product">
             <field name="name">Drawer Black</field>
             <field name="categ_id" ref="product.product_category_office" />
@@ -520,7 +512,6 @@
             <field name="name">0000000020045</field>
             <field name="product_id" ref="product_product_drawer_case" />
         </record>
-        <!-- Initital Inventory -->
         <record id="stock_inventory_drawer_lot0" model="stock.quant">
             <field name="product_id" ref="product.product_product_27" />
             <field name="inventory_quantity">50.0</field>
@@ -587,7 +578,6 @@
                 name="search"
                 eval="[[('id', 'in', (ref('stock_inventory_drawer_lot0'),                                             ref('stock_inventory_drawer_lot1'),                                             ref('stock_inventory_product_drawer_drawer'),                                             ref('stock_inventory_product_drawer_case'),                                             ref('stock_inventory_product_wood_panel'),                                             ref('stock_inventory_product_ply'),                                             ref('stock_inventory_product_wear'),                                             ))]]" />
         </function>
-        <!-- BoM -->
         <record id="mrp_bom_drawer" model="mrp.bom">
             <field
                 name="product_tmpl_id"
@@ -664,9 +654,7 @@
             <field name="location_dest_id" ref="stock.stock_location_stock" />
             <field name="bom_id" ref="mrp_bom_drawer" />
         </record>
-        <!-- Run Scheduler -->
         <function model="stock.scheduler" name="run" />
-        <!-- OEE -->
         <record id="mrp_workcenter_efficiency_0" model="mrp.workcenter.productivity">
             <field name="workcenter_id" ref="mrp_workcenter_3" />
             <field name="loss_id" ref="block_reason7" />
@@ -745,10 +733,6 @@
         <function model="mrp.production" name="button_mark_done">
             <value eval="[ref('mrp.mrp_production_drawer')]" />
         </function>
-        <!--
-            set 'create component' as True for the demo manufacturing picking type
-            while leaving the default value to False for the others
-        -->
         <function model="stock.warehouse" name="write">
             <value
                 model="stock.warehouse"

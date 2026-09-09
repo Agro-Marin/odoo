@@ -41,7 +41,6 @@ describe(parseUrl(import.meta.url), () => {
         const testName = "some test";
         const t = new Test(null, testName, {});
         const runFn = () => {
-            // Synchronous
             expect(1).toBe(1);
         };
 

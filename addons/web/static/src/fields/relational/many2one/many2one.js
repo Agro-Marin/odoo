@@ -31,13 +31,9 @@ export function extractData(record) {
     return { id: record.id, display_name: name };
 }
 
-/**
- * @typedef {{ latest: any, stable: any, props: any, value: any }} M2OHolder
- */
+/** @typedef {{ latest: any, stable: any, props: any, value: any }} M2OHolder */
 
-/**
- * @type {WeakMap<object, Map<string, M2OHolder>>}
- */
+/** @type {WeakMap<object, Map<string, M2OHolder>>} */
 const M2O_PROPS = new WeakMap();
 
 /**
@@ -134,8 +130,7 @@ export function computeM2OProps(fieldProps) {
 }
 
 /**
- * @param {Object} fieldProps the field component's props; `record` and `name`
- *  address the same per-field holder `computeM2OProps` uses
+ * @param {Object} fieldProps
  * @param {{ id: number, display_name: string } | false | null | undefined} pair
  * @returns {{ id: number, display_name: string } | false}
  */
@@ -160,9 +155,7 @@ export class Many2One extends Component {
     static template = "web.Many2One";
     static components = { Many2XAutocomplete };
 
-    /**
-     * @type {ReturnType<typeof import("@web/core/name_service").nameService.start>}
-     */
+    /** @type {ReturnType<typeof import("@web/core/name_service").nameService.start>} */
     nameService;
     static props = {
         canCreate: { type: Boolean, optional: true },
@@ -296,9 +289,7 @@ export class Many2One extends Component {
         };
     }
 
-    /**
-     * @returns {{ create: boolean, createEdit: boolean, write: boolean }}
-     */
+    /** @returns {{ create: boolean, createEdit: boolean, write: boolean }} */
     get activeActions() {
         const next = {
             create: this.props.canCreate,

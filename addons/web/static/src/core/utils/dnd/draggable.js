@@ -4,8 +4,6 @@
 import { pick } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 
-/** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
-
 /**
  * @typedef DraggableParams
  * @property {{ el: HTMLElement | null }} ref

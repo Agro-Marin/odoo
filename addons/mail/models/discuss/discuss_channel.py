@@ -39,11 +39,6 @@ if typing.TYPE_CHECKING:
 
 
 def format_sql_in_literals(values: list[str]) -> str:
-    """Render channel-type codes as a SQL IN list.
-
-    The values are selection codes declared in Python, never user input, and a
-    CHECK definition is a static string with no bind parameters available.
-    """
     for value in values:
         if not value.isidentifier():
             raise ValueError(f"{value!r} is not usable as a SQL literal")
@@ -52,13 +47,6 @@ def format_sql_in_literals(values: list[str]) -> str:
 
 @dataclass(frozen=True, kw_only=True)
 class ChannelTypePolicy:
-    """Every behaviour that used to be a `channel_type == ...` literal.
-
-    A module adding a channel type adds a row to `_channel_type_policies` and
-    decides each attribute; nothing here has a default, so a new type cannot
-    silently inherit a literal's side.
-    """
-
     supports_group_authorization: bool
     narrates_membership_changes: bool
     auto_invites_members_to_call: bool
@@ -767,9 +755,6 @@ class DiscussChannel(models.Model):
     def _search_channel_partner_ids(
         self, operator: str, operand: Any
     ) -> Domain | NotImplementedType:
-        # Negative operators must be refused so the domain optimizer inverts the
-        # positive form: answering them here turns "has no member X" into "has
-        # some member that is not X", which is not what any other m2m means.
         if operator not in ("in", "any"):
             return NotImplemented
         return Domain("channel_member_ids", "any", [("partner_id", operator, operand)])
@@ -1066,12 +1051,6 @@ class DiscussChannel(models.Model):
         return partners.ids
 
     def _check_thread_message_partner_ids(self, messages: MailMessage) -> None:
-        """Refuse recipients this channel's allowlist would not have accepted.
-
-        Opt-in hook read by `mail.message._check_thread_allows_partner_ids`.
-        `message_post` already filters, so this only bites a direct write to
-        `mail.message.partner_ids`, which is the path that bypassed the check.
-        """
         by_channel = defaultdict(lambda: self.env["mail.message"])
         for message in messages:
             by_channel[message.res_id] += message
@@ -1349,9 +1328,6 @@ class DiscussChannel(models.Model):
         for channel in self:
             new_members = new_members_by_channel[channel]
             existing_members = existing_by_channel[channel]
-            # Stays inside the loop: the bus notification order per channel is
-            # asserted by test_rtc's assertBusNotifications, so hoisting this to
-            # one call over all_new_members reorders the stream.
             new_members._notify_joined(invite_to_rtc_call)
             if (
                 new_members
@@ -2260,12 +2236,6 @@ class DiscussChannel(models.Model):
                 return False
 
     def _get_push_notification_title(self, author, record_name: str) -> str:
-        """Title of the web-push notification for a message in this channel.
-
-        A dispatch rather than a chain of channel_type literals, so a module
-        adding a type picks its own shape instead of silently inheriting the
-        `#name` form that reads as a public channel.
-        """
         self.check_singleton()
         match self._channel_type_policy().push_title:
             case "author":
@@ -2277,11 +2247,6 @@ class DiscussChannel(models.Model):
 
     @classmethod
     def _channel_type_policies(cls) -> dict[str, ChannelTypePolicy]:
-        """One row per channel type; a module adding a type adds its row here.
-
-        A classmethod because the SQL CHECK on `group_public_id` is resolved
-        from the registry class, before any cursor or recordset exists.
-        """
         return {
             "chat": ChannelTypePolicy(
                 supports_group_authorization=False,

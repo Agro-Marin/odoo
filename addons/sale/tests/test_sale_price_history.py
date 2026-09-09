@@ -81,7 +81,6 @@ class TestSalePriceHistory(TransactionCase):
 
     def test_average_is_quantity_weighted_across_units(self):
         wizard = self._create_wizard()
-        # 100 x 10 units + 120 x 5 units + 100 x 24 units (2 dozen at 1200)
         self.assertAlmostEqual(wizard.avg_price_unit, round(4000 / 39, 2), places=2)
         self.assertEqual(wizard.avg_sample_count, 3)
 

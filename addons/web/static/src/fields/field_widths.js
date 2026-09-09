@@ -62,9 +62,7 @@ export function resetDateFieldWidths() {
     _dateWidths = null;
 }
 
-/**
- * @returns {boolean}
- */
+/** @returns {boolean} */
 function isMeridiemTimeFormat() {
     return /\ba+\b/.test(localization.timeFormat || "");
 }

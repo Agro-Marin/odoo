@@ -17,7 +17,6 @@ class TestProjectProfitabilityCommon(Common):
         cls.env.user.group_ids += cls.env.ref("sales_team.group_sale_manager")
         uom_unit_id = cls.env.ref("uom.product_uom_unit").id
 
-        # Create material product
         cls.material_product = cls.env["product.product"].create(
             {
                 "name": "Material",
@@ -29,7 +28,6 @@ class TestProjectProfitabilityCommon(Common):
             }
         )
 
-        # Create service products
         cls.uom_hour = cls.env.ref("uom.product_uom_hour")
         cls.product_delivery_service = cls.env["product.product"].create(
             {
@@ -109,10 +107,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         cls.company_data_2 = cls.setup_other_company()
 
     def test_profitability_of_non_billable_project(self):
-        """Test no data is found for the project profitability since the project is not billable
-        even if it is linked to a sale order items.
-        """
-        # Adding an extra cost/revenue to ensure those are not computed either.
         self.env["account.analytic.line"].create(
             [
                 {
@@ -166,7 +160,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             "No data for the project profitability should be found since no product is delivered in the SO linked.",
         )
 
-        # Add extra cost and extra revenues to the analytic account.
         self.env["account.analytic.line"].create(
             [
                 {
@@ -182,7 +175,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             ]
         )
 
-        # Create and confirm a SO in a foreign company.
         product_delivery_service_foreign = (
             self.env["product.product"]
             .with_company(foreign_company)
@@ -241,7 +233,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         sequence_per_invoice_type = (
             self.project._get_profitability_sequence_per_invoice_type()
         )
-        # Ensures that when the only SO linked to the project is a foreign SO, the currency used is the default one, and not the currency of the SO.
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -254,7 +245,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                             "to_invoice": 0.0,
                         },
                         {
-                            # id should be equal to "billable_manual" if "sale_timesheet" module is installed otherwise "service_revenues"
                             "id": invoice_type,
                             "sequence": sequence_per_invoice_type[invoice_type],
                             "to_invoice": sol_foreign.amount_taxexc_to_invoice * 0.2,
@@ -282,7 +272,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         self.assertNotEqual(sol_foreign.amount_taxexc_to_invoice, 0.0)
         self.assertEqual(sol_foreign.amount_taxexc_invoiced, 0.0)
 
-        # Set the qty_transferred of the sol of the main so to 1, this sol should now be computed for the project_profitability.
         self.delivery_service_order_line.qty_transferred = 1
         self.assertIn("service_revenues", sequence_per_invoice_type)
         self.assertDictEqual(
@@ -297,7 +286,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                             "to_invoice": 0.0,
                         },
                         {
-                            # id should be equal to "billable_manual" if "sale_timesheet" module is installed otherwise "service_revenues"
                             "id": invoice_type,
                             "sequence": sequence_per_invoice_type[invoice_type],
                             "to_invoice": self.delivery_service_order_line.amount_taxexc_to_invoice
@@ -329,7 +317,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         )
         self.assertEqual(self.delivery_service_order_line.amount_taxexc_invoiced, 0.0)
 
-        # Create and post an invoice for the foreign SO.
         context = {
             "active_model": "sale.order",
             "active_ids": sale_order_foreign.ids,
@@ -347,7 +334,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             ._create_invoices(sale_order_foreign)
         )
         invoices_foreign.action_post()
-        # Ensures the foreign SO sols are now computed for the 'invoiced' section, while the sol's from the main SO are still in the 'to_invoice' section
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -360,7 +346,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                             "to_invoice": 0.0,
                         },
                         {
-                            # id should be equal to "billable_manual" if "sale_timesheet" module is installed otherwise "service_revenues"
                             "id": invoice_type,
                             "sequence": sequence_per_invoice_type[invoice_type],
                             "to_invoice": self.delivery_service_order_line.amount_taxexc_to_invoice,
@@ -389,7 +374,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         self.assertEqual(sol_foreign.amount_taxexc_to_invoice, 0.0)
         self.assertNotEqual(sol_foreign.amount_taxexc_invoiced, 0.0)
 
-        # Create and post an invoice for the main SO.
         context = {
             "active_model": "sale.order",
             "active_ids": self.sale_order.ids,
@@ -414,7 +398,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             ["billable_manual", "service_revenues"],
             'invoice_type="billable_manual" if sale_timesheet is installed otherwise it is equal to "service_revenues"',
         )
-        # Ensures that the 'to_invoice' section is now empty, and the 'invoiced' section contains the amount from all the sol's.
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -460,7 +443,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             self.delivery_service_order_line.amount_taxexc_invoiced, 0.0
         )
 
-        # Add 2 sale order item to the foreign SO.
         SaleOrderLineForeign = self.env["sale.order.line"].with_context(
             tracking_disable=True, default_order_id=sale_order_foreign.id
         )
@@ -479,7 +461,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             ]
         )
         service_sols_foreign = sol_foreign + manual_service_sol_foreign
-        # Ensures that the 'materials' section is now present, and that the new manual sol is computed in the 'to_invoice' section.
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -543,7 +524,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         self.assertEqual(manual_service_sol_foreign.amount_taxexc_invoiced, 0.0)
         self.assertNotEqual(material_sol_foreign.amount_taxexc_to_invoice, 0.0)
         self.assertEqual(material_sol_foreign.amount_taxexc_invoiced, 0.0)
-        # Add 2 sales order items in the main SO.
         SaleOrderLine = self.env["sale.order.line"].with_context(
             tracking_disable=True, default_order_id=self.sale_order.id
         )
@@ -570,7 +550,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             ["billable_manual", "service_revenues"],
             'invoice_type="billable_manual" if sale_timesheet is installed otherwise it is equal to "service_revenues"',
         )
-        # Ensures that the 'materials' section contains the material sol from the main company, and that the new manual sol is computed in the 'to_invoice' section.
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -645,10 +624,8 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         self.assertNotEqual(material_order_line.amount_taxexc_to_invoice, 0.0)
         self.assertEqual(material_order_line.amount_taxexc_invoiced, 0.0)
 
-        # Revert the invoice from the foreign SO.
         credit_notes = invoices_foreign._reverse_moves()
         credit_notes.action_post()
-        # Ensures that the sols that were invoiced are computed in the 'to_invoice' section again.
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -722,10 +699,8 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         self.assertNotEqual(sol_foreign.amount_taxexc_to_invoice, 0.0)
         self.assertEqual(sol_foreign.amount_taxexc_invoiced, 0.0)
 
-        # Revert the invoice from the main SO.
         credit_notes = invoices._reverse_moves()
         credit_notes.action_post()
-        # Ensures that the sols that were invoiced are computed in the 'to_invoice' section again.
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -801,9 +776,7 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         )
         self.assertEqual(self.delivery_service_order_line.amount_taxexc_invoiced, 0.0)
 
-        # Cancel the foreign SO.
         sale_order_foreign._action_cancel()
-        # Ensures that the panel now contains only the sols from the main SO.
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
@@ -855,7 +828,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # Create a down payment for a fixed amount of 115.
         Downpayment = {
             "active_model": "sale.order",
             "active_ids": self.sale_order.ids,
@@ -872,12 +844,9 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 }
             )
         )
-        # When a down payment is created, the default 15% tax is included. The SOL associated it then created by removing the taxed amount.
-        # Therefore, the amount of the dp is higher than the amount of the sol created.
         down_payment_invoiced = 100.00
         downpayment.create_invoices()
         self.sale_order.invoice_ids[2].action_post()
-        # Ensures the down payment is correctly computed for the project profitability.
         self._assert_dict_equal(
             invoice_type,
             sequence_per_invoice_type,
@@ -887,7 +856,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             down_payment_invoiced,
         )
 
-        # Create a second down payment for a fixed amount of 115.
         downpayment = (
             self.env["sale.advance.payment.inv"]
             .with_context(Downpayment)
@@ -901,7 +869,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         down_payment_invoiced *= 2
         downpayment.create_invoices()
         self.sale_order.invoice_ids[3].action_post()
-        # Ensures the 2 down payments are correctly computed for the project profitability.
         self._assert_dict_equal(
             invoice_type,
             sequence_per_invoice_type,
@@ -915,13 +882,10 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             self.assertEqual(sol.amount_taxexc_to_invoice, 0.0)
             self.assertEqual(sol.amount_taxexc_invoiced, 0.0)
 
-        # Cancel the main SO.
         self.sale_order._action_cancel()
-        # Ensures that the panel no longer contains any SOL related section
         self.assertDictEqual(
             self.project._get_profitability_items(False),
             {
-                # even if the sale order is canceled, if some expenses/revenues were added manually to the account, those lines must appear in the project profitabilty panel
                 "revenues": {
                     "data": [
                         {
@@ -946,7 +910,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # downpayment invoiced amount are not updated when the SO is canceled.
         for sol in self.sale_order.line_ids:
             if sol.is_downpayment:
                 continue
@@ -1021,18 +984,10 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
         )
 
     def test_invoices_without_sale_order_are_accounted_in_profitability(self):
-        """
-        An invoice that has an AAL on one of its line should be taken into account
-        for the profitability of the project.
-        The contribution of the line should only be dependent
-        on the project's analytic account % that was set on the line
-        """
         foreign_company = self.company_data_2["company"]
         foreign_company.currency_id = self.foreign_currency
-        # a custom analytic contribution (number between 1 -> 100 included)
         analytic_distribution = 50
         analytic_contribution = analytic_distribution / 100.0
-        # Create an invoice with a foreign company with the AAL linked to the project account.
         invoice_1_foreign = self.env["account.move"].create(
             {
                 "name": "Invoice_1",
@@ -1057,7 +1012,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 ],
             }
         )
-        # The invoice with foreign company is in draft, therefore its total is in the 'to invoice' section. The total should be update by the choas orb/dollar rate (0.2)
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)[
                 "revenues"
@@ -1083,7 +1037,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # Create an invoice_1 with the AAL linked to the project account.
         invoice_1 = self.env["account.move"].create(
             {
                 "name": "Invoice_1",
@@ -1106,7 +1059,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 ],
             }
         )
-        # The invoice_1 is in draft, therefore its total should be added to the 'to_invoice' section.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)[
                 "revenues"
@@ -1132,9 +1084,7 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # post invoice_1
         invoice_1.action_post()
-        # We posted the invoice_1, therefore its total should be in the 'invoiced' section. The 'to_invoice' section should now contain only the foreign invoice.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)[
                 "revenues"
@@ -1162,7 +1112,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             },
         )
         invoice_1_foreign.action_post()
-        # We posted the foreign invoice 1. Its total should now be in the 'invoiced' section. The 'to_invoice' section should be 0.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)[
                 "revenues"
@@ -1189,8 +1138,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             },
         )
 
-        # Ensures the sale_line_ids from multiple invoices from the same company are correctly computed.
-        # Create another invoice, with 2 lines, 2 diff products, the second line has a quantity of 2, the third line has a negative amount
         NEG_AMOUNT = -42
         invoice_2 = self.env["account.move"].create(
             {
@@ -1236,7 +1183,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 ],
             }
         )
-        # The invoice_2 is not posted, therefore its cost should be in the "to_invoice" section
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)[
                 "revenues"
@@ -1272,9 +1218,7 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # post invoice_2
         invoice_2.action_post()
-        # The invoice_2 is posted, therefore its cost should be in the "invoiced" section
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)[
                 "revenues"
@@ -1306,7 +1250,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # Create another invoice, with 2 lines, 2 diff products, the second line has a quantity of 2 with a foreign company.
         invoice_2_foreign = self.env["account.move"].create(
             {
                 "name": "I have 2 lines",
@@ -1385,9 +1328,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             },
         )
         invoice_2_foreign.action_post()
-        # Note : for some reason, the method to round the amount to the rounding of the currency is not 100% reliable.
-        # We use a float_compare in order to ensure the value is close enough to the expected result. This problem has no repercusion on the client side, since
-        # there is also a rounding method on this side to ensure the amount is correctly displayed.
         items = self.project_billable_no_company._get_profitability_items(False)[
             "revenues"
         ]
@@ -1430,14 +1370,9 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
     def test_bills_without_purchase_order_are_accounted_in_profitability_sale_project(
         self,
     ):
-        """
-        A bill that has an AAL on one of its line should be taken into account
-        for the profitability of the project.
-        """
         foreign_company = self.company_data_2["company"]
         foreign_company.currency_id = self.foreign_currency
 
-        # Create a bill with its purchase line linked to the AA of the project, and a foreign company.
         bill_1_foreign = self.env["account.move"].create(
             {
                 "name": "Bill_1 name",
@@ -1462,7 +1397,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 ],
             }
         )
-        # Add 2 new AAL to the analytic account. Those costs must be present in the 'other_cost' section
         self.env["account.analytic.line"].create(
             [
                 {
@@ -1477,8 +1411,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             ]
         )
-        # Ensures that the amount of the 'other_purchase_cost' is correctly scale to the currency of the main company.
-        # Ensures that the 'other_cost' is not mixed within the 'other_purchase_costs' section and vice-versa
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)["costs"],
             {
@@ -1506,7 +1438,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # Create a bill with its purchase line linked to the AA of the project, and the main company.
         bill_1 = self.env["account.move"].create(
             {
                 "name": "Bill_1 name",
@@ -1529,7 +1460,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 ],
             }
         )
-        # Ensures that the amount from the bill_1 is in the 'to_bill' section of the 'other_purchase_cost'
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)["costs"],
             {
@@ -1557,9 +1487,7 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # post bill_1
         bill_1.action_post()
-        # We posted the bill_1, therefore its cost should now be in the 'billed' section.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)["costs"],
             {
@@ -1588,7 +1516,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
             },
         )
         bill_1_foreign.action_post()
-        # We posted the bill_1_foreign, therefore its cost should now be in the 'billed' section.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)["costs"],
             {
@@ -1616,7 +1543,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # Create another bill, with 2 lines, 2 different products and different quantities
         bill_2 = self.env["account.move"].create(
             {
                 "name": "I have 2 lines",
@@ -1650,7 +1576,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 ],
             }
         )
-        # Ensures that when there are more than one bill/move_line from one company, all the lines are computed.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)["costs"],
             {
@@ -1684,9 +1609,7 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # post bill_2
         bill_2.action_post()
-        # The bill_2 is posted, therefore its cost should now be in the 'billed' section.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)["costs"],
             {
@@ -1721,7 +1644,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # Create another bill, with 2 lines, 2 different products, different quantities and a foreign company.
         bill_2_foreign = self.env["account.move"].create(
             {
                 "name": "I have 2 lines",
@@ -1758,7 +1680,6 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 ],
             }
         )
-        # Ensures that when there are more than one bill/move_line from one company, all the lines are computed and correctly scaled with the currency of the main company.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)["costs"],
             {
@@ -1801,9 +1722,7 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
-        # post bill_2_foreign
         bill_2_foreign.action_post()
-        # The bill_2_foreign is posted, therefore its cost should now be in the 'billed' section.
         self.assertDictEqual(
             self.project_billable_no_company._get_profitability_items(False)["costs"],
             {

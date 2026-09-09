@@ -23,9 +23,7 @@ const serviceRegistry = registry.category("services");
 
 const INSTALLATION_STATE_KEY = "pwaService.installationState";
 
-/**
- * @type {Event | null}
- */
+/** @type {Event | null} */
 let BEFOREINSTALLPROMPT_EVENT;
 /** @type {((ev: Event) => void) | undefined} */
 let REGISTER_BEFOREINSTALLPROMPT_EVENT;
@@ -107,9 +105,7 @@ class PwaService {
         }
     }
 
-    /**
-     * @returns {Record<string, string>}
-     */
+    /** @returns {Record<string, string>} */
     _readState() {
         return readJSONStorage(INSTALLATION_STATE_KEY, {
             fallback: /** @type {Record<string, string>} */ ({}),
@@ -125,9 +121,7 @@ class PwaService {
         return this._readState()[scope] || "";
     }
 
-    /**
-     * @param {string} value
-     */
+    /** @param {string} value */
     _setInstallationState(value) {
         const ls = this._readState();
         ls[this.startUrl] = value;
@@ -155,9 +149,7 @@ class PwaService {
         this.isAvailable = true;
     }
 
-    /**
-     * @returns {Promise<Object>}
-     */
+    /** @returns {Promise<Object>} */
     async getManifest() {
         if (this._manifest) {
             return this._manifest;
@@ -190,9 +182,7 @@ class PwaService {
         return this._getInstallationState(scope) === "accepted";
     }
 
-    /**
-     * @param {{ onDone?: Function }} [options]
-     */
+    /** @param {{ onDone?: Function }} [options] */
     async show({ onDone } = {}) {
         if (!this.isAvailable) {
             return;

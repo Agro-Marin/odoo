@@ -12,18 +12,14 @@ import { getDropdownMenu } from "./component_test_helpers.js";
 import { contains } from "./dom_test_helpers.js";
 import { buildSelector } from "./view_test_helpers.js";
 
-/**
- * @param {number} [columnIndex=0]
- */
+/** @param {number} [columnIndex=0] */
 export function clickKanbanLoadMore(columnIndex = 0) {
     return contains(".o_kanban_load_more button", {
         root: getKanbanColumn(columnIndex),
     }).click();
 }
 
-/**
- * @param {any} [options]
- */
+/** @param {any} [options] */
 export async function clickKanbanRecord(options) {
     await contains(buildSelector(`.o_kanban_record`, options)).click();
 }
@@ -37,9 +33,7 @@ export function discardKanbanRecord() {
     return contains(".o_kanban_quick_create .o_kanban_cancel").click();
 }
 
-/**
- * @param {string} value
- */
+/** @param {string} value */
 export function editKanbanColumnName(value) {
     return contains(".o_column_quick_create input").edit(value);
 }
@@ -81,9 +75,7 @@ export function getKanbanColumnDropdownMenu(columnIndex = 0, ignoreFolded = fals
     return getDropdownMenu(column);
 }
 
-/**
- * @param {number} [columnIndex]
- */
+/** @param {number} [columnIndex] */
 export function getKanbanColumnTooltips(columnIndex) {
     queryAllAttributes;
     const root = columnIndex >= 0 && getKanbanColumn(columnIndex);
@@ -96,24 +88,18 @@ export function getKanbanCounters() {
     return queryAllTexts(".o_animated_number");
 }
 
-/**
- * @param {number} [columnIndex=0]
- */
+/** @param {number} [columnIndex=0] */
 export function getKanbanProgressBars(columnIndex = 0) {
     const column = getKanbanColumn(columnIndex);
     return queryAll(".o_column_progress .progress-bar", { root: column });
 }
 
-/**
- * @param {any} options
- */
+/** @param {any} options */
 export function getKanbanRecord(options) {
     return queryOne(buildSelector(`.o_kanban_record`, options));
 }
 
-/**
- * @param {number} [columnIndex]
- */
+/** @param {number} [columnIndex] */
 export function getKanbanRecordTexts(columnIndex) {
     const root = columnIndex >= 0 && getKanbanColumn(columnIndex);
     return queryAllTexts(".o_kanban_record:not(.o_kanban_ghost)", { root });
@@ -123,9 +109,7 @@ export function quickCreateKanbanColumn() {
     return contains(".o_column_quick_create.o_quick_create_folded div").click();
 }
 
-/**
- * @param {number} [columnIndex=0]
- */
+/** @param {number} [columnIndex=0] */
 export async function quickCreateKanbanRecord(columnIndex = 0) {
     await contains(".o_kanban_quick_add", {
         root: getKanbanColumn(columnIndex),
@@ -133,9 +117,7 @@ export async function quickCreateKanbanRecord(columnIndex = 0) {
     return animationFrame();
 }
 
-/**
- * @param {number} [columnIndex=0]
- */
+/** @param {number} [columnIndex=0] */
 export async function toggleKanbanColumnActions(columnIndex = 0) {
     const column = getKanbanColumn(columnIndex);
     await contains(".o_group_config .dropdown-toggle", {
@@ -150,9 +132,7 @@ export async function toggleKanbanColumnActions(columnIndex = 0) {
     };
 }
 
-/**
- * @param {number} [recordIndex=0]
- */
+/** @param {number} [recordIndex=0] */
 export function toggleKanbanRecordDropdown(recordIndex = 0) {
     return contains(
         `.o_kanban_record:eq(${recordIndex}) .o_dropdown_kanban .dropdown-toggle`,

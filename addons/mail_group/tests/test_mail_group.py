@@ -47,8 +47,6 @@ class TestMailGroup(TestMailListCommon):
             mail_group.moderator_ids |= user_without_email
 
     def test_find_group_user_for_alias(self):
-        """Check for mail incoming from an allowed group. Specifically for a situation where
-        the sender is a part of the allowed USER group, but is NOT a member of the mailing list."""
         group_user_not_member = mail_new_test_user(
             self.env,
             login="group user not member",
@@ -77,8 +75,6 @@ class TestMailGroup(TestMailListCommon):
         )
 
     def test_group_access_refuses_an_address_less_sender(self):
-        """`email_normalized = False` is `IS NULL`, which matched any group user
-        without an email and let a sender with no address through."""
         self.test_group.access_mode = "groups"
         for email_from in ("", False, "not an address"):
             with self.subTest(email_from=email_from):
@@ -89,17 +85,6 @@ class TestMailGroup(TestMailListCommon):
                 self.assertEqual(error.code, "error_mail_group_members_restricted")
 
     def test_find_member(self):
-        """Test the priority to retrieve a member of a mail group from a partner_id
-        and an email address.
-
-        When a partner is given for the search, return in priority
-        - The member whose partner match the given partner
-        - The member without partner but whose email match the given email
-
-        When no partner is given for the search, return in priority
-        - A member whose email match the given email and has no partner
-        - A member whose email match the given email and has partner
-        """
         member_1 = self.test_group_member_1
         email = member_1.email_normalized
 
@@ -162,8 +147,6 @@ class TestMailGroup(TestMailListCommon):
         )
 
     def test_find_member_for_alias(self):
-        """Test the matching of a mail_group.members, when 2 users have the same partner email, and
-        that the first user was subscribed."""
         user = self.user_portal
         user2 = mail_new_test_user(self.env, login="login_2", email=user.email)
 

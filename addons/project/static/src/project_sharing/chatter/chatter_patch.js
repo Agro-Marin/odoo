@@ -10,9 +10,6 @@ patch(Chatter.prototype, {
         Object.assign(this.state, {
             isFollower: this.props.isFollower,
         });
-        // The compiled <Chatter> has no t-key, so paging between tasks in the
-        // sharing form view reuses the component: resync the follow state or
-        // the button keeps the previous task's label.
         onWillUpdateProps((nextProps) => {
             if (nextProps.isFollower !== this.props.isFollower) {
                 this.state.isFollower = nextProps.isFollower;
@@ -20,8 +17,6 @@ patch(Chatter.prototype, {
         });
         this.orm = useService("orm");
         useSubEnv({
-            // 'inFrontendPortalChatter' is specific to the frontend portal chatters
-            // and should not be set to 'true' in the project sharing chatter environment.
             projectSharingId: this.props.projectSharingId,
         });
     },

@@ -16,13 +16,11 @@ import { defineParams, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { TimePicker } from "@web/components/time_picker/time_picker";
 
-/**
- * @param {any} value
- */
+/** @param {any} value */
 const pad2 = (value) => String(value).padStart(2, "0");
 
 /**
- * @template {any} [T=number]
+ * @template {any}
  * @param {number} length
  * @param {(index: number) => T} mapping
  */

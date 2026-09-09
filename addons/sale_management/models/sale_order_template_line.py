@@ -67,7 +67,6 @@ class SaleOrderTemplateLine(models.Model):
         default=False,
     )
 
-    # Section-related fields
     parent_id = fields.Many2one(
         string="Parent Section Line",
         comodel_name="sale.order.template.line",
@@ -78,8 +77,6 @@ class SaleOrderTemplateLine(models.Model):
         copy=True,
         default=False,
     )
-
-    # === COMPUTE METHODS ===#
 
     @api.depends("product_id", "product_id.uom_id", "product_id.uom_ids")
     def _compute_allowed_uom_ids(self):
@@ -114,8 +111,6 @@ class SaleOrderTemplateLine(models.Model):
                 elif line in option_lines:
                     line.parent_id = last_sub or last_section
 
-    # === CRUD METHODS ===#
-
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -136,19 +131,11 @@ class SaleOrderTemplateLine(models.Model):
             )
         return super().write(vals)
 
-    # === BUSINESS METHODS ===#
-
     @api.model
     def _product_id_domain(self):
-        """Returns the domain of the products that can be added to the template."""
         return [("sale_ok", "=", True), ("type", "!=", "combo")]
 
     def _prepare_order_line_values(self):
-        """Give the values to create the corresponding order line.
-
-        :return: `sale.order.line` create values
-        :rtype: dict
-        """
         self.check_singleton()
         vals = {
             "display_type": self.display_type,

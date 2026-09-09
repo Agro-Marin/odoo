@@ -1,6 +1,5 @@
 MODELS = ("project.project", "project.phase", "project.workflow.step", "project.task")
 
-# name-called, no collision with any xml id
 CODE_RENAMES = (
     ("_cron_refresh_metrics", "_cron_reset_metrics"),
     ("action_refresh_metrics", "action_reset_metrics"),
@@ -12,10 +11,8 @@ CODE_RENAMES = (
     ("arrange_tag_list_by_id", "sort_tags_by_ids"),
 )
 
-# the method name is also an xml id, so the call parenthesis disambiguates
 CALL_RENAMES = (("project_update_all_action", "action_view_project_updates"),)
 
-# object buttons, matched as the whole attribute value
 ARCH_RENAMES = (
     ("project_update_all_action", "action_view_project_updates"),
     ("unlink_wizard", "action_open_delete_wizard"),
@@ -23,46 +20,18 @@ ARCH_RENAMES = (
 
 
 def _rewrite_word(expr, old, new):
-    r"""SQL rewriting ``old`` to ``new`` whole-word in ``expr``.
-
-    :param str expr: SQL expression to rewrite
-    :param str old: name as it was written
-    :param str new: name to write instead
-    :return: SQL expression with the rename applied
-    :rtype: str
-    """
     return rf"regexp_replace({expr}, '\y{old}\y', '{new}', 'g')"
 
 
 def _rewrite_call(expr, old, new):
-    """SQL rewriting ``old`` to ``new`` only where it is called.
-
-    :param str expr: SQL expression to rewrite
-    :param str old: name as it was written
-    :param str new: name to write instead
-    :return: SQL expression with the rename applied
-    :rtype: str
-    """
     return rf"regexp_replace({expr}, '\y{old}\s*\(', '{new}(', 'g')"
 
 
 def _rewrite_attribute(expr, old, new):
-    """SQL rewriting a whole ``name="old"`` attribute value in ``expr``.
-
-    :param str expr: SQL expression to rewrite
-    :param str old: name as it was written
-    :param str new: name to write instead
-    :return: SQL expression with the rename applied
-    :rtype: str
-    """
     return rf"""replace({expr}, 'name="{old}"', 'name="{new}"')"""
 
 
 def _rename_server_action_code(cr):
-    """Repoint every stored Python block at the new method names.
-
-    :param cr: database cursor
-    """
     for old, new in CODE_RENAMES:
         cr.execute(
             f"""
@@ -82,10 +51,6 @@ def _rename_server_action_code(cr):
 
 
 def _rename_view_buttons(cr):
-    """Repoint object buttons in views the upgrade does not reload.
-
-    :param cr: database cursor
-    """
     for old, new in ARCH_RENAMES:
         cr.execute(
             f"""
@@ -99,11 +64,6 @@ def _rename_view_buttons(cr):
 
 
 def migrate(cr, version):
-    """Carry the §2.4 renames into the columns that store a method name.
-
-    :param cr: database cursor
-    :param version: installed module version; falsy on a fresh install
-    """
     if not version:
         return
 

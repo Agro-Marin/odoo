@@ -915,7 +915,6 @@ test("the home menu service state never proxies the action service it drives", a
     await homeMenu.toggle(false);
     const { currentController } = getService("action");
     expect(currentController).not.toBe(null);
-    // A proxy in controller state cannot reach history.pushState.
     expect(() => structuredClone(currentController?.state)).not.toThrow();
     expect(() => structuredClone(browser.history.state)).not.toThrow();
 });

@@ -43,9 +43,7 @@ export class BlurManager {
         locateFile: (file) =>
             `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/${file}`,
     });
-    /**
-     * @type {Promise<MediaStream>}
-     */
+    /** @type {Promise<MediaStream>} */
     stream;
     video = document.createElement("video");
     /** @type {Worker|null} */

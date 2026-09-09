@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const FIELD_RECORD_SURFACE = [
     "data",
     "savedData",
@@ -32,15 +30,7 @@ export const FIELD_RECORD_SURFACE = [
     "model",
 ];
 
-/**
- * @type {string[]}
- */
+/** @type {string[]} */
 export const FIELD_OWN_VALUE_SURFACE = ["data", "update", "fields"];
 
-/**
- * @typedef {{
- * data: Record<string, any>,
- * update: (changes: Record<string, any>, options?: { save?: boolean }) => Promise<void>,
- * fields: Record<string, any>,
- * }} FieldOwnValueContract
- */
+/** @typedef {{ */

@@ -27,16 +27,12 @@ export class BooleanField extends FieldComponent {
         });
     }
 
-    /**
-     * @returns {{ save?: boolean } | undefined}
-     */
+    /** @returns {{ save?: boolean } | undefined} */
     get updateOptions() {
         return undefined;
     }
 
-    /**
-     * @param {boolean} newValue
-     */
+    /** @param {boolean} newValue */
     async onChange(newValue) {
         this.state.value = newValue;
         try {

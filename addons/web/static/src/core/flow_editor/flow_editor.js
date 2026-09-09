@@ -40,9 +40,7 @@ const DRAG_THRESHOLD = 3;
 /** @type {{ value: null }} */
 const NULL_VALUE_PROP = { value: null };
 
-/**
- * @typedef {PointerEvent | { pointerId: number | null, originalEvent: Event }} FlowCancelEvent
- */
+/** @typedef {PointerEvent | { pointerId: number | null, originalEvent: Event }} FlowCancelEvent */
 
 /**
  * @typedef FlowEditorProps
@@ -52,7 +50,7 @@ const NULL_VALUE_PROP = { value: null };
  * @property {import("./flow_types").FlowConnection[]} connections
  * @property {number} defaultNodeHeaderHeight
  * @property {import("./flow_types").FlowSize} defaultNodeSize
- * @property {boolean} flagUnreachableNodes mark a node no source node reaches
+ * @property {boolean} flagUnreachableNodes
  * @property {(connection: import("./flow_types").FlowConnection) => string | undefined} getConnectionClass
  * @property {(connection: import("./flow_types").FlowConnection) => string | undefined} getConnectionLabel
  * @property {(node: import("./flow_types").FlowNode) => (typeof Component) | undefined} getNodeComponent
@@ -73,13 +71,10 @@ const NULL_VALUE_PROP = { value: null };
  * @property {(viewport: import("./flow_types").FlowViewport) => void} onViewportChange
  * @property {boolean} readonly
  * @property {boolean} showControls
- * @property {import("./flow_types").FlowViewport | null} viewport an explicit
- *  viewport to restore, or null to fit the content once mounted
+ * @property {import("./flow_types").FlowViewport | null} viewport
  */
 
-/**
- * @extends {Component<FlowEditorProps>}
- */
+/** @extends {Component<FlowEditorProps>} */
 export class FlowEditor extends Component {
     static template = "web.FlowEditor";
     static components = { FlowConnection, FlowNode };
@@ -240,9 +235,7 @@ export class FlowEditor extends Component {
     suppressNodeClick = false;
     /** @type {number | null} */
     viewportAnimationFrame = null;
-    /**
-     * @type {Promise<boolean> | null}
-     */
+    /** @type {Promise<boolean> | null} */
     pendingDetach = null;
 
     setup() {
@@ -681,9 +674,7 @@ export class FlowEditor extends Component {
         );
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onCanvasPointerDown(ev) {
         const target = /** @type {HTMLElement | null} */ (ev.target);
         if (
@@ -707,9 +698,7 @@ export class FlowEditor extends Component {
         this.props.onPan({ phase: "start" });
     }
 
-    /**
-     * @param {import("./flow_node").FlowNodeEventParams} params
-     */
+    /** @param {import("./flow_node").FlowNodeEventParams} params */
     onNodePointerDown({ node, originalEvent }) {
         const pointerEvent = /** @type {PointerEvent} */ (originalEvent);
         if (pointerEvent.button !== 0) {
@@ -745,9 +734,7 @@ export class FlowEditor extends Component {
         });
     }
 
-    /**
-     * @param {import("./flow_port").FlowPortPointerDownParams} params
-     */
+    /** @param {import("./flow_port").FlowPortPointerDownParams} params */
     async onPortPointerDown({ nodeId, port, originalEvent }) {
         if (
             originalEvent.button !== 0 ||
@@ -863,9 +850,7 @@ export class FlowEditor extends Component {
             .at(-1);
     }
 
-    /**
-     * @param {import("./flow_node").FlowNodeEventParams} params
-     */
+    /** @param {import("./flow_node").FlowNodeEventParams} params */
     onResizePointerDown({ node, originalEvent }) {
         const pointerEvent = /** @type {PointerEvent} */ (originalEvent);
         if (
@@ -898,9 +883,7 @@ export class FlowEditor extends Component {
         });
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     onPointerMove(ev) {
         const interaction = this.store.interaction;
         if (ev.pointerId !== this.activePointerId || !interaction) {
@@ -996,9 +979,7 @@ export class FlowEditor extends Component {
         );
     }
 
-    /**
-     * @param {PointerEvent} ev
-     */
+    /** @param {PointerEvent} ev */
     async onPointerUp(ev) {
         const interaction = this.store.interaction;
         if (ev.pointerId !== this.activePointerId || !interaction) {
@@ -1052,9 +1033,7 @@ export class FlowEditor extends Component {
         this.resetPointerState();
     }
 
-    /**
-     * @param {FlowCancelEvent} ev
-     */
+    /** @param {FlowCancelEvent} ev */
     onPointerCancel(ev) {
         const interaction = this.store.interaction;
         if (ev.pointerId !== this.activePointerId || !interaction) {
@@ -1208,9 +1187,7 @@ export class FlowEditor extends Component {
         return normalizeConnectionValidation(this.props.canConnect(connection));
     }
 
-    /**
-     * @param {WheelEvent} ev
-     */
+    /** @param {WheelEvent} ev */
     onWheel(ev) {
         const canvasEl = this.canvasEl;
         if ((!ev.ctrlKey && !ev.metaKey) || !canvasEl) {
@@ -1234,9 +1211,7 @@ export class FlowEditor extends Component {
         });
     }
 
-    /**
-     * @param {number} factor
-     */
+    /** @param {number} factor */
     zoomBy(factor) {
         const canvasEl = this.canvasEl;
         if (!canvasEl) {
@@ -1294,9 +1269,7 @@ export class FlowEditor extends Component {
         });
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onFlowLocationClick(ev) {
         ev.stopPropagation();
         const target = this.flowCenter;
@@ -1351,17 +1324,13 @@ export class FlowEditor extends Component {
         }
     }
 
-    /**
-     * @param {Partial<import("./flow_types").FlowViewport>} values
-     */
+    /** @param {Partial<import("./flow_types").FlowViewport>} values */
     setViewport(values) {
         this.store.setViewport(values);
         this.props.onViewportChange({ ...this.store.viewport });
     }
 
-    /**
-     * @param {import("./flow_node").FlowNodeEventParams} params
-     */
+    /** @param {import("./flow_node").FlowNodeEventParams} params */
     onNodeClick({ node, originalEvent }) {
         if (this.suppressNodeClick) {
             this.suppressNodeClick = false;
@@ -1371,18 +1340,14 @@ export class FlowEditor extends Component {
         this.props.onNodeClick({ node, originalEvent });
     }
 
-    /**
-     * @param {import("./flow_connection").FlowConnectionClickParams} params
-     */
+    /** @param {import("./flow_connection").FlowConnectionClickParams} params */
     onConnectionClick({ connectionId }) {
         this.focusCanvas();
         this.store.setSelection({ connectionIds: [connectionId] });
         this.notifySelectionChange();
     }
 
-    /**
-     * @param {import("./flow_types").FlowNodeId} nodeId
-     */
+    /** @param {import("./flow_types").FlowNodeId} nodeId */
     selectNode(nodeId) {
         this.store.setSelection({ nodeIds: [nodeId] });
         this.notifySelectionChange();
@@ -1400,9 +1365,7 @@ export class FlowEditor extends Component {
         });
     }
 
-    /**
-     * @param {{ node: import("./flow_types").FlowNode }} params
-     */
+    /** @param {{ node: import("./flow_types").FlowNode }} params */
     async onNodeDeleteClick({ node }) {
         if (await this.deleteNode(node)) {
             this.notifySelectionChange();
@@ -1435,9 +1398,7 @@ export class FlowEditor extends Component {
         return this.store.removeNode(node.id);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
+    /** @param {KeyboardEvent} ev */
     async onKeyDown(ev) {
         if (!this.canvasEl?.contains(document.activeElement)) {
             return;

@@ -6,9 +6,6 @@ class HomeMenuBadge(models.AbstractModel):
 
     @api.model
     def _get_badges(self) -> dict[str, int]:
-        # The salesperson's own quotations. `draft` is what a quotation is on
-        # this fork -- `done` is the confirmed order, where upstream says
-        # `sale` -- and it is the state the Quotations menu already filters on.
         return {
             **super()._get_badges(),
             **self._count_for(

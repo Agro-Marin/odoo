@@ -12,9 +12,7 @@ export class ReportAction extends Component {
     static components = { Layout };
     static template = "web.ReportAction";
     static props = ["*"];
-    /**
-     * @type {import("@web/core/action_port").ActionPort}
-     */
+    /** @type {import("@web/core/action_port").ActionPort} */
     action;
 
     setup() {

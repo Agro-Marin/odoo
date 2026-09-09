@@ -43,23 +43,17 @@ export class Product extends Component {
         show_extra_price: true,
     };
 
-    /**
-     * @return {String}
-     */
+    /** @return {String} */
     getFormattedPrice() {
         return formatCurrency(this.props.price, this.env.currency.id);
     }
 
-    /**
-     * @return {Boolean}
-     */
+    /** @return {Boolean} */
     get isMainProduct() {
         return this.env.mainProductTmplId === this.props.product_tmpl_id;
     }
 
-    /**
-     * @return {String}
-     */
+    /** @return {String} */
     get imageUrl() {
         const modelPath = this.props.id
             ? `product.product/${this.props.id}`
@@ -67,9 +61,7 @@ export class Product extends Component {
         return `/web/image/${modelPath}/image_256`;
     }
 
-    /**
-     * @return {Boolean}
-     */
+    /** @return {Boolean} */
     shouldShowPtal(ptal) {
         return (
             this.env.canChangeVariant ||

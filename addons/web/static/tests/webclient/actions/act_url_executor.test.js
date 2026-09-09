@@ -9,9 +9,7 @@ import {
     openURL,
 } from "@web/webclient/actions/action_executors/act_url";
 
-/**
- * @param {Object} [overrides]
- */
+/** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
     const calls = { notifications: [], doAction: [] };
     const am = {

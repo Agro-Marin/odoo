@@ -20,7 +20,6 @@
                 <attribute name="invisible">production_ids</attribute>
             </xpath>
             <xpath expr="//button[@name='process']" position="after">
-                <!-- From Produce Product wizard -->
                 <button
                     name="confirm_produce"
                     data-hotkey="q"

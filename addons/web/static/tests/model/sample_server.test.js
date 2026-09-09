@@ -484,10 +484,6 @@ describe("read_progress_bar", () => {
 
 describe("many2one specification", () => {
     test("the subfields a many2one was asked for are answered", async () => {
-        // The x2many branch reads the specification's nested `fields` and
-        // fetches them; the many2one branch used to overwrite the value with
-        // `{ id, display_name }` and discard the rest of a request it had
-        // accepted, with no way for the caller to tell.
         const server = new DeterministicSampleServer("res.users", fields["res.users"], {
             "res.currency": {
                 display_name: { string: "Name", type: "char" },
@@ -533,8 +529,6 @@ describe("many2one specification", () => {
     });
 
     test("a relation's own relations are not sampled, and do not throw", async () => {
-        // The relation's schema now comes from the view, so it can declare a
-        // many2one onto a model this server never built.
         const server = new DeterministicSampleServer("res.users", fields["res.users"], {
             "res.currency": {
                 display_name: { string: "Name", type: "char" },

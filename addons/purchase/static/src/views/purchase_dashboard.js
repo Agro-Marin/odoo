@@ -85,10 +85,6 @@ export class PurchaseDashBoard extends Component {
                 this.orm.call("purchase.order", "prepare_dashboard"),
             );
         } catch (error) {
-            // The panel hides itself when there is no data, which is right for a
-            // user who may not read the figures. It is not right for a genuine
-            // failure: swallowing every error made a broken dashboard and a
-            // forbidden one look identical from the browser.
             this.state.data = null;
             if (!(error instanceof RPCError)) {
                 throw error;
@@ -96,9 +92,7 @@ export class PurchaseDashBoard extends Component {
         }
     }
 
-    /**
-     * @param {string[]} filterNames
-     */
+    /** @param {string[]} filterNames */
     setSearchContext(filterNames) {
         const { searchModel } = this.env;
         const searchItems = searchModel.getSearchItems((item) =>

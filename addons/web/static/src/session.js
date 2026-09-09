@@ -3,9 +3,7 @@
 
 import { assetLog } from "@web/core/utils/asset_log";
 
-/**
- * @type {Record<string, any>}
- */
+/** @type {Record<string, any>} */
 export const session = /** @type {any} */ (odoo).__session_info__ || {};
 assetLog(
     "session",

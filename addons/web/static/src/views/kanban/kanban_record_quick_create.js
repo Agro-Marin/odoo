@@ -139,9 +139,7 @@ export class KanbanQuickCreateController extends Component {
         useHotkey("escape", () => this.cancel(true));
     }
 
-    /**
-     * @param {"add" | "edit"} mode
-     */
+    /** @param {"add" | "edit"} mode */
     async validate(mode) {
         let resId = undefined;
         if (this.state.disabled) {
@@ -192,9 +190,7 @@ export class KanbanQuickCreateController extends Component {
         }
     }
 
-    /**
-     * @param {boolean} force
-     */
+    /** @param {boolean} force */
     async cancel(force) {
         if (this.state.disabled) {
             return;
@@ -204,9 +200,7 @@ export class KanbanQuickCreateController extends Component {
         }
     }
 
-    /**
-     * @param {Error} e
-     */
+    /** @param {Error} e */
     showFormDialogInError(e) {
         if (!(e instanceof RPCError)) {
             throw e;
@@ -269,9 +263,7 @@ export class KanbanRecordQuickCreate extends Component {
         });
     }
 
-    /**
-     * @param {Object} props
-     */
+    /** @param {Object} props */
     async getQuickCreateProps(props) {
         /** @type {any} */
         let quickCreateFields = { fields: DEFAULT_QUICK_CREATE_FIELDS };

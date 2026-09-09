@@ -10,18 +10,7 @@ import { KanbanCompiler } from "./kanban_compiler.js";
 import { KanbanController } from "./kanban_controller.js";
 import { KanbanRenderer } from "./kanban_renderer.js";
 
-/**
- * @type {{
- * type: string,
- * ArchParser: typeof KanbanArchParser,
- * Controller: typeof KanbanController,
- * Model: typeof RelationalModel,
- * Renderer: typeof KanbanRenderer,
- * Compiler: typeof KanbanCompiler,
- * buttonTemplate: string,
- * props: (genericProps: Object, view: Object) => Object,
- * }}
- */
+/** @type {{ */
 export const kanbanView = {
     type: "kanban",
 

@@ -41,73 +41,31 @@ const { DateTime } = luxon;
 
 /**
  * @typedef {{
- * type?: string;
- * [key: string]: any;
- * }} ActionDefinition
  * @typedef {import("@web/core/domain").DomainListRepr} DomainListRepr
  * @typedef {import("./mock_fields").FieldDefinition} FieldDefinition
  * @typedef {{
- * actionID?: string | number;
- * appID?: MenuId;
- * children?: (MenuId | MenuDefinition)[];
- * id: MenuId;
- * name?: string;
- * webIcon?: string | false;
- * webIconData?: string;
- * xmlid?: string;
- * }} MenuDefinition
  * @typedef {number | "root"} MenuId
  * @typedef {MockServerBaseEnvironment & { [modelName: string]: Model }} MockServerEnvironment
  * @typedef {import("./mock_model").Model} Model
  * @typedef {import("./mock_model").ModelConstructor} ModelConstructor
  * @typedef {(this: MockServer, params: OrmParams) => unknown} OrmCallback
  * @typedef {{
- * args: any[];
- * kwargs: KwArgs;
- * method: string;
- * model: string;
- * parent: () => any;
- * request: Request;
- * route: string;
- * }} OrmParams
  * @typedef {[RegExp, Record<string, string>]} RouteMatcher
  * @typedef {{
- * final?: boolean;
- * pure?: boolean;
- * }} RouteOptions
  * @typedef {`${string}/${string}`} RoutePath
  * @typedef {{
- * actions?: Partial<MockServer["actions"]>;
- * lang?: string;
- * lang_parameters?: Partial<MockServer["_lang_parameters"]>;
- * menus?: MenuDefinition[];
- * models?: Iterable<ModelConstructor>;
- * modules?: Partial<MockServer["_modules"]>;
- * multi_lang?: import("../mock_server_state.hoot").ServerState["multiLang"];
- * routes?: any[];
- * timezone?: string;
- * translations?: Record<string, string>;
- * }} ServerParams
  * @typedef {import("@odoo/hoot").ServerWebSocket} ServerWebSocket
  * @typedef {string | Iterable<string> | RegExp} StringMatcher
  * @typedef {(string | RegExp)[]} StringMatchers
  */
 
-/**
- * @typedef {{ mode?: "add" | "replace"; }} DefineOptions
- */
+/** @typedef {{ mode?: "add" | "replace"; }} DefineOptions */
 
-/**
- * @typedef {import("./mock_model").KwArgs} KwArgs
- */
+/** @typedef {import("./mock_model").KwArgs} KwArgs */
 
-/**
- * @typedef {(this: MockServer, request: Request, params: Record<string, string>) => any} RouteCallback
- */
+/** @typedef {(this: MockServer, request: Request, params: Record<string, string>) => any} RouteCallback */
 
-/**
- * @param {import("./mock_model").ModelRecord} user
- */
+/** @param {import("./mock_model").ModelRecord} user */
 function authenticateUser(user) {
     const { env } = MockServer;
     if (!user?.id) {
@@ -146,9 +104,7 @@ function deepCopy(object) {
     return object;
 }
 
-/**
- * @param {DefineOptions} [options]
- */
+/** @param {DefineOptions} [options] */
 function getAssignAction(options) {
     const shouldAdd = options?.mode === "add";
     return function assign(target, key, value) {
@@ -175,9 +131,7 @@ function getCurrentMockServer() {
     return mockServers.get(test.run);
 }
 
-/**
- * @param {RequestInit} init
- */
+/** @param {RequestInit} init */
 function getJsonRpcParams({ headers, body }) {
     if (
         /** @type {any} */ (headers).get("Content-Type") !== "application/json" ||
@@ -235,18 +189,14 @@ function match(target, matchers) {
     );
 }
 
-/**
- * @param {string} modelName
- */
+/** @param {string} modelName */
 function modelNotFoundError(modelName, consequence) {
     return new MockServerError(
         `Cannot find a definition for model "${modelName}": ${consequence} (did you forget to use \`defineModels()?\`)`,
     );
 }
 
-/**
- * @param {Record<string, string> | Iterable<{ id: string, string: string }>} translations
- */
+/** @param {Record<string, string> | Iterable<{ id: string, string: string }>} translations */
 function parseTranslations(translations) {
     return isIterable(translations)
         ? translations
@@ -288,9 +238,7 @@ function _defineParams(params, options) {
 }
 
 const getCurrentParams = createJobScopedGetter(
-    /**
-     * @param {ServerParams} previous
-     */
+    /** @param {ServerParams} previous */
     function getCurrentParams(previous) {
         const previousModels = previous?.models || _defaultMockModels;
         const previousRoutes = previous?.routes || _defaultMockRoutes;
@@ -317,9 +265,7 @@ class MockServerBaseEnvironment {
         return this.companies[0];
     }
 
-    /**
-     * @type {import("@web/core/context").Context}
-     */
+    /** @type {import("@web/core/context").Context} */
     get context() {
         return {
             lang: serverState.lang,
@@ -499,9 +445,7 @@ const EMOJI_STUB_MODULE_URL = `data:text/javascript;charset=utf-8,${encodeURICom
     EMOJI_STUB_MODULE_SOURCE,
 )}`;
 
-/**
- * @type {Record<string, () => object>}
- */
+/** @type {Record<string, () => object>} */
 const HEAVY_STATIC_BUNDLE_STUBS = {
     "web.assets_emoji": () => ({
         is_esm: true,
@@ -524,19 +468,13 @@ const mockServers = new WeakMap();
 /** @type {WeakSet<any>} */
 const seenModels = new WeakSet();
 
-/**
- * @type {ModelConstructor[]}
- */
+/** @type {ModelConstructor[]} */
 let _defaultMockModels = [];
 
-/**
- * @type {any[][]}
- */
+/** @type {any[][]} */
 let _defaultMockRoutes = [];
 
-/**
- * @param {Record<string, ModelConstructor> | ModelConstructor[]} ModelClasses
- */
+/** @param {Record<string, ModelConstructor> | ModelConstructor[]} ModelClasses */
 export function setDefaultMockModels(ModelClasses) {
     const incoming = Object.values(ModelClasses);
     for (const ModelClass of incoming) {
@@ -550,9 +488,7 @@ export function setDefaultMockModels(ModelClasses) {
     }
 }
 
-/**
- * @param {any[]} args
- */
+/** @param {any[]} args */
 export function setDefaultMockRoute(...args) {
     _defaultMockRoutes.push(args);
 }
@@ -579,9 +515,7 @@ export class MockServer {
     /** @type {MenuDefinition[]} */
     menus = [];
 
-    /**
-     * @private
-     */
+    /** @private */
     _lang_parameters = {
         date_format: "%m/%d/%Y",
         decimal_point: ".",
@@ -606,9 +540,7 @@ export class MockServer {
      * @type {Set<string>}
      */
     _modelNamesToFetch = new Set();
-    /**
-     * @private
-     */
+    /** @private */
     _modules = {
         web: { messages: [] },
     };
@@ -622,9 +554,7 @@ export class MockServer {
      * @type {[[RegExp, boolean][], RouteCallback, RouteOptions][]}
      */
     _routes = [];
-    /**
-     * @private
-     */
+    /** @private */
     _started = false;
     /**
      * @private
@@ -697,9 +627,7 @@ export class MockServer {
         return this;
     }
 
-    /**
-     * @param {string} [url]
-     */
+    /** @param {string} [url] */
     getWebSockets(url) {
         return url
             ? this._websockets.filter((ws) => ws.url.includes(url))
@@ -1041,9 +969,7 @@ export class MockServer {
         this._websockets.push(webSocket);
     }
 
-    /**
-     * @private
-     */
+    /** @private */
     async _loadModels() {
         const models = this._modelSpecs;
         const serverModelInheritances = new Set();
@@ -1270,17 +1196,12 @@ export class MockServer {
         }
     }
 
+    /** @param {OrmCallback} callback */
     /**
-     * @overload
-     * @param {OrmCallback} callback
-     */
-    /**
-     * @overload
      * @param {StringMatchers} method
      * @param {OrmCallback} callback
      */
     /**
-     * @overload
      * @param {StringMatchers} model
      * @param {StringMatcher} method
      * @param {OrmCallback} callback
@@ -1324,23 +1245,17 @@ export class MockServer {
         this._routes.push([/** @type {any} */ (routeRegexes), callback, options || {}]);
     }
 
+    /** @param {OrmCallback} callback */
     /**
-     * @overload
-     * @param {OrmCallback} callback
-     */
-    /**
-     * @overload
      * @param {RoutePath | Iterable<RoutePath>} route
      * @param {RouteCallback} callback
      * @param {RouteOptions} [options]
      */
     /**
-     * @overload
      * @param {StringMatcher} method
      * @param {OrmCallback} callback
      */
     /**
-     * @overload
      * @param {StringMatcher} model
      * @param {StringMatcher} method
      * @param {OrmCallback} callback
@@ -1604,33 +1519,27 @@ export function logout() {
     authenticate(publicUser.login, publicUser.password);
 }
 
-/**
- * @returns {Promise<MockServer>}
- */
+/** @returns {Promise<MockServer>} */
 export async function makeMockServer() {
     return getCurrentMockServer().start();
 }
 
 /**
- * @overload
  * @param {OrmCallback} callback
  * @returns {void}
  */
 /**
- * @overload
  * @param {RoutePath | Iterable<RoutePath>} route
  * @param {RouteCallback} callback
  * @param {RouteOptions} [options]
  * @returns {void}
  */
 /**
- * @overload
  * @param {StringMatcher} method
  * @param {OrmCallback} callback
  * @returns {void}
  */
 /**
- * @overload
  * @param {StringMatcher} model
  * @param {StringMatcher} method
  * @param {OrmCallback} callback
@@ -1649,9 +1558,7 @@ export function onRpc(...args) {
 const STEP_TRACKER_BOILERPLATE_METHODS = new Set(["lazy_session_info", "get_badges"]);
 const STEP_TRACKER_BOILERPLATE_ROUTES = new Set(["/mail/data", "/mail/action"]);
 
-/**
- * @returns {void}
- */
+/** @returns {void} */
 export function stepAllNetworkCalls() {
     onRpc("/*", (request) => {
         const route = new URL(request.url).pathname;

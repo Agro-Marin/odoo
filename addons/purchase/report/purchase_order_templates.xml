@@ -193,7 +193,6 @@
         </t>
     </template>
 
-    <!-- Allow edits (e.g. studio) without changing the often inherited base template -->
     <template
         id="document_tax_totals"
         inherit_id="account.document_tax_totals_template"

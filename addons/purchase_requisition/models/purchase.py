@@ -12,7 +12,6 @@ class PurchaseOrderGroup(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        # when len(POs) == 1, only linking PO to itself at this point => self implode (delete) group
         self.filtered(lambda g: len(g.order_ids) <= 1).unlink()
         return res
 
@@ -74,13 +73,10 @@ class PurchaseOrder(models.Model):
         else:
             self.date_order = fields.Datetime.now()
 
-        # Create PO lines if necessary
-        # Do not clobber existing lines if the PO is already confirmed
         if self.state != "draft":
             return
         order_lines = []
         for line in requisition.line_ids:
-            # Compute name
             product_lang = line.product_id.with_context(
                 lang=partner.lang or self.env.user.lang, partner_id=partner.id
             )
@@ -88,7 +84,6 @@ class PurchaseOrder(models.Model):
             if product_lang.description_purchase:
                 name += "\n" + product_lang.description_purchase
 
-            # Compute taxes
             taxes_ids = fpos.map_tax(
                 line.product_id.supplier_taxes_id.filtered(
                     lambda tax: any(
@@ -103,7 +98,6 @@ class PurchaseOrder(models.Model):
                 if requisition.requisition_type == "purchase_template"
                 else 0
             )
-            # Create PO line
             order_line_values = line._prepare_purchase_order_line(
                 name=name,
                 product_qty=product_qty,
@@ -143,7 +137,6 @@ class PurchaseOrder(models.Model):
     def create(self, vals_list):
         orders = super().create(vals_list)
         if self.env.context.get("origin_po_id"):
-            # po created as an alt to another PO:
             origin_po_id = self.env["purchase.order"].browse(
                 self.env.context.get("origin_po_id")
             )
@@ -164,7 +157,6 @@ class PurchaseOrder(models.Model):
 
     def write(self, vals):
         if vals.get("purchase_group_id", False):
-            # store in case linking to a PO with existing linkages
             orig_purchase_group = self.purchase_group_id
         result = super().write(vals)
         if vals.get("requisition_id"):
@@ -182,16 +174,12 @@ class PurchaseOrder(models.Model):
             if not self.purchase_group_id and len(self.alternative_po_ids + self) > len(
                 self
             ):
-                # this can create a new group + delete an existing one (or more) when linking to already linked PO(s), but this is
-                # simplier than additional logic checking if exactly 1 exists or merging multiple groups if > 1
                 self.env["purchase.order.group"].create(
                     {"order_ids": [Command.set(self.ids + self.alternative_po_ids.ids)]}
                 )
             elif self.purchase_group_id and len(self.alternative_po_ids + self) <= 1:
-                # write in purchase group isn't called so we have to manually unlink obsolete groups here
                 self.purchase_group_id.unlink()
         if vals.get("purchase_group_id", False):
-            # the write is for multiple POs => don't double count the POs of the final group
             additional_groups = orig_purchase_group - self.purchase_group_id
             if additional_groups:
                 additional_pos = (
@@ -257,7 +245,6 @@ class PurchaseOrder(models.Model):
             ):
                 continue
 
-            # if no best price line => no best price unit line either
             if not product_to_best_price_line[line.product_id]:
                 product_to_best_price_line[line.product_id] = line
                 product_to_best_price_unit[line.product_id] = line
@@ -343,7 +330,6 @@ class PurchaseOrderLine(models.Model):
                 continue
 
             line = None
-            # Match the requisition line with exact UoM first, then product-only as fallback.
             for req_line in pol.order_id.requisition_id.line_ids:
                 if req_line.product_id == pol.product_id:
                     line = req_line

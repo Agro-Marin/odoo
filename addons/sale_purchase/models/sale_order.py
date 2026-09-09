@@ -24,9 +24,6 @@ class SaleOrder(models.Model):
 
     def _action_cancel(self):
         result = super()._action_cancel()
-        # When a sale person cancel a SO, he might not have the rights to write
-        # on PO. But we need the system to create an activity on the PO (so 'write'
-        # access), hence the `sudo`.
         self.sudo()._activity_cancel_on_purchase()
         return result
 
@@ -44,9 +41,6 @@ class SaleOrder(models.Model):
         return self.line_ids.purchase_line_ids.order_id
 
     def _activity_cancel_on_purchase(self):
-        """If some SO are cancelled, we need to put an activity on their generated purchase. If sale lines of
-        different sale orders impact different purchase, we only want one activity to be attached.
-        """
         purchase_lines = self.line_ids.purchase_line_ids.filtered(
             lambda pol: pol.state != "cancel"
         )

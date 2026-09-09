@@ -7,9 +7,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestTaskSkillSearch(TransactionCase):
-    """user_skill_ids read every skill an assignee ever recorded, so filtering
-    tasks by skill matched people who had lost it."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

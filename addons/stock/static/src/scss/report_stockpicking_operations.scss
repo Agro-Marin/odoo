@@ -1,5 +1,3 @@
-// Flex container for the header info row (Order, Warehouse, Status, etc.).
-// min-width prevents long field values from collapsing columns vertically.
 .o_stock_report_header_row {
     display: flex;
     flex-wrap: wrap;

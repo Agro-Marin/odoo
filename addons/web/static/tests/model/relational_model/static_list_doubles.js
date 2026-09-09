@@ -4,8 +4,6 @@ import { markRaw } from "@odoo/owl";
 import { ListMembership } from "@web/model/relational_model/list_membership";
 import { StaticList } from "@web/model/relational_model/static_list";
 
-/** @import { RelationalRecord } from "@web/model/relational_model/record" */
-
 /**
  * @param {any} record
  * @returns {number | string}

@@ -5,13 +5,9 @@ import { editModelDebug } from "@web/core/debug/debug_utils";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
-/** @import { Action } from "./action_service.js" */
-
 const debugRegistry = registry.category("debug");
 
-/**
- * @type {WeakMap<object, Map<string, Promise<number>>>}
- */
+/** @type {WeakMap<object, Map<string, Promise<number>>>} */
 const modelIdCaches = new WeakMap();
 
 /**

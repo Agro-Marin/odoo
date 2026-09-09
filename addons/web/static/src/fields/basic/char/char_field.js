@@ -51,9 +51,7 @@ export class CharField extends TextInputFieldBase {
         });
     }
 
-    /**
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     get shouldTrim() {
         return (this.props.trim ?? super.shouldTrim) && !this.props.isPassword;
     }

@@ -8,9 +8,7 @@ import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpe
 import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scanner";
 import { browser } from "@web/core/browser/browser";
 
-/**
- * @param {number} size
- */
+/** @param {number} size */
 function mockCamera(size) {
     patchWithCleanup(browser.navigator, {
         mediaDevices: /** @type {any} */ ({
@@ -29,9 +27,7 @@ function mockCamera(size) {
     });
 }
 
-/**
- * @param {any[]} cropAreas
- */
+/** @param {any[]} cropAreas */
 function mockSourceCroppingDetector(cropAreas) {
     class CroppingDetector {
         static cropsAtSource = true;

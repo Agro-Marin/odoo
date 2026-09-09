@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
-    <!-- Attributes line template -->
     <t t-name="sale.ProductTemplateAttributeLine">
         <div
             name="ptal"
             t-attf-class="#{this.props.attribute_values.length === 1 &amp;&amp; hasPTAVCustom() ? 'd-md-flex' : ''}"
         >
-        <!-- If the attribute line contains only one attribute value, we don't show the attribute
-             value template or the attribute line title unless the single attribute value is custom,
-             whereas in this case, only the title of the attribute line and the custom value
-             template are rendered. -->
             <div class="d-flex gap-2 flex-column align-items-start justify-content-start mb-2 small">
                 <label
                     t-if="showValuesChoice || isSelectedPTAVCustom()"
@@ -28,7 +23,6 @@
             />
         </div>
     </t>
-    <!-- Attributes value templates -->
     <t t-name="sale.ptav_select">
         <select
             class="form-select form-select-sm w-auto"

@@ -3,9 +3,7 @@
 
 import { SignalStore } from "@web/core/utils/reactive";
 
-/**
- * @typedef {"off" | "active"} SampleStatus
- */
+/** @typedef {"off" | "active"} SampleStatus */
 
 export class SampleDataCoordinator extends SignalStore {
     constructor() {
@@ -27,9 +25,7 @@ export class SampleDataCoordinator extends SignalStore {
         this.status = "off";
     }
 
-    /**
-     * @param {boolean} value
-     */
+    /** @param {boolean} value */
     set(value) {
         if (value) {
             this.enter();

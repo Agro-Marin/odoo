@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Warehouse -->
     <record id="view_warehouse_inherit_mrp" model="ir.ui.view">
         <field name="name">Stock Warehouse Inherit MRP</field>
         <field name="model">stock.warehouse</field>

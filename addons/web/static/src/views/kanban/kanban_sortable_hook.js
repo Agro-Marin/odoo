@@ -20,9 +20,7 @@ import { useSortable } from "@web/core/utils/dnd/sortable_owl";
  * @property {(dataGroupId: string, params: any) => any} onSortGroupDrop
  */
 
-/**
- * @param {KanbanSortableOptions} options
- */
+/** @param {KanbanSortableOptions} options */
 export function useKanbanSortable(options) {
     if (!options.getCanUseSortable()) {
         return;

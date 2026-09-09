@@ -4,9 +4,7 @@
     <template id="report_purchasequotation_document">
         <t t-call="web.external_layout">
             <t t-set="o" t-value="o.with_context(lang=o.partner_id.lang)" />
-            <t t-set="forced_vat" t-value="o.fiscal_position_id.foreign_vat"/> <!-- So that it
-            appears in the footer of the report instead of the company VAT if it's set -->
-            <t t-set="address">
+            <t t-set="forced_vat" t-value="o.fiscal_position_id.foreign_vat" />            <t t-set="address">
                 <div
                     t-field="o.partner_id"
                     t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;, &quot;vat&quot;], &quot;no_marker&quot;: True, &quot;phone_icons&quot;: True}" />

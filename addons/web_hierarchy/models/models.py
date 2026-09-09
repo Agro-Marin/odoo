@@ -15,24 +15,6 @@ class Base(models.AbstractModel):
         order=None,
         only_roots=False,
     ):
-        """Read the records matching ``domain`` together with what the hierarchy
-        view needs to know about their place in the tree.
-
-        When ``child_field`` is given, the children travel in that one2many and
-        this method only adds ``parent_field`` to the specification. Otherwise
-        the ids of each record's children are aggregated into ``__child_ids__``,
-        so that a record can advertise children it does not carry.
-
-        A domain matching exactly one record is the "focus on this record" case:
-        its parent and its siblings are returned along with it, so that the view
-        has a branch to draw rather than a lone card.
-
-        ``only_roots`` restricts the search to the records that have no parent,
-        and falls back to ``domain`` alone when none of them matches. Both
-        searches happen here because the client cannot express the fallback
-        without a second round trip, and it pays that round trip on every
-        "show me this record's hierarchy" link.
-        """
         specification = dict(specification)
         specification.setdefault(parent_field, {"fields": {"display_name": {}}})
         records = self.search(
@@ -47,8 +29,6 @@ class Base(models.AbstractModel):
             records = self._hierarchy_expand_focused_record(
                 records, parent_field, order
             )
-            # Records that are the parent of another record in the set already
-            # display their children, so they need no child ids.
             records_needing_child_ids = records - records[parent_field]
         else:
             records_needing_child_ids = records
@@ -71,18 +51,6 @@ class Base(models.AbstractModel):
         return result
 
     def _hierarchy_expand_focused_record(self, record, parent_field, order):
-        """Return ``record`` with the branch it sits on.
-
-        With a parent, that is the parent plus the children of both, so the view
-        draws ``record`` among its siblings under its own manager. Without one,
-        ``record`` is already a root and only its children are missing.
-
-        The parent is searched for rather than read off the field, so that it is
-        subject to the same rules as everything else in the answer. Reading it
-        off the field let an archived parent through while archiving a sibling
-        correctly removed it, and while the view's own "show the parent" button
-        -- which goes through a plain search -- refused to fetch it at all.
-        """
         if not record[parent_field]:
             branch_domain = [(parent_field, "=", record.id), ("id", "!=", record.id)]
         else:

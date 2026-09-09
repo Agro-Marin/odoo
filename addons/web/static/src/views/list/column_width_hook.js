@@ -22,15 +22,8 @@ const DELETE_BUTTON_WIDTH = 12;
 /**
  * @param {HTMLTableElement} table
  * @param {{
- * columns: any[],
- * isEmpty: boolean,
- * hasSelectors: boolean,
- * hasOpenFormViewColumn: boolean,
- * hasActionsColumn: boolean,
- * }} state
- * @param {number} allowedWidth total width the columns must add up to
- * @param {number[] | null} [startingWidths] widths to resize from, instead of measuring
- *        the table -- used when a resize continues from a previous layout
+ * @param {number} allowedWidth
+ * @param {number[] | null} [startingWidths]
  * @returns {Number[]}
  */
 function computeWidths(table, state, allowedWidth, startingWidths) {
@@ -364,9 +357,7 @@ export class MagicColumnWidths {
         this.forceColumnWidths();
     }
 
-    /**
-     * @param {MouseEvent} ev
-     */
+    /** @param {MouseEvent} ev */
     onStartResize(ev) {
         this._resizing = true;
         const table = this.tableRef.el;

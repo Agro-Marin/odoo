@@ -35,9 +35,7 @@ export async function mountActionHost(options = {}) {
     return mountWithCleanup(ActionContainer, options);
 }
 
-/**
- * @param {Parameters<typeof mountWithCleanup>[1] & { WebClient?: typeof WebClient }} [options]
- */
+/** @param {Parameters<typeof mountWithCleanup>[1] & { WebClient?: typeof WebClient }} [options] */
 export async function mountWebClient(options = {}) {
     const { WebClient: WebClientComponent = WebClient, ...mountOptions } = options;
     const webClient = await mountWithCleanup(WebClientComponent, mountOptions);

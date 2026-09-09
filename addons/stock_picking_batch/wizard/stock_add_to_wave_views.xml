@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- add picking to wave  -->
     <record id="stock_add_to_wave_form" model="ir.ui.view">
         <field name="name">stock.add.to.wave.form</field>
         <field name="model">stock.add.to.wave</field>

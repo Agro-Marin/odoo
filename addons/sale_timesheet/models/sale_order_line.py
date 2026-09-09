@@ -9,9 +9,7 @@ class SaleOrderLine(models.Model):
     qty_transferred_method = fields.Selection(
         selection_add=[("timesheet", "Timesheets")]
     )
-    analytic_line_ids = fields.One2many(
-        domain=[("project_id", "=", False)]
-    )  # only analytic lines, not timesheets (since this field determine if SO line came from expense)
+    analytic_line_ids = fields.One2many(domain=[("project_id", "=", False)])
     remaining_hours_available = fields.Boolean(
         compute="_compute_remaining_hours_available", compute_sudo=True
     )
@@ -93,7 +91,6 @@ class SaleOrderLine(models.Model):
 
     @api.depends("product_id")
     def _compute_qty_transferred_method(self):
-        """Sale Timesheet module compute delivered qty for product [('type', 'in', ['service']), ('service_type', '=', 'timesheet')]"""
         super()._compute_qty_transferred_method()
         for line in self:
             if (
@@ -126,15 +123,10 @@ class SaleOrderLine(models.Model):
         return delivered_qties
 
     def _timesheet_compute_delivered_quantity_domain(self):
-        """Hook for validated timesheet in addionnal module"""
         domain = [("project_id", "!=", False)]
         if self.env.context.get("accrual_entry_date"):
             domain += [("date", "<=", self.env.context["accrual_entry_date"])]
         return domain
-
-    ###########################################
-    # Service : Project and task generation
-    ###########################################
 
     def _convert_qty_company_hours(self, dest_company):
         company_time_uom_id = dest_company.project_time_mode_id
@@ -155,7 +147,6 @@ class SaleOrderLine(models.Model):
 
     def _timesheet_create_project(self):
         project = super()._timesheet_create_project()
-        # we can skip all the allocated hours calculation if allocated hours is already set on the template project
         if self.product_id.project_template_id.allocated_hours:
             project.write(
                 {
@@ -168,16 +159,12 @@ class SaleOrderLine(models.Model):
         uom_unit = self.env.ref("uom.product_uom_unit")
         uom_hour = self.env.ref("uom.product_uom_hour")
 
-        # dict of inverse factors for each relevant UoM found in SO
         factor_per_id = {
             uom.id: uom.factor for uom in self.order_id.line_ids.product_uom_id
         }
-        # if sold as units, assume hours for time allocation
         factor_per_id[uom_unit.id] = uom_hour.factor
 
         allocated_hours = 0.0
-        # method only called once per project, so also allocate hours for
-        # all lines in SO that will share the same project
         for line in self.order_id.line_ids:
             if (
                 line.is_service
@@ -199,21 +186,11 @@ class SaleOrderLine(models.Model):
         return project
 
     def _timesheet_create_project_prepare_values(self):
-        """Generate project values"""
         values = super()._timesheet_create_project_prepare_values()
         values["allow_billable"] = True
         return values
 
     def _recompute_qty_to_invoice(self, start_date, end_date):
-        """Recompute the qty_to_invoice field for product containing timesheets
-
-        Search the existed timesheets between the given period in parameter.
-        Retrieve the unit_amount of this timesheet and then recompute
-        the qty_to_invoice for each current product.
-
-        :param start_date: the start date of the period
-        :param end_date: the end date of the period
-        """
         lines_by_timesheet = self.filtered(
             lambda sol: sol.product_id and sol.product_id._is_delivered_timesheet()
         )
@@ -248,12 +225,6 @@ class SaleOrderLine(models.Model):
                 line.invoice_state = prev_inv_status
 
     def _get_action_per_item(self):
-        """Get action per Sales Order Item
-
-        When the Sales Order Item contains a service product then the action will be View Timesheets.
-
-        :returns: Dict containing id of SOL as key and the action as value
-        """
         action_per_sol = super()._get_action_per_item()
         timesheet_action = self.env.ref(
             "sale_timesheet.timesheet_action_from_sales_order_item"

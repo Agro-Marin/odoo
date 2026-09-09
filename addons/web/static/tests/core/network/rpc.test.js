@@ -195,18 +195,14 @@ test("a 500 JSON response is a retryable ServerOverloadError", async () => {
     expect(error).toBeInstanceOf(ServerOverloadError);
 });
 
-/**
- * @param {(url: string, init: RequestInit) => Promise<any>} fetchFn
- */
+/** @param {(url: string, init: RequestInit) => Promise<any>} fetchFn */
 function patchBrowserFetch(fetchFn) {
     const originalFetch = browser.fetch;
     browser.fetch = fetchFn;
     after(() => (browser.fetch = originalFetch));
 }
 
-/**
- * @param {AbortSignal} signal
- */
+/** @param {AbortSignal} signal */
 function streamingBodyResponse(signal) {
     const response = new Response("{}", {
         status: 200,
@@ -1184,9 +1180,7 @@ function useScratchCache(name) {
     );
 }
 
-/**
- * @returns {{ count: () => number }}
- */
+/** @returns {{ count: () => number }} */
 function neverSettlingFetch() {
     let count = 0;
     patchBrowserFetch((_url, { signal }) => {

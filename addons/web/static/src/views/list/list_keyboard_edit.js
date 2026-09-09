@@ -3,20 +3,7 @@
 
 import { getElementToFocus } from "./list_focus.js";
 
-/**
- * @typedef {Pick<
- * import("./list_renderer").ListGridContext,
- * | "getProps"
- * | "getColumns"
- * | "getEditedRecord"
- * | "getControls"
- * | "getCanCreate"
- * | "getDisplayRowCreates"
- * | "isCellReadonly"
- * | "onAdd"
- * | "onEditNextRecord"
- * >} ListEditContext
- */
+/** @typedef {Pick< */
 
 const EDIT_HANDLER_NAMES = [
     "focusCell",
@@ -28,8 +15,7 @@ const EDIT_HANDLER_NAMES = [
 
 export class ListEditHandlers {
     /**
-     * @param {any} nav the navigation object the handlers are installed on;
-     *        cross-calls go through it so an override on it is honoured
+     * @param {any} nav
      * @param {any} tableRef
      * @param {ListEditContext} ctx
      */

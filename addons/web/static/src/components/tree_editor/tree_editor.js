@@ -5,12 +5,6 @@
 /** @typedef {any} Connector */
 /** @typedef {any} Tree */
 /** @typedef {any} Value */
-/**
- * @import { ValueEditorInfo } from "@web/components/tree_editor/tree_editor_value_editors"
- */
-/**
- * @import { OperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor"
- */
 
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -27,9 +21,7 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 
-/**
- * @type {WeakMap<object, string>}
- */
+/** @type {WeakMap<object, string>} */
 const NODE_KEYS = new WeakMap();
 let nextNodeKey = 0;
 
@@ -71,13 +63,9 @@ export class TreeEditor extends Component {
     /** @type {import("services").ServiceFactories["tree_processor"]} */
     treeProcessor;
 
-    /**
-     * @type {Tree}
-     */
+    /** @type {Tree} */
     tree;
-    /**
-     * @type {Tree | null}
-     */
+    /** @type {Tree | null} */
     previousTree;
     /** @type {(path: any) => any} */
     getFieldDef;
@@ -95,9 +83,7 @@ export class TreeEditor extends Component {
         onWillUpdateProps((nextProps) => this.onPropsUpdated(nextProps));
     }
 
-    /**
-     * @param {Object} props
-     */
+    /** @param {Object} props */
     async onPropsUpdated(props) {
         if (this.tree) {
             this.previousTree = this.tree;
@@ -192,17 +178,13 @@ export class TreeEditor extends Component {
         this.props.update(this.tree);
     }
 
-    /**
-     * @param {Connector} node
-     */
+    /** @param {Connector} node */
     _updateConnector(node) {
         node.value = node.value === "&" ? "|" : "&";
         node.negate = false;
     }
 
-    /**
-     * @param {Connector} node
-     */
+    /** @param {Connector} node */
     updateConnector(node) {
         return this.updateNode(node, () => this._updateConnector(node));
     }

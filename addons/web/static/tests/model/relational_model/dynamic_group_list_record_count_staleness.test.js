@@ -12,9 +12,7 @@ const NARROWER_DOMAIN = [
     ["step_id", "=", 3],
 ];
 
-/**
- * @param {{ limit: number, searchCount: () => number }} options
- */
+/** @param {{ limit: number, searchCount: () => number }} options */
 function makeGroupList({ limit, searchCount }) {
     const list = Object.create(DynamicGroupList.prototype);
     list.isDomainSelected = true;

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- new state-related subtypes-->
     <record id="mrp_mo_in_confirmed" model="mail.message.subtype">
         <field name="name">MO Confirmed</field>
         <field name="res_model">mrp.production</field>

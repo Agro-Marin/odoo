@@ -55,9 +55,7 @@ import { FormSaveCoordinator } from "./form_save_coordinator.js";
 import { FormStatusIndicator } from "./form_status_indicator/form_status_indicator.js";
 import { loadSubViews, useFormViewInDialog } from "./form_utils.js";
 
-/**
- * @type {WeakMap<object, { footerArchInfo: object, strippedArchInfo: object }>}
- */
+/** @type {WeakMap<object, { footerArchInfo: object, strippedArchInfo: object }>} */
 const footerArchInfoCache = new WeakMap();
 
 export class FormController extends ViewController {
@@ -369,9 +367,7 @@ export class FormController extends ViewController {
         this.duplicateId = undefined;
     }
 
-    /**
-     * @param {any} record
-     */
+    /** @param {any} record */
     async onRecordSaved(record, changes) {
         if (this.duplicateId === record.id) {
             const translationChanges = {};
@@ -432,9 +428,7 @@ export class FormController extends ViewController {
         return (this.model.root.isNew && _t("New")) || "";
     }
 
-    /**
-     * @param {{ offset: number, resIds: number[] }} params
-     */
+    /** @param {{ offset: number, resIds: number[] }} params */
     async onPagerUpdate({ offset, resIds }) {
         const nextId = resIds[offset];
         try {
@@ -479,9 +473,7 @@ export class FormController extends ViewController {
         }
     }
 
-    /**
-     * @param {any} [error]
-     */
+    /** @param {any} [error] */
     onAutoSaveFailed(error) {
         console.warn("Auto-save on tab switch failed:", error);
     }
@@ -540,9 +532,7 @@ export class FormController extends ViewController {
         });
     }
 
-    /**
-     * @param {Object} [overrides]
-     */
+    /** @param {Object} [overrides] */
     archiveRecord(overrides = {}) {
         this.dialogService.add(ConfirmationDialog, {
             ...archiveConfirmationProps(() => this.model.root.archive()),
@@ -551,9 +541,7 @@ export class FormController extends ViewController {
         });
     }
 
-    /**
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     get archiveDialogProps() {
         return {};
     }

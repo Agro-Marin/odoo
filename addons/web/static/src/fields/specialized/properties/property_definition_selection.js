@@ -60,16 +60,12 @@ export class PropertyDefinitionSelection extends Component {
         });
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get options() {
         return deepCopy(this.props.options || []);
     }
 
-    /**
-     * @returns {array}
-     */
+    /** @returns {array} */
     get optionsVisible() {
         const options = this.options || [];
         const newOption = this.state.newOption;
@@ -174,9 +170,7 @@ export class PropertyDefinitionSelection extends Component {
         }
     }
 
-    /**
-     * @param {integer} optionIndex
-     */
+    /** @param {integer} optionIndex */
     onOptionSetDefault(optionIndex) {
         if (!this.props.canChangeDefinition) {
             return;
@@ -187,9 +181,7 @@ export class PropertyDefinitionSelection extends Component {
         );
     }
 
-    /**
-     * @param {integer} optionIndex
-     */
+    /** @param {integer} optionIndex */
     onOptionDelete(optionIndex) {
         const options = this.optionsVisible;
         options.splice(optionIndex, 1);

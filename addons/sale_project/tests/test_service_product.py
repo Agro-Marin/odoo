@@ -7,10 +7,7 @@ from odoo.addons.sale_project.tests.common import TestSaleProjectCommon
 
 @tagged("post_install", "-at_install")
 class TestServiceProductConfig(TestSaleProjectCommon):
-    """Service tracking configuration guards on products and template lines."""
-
     def test_onchange_tracking_no_clears_project_and_template(self):
-        """Switching tracking to 'no' clears both project and template."""
         product = self.env["product.product"].new(
             {
                 "name": "svc",
@@ -25,7 +22,6 @@ class TestServiceProductConfig(TestSaleProjectCommon):
         self.assertFalse(product.project_template_id)
 
     def test_onchange_tracking_global_task_clears_template(self):
-        """A global-project task product keeps the project, drops the template."""
         product = self.env["product.product"].new(
             {
                 "name": "svc",
@@ -40,7 +36,6 @@ class TestServiceProductConfig(TestSaleProjectCommon):
         self.assertFalse(product.project_template_id)
 
     def test_onchange_tracking_new_project_clears_project(self):
-        """A new-project product cannot point to a fixed global project."""
         product = self.env["product.product"].new(
             {
                 "name": "svc",
@@ -53,23 +48,12 @@ class TestServiceProductConfig(TestSaleProjectCommon):
         self.assertFalse(product.project_id)
 
     def test_write_non_service_type_resets_tracking(self):
-        """Turning a service into a consumable resets tracking and project."""
         product = self.product_delivery_manual2
         product.write({"type": "consu"})
         self.assertEqual(product.service_tracking, "no")
         self.assertFalse(product.project_id)
 
     def test_inverse_service_policy_maps_invoice_policy(self):
-        """Setting the service policy drives invoice policy and service type.
-
-        The service type is read from the module's own mapping rather than spelled
-        out: `_get_service_to_general_map` is an extension point, and a bridge module
-        legitimately re-points a policy at its own tracking -- `sale_timesheet` maps
-        `ordered_prepaid` to `timesheet` where this module alone maps it to `manual`.
-        Pinning the literal here asserted that no such module is installed, which is
-        not what this test is about. The invoice policy is spelled out because every
-        map agrees on it.
-        """
         product = self.product_delivery_manual1
         product.service_policy = "ordered_prepaid"
         expected_invoice_policy, expected_service_type = (
@@ -80,7 +64,6 @@ class TestServiceProductConfig(TestSaleProjectCommon):
         self.assertEqual(product.service_type, expected_service_type)
 
     def test_tracking_no_rejects_project_links(self):
-        """A non-generating product must not carry project nor template."""
         with self.assertRaises(ValidationError):
             self.product_delivery_manual1.product_tmpl_id.write(
                 {
@@ -89,7 +72,6 @@ class TestServiceProductConfig(TestSaleProjectCommon):
             )
 
     def test_tracking_global_task_rejects_template(self):
-        """A global-task product must not carry a project template."""
         with self.assertRaises(ValidationError):
             self.product_delivery_manual2.product_tmpl_id.write(
                 {
@@ -98,7 +80,6 @@ class TestServiceProductConfig(TestSaleProjectCommon):
             )
 
     def test_tracking_new_project_rejects_fixed_project(self):
-        """A project-generating product must not carry a fixed project."""
         with self.assertRaises(ValidationError):
             self.product_delivery_manual3.product_tmpl_id.write(
                 {
@@ -107,7 +88,6 @@ class TestServiceProductConfig(TestSaleProjectCommon):
             )
 
     def test_template_line_skips_task_link_when_generating(self):
-        """Template lines drop task_id for task-generating service products."""
         template = self.env["sale.order.template"].create(
             {
                 "name": "Service quote template",

@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--Terms to translate for the outlook plugin.
-    Only named string params e.g: %(param)s are supported by the plugins,
-    unnamed params like %s are not supported.-->
 <resources>
     <string>Login</string>
     <string>Logout</string>
