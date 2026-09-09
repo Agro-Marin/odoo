@@ -25,7 +25,7 @@ def _guess_image_vcard_type(data: bytes) -> str:
 
 
 @functools.cache
-def _vobject() -> tuple[Any, type]:
+def _get_vobject() -> tuple[Any, type]:
     import vobject.vcard
 
     class VBaseProxy(Proxy):
@@ -57,7 +57,7 @@ class ResPartner(models.Model):
 
     def _prepare_vcard(self) -> Any:
         self.check_singleton()
-        vobject, VComponentProxy = _vobject()
+        vobject, VComponentProxy = _get_vobject()
         vcard = vobject.vCard()
         n = vcard.add("n")
         n.value = vobject.vcard.Name(family=self.name or self.complete_name or "")

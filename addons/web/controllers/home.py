@@ -249,11 +249,11 @@ class Home(http.Controller):
                 health_info["db_server_status"] = False
                 health_info["status"] = "fail"
                 status = 500
-        return self._health_response(health_info, status)
+        return self._get_health_response(health_info, status)
 
     @http.route("/web/healthz", type="http", auth="none", save_session=False)
     def healthz(self) -> Response:
-        return self._health_response({"status": "pass"}, 200)
+        return self._get_health_response({"status": "pass"}, 200)
 
     @http.route("/web/readyz", type="http", auth="none", save_session=False)
     def readyz(self) -> Response:
@@ -271,7 +271,7 @@ class Home(http.Controller):
         else:
             checks["data_dir"] = "fail"
             status = 503
-        return self._health_response(
+        return self._get_health_response(
             {"status": "pass" if status == 200 else "fail", "checks": checks},
             status,
         )
@@ -297,7 +297,7 @@ class Home(http.Controller):
             status=200,
         )
 
-    def _health_response(self, payload: dict[str, Any], status: int) -> Response:
+    def _get_health_response(self, payload: dict[str, Any], status: int) -> Response:
         return request.prepare_response(
             json_dumps(payload),
             [

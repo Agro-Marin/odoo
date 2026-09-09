@@ -116,7 +116,7 @@ class WebManifest(http.Controller):
         with file_open("web/static/src/service_worker.js") as f:
             return f.read()
 
-    def _icon_path(self) -> str:
+    def _get_icon_path(self) -> str:
         return "web/static/img/odoo-icon-192x192.png"
 
     @http.route(
@@ -127,7 +127,7 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def offline(self) -> Response:
-        with file_open(self._icon_path(), "rb") as f:
+        with file_open(self._get_icon_path(), "rb") as f:
             odoo_icon = base64.b64encode(f.read())
         return request.render(
             "web.webclient_offline",
@@ -172,7 +172,7 @@ class WebManifest(http.Controller):
             if manifest and manifest["icon"]:
                 icon_src = manifest["icon"]
             else:
-                icon_src = f"/{self._icon_path()}"
+                icon_src = f"/{self._get_icon_path()}"
         else:
             icon_src = app_icon["src"]
             if not add_padding:
@@ -228,7 +228,7 @@ class WebManifest(http.Controller):
         try:
             file_path(f"{app_id}/static/description/icon.svg")
         except FileNotFoundError:
-            src = self._icon_path()
+            src = self._get_icon_path()
         else:
             src = f"{app_id}/static/description/icon.svg"
         return [

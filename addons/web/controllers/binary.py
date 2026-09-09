@@ -43,14 +43,14 @@ def clean(name: str) -> str:
     return name.replace("<", "").replace(">", "")
 
 
-def _int_or_zero(value) -> int:
+def _get_int_or_zero(value) -> int:
     try:
         return int(value)
     except TypeError, ValueError:
         return 0
 
 
-def _res_id_or_none(value) -> int | None:
+def _resolve_res_id(value) -> int | None:
     if value is None or value is False or value == "":
         return None
     try:
@@ -59,7 +59,7 @@ def _res_id_or_none(value) -> int | None:
         return None
 
 
-def _token_authorized_public(record, field, access_token) -> bool:
+def _is_public_access_token_valid(record, field, access_token) -> bool:
     if not access_token:
         return False
     return bool(
@@ -106,12 +106,12 @@ class Binary(http.Controller):
     ) -> Response:
         with replace_exceptions(UserError, by=request.not_found()):
             record = request.env["ir.binary"]._get_record(
-                xmlid, model, _res_id_or_none(id), access_token, field_name=field
+                xmlid, model, _resolve_res_id(id), access_token, field_name=field
             )
             stream = request.env["ir.binary"]._get_stream_from_record(
                 record, field, filename, filename_field, mimetype
             )
-            if _token_authorized_public(record, field, access_token):
+            if _is_public_access_token_valid(record, field, access_token):
                 stream.public = True
 
         send_file_kwargs = {"as_attachment": str2bool(download, False)}
@@ -339,11 +339,11 @@ class Binary(http.Controller):
         nocache: str | bool = False,
     ) -> Response:
         crop = str2bool(crop, False)
-        width = _int_or_zero(width)
-        height = _int_or_zero(height)
+        width = _get_int_or_zero(width)
+        height = _get_int_or_zero(height)
         try:
             record = request.env["ir.binary"]._get_record(
-                xmlid, model, _res_id_or_none(id), access_token, field_name=field
+                xmlid, model, _resolve_res_id(id), access_token, field_name=field
             )
             stream = request.env["ir.binary"]._get_stream_image_from_record(
                 record,
@@ -355,7 +355,7 @@ class Binary(http.Controller):
                 height=height,
                 crop=crop,
             )
-            if _token_authorized_public(record, field, access_token):
+            if _is_public_access_token_valid(record, field, access_token):
                 stream.public = True
         except UserError as exc:
             if str2bool(download, False):
