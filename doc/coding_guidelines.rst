@@ -1222,23 +1222,23 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   316
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 26,249
+§2.4.3   Non-test methods declared on a model class                 26,246
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            132
-§2.4.4   ``fields`` family: definitions spelled head-first             209
-§2.4.4   ``fields`` family: distinct names spelled head-first           97
+§2.4.4   ``fields`` family: definitions spelled head-first             212
+§2.4.4   ``fields`` family: distinct names spelled head-first           98
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   131
 §2.4.4   Other heads: definitions spelled tail-first                   173
 §2.4.5   ``X_to_Y`` converter definitions                               96
 §2.4.5   … distinct names                                               54
-§2.4.7   ``_get_*`` definitions                                      6,119
+§2.4.7   ``_get_*`` definitions                                      6,121
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  6
-§2.4.7   ``_prepare_*`` definitions                                    861
+§2.4.7   ``_prepare_*`` definitions                                    858
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            38
 §2.4.8   ``_check_*`` definitions                                    1,193
 §2.4.8   ``_validate_*`` definitions                                     0
@@ -1916,7 +1916,7 @@ model layer (the census table has the count), having absorbed reading, building,
 deriving and computing. The split that matters is against ``_prepare_``: 686
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 861 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 858 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question

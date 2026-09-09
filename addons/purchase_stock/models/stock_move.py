@@ -23,18 +23,15 @@ class StockMove(models.Model):
         copy=False,
     )
 
+    def _get_fields_linking_order_lines(self):
+        return [
+            ("purchase_line_id", "created_purchase_line_ids"),
+            *super()._get_fields_linking_order_lines(),
+        ]
+
     def _compute_partner_id(self):
         not_dropshipped_moves = self.filtered(lambda m: not m._is_dropshipped())
         super(StockMove, not_dropshipped_moves)._compute_partner_id()
-
-    @api.depends("purchase_line_id", "purchase_line_id.product_uom_id")
-    def _compute_packaging_uom_id(self):
-        super()._compute_packaging_uom_id()
-        for move in self:
-            if move.purchase_line_id and move.product_uom_id._has_common_reference(
-                move.purchase_line_id.product_uom_id
-            ):
-                move.packaging_uom_id = move.purchase_line_id.product_uom_id
 
     @api.depends("purchase_line_id.name")
     def _compute_description_picking(self):
@@ -113,10 +110,6 @@ class StockMove(models.Model):
 
         return super()._action_synch_order()
 
-    def _clean_merged(self):
-        super()._clean_merged()
-        self.write({"created_purchase_line_ids": [Command.clear()]})
-
     def _get_value_from_bill(self, aml):
         self.check_singleton()
         return aml.company_id.currency_id.round(aml.price_subtotal / aml.currency_rate)
@@ -154,10 +147,6 @@ class StockMove(models.Model):
                     moves_to_check.append(move)
         return None, None
 
-    def _get_source_document(self):
-        res = super()._get_source_document()
-        return self.purchase_line_id.order_id or res
-
     def _get_upstream_documents_and_responsibles(self, visited):
         created_pl = self.created_purchase_line_ids.filtered(
             lambda cpl: (
@@ -181,25 +170,6 @@ class StockMove(models.Model):
         return super()._get_upstream_documents_and_responsibles(
             visited,
         )
-
-    def _prepare_merge_moves_distinct_fields(self):
-        distinct_fields = super()._prepare_merge_moves_distinct_fields()
-        distinct_fields += ["purchase_line_id", "created_purchase_line_ids"]
-        return distinct_fields
-
-    def _prepare_merge_negative_moves_excluded_distinct_fields(self):
-        return super()._prepare_merge_negative_moves_excluded_distinct_fields() + [
-            "created_purchase_line_ids",
-        ]
-
-    def _prepare_move_split_vals(self, uom_qty, force_uom_id=False):
-        vals = super()._prepare_move_split_vals(uom_qty, force_uom_id=force_uom_id)
-        if self.procure_method == "make_to_order" and self.created_purchase_line_ids:
-            vals["created_purchase_line_ids"] = [
-                Command.set(self.created_purchase_line_ids.ids),
-            ]
-        vals["purchase_line_id"] = self.purchase_line_id.id
-        return vals
 
     def _get_related_invoices(self):
         rslt = super()._get_related_invoices()

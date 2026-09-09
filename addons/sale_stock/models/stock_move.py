@@ -20,6 +20,12 @@ class StockMove(models.Model):
         copy=False,
     )
 
+    def _get_fields_linking_order_lines(self):
+        return [
+            ("sale_line_id", "created_sale_line_ids"),
+            *super()._get_fields_linking_order_lines(),
+        ]
+
     def write(self, vals):
         res = super().write(vals)
         if "product_id" in vals:
@@ -27,15 +33,6 @@ class StockMove(models.Model):
                 lambda m: m.sale_line_id and m.product_id != m.sale_line_id.product_id,
             ).sale_line_id = False
         return res
-
-    @api.depends("sale_line_id", "sale_line_id.product_uom_id")
-    def _compute_packaging_uom_id(self):
-        super()._compute_packaging_uom_id()
-        for move in self:
-            if move.sale_line_id and move.product_uom_id._has_common_reference(
-                move.sale_line_id.product_uom_id
-            ):
-                move.packaging_uom_id = move.sale_line_id.product_uom_id
 
     @api.depends("sale_line_id")
     def _compute_description_picking(self):
@@ -128,10 +125,6 @@ class StockMove(models.Model):
                     subtype_xmlid="mail.mt_note",
                 )
 
-    def _clean_merged(self):
-        super()._clean_merged()
-        self.write({"created_sale_line_ids": [Command.clear()]})
-
     def _get_related_invoices(self):
         rslt = super()._get_related_invoices()
         invoices = self.mapped("picking_id.sale_id.invoice_ids").filtered(
@@ -146,10 +139,6 @@ class StockMove(models.Model):
             self
             + self.browse(self._rollup_move_orig_ids() | self._rollup_move_dest_ids())
         ).sale_line_id
-
-    def _get_source_document(self):
-        res = super()._get_source_document()
-        return self.sale_line_id.order_id or res
 
     def _get_upstream_documents_and_responsibles(self, visited):
         created_sl = self.created_sale_line_ids.filtered(
@@ -175,25 +164,6 @@ class StockMove(models.Model):
                 ),
             ]
         return documents
-
-    def _prepare_merge_moves_distinct_fields(self):
-        distinct_fields = super()._prepare_merge_moves_distinct_fields()
-        distinct_fields += ["sale_line_id", "created_sale_line_ids"]
-        return distinct_fields
-
-    def _prepare_merge_negative_moves_excluded_distinct_fields(self):
-        return super()._prepare_merge_negative_moves_excluded_distinct_fields() + [
-            "created_sale_line_ids",
-        ]
-
-    def _prepare_move_split_vals(self, uom_qty, force_uom_id=False):
-        vals = super()._prepare_move_split_vals(uom_qty, force_uom_id=force_uom_id)
-        if self.procure_method == "make_to_order" and self.created_sale_line_ids:
-            vals["created_sale_line_ids"] = [
-                Command.set(self.created_sale_line_ids.ids),
-            ]
-        vals["sale_line_id"] = self.sale_line_id.id
-        return vals
 
     def _prepare_procurement_vals(self):
         res = super()._prepare_procurement_vals()
