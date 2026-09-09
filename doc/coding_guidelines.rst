@@ -2589,7 +2589,8 @@ among them have been renamed to ``_get_``. Split by what the body does, the
 ``_find_*`` methods that remain (census table) are still not one thing:
 
 * a few perform an ORM read -- and also **write**, which is why they were left
-  (``_find_existing_rule_or_create`` searches then creates);
+  (``_find_auto_batch`` searches for a mergeable batch, joins the picking to it
+  and returns it, and creates one when nothing matches);
 * the rest do something else entirely, and the verb flatters them
   (``_find_available_name`` appends ``(2)``, ``(3)`` until unused: a derivation).
 
@@ -2668,13 +2669,30 @@ why §2.4.4's *a name with no verb at all* fires for nobody here. A
 went with it.
 
 **Get-or-create hides under a bare create verb, not only under ``_find_``**
-``[review]``. The canonical above repairs ``_find_existing_rule_or_create``; the
-same body wearing ``_create_*`` is harder to see, because the verb is not wrong
+``[review]``. The canonical above repairs ``_find_auto_batch``, whose caller uses
+the return; the same body wearing ``_create_*`` is harder to see, because the verb
+is not wrong
 so much as half. ``cli/scaffold.py``'s ``_create_directory`` resolved the path,
 created it only when absent, exited when it was not a directory, and returned it.
 **The tell is that the caller uses the return**: a ``_create_`` whose return is
 discarded is a create; one whose return is consumed, over a body carrying an
 existence check, is ``_get_or_create_directory``.
+
+**The canonical repairs the family and not every member of it** ``[review]``, and
+this section named its own counter-example for months. ``_find_existing_rule_or_create``
+wore the shape exactly -- search, then create -- and was cited here as what
+``_get_or_create_*`` repairs. It is not a get-or-create at all. It returns
+**nothing**, both call sites invoke it as a bare statement, and what it does is
+write the rules whose stored values differ from the supplied ones, create the ones
+missing and leave the rest alone: convergence on a source of truth elsewhere, which
+is §2.4.12's reserved ``_sync_``. **The tell one paragraph up is what settles it**,
+turned on the paragraph's own example. Two independent checks agree -- the module
+was already spelling the operation ``_sync_resupply_routes`` in the same file, and
+``_get_or_create_rules`` is refused by ``naming_core_vocabulary``'s ``empty-return``
+rule, because a ``_get_`` prefix promises a return this body does not have. So the
+prescribed canonical was a name no gate would have accepted. It is ``_sync_rules``.
+**Read the body against the tell before taking a canonical, including when the
+section hands you the example.**
 
 2.4.12 Mutation, sync and overloaded verbs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
