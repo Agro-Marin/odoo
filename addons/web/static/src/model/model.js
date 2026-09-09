@@ -269,6 +269,13 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     let useSampleModel =
         component.props.useSampleModel &&
         (!("useSampleModel" in globalState) || globalState.useSampleModel);
+    if (useSampleModel && model.hasData === Model.prototype.hasData) {
+        console.warn(
+            `${ModelClass.name} asks for sample data but does not override hasData().` +
+                ` Model.hasData() answers true unconditionally, so the sample model is` +
+                ` never loaded and the view stays empty.`,
+        );
+    }
     model.useSampleModel = false;
     const orm = model.orm;
     let sampleORM = localState.sampleORM;
