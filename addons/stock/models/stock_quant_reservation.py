@@ -11,7 +11,7 @@ from odoo.tools import SQL
 
 from ..const import (
     CONTEXT_BLOCK_EXCLUDED_TYPES,
-    internal_payload,
+    get_internal_payload,
     read_internal_payload,
 )
 from ..tools.reservation import (
@@ -185,7 +185,7 @@ class StockQuantReservation(models.Model):
             reserving=reserving,
         )
         return self.with_context(
-            **{CONTEXT_BLOCK_EXCLUDED_TYPES: internal_payload(excluded)},
+            **{CONTEXT_BLOCK_EXCLUDED_TYPES: get_internal_payload(excluded)},
         )
 
     def _get_block_types_excluded(self):

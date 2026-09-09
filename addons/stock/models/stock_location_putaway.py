@@ -124,10 +124,10 @@ class StockLocationPutaway(models.Model):
                 additional_qty=scan.placed,
             )
             scan.place(location, quantity)
-            locations.append(location._without_putaway_scan())
+            locations.append(location._with_putaway_scan_cleared())
         return locations
 
-    def _without_putaway_scan(self):
+    def _with_putaway_scan_cleared(self):
         return self.with_context(
             {
                 key: value

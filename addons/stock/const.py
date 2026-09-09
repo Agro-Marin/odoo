@@ -73,7 +73,7 @@ def is_internal_flag(context, key):
     return context.get(key) is INTERNAL_CONTEXT_FLAG
 
 
-def internal_payload(value):
+def get_internal_payload(value):
     return (INTERNAL_CONTEXT_FLAG, value)
 
 

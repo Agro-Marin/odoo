@@ -350,7 +350,7 @@ class StockMoveLine(models.Model):
         created_moves._post_process_created_moves()
         done_lines = mls.filtered(lambda ml: ml.state == "done")
         for ml in done_lines.with_context(quants_cache=done_lines._get_quants_cache()):
-            ml._settle_quant_move()
+            ml._update_quants_and_reservations()
 
         if next_moves := done_lines._get_pending_dest_moves():
             next_moves._unreserve()
@@ -426,8 +426,8 @@ class StockMoveLine(models.Model):
     def _apply_write_plan(self, plan):
         if plan.progressed:
             plan.progressed.date = fields.Datetime.now()
-        plan.to_restock._settle_quant_moves_again(plan.reverted_in_dates)
-        plan.to_adjust._settle_quant_moves_by_delta(plan.deltas)
+        plan.to_restock._update_quants_again(plan.reverted_in_dates)
+        plan.to_adjust._update_quants_by_delta(plan.deltas)
 
         survivors = self.exists()
 
@@ -702,7 +702,7 @@ class StockMoveLine(models.Model):
             if package_history_vals:
                 self.env["stock.package.history"].create(package_history_vals)
 
-        mls_todo._settle_quant_moves_done()
+        mls_todo._update_quants_done()
 
         if not self.env.context.get("ignore_dest_packages"):
             mls_todo.result_package_id._update_parent_packages_from_dest()

@@ -9,7 +9,7 @@ from odoo.addons.stock.const import (
     CONTEXT_BLOCK_EXCLUDED_TYPES,
     INTERNAL_CONTEXT_FLAG,
     PY_OPERATORS,
-    internal_payload,
+    get_internal_payload,
     is_internal_flag,
     read_internal_payload,
 )
@@ -397,14 +397,14 @@ class TestQuantBlockedContextProtocol(TestStockCommon):
         cls.Quant = cls.env["stock.quant"]
 
     def test_the_payload_round_trips_through_the_shared_helpers(self):
-        context = {CONTEXT_BLOCK_EXCLUDED_TYPES: internal_payload(("soft_out",))}
+        context = {CONTEXT_BLOCK_EXCLUDED_TYPES: get_internal_payload(("soft_out",))}
         self.assertEqual(
             read_internal_payload(context, CONTEXT_BLOCK_EXCLUDED_TYPES),
             ("soft_out",),
         )
 
     def test_an_empty_payload_is_distinguishable_from_an_absent_one(self):
-        context = {CONTEXT_BLOCK_EXCLUDED_TYPES: internal_payload(())}
+        context = {CONTEXT_BLOCK_EXCLUDED_TYPES: get_internal_payload(())}
         self.assertEqual(
             read_internal_payload(context, CONTEXT_BLOCK_EXCLUDED_TYPES), ()
         )
@@ -418,7 +418,7 @@ class TestQuantBlockedContextProtocol(TestStockCommon):
                         {CONTEXT_BLOCK_EXCLUDED_TYPES: forged},
                         CONTEXT_BLOCK_EXCLUDED_TYPES,
                     ),
-                    "only a value written by internal_payload() may be trusted",
+                    "only a value written by get_internal_payload() may be trusted",
                 )
 
     def test_the_two_shapes_stay_distinct(self):
@@ -428,7 +428,7 @@ class TestQuantBlockedContextProtocol(TestStockCommon):
             read_internal_payload(flagged, CONTEXT_BLOCK_COMPLETING),
             "a bare marker carries no payload and must not read as one",
         )
-        carried = {CONTEXT_BLOCK_EXCLUDED_TYPES: internal_payload(())}
+        carried = {CONTEXT_BLOCK_EXCLUDED_TYPES: get_internal_payload(())}
         self.assertFalse(
             is_internal_flag(carried, CONTEXT_BLOCK_EXCLUDED_TYPES),
             "a payload is deliberately not a bare marker",

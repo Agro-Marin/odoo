@@ -85,10 +85,10 @@ class StockMoveLineQuant(models.Model):
             self.move_id._check_quantity()
         return in_dates
 
-    def _settle_quant_moves_again(self, in_dates=None):
+    def _update_quants_again(self, in_dates=None):
         in_dates = in_dates or {}
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
-            ml._settle_quant_move(in_date=in_dates.get(ml.id, False))
+            ml._update_quants_and_reservations(in_date=in_dates.get(ml.id, False))
 
     def _get_quantity_deltas(self, vals, updates):
         return {
@@ -97,9 +97,9 @@ class StockMoveLineQuant(models.Model):
             for ml in self
         }
 
-    def _settle_quant_moves_by_delta(self, deltas):
+    def _update_quants_by_delta(self, deltas):
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
-            ml._settle_quant_move(quantity=deltas[ml.id])
+            ml._update_quants_and_reservations(quantity=deltas[ml.id])
         if self.move_id:
             self.move_id._check_quantity()
 
@@ -129,7 +129,7 @@ class StockMoveLineQuant(models.Model):
             lot_scope=self.lot_id,
         )
 
-    def _settle_quant_move(
+    def _update_quants_and_reservations(
         self,
         *,
         quantity=None,
@@ -379,10 +379,10 @@ class StockMoveLineQuant(models.Model):
             return self.move_id._should_bypass_reservation(location)
         return not self.product_id.is_storable or location.should_bypass_reservation()
 
-    def _settle_quant_moves_done(self):
+    def _update_quants_done(self):
         ml_ids_to_ignore = OrderedSet()
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
-            ml.with_context(bypass_entire_pack=True)._settle_quant_move(
+            ml.with_context(bypass_entire_pack=True)._update_quants_and_reservations(
                 release_reserved=True, ml_ids_to_ignore=ml_ids_to_ignore
             )
             ml_ids_to_ignore.add(ml.id)

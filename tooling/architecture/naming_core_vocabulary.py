@@ -976,6 +976,17 @@ def _is_abstract_raise(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 #   plain method, and nothing to do with an ORM environment.
 # * The body must be exactly one return. A method that searches and then filters
 #   returns rows the caller never held, which is the first bullet again.
+#
+# The name test is on the first TOKEN and not on a string prefix, which is a
+# one-word difference that hid a finding: `_without_putaway_scan` returns
+# `self.with_context(...)` and `"without_putaway_scan".startswith("with")` is
+# True, so a `startswith` test exempted the one name §2.4.22 singles out. That
+# section gives `_without_*` its own bullet precisely because it is NOT the
+# `_with_` row -- it "names what is absent from the return, which is the one
+# thing a recordset cannot show you" -- so exempting it by spelling was the
+# rule agreeing with the defect. Measured when the token test replaced the
+# prefix test: stock 0 -> 1 (that name, renamed with it) and every other scope
+# unchanged.
 _NARROWING_CALLS = frozenset({"filtered", "filtered_domain"})
 _ORDERING_CALLS = frozenset({"sorted"})
 _GROUPING_CALLS = frozenset({"grouped"})
@@ -1403,11 +1414,26 @@ def classify_definition(
     `model-noun` needs the class, because its discriminator is a claim about
     what the receiver is called.
     """
-    if (hit := classify_name(node.name)) is not None:
+    # §2.4.4's two infix rules and the trailing rule are the CANDIDATE-list
+    # tier: that section says nothing mechanical can tell a verb parked behind a
+    # noun from a noun spelled like a verb, which is why `CORE_ONLY_KINDS` holds
+    # all three back from an addon scope. Returning one of them here lets a rule
+    # that is NOT gated at this scope shadow one that is, and the definition is
+    # then reported by nothing.
+    #
+    # `_without_putaway_scan` is that shape and is why this is not theoretical:
+    # its last token is `scan`, a `SYNONYMS` entry, so `trailing` fired and
+    # `measure` dropped it because stock holds that kind back -- while the body
+    # is `return self.with_context(...)`, which `shaping` gates at every scope.
+    # A candidate-tier name rule was hiding a gated body rule. So a weak hit is
+    # remembered and returned only if nothing that reads the body fires.
+    hit = classify_name(node.name)
+    if hit is not None and hit[0] not in CORE_ONLY_KINDS:
         return hit
+    weak_name_hit = hit
     stem = node.name.lstrip("_")
     verb, _, rest = stem.partition("_")
-    if (prefix := shaping_prefix(node)) is not None and not stem.startswith(prefix):
+    if (prefix := shaping_prefix(node)) is not None and leading_token(stem) != prefix:
         why = (
             f"the body is one ORM shaping call and produces nothing -- §2.4.22; "
             f"a caller told `{verb}` has to open the body to learn the return is "
@@ -1485,7 +1511,7 @@ def classify_definition(
             "Validation row is the one that raises on failure; take `_check_*`"
         )
         return ("predicate-raises", why)
-    return None
+    return weak_name_hit
 
 
 def classify_name(name: str) -> tuple[str, str] | None:

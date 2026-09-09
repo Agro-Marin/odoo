@@ -708,6 +708,48 @@ class TestTheShapingRuleReadsTheReceiver(unittest.TestCase):
                 name,
             )
 
+    def test_without_does_not_pass_the_with_test_by_spelling(self):
+        # The name test is on the first TOKEN, not on a string prefix.
+        # `"without_putaway_scan".startswith("with")` is True, so a prefix test
+        # exempted the one name §2.4.22 singles out -- that section gives
+        # `_without_*` its own bullet because it names what is ABSENT from the
+        # return, which is the one thing a recordset cannot show you.
+        hit = ncv.classify_definition(
+            self.parse(
+                """
+                def _without_putaway_scan(self):
+                    return self.with_context(scan=None)
+                """
+            )
+        )
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "shaping")
+
+    def test_a_candidate_tier_name_rule_does_not_shadow_a_gated_body_rule(self):
+        # `_without_putaway_scan` ends in `scan`, a SYNONYMS entry, so the
+        # `trailing` rule fires on the NAME -- and `trailing` is held back from
+        # every addon scope. Returning it would let a rule that is not gated
+        # here hide one that is, and the definition would be reported by
+        # nothing. The body rule must win.
+        node = self.parse(
+            """
+            def _without_putaway_scan(self):
+                return self.with_context(scan=None)
+            """
+        )
+        self.assertEqual(ncv.classify_name(node.name)[0], "trailing")
+        self.assertEqual(ncv.classify_definition(node)[0], "shaping")
+
+    def test_a_candidate_tier_hit_survives_when_no_body_rule_fires(self):
+        # The other direction: holding the weak hit back must not throw it away.
+        node = self.parse(
+            """
+            def _post_write_refresh(self, vals):
+                self.write(vals)
+            """
+        )
+        self.assertEqual(ncv.classify_definition(node)[0], "trailing")
+
     def test_a_navigation_before_the_filter_is_a_read_and_not_a_narrowing(self):
         # §2.4.22 excludes a body returning rows the caller never held. This is
         # `stock.move.line._get_pending_dest_moves`, which is correct as it
