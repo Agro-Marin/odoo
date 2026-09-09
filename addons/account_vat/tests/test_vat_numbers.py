@@ -57,10 +57,10 @@ class TestStructure(TransactionCase):
                 "company_id": company.id,
             }
         )
-        valid = partner._get_vat_required_valid(company=company)
+        valid = partner._is_vat_required_valid(company=company)
         self.assertEqual(valid, True)
         partner.vat = False
-        invalid = partner._get_vat_required_valid(company=company)
+        invalid = partner._is_vat_required_valid(company=company)
         self.assertEqual(invalid, False)
 
     def test_parent_validation(self):

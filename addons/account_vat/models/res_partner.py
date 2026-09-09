@@ -966,11 +966,11 @@ class ResPartner(models.Model):
             return f"HU{local_vat[:8]}"
         return False
 
-    def _get_vat_required_valid(self, company=None):
+    def _is_vat_required_valid(self, company=None):
         # OVERRIDE
         # If VIES validation does not apply to this partner (e.g. they
         # are in the same country as the partner), then skip.
-        vat_required_valid = super()._get_vat_required_valid(company=company)
+        vat_required_valid = super()._is_vat_required_valid(company=company)
         if (
             company
             and company.country_id

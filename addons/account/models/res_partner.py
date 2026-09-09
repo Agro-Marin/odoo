@@ -831,7 +831,7 @@ class ResPartner(models.Model):
         assert validation in (False, "error", "setnull")
         return vat, (country and country.code) or ""
 
-    def _get_vat_required_valid(self, company=None):
+    def _is_vat_required_valid(self, company=None):
         self.check_singleton()
         return bool(self.vat)
 

@@ -353,8 +353,7 @@ class AccountFiscalPosition(models.Model):
         company = company or self.env.company
         return [
             lambda fpos: (
-                not fpos.vat_required
-                or partner._get_vat_required_valid(company=company)
+                not fpos.vat_required or partner._is_vat_required_valid(company=company)
             ),
             lambda fpos: (
                 not (fpos.zip_from and fpos.zip_to)

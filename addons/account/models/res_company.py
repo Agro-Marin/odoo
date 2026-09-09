@@ -1391,12 +1391,12 @@ class ResCompany(models.Model):
     @staticmethod
     def _recompute_move_hash(move, previous_hash, start_version):
         version = start_version
-        computed_hash = move.with_context(hash_version=version)._calculate_hashes(
+        computed_hash = move.with_context(hash_version=version)._get_hashes(
             previous_hash
         )[move]
         while move.inalterable_hash != computed_hash and version < MAX_HASH_VERSION:
             version += 1
-            computed_hash = move.with_context(hash_version=version)._calculate_hashes(
+            computed_hash = move.with_context(hash_version=version)._get_hashes(
                 previous_hash
             )[move]
         return computed_hash, version

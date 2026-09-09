@@ -216,7 +216,7 @@ class AccountBankStatement(models.Model):
     @api.depends("balance_end", "balance_end_real")
     def _compute_is_valid(self):
         if len(self) == 1:
-            self.is_valid = self._get_statement_validity()
+            self.is_valid = self._is_statement_valid()
         else:
             invalids = self.filtered(
                 lambda s: s.id in self._get_invalid_statement_ids()
@@ -247,7 +247,7 @@ class AccountBankStatement(models.Model):
         invalid_ids = self._get_invalid_statement_ids(all_statements=True)
         return [("id", "not in", invalid_ids)]
 
-    def _get_statement_validity(self):
+    def _is_statement_valid(self):
         self.check_singleton()
         previous = self.env["account.bank.statement"].search(
             [
@@ -376,7 +376,7 @@ class AccountBankStatement(models.Model):
 
         return defaults
 
-    def _collect_attachments(self, values_list):
+    def _get_attachments(self, values_list):
         attachments_list = []
         for values in values_list:
             attachment_ids = set()
@@ -396,7 +396,7 @@ class AccountBankStatement(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        attachments_list = self._collect_attachments(vals_list)
+        attachments_list = self._get_attachments(vals_list)
         stmts = super().create(vals_list)
         self._reparent_attachments(stmts, attachments_list)
         self.env["account.bank.statement.line"]._invalidate_running_balance()
@@ -411,7 +411,7 @@ class AccountBankStatement(models.Model):
                 key: value for key, value in vals.items() if key != "attachment_ids"
             }
 
-        attachments_list = self._collect_attachments([vals] * len(self))
+        attachments_list = self._get_attachments([vals] * len(self))
         res = super().write(vals)
         self._reparent_attachments(self, attachments_list)
         if not _RUNNING_BALANCE_TRIGGERS.isdisjoint(vals):

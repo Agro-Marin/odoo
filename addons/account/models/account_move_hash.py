@@ -42,9 +42,7 @@ class AccountMove(models.Model):
         chains_to_hash = self._get_chains_to_hash(**kwargs)
         grant_secure_group_access = False
         for chain in chains_to_hash:
-            move_hashes = (
-                chain["moves"].sudo()._calculate_hashes(chain["previous_hash"])
-            )
+            move_hashes = chain["moves"].sudo()._get_hashes(chain["previous_hash"])
             for move, move_hash in move_hashes.items():
                 super(AccountMoveMain, move).write({"inalterable_hash": move_hash})
             if not chain["journal_restrict_mode"]:
@@ -228,10 +226,10 @@ class AccountMove(models.Model):
             return False
         return res
 
-    def _calculate_hashes(self, previous_hash):
+    def _get_hashes(self, previous_hash):
         hash_version = self.env.context.get("hash_version", MAX_HASH_VERSION)
 
-        def _getattrstring(obj, field_name):
+        def get_field_as_string(obj, field_name):
             field_value = obj[field_name]
             if obj._fields[field_name].type == "many2one":
                 field_value = field_value.id
@@ -247,12 +245,12 @@ class AccountMove(models.Model):
                 previous_hash = previous_hash.split("$")[2]
             values = {}
             for fname in move._get_fields_integrity_hash():
-                values[fname] = _getattrstring(move, fname)
+                values[fname] = get_field_as_string(move, fname)
 
             for line in move.line_ids:
                 for fname in line._get_fields_integrity_hash():
                     k = "line_%d_%s" % (line.id, fname)
-                    values[k] = _getattrstring(line, fname)
+                    values[k] = get_field_as_string(line, fname)
             current_record = dumps(
                 values,
                 sort_keys=True,

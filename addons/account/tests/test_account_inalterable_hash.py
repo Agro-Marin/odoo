@@ -961,7 +961,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             )
             with self._skip_hash_moves():
                 move.action_post()
-            move.inalterable_hash = move.with_context(hash_version=3)._calculate_hashes(
+            move.inalterable_hash = move.with_context(hash_version=3)._get_hashes(
                 last_hash
             )[move]
             last_hash = move.inalterable_hash
@@ -1287,7 +1287,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             )
             with self._skip_hash_moves():
                 move.action_post()
-            move.inalterable_hash = move.with_context(hash_version=3)._calculate_hashes(
+            move.inalterable_hash = move.with_context(hash_version=3)._get_hashes(
                 last_hash
             )[move]
             last_hash = move.inalterable_hash
