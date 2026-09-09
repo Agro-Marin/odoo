@@ -299,11 +299,6 @@ registry.category("web_tour.tours").add("pos_hr_go_backend_closed_registered", {
                 }
                 return step;
             }),
-            // Not `loginScreenIsNotShown`: the PIN above unloads the page, so
-            // this step runs in the BACKEND, where the login overlay does not
-            // exist on any outcome and negating it asserts nothing. Declaring
-            // `expectUnloadPage` here as well waited 20s for a second unload
-            // that one navigation cannot produce.
             {
                 content: "the backend is reached",
                 trigger: ".o_main_navbar",

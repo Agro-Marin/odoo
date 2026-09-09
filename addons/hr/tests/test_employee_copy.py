@@ -72,8 +72,6 @@ class TestEmployeeCopy(TransactionCase):
         self.assertEqual(copy.resource_calendar_id, self.calendar_a)
 
     def test_copy_into_another_company_from_a_third_active_company(self):
-        # The shape pos_hr's fixture has: the active company is neither the
-        # source's nor the copy's, so nothing downstream can fall back to it.
         copy = self.employee.with_company(self.env.ref("base.main_company")).copy(
             {"company_id": self.company_b.id, "date_version": "2001-01-01"}
         )
@@ -91,15 +89,11 @@ class TestEmployeeCopy(TransactionCase):
         self.assertNotIn("job_id", vals)
 
     def test_a_department_from_another_company_is_still_refused(self):
-        # The convergence guard must not swallow a settled violation.
         with self.assertRaises(ValidationError):
             self.employee.department_id = self.department_b
             self.env.flush_all()
 
     def test_copy_carries_the_name(self):
-        # `name` is a STORED related on hr.employee, so it is the employee's own
-        # column; a related field defaults to copy=False, which left the copied
-        # partner nameless and failing `res_partner_check_name`.
         copy = self.employee.copy({"date_version": "2001-01-01"})
         self.env.flush_all()
 
@@ -107,20 +101,11 @@ class TestEmployeeCopy(TransactionCase):
         self.assertEqual(copy.partner_id.name, self.employee.name)
 
     def test_moving_the_employee_to_another_company_is_still_refused(self):
-        # The other half of the convergence guard, and the half a first draft
-        # got wrong: it may skip a `company_id` pending recompute, never one the
-        # caller is writing. Refusing the transfer until the department is
-        # settled is what these constraints are for.
         with self.assertRaises(ValidationError):
             self.employee.company_id = self.company_b
             self.env.flush_all()
 
     def test_a_historical_version_does_not_block_a_transfer(self):
-        # The in-force guard must do real work in the other direction. Every
-        # version's `company_id` follows the employee, so a transfer moves the
-        # OLD versions too -- but `department_id` is a plain stored field and
-        # stays behind, so without the guard an old version's department would
-        # refuse a transfer the current version has already settled.
         old = self.employee.version_id.copy({"date_version": "1999-01-01"})
         old.department_id = self.department_a
         self.env.flush_all()

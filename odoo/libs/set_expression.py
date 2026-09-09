@@ -91,9 +91,6 @@ class SetDefinitions:
     def parse(self, refs: str, raise_if_not_found: bool = True) -> SetExpression:
         positives: list[Leaf] = []
         negatives: list[Leaf] = []
-        # An unknown ref becomes a leaf nobody belongs to, so an unstripped
-        # one narrows the restriction silently instead of failing. See
-        # `split_refs`.
         for xmlid in split_refs(refs):
             if xmlid.startswith("!"):
                 negatives.append(

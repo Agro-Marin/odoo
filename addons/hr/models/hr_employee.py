@@ -99,10 +99,6 @@ class HrEmployee(models.Model):
         store=True,
         readonly=False,
         tracking=True,
-        # A related field defaults to copy=False, and this one is stored, so it
-        # is the employee's own column rather than a read through to the
-        # partner. Without this, `copy()` writes no name at all and the copied
-        # partner dies on `res_partner_check_name`.
         copy=True,
     )
     active = fields.Boolean(
@@ -913,13 +909,6 @@ class HrEmployee(models.Model):
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
         for vals in vals_list:
-            # `employee_id` is hr.version's back-pointer, delegated onto this
-            # model, so copying an employee copies a pointer to the SOURCE
-            # employee. `_create` repairs it once the row exists, but everything
-            # computed before that repair reads it -- and `company_id` is
-            # `employee_id.company_id`, so a copy into another company resolved
-            # its calendar, and was then judged, against the company it came
-            # from. Nothing can want the source's id here.
             if vals:
                 vals.pop("employee_id", None)
         drop_values_from_other_companies(self, vals_list, default)
