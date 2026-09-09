@@ -1511,6 +1511,59 @@ class TestCssCompileErrorReporting(TransactionCase):
             "the line it complains about is not necessarily in the broken file",
         )
 
+    def test_the_error_points_at_the_file_that_failed(self):
+        bundle = self._bundle(
+            ("/m/static/src/fine.scss", ".ok{color:red}"),
+            ("/m/static/src/broken.scss", self.BROKEN_SCSS),
+        )
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            bundle.preprocess_css()
+
+        (error,) = bundle.css_errors
+        self.assertIn(
+            "/m/static/src/broken.scss line",
+            error,
+            "the member list narrows the search to the bundle; the compiler's "
+            "own line number is against the concatenation, so it has to be "
+            "resolved back to a file before it means anything",
+        )
+
+    def test_the_located_line_is_numbered_within_its_own_file(self):
+        bundle = self._bundle(
+            ("/m/static/src/first.scss", ".a{color:red}"),
+            ("/m/static/src/second.scss", ".b{color:blue}\n.c{color:green}"),
+        )
+        pipeline = bundle._css
+        source = "\n".join(asset.get_source() for asset in bundle.stylesheets)
+        # 1 marker, 2 .a, 3 marker, 4 .b, 5 .c
+        located = pipeline._locate_source_line(source, 5)
+
+        self.assertIn("/m/static/src/second.scss line 2", located)
+        self.assertIn(".c{color:green}", located)
+
+    def test_a_line_outside_the_source_locates_nothing(self):
+        pipeline = CssPipeline(_fake_bundle(name="b"))
+        self.assertEqual(pipeline._locate_source_line("a\nb\n", 99), "")
+
+    def test_a_protocol_slash_inside_a_string_is_not_a_comment(self):
+        """`//` inside a quoted url() is data, not the start of a comment.
+
+        A comment stripper that is not string-aware truncates the line at the
+        protocol, and the whole bundle then stops compiling for a reason that
+        names no file. This shape has reached production once already.
+        """
+        svg = "<svg xmlns='http://www.w3.org/2000/svg'/>"
+        bundle = self._bundle(
+            (
+                "/m/static/src/dataurl.scss",
+                f'.a{{background:url("data:image/svg+xml;utf8,{svg}")}}',
+            )
+        )
+        out = bundle.preprocess_css()
+
+        self.assertFalse(bundle.css_errors, bundle.css_errors)
+        self.assertIn("www.w3.org/2000/svg", out)
+
     def test_the_error_reaches_the_banner(self):
         bundle = self._bundle(("/m/static/src/broken.scss", self.BROKEN_SCSS))
         with mute_logger("odoo.addons.base.models.assetsbundle"):

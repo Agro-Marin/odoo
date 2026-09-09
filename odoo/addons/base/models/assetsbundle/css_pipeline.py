@@ -89,6 +89,15 @@ class CssPipeline:
         self._bundle = bundle
         self._rendered_assets: list[StylesheetAsset] = []
 
+    @property
+    def _log_name(self) -> str:
+        """The bundle name, for diagnostics only.
+
+        Read defensively so that logging never makes an attribute load-bearing
+        that the pipeline itself does not require.
+        """
+        return getattr(self._bundle, "name", "<unnamed bundle>")
+
     def preprocess(self) -> str:
         bundle = self._bundle
         bundle.css_errors.clear()
@@ -102,6 +111,13 @@ class CssPipeline:
 
         compiled = ""
         assets = [a for a in bundle.stylesheets if isinstance(a, PreprocessedCSS)]
+        _logger.debug(
+            "Bundle %r: preprocessing %s stylesheet(s), %s preprocessed, rtl=%s",
+            self._log_name,
+            len(bundle.stylesheets),
+            len(assets),
+            bundle.rtl,
+        )
         if assets:
             dialects = {type(a) for a in assets}
             if len(dialects) != 1:
@@ -115,6 +131,13 @@ class CssPipeline:
                 bundle.css_errors.append(msg)
                 return ""
             source = "\n".join(asset.get_source() for asset in assets)
+            _logger.debug(
+                "Bundle %r: compiling %s lines of %s from %s file(s)",
+                self._log_name,
+                source.count("\n") + 1,
+                type(assets[0]).__name__,
+                len(assets),
+            )
             compiled = self.compile_css(assets[0].compile, source)
 
         if bundle.rtl:
@@ -225,7 +248,7 @@ class CssPipeline:
         try:
             return self._compile_memoized(compiler, source)
         except (CompileError, SassCompileError) as e:
-            error = self._format_compiler_error(str(e))
+            error = self._format_compiler_error(str(e), source)
             _logger.warning(error)
             bundle.css_errors.append(error)
             return ""
@@ -245,7 +268,9 @@ class CssPipeline:
         with cls._compiled_cache_lock:
             if (hit := cache.get(key)) is not None:
                 cache.move_to_end(key)
+                _logger.debug("CSS %s: cache hit, %s chars", key[0], len(hit))
                 return hit
+        _logger.debug("CSS %s: cache miss, transforming %s chars", key[0], len(source))
         result = transform(source)
         with cls._compiled_cache_lock:
             cache[key] = result
@@ -280,6 +305,7 @@ class CssPipeline:
 
     def convert_css_to_rtl(self, source: str) -> str:
         if not _is_rtlcss_available():
+            _logger.debug("rtlcss unavailable, serving %r left-to-right", self._log_name)
             return source
 
         cmd = [_rtlcss_bin(), "-c", _rtlcss_config_path(), "-"]
@@ -300,11 +326,43 @@ class CssPipeline:
             self._bundle.css_errors.append(error)
             return ""
 
-    def _format_compiler_error(self, stderr: str) -> str:
+    _RX_ERROR_TRACE = re.compile(r"^\s*-?\s*(?P<line>\d+):\d+\s+\S", re.MULTILINE)
+    _RX_ERROR_GUTTER = re.compile(r"^\s*(?P<line>\d+)\s*\u2502", re.MULTILINE)
+
+    def _locate_source_line(self, source: str, line_no: int) -> str:
+        """Name the asset that contributed line `line_no` of the compiled source.
+
+        The compiler numbers its errors against the whole concatenated document,
+        which is hundreds of files and tens of thousands of lines, so the number
+        alone points at nothing and the caller is left reading a list of every
+        file in the bundle. `get_source` opens each asset with an `odoo-split`
+        marker, so the nearest marker at or above the line names the owner and
+        the distance down to the line is the line number within that file.
+        """
+        lines = source.split("\n")
+        if not 1 <= line_no <= len(lines):
+            return ""
+        assets_by_id = {asset.id: asset for asset in self._bundle.stylesheets}
+        for index in range(line_no - 1, -1, -1):
+            if match := self.rx_css_split.search(lines[index]):
+                asset = assets_by_id.get(match.group(1))
+                url = (asset.url or "<inline sass>") if asset else "<unknown asset>"
+                return (
+                    f"\nThe failing line is {url} line {line_no - index - 1}:"
+                    f"\n    {lines[line_no - 1].strip()}\n"
+                )
+        return ""
+
+    def _format_compiler_error(self, stderr: str, source: str = "") -> str:
         bundle = self._bundle
         error = stderr.split("Load paths", maxsplit=1)[0].replace(
             "  Use --trace for backtrace.", ""
         )
+        if source and (
+            match := self._RX_ERROR_TRACE.search(stderr)
+            or self._RX_ERROR_GUTTER.search(stderr)
+        ):
+            error += self._locate_source_line(source, int(match.group("line")))
         error += f"This error occurred while compiling the bundle {bundle.name!r} containing:"
         for asset in bundle.stylesheets:
             if isinstance(asset, PreprocessedCSS):
@@ -321,6 +379,12 @@ class CssPipeline:
             .replace('"', r"\"")
             .replace("\n", r"\A")
             .replace("*", r"\*")
+        )
+        _logger.debug(
+            "Serving the previous stylesheet behind a CSS error banner (%s error(s), "
+            "%s chars carried over)",
+            len(css_errors),
+            len(previous_css),
         )
         carried_over = previous_css.split(cls._CSS_ERROR_HEADER, maxsplit=1)[0]
         banner = f"""
