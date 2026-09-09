@@ -1,6 +1,6 @@
 {
     "name": "Purchase Stock",
-    "version": "1.4",
+    "version": "1.5",
     "category": "Supply Chain/Purchase",
     "sequence": 60,
     "summary": "Purchase Orders, Receipts, Vendor Bills for Stock",
@@ -12,6 +12,7 @@
         "base_order_stock",
     ],
     "data": [
+        "security/purchase_stock_security.xml",
         "security/ir.model.access.csv",
         "report/purchase_receipt_line_match_views.xml",
         "data/purchase_stock_data.xml",

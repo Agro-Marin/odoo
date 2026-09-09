@@ -1222,19 +1222,19 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   316
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 26,252
+§2.4.3   Non-test methods declared on a model class                 26,254
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            132
-§2.4.4   ``fields`` family: definitions spelled head-first             217
+§2.4.4   ``fields`` family: definitions spelled head-first             219
 §2.4.4   ``fields`` family: distinct names spelled head-first           99
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   131
-§2.4.4   Other heads: definitions spelled tail-first                   174
+§2.4.4   Other heads: definitions spelled tail-first                   175
 §2.4.5   ``X_to_Y`` converter definitions                               96
 §2.4.5   … distinct names                                               54
-§2.4.7   ``_get_*`` definitions                                      6,125
+§2.4.7   ``_get_*`` definitions                                      6,131
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  6
@@ -1911,7 +1911,7 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.3 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.4 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
 deriving and computing. The split that matters is against ``_prepare_``: 686
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
