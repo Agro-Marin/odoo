@@ -7,9 +7,9 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="arch" type="xml">
             <xpath expr="//page[@name='anchor_operations']" position="before">
-                <page string="Partner Assignment" name="geo_location">
-                    <group>
-                        <group string="Geolocation">
+                <page string="Geolocation" name="geo_location">
+                    <group name="geolocation_columns">
+                        <group name="geolocation" string="Geolocation">
                             <label for="date_localization" string="Geo Location" />
                             <div>
                                 <span>Lat : <field name="partner_latitude" nolabel="1" class="oe_inline" /></span>

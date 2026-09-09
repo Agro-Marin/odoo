@@ -37,8 +37,9 @@
                 <attribute name="groups" add="sale.group_warning_sale" separator="," />
             </page>
             <group name="warnings" position="inside">
-                <group groups="sale.group_warning_sale" col="2">
+                <group name="sale_warning" groups="sale.group_warning_sale" col="2">
                     <separator
+                        name="sale_warning_separator"
                         string="Warning on Sales Orders and Invoices"
                         colspan="2" />
                     <field

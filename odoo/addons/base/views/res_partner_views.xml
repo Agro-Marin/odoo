@@ -740,7 +740,7 @@
                             </field>
                         </page>
                         <page name="sales_purchases" string="Sales &amp; Purchase">
-                            <group name="container_row_2">
+                            <group name="sales_purchases_columns">
                                 <group string="Sales" name="sale">
                                     <field
                                         name="user_id"

@@ -21,7 +21,7 @@
                             class="oe_inline" />
                     </div>
                     <div invisible="commercial_partner_id != id">
-                        <group>
+                        <group name="scoring_columns">
                             <group
                                 name="scoring_classification"
                                 string="Commercial Classification">

@@ -12,7 +12,7 @@
                     string="Private Information"
                     invisible="is_company"
                     groups="base.group_partner_manager">
-                    <group>
+                    <group name="personal_information_columns">
                         <group name="personal_information_group">
                             <field name="gender" />
                             <field name="birthdate" />

@@ -255,7 +255,7 @@
                     name="accounting"
                     invisible="not is_company and parent_id"
                     groups="account.group_account_invoice,account.group_account_readonly">
-                    <group>
+                    <group name="accounting_columns">
                         <group
                             string="General"
                             name="general"
@@ -287,6 +287,7 @@
                         </group>
                         <group
                             id="invoice_send_settings"
+                            name="invoice_send_settings"
                             string="Customer Invoices"
                             groups="account.group_account_invoice,account.group_account_readonly">
                             <field

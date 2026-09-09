@@ -6,7 +6,7 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="mail.res_partner_view_form_inherit_mail" />
         <field name="arch" type="xml">
-            <xpath expr="//group[@name='container_row_2']" position="inside">
+            <xpath expr="//group[@name='sales_purchases_columns']" position="inside">
                 <group
                     string="Inventory"
                     name="inventory"
@@ -27,8 +27,9 @@
                 <attribute name="groups" add="stock.group_warning_stock" separator="," />
             </page>
             <group name="warnings" position="inside">
-                <group groups="stock.group_warning_stock" col="2">
+                <group name="stock_warning" groups="stock.group_warning_stock" col="2">
                     <separator
+                        name="stock_warning_separator"
                         string="Instructions on the Stock Operations"
                         colspan="2" />
                     <field

@@ -87,8 +87,9 @@
                 <attribute name="groups" add="purchase.group_warning_purchase" separator="," />
             </page>
             <group name="warnings" position="inside">
-                <group groups="purchase.group_warning_purchase" col="2">
+                <group name="purchase_warning" groups="purchase.group_warning_purchase" col="2">
                     <separator
+                        name="purchase_warning_separator"
                         string="Warning on Purchase Orders and Bills"
                         colspan="2" />
                     <field
