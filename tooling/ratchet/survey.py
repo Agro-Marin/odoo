@@ -33,6 +33,17 @@ and read the drift lines.
     python tooling/ratchet/survey.py --siblings      # + the sibling lint scopes
     python tooling/ratchet/survey.py --json
 
+**A delta is where the work starts; the set diff is the finding.** This module
+reports counts, and a count cannot see a relocation: `computectx` moved +4 on a
+raw reading, and the set diff was five new offenders, one relocated between
+addons and cancelling itself, and one genuinely fixed. Nor can a count separate
+*the tree moved* from *the scan moved*, which is §4's middle failure mode and the
+one no amount of re-running detects — for that, run the CURRENT gate against the
+OLD tree at the floor's own `measured_at`: equal scans over two trees isolates
+the tree, and it is the only comparison that can be made after the fact. Take a
+drift line as a question, answer it with `--json` on both sides, and put the
+decomposition in the banking note.
+
 **Measure in a detached worktree at a commit, never in a shared checkout.** The
 survey that produced the seven was first run in a tree six sessions were dirty
 in, and returned the identical seven -- correct by luck, which is the worst
@@ -149,6 +160,36 @@ def mode_for(gate: str) -> str:
     if gate in NO_INCREASE_GATES or gate.endswith(NO_INCREASE_SUFFIXES):
         return "no-increase"
     return "exact"
+
+
+# The single most dangerous property of this module is that it measures WHEREVER
+# IT IS RUN, and the sibling mappings make that invisible: `--roots ../enterprise`
+# reads like it names a clean checkout and silently names the live one. Three
+# sessions produced retracted numbers this way in one afternoon -- a 41-floor run
+# against three dirty repos, a `computectx` post-fix count, and a scope probe --
+# and in every case the output looked exactly like a clean reading. So the tree's
+# provenance is reported ABOVE the table, never inferred, and never omitted.
+def dirty_trees() -> dict[str, int]:
+    """Repos this survey will scan that have uncommitted changes, and how many."""
+    found: dict[str, int] = {}
+    for label, path in (
+        ("odoo", ROOT),
+        *((r, ROOT.parent / r) for r, _ in SIBLING_SCOPES),
+    ):
+        if not (path / ".git").exists():
+            continue
+        out = subprocess.run(
+            ["git", "-C", str(path), "status", "--porcelain", "--untracked-files=all"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        if out.returncode == 0 and (
+            n := len([x for x in out.stdout.splitlines() if x.strip()])
+        ):
+            found[label] = n
+    return found
 
 
 def _measure(script: str, args: list[str], timeout: int) -> int | None:
@@ -298,8 +339,20 @@ def main(argv: list[str] | None = None) -> int:
     other = [r for r in rows if r["state"] in ("unmeasurable", "unmapped")]
     uncovered = [r for r in rows if r["state"] == "uncovered"]
 
+    dirty = dirty_trees()
     print("Ratchet floors re-measured against the tree")
     print("=" * 72)
+    if dirty:
+        where = ", ".join(f"{r} {n} file(s)" for r, n in sorted(dirty.items()))
+        print(f"  !! MEASURED AGAINST A DIRTY TREE: {where}")
+        print("  !! These numbers describe nobody's commit. A count taken here")
+        print("  !! cannot separate drift from another session's unlanded work,")
+        print("  !! and must not be banked. Re-run from detached worktrees:")
+        print("  !!   git -C <repo> worktree add --detach <ws>/<repo> HEAD")
+        print("  !! laid out as a workspace, so the sibling paths resolve clean.")
+        print("=" * 72)
+    else:
+        print("  every scanned tree is clean at its HEAD")
     for r in drift:
         delta = r["measured"] - r["banked"]
         print(

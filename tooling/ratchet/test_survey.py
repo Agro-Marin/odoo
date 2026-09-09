@@ -94,3 +94,20 @@ def test_a_baseline_file_is_readable_json_with_a_count():
     for path in ratchet.BASELINES_DIR.glob("*.json"):
         data = json.loads(path.read_text(encoding="utf-8"))
         assert isinstance(data.get("count"), int), f"{path.name} has no integer count"
+
+
+def test_the_dirty_tree_check_names_the_repos_it_will_scan():
+    # The provenance banner is the module's only defence against its most
+    # dangerous property -- that it measures wherever it is run, and the sibling
+    # mappings make that invisible. It must consider the odoo root AND every
+    # sibling scope, because `--roots ../enterprise` reads like a clean checkout
+    # and silently names the live one.
+    import inspect
+
+    src = inspect.getsource(survey.dirty_trees)
+    assert "SIBLING_SCOPES" in src, "the check must cover the siblings, not just odoo"
+    assert "--porcelain" in src
+    # It returns a mapping of repo -> count, empty when everything is clean.
+    result = survey.dirty_trees()
+    assert isinstance(result, dict)
+    assert all(isinstance(v, int) and v > 0 for v in result.values())
