@@ -131,8 +131,8 @@ test("usePopover re-reads useBottomSheet on every open", async () => {
     expect(".o_popover").toHaveCount(0);
 });
 
-test("Dropdown follows the breakpoint without being remounted", async () => {
-    mockTouch(true);
+test("Dropdown follows touch mode without being remounted", async () => {
+    mockTouch(false);
     await resize({ width: 1366, height: 768 });
     class Host extends Component {
         static components = { Dropdown };
@@ -153,7 +153,7 @@ test("Dropdown follows the breakpoint without being remounted", async () => {
     queryOne(".dd-toggle").click();
     await animationFrame();
 
-    await resize({ width: 375, height: 667 });
+    mockTouch(true);
     await runAllTimers();
     await animationFrame();
 

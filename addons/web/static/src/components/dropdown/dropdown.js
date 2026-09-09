@@ -25,7 +25,6 @@ import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
 import { usePopover } from "@web/ui/popover/popover_hook";
-import { utils } from "@web/ui/viewport";
 
 const DIRECTION_CLASSES = {
     bottom: "dropdown",
@@ -247,7 +246,7 @@ export class Dropdown extends Component {
     }
 
     get isBottomSheet() {
-        return utils.isSmall() && hasTouch() && this.props.bottomSheet;
+        return hasTouch() && this.props.bottomSheet;
     }
 
     /** @returns {string[]} */

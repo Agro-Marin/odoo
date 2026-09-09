@@ -141,4 +141,8 @@
 
     position: static;
     max-height: calc(var(--sheet-max-height) - #{$spacer} / 4);
+
+    .container {
+        max-width: inherit;
+    }
 }

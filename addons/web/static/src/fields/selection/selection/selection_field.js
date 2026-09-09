@@ -31,7 +31,7 @@ export class SelectionField extends SelectionLikeField {
         return this.options.map(([value, label]) => ({ value, label }));
     }
     get isBottomSheet() {
-        return this.env.isSmall && hasTouch();
+        return hasTouch();
     }
     get options() {
         switch (this.type) {
