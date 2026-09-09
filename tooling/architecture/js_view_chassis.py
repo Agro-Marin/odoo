@@ -74,12 +74,10 @@ PINNED_HANDROLLED: dict[str, str] = {
         "subclass hangs its toolbar on (web_gantt's owner, 2026-09-08)"
     ),
     "calendar": "not yet converted",
-    "graph": "not yet converted",
     "grid": "not yet converted",
     "hierarchy": "not yet converted",
     "kanban": "not yet converted",
     "list": "not yet converted",
-    "pivot": "not yet converted",
 }
 
 

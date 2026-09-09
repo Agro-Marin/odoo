@@ -56,25 +56,9 @@
     </t>
 
     <t t-name="web.GraphView">
-        <div t-att-class="props.className" t-ref="root">
-            <Layout className="model.useSampleModel ? 'o_view_sample_data' : ''" display="props.display">
-                <t t-set-slot="control-panel-additional-actions">
-                    <CogMenu/>
-                </t>
-                <t t-set-slot="layout-actions">
-                    <SearchBar toggler="searchBarToggler"/>
-                </t>
-                <t t-set-slot="control-panel-navigation-additional">
-                    <t t-component="searchBarToggler.component" t-props="searchBarToggler.props"/>
-                </t>
-                <t t-if="model.isReady and model.data">
-					<t t-if="!model.hasData() or model.useSampleModel and props.info.noContentHelp">
-						<ActionHelper noContentHelp="props.info.noContentHelp" showRibbon="model.useSampleModel"/>
-                    </t>
-                    <t t-component="props.Renderer" model="model" buttonTemplate="props.buttonTemplate" />
-                </t>
-            </Layout>
-        </div>
+        <ViewLayout t-props="chassis.props">
+            <t t-if="model.isReady and model.data" t-component="props.Renderer" model="model" buttonTemplate="props.buttonTemplate"/>
+        </ViewLayout>
     </t>
 
 </templates>

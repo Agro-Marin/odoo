@@ -19,6 +19,13 @@ export class PivotController extends ReportController {
         );
     }
 
+    /** @override */
+    get chassisHooks() {
+        // Pivot adds one condition of its own: a pivot with no active measure
+        // has nothing to draw even when the model has rows.
+        return { displayNoContent: () => this.model.isReady && this.displayNoContent };
+    }
+
     /**
      * @returns {boolean}
      */

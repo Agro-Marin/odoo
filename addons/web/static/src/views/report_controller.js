@@ -1,19 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, toRaw, useRef, useState } from "@odoo/owl";
+import { Component, toRaw, useState } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { useModelWithSampleData } from "@web/model/model";
-import { CogMenu } from "@web/search/cog_menu/cog_menu";
-import { Layout } from "@web/search/layout";
-import { SearchBar } from "@web/search/search_bar/search_bar";
-import { ActionHelper } from "@web/views/action_helper";
 import { standardViewProps } from "@web/views/standard_view_props";
-import { useViewChassis } from "@web/views/view_components";
+import { useViewChassis, ViewLayout } from "@web/views/view_components";
 import { computeModelOptions } from "@web/views/view_utils";
 
 export class ReportController extends Component {
-    static components = { Layout, SearchBar, CogMenu, ActionHelper };
+    static components = { ViewLayout };
     static props = {
         ...standardViewProps,
         Model: Function,
@@ -41,15 +37,32 @@ export class ReportController extends Component {
                 this.modelOptions,
             ),
         );
-        this.actionState = useSetupAction({
-            rootRef: useRef("root"),
-            getLocalState: () => this.getLocalState(),
-            getContext: () => this.getContext(),
-        });
-        this.chassis = useViewChassis();
+        // Before `useSetupAction`, which needs the root ref the chassis
+        // forwards: `ViewLayout` renders the view root now, so a `useRef`
+        // here would resolve to nothing and scroll restoration would stop
+        // silently.
+        this.chassis = useViewChassis(this.chassisHooks);
         // One toggler under two names: `chassis.props` carries it to
         // `ViewLayout`, and the templates that predate ViewLayout read this.
         this.searchBarToggler = this.chassis.searchBarToggler;
+        this.actionState = useSetupAction({
+            rootRef: this.chassis.rootRef,
+            getLocalState: () => this.getLocalState(),
+            getContext: () => this.getContext(),
+        });
+    }
+
+    /**
+     * Hooks for {@link useViewChassis}, for a subclass whose no-content
+     * condition is its own. Overriding this rather than calling
+     * `useViewChassis` again matters: a second call builds a second
+     * `useSearchBarToggler`, and two togglers over one search bar disagree
+     * about whether it is open.
+     *
+     * @returns {Record<string, () => any>}
+     */
+    get chassisHooks() {
+        return {};
     }
 
     /**

@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useComponent } from "@odoo/owl";
+import { Component, useComponent, useRef } from "@odoo/owl";
+import { useChildRef } from "@web/core/utils/hooks";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";
@@ -9,23 +10,11 @@ import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { ActionHelper } from "@web/views/action_helper";
 
 /**
- * The control-panel chassis every multi-record view needs, as one component.
- *
- * It exists because the chassis lives in a *template* -- `Layout` plus five
- * named slots, a sample-data class, a root ref and a no-content branch -- and
- * inheritance cannot share a template. `MultiRecordController` and
- * `ReportController` were written to absorb this and could not: taking the base
- * class saved a view none of the XML, so every view type rewrote the XML, and
- * each rewrite dropped something different (a mobile search-bar toggler here, a
- * no-content helper there).
- *
- * Everything is optional and defaults to on, so *omitting* a capability is no
- * longer how a view loses it -- opting out is `searchBar="false"`, which is
- * greppable and reviewable.
- *
  * @typedef ViewLayoutProps
  * @property {Record<string, any>} [slots]
  * @property {string} [className] on the view root
+ * @property {(ref: any) => void} [rootRef] forwarded to the view root, so a
+ *   controller can still reach the element it no longer renders
  * @property {string} [contentClassName] on `Layout`'s content, beside the sample-data class
  * @property {Record<string, any>} [display]
  * @property {Record<string, any>} [searchBarToggler] from {@link useViewChassis}
@@ -45,6 +34,7 @@ export class ViewLayout extends Component {
         slots: { type: Object, optional: true },
         className: { type: String, optional: true },
         contentClassName: { type: String, optional: true },
+        rootRef: { type: Function, optional: true },
         display: { type: Object, optional: true },
         searchBarToggler: { type: Object, optional: true },
         searchBar: { type: Boolean, optional: true },
@@ -63,6 +53,18 @@ export class ViewLayout extends Component {
         useSampleModel: false,
         displayNoContent: false,
     };
+
+    setup() {
+        // The view root moved inside this component, and a controller still
+        // needs it -- `useSetupAction({ rootRef })` restores scroll from it.
+        // Without the forward its `useRef("root")` resolves to nothing, which
+        // is silent: scroll simply stops being restored.
+        //
+        // Not `useForwardRefToParent`: that helper reads `props[refName]`, so
+        // it would want the prop to be called `root` rather than `rootRef`.
+        const ref = useRef("root");
+        this.props.rootRef?.(ref);
+    }
 
     /**
      * @param {string} name
@@ -95,11 +97,12 @@ export class ViewLayout extends Component {
  * displayNoContent?: () => boolean,
  * display?: () => Record<string, any>,
  * }} [hooks]
- * @returns {{ searchBarToggler: any, props: ViewLayoutProps }}
+ * @returns {{ searchBarToggler: any, rootRef: any, props: ViewLayoutProps }}
  */
 export function useViewChassis(hooks = {}) {
     const component = /** @type {any} */ (useComponent());
     const searchBarToggler = useSearchBarToggler();
+    const rootRef = useChildRef();
 
     const getModel = () => (hooks.model ? hooks.model() : component.model);
 
@@ -126,10 +129,12 @@ export function useViewChassis(hooks = {}) {
 
     return {
         searchBarToggler,
+        rootRef,
         get props() {
             const model = getModel();
             const noContentHelp = component.props.info?.noContentHelp;
             return {
+                rootRef,
                 className: component.props.className,
                 display: hooks.display ? hooks.display() : component.props.display,
                 searchBarToggler,
