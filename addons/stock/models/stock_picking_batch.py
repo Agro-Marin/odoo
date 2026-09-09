@@ -43,7 +43,7 @@ class StockPickingBatch(models.Model):
     )
     show_check_availability = fields.Boolean(
         string="Show Check Availability",
-        compute="_compute_move_ids",
+        compute="_compute_show_check_availability",
     )
     show_allocation = fields.Boolean(
         string="Show Allocation Button",
@@ -272,6 +272,15 @@ class StockPickingBatch(models.Model):
     def _compute_move_ids(self):
         for batch in self:
             batch.move_ids = batch.picking_ids.move_ids
+
+    @api.depends(
+        "picking_ids",
+        "picking_ids.move_line_ids",
+        "picking_ids.move_ids",
+        "picking_ids.move_ids.state",
+    )
+    def _compute_show_check_availability(self):
+        for batch in self:
             batch.show_check_availability = any(
                 m.state not in ["assigned", "done", "cancel"] for m in batch.move_ids
             )
