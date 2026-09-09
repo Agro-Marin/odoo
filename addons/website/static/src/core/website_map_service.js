@@ -74,6 +74,10 @@ export const websiteMapService = {
                                     );
                                 }
                                 await promiseKeys[key];
+                                // The resolver is only needed until the promise
+                                // above settles; drop it so it doesn't stay
+                                // referenced for the tab's whole lifetime.
+                                delete promiseKeysResolves[key];
                                 return key;
                             }
                             if (!editableMode && user.isAdmin) {
