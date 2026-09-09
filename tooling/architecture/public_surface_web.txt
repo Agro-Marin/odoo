@@ -171,14 +171,14 @@
 @web/public/utils  odoo enterprise
 @web/search/action_menus/action_menus  odoo enterprise
 @web/search/breadcrumbs/breadcrumbs  odoo
-@web/search/cog_menu/cog_menu  odoo enterprise agromarin
+@web/search/cog_menu/cog_menu  odoo enterprise
 @web/search/control_panel/control_panel  odoo enterprise
 @web/search/custom_favorite_item/custom_favorite_item  enterprise
-@web/search/layout  odoo enterprise agromarin
+@web/search/layout  odoo enterprise
 @web/search/pager_hook  odoo enterprise agromarin
 @web/search/search_arch_parser  enterprise
-@web/search/search_bar/search_bar  odoo enterprise agromarin
-@web/search/search_bar/search_bar_toggler  odoo enterprise agromarin
+@web/search/search_bar/search_bar  odoo enterprise
+@web/search/search_bar/search_bar_toggler  odoo enterprise
 @web/search/search_bar_menu/search_bar_menu  enterprise
 @web/search/search_model  odoo enterprise
 @web/search/search_panel/search_panel  odoo enterprise
@@ -217,7 +217,7 @@
 @web/views/view_button  odoo enterprise
 @web/views/view_buttons  enterprise
 @web/views/view_compiler  odoo enterprise agromarin
-@web/views/view_components  odoo enterprise
+@web/views/view_components  odoo enterprise agromarin
 @web/views/view_dialogs  odoo enterprise agromarin
 @web/views/view_hook  odoo enterprise
 @web/views/view_measurements  enterprise
