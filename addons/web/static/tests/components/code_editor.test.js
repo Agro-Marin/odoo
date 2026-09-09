@@ -407,3 +407,49 @@ test("a mode change does re-attach the session", async () => {
     await animationFrame();
     expect(setSessionCalls).toBe(1);
 });
+
+test("the find command opens the Ace searchbox", async () => {
+    let editor;
+    patchWithCleanup(CodeEditor.prototype, {
+        setup() {
+            super.setup();
+            editor = this;
+        },
+    });
+    class Parent extends Component {
+        static components = { CodeEditor };
+        static template = xml`<CodeEditor mode="'python'" value="'a = 1'" onChange="() => {}"/>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+
+    expect(".ace_search").toHaveCount(0);
+    editor.aceEditor.execCommand("find");
+    await animationFrame();
+    expect(".ace_search").toHaveCount(1);
+    expect(".ace_search_form .ace_search_field").toHaveCount(1);
+    expect(".ace_replace_form").not.toBeVisible();
+});
+
+test("the replace command opens the Ace searchbox with the replace form", async () => {
+    let editor;
+    patchWithCleanup(CodeEditor.prototype, {
+        setup() {
+            super.setup();
+            editor = this;
+        },
+    });
+    class Parent extends Component {
+        static components = { CodeEditor };
+        static template = xml`<CodeEditor mode="'python'" value="'a = 1'" onChange="() => {}"/>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+
+    editor.aceEditor.execCommand("replace");
+    await animationFrame();
+    expect(".ace_search").toHaveCount(1);
+    expect(".ace_replace_form").toBeVisible();
+});
