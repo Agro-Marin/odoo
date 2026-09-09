@@ -5,7 +5,7 @@
         <field name="name">res.partner.attribute.list</field>
         <field name="model">res.partner.attribute</field>
         <field name="arch" type="xml">
-            <list string="Partner Attributes">
+            <list string="Contact Attributes">
                 <field name="sequence" widget="handle" />
                 <field name="name" />
                 <field name="value_type" />
@@ -18,7 +18,7 @@
         <field name="name">res.partner.attribute.form</field>
         <field name="model">res.partner.attribute</field>
         <field name="arch" type="xml">
-            <form string="Partner Attribute">
+            <form string="Contact Attribute">
                 <sheet>
                     <widget
                         name="web_ribbon"
@@ -65,7 +65,7 @@
         <field name="name">res.partner.attribute.search</field>
         <field name="model">res.partner.attribute</field>
         <field name="arch" type="xml">
-            <search string="Partner Attributes">
+            <search string="Contact Attributes">
                 <field name="name" />
                 <group>
                     <filter
@@ -78,13 +78,13 @@
     </record>
 
     <record id="res_partner_attribute_action" model="ir.actions.act_window">
-        <field name="name">Partner Attributes</field>
+        <field name="name">Contact Attributes</field>
         <field name="res_model">res.partner.attribute</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create an attribute</p>
             <p>
-                Partner attributes (EAV) define the dimensions of a contact's
+                Contact attributes (EAV) define the dimensions of a contact's
                 commercial profile -- customer type, price sensitivity, social
                 networks and so on. Each attribute carries its own set of values.
             </p>
@@ -93,7 +93,7 @@
 
     <menuitem
         id="res_partner_attribute_menu"
-        name="Partner Attributes"
+        name="Contact Attributes"
         parent="partner.res_partner_menu_config"
         action="res_partner_attribute_action"
         sequence="1" />

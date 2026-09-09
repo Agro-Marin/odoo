@@ -106,10 +106,10 @@ msgstr ""
 #. module: partner_scoring
 #: model:res.groups,comment:partner_scoring.group_partner_scoring_manager
 msgid ""
-"Can configure the partner attributes, their scoring weights and the "
+"Can configure the contact attributes, their scoring weights and the "
 "commercial profile bands."
 msgstr ""
-"Puede configurar los atributos de cliente, sus pesos de puntaje y las bandas"
+"Puede configurar los atributos de contacto, sus pesos de puntaje y las bandas"
 " del perfil comercial."
 
 #. module: partner_scoring
@@ -672,26 +672,26 @@ msgstr "Contacto"
 #: model:ir.model,name:partner_scoring.model_res_partner_attribute
 #: model:ir.model.fields.selection,name:partner_scoring.selection__partner_score_line__dimension__partner_attr
 #: model_terms:ir.ui.view,arch_db:partner_scoring.res_partner_attribute_view_form
-msgid "Partner Attribute"
-msgstr "Atributo de cliente"
+msgid "Contact Attribute"
+msgstr "Atributo de contacto"
 
 #. module: partner_scoring
 #: model:ir.model,name:partner_scoring.model_res_partner_attribute_line
-msgid "Partner Attribute Line"
-msgstr "Línea de atributo de cliente"
+msgid "Contact Attribute Line"
+msgstr "Línea de atributo de contacto"
 
 #. module: partner_scoring
 #: model:ir.model,name:partner_scoring.model_res_partner_attribute_value
-msgid "Partner Attribute Value"
-msgstr "Valor de atributo de cliente"
+msgid "Contact Attribute Value"
+msgstr "Valor de atributo de contacto"
 
 #. module: partner_scoring
 #: model:ir.actions.act_window,name:partner_scoring.res_partner_attribute_action
 #: model:ir.ui.menu,name:partner_scoring.res_partner_attribute_menu
 #: model_terms:ir.ui.view,arch_db:partner_scoring.res_partner_attribute_view_list
 #: model_terms:ir.ui.view,arch_db:partner_scoring.res_partner_attribute_view_search
-msgid "Partner Attributes"
-msgstr "Atributos de cliente"
+msgid "Contact Attributes"
+msgstr "Atributos de contacto"
 
 #. module: partner_scoring
 #: model:ir.model,name:partner_scoring.model_partner_profile
@@ -711,11 +711,11 @@ msgstr "Puntaje de contactos"
 #. module: partner_scoring
 #: model_terms:ir.actions.act_window,help:partner_scoring.res_partner_attribute_action
 msgid ""
-"Partner attributes (EAV) define the dimensions of a contact's\n"
+"Contact attributes (EAV) define the dimensions of a contact's\n"
 "                commercial profile -- customer type, price sensitivity, social\n"
 "                networks and so on. Each attribute carries its own set of values."
 msgstr ""
-"Los atributos de cliente (EAV) definen las dimensiones del perfil comercial "
+"Los atributos de contacto (EAV) definen las dimensiones del perfil comercial "
 "de un contacto: tipo de cliente, sensibilidad al precio, redes sociales y "
 "demás. Cada atributo lleva su propio conjunto de valores."
 

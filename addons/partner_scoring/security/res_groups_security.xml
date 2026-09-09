@@ -15,7 +15,7 @@
         <field name="sequence" eval="20" />
         <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]" />
         <field
-            name="comment">Can configure the partner attributes, their scoring weights and the commercial profile bands.</field>
+            name="comment">Can configure the contact attributes, their scoring weights and the commercial profile bands.</field>
     </record>
 
     <record id="base.group_system" model="res.groups">

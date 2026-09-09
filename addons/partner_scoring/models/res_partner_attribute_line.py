@@ -9,7 +9,7 @@ _logger = logging.getLogger(__name__)
 class ResPartnerAttributeLine(models.Model):
     _name = "res.partner.attribute.line"
     _inherit = "mixin.attribute.line"
-    _description = "Partner Attribute Line"
+    _description = "Contact Attribute Line"
     _order = "attribute_id, id"
     _rec_name = "attribute_id"
 

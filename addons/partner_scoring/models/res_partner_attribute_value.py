@@ -4,7 +4,7 @@ from odoo import fields, models
 class ResPartnerAttributeValue(models.Model):
     _name = "res.partner.attribute.value"
     _inherit = ["mixin.attribute.value", "mixin.score.catalog"]
-    _description = "Partner Attribute Value"
+    _description = "Contact Attribute Value"
     _order = "attribute_id, sequence, name"
     _score_weight_field = "score_value"
     _score_catalog_fields = ("score_value", "active", "attribute_id")

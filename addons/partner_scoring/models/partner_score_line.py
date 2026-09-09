@@ -16,7 +16,7 @@ class PartnerScoreLine(models.Model):
     )
     dimension = fields.Selection(
         selection=[
-            ("partner_attr", "Partner Attribute"),
+            ("partner_attr", "Contact Attribute"),
         ],
         required=True,
         help="Scoring dimension this row belongs to.",
