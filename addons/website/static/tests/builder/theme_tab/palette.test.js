@@ -11,7 +11,7 @@ defineWebsiteModels();
 test("theme tab: warning on palette change", async () => {
     class WebsiteAssets extends models.Model {
         _name = "website.assets";
-        make_scss_customization(location, changes) {
+        update_scss_customization(location, changes) {
             expect.step(`${location} ${JSON.stringify(changes)}`);
         }
     }
@@ -55,7 +55,7 @@ test("theme tab: warning on palette change", async () => {
 test("theme tab: no warning on palette change", async () => {
     class WebsiteAssets extends models.Model {
         _name = "website.assets";
-        make_scss_customization(location, changes) {
+        update_scss_customization(location, changes) {
             expect.step(`${location} ${JSON.stringify(changes)}`);
         }
     }

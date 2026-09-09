@@ -8,7 +8,7 @@ export class PassKeyNameFormController extends FormController {
      * @override
      */
     async beforeExecuteActionButton(clickParams) {
-        if (clickParams.name === "make_key") {
+        if (clickParams.name === "action_generate_key") {
             const name = document.querySelector(
                 "div[name='name'].o_field_widget input",
             ).value;

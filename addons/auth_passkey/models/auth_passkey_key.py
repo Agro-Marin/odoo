@@ -78,11 +78,11 @@ class AuthPasskeyKey(models.Model):
         # Deliberate no-op: `public_key` is manually column-backed (see
         # `init()` above) but intentionally NOT `store=True`, so the ORM
         # never persists it through this inverse. The only writer is the
-        # raw SQL UPDATE in `AuthPasskeyKeyCreate.make_key()` below, at
+        # raw SQL UPDATE in `AuthPasskeyKeyCreate.action_generate_key()` below, at
         # creation time. A future `write({'public_key': ...})` or
         # `create({'public_key': ...})` call will silently no-op here
         # instead of persisting - route any new writer through raw SQL
-        # like `make_key()` does, not through this field.
+        # like `action_generate_key()` does, not through this field.
         pass
 
     @api.model
@@ -198,7 +198,7 @@ class AuthPasskeyKeyCreate(models.TransientModel):
     name = fields.Char("Name", required=True)
 
     @check_identity
-    def make_key(self, registration=None):
+    def action_generate_key(self, registration=None):
         # We add in these fields with JS, if we didn't give them default values we would get a XML validation warning.
         assert registration, "registration can not be empty"
         self.check_singleton()

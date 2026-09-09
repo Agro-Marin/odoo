@@ -67,12 +67,17 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         self.assertEqual(hit[0], "leading")
 
     def test_an_assemble_verb_is_reported_without_a_payload_suffix(self):
-        # The whole reason this gate is not a --roots flag on the sibling:
-        # nv.classify returns None here, and the assemble-verb sweep renamed 38.
-        self.assertIsNone(nv.classify("_build_server"))
+        # The sibling reaches a TAILED assemble verb now -- its payload suffix
+        # chooses the canonical instead of deciding whether the verb is seen at
+        # all -- so this arrives as "leading" rather than through ncv's own
+        # ASSEMBLE branch. What still needs this gate is the population, not the
+        # word: nv.measure() reads model classes and _build_server is module
+        # level. The branch below survives for the bare form, which is the half
+        # the sibling still declines.
+        self.assertEqual(nv.classify("_build_server"), ("build", "_get_"))
         hit = ncv.classify_name("_build_server")
         self.assertIsNotNone(hit)
-        self.assertEqual(hit[0], "assemble")
+        self.assertEqual(hit[0], "leading")
 
     def test_a_bare_assemble_verb_is_reported(self):
         self.assertIsNone(nv.classify("make"))
@@ -328,7 +333,7 @@ class TestItCatchesAPlantedRegression(unittest.TestCase):
     def test_an_assemble_verb_with_no_payload_suffix_fails_the_gate(self):
         found = self.plant("def _build_server(app):\n    return app\n")
         self.assertEqual([v.name for v in found], ["_build_server"])
-        self.assertEqual(found[0].kind, "assemble")
+        self.assertEqual(found[0].kind, "leading")
 
     def test_a_bare_verb_and_a_nested_closure_both_fail_the_gate(self):
         found = self.plant(

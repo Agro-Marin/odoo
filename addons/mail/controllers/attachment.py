@@ -43,7 +43,7 @@ class AttachmentController(ThreadController):
                 )
             )
 
-    def _make_zip(self, name: str, attachments: IrAttachment) -> Response:
+    def _get_zip_response(self, name: str, attachments: IrAttachment) -> Response:
         self._check_zip_size(sum(attachments.mapped("file_size")))
         stream = io.BytesIO()
         written = 0
@@ -176,7 +176,7 @@ class AttachmentController(ThreadController):
         accessible = attachments._filtered_access("read")
         if not accessible:
             raise NotFound
-        return self._make_zip(zip_name, accessible.sudo())
+        return self._get_zip_response(zip_name, accessible.sudo())
 
     @http.route(
         "/mail/attachment/pdf_first_page/<int:attachment_id>",

@@ -67,11 +67,16 @@ def test_compliant_and_framework_names_are_quiet(name):
     assert classify(name) is None
 
 
-def test_payload_verbs_only_fire_on_payload_shaped_names():
+def test_the_payload_suffix_chooses_an_assemble_verbs_canonical_not_its_reach():
     assert classify("_build_invoice_vals") == ("build", "_prepare_")
     assert classify("_make_line_values") == ("make", "_prepare_")
-    assert classify("_build_url") is None
-    assert classify("_compose_email") is None
+    assert classify("_build_url") == ("build", "_get_")
+    assert classify("_compose_email") == ("compose", "_get_")
+
+
+def test_a_bare_assemble_verb_stays_out_of_this_gate():
+    assert classify("_build") is None
+    assert classify("make") is None
 
 
 @pytest.mark.parametrize(

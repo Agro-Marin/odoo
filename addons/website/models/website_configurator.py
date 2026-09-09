@@ -344,12 +344,12 @@ class Website(models.Model):
             selected_palette_name = (
                 selected_palette if isinstance(selected_palette, str) else "base-1"
             )
-            Assets.make_scss_customization(
+            Assets.update_scss_customization(
                 "/website/static/src/scss/options/user_values.scss",
                 {"color-palettes-name": "'%s'" % selected_palette_name},
             )
             if isinstance(selected_palette, list):
-                Assets.make_scss_customization(
+                Assets.update_scss_customization(
                     "/website/static/src/scss/options/colors/user_color_palette.scss",
                     {
                         f"o-color-{i}": color

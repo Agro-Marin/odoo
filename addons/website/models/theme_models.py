@@ -308,7 +308,7 @@ class ThemeUtils(models.AbstractModel):
 
     @api.model
     def _reset_default_config(self):
-        self.env["website.assets"].make_scss_customization(
+        self.env["website.assets"].update_scss_customization(
             "/website/static/src/scss/options/user_values.scss",
             {
                 "font": "null",

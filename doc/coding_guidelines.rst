@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.25
-:Date: 2026-09-02
+:Version: 6.26
+:Date: 2026-09-08
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -1141,7 +1141,7 @@ Section  Population                                                  Count
 §2.4.3   Non-test methods declared on a model class                 25,911
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               100
-§2.4.4   Model methods with an abolished verb behind a noun            137
+§2.4.4   Model methods with an abolished verb behind a noun            135
 §2.4.4   ``fields`` family: definitions spelled head-first             208
 §2.4.4   ``fields`` family: distinct names spelled head-first           97
 §2.4.4   ``fields`` family: definitions spelled tail-first              28
@@ -1151,7 +1151,7 @@ Section  Population                                                  Count
 §2.4.5   ``X_to_Y`` converter definitions                               97
 §2.4.5   … distinct names                                               55
 §2.4.7   ``_get_*`` definitions                                      5,961
-§2.4.7   Abolished payload verbs, the four between them                 16
+§2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  7
 §2.4.7   ``_prepare_*`` definitions                                    841
@@ -1883,12 +1883,39 @@ canonical, while ``_generate_consume_moves`` **creates records** and takes the
 domain operation's name -- so wiring it into ``ABOLISHED`` would turn a gate held
 at a hard zero red across the whole family, and is owed its own record.
 
-**The assemble verbs are abolished on paper and enforced for one shape**
-``[review]``: ``naming_vocabulary.py`` reports one only when the name also ends in
-a payload suffix. **16** model methods open with one of those four verbs and the
-ratchet flags **0**. The gap hides two things -- the suffix list is short, and
-*object construction takes ``_prepare_`` too*, a factory having a consumer like
-anything else.
+**The payload suffix chooses an assemble verb's canonical, not its reach**
+``[review]``. ``naming_vocabulary.py`` used to report one only when the name also
+ended in a payload suffix, which is a reach test, and the four verbs are
+abolished unconditionally -- so the gate read zero while the tree wore them.
+*Frozen reading* (§1.4) at ``042da509ff66``: **21** model methods across the four
+repositories opened with one of the four and the ratchet flagged **0** of them --
+16 in ``addons/``, 2 in ``enterprise``, 3 in ``agromarin``, and **0** in the core
+package, which had been swept by hand for exactly this reason. ``classify`` now
+runs the consumer test above instead: ``_prepare_`` where the name carries a
+payload suffix, ``_get_`` where it does not. **0** model methods open with one of
+those four verbs and the ratchet flags **0**; the two figures are one
+measurement, and a gap between them is the defect this paragraph used to record.
+
+* **A reach test written as a canonical test is the shape to look for**
+  ``[review]``, because it fails silently in the direction nobody checks: the
+  gate goes on reporting, its floor goes on holding at zero, and what it has
+  stopped looking at leaves no trace in either number. The suffix list was
+  never wrong about *which* canonical to suggest -- it was answering a question
+  it had not been asked.
+* The gap hid two things beyond its own size -- the suffix list is short, and
+  *object construction takes ``_prepare_`` too*, a factory having a consumer
+  like anything else.
+* **The three verbs the Payload row does not print stay a core-only reading**
+  ``[review]``. ``naming_core_vocabulary.ASSEMBLE`` adds ``assemble``, ``craft``
+  and ``forge`` on §2.4.20's argument that a row's printed entry can drain to
+  zero while the operation continues under a word nobody listed. Their addon-side
+  population is **0** in all four repositories, so promoting them to the shared
+  ``ABOLISHED`` is free of renames whenever that reading is taken; it is not
+  taken here, because the shared table moving would make the core gate's own
+  branch unreachable.
+* **A bare assemble verb is still out of scope for this gate.** ``classify``
+  partitions on the first token and returns nothing when there is no remainder,
+  so ``make()`` and ``_build()`` are reported by the core gate alone (§2.4.6).
 
 **``_calculate_`` is the read family's ``_generate_``**
 ``[gate doc_restated_counts]``. It names the arithmetic where ``_generate_`` names
@@ -6941,6 +6968,19 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.26
+     - 2026-09-08
+     - §2.4.7: the payload suffix chooses an assemble verb's canonical, not its
+       reach. ``naming_vocabulary.classify`` reported ``_build_`` / ``_make_`` /
+       ``_compose_`` / ``_construct_`` only when the name also ended in a payload
+       suffix, which is a reach test written where a canonical test belonged, so
+       the ratchet held at zero over 21 definitions wearing one. A reach test
+       disguised as a canonical test is the shape to look for: it fails in the
+       direction nobody checks, because the gate goes on reporting and its floor
+       goes on holding. Also recorded: ``assemble`` / ``craft`` / ``forge`` have
+       an addon-side population of 0, so the core gate's reading of them is free
+       to promote whenever it is taken, and a bare assemble verb stays the core
+       gate's alone.
    * - 6.16
      - 2026-09-06
      - §10.8: a read-only tier is the lowest rung of its privilege, implied by

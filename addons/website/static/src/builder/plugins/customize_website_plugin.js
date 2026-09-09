@@ -237,7 +237,7 @@ export class CustomizeWebsitePlugin extends Plugin {
         Object.keys(values).forEach((key) => {
             values[key] = values[key] || defaultValue;
         });
-        await this.services.orm.call("website.assets", "make_scss_customization", [
+        await this.services.orm.call("website.assets", "update_scss_customization", [
             url,
             values,
         ]);

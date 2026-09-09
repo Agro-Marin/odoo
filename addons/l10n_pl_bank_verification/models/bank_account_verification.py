@@ -254,7 +254,7 @@ class BankAccountVerification(models.Model):
         error_message = "Error while making request for partners %s, with endpoint %s"
         for endpoint, partners in endpoints.items():
             try:
-                response = self._make_request(endpoint, params={"date": date})
+                response = self._get_api_response(endpoint, params={"date": date})
                 response_content = self._handle_response(response)
             except requests.RequestException, ValueError:
                 create_vals += self._get_creation_vals(
@@ -376,7 +376,7 @@ class BankAccountVerification(models.Model):
         )
 
     @api.model
-    def _make_request(self, endpoint, params=None):
+    def _get_api_response(self, endpoint, params=None):
         """
         Send request to the government API
         :param endpoint: The endpoint to call in the API

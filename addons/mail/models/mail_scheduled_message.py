@@ -14,7 +14,7 @@ from odoo.tools import Query
 from odoo.tools.misc import clean_context
 
 from odoo.addons.mail.tools.access_scan import (
-    make_document_access_error,
+    prepare_document_access_error,
     scan_accessible_query,
 )
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
@@ -199,7 +199,7 @@ class MailScheduledMessage(models.Model):
             return result
         if result:
             return result[0] + forbidden, result[1]
-        return forbidden, lambda: make_document_access_error(forbidden, operation)
+        return forbidden, lambda: prepare_document_access_error(forbidden, operation)
 
     def write(self, vals: ValuesType) -> Literal[True]:
         if vals.get("model") or vals.get("res_id"):
@@ -251,7 +251,7 @@ class MailScheduledMessage(models.Model):
                 if forbidden := scheduled_message.with_user(
                     message_creator
                 )._get_forbidden_documents():
-                    raise make_document_access_error(forbidden, "create")
+                    raise prepare_document_access_error(forbidden, "create")
                 message = (
                     self.env[scheduled_message.model]
                     .browse(scheduled_message.res_id)

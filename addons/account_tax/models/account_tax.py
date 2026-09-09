@@ -2426,7 +2426,7 @@ class AccountTax(models.Model):
         return self.amount_type not in ("fixed", "code")
 
     @api.model
-    def _make_undiscountable_filter(self, exclude_function=None):
+    def _get_undiscountable_filter(self, exclude_function=None):
         def dispatch_exclude_function(base_line, tax_data):
             return not tax_data["tax"]._can_be_discounted() or (
                 exclude_function is not None and exclude_function(base_line, tax_data)
@@ -3210,7 +3210,7 @@ class AccountTax(models.Model):
         self, base_lines, company, exclude_function=None
     ):
         return self._dispatch_taxes_into_new_base_lines(
-            base_lines, company, self._make_undiscountable_filter(exclude_function)
+            base_lines, company, self._get_undiscountable_filter(exclude_function)
         )
 
     @api.model
@@ -3355,7 +3355,7 @@ class AccountTax(models.Model):
         new_base_lines = self._dispatch_taxes_into_new_base_lines(
             base_lines,
             company,
-            self._make_undiscountable_filter(exclude_function),
+            self._get_undiscountable_filter(exclude_function),
         )
         return new_base_lines + self._turn_removed_taxes_into_new_base_lines(
             new_base_lines,

@@ -1,5 +1,5 @@
 __all__ = [
-    "make_document_access_error",
+    "prepare_document_access_error",
     "scan_accessible_ids",
     "scan_accessible_query",
     "stable_order",
@@ -18,7 +18,7 @@ if typing.TYPE_CHECKING:
     from odoo.api import DomainType
 
 
-def make_document_access_error(
+def prepare_document_access_error(
     records: models.BaseModel, operation: str
 ) -> AccessError:
     return AccessError(

@@ -301,7 +301,7 @@ class TestAuthTimeoutHttp(HttpCase):
         ]
         self.rpc(
             "auth.passkey.key.create",
-            "make_key",
+            "action_generate_key",
             wizard_id,
             {"id": self.passkey_credential_id},
         )

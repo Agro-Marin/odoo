@@ -18,7 +18,7 @@ from odoo.tools.misc import clean_context, get_lang
 
 from odoo.addons.mail.tools import activity_calendar
 from odoo.addons.mail.tools.access_scan import (
-    make_document_access_error,
+    prepare_document_access_error,
     scan_accessible_query,
     stable_order,
 )
@@ -612,10 +612,10 @@ class MailActivity(models.Model):
             if result:
                 result = (result[0] + forbidden, result[1])
             else:
-                result = (forbidden, lambda: forbidden._make_access_error(operation))
+                result = (forbidden, lambda: forbidden._prepare_access_error(operation))
         return result
 
-    def _make_access_error(self, operation: str) -> AccessError:
+    def _prepare_access_error(self, operation: str) -> AccessError:
         if (
             operation == "create"
             and self
@@ -631,7 +631,7 @@ class MailActivity(models.Model):
                     "somebody else."
                 )
             )
-        return make_document_access_error(self, operation)
+        return prepare_document_access_error(self, operation)
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -1502,7 +1502,7 @@ class MailActivity(models.Model):
         return years
 
     @api.autovacuum
-    def _gc_delete_old_overdue_activities(self) -> tuple[int, bool]:
+    def _gc_remove_old_overdue_activities(self) -> tuple[int, bool]:
         years = self._gc_retention_years("mail.activity.gc.delete_overdue_years")
         if not years:
             return 0, False
@@ -1512,7 +1512,7 @@ class MailActivity(models.Model):
         )
 
     @api.autovacuum
-    def _gc_delete_old_done_activities(self) -> tuple[int, bool]:
+    def _gc_remove_old_done_activities(self) -> tuple[int, bool]:
         years = self._gc_retention_years("mail.activity.gc.delete_done_years")
         if not years:
             return 0, False

@@ -106,7 +106,7 @@ class WebsiteAssets(models.AbstractModel):
         return f"/_custom/{bundle_xmlid}{url}"
 
     @api.model
-    def make_scss_customization(self, url, values):
+    def update_scss_customization(self, url, values):
         IrAttachment = self.env["ir.attachment"]
         if "color-palettes-name" in values:
             self.reset_asset(
@@ -117,7 +117,7 @@ class WebsiteAssets(models.AbstractModel):
                 "/website/static/src/scss/options/colors/user_gray_color_palette.scss",
                 "web.assets_frontend",
             )
-            self.make_scss_customization(
+            self.update_scss_customization(
                 "/website/static/src/scss/options/colors/user_theme_color_palette.scss",
                 {
                     "success": "null",
@@ -127,7 +127,7 @@ class WebsiteAssets(models.AbstractModel):
                 },
             )
             preset_gradients = {f"o-cc{cc}-bg-gradient": "null" for cc in range(1, 6)}
-            self.make_scss_customization(
+            self.update_scss_customization(
                 "/website/static/src/scss/options/user_values.scss",
                 {
                     "menu-gradient": "null",

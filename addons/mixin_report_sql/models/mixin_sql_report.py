@@ -103,16 +103,16 @@ class MixinSqlReport(models.AbstractModel):
         """
         cte = self._with_cte()
         clauses = (
-            self._build_where(),
-            self._build_group_by(),
-            self._build_having(),
-            self._build_order_by(),
+            self._get_where_clause(),
+            self._get_group_by_clause(),
+            self._get_having_clause(),
+            self._get_order_by_clause(),
         )
 
         parts = []
         if cte:
             parts.append(SQL("WITH %s", cte))
-        parts.extend([self._build_select(), self._build_from()])
+        parts.extend([self._get_select_clause(), self._get_from_clause()])
         parts.extend(clause for clause in clauses if clause)
         return SQL("\n").join(parts)
 
@@ -133,9 +133,9 @@ class MixinSqlReport(models.AbstractModel):
         return self._query()
 
     # ------------------------------------------------------------------
-    # BUILDER METHODS (do not override)
+    # CLAUSE METHODS (do not override)
     # ------------------------------------------------------------------
-    # Spelled ``_build_*`` and not ``_select`` / ``_from`` / ``_where`` /
+    # Spelled ``_get_*_clause`` and not ``_select`` / ``_from`` / ``_where`` /
     # ``_group_by`` / ``_order_by``, which is what they were. Those five names
     # are already taken across this workspace by the pattern this mixin exists
     # to replace: 13 report models assemble a CREATE VIEW from methods of
@@ -144,7 +144,9 @@ class MixinSqlReport(models.AbstractModel):
     # this mixin and one of those bases would have silently overridden a clause
     # builder with a string producer. No file does both today; renaming here
     # means none ever can, and it is what makes migrating those 13 mechanical
-    # rather than a per-file audit.
+    # rather than a per-file audit. The ``_clause`` tail is what keeps them
+    # distinct from ``_get_fields_select`` and its siblings below, which are
+    # the registry hooks a subclass DOES override.
 
     def _with_cte(self) -> SQL:
         """Common Table Expression (body only, no WITH keyword).
@@ -153,8 +155,8 @@ class MixinSqlReport(models.AbstractModel):
         """
         return SQL.EMPTY
 
-    def _build_select(self) -> SQL:
-        """Build the ``SELECT`` clause from the field registry."""
+    def _get_select_clause(self) -> SQL:
+        """The ``SELECT`` clause from the field registry."""
         fields = self._get_fields_select()
         if not fields:
             raise NotImplementedError(
@@ -169,8 +171,8 @@ class MixinSqlReport(models.AbstractModel):
             )
         return SQL("SELECT\n    %s", SQL(",\n    ").join(field_parts))
 
-    def _build_from(self) -> SQL:
-        """Build the ``FROM`` clause from the table registry."""
+    def _get_from_clause(self) -> SQL:
+        """The ``FROM`` clause from the table registry."""
         tables = self._get_from_tables()
         if not tables:
             raise NotImplementedError(
@@ -216,24 +218,24 @@ class MixinSqlReport(models.AbstractModel):
         self._check_percent_escaping(on_condition, f"from-join[{alias!r}]")
         return SQL("%s %s ON %s", SQL(join_type), table_sql, SQL(on_condition))
 
-    def _build_where(self) -> SQL:
-        """Build the ``WHERE`` clause from the condition registry."""
-        return self._build_conditions(
+    def _get_where_clause(self) -> SQL:
+        """The ``WHERE`` clause from the condition registry."""
+        return self._get_conditions_clause(
             SQL("WHERE"), self._get_where_conditions(), "where"
         )
 
-    def _build_having(self) -> SQL:
-        """Build the ``HAVING`` clause from the condition registry.
+    def _get_having_clause(self) -> SQL:
+        """The ``HAVING`` clause from the condition registry.
 
         Aggregate filters belong here, not appended to a ``_get_fields_group_by``
         entry — that smuggle assembles and runs, which is exactly why it needs a
         named home.
         """
-        return self._build_conditions(
+        return self._get_conditions_clause(
             SQL("HAVING"), self._get_having_conditions(), "having"
         )
 
-    def _build_conditions(self, keyword_sql, conditions, location) -> SQL:
+    def _get_conditions_clause(self, keyword_sql, conditions, location) -> SQL:
         """Join ``conditions`` with AND under ``keyword``, or ``SQL.EMPTY``.
 
         Accepts both strings (wrapped in ``SQL(...)``) and ``SQL`` objects
@@ -256,25 +258,25 @@ class MixinSqlReport(models.AbstractModel):
             SQL("\n    AND ").join(condition_parts),
         )
 
-    def _build_group_by(self) -> SQL:
-        """Build the ``GROUP BY`` clause from the field registry."""
-        return self._build_field_clause(
+    def _get_group_by_clause(self) -> SQL:
+        """The ``GROUP BY`` clause from the field registry."""
+        return self._get_field_clause(
             SQL("GROUP BY"), self._get_fields_group_by(), "group_by"
         )
 
-    def _build_order_by(self) -> SQL:
-        """Build the ``ORDER BY`` clause from the field registry.
+    def _get_order_by_clause(self) -> SQL:
+        """The ``ORDER BY`` clause from the field registry.
 
         Usually the ``_order`` class attribute is what you want — that
         controls Python-side record ordering.  Use this hook only when the
         defining query needs an explicit ``ORDER BY`` at creation time, which
         on a materialized model is a one-off clustering sort.
         """
-        return self._build_field_clause(
+        return self._get_field_clause(
             SQL("ORDER BY"), self._get_fields_order_by(), "order_by"
         )
 
-    def _build_field_clause(self, keyword_sql, fields, location) -> SQL:
+    def _get_field_clause(self, keyword_sql, fields, location) -> SQL:
         """Join ``fields`` with commas under ``keyword``, or ``SQL.EMPTY``."""
         if not fields:
             return SQL.EMPTY

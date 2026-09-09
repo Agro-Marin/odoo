@@ -162,7 +162,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
             )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_single_payment_with_valid_bank_account_check(self):
@@ -186,7 +186,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_single_payment_with_valid_bank_account_check_as_invoicing_user(
@@ -220,7 +220,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_single_payment_with_verification_done_day_before_should_check_again(
@@ -255,7 +255,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_single_payment_with_invalid_or_missing_vat(self):
@@ -296,7 +296,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_single_payment_with_null_subject_result(self):
@@ -321,7 +321,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_multiple_payments_with_an_invalid_vat(self):
@@ -357,7 +357,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_multiple_payments_with_valid_bank_account_check(self):
@@ -393,7 +393,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_multiple_payments_with_one_bank_account_not_found(self):
@@ -429,7 +429,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_multiple_payments_with_one_result_empty(self):
@@ -465,10 +465,10 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request"
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response"
     )
     def test_register_payments_of_accounts_already_checked_dont_call_api(
-        self, _make_request_not_called_patched
+        self, _get_api_response_not_called_patched
     ):
         # At date, if the bank account was already checked, we shouldn't call the API
         self.verification_sudo.create(
@@ -484,13 +484,13 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
         self._check_form_fields(self.pl_supplier_move)
-        _make_request_not_called_patched.assert_not_called()
+        _get_api_response_not_called_patched.assert_not_called()
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request"
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response"
     )
     def test_register_payment_of_account_already_checked_failed_dont_call_api_if_data_is_the_same(
-        self, _make_request_not_called_patched
+        self, _get_api_response_not_called_patched
     ):
         supplier, _bank_account, move = self._create_partner_bank_and_move("1111111111")
         self.verification_sudo.create(
@@ -507,10 +507,10 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
 
         # Datas are the same, shouldn't call the api
         self._check_form_fields(move, incomplete_partners=supplier)
-        _make_request_not_called_patched.assert_not_called()
+        _get_api_response_not_called_patched.assert_not_called()
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_register_payment_under_verification_limit(self):
@@ -561,10 +561,10 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request"
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response"
     )
     def test_register_payment_for_non_pl_supplier(
-        self, _make_request_not_called_patched
+        self, _get_api_response_not_called_patched
     ):
         _supplier, _bank_account, move = self._create_partner_bank_and_move(
             "BE0477472701", country="be"
@@ -573,23 +573,23 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
 
         payments = self._create_payments_for_moves(move)
         self.assertFalse(payments.l10n_pl_verification_id)
-        _make_request_not_called_patched.assert_not_called()
+        _get_api_response_not_called_patched.assert_not_called()
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request"
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response"
     )
     def test_register_payment_for_non_pl_company(
-        self, _make_request_not_called_patched
+        self, _get_api_response_not_called_patched
     ):
         self.company_data["company"].country_id = self.env.ref("base.be")
         self._check_form_fields(self.pl_supplier_move)
 
         payments = self._create_payments_for_moves(self.pl_supplier_move)
         self.assertFalse(payments.l10n_pl_verification_id)
-        _make_request_not_called_patched.assert_not_called()
+        _get_api_response_not_called_patched.assert_not_called()
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_create_single_payment_valid_partner(self):
@@ -610,7 +610,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_create_single_payment_invalid_bank_account(self):
@@ -634,10 +634,10 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request"
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response"
     )
     def test_create_single_payment_for_already_checked_bank_account(
-        self, _make_request_not_called_patched
+        self, _get_api_response_not_called_patched
     ):
         old_verif = self.verification_sudo.create(
             {
@@ -652,10 +652,10 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         )
         payment = self._create_payment()
         self.assertEqual(payment.l10n_pl_verification_id, old_verif)
-        _make_request_not_called_patched.assert_not_called()
+        _get_api_response_not_called_patched.assert_not_called()
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_create_single_payment_and_update_vat(self):
@@ -668,7 +668,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         self.assertNotEqual(verif, payment_2.l10n_pl_verification_id)
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_create_single_payment_for_partner_with_2_bank_accounts(self):
@@ -684,7 +684,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         self._check_form_fields(self.pl_supplier_move)
 
     @patch(
-        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._make_request",
+        "odoo.addons.l10n_pl_bank_verification.models.bank_account_verification.BankAccountVerification._get_api_response",
         _make_request_patched,
     )
     def test_no_verification_duplicated(self):

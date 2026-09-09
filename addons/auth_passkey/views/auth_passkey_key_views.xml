@@ -68,7 +68,7 @@
                 </sheet>
                 <footer>
                     <button
-                        name="make_key"
+                        name="action_generate_key"
                         type="object"
                         string="Create"
                         class="btn-primary"

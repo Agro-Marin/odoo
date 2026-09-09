@@ -1044,7 +1044,7 @@ describe("sanitized values", () => {
     test("should save font with full precision in rem and display to correct value in px", async () => {
         class WebEditorAssets extends models.Model {
             _name = "web_editor.assets";
-            make_scss_customization() {}
+            update_scss_customization() {}
         }
         defineModels([WebEditorAssets]);
         addBuilderOption(

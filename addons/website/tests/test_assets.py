@@ -15,7 +15,7 @@ class TestWebsiteAssets(odoo.tests.HttpCase):
         Website.browse(1).domain = domain_1
 
         self.authenticate("admin", "admin")
-        self.env["website.assets"].with_context(website_id=1).make_scss_customization(
+        self.env["website.assets"].with_context(website_id=1).update_scss_customization(
             "/website/static/src/scss/options/colors/user_color_palette.scss",
             {"o-cc1-bg": "'400'"},
         )

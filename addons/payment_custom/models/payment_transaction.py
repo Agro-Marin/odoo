@@ -58,9 +58,9 @@ class PaymentTransaction(models.Model):
         if not self.provider_id.sudo().qr_code:
             return None
         bank = self.company_id.sudo().partner_id.bank_ids[:1]
-        if not bank or not hasattr(bank, "build_qr_code_base64"):
+        if not bank or not hasattr(bank, "prepare_qr_code_base64"):
             return None
-        return bank.build_qr_code_base64(
+        return bank.prepare_qr_code_base64(
             self.amount,
             self._get_communication(),
             None,

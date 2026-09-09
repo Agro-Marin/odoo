@@ -13,7 +13,7 @@ defineWebsiteModels();
 test("BuilderColorPicker with action “customizeWebsiteColor” is correctly displayed", async () => {
     class WebsiteAssets extends models.Model {
         _name = "website.assets";
-        make_scss_customization(location, changes) {
+        update_scss_customization(location, changes) {
             expect.step(`${location} ${JSON.stringify(changes)}`);
         }
     }

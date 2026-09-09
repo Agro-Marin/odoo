@@ -249,7 +249,7 @@ class ResPartnerBank(models.Model):
             return self._get_qr_code_url(**vals)
         return None
 
-    def build_qr_code_base64(
+    def prepare_qr_code_base64(
         self,
         amount,
         free_communication,

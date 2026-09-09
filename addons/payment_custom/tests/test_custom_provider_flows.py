@@ -101,7 +101,7 @@ class TestCustomProviderFlows(PaymentCustomCommon):
         """QR-code generation no-ops instead of crashing when `account` isn't
         installed, regardless of whether a bank account is configured."""
         if self.env["ir.module.module"]._get("account").state == "installed":
-            self.skipTest("account installed: build_qr_code_base64 would be available")
+            self.skipTest("account installed: prepare_qr_code_base64 would be available")
         self.provider.qr_code = True
         tx = self._create_transaction(flow="direct", reference="QR-REF")
 
@@ -111,7 +111,7 @@ class TestCustomProviderFlows(PaymentCustomCommon):
         self.env["res.partner.bank"].create(
             {
                 "acc_number": "FR1420041010050500013M02606",
-                "partner_ids": [(4, self.company.partner_id.id)],
+                "partner_id": self.company.partner_id.id,
             }
         )
         self.company.partner_id.invalidate_recordset(["bank_ids"])

@@ -482,7 +482,7 @@ class Website(models.Model):
         # For a website editor to recognize the correct header/footer templates
         # (reason `isApplied` method of footer plugin)
         if scss_customization_params:
-            Assets.make_scss_customization(
+            Assets.update_scss_customization(
                 "/website/static/src/scss/options/user_values.scss",
                 scss_customization_params,
             )

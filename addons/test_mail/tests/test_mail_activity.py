@@ -2175,8 +2175,8 @@ class TestActivityGarbageCollect(ActivityScheduleCase):
     def test_gc_is_off_by_default_and_reports_the_contract(self):
         Activity = self.env["mail.activity"]
         old = self._activity(date(2000, 1, 1))
-        self.assertEqual(Activity._gc_delete_old_overdue_activities(), (0, False))
-        self.assertEqual(Activity._gc_delete_old_done_activities(), (0, False))
+        self.assertEqual(Activity._gc_remove_old_overdue_activities(), (0, False))
+        self.assertEqual(Activity._gc_remove_old_done_activities(), (0, False))
         self.assertTrue(old.exists())
 
     def test_gc_overdue_reports_removed_and_more(self):
@@ -2185,7 +2185,7 @@ class TestActivityGarbageCollect(ActivityScheduleCase):
         )
         old = self._activity(date(2000, 1, 1))
         recent = self._activity(date.today())
-        removed, more = self.env["mail.activity"]._gc_delete_old_overdue_activities()
+        removed, more = self.env["mail.activity"]._gc_remove_old_overdue_activities()
         self.assertEqual((removed, more), (1, False))
         self.assertFalse(old.exists())
         self.assertTrue(recent.exists())
@@ -2204,13 +2204,13 @@ class TestActivityGarbageCollect(ActivityScheduleCase):
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.activity.gc.delete_overdue_years", "5"
         )
-        Activity._gc_delete_old_overdue_activities()
+        Activity._gc_remove_old_overdue_activities()
         self.assertTrue(done.exists(), "the overdue routine does not see archived rows")
 
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.activity.gc.delete_done_years", "5"
         )
-        removed, more = Activity._gc_delete_old_done_activities()
+        removed, more = Activity._gc_remove_old_done_activities()
         self.assertEqual((removed, more), (1, False))
         self.assertFalse(done.exists())
 
@@ -2221,7 +2221,7 @@ class TestActivityGarbageCollect(ActivityScheduleCase):
         old = self._activity(date(2000, 1, 1))
         with self.assertLogs("odoo.addons.mail.models.mail_activity", "WARNING"):
             self.assertEqual(
-                self.env["mail.activity"]._gc_delete_old_overdue_activities(),
+                self.env["mail.activity"]._gc_remove_old_overdue_activities(),
                 (0, False),
             )
         self.assertTrue(old.exists())
@@ -3875,7 +3875,7 @@ class TestActivityGarbageCollection(TestActivityCommon):
         removed, _more = (
             self.env["mail.activity"]
             .with_user(self.runner)
-            ._gc_delete_old_overdue_activities()
+            ._gc_remove_old_overdue_activities()
         )
         self.assertEqual(removed, 2)
         self.assertFalse(

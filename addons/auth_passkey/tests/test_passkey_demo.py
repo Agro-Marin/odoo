@@ -239,7 +239,7 @@ class PasskeyTest(HttpCaseWithUserDemo):
 
             # Make the key with the webauthn response
             response = self.rpc(
-                action["res_model"], "make_key", wizard_id, webauthn_response
+                action["res_model"], "action_generate_key", wizard_id, webauthn_response
             )
 
             # Assert the passkey registration is successful

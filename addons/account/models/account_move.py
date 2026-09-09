@@ -6817,7 +6817,7 @@ class AccountMove(models.Model):
             return None
 
         unstruct_ref = self.payment_reference or self.name
-        rslt = self.partner_bank_id.build_qr_code_base64(
+        rslt = self.partner_bank_id.prepare_qr_code_base64(
             self.amount_residual,
             unstruct_ref,
             self.payment_reference,

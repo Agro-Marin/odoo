@@ -458,7 +458,7 @@ test("theme background image is properly set", async () => {
 
     class WebsiteAssets extends models.Model {
         _name = "website.assets";
-        make_scss_customization(location, changes) {
+        update_scss_customization(location, changes) {
             expect(
                 changes["body-image"].includes(base64Image) &&
                     changes["body-image-type"].includes("image"),

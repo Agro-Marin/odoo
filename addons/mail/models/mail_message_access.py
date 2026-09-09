@@ -9,7 +9,7 @@ from odoo.fields import Domain
 from odoo.tools import SQL, Query
 
 from odoo.addons.mail.tools.access_scan import (
-    make_document_access_error,
+    prepare_document_access_error,
     scan_accessible_query,
 )
 
@@ -197,7 +197,7 @@ class MailMessage(models.Model):
             # keeping result[1] described only result[0], so a raised error
             # listed a subset of the records the caller was actually denied.
             denied = (result[0] + forbidden) if result else forbidden
-            result = (denied, lambda: denied._make_access_error(operation))
+            result = (denied, lambda: denied._prepare_access_error(operation))
         return result
 
     def _get_forbidden_access(self, operation: str) -> api.Self:
@@ -401,5 +401,5 @@ class MailMessage(models.Model):
                 for mid in docid_msgids[res_id]:
                     remaining.pop(mid, None)
 
-    def _make_access_error(self, operation: str) -> AccessError:
-        return make_document_access_error(self, operation)
+    def _prepare_access_error(self, operation: str) -> AccessError:
+        return prepare_document_access_error(self, operation)

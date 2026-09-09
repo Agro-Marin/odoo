@@ -401,7 +401,7 @@ class AccountJournal(models.Model):
             graph_title, graph_key = journal._graph_title_and_key()
             sign = 1 if journal.type == "sale" else -1
             journal_data = query_results.get(journal.id)
-            data = self._build_due_week_buckets(first_day_of_week, format_month)
+            data = self._get_due_week_buckets(first_day_of_week, format_month)
 
             is_sample_data = not journal_data
             if not is_sample_data:
@@ -428,7 +428,7 @@ class AccountJournal(models.Model):
             ]
         return result
 
-    def _build_due_week_buckets(self, first_day_of_week, format_month):
+    def _get_due_week_buckets(self, first_day_of_week, format_month):
         buckets = [{"label": _("Due"), "type": "past"}]
         for offset in range(-1, 3):
             if offset == 0:

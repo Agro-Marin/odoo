@@ -20,7 +20,7 @@ class MixinPaymentQrCode(models.AbstractModel):
         self.check_singleton()
         if not self._can_render_payment_qr_code():
             return False
-        qr_code = self.partner_bank_id.build_qr_code_base64(
+        qr_code = self.partner_bank_id.prepare_qr_code_base64(
             amount, communication, communication, self.currency_id, self.partner_id
         )
         if not qr_code:

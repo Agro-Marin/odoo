@@ -35,6 +35,14 @@ PAYLOAD_SUFFIXES = (
     "_params",
 )
 
+READ_CANONICAL = "_get_"
+
+# The bool is not "abolished only when payload-suffixed" -- every verb here is
+# abolished unconditionally. It says the canonical DEPENDS on the payload test:
+# the four assemble verbs take _prepare_ when the name carries a payload suffix
+# and READ_CANONICAL when it does not, which is §2.4.3's Payload row and Read
+# row deciding between themselves. Reading it as a reach test is what let
+# _make_access_error and twenty like it past the gate.
 ABOLISHED: dict[str, tuple[str, bool]] = {
     "build": ("_prepare_", True),
     "make": ("_prepare_", True),
@@ -93,11 +101,11 @@ def classify(name: str) -> tuple[str, str] | None:
     entry = ABOLISHED.get(verb)
     if entry is None:
         return None
-    canonical, payload_only = entry
+    canonical, payload_choice = entry
     if name.endswith("_domain"):
         return verb, "_domain_"
-    if payload_only and not name.endswith(PAYLOAD_SUFFIXES):
-        return None
+    if payload_choice and not name.endswith(PAYLOAD_SUFFIXES):
+        return verb, READ_CANONICAL
     return verb, canonical
 
 
@@ -109,8 +117,13 @@ def infix_abolished_verb(name: str) -> str | None:
         entry = ABOLISHED.get(token)
         if entry is None:
             continue
-        _canonical, payload_only = entry
-        if payload_only and not name.endswith(PAYLOAD_SUFFIXES):
+        # Deliberately narrower than classify(): an assemble verb behind a noun
+        # is only read as a verb when the payload suffix agrees. §2.4.4 owns
+        # this population and calls it a candidate list, not a defect list --
+        # most infix tokens belong to a field name (_compute_auto_delete_keep_log)
+        # rather than to an operation, and nothing here can tell the two apart.
+        _canonical, payload_choice = entry
+        if payload_choice and not name.endswith(PAYLOAD_SUFFIXES):
             continue
         return token
     return None
