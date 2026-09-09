@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 
@@ -25,7 +26,14 @@ const SAMPLE_CHILD_COUNT = 4;
  */
 function mockHierarchyRead(params) {
     const [, specification, parentFieldName] = params.args;
-    const { records } = this._mockWebSearchReadUnity({ ...params, specification });
+    // Through `mockRpc`, not `_mockWebSearchReadUnity`: the helpers are marked
+    // private, and the registry's contract is that a mock runs with the sample
+    // server as `this` and reaches it the same way a route would.
+    const { records } = this.mockRpc({
+        ...params,
+        method: "web_search_read",
+        specification,
+    });
     const sample = records.slice(0, SAMPLE_CHILD_COUNT + 1);
     if (!sample.length) {
         return [];
