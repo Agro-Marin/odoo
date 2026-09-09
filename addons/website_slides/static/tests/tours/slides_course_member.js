@@ -183,8 +183,7 @@ registry.category("web_tour.tours").add("course_member", {
         },
         // eLearning: edit the review
         {
-            trigger:
-                'button[data-bs-target="#ratingpopupcomposer"]:contains("Edit Review")',
+            trigger: "span:contains(Edit Review)",
             run: "click",
         },
         {
