@@ -6934,6 +6934,39 @@ unstored* estimate on ``sale.order`` (and on ``sale.order.line`` under
 key in the procurement ``values`` dicts, and a field on the replenishment wizard.
 None of those were renamed.
 
+``res.partner``: the phone scalars became a related model
+----------------------------------------------------------
+
+``res.partner`` has **no** ``phone`` and no ``mobile`` field in this fork. Both
+Char columns were replaced by ``phone.number``, a model of its own carrying the
+number, a ``type`` out of mobile / landline / fax / whatsapp / emergency, a
+country, a label and a primary flag, related through a Many2many.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Vanilla Odoo
+     - This fork
+   * - ``phone``
+     - ``phone_ids`` (Many2many → ``phone.number``); ``main_phone_id`` is the
+       computed first active Landline, ``main_mobile_id`` the first active Mobile
+   * - ``mobile``
+     - the same ``phone_ids``, with ``type`` set to ``mobile``
+
+So ``partner.write({"phone": "555-0100"})`` raises ``ValueError: Invalid field
+'phone' in 'res.partner'`` rather than failing a comparison, because
+``_write_check_field_access`` resolves every key in ``vals`` before any of them is
+written. A read of ``partner.phone`` raises ``AttributeError`` the same way.
+Create one with ``Command.create({"number": ..., "type": "mobile"})`` on
+``phone_ids``; read the display number from ``main_mobile_id.number`` or
+``main_phone_id.number``.
+
+**A field this ordinary goes stale silently in fixtures.** Two marin suites wrote
+``phone`` on a partner for months -- one in a ``create``, one in a ``write`` --
+and `partner_group_restricted` had already followed the rename in its editable
+whitelist, which is the tell that the module was updated and its tests were not.
+Neither is a phone defect; both are this appendix's absence.
+
 Order lines: ``product_qty`` and ``product_uom_qty`` swapped meanings
 ---------------------------------------------------------------------
 
