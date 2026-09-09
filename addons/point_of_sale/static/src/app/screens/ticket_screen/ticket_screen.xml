@@ -55,7 +55,7 @@
  </td>
  <td class="align-middle address-cell">
  <span t-if="order.preset_id?.identification === 'address'"
- class="address-text"
+ class="o_line_clamp"
  t-out="order.partner_id?.pos_contact_address"/>
  </td>
  <td class="align-middle">

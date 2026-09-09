@@ -15,11 +15,4 @@
     --btn-border-color: #{o-token(--o-gray-200, $o-gray-200)};
     border-width: 2px;
     height: 4rem;
-
-    .line-clamp-3 {
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
 }

@@ -17,7 +17,7 @@
                             alt="Category"
                         />
                     </div>
-                    <div class="line-clamp-3" t-att-class="{'w-100': !showCategoryImg(category)}" t-att-style="{'width: 60%;': showCategoryImg(category)}">
+                    <div class="o_line_clamp o_line_clamp_3" t-att-class="{'w-100': !showCategoryImg(category)}" t-att-style="{'width: 60%;': showCategoryImg(category)}">
                         <span t-if="category.name" class="text-center" t-esc="category.name" />
                     </div>
                 </button>
