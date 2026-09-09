@@ -3,6 +3,7 @@ from odoo import fields, models
 
 class ResUsers(models.Model):
     _inherit = "res.users"
+    _check_company_auto = True
 
     @property
     def SELF_READABLE_FIELDS(self):
