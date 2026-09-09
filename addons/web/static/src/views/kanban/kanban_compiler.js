@@ -8,7 +8,11 @@ import {
     extractAttributes,
     getTag,
 } from "@web/core/utils/dom/xml";
-import { toInterpolatedStringExpression, ViewCompiler } from "@web/views/view_compiler";
+import {
+    RECORD_TEMPLATE_DIRECTIVES,
+    toInterpolatedStringExpression,
+    ViewCompiler,
+} from "@web/views/view_compiler";
 import { toStringExpression } from "@web/views/view_utils";
 
 /**
@@ -181,17 +185,5 @@ export class KanbanCompiler extends ViewCompiler {
 }
 /** @type {any} */ (KanbanCompiler).OWL_DIRECTIVE_WHITELIST = [
     .../** @type {any} */ (ViewCompiler).OWL_DIRECTIVE_WHITELIST,
-    "t-name",
-    "t-esc",
-    "t-out",
-    "t-set",
-    "t-value",
-    "t-if",
-    "t-else",
-    "t-elif",
-    "t-foreach",
-    "t-as",
-    "t-key",
-    "t-att.*",
-    "t-call",
+    ...RECORD_TEMPLATE_DIRECTIVES,
 ];

@@ -316,6 +316,30 @@ export function getShadowedCompilerReports() {
     return [...shadowedCompilerReports].map((entry) => JSON.parse(entry));
 }
 
+/**
+ * The Owl directives a view's *record* template may use — the set an arch-embedded
+ * template needs beyond the empty base whitelist. Declared once here because it
+ * had been copied per view: `kanban`, `web_gantt` and `web_threed` each carried a
+ * byte-identical list, and `geoengine` a silently shorter one.
+ *
+ * @type {string[]}
+ */
+export const RECORD_TEMPLATE_DIRECTIVES = [
+    "t-name",
+    "t-esc",
+    "t-out",
+    "t-set",
+    "t-value",
+    "t-if",
+    "t-else",
+    "t-elif",
+    "t-foreach",
+    "t-as",
+    "t-key",
+    "t-att.*",
+    "t-call",
+];
+
 export class ViewCompiler {
     /**
      * @type {string[]}
