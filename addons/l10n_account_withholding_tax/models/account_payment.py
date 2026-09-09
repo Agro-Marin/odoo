@@ -115,7 +115,7 @@ class AccountPayment(models.Model):
             "should_withhold_tax",
         )
 
-    def _synchronize_to_moves(self, changed_fields):
+    def _sync_to_moves(self, changed_fields):
         """Updates the synchronization in order to ensure that the entry takes into account changes in the withholding lines."""
         # EXTEND account
         if not any(
@@ -182,7 +182,7 @@ class AccountPayment(models.Model):
             )
 
         # All other payments will use the original logic
-        super(AccountPayment, self - withholding_payments)._synchronize_to_moves(
+        super(AccountPayment, self - withholding_payments)._sync_to_moves(
             changed_fields
         )
 

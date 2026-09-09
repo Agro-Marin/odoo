@@ -1241,7 +1241,7 @@ class AccountPayment(models.Model):
 
         res = super().write(vals)
         if self.move_id:
-            self._synchronize_to_moves(set(vals.keys()))
+            self._sync_to_moves(set(vals.keys()))
         return res
 
     def unlink(self):
@@ -1286,7 +1286,7 @@ class AccountPayment(models.Model):
                 commands.append(Command.delete(line.id))
         return commands
 
-    def _synchronize_to_moves(self, changed_fields):
+    def _sync_to_moves(self, changed_fields):
         if not any(
             field_name in changed_fields
             for field_name in self._get_trigger_fields_to_synchronize()

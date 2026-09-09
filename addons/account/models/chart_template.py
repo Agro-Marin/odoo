@@ -1485,25 +1485,25 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template(model="account.account")
     def _get_account_account(self, template_code):
-        return self._parse_csv(template_code, "account.account")
+        return self._prepare_csv_vals(template_code, "account.account")
 
     @template(model="account.group")
     def _get_account_group(self, template_code):
-        return self._parse_csv(template_code, "account.group")
+        return self._prepare_csv_vals(template_code, "account.group")
 
     @template(model="account.tax.group")
     def _get_account_tax_group(self, template_code):
-        return self._parse_csv(template_code, "account.tax.group")
+        return self._prepare_csv_vals(template_code, "account.tax.group")
 
     @template(model="account.tax")
     def _get_account_tax(self, template_code):
-        tax_data = self._parse_csv(template_code, "account.tax")
+        tax_data = self._prepare_csv_vals(template_code, "account.tax")
         self._deref_account_tags(template_code, tax_data)
         return tax_data
 
     @template(model="account.fiscal.position")
     def _get_account_fiscal_position(self, template_code):
-        return self._parse_csv(template_code, "account.fiscal.position")
+        return self._prepare_csv_vals(template_code, "account.fiscal.position")
 
     @template(model="account.journal")
     def _get_account_journal(self, template_code):
@@ -1683,7 +1683,7 @@ class AccountChartTemplate(models.AbstractModel):
                                 Command.set(mapper(*tags.split(TAX_TAG_DELIMITER)))
                             ]
 
-    def _parse_csv_evaluate(self, key, value, available_fields):
+    def _parse_csv_value(self, key, value, available_fields):
         if not value or "@" in key:
             return value
         field = available_fields.get(key)
@@ -1695,7 +1695,7 @@ class AccountChartTemplate(models.AbstractModel):
             return value.strip()
         return value
 
-    def _parse_csv_resolve_comodel(self, Model, path):
+    def _resolve_csv_comodel(self, Model, path):
         for path_component in path:
             field = Model._fields.get(path_component)
             if field is None or not field.relational:
@@ -1703,12 +1703,12 @@ class AccountChartTemplate(models.AbstractModel):
             Model = self.env[field.comodel_name]
         return Model
 
-    def _parse_csv_apply_row(self, Model, res, row, last_id, filename, line_no):
+    def _update_csv_vals_from_row(self, Model, res, row, last_id, filename, line_no):
         if row["id"]:
             last_id = row["id"]
             res[last_id].update(
                 {
-                    key: self._parse_csv_evaluate(key, value, Model._fields)
+                    key: self._parse_csv_value(key, value, Model._fields)
                     for key, value in row.items()
                     if key != "id" and value and ("@" in key or key in Model._fields)
                 }
@@ -1724,7 +1724,7 @@ class AccountChartTemplate(models.AbstractModel):
                     f"to attach to."
                 )
             *model_path, fname = key.split("/")
-            SubModel = self._parse_csv_resolve_comodel(Model, model_path)
+            SubModel = self._resolve_csv_comodel(Model, model_path)
             if SubModel is None or fname not in SubModel._fields:
                 _logger.warning(
                     "%s, line %s: ignoring column %r, %r has no such field",
@@ -1743,10 +1743,10 @@ class AccountChartTemplate(models.AbstractModel):
                     sub.setdefault(path_component, [])
                     sub[path_component].append(Command.create({}))
                 sub = sub[path_component][-1][2]
-            sub[fname] = self._parse_csv_evaluate(fname, value, SubModel._fields)
+            sub[fname] = self._parse_csv_value(fname, value, SubModel._fields)
         return last_id
 
-    def _parse_csv(self, template_code, model, module=None):
+    def _prepare_csv_vals(self, template_code, model, module=None):
         Model = self.env[model]
         if module is None:
             module = self._get_chart_template_mapping(get_all=True)[template_code][
@@ -1762,7 +1762,7 @@ class AccountChartTemplate(models.AbstractModel):
                 with file_open(filename, "r") as csv_file:
                     last_id = None
                     for line_no, row in enumerate(csv.DictReader(csv_file), start=2):
-                        last_id = self._parse_csv_apply_row(
+                        last_id = self._update_csv_vals_from_row(
                             Model, res, row, last_id, filename, line_no
                         )
             except FileNotFoundError:

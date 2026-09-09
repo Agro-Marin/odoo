@@ -8,7 +8,7 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template("be", "account.tax")
     def _get_be_pos_restaurant_account_tax(self):
-        be_restaurant_tax = self._parse_csv(
+        be_restaurant_tax = self._prepare_csv_vals(
             "be", "account.tax", module="l10n_be_pos_restaurant"
         )
         existing_taxes = self.env["account.tax"].search(

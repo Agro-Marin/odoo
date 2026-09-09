@@ -1020,7 +1020,7 @@ class AccountTax(models.Model):
         tax_lines_mapping, base_lines_to_update = self._aggregate_tax_lines_by_key(
             base_lines
         )
-        tax_lines_mapping = self._drop_zero_tax_lines(tax_lines_mapping, company)
+        tax_lines_mapping = self._remove_zero_tax_lines(tax_lines_mapping, company)
 
         tax_lines_to_update = []
         tax_lines_to_delete = []
@@ -1091,7 +1091,7 @@ class AccountTax(models.Model):
         return tax_lines_mapping, base_lines_to_update
 
     @api.model
-    def _drop_zero_tax_lines(self, tax_lines_mapping, company):
+    def _remove_zero_tax_lines(self, tax_lines_mapping, company):
         return {
             frozendict(
                 {

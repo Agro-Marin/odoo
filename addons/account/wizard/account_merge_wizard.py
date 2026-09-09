@@ -324,8 +324,8 @@ class AccountMergeWizardLine(models.TransientModel):
             .values()
         ):
             wizard_line_group.info = False
-            wizard_line_group._apply_different_companies_constraint()
-            wizard_line_group._apply_hashed_moves_constraint()
+            wizard_line_group._update_info_company_conflict()
+            wizard_line_group._update_info_hashed_moves_conflict()
 
     def _get_group_name(self):
         self.check_singleton()
@@ -361,7 +361,7 @@ class AccountMergeWizardLine(models.TransientModel):
 
         return grouping_key_name
 
-    def _apply_different_companies_constraint(self):
+    def _update_info_company_conflict(self):
         companies_seen = self.env["res.company"]
         account_belonging_to_company = {}
         for wizard_line in self:
@@ -379,7 +379,7 @@ class AccountMergeWizardLine(models.TransientModel):
                                 wizard_line.account_id
                             )
 
-    def _apply_hashed_moves_constraint(self):
+    def _update_info_hashed_moves_conflict(self):
         account_to_merge_into = None
         for wizard_line in self:
             if (

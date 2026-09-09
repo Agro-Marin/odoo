@@ -473,7 +473,7 @@ class AccountBankStatementLine(models.Model):
         res = super(
             AccountBankStatementLine, self.with_context(skip_readonly_check=True)
         ).write(vals)
-        self._synchronize_to_moves(set(vals.keys()))
+        self._sync_to_moves(set(vals.keys()))
         if not _RUNNING_BALANCE_TRIGGERS.isdisjoint(vals):
             self._invalidate_running_balance()
         return res
@@ -867,7 +867,7 @@ class AccountBankStatementLine(models.Model):
         }
         return move_vals, st_line_vals
 
-    def _synchronize_to_moves(self, changed_fields):
+    def _sync_to_moves(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):
             return
 

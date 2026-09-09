@@ -28,6 +28,6 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template("tg_syscebnl", "account.account")
     def _get_tg_syscebnl_account_account(self):
-        return self._parse_csv(
+        return self._prepare_csv_vals(
             "tg_syscebnl", "account.account", module="l10n_syscohada"
         )

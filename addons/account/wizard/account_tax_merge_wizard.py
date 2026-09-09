@@ -311,11 +311,11 @@ class AccountTaxMergeWizardLine(models.TransientModel):
             .values()
         ):
             group.info = False
-            group._apply_different_companies_constraint()
-            group._apply_repartition_constraint()
-            group._apply_hashed_moves_constraint()
+            group._update_info_company_conflict()
+            group._update_info_repartition_conflict()
+            group._update_info_hashed_moves_conflict()
 
-    def _apply_different_companies_constraint(self):
+    def _update_info_company_conflict(self):
         seen = self.env["res.company"]
         owner = {}
         for line in self:
@@ -330,7 +330,7 @@ class AccountTaxMergeWizardLine(models.TransientModel):
                     for company in line.company_ids:
                         owner.setdefault(company, line.tax_id)
 
-    def _apply_repartition_constraint(self):
+    def _update_info_repartition_conflict(self):
         # Two taxes with the same rate but different distribution accounts or
         # tag grids are not the same tax, and merging them would silently
         # re-point every future entry onto the survivor's accounts.
@@ -348,7 +348,7 @@ class AccountTaxMergeWizardLine(models.TransientModel):
                     reference[1].display_name,
                 )
 
-    def _apply_hashed_moves_constraint(self):
+    def _update_info_hashed_moves_conflict(self):
         holder = None
         for line in self:
             if line.is_selected and not line.info and line.tax_has_hashed_entries:

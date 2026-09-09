@@ -17,7 +17,7 @@ def _l10n_ar_wth_post_init(env):
         template_code = company.chart_template
         ChartTemplate = env["account.chart.template"].with_company(company)
         data = {
-            model: ChartTemplate._parse_csv(
+            model: ChartTemplate._prepare_csv_vals(
                 template_code, model, module="l10n_ar_withholding"
             )
             for model in [

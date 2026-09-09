@@ -26,7 +26,7 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template("es_canary_pymes", "account.account")
     def _get_es_canary_pymes_account_account(self):
-        res = self._parse_csv("es_pymes", "account.account", module="l10n_es")
+        res = self._prepare_csv_vals("es_pymes", "account.account", module="l10n_es")
 
         # Voluntarily remove the `tax_ids` since those are defined for the mainland and not the canaries
         for data in res.values():
@@ -40,4 +40,4 @@ class AccountChartTemplate(models.AbstractModel):
         # account_asset is not auto-installed when l10n_es is installed
         if "account.asset" not in self.env:
             return {}
-        return self._parse_csv("es_pymes", "account.asset", module="l10n_es")
+        return self._prepare_csv_vals("es_pymes", "account.asset", module="l10n_es")

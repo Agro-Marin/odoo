@@ -28,4 +28,4 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template("gq", "account.account")
     def _get_gq_account_account(self):
-        return self._parse_csv("gq", "account.account", module="l10n_syscohada")
+        return self._prepare_csv_vals("gq", "account.account", module="l10n_syscohada")

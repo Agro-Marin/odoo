@@ -8,12 +8,12 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template("es_common_mainland", "account.tax")
     def _get_es_facturae_account_tax_es_common_mainland(self):
-        return self._parse_csv(
+        return self._prepare_csv_vals(
             "es_common_mainland", "account.tax", module="l10n_es_edi_facturae"
         )
 
     @template("es_canary_common", "account.tax")
     def _get_es_facturae_account_tax_es_canary_common(self):
-        return self._parse_csv(
+        return self._prepare_csv_vals(
             "es_canary_common", "account.tax", module="l10n_es_edi_facturae"
         )

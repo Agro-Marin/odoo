@@ -13,7 +13,7 @@ class AccountChartTemplate(models.AbstractModel):
         """
         generic_coa_account_data = {
             f"l10n_ng_{k}": v
-            for k, v in self._parse_csv("generic_coa", "account.account").items()
+            for k, v in self._prepare_csv_vals("generic_coa", "account.account").items()
         }
         generic_coa_account_data["l10n_ng_stock_valuation"].update(
             {

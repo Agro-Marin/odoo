@@ -2428,16 +2428,16 @@ class AccountMoveLine(models.Model):
 
         return result
 
-    def _parse_flush_fnames(self, fnames):
+    def _get_flush_fnames(self, fnames):
         if fnames and {"balance", "amount_currency"} & set(fnames):
             fnames = {"balance", "amount_currency"} | set(fnames)
         return fnames
 
     def flush_recordset(self, fnames=None):
-        return super().flush_recordset(self._parse_flush_fnames(fnames))
+        return super().flush_recordset(self._get_flush_fnames(fnames))
 
     def flush_model(self, fnames=None):
-        return super().flush_model(self._parse_flush_fnames(fnames))
+        return super().flush_model(self._get_flush_fnames(fnames))
 
     def _valid_field_parameter(self, field, name):
         return name == "tracking" or super()._valid_field_parameter(field, name)

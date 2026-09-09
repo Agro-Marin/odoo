@@ -259,7 +259,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
         with patch(
             "odoo.addons.account.models.chart_template.file_open", fake_file_open
         ):
-            result = self.ChartTemplate._parse_csv(
+            result = self.ChartTemplate._prepare_csv_vals(
                 "no_such_template_code", "res.currency", module="account"
             )
         self.assertEqual(result["res_currency_test"]["decimal_places"], -5)
@@ -1752,7 +1752,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             ),
             self.assertLogs(_CHART_TEMPLATE_LOGGER, "WARNING") as logs,
         ):
-            result = self.ChartTemplate._parse_csv(
+            result = self.ChartTemplate._prepare_csv_vals(
                 "no_such_template_code", "account.tax", module="account"
             )
         self.assertEqual(len(logs.output), 1)
@@ -1779,7 +1779,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             "odoo.addons.account.models.chart_template.file_open", fake_file_open
         ):
             with self.assertRaisesRegex(ValueError, r"account\.tax\.csv, line 2"):
-                self.ChartTemplate._parse_csv(
+                self.ChartTemplate._prepare_csv_vals(
                     "no_such_template_code", "account.tax", module="account"
                 )
 
@@ -1843,17 +1843,17 @@ class TestChartTemplate(AccountTestInvoicingCommon):
     def test_parse_csv_resolve_comodel_walks_relations_only(self):
         Tax = self.env["account.tax"]
         self.assertEqual(
-            self.ChartTemplate._parse_csv_resolve_comodel(
+            self.ChartTemplate._resolve_csv_comodel(
                 Tax, ["repartition_line_ids"]
             )._name,
             "account.tax.repartition.line",
         )
         self.assertIsNone(
-            self.ChartTemplate._parse_csv_resolve_comodel(Tax, ["name"]),
+            self.ChartTemplate._resolve_csv_comodel(Tax, ["name"]),
             "a non-relational field names no sub-record",
         )
         self.assertIsNone(
-            self.ChartTemplate._parse_csv_resolve_comodel(Tax, ["no_such_field"]),
+            self.ChartTemplate._resolve_csv_comodel(Tax, ["no_such_field"]),
             "an unknown field names no sub-record",
         )
 
@@ -1976,7 +1976,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
 
     def test_parse_csv_builds_sub_records_below_the_first_level(self):
         res = defaultdict(dict)
-        self.ChartTemplate._parse_csv_apply_row(
+        self.ChartTemplate._update_csv_vals_from_row(
             self.env["account.tax"],
             res,
             {"id": "tax", "repartition_line_ids/tag_ids/name": "Tag"},
@@ -1993,8 +1993,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                     ]
                 }
             },
-            "_parse_csv_resolve_comodel walks a path of any depth, so applying one "
-            "must too",
+            "_resolve_csv_comodel walks a path of any depth, so applying one must too",
         )
 
     def test_reload_xmlid_mapping_only_reads_company_prefixed_xmlids(self):

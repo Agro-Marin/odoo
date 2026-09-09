@@ -6,7 +6,7 @@ class AccountPayment(models.Model):
 
     l10n_ar_withholding_ids = fields.One2many(related="move_id.l10n_ar_withholding_ids")
 
-    def _synchronize_to_moves(self, changed_fields):
+    def _sync_to_moves(self, changed_fields):
         """If we change a payment with withholdings, delete all withholding lines as the synchronization mechanism is not
         implemented yet
         """
@@ -22,5 +22,5 @@ class AccountPayment(models.Model):
                     or x.tax_line_id.l10n_ar_withholding_payment_type
                 )
             ).unlink()
-        res = super()._synchronize_to_moves(changed_fields)
+        res = super()._sync_to_moves(changed_fields)
         return res

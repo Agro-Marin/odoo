@@ -30,7 +30,7 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template("cm", "account.account")
     def _get_cm_account_account(self):
-        account_values = self._parse_csv(
+        account_values = self._prepare_csv_vals(
             "cm", "account.account", module="l10n_syscohada"
         )
         account_values["pcg_382"].update(
