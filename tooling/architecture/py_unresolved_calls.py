@@ -36,6 +36,10 @@ SCOPES = (ROOT / "odoo", ROOT / "addons")
 
 EXTERNAL: frozenset[str] = frozenset(
     {
+        # xmlrpc.client.Marshaller.__dump, reached through its mangled name by
+        # the OdooMarshaller subclass in addons/rpc. The receiver is stdlib, so
+        # the scan cannot see the class; `dir(xmlrpc.client.Marshaller)` has it.
+        "_Marshaller__dump",
         "_add_object",
         "_ansi_style",
         "_asdict",
