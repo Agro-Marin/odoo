@@ -35,7 +35,7 @@ type ColumnRename = tuple[str, str, str, bool, bool] | None
 TRANSLATE_KEY_BY_HANDLER = {handler: key for key, handler in FIELD_TRANSLATE.items()}
 
 
-def _field_types(_model) -> list[tuple[str, str]]:
+def _selection_field_types(_model) -> list[tuple[str, str]]:
     return [(key, key) for key in sorted(fields.Field._by_type__)]
 
 
@@ -92,7 +92,9 @@ class IrModelFields(models.Model):
         string="Field Label", default="", required=True, translate=True
     )
     help = fields.Text(string="Field Help", translate=True)
-    ttype = fields.Selection(selection=_field_types, string="Field Type", required=True)
+    ttype = fields.Selection(
+        selection=_selection_field_types, string="Field Type", required=True
+    )
     selection = fields.Char(
         string="Selection Options (Deprecated)",
         compute="_compute_selection",
@@ -542,7 +544,7 @@ class IrModelFields(models.Model):
                     )
 
     @api.model
-    def _custom_many2many_names(
+    def _get_custom_many2many_names(
         self, model_name: str, comodel_name: str
     ) -> tuple[str, str, str]:
         rel1 = self.env[model_name]._table
@@ -559,7 +561,7 @@ class IrModelFields(models.Model):
         if self.ttype == "many2many" and self.model_id and self.relation:
             if self.relation not in self.env:
                 return
-            names = self._custom_many2many_names(self.model_id.model, self.relation)
+            names = self._get_custom_many2many_names(self.model_id.model, self.relation)
             self.relation_table, self.column1, self.column2 = names
         else:
             self.relation_table = False
@@ -661,7 +663,7 @@ class IrModelFields(models.Model):
                 continue
             if field.ttype != "many2many":
                 continue
-            rel_name = field.relation_table or self._m2m_table_name(field)
+            rel_name = field.relation_table or self._get_m2m_table_name(field)
             if rel_name:
                 tables_to_drop.add(rel_name)
             else:
@@ -705,13 +707,13 @@ class IrModelFields(models.Model):
         ]
         return View.search([("id", "in", view_ids)])
 
-    def _m2m_table_name(self, field: Self) -> str | None:
+    def _get_m2m_table_name(self, field: Self) -> str | None:
         model = self.env.get(field.model)
         registry_field = None if model is None else model._fields.get(field.name)
         if registry_field is not None:
             return registry_field.relation
         if model is not None and field.relation in self.env:
-            return self._custom_many2many_names(field.model, field.relation)[0]
+            return self._get_custom_many2many_names(field.model, field.relation)[0]
         return None
 
     def _prepare_update(self, setup_models: bool = True) -> Self:
@@ -1217,7 +1219,7 @@ class IrModelFields(models.Model):
         self.env["ir.model.data"]._update_xmlids(data_list)
 
     @tools.ormcache(cache="stable")
-    def _all_manual_field_data(self) -> dict[str, dict[str, Any]]:
+    def _get_manual_field_data_by_model(self) -> dict[str, dict[str, Any]]:
         cr = self.env.cr
         cr.execute(
             """
@@ -1254,7 +1256,7 @@ class IrModelFields(models.Model):
         return frozendict(result)
 
     def _get_manual_field_data(self, model_name: str) -> dict[str, Any]:
-        return self._all_manual_field_data().get(model_name, {})
+        return self._get_manual_field_data_by_model().get(model_name, {})
 
     def _is_field_ready(self, field_data: dict[str, Any]) -> bool:
         if self.pool.loaded:
@@ -1331,7 +1333,7 @@ class IrModelFields(models.Model):
             if all(stored):
                 attrs["relation"], attrs["column1"], attrs["column2"] = stored
             else:
-                derived = self._custom_many2many_names(
+                derived = self._get_custom_many2many_names(
                     field_data["model"], field_data["relation"]
                 )
                 attrs["relation"], attrs["column1"], attrs["column2"] = (

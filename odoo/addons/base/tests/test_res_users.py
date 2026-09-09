@@ -1016,7 +1016,7 @@ class TestResUsersInitPasswordMigration(TransactionCase):
         )
         self.assertFalse(self.env.cache.contains(user_b, password_field))
 
-        ctx = User._crypt_context()
+        ctx = User._get_crypt_context()
         self.env.cr.execute(
             "SELECT password FROM res_users WHERE id = ANY(%s)",
             ([user_a.id, user_b.id],),
@@ -1051,7 +1051,7 @@ class TestCheckUidPasswdCacheContract(TransactionCase):
 
         Users._check_uid_passwd(user.id, "old-password")
 
-        new_hash = Users._crypt_context().hash("new-password")
+        new_hash = Users._get_crypt_context().hash("new-password")
         self.env.flush_all()
         self.env.cr.execute(
             "UPDATE res_users SET password=%s WHERE id=%s", (new_hash, user.id)
@@ -1375,7 +1375,7 @@ class TestSelfServiceEscalation(TransactionCase):
         cls.other = cls.env["res.partner"].create(
             {"name": "other", "tag_ids": [Command.link(cls.tag.id)]}
         )
-        cls.self_writeable = cls.env["res.users"]._self_accessible_fields()[1]
+        cls.self_writeable = cls.env["res.users"]._get_self_accessible_fields()[1]
 
     def _self_write(self, vals):
         self.user.with_user(self.user).write(vals)
@@ -1520,7 +1520,7 @@ class TestSelfFieldBatchAccessLeak(UsersCommonCase):
         alice = new_test_user(self.env, login="b7_alice", groups="base.group_user")
         bob = new_test_user(self.env, login="b7_bob", groups="base.group_user")
         login = self.env["res.users"]._fields["login"]
-        self.assertIn("login", alice._self_accessible_fields()[0])
+        self.assertIn("login", alice._get_self_accessible_fields()[0])
         original_groups = login.groups
         login.groups = "base.group_system"
         self.addCleanup(setattr, login, "groups", original_groups)
@@ -1560,7 +1560,7 @@ class TestSessionTokenInvalidation(TransactionCase):
         user = self._user("sess_encrypted")
         before = user._get_session_token(self.SID)
 
-        hashed = self.env["res.users"]._crypt_context().hash("Another!Pwd456")
+        hashed = self.env["res.users"]._get_crypt_context().hash("Another!Pwd456")
         user._update_encrypted_password(user.id, hashed)
         self.env.flush_all()
 
@@ -1988,7 +1988,7 @@ class TestCryptContextConfiguration(TransactionCase):
             "password.hashing.rounds", "not-a-number"
         )
         with mute_logger("odoo.addons.base.models.res_users"):
-            context = self.env["res.users"]._crypt_context()
+            context = self.env["res.users"]._get_crypt_context()
         self.assertTrue(context.hash("Ru!Rounds1234"))
 
     def test_rounds_above_the_backend_maximum_still_authenticate(self):
@@ -1996,7 +1996,7 @@ class TestCryptContextConfiguration(TransactionCase):
             "password.hashing.rounds", "20000000"
         )
         self.env.registry.clear_cache("stable")
-        context = self.env["res.users"]._crypt_context()
+        context = self.env["res.users"]._get_crypt_context()
         hashed = context.hash("Ru!Rounds9999")
         self.assertTrue(
             context.verify("Ru!Rounds9999", hashed),
@@ -2046,7 +2046,7 @@ class TestLoginPath(TransactionCase):
 
     def _production_crypt_context(self):
         return patch(
-            "odoo.addons.base.models.res_users.ResUsersPatchedInTest._crypt_context",
+            "odoo.addons.base.models.res_users.ResUsersPatchedInTest._get_crypt_context",
             lambda user: CryptContext(
                 ["pbkdf2_sha512", "plaintext"],
                 deprecated=["auto"],
@@ -2059,7 +2059,7 @@ class TestLoginPath(TransactionCase):
         with self._production_crypt_context():
             self.assertEqual(self._login(password="legacy-plain")["uid"], self.user.id)
         stored = self._stored_password()
-        context = self.env["res.users"]._crypt_context()
+        context = self.env["res.users"]._get_crypt_context()
         self.assertNotEqual(stored, "legacy-plain")
         self.assertEqual(context.identify(stored), "pbkdf2_sha512")
         self.assertEqual(
@@ -2069,7 +2069,7 @@ class TestLoginPath(TransactionCase):
         )
 
     def test_a_hash_at_other_rounds_than_configured_is_rehashed_at_login(self):
-        context = self.env["res.users"]._crypt_context()
+        context = self.env["res.users"]._get_crypt_context()
         weak = pbkdf2_sha512_hash("weak-rounds", 2)
         self.assertIsNotNone(
             context.match_and_update("weak-rounds", weak)[1],

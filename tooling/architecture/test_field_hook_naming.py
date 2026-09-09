@@ -358,3 +358,99 @@ class Thing(models.Model):
             )
             == []
         )
+
+
+def test_a_selection_hook_is_reported_when_it_is_not_named_for_its_values(tmp_path):
+    found = _measure(
+        tmp_path,
+        """
+class Thing(models.Model):
+    _name = "thing"
+
+    kind = fields.Selection(selection="_get_kinds")
+
+    def _get_kinds(self):
+        return [("a", "A")]
+""",
+    )
+    assert _kinds(found) == [("unvalued", "_get_kinds")]
+    assert "_selection_<values>" in str(found[0])
+
+
+def test_a_selection_hook_named_for_its_values_is_accepted(tmp_path):
+    assert (
+        _measure(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    kind = fields.Selection(selection="_selection_kinds")
+
+    def _selection_kinds(self):
+        return [("a", "A")]
+""",
+        )
+        == []
+    )
+
+
+def test_the_selection_row_does_not_ask_a_hook_to_be_named_for_its_field(tmp_path):
+    """§2.4.2: one method serves fields of several names, and that is the point.
+
+    Folding `selection` into ATTRS would demand `_selection_resource_ref` and
+    `_selection_parent_ref` from the two declarations below -- the opposite of
+    the Selection row, and a rename of the names that are already right.
+    """
+    assert (
+        _measure(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    resource_ref = fields.Reference(selection="_selection_target_model")
+    parent_ref = fields.Reference(selection="_selection_target_model")
+
+    def _selection_target_model(self):
+        return [("thing", "Thing")]
+""",
+        )
+        == []
+    )
+
+
+def test_a_forwarding_lambda_binds_a_selection_hook_as_visibly_as_a_string(tmp_path):
+    found = _measure(
+        tmp_path,
+        """
+class Thing(models.Model):
+    _name = "thing"
+
+    kind = fields.Selection(selection=lambda self: self._get_kinds())
+
+    def _get_kinds(self):
+        return [("a", "A")]
+""",
+    )
+    assert _kinds(found) == [("unvalued", "_get_kinds")]
+
+
+def test_an_inline_selection_list_binds_no_method(tmp_path):
+    assert (
+        _measure(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    kind = fields.Selection([("a", "A"), ("b", "B")], default="a")
+""",
+        )
+        == []
+    )
+
+
+def test_the_selection_attribute_is_reported_but_is_not_a_field_named_attr(tmp_path):
+    assert gate.SELECTION_ATTR not in gate.ATTRS
+    assert gate.SELECTION_ATTR in gate.REPORTED_ATTRS

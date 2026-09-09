@@ -178,7 +178,7 @@ class TestResUsersSettingsRowLifecycle(TransactionCase):
 
     def test_settings_backed_fields_come_from_the_registry(self):
         users = self.env["res.users"]
-        backed = users._settings_backed_fields()
+        backed = users._get_settings_backed_fields()
         for name in backed:
             field = users._fields[name]
             self.assertTrue(field.related.startswith("res_users_settings_id."))
@@ -237,7 +237,7 @@ class TestResUsersSettingsRowLifecycle(TransactionCase):
 
     def _writable_settings_values(self):
         settings_fields = self.env["res.users.settings"]._fields
-        for name in sorted(self.env["res.users"]._settings_backed_fields()):
+        for name in sorted(self.env["res.users"]._get_settings_backed_fields()):
             selection = getattr(settings_fields[name], "selection", None)
             if isinstance(selection, list):
                 yield name, selection[-1][0]

@@ -54,7 +54,7 @@ class IrUiView(models.Model):
             ) or ""
 
     def _inverse_visibility_password_display(self):
-        crypt_context = self.env.user._crypt_context()
+        crypt_context = self.env.user._get_crypt_context()
         for r in self:
             if r.type == "qweb":
                 # visibility_password is written via sudo() below (it has
@@ -442,7 +442,7 @@ class IrUiView(models.Model):
                 if (
                     pwd
                     and stored_password
-                    and self.env.user._crypt_context().verify(pwd, stored_password)
+                    and self.env.user._get_crypt_context().verify(pwd, stored_password)
                 ):
                     request.session["views_unlock"] = [
                         *request.session.get("views_unlock", []),

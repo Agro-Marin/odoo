@@ -105,7 +105,7 @@ class IrUiMenu(models.Model):
 
     @api.model
     @tools.ormcache("frozenset(self.env.user._get_group_ids())", "debug")
-    def _visible_menu_ids(self, debug: bool = False) -> frozenset[int]:
+    def _get_visible_menu_ids(self, debug: bool = False) -> frozenset[int]:
         group_ids = set(self.env.user._get_group_ids())
         if not debug:
             group_ids.discard(
@@ -182,7 +182,7 @@ class IrUiMenu(models.Model):
         return frozenset(visible_ids)
 
     def _filter_visible_menus(self) -> Self:
-        visible_ids = self._visible_menu_ids(self._get_session_debug())
+        visible_ids = self._get_visible_menu_ids(self._get_session_debug())
         return self.filtered(lambda menu: menu.id in visible_ids)
 
     @api.depends("name", "parent_id.display_name")

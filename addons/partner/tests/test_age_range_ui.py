@@ -33,7 +33,7 @@ class TestPartnerAgeRangeUi(TransactionCase):
     def _rendered_menu_ids(self, user):
         """The ids the web client actually draws, parents included.
 
-        ``_visible_menu_ids`` answers for one menu in isolation and reports the
+        ``_get_visible_menu_ids`` answers for one menu in isolation and reports the
         Age Ranges entry visible even while its parent is not, so the whole
         branch is dropped from the tree the user sees. Only walking what
         ``load_menus`` returns can catch that.

@@ -991,15 +991,17 @@ class TestProfilingStateMachine(TransactionCase):
 
     def test_enabled_until_blank_is_none(self):
         self._set_window(False)
-        self.assertIsNone(self.env["ir.profile"]._enabled_until())
+        self.assertIsNone(self.env["ir.profile"]._get_enabled_until())
 
     def test_enabled_until_expired_is_none(self):
         self._set_window("2000-01-01 00:00:00")
-        self.assertIsNone(self.env["ir.profile"]._enabled_until())
+        self.assertIsNone(self.env["ir.profile"]._get_enabled_until())
 
     def test_enabled_until_future_returns_limit(self):
         self._set_window("2999-01-01 00:00:00")
-        self.assertEqual(self.env["ir.profile"]._enabled_until(), "2999-01-01 00:00:00")
+        self.assertEqual(
+            self.env["ir.profile"]._get_enabled_until(), "2999-01-01 00:00:00"
+        )
 
     def test_non_system_cannot_arm_profiling(self):
         self._set_window(False)

@@ -1138,7 +1138,7 @@ class WebsiteForum(WebsiteProfile):
         )
 
         # activity by user.
-        comment = Data._xmlid_lookup("mail.mt_comment")[1]
+        comment = Data._get_xmlid_target("mail.mt_comment")[1]
         activities = Activity.search(
             [
                 (

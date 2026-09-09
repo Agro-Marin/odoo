@@ -213,7 +213,7 @@ class IrProfile(models.Model):
         for profile in self:
             profile.speedscope_url = f"/web/speedscope/{profile.id}"
 
-    def _enabled_until(self) -> str | None:
+    def _get_enabled_until(self) -> str | None:
         limit = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -234,7 +234,7 @@ class IrProfile(models.Model):
                 self.env._("Profiling can only be toggled from an HTTP request.")
             )
         if profile:
-            limit = self._enabled_until()
+            limit = self._get_enabled_until()
             _logger.info("User %s started profiling", self.env.user.name)
             if not limit:
                 request.session["profile_session"] = None

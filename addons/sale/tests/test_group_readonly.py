@@ -198,7 +198,7 @@ class TestSaleGroupReadonly(TransactionCase):
     def test_granted_menus_are_visible_to_the_role(self) -> None:
         """Every menu opened to the role must be reachable by it."""
         visible = (
-            self.env["ir.ui.menu"].with_user(self.user_readonly)._visible_menu_ids()
+            self.env["ir.ui.menu"].with_user(self.user_readonly)._get_visible_menu_ids()
         )
         for xmlid in CORE_GROUP_PER_GRANTED_MENU:
             menu = self.env.ref(xmlid)
@@ -238,7 +238,7 @@ class TestSaleGroupReadonly(TransactionCase):
         exactly when it holds the flag.
         """
         visible = (
-            self.env["ir.ui.menu"].with_user(self.user_readonly)._visible_menu_ids()
+            self.env["ir.ui.menu"].with_user(self.user_readonly)._get_visible_menu_ids()
         )
         group_user = self.env.ref("base.group_user")
         for xmlid, flag_xmlid in FEATURE_FLAG_MENUS.items():
@@ -264,8 +264,12 @@ class TestSaleGroupReadonly(TransactionCase):
         appearing here fails the suite and has to be argued for.
         """
         menu_model = self.env["ir.ui.menu"]
-        visible_readonly = menu_model.with_user(self.user_readonly)._visible_menu_ids()
-        visible_salesman = menu_model.with_user(self.user_salesman)._visible_menu_ids()
+        visible_readonly = menu_model.with_user(
+            self.user_readonly
+        )._get_visible_menu_ids()
+        visible_salesman = menu_model.with_user(
+            self.user_salesman
+        )._get_visible_menu_ids()
         allowed_roots = [
             menu.id
             for menu in (

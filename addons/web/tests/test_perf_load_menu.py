@@ -72,8 +72,8 @@ class TestPerfSessionInfo(common.HttpCase):
         self.env.registry.clear_all_caches()
         self.env.invalidate_all()
         with self.assertQueryCount(21):
-            self.env["ir.ui.menu"]._visible_menu_ids()
+            self.env["ir.ui.menu"]._get_visible_menu_ids()
 
         self.env.invalidate_all()
         with self.assertQueryCount(0):
-            self.env["ir.ui.menu"]._visible_menu_ids()
+            self.env["ir.ui.menu"]._get_visible_menu_ids()

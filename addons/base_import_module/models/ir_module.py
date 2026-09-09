@@ -258,7 +258,7 @@ class IrModuleModule(models.Model):
                 [
                     {
                         "name": name,
-                        "model": IrModelData._xmlid_lookup(xml_id)[0],
+                        "model": IrModelData._get_xmlid_target(xml_id)[0],
                         "module": "__cloc_exclude__",
                         "res_id": rec_id,
                     }

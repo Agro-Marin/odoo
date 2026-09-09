@@ -26,7 +26,7 @@ class ProductMargin(models.TransientModel):
 
         def ref(xml_id):
             proxy = self.env["ir.model.data"]
-            return proxy._xmlid_lookup(xml_id)[1]
+            return proxy._get_xmlid_target(xml_id)[1]
 
         search_view_id = ref("product.view_product_product_search")
         graph_view_id = ref("product_margin.view_product_margin_graph")

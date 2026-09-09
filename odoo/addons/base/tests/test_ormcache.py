@@ -48,7 +48,7 @@ class TestOrmCache(TransactionCase):
         IMD = self.env["ir.model.data"]
         XMLID = "base.group_no_one"
 
-        cache, key, counter = get_cache_key_counter(IMD._xmlid_lookup, XMLID)
+        cache, key, counter = get_cache_key_counter(IMD._get_xmlid_target, XMLID)
         hit = counter.hit
         miss = counter.miss
         tx_hit = counter.tx_hit

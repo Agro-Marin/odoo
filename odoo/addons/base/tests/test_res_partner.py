@@ -1118,8 +1118,8 @@ class TestPartnerSimilarNameDuplicates(TransactionCase):
         wizard = self.env["base.partner.merge.automatic.wizard"].create({})
 
         self.assertEqual(
-            wizard._similar_name_threshold(),
-            self.Partner._similar_name_threshold(),
+            wizard._get_similar_name_threshold(),
+            self.Partner._get_similar_name_threshold(),
             "the wizard must not carry a second copy of the threshold",
         )
 

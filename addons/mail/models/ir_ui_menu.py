@@ -10,7 +10,7 @@ class IrUiMenu(models.Model):
     @api.model
     def _get_best_backend_root_menu_id_for_model(self, res_model: str) -> int | None:
         with contextlib.suppress(AccessError):
-            visible_menu_ids = self._visible_menu_ids()
+            visible_menu_ids = self._get_visible_menu_ids()
             menu_root_candidates = self.env[res_model]._get_backend_root_menu_ids()
             menu_root_id = next(
                 (m_id for m_id in menu_root_candidates if m_id in visible_menu_ids),

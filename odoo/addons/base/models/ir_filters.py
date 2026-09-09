@@ -22,7 +22,7 @@ class IrFilters(models.Model):
     name = fields.Char(string="Filter Name", required=True)
     active = fields.Boolean(default=True)
     model_id = fields.Selection(
-        selection="_list_all_models",
+        selection="_selection_models",
         string="Model",
         required=True,
     )
@@ -84,7 +84,7 @@ class IrFilters(models.Model):
         return self.create(vals)
 
     @api.model
-    def _list_all_models(self) -> list[tuple[str, str]]:
+    def _selection_models(self) -> list[tuple[str, str]]:
         lang = self.env.lang or "en_US"
         self.env.cr.execute(
             SQL(

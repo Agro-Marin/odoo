@@ -75,12 +75,12 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        admin_visible = self.Menu._visible_menu_ids()
+        admin_visible = self.Menu._get_visible_menu_ids()
         self.assertIn(menu_readable.id, admin_visible)
         self.assertIn(menu_restricted.id, admin_visible)
         self.assertIn(root.id, admin_visible)
 
-        emp_visible = self.Menu.with_user(self.employee)._visible_menu_ids()
+        emp_visible = self.Menu.with_user(self.employee)._get_visible_menu_ids()
         self.assertIn(menu_readable.id, emp_visible)
         self.assertNotIn(menu_restricted.id, emp_visible)
         self.assertIn(root.id, emp_visible)
@@ -99,7 +99,7 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        visible = self.Menu.with_user(self.employee)._visible_menu_ids()
+        visible = self.Menu.with_user(self.employee)._get_visible_menu_ids()
         self.assertIn(menu.id, visible, "no model named means no model-level gate")
         self.assertIn(root.id, visible)
 
@@ -120,9 +120,9 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        self.assertIn(menu.id, self.Menu._visible_menu_ids())
+        self.assertIn(menu.id, self.Menu._get_visible_menu_ids())
         self.assertNotIn(
-            menu.id, self.Menu.with_user(self.employee)._visible_menu_ids()
+            menu.id, self.Menu.with_user(self.employee)._get_visible_menu_ids()
         )
 
     def test_visible_menu_ids_deleted_action_hidden(self):
@@ -135,10 +135,10 @@ class TestMenuVisibility(TransactionCase):
                 "action": f"{action._name},{action.id}",
             }
         )
-        self.assertIn(menu.id, self.Menu._visible_menu_ids())
+        self.assertIn(menu.id, self.Menu._get_visible_menu_ids())
 
         action.unlink()
-        visible = self.Menu._visible_menu_ids()
+        visible = self.Menu._get_visible_menu_ids()
         self.assertNotIn(menu.id, visible)
         self.assertNotIn(root.id, visible)
 
@@ -156,12 +156,12 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        emp_visible = self.Menu.with_user(self.employee)._visible_menu_ids()
+        emp_visible = self.Menu.with_user(self.employee)._get_visible_menu_ids()
         self.assertIn(child.id, emp_visible)
         self.assertNotIn(parent.id, emp_visible)
 
         self.employee.write({"group_ids": [Command.link(group.id)]})
-        emp_visible = self.Menu.with_user(self.employee)._visible_menu_ids()
+        emp_visible = self.Menu.with_user(self.employee)._get_visible_menu_ids()
         self.assertIn(child.id, emp_visible)
         self.assertIn(parent.id, emp_visible)
 
@@ -177,13 +177,15 @@ class TestMenuVisibility(TransactionCase):
         )
 
         self.assertNotIn(
-            menu.id, self.Menu.with_user(self.employee)._visible_menu_ids()
+            menu.id, self.Menu.with_user(self.employee)._get_visible_menu_ids()
         )
 
         self.employee.write(
             {"group_ids": [Command.link(self.env.ref("base.group_system").id)]}
         )
-        self.assertIn(menu.id, self.Menu.with_user(self.employee)._visible_menu_ids())
+        self.assertIn(
+            menu.id, self.Menu.with_user(self.employee)._get_visible_menu_ids()
+        )
 
     def test_visible_menu_ids_keyed_on_debug(self):
         action = self._act_window("res.partner")
@@ -195,8 +197,8 @@ class TestMenuVisibility(TransactionCase):
             }
         )
 
-        self.assertNotIn(debug_root.id, self.Menu._visible_menu_ids(False))
-        self.assertIn(debug_root.id, self.Menu._visible_menu_ids(True))
+        self.assertNotIn(debug_root.id, self.Menu._get_visible_menu_ids(False))
+        self.assertIn(debug_root.id, self.Menu._get_visible_menu_ids(True))
 
     def test_load_menus_root_keyed_on_debug(self):
         self.assertIn(

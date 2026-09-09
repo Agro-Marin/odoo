@@ -75,7 +75,7 @@ class TestAccountGroupReadonly(TransactionCase):
         # Asserted on menus that survive every composition: enterprise's
         # accountant re-parents the app under a root of its own.
         visible = (
-            self.env["ir.ui.menu"].with_user(self.user_readonly)._visible_menu_ids()
+            self.env["ir.ui.menu"].with_user(self.user_readonly)._get_visible_menu_ids()
         )
         for xmlid in ("account.menu_finance_entries", "account.menu_finance_reports"):
             self.assertIn(self.env.ref(xmlid).id, visible, xmlid)

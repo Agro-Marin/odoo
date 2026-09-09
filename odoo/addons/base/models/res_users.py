@@ -175,7 +175,7 @@ class ResUsers(models.Model):
 
     @api.model
     @tools.ormcache(cache="stable")
-    def _self_accessible_fields(self) -> tuple[frozenset[str], frozenset[str]]:
+    def _get_self_accessible_fields(self) -> tuple[frozenset[str], frozenset[str]]:
         readable = frozenset(self.SELF_READABLE_FIELDS)
         writeable = frozenset(self.SELF_WRITEABLE_FIELDS)
         return readable, writeable
@@ -259,12 +259,12 @@ class ResUsers(models.Model):
         self.check_singleton()
         return self.with_context({}).all_group_ids._ids
 
-    def _effective_group_ids(self) -> tuple[int, ...]:
+    def _get_effective_group_ids(self) -> tuple[int, ...]:
         self.check_singleton()
         return self._get_group_ids() if self.id else self.all_group_ids._origin._ids
 
     @tools.ormcache(cache="stable")
-    def _crypt_context(self) -> CryptContext:
+    def _get_crypt_context(self) -> CryptContext:
         cfg = self.env["ir.config_parameter"].sudo()
         try:
             configured = int(cfg.get_param("password.hashing.rounds", 0))
@@ -492,7 +492,7 @@ class ResUsers(models.Model):
         )
         rows = cr.fetchall()
         if rows:
-            ctx = self._crypt_context()
+            ctx = self._get_crypt_context()
             hashed = [(ctx.hash(pw), uid) for uid, pw in rows]
             cr.executemany("UPDATE res_users SET password=%s WHERE id=%s", hashed)
             self.sudo().browse([uid for uid, _pw in rows]).invalidate_recordset(
@@ -588,7 +588,7 @@ class ResUsers(models.Model):
             raise ValidationError(_("You must have at least an administrator user."))
 
     def _inverse_password(self) -> None:
-        ctx = self._crypt_context()
+        ctx = self._get_crypt_context()
         hashed = [(user.id, ctx.hash(user.password)) for user in self if user.password]
         self.filtered(lambda user: not user.password)._clear_password()
         self._update_encrypted_passwords(hashed)
@@ -609,7 +609,7 @@ class ResUsers(models.Model):
     def _update_encrypted_passwords(self, hashed: list[tuple[int, str]]) -> None:
         if not hashed:
             return
-        ctx = self._crypt_context()
+        ctx = self._get_crypt_context()
         if any(ctx.identify(pw) == "plaintext" for _uid, pw in hashed):
             msg = "Refusing to store a plaintext password — encrypt first."
             raise ValueError(msg)
@@ -652,7 +652,7 @@ class ResUsers(models.Model):
             if row is None:
                 raise AccessDenied
             [hashed] = row
-            valid, replacement = self._crypt_context().match_and_update(
+            valid, replacement = self._get_crypt_context().match_and_update(
                 credential["password"], hashed
             )
             if replacement is not None:
@@ -722,7 +722,7 @@ class ResUsers(models.Model):
         system_id = self._group_id("base.group_system")
         user_id = self._group_id("base.group_user")
         for user in self:
-            gids = user._effective_group_ids()
+            gids = user._get_effective_group_ids()
             if system_id in gids:
                 user.role = "group_system"
             elif user_id in gids:
@@ -819,7 +819,7 @@ class ResUsers(models.Model):
 
     @api.model
     @tools.ormcache()
-    def _settings_backed_fields(self) -> frozenset[str]:
+    def _get_settings_backed_fields(self) -> frozenset[str]:
         return frozenset(
             name
             for name, field in self._fields.items()
@@ -854,7 +854,7 @@ class ResUsers(models.Model):
         if self == self.env.user:
             user_sudo = self.sudo()
             fields_ = self._fields
-            for field_name in self._self_accessible_fields()[0]:
+            for field_name in self._get_self_accessible_fields()[0]:
                 field = fields_[field_name]
                 if field.type in ("binary", "one2many", "many2many"):
                     continue
@@ -866,7 +866,7 @@ class ResUsers(models.Model):
         fields: collections.abc.Sequence[str] | None = None,
         load: str = "_classic_read",
     ) -> list[ValuesType]:
-        readable, _ = self._self_accessible_fields()
+        readable, _ = self._get_self_accessible_fields()
         if (
             fields
             and self == self.env.user
@@ -879,7 +879,7 @@ class ResUsers(models.Model):
         return super()._has_field_access(field, operation) or (
             operation == "read"
             and self._origin == self.env.user
-            and field.name in self._self_accessible_fields()[0]
+            and field.name in self._get_self_accessible_fields()[0]
         )
 
     def _add_missing_settings_records(self) -> None:
@@ -900,7 +900,7 @@ class ResUsers(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        backed = self._settings_backed_fields()
+        backed = self._get_settings_backed_fields()
         deferred = [
             {
                 k: v
@@ -961,11 +961,11 @@ class ResUsers(models.Model):
         if vals.get("active"):
             self.partner_id.action_unarchive()
 
-        if not self._settings_backed_fields().isdisjoint(vals):
+        if not self._get_settings_backed_fields().isdisjoint(vals):
             self._add_missing_settings_records()
 
         if self == self.env.user and vals:
-            writeable = self._self_accessible_fields()[1]
+            writeable = self._get_self_accessible_fields()[1]
             if all(
                 key in writeable for key in vals
             ) and not self._is_escaping_own_record(vals):
@@ -1106,7 +1106,7 @@ class ResUsers(models.Model):
                     limit=1,
                 )
                 if not user:
-                    self._crypt_context().match_and_update(
+                    self._get_crypt_context().match_and_update(
                         credential.get("password") or "", _DUMMY_PASSWORD_HASH
                     )
                     raise AccessDenied
@@ -1397,7 +1397,7 @@ class ResUsers(models.Model):
 
     def _has_group(self, group_ext_id: str) -> bool:
         group_id = self._group_id(group_ext_id)
-        return group_id is not None and group_id in self._effective_group_ids()
+        return group_id is not None and group_id in self._get_effective_group_ids()
 
     def has_any_group_id(self, group_ids: collections.abc.Collection[int]) -> bool:
         self.check_singleton()
@@ -1406,7 +1406,7 @@ class ResUsers(models.Model):
         group_ids = set(group_ids)
         if not (request and request.session.debug):
             group_ids.discard(self._group_id(DEBUG_GROUP))
-        return not group_ids.isdisjoint(self._effective_group_ids())
+        return not group_ids.isdisjoint(self._get_effective_group_ids())
 
     def _action_show(self) -> dict[str, Any]:
         view_id = self.env.ref("base.view_users_form").id
@@ -1611,7 +1611,7 @@ class ResUsers(models.Model):
     ) -> dict[str, ValuesType]:
         res = super().fields_get(allfields, attributes=attributes)
 
-        readable_fields, writeable_fields = self._self_accessible_fields()
+        readable_fields, writeable_fields = self._get_self_accessible_fields()
         missing = (writeable_fields | readable_fields).difference(res.keys())
         if allfields:
             missing = missing.intersection(allfields)
@@ -1637,7 +1637,7 @@ class ResUsers(models.Model):
         arch, models = super()._get_view_postprocessed(view, arch, **options)
         if view == self.env.ref("base.view_users_form_simple_modif"):
             tree = etree.fromstring(arch)
-            readable = self._self_accessible_fields()[0]
+            readable = self._get_self_accessible_fields()[0]
             for node_field in tree.xpath("//field[@__groups_key__]"):
                 if node_field.get("name") in readable:
                     node_field.attrib.pop("__groups_key__")

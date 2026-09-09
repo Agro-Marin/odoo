@@ -143,7 +143,7 @@ class PhoneNumber(models.Model):
         if relational:
             self.write(relational)
 
-    def _by_type(self) -> dict[str, Self]:
+    def _get_numbers_by_type(self) -> dict[str, Self]:
         grouped = defaultdict(self.browse)
         for phone in self:
             grouped[phone.type] |= phone

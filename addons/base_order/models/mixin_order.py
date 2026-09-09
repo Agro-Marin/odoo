@@ -1069,7 +1069,7 @@ class MixinOrder(models.AbstractModel):
     def _get_mail_compose_form(self):
         ir_model_data = self.env["ir.model.data"]
         try:
-            compose_form_id = ir_model_data._xmlid_lookup(
+            compose_form_id = ir_model_data._get_xmlid_target(
                 "mail.email_compose_message_wizard_form",
             )[1]
         except ValueError:

@@ -367,7 +367,7 @@ XML ID registry — maps external identifiers to database records.
 - `noupdate` (Boolean) — Skip updates on module upgrade
 
 **Key Methods:**
-- `_xmlid_lookup(xmlid)` — Returns `(model, res_id)` (ormcache)
+- `_get_xmlid_target(xmlid)` — Returns `(model, res_id)` (ormcache)
 - `_xmlid_to_res_model_res_id(xmlid, raise_if_not_found)` — Safe wrapper
 - `_xmlid_to_res_id(xmlid, raise_if_not_found)` — Extract just res_id
 - `check_object_reference(module, xml_id, raise_on_access_error)` — Access check
@@ -493,7 +493,7 @@ Menu tree — hierarchical navigation.
 - `action` (Reference → ir.actions.*) — Linked action
 
 **Key Methods:**
-- `_visible_menu_ids(debug)` — Get visible menu IDs for current user (ormcache)
+- `_get_visible_menu_ids(debug)` — Get visible menu IDs for current user (ormcache)
 - `_filter_visible_menus()` — Filter to visible menus
 
 ---
@@ -1251,7 +1251,7 @@ an identifier's value is free text unique to its holder.
   localization adds a method rather than editing `validate`
 - `_check_hook(normalized)` — extension point for a rule needing more than a
   boolean
-- `_by_code(code)` — resolve a type by its stable code, or an empty recordset
+- `_get_type_by_code(code)` — resolve a type by its stable code, or an empty recordset
 
 ### models/res_partner_identifier.py
 

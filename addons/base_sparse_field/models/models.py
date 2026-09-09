@@ -15,7 +15,7 @@ class IrModelFields(models.Model):
     _inherit = "ir.model.fields"
 
     # No `selection_add` for 'serialized': this fork builds ir.model.fields.ttype
-    # from the field-type registry (`_field_types` reads `Field._by_type__`), so
+    # from the field-type registry (`_selection_field_types` reads `Field._by_type__`), so
     # defining the Serialized class above is what puts the value in the list.
     # Declaring it again raised "selection_add=... on non-list selection" at
     # registry build and made this module impossible to install.

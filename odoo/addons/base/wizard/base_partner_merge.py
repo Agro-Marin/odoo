@@ -350,10 +350,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         return SQL(" ").join(parts)
 
-    def _similar_name_threshold(self) -> float:
-        return self.env["res.partner"]._similar_name_threshold()
+    def _get_similar_name_threshold(self) -> float:
+        return self.env["res.partner"]._get_similar_name_threshold()
 
-    def _similar_name_pairs(self, limit: int) -> list[tuple[int, int]]:
+    def _get_similar_name_pairs(self, limit: int) -> list[tuple[int, int]]:
         registry = self.env.registry
         if not registry.has_trigram:
             raise UserError(
@@ -396,17 +396,17 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         return self.env.cr.fetchall()
 
     def _recall_threshold(self) -> float:
-        return self.env["res.partner"]._similar_name_recall_threshold()
+        return self.env["res.partner"]._get_similar_name_recall_threshold()
 
-    def _similar_name_groups(
+    def _get_similar_name_groups(
         self, maximum_group: int = 100
     ) -> list[tuple[int, list[int]]]:
         limit = (maximum_group or 100) * SIMILAR_NAME_PAIRS_PER_GROUP
-        pairs = self._similar_name_pairs(limit)
+        pairs = self._get_similar_name_pairs(limit)
         if not pairs:
             return []
 
-        threshold = self._similar_name_threshold()
+        threshold = self._get_similar_name_threshold()
         involved = {pid for pair in pairs for pid in pair}
         partners = self.env["res.partner"].browse(involved)
         partners.fetch(["complete_name"])
@@ -601,7 +601,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             groups.extend(self.env.cr.fetchall())
 
         if self.match_similar_names:
-            groups.extend(self._similar_name_groups(self.maximum_group))
+            groups.extend(self._get_similar_name_groups(self.maximum_group))
 
         self._create_merge_lines(groups)
         return self._action_next_screen()

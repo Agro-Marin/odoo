@@ -697,7 +697,7 @@ class IrModuleModule(models.Model):
         )
         orphans.unlink()
 
-    def _dependency_closure(
+    def _get_dependency_closure(
         self,
         query: str,
         known_deps: Self | None,
@@ -727,7 +727,7 @@ class IrModuleModule(models.Model):
             "to remove",
         ),
     ) -> Self:
-        return self._dependency_closure(
+        return self._get_dependency_closure(
             _DOWNSTREAM_CLOSURE_QUERY, known_deps, exclude_states
         )
 
@@ -740,7 +740,7 @@ class IrModuleModule(models.Model):
             "to remove",
         ),
     ) -> Self:
-        return self._dependency_closure(
+        return self._get_dependency_closure(
             _UPSTREAM_CLOSURE_QUERY, known_deps, exclude_states
         )
 
@@ -968,7 +968,7 @@ class IrModuleModule(models.Model):
             )
         return marked_ids
 
-    def _uninstalled_dependency_names(self, cascade: list[Self]) -> list[str]:
+    def _get_uninstalled_dependency_names(self, cascade: list[Self]) -> list[str]:
         names = []
         for module in cascade:
             if not self._is_installable(module.name):
@@ -995,7 +995,7 @@ class IrModuleModule(models.Model):
         self.browse(self._get_module_ids_to_upgrade(cascade)).write(
             {"state": "to upgrade"}
         )
-        if uninstalled_dep_names := self._uninstalled_dependency_names(cascade):
+        if uninstalled_dep_names := self._get_uninstalled_dependency_names(cascade):
             self.search([("name", "in", uninstalled_dep_names)]).button_install()
         return dict(ACTION_DICT, name=_("Apply Schedule Upgrade"))
 

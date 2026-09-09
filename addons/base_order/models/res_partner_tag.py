@@ -31,7 +31,7 @@ class ResPartnerTag(models.Model):
         if not reserved:
             return Domain.TRUE
 
-        user_group_ids = set(self.env.user._effective_group_ids())
+        user_group_ids = set(self.env.user._get_effective_group_ids())
         allowed = reserved.filtered(
             lambda category: user_group_ids.intersection(category.group_ids.ids),
         )

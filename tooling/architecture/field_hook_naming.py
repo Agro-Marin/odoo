@@ -19,6 +19,22 @@ ROOT = find_odoo_root(Path(__file__).resolve())
 
 ATTRS = ("compute", "search", "inverse", "default", "domain")
 
+# §2.4.1's mechanism is "a hook is named for the field it serves", and every
+# rule below asserts it. `selection=` is a sixth field-declaration keyword that
+# ATTRS deliberately stops short of, because the Selection row asserts the
+# OPPOSITE: a selection hook is named for its VALUES, so that one method can
+# serve fields of several names on unrelated models -- `_selection_target_model`
+# is declared once and pointed at by `resource_ref`, `parent_ref` and
+# `preview_record_ref`. Folding it into ATTRS would demand `_selection_<field>`
+# from exactly the names that are already right, which is why §2.4.2 records
+# that closing this gap "needs its own branch". This is that branch, and its
+# whole assertion is the prefix.
+SELECTION_ATTR = "selection"
+
+_SELECTION_PREFIX = "_selection_"
+
+REPORTED_ATTRS = (*ATTRS, SELECTION_ATTR)
+
 _HEAD_FIRST_DOMAIN = re.compile(r"_?get_domain(_[a-z0-9_]+)?$")
 
 _CALLABLE_ATTRS = ("default", "domain")
@@ -45,6 +61,11 @@ class Violation:
             return (
                 f"{self.path}:{self.line}  {self.method}  serves several fields "
                 f"but is named for {self.field} alone"
+            )
+        if self.kind == "unvalued":
+            return (
+                f"{self.path}:{self.line}  {self.method}  is a selection= hook "
+                f"and is not named for its values -- name it _selection_<values>"
             )
         return f"{self.path}:{self.line}  {self.method}  ->  _{self.attr}_{self.field}"
 
@@ -194,6 +215,51 @@ def _field_hooks(tree: ast.Module) -> list[tuple[str, str, str, str, int]]:
     return out
 
 
+def _selection_hook_name(value: ast.expr) -> str | None:
+    """The method a ``selection=`` points at, string form or forwarding lambda.
+
+    §2.4.2: ``selection="_x"`` and ``selection=lambda self: self._x()`` bind the
+    same method, and the lambda is where the binding stops being visible to
+    anything that reads the declaration. Resolving both is what makes the branch
+    below measure the family rather than the half of it that is greppable.
+    """
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return value.value
+    return _hook_name("default", value)
+
+
+def _selection_hooks(tree: ast.Module) -> list[tuple[str, str, str, int]]:
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or not nv.is_model_class(node):
+            continue
+        model = _model_of(node)
+        for stmt in node.body:
+            if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1:
+                target = stmt.targets[0]
+            elif isinstance(stmt, ast.AnnAssign):
+                target = stmt.target
+            else:
+                continue
+            call = stmt.value
+            if not isinstance(target, ast.Name) or not isinstance(call, ast.Call):
+                continue
+            func = call.func
+            if not (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "fields"
+            ):
+                continue
+            for keyword in call.keywords:
+                if keyword.arg != SELECTION_ATTR:
+                    continue
+                method = _selection_hook_name(keyword.value)
+                if method:
+                    out.append((model or "?", method, target.id, stmt.lineno))
+    return out
+
+
 _DEDICATED_USES = 4
 
 
@@ -220,11 +286,14 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
     uses: collections.Counter[str] = collections.Counter()
     definitions: collections.Counter[str] = collections.Counter()
     domain_methods: dict[str, tuple[str, int]] = {}
+    selection_methods: dict[str, tuple[str, int, str]] = {}
     for path in files:
         tree = _ast_cache.parse_file(path)
         display = _sources.display(path, ROOT)
         for model, attr, method, field, line in _field_hooks(tree):
             seen[model, attr, method].setdefault(field, (display, line))
+        for _model, method, field, line in _selection_hooks(tree):
+            selection_methods.setdefault(method, (display, line, field))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef) or not nv.is_model_class(node):
                 continue
@@ -264,6 +333,10 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
         ):
             continue
         out.append(Violation(path, line, "domain", method, "", "unmarked"))
+    for method, (path, line, field) in selection_methods.items():
+        if method.startswith(_SELECTION_PREFIX):
+            continue
+        out.append(Violation(path, line, SELECTION_ATTR, method, field, "unvalued"))
     out.sort(key=lambda v: (v.path, v.line, v.method))
     return out
 
@@ -349,8 +422,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--count", action="store_true", help="print the count only")
     parser.add_argument("--json", action="store_true")
-    parser.add_argument("--attr", choices=ATTRS, help="restrict to one attribute")
-    parser.add_argument("--kind", choices=("misnamed", "misleading", "unmarked"))
+    parser.add_argument(
+        "--attr", choices=REPORTED_ATTRS, help="restrict to one attribute"
+    )
+    parser.add_argument(
+        "--kind", choices=("misnamed", "misleading", "unmarked", "unvalued")
+    )
     parser.add_argument("--roots", nargs="+", help="scan these paths instead")
     parser.add_argument(
         "--unbound",

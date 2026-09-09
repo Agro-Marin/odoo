@@ -259,7 +259,7 @@ class TestPurchaseReadonlyMenus(TransactionCase):
 
     def test_purchase_user_keeps_the_ungrouped_menus(self) -> None:
         visible = (
-            self.env["ir.ui.menu"].with_user(self.purchase_user)._visible_menu_ids()
+            self.env["ir.ui.menu"].with_user(self.purchase_user)._get_visible_menu_ids()
         )
 
         for xmlid in self.UNGROUPED_IN_CORE:

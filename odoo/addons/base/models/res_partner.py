@@ -777,7 +777,7 @@ class ResPartner(models.Model):
         readable.fetch(["complete_name", "parent_id", "company_id", "country_id"])
         readable_ids = set(readable._ids)
 
-        threshold = self._similar_name_threshold()
+        threshold = self._get_similar_name_threshold()
         matches: dict[int, ResPartner] = {}
         for index, partner in enumerate(named):
             candidates = self.browse(
@@ -812,7 +812,7 @@ class ResPartner(models.Model):
         self.env.cr.execute(
             SQL(
                 "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
-                str(self._similar_name_recall_threshold()),
+                str(self._get_similar_name_recall_threshold()),
             )
         )
         stored = SQL('candidate."complete_name"')
@@ -855,7 +855,7 @@ class ResPartner(models.Model):
         return recalled_by_index
 
     @api.model
-    def _similar_name_threshold(self) -> float:
+    def _get_similar_name_threshold(self) -> float:
         raw = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -870,8 +870,8 @@ class ResPartner(models.Model):
         return value
 
     @api.model
-    def _similar_name_recall_threshold(self) -> float:
-        return max(0.3, self._similar_name_threshold() - 0.2)
+    def _get_similar_name_recall_threshold(self) -> float:
+        return max(0.3, self._get_similar_name_threshold() - 0.2)
 
     def action_view_duplicates(self) -> dict[str, Any]:
         self.check_singleton()
@@ -891,7 +891,9 @@ class ResPartner(models.Model):
         )[:1]
         if identifier:
             return identifier.value
-        identifier_type = self.env["res.partner.identifier.type"]._by_code(code)
+        identifier_type = self.env["res.partner.identifier.type"]._get_type_by_code(
+            code
+        )
         if identifier_type.synced_with_commercial:
             commercial = self.commercial_partner_id
             if commercial != self:
@@ -900,7 +902,9 @@ class ResPartner(models.Model):
 
     def _update_identifier(self, code: str, value) -> None:
         self.check_singleton()
-        identifier_type = self.env["res.partner.identifier.type"]._by_code(code)
+        identifier_type = self.env["res.partner.identifier.type"]._get_type_by_code(
+            code
+        )
         if not identifier_type:
             raise UserError(
                 self.env._("There is no identifier type with code %(code)s.", code=code)

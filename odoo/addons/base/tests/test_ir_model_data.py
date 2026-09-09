@@ -28,14 +28,14 @@ class TestUpdateXmlidsCacheDiscipline(TransactionCase):
             msg="the row is rolled back, so a lookup answering anything but "
             "'not found' is serving a cache entry no rollback could remove",
         ):
-            imd._xmlid_lookup("test_xmlid_cache.probe")
+            imd._get_xmlid_target("test_xmlid_cache.probe")
 
     def test_a_rolled_back_repoint_does_not_keep_the_new_target(self):
         imd = self.env["ir.model.data"]
         first = self.env["res.partner"].create({"name": "first"})
         imd._update_xmlids([{"xml_id": "test_xmlid_cache.moved", "record": first}])
         self.assertEqual(
-            imd._xmlid_lookup("test_xmlid_cache.moved"), ("res.partner", first.id)
+            imd._get_xmlid_target("test_xmlid_cache.moved"), ("res.partner", first.id)
         )
 
         def body():
@@ -44,7 +44,7 @@ class TestUpdateXmlidsCacheDiscipline(TransactionCase):
 
         self._rollback_over(body)
         self.assertEqual(
-            imd._xmlid_lookup("test_xmlid_cache.moved"),
+            imd._get_xmlid_target("test_xmlid_cache.moved"),
             ("res.partner", first.id),
             "the repoint is rolled back, so the lookup must answer the "
             "surviving target, not a value seeded during the dead savepoint",
@@ -56,12 +56,12 @@ class TestUpdateXmlidsCacheDiscipline(TransactionCase):
         second = self.env["res.partner"].create({"name": "second"})
         imd._update_xmlids([{"xml_id": "test_xmlid_cache.live", "record": first}])
         self.assertEqual(
-            imd._xmlid_lookup("test_xmlid_cache.live"), ("res.partner", first.id)
+            imd._get_xmlid_target("test_xmlid_cache.live"), ("res.partner", first.id)
         )
 
         imd._update_xmlids([{"xml_id": "test_xmlid_cache.live", "record": second}])
         self.assertEqual(
-            imd._xmlid_lookup("test_xmlid_cache.live"),
+            imd._get_xmlid_target("test_xmlid_cache.live"),
             ("res.partner", second.id),
             "without the cache seed, the repoint must still invalidate the "
             "cached old target for its own transaction",
@@ -81,7 +81,7 @@ class TestUpdateXmlidsCacheDiscipline(TransactionCase):
             "cost every worker its default cache",
         )
         self.assertEqual(
-            imd._xmlid_lookup("test_xmlid_cache.fresh"), ("res.partner", record.id)
+            imd._get_xmlid_target("test_xmlid_cache.fresh"), ("res.partner", record.id)
         )
 
 

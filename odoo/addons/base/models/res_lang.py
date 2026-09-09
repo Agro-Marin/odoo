@@ -51,7 +51,7 @@ class ResLang(models.Model):
     _disallowed_datetime_patterns = list(tools.misc.DATETIME_FORMATS_MAP)
     _disallowed_datetime_patterns.remove("%y")
 
-    def _get_date_format_selection(self) -> list[tuple[str, str]]:
+    def _selection_date_formats(self) -> list[tuple[str, str]]:
         current_year = fields.Date.today().year
         return [
             ("%d/%m/%Y", f"31/01/{current_year}"),
@@ -85,7 +85,7 @@ class ResLang(models.Model):
         default="ltr",
     )
     date_format = fields.Selection(
-        selection=_get_date_format_selection,
+        selection=_selection_date_formats,
         string="Date Format",
         required=True,
         default="%m/%d/%Y",

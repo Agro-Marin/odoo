@@ -136,7 +136,7 @@ class TestMenuRootLookupByModel(MailCommon):
 
     def test_initial_data(self):
         self.assertEqual(
-            len(self.env["ir.ui.menu"]._visible_menu_ids()), self.menu_count
+            len(self.env["ir.ui.menu"]._get_visible_menu_ids()), self.menu_count
         )
 
     @warmup

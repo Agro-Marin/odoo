@@ -87,7 +87,7 @@ class ResPartnerIdentifierType(models.Model):
     def _normalize(self, value):
         return _NON_ALPHANUMERIC.sub("", value or "").upper()
 
-    def validate(self, value):
+    def check_value(self, value):
         self.check_singleton()
         normalized = self._normalize(value)
         if not normalized:
@@ -118,5 +118,5 @@ class ResPartnerIdentifierType(models.Model):
         pass
 
     @api.model
-    def _by_code(self, code):
+    def _get_type_by_code(self, code):
         return self.search([("code", "=", code)], limit=1)

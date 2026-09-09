@@ -586,13 +586,13 @@ class IrQweb(models.AbstractModel):
                 error.qweb.ref = frame.params.view_ref
             qweb_error_info = error.qweb
         elif not isinstance(error, UserError):
-            if self._error_raised_in_qweb(error):
+            if self._is_error_raised_in_qweb(error):
                 raise QWebError(qweb_error_info) from error
 
         error.qweb = qweb_error_info
         raise error
 
-    def _error_raised_in_qweb(self, error: Exception) -> bool:
+    def _is_error_raised_in_qweb(self, error: Exception) -> bool:
         trace = error.__traceback__
         tb_frames = [trace.tb_frame]
         while trace.tb_next is not None:

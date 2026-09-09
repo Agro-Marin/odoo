@@ -1117,9 +1117,9 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
         )
 
     def _menu_visible(self, menu):
-        return menu.id in self.env["ir.ui.menu"].with_user(self.user)._visible_menu_ids(
-            False
-        )
+        return menu.id in self.env["ir.ui.menu"].with_user(
+            self.user
+        )._get_visible_menu_ids(False)
 
     def test_res_model_write_on_an_unbound_action_clears_the_cache(self):
         action = self.env["ir.actions.act_window"].create(
@@ -1478,7 +1478,7 @@ class TestMenuActionReferenceIsJunkTolerant(TransactionCase):
         self.env.invalidate_all()
         self.env.registry.clear_cache()
 
-        visible = self.env["ir.ui.menu"]._visible_menu_ids(False)
+        visible = self.env["ir.ui.menu"]._get_visible_menu_ids(False)
         self.assertIsInstance(visible, frozenset)
 
     def test_the_gating_map_does_not_depend_on_what_menus_point_at(self):

@@ -585,7 +585,7 @@ class IrUiView(models.Model):
                         source = apply_inheritance_specs(source, spec)
             view.invalid_locators = invalid_locators or False
 
-    def _valid_inheritance(self, arch: _Element) -> None:
+    def _check_inheritance(self, arch: _Element) -> None:
         for node in _xpath_position(arch):
             if node.tag == "xpath":
                 match = TRANSLATED_ATTRS_RE.search(node.get("expr", ""))
@@ -628,7 +628,7 @@ class IrUiView(models.Model):
             try:
                 if view.inherit_id:
                     view_arch = etree.fromstring(view.arch or "<data/>")
-                    view._valid_inheritance(view_arch)
+                    view._check_inheritance(view_arch)
 
                 combined_arch = (
                     combined_archs[view.id]
@@ -790,7 +790,7 @@ class IrUiView(models.Model):
             try:
                 if view.inherit_id:
                     view_arch = etree.fromstring(view.arch)
-                    view._valid_inheritance(view_arch)
+                    view._check_inheritance(view_arch)
                 combined_arch = (
                     combined_archs[view.id]
                     if view.id in combined_archs

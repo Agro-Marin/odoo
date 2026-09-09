@@ -210,13 +210,13 @@ class TestXMLID(TransactionCase):
         def assert_xmlid(xmlid, value, message):
             expected_values = (value._name, value.id)
             self.assertEqual(
-                self.env["ir.model.data"]._xmlid_lookup(xmlid),
+                self.env["ir.model.data"]._get_xmlid_target(xmlid),
                 expected_values,
                 message,
             )
             with self.assertQueryCount(0):
                 self.assertEqual(
-                    self.env["ir.model.data"]._xmlid_lookup(xmlid),
+                    self.env["ir.model.data"]._get_xmlid_target(xmlid),
                     expected_values,
                     message,
                 )
@@ -873,7 +873,7 @@ class TestIrModelFields(TransactionCase):
 
     def test_all_manual_field_data_immutable(self):
         self._make_manual_field("frozen")
-        data = self.env["ir.model.fields"]._all_manual_field_data()
+        data = self.env["ir.model.fields"]._get_manual_field_data_by_model()
         self.assertIn("x_imf_frozen", data)
         with self.assertRaises((TypeError, NotImplementedError)):
             data["x_bogus"] = {}
@@ -2158,12 +2158,12 @@ class TestIrModelDataCacheInvalidation(TransactionCase):
         self.assertTrue(self._groups_cleared(mock_clear))
         with self.assertQueryCount(1):
             self.assertEqual(
-                self.env["ir.model.data"]._xmlid_lookup(xmlid),
+                self.env["ir.model.data"]._get_xmlid_target(xmlid),
                 ("res.groups", group.id),
             )
         with self.assertQueryCount(0):
             self.assertEqual(
-                self.env["ir.model.data"]._xmlid_lookup(xmlid),
+                self.env["ir.model.data"]._get_xmlid_target(xmlid),
                 ("res.groups", group.id),
             )
 
@@ -2299,7 +2299,7 @@ class TestIrModelData(TransactionCase):
         xmlid = "test_convert.category_100%_percent"
         self.env["ir.model.data"]._update_xmlids([{"xml_id": xmlid, "record": record}])
         self.assertEqual(
-            self.env["ir.model.data"]._xmlid_lookup(xmlid),
+            self.env["ir.model.data"]._get_xmlid_target(xmlid),
             (record._name, record.id),
         )
 

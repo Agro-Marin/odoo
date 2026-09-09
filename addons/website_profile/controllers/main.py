@@ -191,7 +191,7 @@ class WebsiteProfile(http.Controller):
         values = self._profile_edition_preprocess_values(user, **kwargs)
         whitelisted_values = {
             key: values[key]
-            for key in sorted(user._self_accessible_fields()[1])
+            for key in sorted(user._get_self_accessible_fields()[1])
             if key in values
         }
         if (

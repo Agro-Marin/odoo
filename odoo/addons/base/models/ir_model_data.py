@@ -83,7 +83,7 @@ class IrModelData(models.Model):
 
     @api.model
     @tools.ormcache("xmlid")
-    def _xmlid_lookup(self, xmlid: str) -> tuple[str, int]:
+    def _get_xmlid_target(self, xmlid: str) -> tuple[str, int]:
         if "." not in xmlid:
             raise ValueError(f"External ID not found in the system: {xmlid}")
         module, name = xmlid.split(".", 1)
@@ -99,7 +99,7 @@ class IrModelData(models.Model):
         self, xmlid: str, raise_if_not_found: bool = False
     ) -> tuple[str, int] | tuple[typing.Literal[False], typing.Literal[False]]:
         try:
-            return self._xmlid_lookup(xmlid)
+            return self._get_xmlid_target(xmlid)
         except ValueError:
             if raise_if_not_found:
                 raise

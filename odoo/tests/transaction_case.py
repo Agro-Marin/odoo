@@ -1254,15 +1254,15 @@ class TransactionCase(BaseCase):
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
         cls.env.transaction.default_env = cls.env
 
-        def _crypt_context(self):
+        def _get_crypt_context(self):
             return CryptContext(
                 ["pbkdf2_sha512", "plaintext"],
                 pbkdf2_sha512__rounds=1,
             )
 
         cls._crypt_context_patcher = patch(
-            "odoo.addons.base.models.res_users.ResUsersPatchedInTest._crypt_context",
-            _crypt_context,
+            "odoo.addons.base.models.res_users.ResUsersPatchedInTest._get_crypt_context",
+            _get_crypt_context,
         )
         cls.startClassPatcher(cls._crypt_context_patcher)
 

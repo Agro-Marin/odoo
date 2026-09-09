@@ -68,7 +68,7 @@ class ResPartnerIdentifier(models.Model):
     @api.constrains("type_id", "value")
     def _check_value_is_valid(self):
         for identifier in self:
-            identifier.type_id.validate(identifier.value)
+            identifier.type_id.check_value(identifier.value)
 
     @api.constrains("partner_id", "type_id")
     def _check_one_per_contact(self):

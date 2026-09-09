@@ -158,11 +158,11 @@ class IrRule(models.Model):
             model_name,
             self._PERM_COLUMNS[mode],
             list(self.env.user._get_group_ids()),
-            self._unloaded_module_rules_clause(),
+            self._get_clause_for_unloaded_module_rules(),
         )
         return self.browse(v for (v,) in self.env.execute_query(sql))
 
-    def _unloaded_module_rules_clause(self) -> SQL:
+    def _get_clause_for_unloaded_module_rules(self) -> SQL:
         return unloaded_module_clause(self.pool, "ir.rule", "r")
 
     @api.model

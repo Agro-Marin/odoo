@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.26
+:Version: 6.27
 :Date: 2026-09-08
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -1072,18 +1072,43 @@ the model of ``_check_at_least_one_administrator``.
 Do not read a prefix as a claim that no other binding exists.
 
 **``selection=`` is a sixth field-declaration keyword, and ``ATTRS`` stops at
-five** ``[review]``. It is not a decorator family -- the declaration names the
-method, exactly as ``compute=`` does -- so it belongs to §2.4.1's mechanism and
-is missing from it, and the §2.4 table's Selection row is enforced by nothing.
-*Frozen reading* (§1.4) at ``45275737cf4``, an ad-hoc scanner, not
-re-derivable: **31** field declarations point ``selection=`` at a method, and
-**9** of the targets are spelled ``_selection_*``. The other **22** wear the read
-verb (``_get_year_selection``, ``_get_check_printing_layouts``) or no verb at all
-(``_l10n_bg_document_type_selection_values``). That is the cost of closing it,
-and it is nearly all localisation: adding ``"selection"`` to ``ATTRS`` needs its
-own branch, because the Selection row names the hook for its **values** and the
-rest of ``field_hook_naming.py`` asserts the opposite -- that a hook is named for
-its field.
+five** ``[ratchet fieldhooks]``. It is not a decorator family -- the declaration
+names the method, exactly as ``compute=`` does -- so it belongs to §2.4.1's
+mechanism and was missing from it, and the §2.4 table's Selection row was
+enforced by nothing. *Frozen reading* (§1.4) at ``45275737cf4``, an ad-hoc
+scanner, not re-derivable: **31** field declarations point ``selection=`` at a
+method, and **9** of the targets are spelled ``_selection_*``. The other **22**
+wear the read verb (``_get_year_selection``, ``_get_check_printing_layouts``) or
+no verb at all (``_l10n_bg_document_type_selection_values``). That was the cost
+of closing it, and it is nearly all localisation.
+
+**It is closed, and the branch it needed is the whole point**
+``[ratchet fieldhooks]``. Adding ``"selection"`` to ``ATTRS`` would have been the
+wrong repair, because the Selection row names the hook for its **values** while
+every other rule in ``field_hook_naming.py`` asserts the opposite -- that a hook
+is named for its field. Run through ``ATTRS`` it would have demanded
+``_selection_resource_ref``, ``_selection_parent_ref`` and
+``_selection_preview_record_ref`` from three declarations that all point at one
+correct ``_selection_target_model``: a rename of exactly the names that are
+already right. So ``selection`` is a scope of its own -- ``SELECTION_ATTR``,
+reported but deliberately **not** in ``ATTRS`` -- and its whole assertion is the
+prefix. **The canonical case is one method serving fields of several names on
+unrelated models**, and that is what the branch exists to keep legal.
+
+**And it resolves the forwarding lambda, because that is where the binding stops
+being visible** ``[ratchet fieldhooks]``. ``selection="_x"`` and
+``selection=lambda self: self._x()`` bind the same method; a branch reading only
+the string would have measured the greppable half of the family and called it the
+family. The paragraph below argues for writing the name rather than the lambda;
+this is the same argument from the gate's side.
+
+**Two of what it found were module-level functions passed by reference, which is
+why no earlier count saw them** ``[ratchet fieldhooks]``. Both were in
+``odoo/odoo/addons/base`` and are fixed: ``ir.model.fields``'s ``_field_types``
+is ``_selection_field_types``, ``res.lang``'s ``_get_date_format_selection`` is
+``_selection_date_formats``. A scan that resolves only ``selection="_x"`` reads
+neither, and the ad-hoc scanner behind the frozen reading above was such a scan
+-- so **the residue is a floor, and the frozen figure is the smaller half of it**.
 
 **A lambda that only forwards hides the binding from whatever reads the
 declaration** ``[review]``. ``selection=lambda self: self._x()`` and
@@ -6968,6 +6993,18 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.27
+     - 2026-09-08
+     - §2.4.2: ``selection=`` is a sixth field-declaration keyword and the §2.4
+       Selection row was enforced by nothing. Closed as its own scope in
+       ``field_hook_naming.py`` rather than by adding it to ``ATTRS``, because
+       the Selection row names a hook for its **values** while every other rule
+       in that file asserts the opposite -- through ``ATTRS`` it would have
+       demanded a rename of the three declarations that correctly share one
+       ``_selection_target_model``. It resolves the forwarding lambda as well as
+       the string, and two of its findings were module-level functions passed by
+       reference, which no scan over ``selection="_x"`` could ever have read --
+       so the frozen figure behind it was the smaller half of the residue.
    * - 6.26
      - 2026-09-08
      - §2.4.7: the payload suffix chooses an assemble verb's canonical, not its
