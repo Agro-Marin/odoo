@@ -68,7 +68,7 @@
         "A35:B35"
       ],
       "cells": {
-        "A7": "[Orders by Month](odoo://view/{\"viewType\":\"graph\",\"action\":{\"domain\":[],\"context\":{\"group_by\":[\"date:month\"],\"graph_measure\":\"__count\",\"graph_mode\":\"line\",\"graph_groupbys\":[\"date:month\"]},\"modelName\":\"report.pos.order\",\"views\":[[false,\"graph\"],[false,\"pivot\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"Orders Analysis\"})",
+        "A7": "[Orders by Month](odoo://view/{\"viewType\":\"graph\",\"action\":{\"domain\":[],\"context\":{\"group_by\":[\"date_order:month\"],\"graph_measure\":\"__count\",\"graph_mode\":\"line\",\"graph_groupbys\":[\"date_order:month\"]},\"modelName\":\"report.pos.order\",\"views\":[[false,\"graph\"],[false,\"pivot\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"Orders Analysis\"})",
         "A24": "[Top Orders](odoo://view/{\"viewType\":\"list\",\"action\":{\"domain\":[],\"context\":{\"group_by\":[]},\"modelName\":\"pos.order\",\"views\":[[false,\"list\"],[false,\"form\"],[false,\"kanban\"],[false,\"pivot\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"Orders\"})",
         "A25": "=ODOO.LIST.HEADER(1, \"session_id\", _t(\"Sessions\"))",
         "A26": "=ODOO.LIST(1,1,\"session_id\")",
@@ -307,7 +307,7 @@
             "background": "#FFFFFF",
             "legendPosition": "none",
             "metaData": {
-              "groupBy": ["date:month"],
+              "groupBy": ["date_order:month"],
               "measure": "__count",
               "order": null,
               "resModel": "report.pos.order",
@@ -326,7 +326,7 @@
                   ["paid", "done", "invoiced"]
                 ]
               ],
-              "groupBy": ["date:month"],
+              "groupBy": ["date_order:month"],
               "orderBy": []
             },
             "type": "odoo_line",
@@ -344,7 +344,7 @@
             "fillArea": true,
             "chartId": "e012bf45-55dc-4c46-b069-bc090a467d73",
             "fieldMatching": {
-              "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date", "type": "datetime", "offset": 0 },
+              "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date_order", "type": "datetime", "offset": 0 },
               "b2ea6617-2767-4a88-bb69-ca205c8d8ff8": { "chain": "session_id", "type": "many2one" },
               "c63f2c18-e213-4d37-bbee-f72eed4f6a81": { "chain": "config_id", "type": "many2one" },
               "67147662-1091-4723-a818-6ce393d39ef8": { "chain": "user_id", "type": "many2one" },
@@ -397,7 +397,7 @@
             ],
             "fieldMatching": {
               "5b457a5e-a023": {
-                "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date", "type": "datetime" },
+                "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date_order", "type": "datetime" },
                 "b2ea6617-2767-4a88-bb69-ca205c8d8ff8": { "chain": "session_id", "type": "many2one" },
                 "c63f2c18-e213-4d37-bbee-f72eed4f6a81": { "chain": "config_id", "type": "many2one" },
                 "67147662-1091-4723-a818-6ce393d39ef8": { "chain": "user_id", "type": "many2one" },
@@ -597,7 +597,7 @@
     "1": {
       "type": "ODOO",
       "fieldMatching": {
-        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date", "type": "datetime", "offset": 0 },
+        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date_order", "type": "datetime", "offset": 0 },
         "b2ea6617-2767-4a88-bb69-ca205c8d8ff8": { "chain": "session_id", "type": "many2one" },
         "c63f2c18-e213-4d37-bbee-f72eed4f6a81": { "chain": "config_id", "type": "many2one" },
         "67147662-1091-4723-a818-6ce393d39ef8": { "chain": "user_id", "type": "many2one" },
@@ -638,7 +638,7 @@
     "2": {
       "type": "ODOO",
       "fieldMatching": {
-        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date", "type": "datetime", "offset": 0 },
+        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date_order", "type": "datetime", "offset": 0 },
         "b2ea6617-2767-4a88-bb69-ca205c8d8ff8": { "chain": "session_id", "type": "many2one" },
         "c63f2c18-e213-4d37-bbee-f72eed4f6a81": { "chain": "config_id", "type": "many2one" },
         "67147662-1091-4723-a818-6ce393d39ef8": { "chain": "user_id", "type": "many2one" },
@@ -679,7 +679,7 @@
     "3": {
       "type": "ODOO",
       "fieldMatching": {
-        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date", "type": "datetime", "offset": 0 },
+        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date_order", "type": "datetime", "offset": 0 },
         "b2ea6617-2767-4a88-bb69-ca205c8d8ff8": { "chain": "session_id", "type": "many2one" },
         "c63f2c18-e213-4d37-bbee-f72eed4f6a81": { "chain": "config_id", "type": "many2one" },
         "67147662-1091-4723-a818-6ce393d39ef8": { "chain": "user_id", "type": "many2one" },
@@ -722,7 +722,7 @@
     "4": {
       "type": "ODOO",
       "fieldMatching": {
-        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date", "type": "datetime", "offset": 0 },
+        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date_order", "type": "datetime", "offset": 0 },
         "b2ea6617-2767-4a88-bb69-ca205c8d8ff8": { "chain": "session_id", "type": "many2one" },
         "c63f2c18-e213-4d37-bbee-f72eed4f6a81": { "chain": "config_id", "type": "many2one" },
         "67147662-1091-4723-a818-6ce393d39ef8": { "chain": "user_id", "type": "many2one" },
@@ -765,7 +765,7 @@
     "5": {
       "type": "ODOO",
       "fieldMatching": {
-        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date", "type": "datetime", "offset": 0 },
+        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date_order", "type": "datetime", "offset": 0 },
         "b2ea6617-2767-4a88-bb69-ca205c8d8ff8": { "chain": "session_id", "type": "many2one" },
         "c63f2c18-e213-4d37-bbee-f72eed4f6a81": { "chain": "config_id", "type": "many2one" },
         "67147662-1091-4723-a818-6ce393d39ef8": { "chain": "user_id", "type": "many2one" },
@@ -796,7 +796,7 @@
     "6": {
       "type": "ODOO",
       "fieldMatching": {
-        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date", "type": "datetime", "offset": -1 },
+        "ff0e1a26-3d4c-48b6-85a6-2777b522bb52": { "chain": "date_order", "type": "datetime", "offset": -1 },
         "b2ea6617-2767-4a88-bb69-ca205c8d8ff8": { "chain": "session_id", "type": "many2one" },
         "c63f2c18-e213-4d37-bbee-f72eed4f6a81": { "chain": "config_id", "type": "many2one" },
         "67147662-1091-4723-a818-6ce393d39ef8": { "chain": "user_id", "type": "many2one" },

@@ -264,7 +264,7 @@ class TestReportSession(TestPoSCommon):
         for order in order_report_lines:
             self.assertEqual(order.price_total, 165.0)
             self.assertEqual(order.nbr_lines, 1)
-            self.assertEqual(order.product_qty, 1)
+            self.assertEqual(order.product_uom_qty, 1)
 
         order_report_lines_count_product1 = (
             self.env["report.pos.order"]

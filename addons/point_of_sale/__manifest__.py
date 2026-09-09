@@ -1,6 +1,6 @@
 {
     "name": "Point of Sale",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "category": "Sales/Point of Sale",
     "sequence": 40,
     "summary": "Handle checkouts and payments for shops and restaurants.",
@@ -8,6 +8,7 @@
     "website": "https://www.odoo.com/app/point-of-sale-shop",
     "license": "LGPL-3",
     "depends": [
+        "base_order",
         "resource",
         "stock_account",
         "phone_validation",

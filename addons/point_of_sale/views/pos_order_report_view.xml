@@ -6,10 +6,10 @@
         <field name="model">report.pos.order</field>
         <field name="arch" type="xml">
             <pivot string="Point of Sale Analysis" sample="1">
-                <field name="product_categ_id" type="row" />
-                <field name="date" interval="month" type="col" />
+                <field name="product_category_id" type="row" />
+                <field name="date_order" interval="month" type="col" />
                 <field name="order_id" type="measure" />
-                <field name="product_qty" type="measure" />
+                <field name="product_uom_qty" type="measure" />
                 <field name="price_total" type="measure" />
             </pivot>
         </field>
@@ -20,7 +20,7 @@
         <field name="model">report.pos.order</field>
         <field name="arch" type="xml">
             <graph string="Point of Sale Analysis" sample="1">
-                <field name="product_categ_id" />
+                <field name="product_category_id" />
                 <field name="price_total" type="measure" />
             </graph>
         </field>
@@ -31,11 +31,11 @@
         <field name="model">report.pos.order</field>
         <field name="arch" type="xml">
             <list string="Point of Sale Analysis">
-                <field name="date" />
+                <field name="date_order" />
                 <field name="order_id" optional="hide" />
                 <field name="partner_id" optional="hide" />
                 <field name="product_id" optional="show" />
-                <field name="product_categ_id" optional="show" />
+                <field name="product_category_id" optional="show" />
                 <field name="config_id" optional="hide" />
                 <field
                     name="company_id"
@@ -52,7 +52,7 @@
         <field name="model">report.pos.order</field>
         <field name="arch" type="xml">
             <search string="Point of Sale Analysis">
-                <field name="date" />
+                <field name="date_order" />
                 <separator />
                 <filter
                     string="Invoiced"
@@ -67,11 +67,11 @@
                     name="not_cancelled"
                     domain="[('state','!=','cancel')]" />
                 <separator />
-                <filter name="filter_date" date="date" />
+                <filter name="filter_date" date="date_order" />
                 <field name="config_id" />
                 <field name="partner_id" />
                 <field name="product_id" />
-                <field name="product_categ_id" />
+                <field name="product_category_id" />
                 <group>
                     <filter
                         string="User"
@@ -88,7 +88,7 @@
                     <filter
                         string="Product Category"
                         name="product_category"
-                        context="{'group_by':'product_categ_id'}" />
+                        context="{'group_by':'product_category_id'}" />
                     <filter
                         string="Payment Method"
                         name="payment_method"
@@ -101,7 +101,7 @@
                     <filter
                         string="Order Date"
                         name="order_month"
-                        context="{'group_by':'date:month'}" />
+                        context="{'group_by':'date_order:month'}" />
                 </group>
             </search>
         </field>
@@ -111,7 +111,7 @@
         <field name="name">Per session</field>
         <field name="model_id">report.pos.order</field>
         <field name="user_ids" eval="False" />
-        <field name="context">{'group_by': ['date', 'session_id']}</field>
+        <field name="context">{'group_by': ['date_order', 'session_id']}</field>
     </record>
 
     <record id="action_report_pos_order_all" model="ir.actions.act_window">

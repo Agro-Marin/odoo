@@ -448,7 +448,7 @@
                 "background": "#FFFFFF",
                 "legendPosition": "top",
                 "metaData": {
-                  "groupBy": ["product_categ_id"],
+                  "groupBy": ["product_category_id"],
                   "measure": "price_total",
                   "order": null,
                   "resModel": "report.pos.order",
@@ -467,7 +467,7 @@
                       [4, 5]
                     ]
                   ],
-                  "groupBy": ["product_categ_id"],
+                  "groupBy": ["product_category_id"],
                   "orderBy": []
                 },
                 "type": "odoo_treemap",
@@ -489,7 +489,7 @@
             },
             "fieldMatching": {
               "bb13976b-be42": {
-                "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date", "type": "datetime" },
+                "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date_order", "type": "datetime" },
                 "31b1d5d4-6549-4dbe-9c8e-57d6e6e0889d": { "chain": "pos_categ_id", "type": "many2one" },
                 "6cb73c89-2591-456e-a7bc-8eb76e321b9e": { "chain": "product_tmpl_id", "type": "many2one" },
                 "7674d2c1-e82b-4199-a991-6fae2268676b": { "chain": "employee_id", "type": "many2one" }
@@ -622,7 +622,7 @@
         "B1": "Always",
         "B2": "=PIVOT.VALUE(4,\"order_id:count_distinct\")",
         "B3": "=PIVOT.VALUE(4,\"price_total:sum\")",
-        "B4": "=PIVOT.VALUE(4,\"price_subtotal_excl:sum\")",
+        "B4": "=PIVOT.VALUE(4,\"price_subtotal:sum\")",
         "B5": "=PIVOT.VALUE(4,\"Average order w/o Tax:sum\")",
         "B6": "=PIVOT.VALUE(4,\"Average total revenue per order:sum\")",
         "B7": "=PIVOT.VALUE(5,\"Untaxed revenue per sitting:sum\")",
@@ -958,14 +958,14 @@
           "aggregator": "count_distinct"
         },
         {
-          "id": "price_subtotal_excl:sum",
-          "fieldName": "price_subtotal_excl",
+          "id": "price_subtotal:sum",
+          "fieldName": "price_subtotal",
           "aggregator": "sum",
           "format": ""
         },
         {
-          "id": "total_discount:sum",
-          "fieldName": "total_discount",
+          "id": "discount_amount:sum",
+          "fieldName": "discount_amount",
           "aggregator": "sum"
         },
         {
@@ -975,7 +975,7 @@
           "userDefinedName": "Average order w/o Tax",
           "computedBy": {
             "sheetId": "5d9c050d-2ba4-49ea-992f-142a93cad05a",
-            "formula": "=IFERROR('price_subtotal_excl:sum'/'order_id:count_distinct',)"
+            "formula": "=IFERROR('price_subtotal:sum'/'order_id:count_distinct',)"
           },
           "format": ""
         },
@@ -986,7 +986,7 @@
           "userDefinedName": "Discount / Order",
           "computedBy": {
             "sheetId": "5d9c050d-2ba4-49ea-992f-142a93cad05a",
-            "formula": "='total_discount:sum'/'price_total:sum'"
+            "formula": "='discount_amount:sum'/'price_total:sum'"
           },
           "format": "0.00%"
         },
@@ -1009,7 +1009,7 @@
       "actionXmlId": "point_of_sale.action_report_pos_order_all",
       "formulaId": "4",
       "fieldMatching": {
-        "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date", "type": "datetime", "offset": 0 },
+        "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date_order", "type": "datetime", "offset": 0 },
         "31b1d5d4-6549-4dbe-9c8e-57d6e6e0889d": { "chain": "pos_categ_id", "type": "many2one" },
         "6cb73c89-2591-456e-a7bc-8eb76e321b9e": { "chain": "product_tmpl_id", "type": "many2one" },
         "7674d2c1-e82b-4199-a991-6fae2268676b": { "chain": "employee_id", "type": "many2one" }
@@ -1099,8 +1099,8 @@
           "userDefinedName": "Quantity Sold"
         },
         {
-          "id": "product_qty:sum",
-          "fieldName": "product_qty",
+          "id": "product_uom_qty:sum",
+          "fieldName": "product_uom_qty",
           "aggregator": "sum",
           "userDefinedName": "Revenue"
         },
@@ -1121,7 +1121,7 @@
       "actionXmlId": "point_of_sale.action_report_pos_order_all",
       "formulaId": "6",
       "fieldMatching": {
-        "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date", "type": "datetime" },
+        "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date_order", "type": "datetime" },
         "31b1d5d4-6549-4dbe-9c8e-57d6e6e0889d": { "chain": "pos_categ_id", "type": "many2one" },
         "6cb73c89-2591-456e-a7bc-8eb76e321b9e": { "chain": "product_tmpl_id", "type": "many2one" },
         "7674d2c1-e82b-4199-a991-6fae2268676b": { "chain": "employee_id", "type": "many2one" }
@@ -1194,8 +1194,8 @@
           "userDefinedName": "Product "
         },
         {
-          "id": "product_qty:sum",
-          "fieldName": "product_qty",
+          "id": "product_uom_qty:sum",
+          "fieldName": "product_uom_qty",
           "aggregator": "sum",
           "userDefinedName": "Quantity"
         },
@@ -1217,7 +1217,7 @@
       "actionXmlId": "point_of_sale.action_report_pos_order_all",
       "formulaId": "9",
       "fieldMatching": {
-        "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date", "type": "datetime" },
+        "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date_order", "type": "datetime" },
         "31b1d5d4-6549-4dbe-9c8e-57d6e6e0889d": { "chain": "pos_categ_id", "type": "many2one" },
         "6cb73c89-2591-456e-a7bc-8eb76e321b9e": { "chain": "product_tmpl_id", "type": "many2one" },
         "7674d2c1-e82b-4199-a991-6fae2268676b": { "chain": "employee_id", "type": "many2one" }
@@ -1263,7 +1263,7 @@
       "actionXmlId": "point_of_sale.action_report_pos_order_all",
       "formulaId": "10",
       "fieldMatching": {
-        "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date", "type": "datetime" },
+        "4b44fd69-5c22-4402-be22-636d52226a76": { "chain": "date_order", "type": "datetime" },
         "31b1d5d4-6549-4dbe-9c8e-57d6e6e0889d": { "chain": "pos_categ_id", "type": "many2one" },
         "6cb73c89-2591-456e-a7bc-8eb76e321b9e": { "chain": "product_tmpl_id", "type": "many2one" },
         "7674d2c1-e82b-4199-a991-6fae2268676b": { "chain": "employee_id", "type": "many2one" }

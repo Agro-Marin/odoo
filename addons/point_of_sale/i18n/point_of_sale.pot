@@ -36,6 +36,11 @@ msgid " - From \"%(uom_from)s\" to \"%(uom_to)s\""
 msgstr ""
 
 #. module: point_of_sale
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__nbr_lines
+msgid "# of Lines"
+msgstr ""
+
+#. module: point_of_sale
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/screens/ticket_screen/ticket_screen.js:0
 msgid "% Disc"
@@ -1201,7 +1206,7 @@ msgid "Available in POS"
 msgstr ""
 
 #. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__average_price
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__price_average
 msgid "Average Price"
 msgstr ""
 
@@ -2537,6 +2542,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_order_line__currency_id
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_payment__currency_id
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_session__currency_id
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__currency_id
 msgid "Currency"
 msgstr ""
 
@@ -2999,6 +3005,11 @@ msgstr ""
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_order_line__discount
 msgid "Discount (%)"
+msgstr ""
+
+#. module: point_of_sale
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__discount_amount
+msgid "Discount Amount"
 msgstr ""
 
 #. module: point_of_sale
@@ -3694,6 +3705,11 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/models/pos_order_line.js:0
 msgid "Greater than allowed"
+msgstr ""
+
+#. module: point_of_sale
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__weight
+msgid "Gross Weight"
 msgstr ""
 
 #. module: point_of_sale
@@ -5611,7 +5627,7 @@ msgid "Order Count"
 msgstr ""
 
 #. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__date
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__date_order
 #: model_terms:ir.ui.view,arch_db:point_of_sale.view_pos_order_filter
 #: model_terms:ir.ui.view,arch_db:point_of_sale.view_report_pos_order_search
 msgid "Order Date"
@@ -6902,7 +6918,7 @@ msgstr ""
 
 #. module: point_of_sale
 #: model:ir.model,name:point_of_sale.model_product_category
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__product_categ_id
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__product_category_id
 #: model_terms:ir.ui.view,arch_db:point_of_sale.view_report_pos_order_search
 msgid "Product Category"
 msgstr ""
@@ -6956,7 +6972,7 @@ msgid "Product Product Categories"
 msgstr ""
 
 #. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__product_qty
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__product_uom_qty
 msgid "Product Quantity"
 msgstr ""
 
@@ -7236,7 +7252,7 @@ msgstr ""
 #. module: point_of_sale
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/screens/ticket_screen/ticket_screen.js:0
-#: model:ir.model.fields,field_description:point_of_sale.field_pos_order__stock_reference_ids
+#: model:ir.model.fields,field_description:point_of_sale.field_pos_order__reference_ids
 msgid "Reference"
 msgstr ""
 
@@ -7594,11 +7610,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/components/navbar/sale_details_button/sales_detail_report.xml:0
 msgid "SOLD:"
-msgstr ""
-
-#. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__nbr_lines
-msgid "Sale Line Count"
 msgstr ""
 
 #. module: point_of_sale
@@ -8336,13 +8347,8 @@ msgid "Subtotal"
 msgstr ""
 
 #. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__price_subtotal_excl
-msgid "Subtotal w/o Tax"
-msgstr ""
-
-#. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__price_sub_total
-msgid "Subtotal w/o discount"
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__price_subtotal_nodiscount
+msgid "Subtotal w/o Discount"
 msgstr ""
 
 #. module: point_of_sale
@@ -9409,6 +9415,7 @@ msgstr ""
 #: code:addons/point_of_sale/static/src/app/screens/receipt_screen/receipt/order_receipt.xml:0
 #: code:addons/point_of_sale/static/src/customer_display/customer_display.xml:0
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_order__amount_total
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__price_total
 #: model_terms:ir.ui.view,arch_db:point_of_sale.pos_session_sales_details
 msgid "Total"
 msgstr ""
@@ -9417,11 +9424,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/components/popups/product_info_popup/product_info_popup.xml:0
 msgid "Total Cost:"
-msgstr ""
-
-#. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__total_discount
-msgid "Total Discount"
 msgstr ""
 
 #. module: point_of_sale
@@ -9438,11 +9440,6 @@ msgstr ""
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_session__total_payments_amount
 msgid "Total Payments Amount"
-msgstr ""
-
-#. module: point_of_sale
-#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__price_total
-msgid "Total Price"
 msgstr ""
 
 #. module: point_of_sale
@@ -9618,6 +9615,7 @@ msgstr ""
 
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_order_line__price_unit
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__price_unit
 msgid "Unit Price"
 msgstr ""
 
@@ -9661,6 +9659,11 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/screens/receipt_screen/receipt_screen.js:0
 msgid "Unsynced order"
+msgstr ""
+
+#. module: point_of_sale
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__price_subtotal
+msgid "Untaxed Total"
 msgstr ""
 
 #. module: point_of_sale
@@ -9809,6 +9812,11 @@ msgstr ""
 #. module: point_of_sale
 #: model:ir.model.fields,field_description:point_of_sale.field_res_config_settings__module_pos_viva_com
 msgid "Viva.com Payment Terminal"
+msgstr ""
+
+#. module: point_of_sale
+#: model:ir.model.fields,field_description:point_of_sale.field_report_pos_order__volume
+msgid "Volume"
 msgstr ""
 
 #. module: point_of_sale
