@@ -280,7 +280,7 @@
                                         t-field="partner.display_name" />
                                     <small id="o_wcrm_partners_address" />
                                     <small
-                                        class="o_wcrm_short_description text-muted overflow-hidden">
+                                        class="o_wcrm_short_description text-muted o_line_clamp o_line_clamp_4">
                                         <b t-if="partner.implemented_partner_count">
                                             <t t-if="partner.implemented_partner_count &gt; 1" t-set="reflabel">references</t>
                                             <t t-else="" t-set="reflabel">reference</t>

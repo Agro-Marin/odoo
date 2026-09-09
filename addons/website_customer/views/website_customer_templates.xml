@@ -209,7 +209,7 @@
                                                 class="card-title"
                                                 t-field="partner.display_name" />
                                             <small
-                                                class="o_wcrm_short_description text-muted overflow-hidden"
+                                                class="o_wcrm_short_description text-muted o_line_clamp o_line_clamp_4"
                                                 t-field="partner.website_short_description" />
                                             <small
                                                 t-if="not partner.website_short_description"
