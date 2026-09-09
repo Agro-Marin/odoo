@@ -417,6 +417,8 @@ RelationalModel.withCache  odoo enterprise  :keep
 RelationalRecord.setup  odoo  :keep
 RemainingDaysField.diffDays  enterprise  :triage
 RemainingDaysField.diffString  enterprise  :triage
+ReportController.getContext  enterprise  :keep
+ReportController.modelOptions  enterprise  :generalize
 ReportController.setup  enterprise  :keep
 ResizablePanel.setup  enterprise  :triage
 SampleServer._generateFieldValue  enterprise  :promote

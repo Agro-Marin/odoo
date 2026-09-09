@@ -210,6 +210,7 @@
 @web/views/kanban  odoo enterprise
 @web/views/list  odoo enterprise
 @web/views/pivot  odoo enterprise
+@web/views/report_controller  enterprise
 @web/views/settings/fields/upgrade_dialog  odoo
 @web/views/standard_view_props  odoo enterprise agromarin
 @web/views/view  odoo enterprise
@@ -219,6 +220,7 @@
 @web/views/view_components  odoo enterprise
 @web/views/view_dialogs  odoo enterprise agromarin
 @web/views/view_hook  odoo enterprise
+@web/views/view_layout  enterprise
 @web/views/view_measurements  enterprise
 @web/views/view_utils  odoo enterprise agromarin
 @web/views/widgets  odoo enterprise
