@@ -42,7 +42,7 @@ export function findGroup(groupTree, values) {
  * @param {Object} tree
  * @param {Object} oldTree
  */
-export function pruneTree(tree, oldTree) {
+export function removeMissingSubTrees(tree, oldTree) {
     if (!oldTree.directSubTrees.size) {
         tree.directSubTrees.clear();
         delete tree.sortedKeys;
@@ -54,7 +54,7 @@ export function pruneTree(tree, oldTree) {
             subTree.directSubTrees.clear();
             delete subTree.sortedKeys;
         } else {
-            pruneTree(subTree, oldTree.directSubTrees.get(subTreeKey));
+            removeMissingSubTrees(subTree, oldTree.directSubTrees.get(subTreeKey));
         }
     }
 }

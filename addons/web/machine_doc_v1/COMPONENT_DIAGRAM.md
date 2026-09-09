@@ -265,7 +265,7 @@ prose must not reach for them.
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
 | PY | `models/web_onchange.py` | 293 | `onchange()`, `web_override_translations()` |
-| PY | `models/record_snapshot.py` | 142 | `RecordSnapshot(dict)` — `fetch()`, `has_changed()`, `diff()` |
+| PY | `models/record_snapshot.py` | 142 | `RecordSnapshot(dict)` — `update_field()`, `has_changed()`, `diff()` |
 
 **Key invariants to check**:
 - `onchange()` never persists data (pure simulation)

@@ -853,7 +853,7 @@ describe("CLEAR-CACHES bus handling", () => {
     test("purgeCacheStorage delegates to the cache, and no-ops without one", async () => {
         let purged = 0;
         rpc.setCache({
-            purgeStorage: () => {
+            removeStorage: () => {
                 purged++;
                 return Promise.resolve();
             },

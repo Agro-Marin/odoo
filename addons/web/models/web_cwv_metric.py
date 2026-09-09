@@ -154,7 +154,7 @@ class WebCwvMetric(models.Model):
     )
 
     @api.model
-    def _gc_old_metrics(self):
+    def _remove_old_metrics(self):
         days_str = (
             self.env["ir.config_parameter"]
             .sudo()

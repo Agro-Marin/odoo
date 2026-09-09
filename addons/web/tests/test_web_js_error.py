@@ -177,11 +177,11 @@ class TestWebJsErrorBeacon(HttpCase):
         param = self.env["ir.config_parameter"].sudo()
 
         param.set_param("web.js_error.retention_days", "0")
-        Model._gc_old_errors()
+        Model._remove_old_errors()
         self.assertTrue(Model.search([("message", "=", "old row")]))
 
         param.set_param("web.js_error.retention_days", "30")
-        Model._gc_old_errors()
+        Model._remove_old_errors()
         self.assertFalse(Model.search([("message", "=", "old row")]))
 
     def test_js_error_unknown_kind_falls_back_to_error(self):

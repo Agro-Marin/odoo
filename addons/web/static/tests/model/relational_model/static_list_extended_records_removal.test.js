@@ -23,7 +23,7 @@ describe("_extendedRecords never outlives the datapoints it names", () => {
 
         list.commitCurrentIds([]);
         list.model.patchConfig(list.config, { resIds: [] });
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect([...list._cache.keys()]).toEqual([]);
         expect([...list._extendedRecords]).toEqual([]);
@@ -37,7 +37,7 @@ describe("_extendedRecords never outlives the datapoints it names", () => {
         list._cache.set(7, row("datapoint_B", 7));
         list._extendedRecords.add("datapoint_B");
 
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect([...list._cache.keys()]).toEqual([7], {
             message: "the row is still a member, so its slot must survive",
@@ -54,7 +54,7 @@ describe("_extendedRecords never outlives the datapoints it names", () => {
         list._extendedRecords.add("dp1");
         list._extendedRecords.add("dp2");
 
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect([...list._cache.keys()]).toEqual([1]);
         expect([...list._extendedRecords]).toEqual(["dp1"]);
@@ -80,7 +80,7 @@ describe("_cache keys are the real ids, not their string forms", () => {
         });
         list.model.patchConfig(list.config, { resIds: [7] });
 
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect([...list._cache.keys()]).toEqual([7, "virtual_3"]);
     });

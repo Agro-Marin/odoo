@@ -105,14 +105,14 @@ describe("snapshot / restore", () => {
     });
 });
 
-describe("_pruneCache", () => {
+describe("_removeUnpinnedRecords", () => {
     test("keeps a datapoint a staged CREATE still names", () => {
         const list = makeList({ resIds: [1] });
         list._createRecordDatapoint({}, { virtualId: "virtual_1" });
         list._commands.push([CREATE, "virtual_1"]);
         list._currentIds = [1];
 
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect(list._cache.get("virtual_1")).not.toBe(undefined);
     });
@@ -122,7 +122,7 @@ describe("_pruneCache", () => {
         list._currentIds = [1];
         list.model.patchConfig(list.config, { resIds: [1] });
 
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect(list._cache.get(2)).toBe(undefined);
         expect(list._cache.get(1)).not.toBe(undefined);

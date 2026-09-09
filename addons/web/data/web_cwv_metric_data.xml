@@ -5,7 +5,7 @@
         <field name="name">Web: Core Web Vitals Retention</field>
         <field name="model_id" ref="model_web_cwv_metric" />
         <field name="state">code</field>
-        <field name="code">model._gc_old_metrics()</field>
+        <field name="code">model._remove_old_metrics()</field>
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
         <field name="priority">8</field>

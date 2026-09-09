@@ -71,7 +71,7 @@ def get_default_domain(model, action, context, eval_context):
             break
     else:
 
-        def filters_from_context():
+        def get_search_default_domains():
             view_tree = None
             for key, value in context.items():
                 if key.startswith("search_default_") and value:
@@ -99,7 +99,7 @@ def get_default_domain(model, action, context, eval_context):
                             yield domain
 
         default_domain = Domain.AND(
-            safe_eval(domain, eval_context) for domain in filters_from_context()
+            safe_eval(domain, eval_context) for domain in get_search_default_domains()
         )
     return default_domain
 

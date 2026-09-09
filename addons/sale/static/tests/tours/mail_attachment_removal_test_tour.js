@@ -9,7 +9,7 @@ registry.category("web_tour.tours").add("mail_attachment_removal_tour", {
         },
         {
             content: "save a new layout",
-            trigger: ".o_technical_modal button[name='document_layout_save']",
+            trigger: ".o_technical_modal button[name='action_save_layout']",
             run: "click",
         },
         {

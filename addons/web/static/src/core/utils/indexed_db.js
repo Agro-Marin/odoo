@@ -399,7 +399,7 @@ export class IndexedDB {
      * @param {{
      * @returns {Promise<void>}
      */
-    async _sweep(db, tables, { needsValue, shouldDelete }) {
+    async _removeEntries(db, tables, { needsValue, shouldDelete }) {
         return new Promise((resolve, reject) => {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
@@ -444,7 +444,7 @@ export class IndexedDB {
         /** @type {string[]} */ tables,
         /** @type {string} */ model,
     ) {
-        return this._sweep(db, tables, {
+        return this._removeEntries(db, tables, {
             needsValue: true,
             shouldDelete: (cursor) =>
                 /** @type {IDBCursorWithValue} */ (cursor).value?.model === model,
@@ -456,7 +456,7 @@ export class IndexedDB {
         /** @type {string[]} */ tables,
         /** @type {(key: string) => boolean} */ predicate,
     ) {
-        return this._sweep(db, tables, {
+        return this._removeEntries(db, tables, {
             needsValue: false,
             shouldDelete: (cursor) => predicate(/** @type {string} */ (cursor.key)),
         });

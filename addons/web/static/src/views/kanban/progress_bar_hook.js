@@ -672,7 +672,7 @@ class ProgressBarState {
         }
     }
 
-    _pruneGroupsInfo() {
+    _removeStaleGroupsInfo() {
         const groupIds = new Set(
             (this.model.root.groups || []).map((/** @type {any} */ group) => group.id),
         );
@@ -717,7 +717,7 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
             });
         }),
         model.subscribeLifecycle("onRootLoaded", async () => {
-            progressBarState._pruneGroupsInfo();
+            progressBarState._removeStaleGroupsInfo();
             try {
                 await prom;
             } catch (error) {

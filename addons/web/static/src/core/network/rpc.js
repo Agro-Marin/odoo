@@ -237,7 +237,7 @@ rpc.setCache = function (cache) {
 
 /** @returns {Promise<void>} */
 rpc.purgeCacheStorage = function () {
-    return _rpcState.rpcCache?.purgeStorage() ?? Promise.resolve();
+    return _rpcState.rpcCache?.removeStorage() ?? Promise.resolve();
 };
 
 if (!_rpcState.busListenersAttached) {

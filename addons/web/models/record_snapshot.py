@@ -10,21 +10,21 @@ class RecordSnapshot(dict):
     __hash__ = None  # type: ignore[assignment]  # unhashable: overrides __eq__
 
     def __init__(
-        self, record: BaseModel, fields_spec: dict, fetch: bool = True
+        self, record: BaseModel, fields_spec: dict, update_all: bool = True
     ) -> None:
         super().__init__()
         self.record = record
         self.fields_spec = fields_spec
-        if fetch:
+        if update_all:
             for name in fields_spec:
-                self.fetch(name)
+                self.update_field(name)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, RecordSnapshot):
             return NotImplemented
         return self.record == other.record and super().__eq__(other)
 
-    def fetch(self, field_name: str) -> None:
+    def update_field(self, field_name: str) -> None:
         if self.record._fields[field_name].type in ("one2many", "many2many"):
             lines = self.record[field_name]
             if "context" in self.fields_spec[field_name]:

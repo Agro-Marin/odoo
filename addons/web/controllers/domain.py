@@ -9,7 +9,7 @@ from .utils import is_user_internal
 
 class Domain(Controller):
     @http.route("/web/domain/validate", type="jsonrpc", auth="user", readonly=True)
-    def validate(self, model: str, domain: list) -> bool:
+    def is_domain_valid(self, model: str, domain: list) -> bool:
         if not is_user_internal(request.session.uid):
             raise AccessError(_("This endpoint is reserved to internal users."))
         Model = request.env.get(model)

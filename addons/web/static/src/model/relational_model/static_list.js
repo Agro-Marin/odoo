@@ -853,7 +853,7 @@ export class StaticList extends EditableListDataPoint {
         this._commands = [];
         this._unknownRecordCommands.clear();
         this._loadingStubIds.clear();
-        this._pruneCache();
+        this._removeUnpinnedRecords();
     }
 
     /**
@@ -919,7 +919,7 @@ export class StaticList extends EditableListDataPoint {
         this._tmpIncreaseLimit = 0;
         this._savePoint = undefined;
         this._materializeWindow();
-        this._pruneCache();
+        this._removeUnpinnedRecords();
         this._replayFailed = false;
         this._healMissingWindow();
     }
@@ -970,7 +970,7 @@ export class StaticList extends EditableListDataPoint {
         );
     }
 
-    _pruneCache() {
+    _removeUnpinnedRecords() {
         const pinnedIds = this._collectPinnedIds();
         for (const [id, record] of this._cache) {
             if (!pinnedIds.has(id)) {
@@ -978,11 +978,11 @@ export class StaticList extends EditableListDataPoint {
                 this._cache.delete(id);
             }
         }
-        this._pruneExtendedRecords();
+        this._removeDeadExtendedRecords();
     }
 
     /** @returns {void} */
-    _pruneExtendedRecords() {
+    _removeDeadExtendedRecords() {
         if (!this._extendedRecords.size) {
             return;
         }
@@ -1040,9 +1040,9 @@ export class StaticList extends EditableListDataPoint {
         this._materializeWindow();
         this.stageCommands(this._initialCommands);
         if (this._commandsPromise) {
-            this._commandsPromise.then(() => this._pruneCache());
+            this._commandsPromise.then(() => this._removeUnpinnedRecords());
         } else {
-            this._pruneCache();
+            this._removeUnpinnedRecords();
         }
     }
 
@@ -1188,7 +1188,7 @@ export class StaticList extends EditableListDataPoint {
                 this._loadingStubIds.delete(id);
             }
         }
-        this._pruneCache();
+        this._removeUnpinnedRecords();
         if (this._currentIds.length > this.limit) {
             this._bumpLimit(this._currentIds.length - this.limit);
         }

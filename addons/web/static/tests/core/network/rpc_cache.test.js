@@ -1853,7 +1853,7 @@ test("checkSize: prefers the IndexedDB-specific usage over the origin-wide figur
     expect(warnings.length).toBe(1);
 });
 
-test("purgeStorage deletes the on-disk database", async () => {
+test("removeStorage deletes the on-disk database", async () => {
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1863,16 +1863,16 @@ test("purgeStorage deletes the on-disk database", async () => {
         deleteDatabase: () => expect.step("deleteDatabase"),
     };
 
-    await rpcCache.purgeStorage();
+    await rpcCache.removeStorage();
 
     expect.verifySteps(["deleteDatabase"]);
 });
 
-test("purgeStorage is a no-op (and does not throw) without a disk cache", async () => {
+test("removeStorage is a no-op (and does not throw) without a disk cache", async () => {
     const rpcCache = new RPCCache("mockRpc", 1);
     expect(rpcCache.indexedDB).toBe(null);
 
-    await rpcCache.purgeStorage();
+    await rpcCache.removeStorage();
 
     expect.verifySteps([]);
 });

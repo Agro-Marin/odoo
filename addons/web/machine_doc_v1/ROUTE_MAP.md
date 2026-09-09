@@ -44,7 +44,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 
 | Method | Route | Auth | Handler | Purpose |
 |--------|-------|------|---------|---------|
-| JSONRPC | `/web/domain/validate` | user (readonly) | `validate()` | Validate domain expression against model schema |
+| JSONRPC | `/web/domain/validate` | user (readonly) | `is_domain_valid()` | Validate domain expression against model schema |
 
 ### controllers/view.py — View
 

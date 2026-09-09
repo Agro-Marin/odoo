@@ -89,7 +89,7 @@ export function findUnsetRequiredFields(
 }
 
 /** @param {RelationalRecord} record */
-function pruneUnreachableInvalidFields(record) {
+function removeUnreachableInvalidFields(record) {
     for (const fieldName of [...toRaw(record.invalidFields)]) {
         if (!(fieldName in record.activeFields) || record.isFieldInvisible(fieldName)) {
             record.invalidFields.delete(fieldName);
@@ -210,7 +210,7 @@ export function checkValidity(
     { silent, displayNotification, removeInvalidOnly, scopedFields } = {},
 ) {
     if (!silent) {
-        pruneUnreachableInvalidFields(record);
+        removeUnreachableInvalidFields(record);
     }
     const callbacks = makeValidityCallbacks(record, { silent, removeInvalidOnly });
 

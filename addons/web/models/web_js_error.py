@@ -125,7 +125,7 @@ class WebJsError(models.Model):
         )
 
     @api.model
-    def _gc_old_errors(self):
+    def _remove_old_errors(self):
         days_str = (
             self.env["ir.config_parameter"]
             .sudo()

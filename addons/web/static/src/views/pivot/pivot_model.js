@@ -29,7 +29,7 @@ import {
     getLeafCounts,
     getTreeHeight,
     hasData,
-    pruneTree,
+    removeMissingSubTrees,
     sortTree,
     stripSortedKeys,
 } from "./pivot_group_tree.js";
@@ -667,13 +667,13 @@ export class PivotModel extends Model {
                 symmetricalDifference(metaData.rowGroupBys, this.metaData.rowGroupBys)
                     .length === 0
             ) {
-                pruneTree(data.rowGroupTree, this.data.rowGroupTree);
+                removeMissingSubTrees(data.rowGroupTree, this.data.rowGroupTree);
             }
             if (
                 symmetricalDifference(metaData.colGroupBys, this.metaData.colGroupBys)
                     .length === 0
             ) {
-                pruneTree(data.colGroupTree, this.data.colGroupTree);
+                removeMissingSubTrees(data.colGroupTree, this.data.colGroupTree);
             }
         }
 

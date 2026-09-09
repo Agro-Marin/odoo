@@ -940,7 +940,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         ),
         {
             isActive: ["body:not(:has(.modal-footer button[name='action_send_mail']))"],
-            trigger: ".modal .modal-footer button[name='document_layout_save']",
+            trigger: ".modal .modal-footer button[name='action_save_layout']",
             content: _t("let's continue"),
             tooltipPosition: "bottom",
             run: "click",

@@ -43,7 +43,7 @@ class WebJsonController(http.Controller):
 
         param_list = set(kwargs)
 
-        def check_redirect():
+        def resolve_canonical_redirect():
             if param_list == set(kwargs):
                 return None
             encoded_kwargs = urlencode(kwargs, safe="()[], '\"")
@@ -64,7 +64,7 @@ class WebJsonController(http.Controller):
         spec = model._get_fields_spec(view)
 
         if view_type == "form" or record_id:
-            if redirect := check_redirect():
+            if redirect := resolve_canonical_redirect():
                 return redirect
             return self._get_json_record(model, spec, record_id)
 
@@ -93,7 +93,7 @@ class WebJsonController(http.Controller):
             for field in fields:
                 spec.setdefault(field, {})
 
-        if redirect := check_redirect():
+        if redirect := resolve_canonical_redirect():
             return redirect
         return self._get_json_listing(
             model, Domain.AND(domains), spec, groupby, aggregates, limit, offset

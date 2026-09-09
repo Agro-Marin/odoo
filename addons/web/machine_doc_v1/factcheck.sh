@@ -418,8 +418,8 @@ assert_eq "cwv ACL row in ir.model.access.csv" "$cwv_acl" "1"
 # Phase 3: sampling + retention.
 # Anchored on `def ` like every neighbour here: the bare identifier also matched
 # the two prose mentions of the cron, so the figure moved when the prose did.
-cwv_gc_method=$(grep -c "def _gc_old_metrics" "$WEB/models/web_cwv_metric.py" 2>/dev/null)
-assert_eq "_gc_old_metrics retention method" "$cwv_gc_method" "1"
+cwv_gc_method=$(grep -c "def _remove_old_metrics" "$WEB/models/web_cwv_metric.py" 2>/dev/null)
+assert_eq "_remove_old_metrics retention method" "$cwv_gc_method" "1"
 cwv_cron_data=$([ -f "$WEB/data/web_cwv_metric_data.xml" ] && echo 1 || echo 0)
 assert_eq "cwv cron data file exists" "$cwv_cron_data" "1"
 cwv_cron_in_manifest=$(grep -c "web_cwv_metric_data.xml" "$WEB/__manifest__.py" 2>/dev/null)

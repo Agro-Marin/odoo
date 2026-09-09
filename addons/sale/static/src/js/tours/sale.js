@@ -98,7 +98,7 @@ registry.category("web_tour.tours").add("sale_tour", {
         ),
         {
             isActive: ["body:not(:has(.modal-footer button.o_mail_send))"],
-            trigger: ".modal-footer button[name='document_layout_save']",
+            trigger: ".modal-footer button[name='action_save_layout']",
             content: _t("let's continue"),
             tooltipPosition: "bottom",
             run: "click",

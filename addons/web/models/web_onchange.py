@@ -41,12 +41,12 @@ class Base(models.AbstractModel):
             values, field_names, fields_spec
         )
 
-        snapshot0 = RecordSnapshot(record, fields_spec, fetch=(not first_call))
+        snapshot0 = RecordSnapshot(record, fields_spec, update_all=(not first_call))
 
         record._update_cache(changed_values)
 
         for field_name in field_names:
-            snapshot0.fetch(field_name)
+            snapshot0.update_field(field_name)
 
         todo = (
             list(unique(itertools.chain(field_names, fields_spec)))

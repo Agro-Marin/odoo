@@ -77,7 +77,7 @@ class TestOnchange(common.TransactionCase):
             kids = Partner.create([{"name": f"kid{i}"} for i in range(n)])
             parent = Partner.new({"child_ids": [(6, 0, kids.ids)]})
             snap = RecordSnapshot(parent, spec)
-            empty = RecordSnapshot(Partner.new({}), spec, fetch=False)
+            empty = RecordSnapshot(Partner.new({}), spec, update_all=False)
             self.env.invalidate_all()
             queries = _count_selects(self.env.cr, lambda: snap.diff(empty))
             result = snap.diff(empty)

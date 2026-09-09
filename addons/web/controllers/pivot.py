@@ -17,7 +17,7 @@ MAX_EXPORT_CELLS = 1_000_000
 MAX_CELL_CHARS = 32_767
 
 
-def _cell(value):
+def _get_capped_cell(value):
     return value[:MAX_CELL_CHARS] if isinstance(value, str) else value
 
 
@@ -114,7 +114,7 @@ class TableExporter(http.Controller):
                     worksheet.write(
                         y,
                         x + j,
-                        _cell(header["title"]) if j == 0 else "",
+                        _get_capped_cell(header["title"]) if j == 0 else "",
                         header_plain,
                     )
                 if height > 1:
@@ -139,7 +139,7 @@ class TableExporter(http.Controller):
         worksheet.write(y, 0, "", header_plain)
         for x, measure in enumerate(measure_headers, start=1):
             style = header_bold if measure["is_bold"] else header_plain
-            worksheet.write(y, x, _cell(measure["title"]), style)
+            worksheet.write(y, x, _get_capped_cell(measure["title"]), style)
         return y + 1
 
     def _write_pivot_rows(self, worksheet, jdata, y, header_plain, bold):
@@ -148,12 +148,12 @@ class TableExporter(http.Controller):
             worksheet.write(
                 y,
                 0,
-                f"{indent * '     '}{_cell(row['title'])}",
+                f"{indent * '     '}{_get_capped_cell(row['title'])}",
                 header_plain,
             )
             for x, cell in enumerate(row["values"], start=1):
                 if cell.get("is_bold", False):
-                    worksheet.write(y, x, _cell(cell["value"]), bold)
+                    worksheet.write(y, x, _get_capped_cell(cell["value"]), bold)
                 else:
-                    worksheet.write(y, x, _cell(cell["value"]))
+                    worksheet.write(y, x, _get_capped_cell(cell["value"]))
             y += 1

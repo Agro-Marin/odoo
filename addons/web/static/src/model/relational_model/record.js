@@ -936,7 +936,7 @@ export class RelationalRecord extends DataPoint {
      * @param {Record<string, any>} changes
      * @returns {void}
      */
-    _pruneUnchangedMany2ones(changes) {
+    _removeUnchangedMany2ones(changes) {
         for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type !== "many2one") {
                 continue;
@@ -1014,7 +1014,7 @@ export class RelationalRecord extends DataPoint {
             }
         }
 
-        this._pruneUnchangedMany2ones(changes);
+        this._removeUnchangedMany2ones(changes);
 
         const undoChanges = this.applyChanges(changes, onchangeServerValues, {
             undoable: true,

@@ -11,7 +11,7 @@ import {
     getLeafCounts,
     getTreeHeight,
     hasData,
-    pruneTree,
+    removeMissingSubTrees,
     sortTree,
     stripSortedKeys,
 } from "@web/views/pivot/pivot_group_tree";
@@ -196,7 +196,7 @@ describe("hasData — table non-emptiness", () => {
     });
 });
 
-describe("pruneTree — collapse to oldTree shape", () => {
+describe("removeMissingSubTrees — collapse to oldTree shape", () => {
     test("clears all children when oldTree is a leaf", () => {
         const tree = makeTree();
         addGroup(tree, ["A"], [1]);
@@ -204,7 +204,7 @@ describe("pruneTree — collapse to oldTree shape", () => {
 
         const oldTree = makeTree();
 
-        pruneTree(tree, oldTree);
+        removeMissingSubTrees(tree, oldTree);
 
         expect(tree.directSubTrees.size).toBe(0);
     });
@@ -217,7 +217,7 @@ describe("pruneTree — collapse to oldTree shape", () => {
         const oldTree = makeTree();
         oldTree.directSubTrees.set(1, makeTree([1], ["A"]));
 
-        pruneTree(tree, oldTree);
+        removeMissingSubTrees(tree, oldTree);
 
         expect(tree.directSubTrees.has(1)).toBe(true);
         expect(tree.directSubTrees.get(2).directSubTrees.size).toBe(0);
@@ -233,7 +233,7 @@ describe("pruneTree — collapse to oldTree shape", () => {
         const oldA = makeTree([1], ["A"]);
         oldTree.directSubTrees.set(1, oldA);
 
-        pruneTree(tree, oldTree);
+        removeMissingSubTrees(tree, oldTree);
 
         expect(tree.directSubTrees.get(1).directSubTrees.size).toBe(0);
     });

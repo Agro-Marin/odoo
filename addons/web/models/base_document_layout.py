@@ -316,7 +316,7 @@ class BaseDocumentLayout(models.TransientModel):
 
         return rgb_to_hex(primary), rgb_to_hex(secondary)
 
-    def document_layout_save(self) -> dict[str, Any]:
+    def action_save_layout(self) -> dict[str, Any]:
         return self.env.context.get("report_action") or {
             "type": "ir.actions.act_window_close"
         }

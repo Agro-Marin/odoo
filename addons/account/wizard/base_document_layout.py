@@ -15,8 +15,8 @@ class BaseDocumentLayout(models.TransientModel):
         inverse="_inverse_account_number",
     )
 
-    def document_layout_save(self):
-        res = super().document_layout_save()
+    def action_save_layout(self):
+        res = super().action_save_layout()
         if step := self.env.ref(
             "account.onboarding_onboarding_step_base_document_layout",
             raise_if_not_found=False,

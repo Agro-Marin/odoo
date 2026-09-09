@@ -211,7 +211,7 @@ export class ColorPicker extends Component {
             currentColorPreview: undefined,
             showGradientPicker: false,
         });
-        this.deriveFromApplied();
+        this.updateFromApplied();
         useEffect(
             () => {
                 /** @type {any} */ (this.env)[POSITION_BUS]?.trigger("update");
@@ -242,7 +242,7 @@ export class ColorPicker extends Component {
         };
     }
 
-    deriveFromApplied() {
+    updateFromApplied() {
         this.defaultColorSet = this.getDefaultColorSet();
         this.usedCustomColors = [...this.props.getUsedCustomColors()];
     }
@@ -303,7 +303,7 @@ export class ColorPicker extends Component {
     selectColor(color) {
         this.state.currentCustomColor = color;
         this.props.applyColor(color);
-        this.deriveFromApplied();
+        this.updateFromApplied();
         this.onApplyCallback();
     }
 

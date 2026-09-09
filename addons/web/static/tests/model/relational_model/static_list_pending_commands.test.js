@@ -111,7 +111,7 @@ describe("floating commands rejection", () => {
 });
 
 describe("discardLocked prune sequencing", () => {
-    test("_pruneCache runs only after the pending commands load settles", async () => {
+    test("_removeUnpinnedRecords runs only after the pending commands load settles", async () => {
         const def = new Deferred();
         const list = makeList({ loadRecords: () => def });
 
@@ -135,7 +135,7 @@ describe("discardLocked prune sequencing", () => {
         expect(list._commandsPromise).toBe(null);
     });
 
-    test("_pruneCache runs synchronously when nothing is pending", () => {
+    test("_removeUnpinnedRecords runs synchronously when nothing is pending", () => {
         const list = makeList();
         list._cache.set("stale", {
             resId: false,

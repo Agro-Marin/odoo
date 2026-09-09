@@ -59,7 +59,7 @@ Client-side form processing.
 Dict subclass for snapshot-based form state tracking. Not an ORM model.
 
 **Key Methods:**
-- `__init__(record, fields_spec, fetch=True)` — Capture record state per form specification tree. `fetch=False` skips the initial `read()` (used when constructing snapshots from values already in hand).
+- `__init__(record, fields_spec, update_all=True)` — Capture record state per form specification tree. `update_all=False` skips the initial `read()` (used when constructing snapshots from values already in hand).
 - `diff(other, force=False)` — Compare two snapshots, return dict of changed values + x2many commands (CREATE, UPDATE, LINK, DELETE/UNLINK). `force=True` includes all fields regardless of changes.
 - `has_changed(field_name)` — Check if specific field changed between snapshots.
 
@@ -235,7 +235,7 @@ Transient wizard for live-preview report customization (colors, fonts, logos).
 **Key Methods:**
 - `extract_image_primary_secondary_colors(logo, white_threshold=225, mitigate=175)` — PIL-based color extraction from base64 image. `mitigate` caps maximum channel value to avoid overly-saturated results.
 - `_compute_preview()` — Renders QWeb preview of selected layout.
-- `document_layout_save()` — Returns `self.env.context.get("report_action")` if set, else a close action. Not abstract — subclasses can still override.
+- `action_save_layout()` — Returns `self.env.context.get("report_action")` if set, else a close action. Not abstract — subclasses can still override.
 
 ### models/res_company.py — ResCompany (`_inherit = 'res.company'`)
 
@@ -306,7 +306,7 @@ vCard export for contact data.
 
 Storage for Core Web Vitals beacons. Records are written by
 `controllers/observability.py:cwv()` through `_record_beacon()` and pruned on a
-daily cron (`_gc_old_metrics`).
+daily cron (`_remove_old_metrics`).
 
 **One row per pageview, not per beacon.** A page emits several beacons — INP and
 CLS keep growing after the first tab-switch — so `_record_beacon()` upserts on
@@ -334,13 +334,13 @@ first-beacon arrival).
 **Key Methods:**
 - `_record_beacon(values)` (`@api.model`) — Atomic `INSERT ... ON CONFLICT` upserting on `pageview_id`, replacing an earlier search-then-write: race-free (the partial unique index is the arbiter) and one round-trip instead of two.
 - `init()` — Creates the partial unique index `web_cwv_metric__pageview_id_uniq` on `(pageview_id) WHERE pageview_id IS NOT NULL`. Partial so rows without a pageview id do not collide with each other.
-- `_gc_old_metrics()` (`@api.model`) — Daily cron retention sweep. Reads `web.cwv.retention_days` (default `"30"`). `0` disables (cron no-op). Issues a single raw `DELETE FROM web_cwv_metric WHERE recorded_at < now() - INTERVAL ...` (no ORM iteration — nothing here needs recomputation or cascade). Registered via `data/web_cwv_metric_data.xml`.
+- `_remove_old_metrics()` (`@api.model`) — Daily cron retention sweep. Reads `web.cwv.retention_days` (default `"30"`). `0` disables (cron no-op). Issues a single raw `DELETE FROM web_cwv_metric WHERE recorded_at < now() - INTERVAL ...` (no ORM iteration — nothing here needs recomputation or cascade). Registered via `data/web_cwv_metric_data.xml`.
 
 ### models/web_js_error.py — WebJsError (`_name = 'web.js.error'`)
 
 Storage for client-side JS error beacons. Records are written by
 `controllers/observability.py:js_error()` via `sudo()` (beacons arrive from
-anonymous frontend visitors too) and pruned on a daily cron (`_gc_old_errors`).
+anonymous frontend visitors too) and pruned on a daily cron (`_remove_old_errors`).
 
 `_log_access = False`, same rationale as `web.cwv.metric`: append-only and
 high-volume, with `recorded_at` capturing beacon arrival.
@@ -394,7 +394,7 @@ plus arrival time and the reporting session)
 - `_record_beacon(values)` (`@api.model`) — single raw parameterized INSERT. No
   upsert key, unlike `web.cwv.metric`: two identical errors from two sessions are
   two facts, not one row to update.
-- `_gc_old_errors()` (`@api.model`) — daily cron retention sweep. Reads
+- `_remove_old_errors()` (`@api.model`) — daily cron retention sweep. Reads
   `web.js_error.retention_days` (default `"30"`); `0` disables. Matters more than
   the CWV sweep: the endpoint is `auth="public"`, so a caller bounded only by the
   120/60s rate limit could add ~172k rows a day. Registered via

@@ -40,13 +40,13 @@ function makeList(overrides = {}) {
     return list;
 }
 
-describe("_pruneCache", () => {
+describe("_removeUnpinnedRecords", () => {
     test("evicts ids absent from _currentIds, keeps live ones", () => {
         const list = makeList({ _currentIds: [1] });
         list._cache.set(1, { id: "dp1" });
         list._cache.set(2, { id: "dp2" });
 
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect(list._cache.has(1)).toBe(true);
         expect(list._cache.has(2)).toBe(false);
@@ -62,7 +62,7 @@ describe("_pruneCache", () => {
             _currentIds: [1, 2],
         });
 
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect(list._cache.has(1)).toBe(true);
         expect(list._cache.has(2)).toBe(true);
@@ -76,7 +76,7 @@ describe("_pruneCache", () => {
         list._extendedRecords.add("dp1");
         list._extendedRecords.add("dp2");
 
-        list._pruneCache();
+        list._removeUnpinnedRecords();
 
         expect(list._extendedRecords.has("dp1")).toBe(true);
         expect(list._extendedRecords.has("dp2")).toBe(false);

@@ -18,7 +18,7 @@ _rate_lock = threading.Lock()
 _rate_state: dict[str, list[float]] = {}
 
 
-def _rate_limited(key: str) -> bool:
+def _is_rate_limited(key: str) -> bool:
     now = time.monotonic()
     with _rate_lock:
         if len(_rate_state) > _RATE_LIMIT_MAX_KEYS:
@@ -42,7 +42,7 @@ def _rate_limited(key: str) -> bool:
         return False
 
 
-def _client_rate_key(prefix: str) -> str:
+def _get_client_rate_key(prefix: str) -> str:
     uid = request.session.uid
     ident = f"uid:{uid}" if uid else f"ip:{request.httprequest.remote_addr or 'anon'}"
     return f"{prefix}:{ident}"
@@ -89,15 +89,15 @@ def _clamp_cls(value):
     return float(value)
 
 
-def _js_error_beacon(payload: dict) -> dict | None:
+def _prepare_js_error_values(payload: dict) -> dict | None:
 
-    def _str_field(raw, cap):
+    def get_capped_str(raw, cap):
         return (str(raw)[:cap]) if isinstance(raw, str) else ""
 
-    def _int_field(raw):
+    def get_positive_int(raw):
         return int(raw) if isinstance(raw, (int, float)) and raw >= 0 else 0
 
-    message = _str_field(payload.get("message"), _MAX_ERROR_MSG_LEN)
+    message = get_capped_str(payload.get("message"), _MAX_ERROR_MSG_LEN)
     if not message:
         return None
 
@@ -111,13 +111,13 @@ def _js_error_beacon(payload: dict) -> dict | None:
             if payload.get("phase") in _JS_ERROR_PHASES
             else "unknown"
         ),
-        "filename": _str_field(payload.get("filename"), _MAX_ERROR_FILENAME_LEN),
-        "url": _str_field(payload.get("url"), _MAX_URL_LEN),
-        "user_agent": _str_field(payload.get("user_agent"), _MAX_UA_LEN),
-        "stack": _str_field(payload.get("stack"), _MAX_ERROR_STACK_LEN),
-        "cause": _str_field(payload.get("cause"), _MAX_ERROR_CAUSE_LEN),
-        "line": _int_field(payload.get("line")),
-        "col": _int_field(payload.get("col")),
+        "filename": get_capped_str(payload.get("filename"), _MAX_ERROR_FILENAME_LEN),
+        "url": get_capped_str(payload.get("url"), _MAX_URL_LEN),
+        "user_agent": get_capped_str(payload.get("user_agent"), _MAX_UA_LEN),
+        "stack": get_capped_str(payload.get("stack"), _MAX_ERROR_STACK_LEN),
+        "cause": get_capped_str(payload.get("cause"), _MAX_ERROR_CAUSE_LEN),
+        "line": get_positive_int(payload.get("line")),
+        "col": get_positive_int(payload.get("col")),
         "reloaded": (
             bool(payload.get("reloaded"))
             if kind == "asset_load_error" and "reloaded" in payload
@@ -136,8 +136,8 @@ class Observability(Controller):
         csrf=False,
     )
     def cwv(self) -> Response:
-        client_key = _client_rate_key("cwv")
-        if _rate_limited(client_key):
+        client_key = _get_client_rate_key("cwv")
+        if _is_rate_limited(client_key):
             return Response("", status=429, mimetype="text/plain")
 
         try:
@@ -208,8 +208,8 @@ class Observability(Controller):
         csrf=False,
     )
     def js_error(self) -> Response:
-        client_key = _client_rate_key("js_error")
-        if _rate_limited(client_key):
+        client_key = _get_client_rate_key("js_error")
+        if _is_rate_limited(client_key):
             return Response("", status=429, mimetype="text/plain")
 
         try:
@@ -220,7 +220,7 @@ class Observability(Controller):
         if not isinstance(payload, dict):
             return Response("invalid payload", status=400, mimetype="text/plain")
 
-        beacon = _js_error_beacon(payload)
+        beacon = _prepare_js_error_values(payload)
         if beacon is None:
             return Response("", status=204)
 

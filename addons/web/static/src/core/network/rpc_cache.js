@@ -676,7 +676,7 @@ export class RPCCache {
     }
 
     /** @returns {Promise<void>} */
-    async purgeStorage() {
+    async removeStorage() {
         await this.indexedDB?.deleteDatabase();
     }
 }
