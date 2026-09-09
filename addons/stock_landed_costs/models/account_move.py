@@ -21,6 +21,8 @@ class AccountMove(models.Model):
 
     def button_create_landed_costs(self):
         self.check_singleton()
+        if self.landed_costs_ids:
+            return self.action_view_landed_costs()
         landed_costs_lines = self.line_ids.filtered(
             lambda line: line.is_landed_costs_line
         )
