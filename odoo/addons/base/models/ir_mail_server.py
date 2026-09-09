@@ -486,7 +486,7 @@ class IrMail_Server(models.Model):
         return "noreply@odoo.com"
 
     @api.model
-    def _outgoing_email_message(self, code: str) -> str:
+    def _get_outgoing_email_message(self, code: str) -> str:
         messages = {
             self.NO_VALID_RECIPIENT: _(
                 "At least one valid recipient address should be specified for "
@@ -510,7 +510,7 @@ class IrMail_Server(models.Model):
 
     def test_smtp_connection(self) -> dict[str, Any]:
         self._probe_smtp_connections()
-        return self._connection_test_notification(_("Connection Test Successful!"))
+        return self._get_connection_test_notification(_("Connection Test Successful!"))
 
     def action_update_max_email_size(self) -> dict[str, Any]:
         self.check_singleton()
@@ -524,7 +524,7 @@ class IrMail_Server(models.Model):
                     )
                 )
             server.max_email_size = advertised
-        return self._connection_test_notification(
+        return self._get_connection_test_notification(
             _(
                 "Email maximum size updated (%(details)s).",
                 details=", ".join(
@@ -598,7 +598,7 @@ class IrMail_Server(models.Model):
                     smtp.close()
 
     @api.model
-    def _connection_test_notification(self, message: str) -> dict[str, Any]:
+    def _get_connection_test_notification(self, message: str) -> dict[str, Any]:
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -973,7 +973,7 @@ class IrMail_Server(models.Model):
         )
         if not email_from:
             raise OutgoingEmailError(
-                self._outgoing_email_message(self.NO_FOUND_FROM), self.NO_FOUND_FROM
+                self._get_outgoing_email_message(self.NO_FOUND_FROM), self.NO_FOUND_FROM
             )
 
         headers = headers or {}
@@ -1082,14 +1082,14 @@ class IrMail_Server(models.Model):
         smtp_from = message["From"] or bounce_address
         if not smtp_from:
             raise OutgoingEmailError(
-                self._outgoing_email_message(self.NO_FOUND_SMTP_FROM),
+                self._get_outgoing_email_message(self.NO_FOUND_SMTP_FROM),
                 self.NO_FOUND_SMTP_FROM,
             )
 
         smtp_to_list = self._prepare_smtp_to_list(message, smtp_session)
         if not smtp_to_list:
             raise OutgoingEmailError(
-                self._outgoing_email_message(self.NO_VALID_RECIPIENT),
+                self._get_outgoing_email_message(self.NO_VALID_RECIPIENT),
                 self.NO_VALID_RECIPIENT,
             )
 

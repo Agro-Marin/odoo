@@ -57,14 +57,14 @@ class PhoneNumber(models.Model):
             number = "+" + number[2:]
         return number
 
-    def _phone_country(self):
+    def _get_phone_country(self):
         return self.country_id or self.partner_ids[:1].country_id
 
     @api.depends("number", "country_id", "partner_ids.country_id")
     def _compute_sanitized(self) -> None:
         for phone in self:
             phone.sanitized = self._sanitize_number(
-                phone.number, phone._phone_country()
+                phone.number, phone._get_phone_country()
             )
 
     @api.depends("number", "label", "type")
@@ -77,7 +77,7 @@ class PhoneNumber(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         wanted = [
-            self._sanitize_number(vals.get("number"), self._country_from_vals(vals))
+            self._sanitize_number(vals.get("number"), self._get_country_from_vals(vals))
             for vals in vals_list
         ]
         existing = {
@@ -109,7 +109,7 @@ class PhoneNumber(models.Model):
         return self.browse(by_position[i].id for i in range(len(vals_list)))
 
     @api.model
-    def _country_from_vals(self, vals: ValuesType):
+    def _get_country_from_vals(self, vals: ValuesType):
         if vals.get("country_id"):
             return self.env["res.country"].browse(vals["country_id"])
         partner_ids = [

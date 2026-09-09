@@ -187,7 +187,7 @@ class TestWebsiteBlogTranslationFlow(HttpCase, TestWebsiteBlogCommon):
                 "overwrite": True,
                 "lang_ids": [(6, 0, [cls.parseltongue.id])],
             }
-        ).lang_install()
+        ).action_install_lang()
         cls.headers = {"Content-Type": "application/json"}
 
     def test_teaser_manual(self):

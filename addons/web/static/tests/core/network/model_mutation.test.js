@@ -103,12 +103,12 @@ test("methods narrows (and replaces) the watched set", () => {
     const dispose = onModelMutation(
         ["base.language.install"],
         (info) => seen.push(info.method),
-        { methods: ["lang_install"] },
+        { methods: ["action_install_lang"] },
     );
-    fire("base.language.install", "lang_install");
+    fire("base.language.install", "action_install_lang");
     fire("base.language.install", "write");
     dispose();
-    expect(seen).toEqual(["lang_install"]);
+    expect(seen).toEqual(["action_install_lang"]);
 });
 
 test("a malformed event is ignored rather than thrown out of the bus", () => {

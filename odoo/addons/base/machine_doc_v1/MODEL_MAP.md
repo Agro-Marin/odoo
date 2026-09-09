@@ -348,7 +348,7 @@ Tracks many2many relation tables.
 - `model` (Many2one → ir.model), `module` (Many2one → ir.module.module)
 
 **Key Methods:**
-- `_module_data_uninstall()` — Drop M2M tables on module uninstall
+- `_uninstall_module_data()` — Drop M2M tables on module uninstall
 
 ---
 
@@ -372,7 +372,7 @@ XML ID registry — maps external identifiers to database records.
 - `_xmlid_to_res_id(xmlid, raise_if_not_found)` — Extract just res_id
 - `check_object_reference(module, xml_id, raise_on_access_error)` — Access check
 - `_update_xmlids(data_list, update)` — Batch create/update XML IDs
-- `_module_data_uninstall(modules_to_remove)` — Delete records by module on uninstall
+- `_uninstall_module_data(modules_to_remove)` — Delete records by module on uninstall
 
 ### models/ir_model_common.py
 
@@ -1669,7 +1669,7 @@ the `phone` and `mobile` columns on partners, users and companies.
 `_rec_name` is `number`; `_rec_names_search` also covers `sanitized` and `label`.
 **Key Fields:** `number`, `sanitized` (computed), `type`, `country_id`,
 `primary`, `label`, `partner_ids`
-**Key Methods:** `_sanitize_number(number, country)`, `_phone_country()`
+**Key Methods:** `_sanitize_number(number, country)`, `_get_phone_country()`
 
 ### models/report_layout.py / report_paperformat.py
 

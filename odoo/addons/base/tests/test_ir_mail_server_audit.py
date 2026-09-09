@@ -2058,12 +2058,12 @@ class TestOutgoingEmailErrorCodes(TransactionCase):
             self.IrMailServer.NO_VALID_FROM,
         ):
             with self.subTest(code=code):
-                message = self.IrMailServer._outgoing_email_message(code)
+                message = self.IrMailServer._get_outgoing_email_message(code)
                 self.assertNotEqual(message, code)
                 self.assertGreater(len(message), len(code))
 
     def test_the_message_never_leaks_into_the_code(self):
-        message = self.IrMailServer._outgoing_email_message(
+        message = self.IrMailServer._get_outgoing_email_message(
             self.IrMailServer.NO_VALID_RECIPIENT
         )
         error = OutgoingEmailError(message, self.IrMailServer.NO_VALID_RECIPIENT)

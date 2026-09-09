@@ -57,7 +57,7 @@ class TestResUsersSettingsChangeDetection(TransactionCase):
         )
 
     def test_x2many_command_target_ids_static_commands(self):
-        normalize = self.env["res.users.settings"]._x2many_command_target_ids
+        normalize = self.env["res.users.settings"]._get_x2many_command_target_ids
         current = {1, 2}
         self.assertEqual(normalize(current, [Command.set([2, 1])]), {1, 2})
         self.assertEqual(normalize(current, [Command.set([3])]), {3})
@@ -73,7 +73,7 @@ class TestResUsersSettingsChangeDetection(TransactionCase):
         self.assertEqual(current, {1, 2})
 
     def test_x2many_command_target_ids_dynamic_or_malformed(self):
-        normalize = self.env["res.users.settings"]._x2many_command_target_ids
+        normalize = self.env["res.users.settings"]._get_x2many_command_target_ids
         current = {1, 2}
         self.assertIsNone(normalize(current, [Command.create({"name": "x"})]))
         self.assertIsNone(normalize(current, [Command.update(1, {"name": "x"})]))

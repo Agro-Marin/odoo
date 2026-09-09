@@ -152,7 +152,7 @@ class TestProductivityDuration(common.TestMrpCommon):
         )
         self.env["base.language.install"].create(
             {"lang_ids": [Command.set(lang.ids)]}
-        ).lang_install()
+        ).action_install_lang()
         category = self.env.ref("mrp.category_availability")
         french = dict(
             category.with_context(lang="fr_FR")

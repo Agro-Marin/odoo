@@ -299,7 +299,7 @@ class TestTranslationFlow(common.TransactionCase):
         export = self.env["base.language.export"].create(
             {"format": "po", "modules": [Command.set([module.id])]}
         )
-        export.act_getfile()
+        export.action_export_language_file()
         pot_file_data = export.data
         self.assertIsNotNone(pot_file_data)
 
@@ -320,7 +320,7 @@ class TestTranslationFlow(common.TransactionCase):
                 "overwrite": True,
                 "lang_ids": [(6, 0, [self.env.ref("base.lang_fr").id])],
             }
-        ).lang_install()
+        ).action_install_lang()
 
         module = self.env.ref("base.module_test_translation_import")
         export = self.env["base.language.export"].create(
@@ -330,7 +330,7 @@ class TestTranslationFlow(common.TransactionCase):
                 "modules": [Command.set([module.id])],
             }
         )
-        export.act_getfile()
+        export.action_export_language_file()
         po_file_data = export.data
         self.assertIsNotNone(po_file_data)
 
@@ -449,7 +449,7 @@ class TestTranslationFlow(common.TransactionCase):
                 "modules": [Command.set([module.id])],
             }
         )
-        export.act_getfile()
+        export.action_export_language_file()
         po_file = export.data
         self.assertIsNotNone(po_file)
 
@@ -535,7 +535,7 @@ class TestTranslationFlow(common.TransactionCase):
                 "overwrite": True,
                 "lang_ids": [(6, 0, [self.env.ref("base.lang_fr").id])],
             }
-        ).lang_install()
+        ).action_install_lang()
 
         model1_ids = [
             self.env.ref(

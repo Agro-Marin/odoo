@@ -16,8 +16,8 @@ class BaseLanguageInstall(models.TransientModel):
             defaults["website_ids"].append(website_id)
         return defaults
 
-    def lang_install(self):
-        action = super().lang_install()
+    def action_install_lang(self):
+        action = super().action_install_lang()
         if self.website_ids and self.lang_ids:
             self.website_ids.language_ids |= self.lang_ids
         params = self.env.context.get("params", {})

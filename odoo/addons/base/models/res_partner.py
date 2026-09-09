@@ -385,10 +385,10 @@ class ResPartner(models.Model):
     duplicate_ids = fields.Many2many(
         "res.partner",
         string="Possible Duplicates",
-        compute="_compute_duplicate_ids",
+        compute="_compute_possible_duplicates",
     )
     duplicate_count = fields.Integer(
-        compute="_compute_duplicate_ids",
+        compute="_compute_possible_duplicates",
     )
     identifier_ids = fields.One2many(
         comodel_name="res.partner.identifier",
@@ -752,7 +752,7 @@ class ResPartner(models.Model):
                 partner.same_company_registry_partner_id = False
 
     @api.depends("complete_name", "country_id", "company_id", "parent_id")
-    def _compute_duplicate_ids(self) -> None:
+    def _compute_possible_duplicates(self) -> None:
         matches = self._get_similar_named_partners()
         for partner in self:
             duplicates = matches.get(partner.id, self.browse())

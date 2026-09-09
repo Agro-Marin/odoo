@@ -535,7 +535,7 @@ class IrModuleModule(models.Model):
 
             raise UserError(msg) from e
 
-    def _state_update(
+    def _update_module_state(
         self, newstate: str, states_to_update: list[str], level: int = 100
     ) -> None:
         if level < 1:
@@ -560,7 +560,9 @@ class IrModuleModule(models.Model):
                     update_ids.append(dep.linked_id.id)
             update_mods = self.browse(update_ids)
 
-            update_mods._state_update(newstate, states_to_update, level=level - 1)
+            update_mods._update_module_state(
+                newstate, states_to_update, level=level - 1
+            )
 
             if module.state in states_to_update:
                 self.check_external_dependencies(module.name, newstate)
@@ -608,7 +610,7 @@ class IrModuleModule(models.Model):
 
         to_install = self
         while to_install:
-            to_install._state_update("to install", ["uninstalled"])
+            to_install._update_module_state("to install", ["uninstalled"])
 
             if config.get("skip_auto_install"):
                 to_install = self.browse()
@@ -679,7 +681,7 @@ class IrModuleModule(models.Model):
     @assert_log_admin_access
     def module_uninstall(self) -> bool:
         modules_to_remove = self.mapped("name")
-        self.env["ir.model.data"]._module_data_uninstall(modules_to_remove)
+        self.env["ir.model.data"]._uninstall_module_data(modules_to_remove)
         self.with_context(prefetch_fields=False).write(
             {
                 "state": "uninstalled",

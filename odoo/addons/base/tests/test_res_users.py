@@ -1298,7 +1298,7 @@ class TestInstalledLangCodes(TransactionCase):
         self.assertEqual(
             codes,
             tuple(code for code, _name in self.env["res.lang"].get_installed()),
-            "the order is load-bearing: _context_get_cached falls back to codes[0]",
+            "the order is load-bearing: _get_context_cached falls back to codes[0]",
         )
         if "fr_FR" in codes:
             self.skipTest("fr_FR already installed; cannot test invalidation")

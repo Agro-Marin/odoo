@@ -70,7 +70,7 @@ class TestTranslation(HttpCase):
                 "overwrite": True,
                 "lang_ids": [(6, 0, [lang_fr.id])],
             }
-        ).lang_install()
+        ).action_install_lang()
         for website in self.env["website"].search([]):
             website.language_ids += lang_fr
             website.default_lang_id = lang_fr
@@ -101,7 +101,7 @@ class TestTranslation(HttpCase):
                 "overwrite": True,
                 "lang_ids": [(6, 0, [lang_fr.id])],
             }
-        ).lang_install()
+        ).action_install_lang()
 
     def test_fr_db_fr_site(self):
         self._fr_db()
@@ -145,7 +145,7 @@ class TestTranslation(HttpCase):
                 "overwrite": True,
                 "lang_ids": [(6, 0, [lang_fr.id])],
             }
-        ).lang_install()
+        ).action_install_lang()
         for website in self.env["website"].search([]):
             website.language_ids += lang_fr
             website.default_lang_id = lang_fr

@@ -102,7 +102,7 @@ class Home(http.Controller):
                 request.env.user._on_webclient_bootstrap()
             context = request.env["ir.http"].webclient_rendering_context()
 
-            hmac_payload = request.env.user._session_token_get_values()
+            hmac_payload = request.env.user._get_session_token_values()
             session_info = context.get("session_info")
             session_info["browser_cache_secret"] = hmac(
                 request.env(su=True), "browser_cache_key", hmac_payload

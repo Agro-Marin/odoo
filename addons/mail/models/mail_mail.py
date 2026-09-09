@@ -1505,7 +1505,7 @@ class MailMail(models.Model):
             if not outcome.message_id and raise_exception and outcome.failure_type:
                 raise MailDeliveryError(
                     outcome.failure_reason
-                    or IrMailServer._outgoing_email_message(
+                    or IrMailServer._get_outgoing_email_message(
                         IrMailServer.NO_VALID_RECIPIENT
                     )
                 )
@@ -1645,9 +1645,9 @@ class MailMail(models.Model):
         )
         if no_recipients:
             mark.failure_type = "mail_email_missing"
-            mark.failure_reason = self.env["ir.mail_server"]._outgoing_email_message(
-                self.env["ir.mail_server"].NO_VALID_RECIPIENT
-            )
+            mark.failure_reason = self.env[
+                "ir.mail_server"
+            ]._get_outgoing_email_message(self.env["ir.mail_server"].NO_VALID_RECIPIENT)
         self.write(
             {
                 "state": "exception",

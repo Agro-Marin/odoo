@@ -1761,7 +1761,7 @@ class IrUiView(models.Model):
                 for child in reversed(node_info.get("children", node))
             )
 
-    def _arch_scope(
+    def _get_arch_scope(
         self,
         root: _Element,
         model_name: str,
@@ -1821,7 +1821,7 @@ class IrUiView(models.Model):
     ) -> NameManager:
         root = node
 
-        name_manager, get_node_info = self._arch_scope(
+        name_manager, get_node_info = self._get_arch_scope(
             root,
             model_name,
             node_info,
@@ -2216,7 +2216,7 @@ class IrUiView(models.Model):
                 for group_name in groups.replace("!", "").split(","):
                     name_manager.add_required_group(group_name, elem)
 
-        name_manager, get_node_info = self._arch_scope(
+        name_manager, get_node_info = self._get_arch_scope(
             node,
             model_name,
             node_info,

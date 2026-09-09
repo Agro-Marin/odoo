@@ -1002,7 +1002,7 @@ Write Operation                  Cache Layers                    State
   │     triggers CLEAR-CACHES      │                               │
   │  │  (method ∈ RESULT_SET_      │                               │
   │  │   REMOVING_METHODS;         │                               │
-  │  │   lang_install instead      │                               │
+  │  │   action_install_lang instead      │                               │
   │  │   fires an unscoped full    │                               │
   │  │   clear)                    │                               │
   │  ├─ rpcBus.trigger(            │                               │

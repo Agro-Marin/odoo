@@ -75,7 +75,7 @@
                 </div>
                 <footer invisible="state != 'choose'">
                     <button
-                        name="act_getfile"
+                        name="action_export_language_file"
                         data-hotkey="q"
                         string="Export"
                         type="object"

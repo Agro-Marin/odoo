@@ -182,7 +182,7 @@ class ResUsers(models.Model):
 
     @api.model
     def context_get(self) -> frozendict:
-        context, user_lang_valid = self._context_get_cached()
+        context, user_lang_valid = self._get_context_cached()
         if context and not user_lang_valid and request:
             best_lang = request.best_lang
             if best_lang and best_lang != context["lang"]:
@@ -197,7 +197,7 @@ class ResUsers(models.Model):
 
     @api.model
     @tools.ormcache("self.env.uid")
-    def _context_get_cached(self) -> tuple[frozendict, bool]:
+    def _get_context_cached(self) -> tuple[frozendict, bool]:
         user = self.env.user.with_context(prefetch_fields=False)
         try:
             context = user.read(["lang", "tz"], load=False)[0]
@@ -251,8 +251,8 @@ class ResUsers(models.Model):
 
     @tools.ormcache("self.id", "sid")
     def _get_session_token(self, sid: str) -> str | bool:
-        field_values = self._session_token_get_values()
-        return self._session_token_hash_compute(sid, field_values)
+        field_values = self._get_session_token_values()
+        return self._hash_session_token(sid, field_values)
 
     @tools.ormcache("self.id")
     def _get_group_ids(self) -> tuple[int, ...]:
@@ -1172,7 +1172,7 @@ class ResUsers(models.Model):
             "group_by": SQL("res_users.id"),
         }
 
-    def _session_token_get_values(self) -> tuple[tuple[str, Any], ...] | bool:
+    def _get_session_token_values(self) -> tuple[tuple[str, Any], ...] | bool:
         self.env.cr.execute(
             SQL(
                 "SELECT %(select)s FROM %(from)s %(joins)s WHERE %(where)s GROUP BY %(group_by)s",
@@ -1188,7 +1188,7 @@ class ResUsers(models.Model):
             for index, column in enumerate(cr_description)
         )
 
-    def _session_token_hash_compute(
+    def _hash_session_token(
         self, sid: str, field_values: tuple[tuple[str, Any], ...] | bool
     ) -> str | bool:
         if not field_values:
@@ -1278,7 +1278,7 @@ class ResUsers(models.Model):
             self.partner_id.action_archive()
         self.env["res.users.deletion"].create(res_users_deletion_values)
 
-    def preference_save(self) -> dict[str, Any]:
+    def action_save_preferences(self) -> dict[str, Any]:
         return {
             "type": "ir.actions.client",
             "tag": "reload_context",
@@ -1293,7 +1293,7 @@ class ResUsers(models.Model):
         }
 
     @check_identity
-    def preference_change_password(self) -> dict[str, Any]:
+    def action_change_password(self) -> dict[str, Any]:
         return {
             "type": "ir.actions.act_window",
             "target": "new",
@@ -1302,7 +1302,7 @@ class ResUsers(models.Model):
         }
 
     @check_identity
-    def api_key_wizard(self) -> dict[str, Any]:
+    def action_open_api_key_wizard(self) -> dict[str, Any]:
         return {
             "type": "ir.actions.act_window",
             "res_model": "res.users.apikeys.description",

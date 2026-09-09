@@ -86,13 +86,13 @@ class ResUsersSettings(models.Model):
                 return (new_value or False) != (current_value.id or False)
             case "one2many" | "many2many":
                 current_ids = set(current_value.ids)
-                target_ids = self._x2many_command_target_ids(current_ids, new_value)
+                target_ids = self._get_x2many_command_target_ids(current_ids, new_value)
                 return target_ids is None or target_ids != current_ids
             case _:
                 return new_value != current_value
 
     @api.model
-    def _x2many_command_target_ids(
+    def _get_x2many_command_target_ids(
         self, current_ids: set[int], value: Any
     ) -> set[int] | None:
         if not isinstance(value, (list, tuple)):

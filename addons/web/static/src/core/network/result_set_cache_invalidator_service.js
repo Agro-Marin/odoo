@@ -32,7 +32,7 @@ const resultSetCacheInvalidatorService = {
             onModelMutation(
                 ["base.language.install"],
                 () => rpcBus.trigger(RpcEvent.CLEAR_CACHES),
-                { methods: ["lang_install"] },
+                { methods: ["action_install_lang"] },
             ),
         ];
 

@@ -18,7 +18,7 @@ class TestTranslationFlow(common.TransactionCase):
                     "modules": [(6, 0, [module.id])],
                 }
             )
-            export.act_getfile()
+            export.action_export_language_file()
             if not export.data:
                 continue
             pot_file = base64.b64decode(export.data)

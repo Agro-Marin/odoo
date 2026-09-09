@@ -8299,7 +8299,7 @@ class TestBothPhasesShareOneScope(ViewCase):
             seen.append((node.tag, info["view_groups"].key))
 
         tree = etree.fromstring("<form><group groups='base.group_system'/></form>")
-        _manager, get_node_info = self.View._arch_scope(
+        _manager, get_node_info = self.View._get_arch_scope(
             tree, "ir.ui.view", None, translate=False, editable=True, refine=refine
         )
         root_info = get_node_info(tree, None)

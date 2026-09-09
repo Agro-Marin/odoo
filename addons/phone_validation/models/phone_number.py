@@ -50,8 +50,8 @@ class PhoneNumber(models.Model):
                     where=f"{fname} IS NOT NULL",
                 )
 
-    def _phone_country(self):
-        return super()._phone_country() or self.env.company.country_id
+    def _get_phone_country(self):
+        return super()._get_phone_country() or self.env.company.country_id
 
     @api.model
     def _e164(self, number, country=None):
@@ -78,7 +78,7 @@ class PhoneNumber(models.Model):
     @api.depends("number", "country_id", "partner_ids.country_id")
     def _compute_valid(self):
         for phone in self:
-            phone.valid = bool(self._e164(phone.number, phone._phone_country()))
+            phone.valid = bool(self._e164(phone.number, phone._get_phone_country()))
 
     @api.depends("sanitized")
     def _compute_blacklisted(self):

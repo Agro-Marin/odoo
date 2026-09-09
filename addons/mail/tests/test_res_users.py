@@ -688,7 +688,9 @@ class TestUserTours(HttpCaseWithUserDemo):
         self.user_demo.tz = "Europe/Brussels"
         self.user_demo.notification_type = "email"
 
-        with patch.object(ResUsersPatchedInTest, "preference_save", lambda self: True):
+        with patch.object(
+            ResUsersPatchedInTest, "action_save_preferences", lambda self: True
+        ):
             self.start_tour(
                 "/odoo",
                 "mail/static/tests/tours/user_modify_own_profile_tour.js",

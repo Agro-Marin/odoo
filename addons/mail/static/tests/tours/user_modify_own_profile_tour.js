@@ -28,7 +28,7 @@ registry
             },
             {
                 content: "Save the form",
-                trigger: 'button[name="preference_save"]',
+                trigger: 'button[name="action_save_preferences"]',
                 run: "click",
             },
             {

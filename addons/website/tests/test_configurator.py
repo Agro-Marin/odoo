@@ -145,7 +145,7 @@ class TestConfiguratorTranslation(TestConfiguratorCommon):
                 "overwrite": True,
                 "lang_ids": [(6, 0, [parseltongue.id])],
             }
-        ).lang_install()
+        ).action_install_lang()
         feature = self.env["website.configurator.feature"].search(
             [("name", "=", "Privacy Policy")]
         )

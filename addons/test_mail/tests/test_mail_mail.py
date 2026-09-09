@@ -875,7 +875,7 @@ class TestMailMail(MailCommon):
                     mail.send(raise_exception=False)
                 self.assertEqual(
                     mail.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -894,7 +894,7 @@ class TestMailMail(MailCommon):
                 # different route through the mail server.
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -914,7 +914,7 @@ class TestMailMail(MailCommon):
                     mail.send(raise_exception=False)
                 self.assertEqual(
                     mail.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -922,7 +922,7 @@ class TestMailMail(MailCommon):
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -942,7 +942,7 @@ class TestMailMail(MailCommon):
                     mail.send(raise_exception=False)
                 self.assertEqual(
                     mail.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -954,7 +954,7 @@ class TestMailMail(MailCommon):
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -1011,7 +1011,7 @@ class TestMailMail(MailCommon):
                     mail.send(raise_exception=False)
                 self.assertEqual(
                     mail.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -1023,7 +1023,7 @@ class TestMailMail(MailCommon):
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -1044,7 +1044,7 @@ class TestMailMail(MailCommon):
                     mail.send(raise_exception=False)
                 self.assertEqual(
                     mail.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -1052,7 +1052,7 @@ class TestMailMail(MailCommon):
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -1069,7 +1069,7 @@ class TestMailMail(MailCommon):
                     mail.send(raise_exception=False)
                 self.assertEqual(
                     mail.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -1077,7 +1077,7 @@ class TestMailMail(MailCommon):
                 self.assertEqual(mail.state, "exception")
                 self.assertEqual(
                     notification.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -1141,7 +1141,7 @@ class TestMailMail(MailCommon):
             )
             self.assertEqual(
                 notification.failure_reason,
-                self.env["ir.mail_server"]._outgoing_email_message(
+                self.env["ir.mail_server"]._get_outgoing_email_message(
                     self.env["ir.mail_server"].NO_VALID_RECIPIENT
                 ),
             )
@@ -1207,7 +1207,7 @@ class TestMailMail(MailCommon):
                 self.assertEqual(notification.notification_status, "sent")
                 self.assertEqual(
                     notification2.failure_reason,
-                    self.env["ir.mail_server"]._outgoing_email_message(
+                    self.env["ir.mail_server"]._get_outgoing_email_message(
                         self.env["ir.mail_server"].NO_VALID_RECIPIENT
                     ),
                 )
@@ -3426,7 +3426,7 @@ class TestMailMailFailureRanking(MailCommon):
             if self.partner_greylisted.email in (message["To"] or ""):
                 raise MailDeliveryError("Mail Delivery Failed", "greylisted")
             raise OutgoingEmailError(
-                self.env["ir.mail_server"]._outgoing_email_message(
+                self.env["ir.mail_server"]._get_outgoing_email_message(
                     self.env["ir.mail_server"].NO_VALID_RECIPIENT
                 ),
                 self.env["ir.mail_server"].NO_VALID_RECIPIENT,

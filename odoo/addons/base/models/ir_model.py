@@ -570,7 +570,7 @@ class IrModelInherit(models.Model):
                 else {}.get
             )
             for cls in classes:
-                items = self._inherit_items(
+                items = self._get_inherit_items(
                     cls, model_name, model_id, get_model_id, get_field_id
                 )
                 for item in items:
@@ -578,7 +578,7 @@ class IrModelInherit(models.Model):
         return module_mapping
 
     @staticmethod
-    def _inherit_items(
+    def _get_inherit_items(
         definition: type,
         model_name: str,
         model_id: int,

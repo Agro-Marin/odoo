@@ -12,7 +12,7 @@ class WizardIrModelMenuCreate(models.TransientModel):
     )
     name = fields.Char(string="Menu Name", required=True)
 
-    def menu_create(self) -> dict[str, Any]:
+    def action_create_menu(self) -> dict[str, Any]:
         for menu in self:
             model_id = self.env.context.get("model_id")
             if not model_id:

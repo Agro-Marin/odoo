@@ -347,7 +347,7 @@ class IrModelRelation(models.Model):
     write_date = fields.Datetime()
     create_date = fields.Datetime()
 
-    def _module_data_uninstall(self) -> None:
+    def _uninstall_module_data(self) -> None:
         if not self.env.is_system():
             raise AccessError(
                 _("Administrator access is required to uninstall a module")

@@ -2187,7 +2187,7 @@ def load_language(cr: BaseCursor, lang: str) -> None:
     installer: Any = env["base.language.install"].create(
         {"lang_ids": [(6, 0, lang_ids)]}
     )
-    installer.lang_install()
+    installer.action_install_lang()
 
 
 def get_base_langs(lang: str) -> list[str]:

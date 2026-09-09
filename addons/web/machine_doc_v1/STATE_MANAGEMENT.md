@@ -478,7 +478,7 @@ the mutex and normal flow.
 | File:Line | Trigger | Scope |
 |---|---|---|
 | `core/network/result_set_cache_invalidator_service.js` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined by `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
-| `core/network/result_set_cache_invalidator_service.js` | `base.language.install` `lang_install` RPC response (a new language invalidates virtually everything cached) | all |
+| `core/network/result_set_cache_invalidator_service.js` | `base.language.install` `action_install_lang` RPC response (a new language invalidates virtually everything cached) | all |
 | `search/search_favorites_mixin.js` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
 | `webclient/actions/action_cache_invalidation.js` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
 | `views/view_service.js` | `ir.ui.view` / `ir.filters` write/unlink | `"get_views"` table |

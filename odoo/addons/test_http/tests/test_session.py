@@ -687,7 +687,7 @@ class TestSessionRotation(HttpCase):
 
     def test_session_token_lookup_does_not_clear_cache(self):
         with patch.object(self.env.registry, "clear_cache") as mock_clear:
-            result = self.env["res.users"].browse(99999999)._session_token_get_values()
+            result = self.env["res.users"].browse(99999999)._get_session_token_values()
 
         self.assertFalse(result, "lookup of a non-existent user must return falsy")
         mock_clear.assert_not_called()

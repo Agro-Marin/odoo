@@ -23,21 +23,21 @@ class TestBaseLanguageWizardsAudit(TransactionCase):
     def test_blexp1_syntax_error_domain_raises_usererror(self):
         wizard = self._make_model_export("[(1,2")
         with self.assertRaises(UserError):
-            wizard.act_getfile()
+            wizard.action_export_language_file()
 
     def test_blexp1_type_error_domain_raises_usererror(self):
         wizard = self._make_model_export("{[]:1}")
         with self.assertRaises(UserError):
-            wizard.act_getfile()
+            wizard.action_export_language_file()
 
     def test_blexp1_non_list_domain_raises_usererror(self):
         wizard = self._make_model_export("42")
         with self.assertRaises(UserError):
-            wizard.act_getfile()
+            wizard.action_export_language_file()
 
     def test_blexp_happy_path_empty_domain_produces_file(self):
         wizard = self._make_model_export("[]")
-        wizard.act_getfile()
+        wizard.action_export_language_file()
         self.assertEqual(wizard.state, "get")
         self.assertTrue(wizard.name)
 

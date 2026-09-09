@@ -25,7 +25,7 @@
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        name="switch_lang"
+                        name="action_switch_lang"
                         type="object"
                         class="btn-primary ms-1"
                         data-hotkey="w">
@@ -51,7 +51,7 @@
                 </group>
                 <footer>
                     <button
-                        name="lang_install"
+                        name="action_install_lang"
                         block-ui="1"
                         string="Add"
                         data-hotkey="q"

@@ -499,7 +499,7 @@ class TestLanguageInstall(TransactionCase):
             "odoo.addons.base.models.ir_module.IrModuleModule._load_module_terms",
             _load_module_terms,
         ):
-            wizard.lang_install()
+            wizard.action_install_lang()
 
         self.assertEqual(len(loaded), 1)
         self.assertEqual(loaded[0][1], ["fr_FR"])

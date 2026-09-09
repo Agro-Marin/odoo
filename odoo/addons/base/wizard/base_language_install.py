@@ -43,7 +43,7 @@ class BaseLanguageInstall(models.TransientModel):
         for lang_installer in self.filtered("lang_ids"):
             lang_installer.first_lang_id = lang_installer.lang_ids[0]
 
-    def lang_install(self) -> dict[str, Any]:
+    def action_install_lang(self) -> dict[str, Any]:
         self.check_singleton()
         mods = self.env["ir.module.module"].search([("state", "=", "installed")])
         self.lang_ids.active = True
@@ -86,7 +86,7 @@ class BaseLanguageInstall(models.TransientModel):
             "tag": "reload",
         }
 
-    def switch_lang(self) -> dict[str, str]:
+    def action_switch_lang(self) -> dict[str, str]:
         self.env.user.lang = self.first_lang_id.code
         return {
             "type": "ir.actions.client",

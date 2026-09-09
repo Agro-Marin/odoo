@@ -352,7 +352,7 @@
                                 </div>
                                 <button
                                     invisible="id != uid"
-                                    name="preference_change_password"
+                                    name="action_change_password"
                                     type="object"
                                     string="Change password"
                                     class="btn btn-secondary h-100 my-auto" />
@@ -369,7 +369,7 @@
                                 class="d-md-flex mt-3">
                                 <div class="col-md-6 col-lg-3 d-flex flex-column">
                                     <label
-                                        for="api_key_wizard"
+                                        for="action_open_api_key_wizard"
                                         string="API Keys"
                                         class="o_form_label" />
                                     <span class="text-muted">
@@ -384,7 +384,7 @@
                                         class="w-sm-75 w-md-100 w-lg-75 w-xl-50 o_base_api_keys_kanban_view" />
                                     <div>
                                         <button
-                                            name="api_key_wizard"
+                                            name="action_open_api_key_wizard"
                                             string="Add API Key"
                                             type="object"
                                             class="btn btn-secondary h-100" />
@@ -720,7 +720,7 @@
                                     </span>
                                 </div>
                                 <button
-                                    name="preference_change_password"
+                                    name="action_change_password"
                                     type="object"
                                     string="Change password"
                                     class="btn btn-secondary h-100 my-auto" />
@@ -728,7 +728,7 @@
                             <div name="api_keys" class="d-lg-flex mt-3">
                                 <div class="col-lg-3 d-flex flex-column">
                                     <label
-                                        for="api_key_wizard"
+                                        for="action_open_api_key_wizard"
                                         string="API Keys"
                                         class="o_form_label" />
                                     <span class="text-muted">
@@ -743,7 +743,7 @@
                                         class="w-lg-75 o_base_api_keys_kanban_view" />
                                     <div>
                                         <button
-                                            name="api_key_wizard"
+                                            name="action_open_api_key_wizard"
                                             string="Add API Key"
                                             type="object"
                                             class="btn btn-secondary h-100" />
@@ -778,7 +778,7 @@
                     </notebook>
                     <footer>
                         <button
-                            name="preference_save"
+                            name="action_save_preferences"
                             type="object"
                             string="Update Preferences"
                             class="btn-primary"

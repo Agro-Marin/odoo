@@ -550,7 +550,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     def _create_merge_lines_from_query(self, query: SQL) -> None:
         self.check_singleton()
-        self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query or parent_migration_process_cb, not from user input
+        self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query or action_process_parent_migration, not from user input
         self._create_merge_lines(self.env.cr.fetchall())
 
     def _create_merge_lines(self, groups: list[tuple[int, list[int]]]) -> None:
@@ -625,7 +625,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             "target": "new",
         }
 
-    def parent_migration_process_cb(self) -> dict[str, Any]:
+    def action_process_parent_migration(self) -> dict[str, Any]:
         self.check_singleton()
 
         query = SQL("""
@@ -682,7 +682,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
     def action_update_all_process(self) -> dict[str, Any]:
         self.check_singleton()
-        self.parent_migration_process_cb()
+        self.action_process_parent_migration()
 
         wizard = self.create(
             {

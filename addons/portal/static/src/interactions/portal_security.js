@@ -77,7 +77,7 @@ export class PortalSecurity extends Interaction {
         await this.waitFor(
             handleCheckIdentity(
                 this.waitFor(
-                    this.services.orm.call("res.users", "api_key_wizard", [
+                    this.services.orm.call("res.users", "action_open_api_key_wizard", [
                         user.userId,
                     ]),
                 ),

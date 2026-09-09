@@ -259,7 +259,7 @@ class IrModelData(models.Model):
         return record
 
     @api.model
-    def _module_data_uninstall(self, modules_to_remove: list[str]) -> None:
+    def _uninstall_module_data(self, modules_to_remove: list[str]) -> None:
         if not self.env.is_system():
             raise AccessError(
                 _("Administrator access is required to uninstall a module")
@@ -318,7 +318,7 @@ class IrModelData(models.Model):
         relations = self.env["ir.model.relation"].search(
             [("module", "in", modules.ids)]
         )
-        relations._module_data_uninstall()
+        relations._uninstall_module_data()
 
         self._remove_uninstalled(
             self.env["ir.model"].browse(unique(model_ids)),
