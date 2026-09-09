@@ -11,7 +11,7 @@ export class SearchModal extends Interaction {
         },
     };
     destroy() {
-        Modal.getInstance(this.el)?.hide();
+        Modal.getInstance(this.el)?.dispose();
     }
 }
 
