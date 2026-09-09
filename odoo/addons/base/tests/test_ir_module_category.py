@@ -1,3 +1,8 @@
+import re
+from pathlib import Path
+
+from lxml import etree
+
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
@@ -99,4 +104,65 @@ class TestUpdateCategoryIdentity(TransactionCase):
             other.category_id.id,
             with_cache,
             "resolving with and without a cache must land on the same category",
+        )
+
+
+class TestDeclaredCategoriesStayUpdatable(TransactionCase):
+    """The 1.42 pre-migration carries a list, and a list goes stale in silence.
+
+    `get_or_create_category_id` inserts every row `noupdate = True`, so on an
+    upgraded database a data file can no longer correct a category it declares
+    -- not its name, not its sequence, not its parent. `base/migrations/1.42/
+    pre-migrate_declared_categories_are_updatable.py` clears the flag for the
+    rows base speaks for, and it has to name them one by one: clearing it for
+    the model would hand every auto-created category to `_process_end`, which
+    reaps exactly the rows that are absent from `loaded_xmlids` and not
+    `noupdate`.
+
+    So a record added to the data file and not to that list is a record the
+    data file will go on being unable to correct, on every database that has
+    already been upgraded past 1.42 -- and nothing about that is visible at
+    the point the record is written.
+    """
+
+    BASE = Path(__file__).resolve().parents[1]
+
+    def _declared_in_data(self):
+        tree = etree.parse(str(self.BASE / "data" / "ir_module_category_data.xml"))
+        return {
+            record.get("id").split(".")[-1]
+            for record in tree.getroot().iter("record")
+            if record.get("model") == "ir.module.category"
+        }
+
+    def _named_in_the_migration(self):
+        source = (
+            self.BASE
+            / "migrations"
+            / "1.42"
+            / "pre-migrate_declared_categories_are_updatable.py"
+        ).read_text()
+        return set(re.findall(r'"(module_category_[a-z0-9_()]+)"', source))
+
+    def test_every_declared_category_is_named_in_the_migration(self):
+        declared = self._declared_in_data()
+        self.assertTrue(declared, "the data file parsed to no category at all")
+        self.assertEqual(
+            sorted(declared - self._named_in_the_migration()),
+            [],
+            "these categories are declared in base's data file but absent from "
+            "the 1.42 pre-migration, so an upgraded database keeps them "
+            "noupdate and the data file cannot correct them",
+        )
+
+    def test_the_migration_names_nothing_the_data_file_does_not_declare(self):
+        # The other direction is the cheaper mistake and the one that rots: a
+        # name left behind after its record is removed clears noupdate on a row
+        # no data file speaks for, which is the one case `_process_end` reaps.
+        self.assertEqual(
+            sorted(self._named_in_the_migration() - self._declared_in_data()),
+            [],
+            "the 1.42 pre-migration names categories base's data file does not "
+            "declare; clearing noupdate on a row no data file owns makes it "
+            "reapable",
         )

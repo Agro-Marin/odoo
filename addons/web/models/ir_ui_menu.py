@@ -25,6 +25,7 @@ class IrUiMenu(models.Model):
                     "webIcon": None,
                     "webKeywords": None,
                     "webCategory": None,
+                    "webCategorySequence": None,
                     "webIconData": None,
                     "webIconDataMimetype": None,
                     "backgroundImage": menu.get("backgroundImage"),

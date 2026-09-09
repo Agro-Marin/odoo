@@ -135,40 +135,46 @@ def migrate(cr, version):
     if not found:
         return
 
-    category_ids = [category_id for _data_id, _name, category_id in found]
-    kept = _still_in_use(cr, category_ids)
+    # ONE PASS IS NOT ENOUGH, and the shape is worth naming: several of these
+    # categories parent each other. `Point of sale` holds nothing but
+    # `Point of sale/Localizations`, which holds nothing but
+    # `Point of sale/Localizations/EDI`. Testing the whole set against the tree
+    # before deleting any of it counts a parent as in use on the strength of a
+    # child that is about to go, so a single pass strands the parents -- measured
+    # at 8 rows left behind with modules, children and privileges all zero.
+    # Deleting deepest-first would do, but only because these chains are short;
+    # repeating until a pass removes nothing is right whatever their depth.
+    deleted: list[str] = []
+    remaining = list(found)
+    while True:
+        kept = _still_in_use(cr, [category_id for _d, _n, category_id in remaining])
+        doomed = [row for row in remaining if row[2] not in kept]
+        if not doomed:
+            break
+        cr.execute(
+            "DELETE FROM ir_model_data WHERE id = ANY(%s)",
+            ([data_id for data_id, _n, _c in doomed],),
+        )
+        cr.execute(
+            "DELETE FROM ir_module_category WHERE id = ANY(%s)",
+            ([category_id for _d, _n, category_id in doomed],),
+        )
+        deleted += [name for _d, name, _c in doomed]
+        remaining = [row for row in remaining if row[2] in kept]
 
-    doomed = [
-        (data_id, name, category_id)
-        for data_id, name, category_id in found
-        if category_id not in kept
-    ]
-    if not doomed:
+    if not deleted:
         _logger.info("every folded category is still in use; nothing deleted")
         return
-
-    cr.execute(
-        "DELETE FROM ir_model_data WHERE id = ANY(%s)",
-        ([data_id for data_id, _n, _c in doomed],),
-    )
-    cr.execute(
-        "DELETE FROM ir_module_category WHERE id = ANY(%s)",
-        ([category_id for _d, _n, category_id in doomed],),
-    )
     _logger.info(
         "deleted %s emptied module categor(y/ies): %s",
-        len(doomed),
-        ", ".join(sorted(name for _d, name, _c in doomed)),
+        len(deleted),
+        ", ".join(sorted(deleted)),
     )
-    if kept:
-        cr.execute(
-            "SELECT name->>'en_US' FROM ir_module_category WHERE id = ANY(%s)",
-            (list(kept),),
-        )
+    if remaining:
         _logger.info(
             "kept %s folded categor(y/ies) still holding something: %s",
-            len(kept),
-            ", ".join(sorted(name for (name,) in cr.fetchall())),
+            len(remaining),
+            ", ".join(sorted(name for _d, name, _c in remaining)),
         )
 
 
