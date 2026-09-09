@@ -39,3 +39,5 @@ access_product_merge_wizard_manager,product.merge.wizard,model_product_merge_wiz
 access_product_merge_line_manager,product.merge.line,model_product_merge_line,group_product_manager,1,1,1,1
 access_product_template_cost_manager,product.template.cost.manager,model_product_template,group_product_cost_manager,1,1,0,0
 access_product_product_cost_manager,product.product.cost.manager,model_product_product,group_product_cost_manager,1,1,0,0
+access_product_template_price_manager,product.template.price.manager,model_product_template,group_product_price_manager,1,1,0,0
+access_product_product_price_manager,product.product.price.manager,model_product_product,group_product_price_manager,1,1,0,0
