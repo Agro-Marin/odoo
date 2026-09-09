@@ -23,7 +23,12 @@
     "check_company_domain_parent_of": "protocol -- a canned implementation of _check_company_domain, assigned to it by name on dozens of models. Renaming it without the hook hides the pairing, which is the only thing that says what it is for",
     "check_companies_domain_parent_of": "protocol -- as check_company_domain_parent_of, for the company_ids side",
     "check_values": "raises, one frame down -- the failure path is _check_module's raise and the return is the argument passed straight back for chaining. The gate's proxy is one frame deep and this is what it costs",
-    "_check_hostname_callback": "raises, one frame down -- match_hostname raises on a certificate that does not match; the bool is pyOpenSSL's verify-callback contract, not an answer this method invented",
-    "_get_stack_trace": "override -- tools/profiler.py declares it on Collector returning a real trace and the tracing subclass returns None because it has none to give. The name is the parent's contract; renaming the override unhooks it, and it calls no super() so _overrides_same_name cannot see that"
+    "_check_hostname_callback": "raises, one frame down -- match_hostname raises on a certificate that does not match; the bool is pyOpenSSL's verify-callback contract, not an answer this method invented"
+  },
+  "scopes_note": "What survives the vocabulary in a bundled addon, keyed by the --addon scope that reports it. Separate from `names` because an allowlist keyed on the bare name is a claim that the name is unique across every scope, and §2.4.20 records two definitions of _check_path in one tree to say it is not. Same terms as `names`: no --update, an entry is argued.",
+  "scopes": {
+    "stock": {
+      "get_main_lines": "stock.traceability.report.get_main_lines is @api.model and is called over RPC by stock_traceability_report_backend.js. It get-or-creates the caller's own report row and returns that row's LINES -- §2.4.11's _get_or_create_ names a producer whose return IS the record it created, and this one's is not: the record is a per-user scratch singleton and the return is the report. The prefix describes the return correctly, which is what the rule tests; renaming it would move an RPC name in two JS files to make a Python reading no more honest."
+    }
   }
 }

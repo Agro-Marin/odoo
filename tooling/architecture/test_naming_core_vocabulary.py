@@ -26,7 +26,7 @@ class TestTheScanReachesSomething(unittest.TestCase):
         self.assertIn("refusing", str(caught.exception))
 
     def test_the_scan_reaches_the_core_package(self):
-        files = ncv.core_files()
+        files = ncv.scan_files()
         self.assertGreater(
             len(files),
             400,
@@ -38,7 +38,7 @@ class TestTheScanReachesSomething(unittest.TestCase):
         # odoo/tests is the test framework, not a suite. It is the one tree
         # `_sources.is_test_path` gets wrong, and the reason this gate has its
         # own file-selection rule instead of borrowing that one.
-        files = {p.name for p in ncv.core_files() if p.is_relative_to(ncv.FRAMEWORK)}
+        files = {p.name for p in ncv.scan_files() if p.is_relative_to(ncv.FRAMEWORK)}
         self.assertIn("http.py", files)
         self.assertIn(
             "cursor.py",
@@ -48,7 +48,7 @@ class TestTheScanReachesSomething(unittest.TestCase):
         )
 
     def test_a_real_suite_tree_is_out_of_scope(self):
-        files = ncv.core_files()
+        files = ncv.scan_files()
         self.assertFalse(
             [p for p in files if "orm" in p.parts and "tests" in p.parts],
             "odoo/orm/tests is a suite and is governed by nothing here",
@@ -280,7 +280,7 @@ class TestTheAllowlistIsArgued(unittest.TestCase):
         # otherwise report.
         allowed = set(self.raw["names"])
         seen = set()
-        for path in ncv.core_files():
+        for path in ncv.scan_files():
             src = path.read_text(encoding="utf-8", errors="ignore")
             seen |= {name for name in allowed if f"def {name}(" in src}
         self.assertEqual(
@@ -402,12 +402,49 @@ class TestRealTree(unittest.TestCase):
             "else.",
         )
 
+    def test_a_base_extension_point_is_a_declaration_and_not_a_finding(self):
+        # Three spellings of "declares a shape, supplies no behaviour": `...`,
+        # `pass`, and a lone `return`/`return None`. The third is the ORM's
+        # dialect -- a base hook a dependent overrides -- and it was three live
+        # findings in addons/base before the rule learned it:
+        # _get_zip_detached_reader (cloud_storage overrides), _get_mfa_type and
+        # _get_mfa_url (auth_totp, auth_totp_mail, l10n_au_hr_payroll_api).
+        import ast
+
+        for body in ("...", "pass", "return", "return None"):
+            with self.subTest(body):
+                node = ast.parse(f"def _get_mfa_type(self):\n    {body}\n").body[0]
+                self.assertTrue(ncv.is_declaration_only(node))
+                self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_producer_that_returns_nothing_after_doing_work_is_still_a_finding(self):
+        # The exclusion is for a body that is ONLY the declaration. One that
+        # does work and then produces nothing is what `empty-return` is for, and
+        # widening the stub rule must not swallow it.
+        import ast
+
+        node = ast.parse(
+            "def _get_rows(self):\n    self.env['x'].search([])\n    return None\n"
+        ).body[0]
+        self.assertFalse(ncv.is_declaration_only(node))
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "empty-return")
+
     def test_the_candidate_population_is_reported_and_not_gated(self):
         # It is allowed to shrink to nothing -- that would mean somebody read
         # them all -- but it must not be silently empty because the finder broke.
         found = ncv.candidates()
+        # Two groups now, not one: bare abolished verbs, and the kinds this
+        # scope declines to gate because nobody has read the population --
+        # `resolve-total` in core. Both are printed for the same reason, so the
+        # assertion is that every kind is a KNOWN candidate kind rather than
+        # that there is only one.
+        expected = {"bare-review"} | {
+            f"{kind}-review" for kind in ncv.UNSWEPT_IN_CORE_KINDS
+        }
         for item in found:
-            self.assertEqual(item.kind, "bare-review")
+            self.assertIn(item.kind, expected)
         self.assertNotIn(
             "fetch",
             {item.name for item in found},

@@ -48,6 +48,28 @@ than a floor. That sweep landed and the six are gone, so the gate is a hard zero
 held by `test_naming_core_vocabulary` and by no baseline file -- which is why
 every assertion in that module is aimed at a scan that has stopped looking
 rather than at a count.
+
+**The name says core and the gate no longer only reads core.** Four of its rules
+read a BODY rather than a spelling -- whether a `collect_` owns what it returns,
+whether a `check_` raises, whether a `_get_` returns anything at all, whether it
+creates what it claims only to describe -- and none of those is a question about
+a package. They were core-only because core is where they were written. The
+sibling gate cannot ask them at any scope: it matches a literal abolished token
+in a leading position, so it reports zero over every one of them however the
+tree is pointed.
+
+`--addon` names a scope out of `GOVERNED_ADDONS`, and `addons/stock` is the
+first bundled tree to earn one: fourteen definitions there, all invisible to
+the sibling's floor of zero. Two things make that a scope rather than a flag.
+The allowlist is keyed by NAME, so it is split per scope -- a core entry
+exempting an addon method would be §2.4.20's `_check_path` collision with the
+argument attached to the wrong definition. And `CORE_ONLY_KINDS` holds back
+§2.4.4's two infix rules, which need a noun test nothing mechanical has;
+`stock`'s four infix hits are all `assign`, that module's own operation.
+
+An addon is added to `GOVERNED_ADDONS` after it has been swept and not before,
+and it is a hard zero from that moment, on the same terms as core: no baseline
+file, and a survivor argued into the allowlist rather than banked.
 """
 
 from __future__ import annotations
@@ -69,6 +91,60 @@ from _repo_root import find_odoo_root
 
 ROOT = find_odoo_root(Path(__file__).resolve())
 CORE = ROOT / "odoo"
+
+# The scopes this gate may be pointed at, `--addon` naming one of them. `core`
+# is the population the module docstring argues for; the rest are bundled
+# addons, onboarded one at a time.
+#
+# The four rules that read a BODY were written for core and are not a core
+# reading: whether a `collect_` owns what it returns, whether a `check_` raises,
+# whether a `_get_` returns anything and whether it creates what it claims to
+# describe are questions about a function, not about a package. They were
+# core-only because that is where they were written, and `addons/stock` is the
+# first scope to be swept against them -- fourteen definitions the sibling gate
+# reports as zero, because the sibling matches a literal token in a leading
+# position and none of the fourteen wears one.
+#
+# An addon earns a row here after that sweep and not before, which is the shape
+# `GOVERNED_ADDONS` has in every other `--addon` gate: a scope nobody has read
+# measures cleanly and is pinned by nothing.
+GOVERNED_ADDONS = ("core", "stock")
+
+# §2.4.4 owns the infix population and calls it a CANDIDATE list rather than a
+# defect list -- nothing mechanical can tell a verb parked behind a noun from a
+# noun spelled like a verb, and the census counts 137 of them under `addons/`.
+# Core can gate the rule because core was swept by hand, name by name. An addon
+# scope cannot, and `stock` is where the difference is legible: all four of its
+# infix hits are `assign`, which is that module's own operation -- `_action_assign`,
+# and the `assigned` state on `stock.move` -- rather than a hidden verb. So the
+# body-reading rules travel to an addon scope and the two spelling rules that
+# would need a noun test stay behind.
+CORE_ONLY_KINDS = frozenset({"infix", "infix-synonym"})
+
+# And the same judgement in the other direction. `resolve-total` is gated in an
+# addon scope and NOT in core, which looks backwards -- core is the swept tree --
+# and is not. The rule is new, so its population has been read in exactly one
+# place: stock's six, by hand, which is what earned stock the gate. Core's
+# nineteen have been read by nobody, they are two populations rather than one,
+# and most of them sit in `addons/base` while a sweep is running inside it.
+#
+# The two populations are the reason this cannot be closed by renaming nineteen
+# things. Some are ordinary producers wearing a reserved word -- `_resolve_scope`,
+# `_resolve_enqueue_state`, `_resolve_error_frame`. Others are `resolve` as a
+# term of art from a layer below, which §2.4.3's *reserved, not abolished* rule
+# protects on exactly the terms it protects `reap` and `probe`: `resolve_mro` is
+# C3 linearization, `resolve_specifier_url` is the ESM specification's own verb
+# for its own algorithm, and `resolve_reference` is XML-DSig's. Renaming those
+# would be §2.4.3's "collapsing it destroys information", and telling them from
+# the first group needs a reader, not a predicate.
+#
+# So core's nineteen are a candidate population and `--candidates` prints them,
+# which is what this file already does for bare abolished verbs: visible without
+# being blocking. The gate's own history is the precedent -- the second core
+# sweep "left the framework tree to a sweep already running inside it, because
+# colliding with a live rename is worse than a floor". Move `resolve-total` out
+# of here once somebody has read the nineteen.
+UNSWEPT_IN_CORE_KINDS = frozenset({"resolve-total"})
 
 # `_sources.is_test_path` calls any path with a `tests` component a test path.
 # That is right for odoo/orm/tests and its siblings and wrong for exactly one
@@ -150,8 +226,22 @@ class Violation:
         return f"{self.path}:{self.line}  {self.name}  [{self.kind}] {self.why}"
 
 
-def load_allowlist() -> dict[str, str]:
-    return json.loads(ALLOWLIST.read_text(encoding="utf-8"))["names"]
+def addon_src(addon: str) -> Path:
+    return CORE if addon == "core" else ROOT / "addons" / addon
+
+
+def load_allowlist(addon: str = "core") -> dict[str, str]:
+    """The survivors of one scope, never of another.
+
+    A flat name list shared across scopes would exempt an addon method because
+    a core function of the same name was argued years earlier, which is the
+    §2.4.20 trap one directory up: a name is not unique, and an allowlist keyed
+    on the name alone is a claim that it is.
+    """
+    data = json.loads(ALLOWLIST.read_text(encoding="utf-8"))
+    if addon == "core":
+        return data["names"]
+    return data["scopes"].get(addon, {})
 
 
 def is_suite(path: Path) -> bool:
@@ -160,7 +250,7 @@ def is_suite(path: Path) -> bool:
     return "tests" in path.parts or path.name.startswith("test_")
 
 
-def core_files(root: Path | None = None) -> list[Path]:
+def scan_files(root: Path | None = None) -> list[Path]:
     scan = root or CORE
     return [
         path
@@ -290,6 +380,143 @@ def owns_its_return(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 # about what comes back. Neither survives a body that returns nothing.
 RETURN_CLAIM_VERBS = frozenset({"get", "prepare"})
 
+# §2.4.3 reserves `_resolve_` for a PARTIAL producer: "returns the object, or
+# `None` meaning *not applicable*". The reservation is the whole content of the
+# verb -- a producer that always has an answer is the Read row and `_get_` says
+# so, and one that never returns at all is not a producer. So a `_resolve_` with
+# no not-applicable path is using a reserved word to mean the ordinary thing,
+# which is §2.4.3's "collapsing it destroys information" read backwards.
+#
+# `None` is not the only spelling of not-applicable and treating it as the only
+# one is how this rule over-reports. In an ORM an EMPTY RECORDSET is the idiom,
+# and `stock.location._resolve_inventory_location` returns `Location.browse()`
+# for exactly that: scope not set, nothing to resolve. A rule that read only
+# `return None` would have demanded a rename of the one member of stock's six
+# that is using the reservation correctly. `_returns_empty_recordset` is why the
+# population is four rather than five.
+# §2.4.3's Predicate row is `_is_` / `_has_` / `_can_`, and its discriminator is
+# that "the returned `bool` is the answer to a question about the subject". The
+# same row warns, in its own words, that **the return type is not the test** --
+# so a rule keyed on "returns a bool" is the mistake the row names, and this one
+# is keyed on something narrower: a `_get_` whose every return is a boolean AND
+# at least one of which the function WORKED OUT.
+#
+# The difference is not pedantry, it is the whole population. A hook's default
+# implementation returns the literal `False` and its overrides return a value:
+# `ir.ui.view.get_formview_id` returns a view id or False, and
+# `_get_placeholder_filename` a filename or False. Both are bool-returning by a
+# naive reading and neither is a predicate -- the base is a stub, and the
+# contract lives in the overrides the gate cannot see from here. Requiring one
+# computed boolean -- a comparison, a `not`, a `bool()`/`any()`/`all()` -- takes
+# core from 2 to 0, stock from 2 to 0 and the bundled tree from 18 to 4, and
+# every one of the 18 that dropped out was a stub of that shape.
+_COMPUTED_BOOL_CALLS = frozenset({"bool", "any", "all"})
+
+
+def _is_computed_bool(node: ast.expr) -> bool:
+    """A boolean the function worked out, not a literal it was born with."""
+    if isinstance(node, ast.Compare):
+        return True
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return True
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in _COMPUTED_BOOL_CALLS
+    ):
+        return True
+    # `a or b` yields an OPERAND, so it is only boolean when every operand is --
+    # and only *computed* when at least one of them is. Reading `or` as boolean
+    # by itself reported `_get_lang` and five like it, whose operands are strings.
+    if isinstance(node, ast.BoolOp):
+        return all(_is_boolean(v) for v in node.values) and any(
+            _is_computed_bool(v) for v in node.values
+        )
+    if isinstance(node, ast.IfExp):
+        return all(_is_boolean(v) for v in (node.body, node.orelse)) and any(
+            _is_computed_bool(v) for v in (node.body, node.orelse)
+        )
+    return False
+
+
+def _is_boolean(node: ast.expr) -> bool:
+    if isinstance(node, ast.Constant) and isinstance(node.value, bool):
+        return True
+    return _is_computed_bool(node)
+
+
+def answers_a_question(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    returns = [
+        n for n in ast.walk(node) if isinstance(n, ast.Return) and n.value is not None
+    ]
+    if not returns or not all(_is_boolean(n.value) for n in returns):
+        return False
+    return any(_is_computed_bool(n.value) for n in returns)
+
+
+RESOLVE_VERB = "resolve"
+_EMPTY_RECORDSET_CALLS = frozenset({"browse"})
+
+
+def _returns_empty_recordset(node: ast.Return) -> bool:
+    """`return SomeModel.browse()` -- the ORM's spelling of "not applicable"."""
+    call = node.value
+    return (
+        isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr in _EMPTY_RECORDSET_CALLS
+        and not call.args
+        and not call.keywords
+    )
+
+
+def _can_yield_none(expr: ast.expr | None) -> bool:
+    """Whether the returned EXPRESSION can evaluate to None.
+
+    Not just `return None`. A partial producer usually says it in one line --
+    `return None if self.sort_key is None else (...)` is stock's, and reading
+    only the statement misses it, because the None is a branch of a ternary and
+    not the returned node. `x or None` is the same shape with a different
+    operator. This was the third false positive the rule produced against a real
+    tree, and all three were the same mistake: assuming one spelling of "no".
+    """
+    if expr is None:
+        return True
+    if isinstance(expr, ast.Constant) and expr.value is None:
+        return True
+    if isinstance(expr, ast.IfExp):
+        return _can_yield_none(expr.body) or _can_yield_none(expr.orelse)
+    if isinstance(expr, ast.BoolOp):
+        return any(_can_yield_none(value) for value in expr.values)
+    return False
+
+
+def has_not_applicable_path(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """A path on which the function declines to produce anything.
+
+    A bare `return`, an expression that can be None, an empty recordset, or
+    falling off the end of the body -- which returns `None` without saying so,
+    and is the commonest spelling of the four.
+    """
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Return):
+            continue
+        if _can_yield_none(child.value):
+            return True
+        if _returns_empty_recordset(child):
+            return True
+    body = [
+        n
+        for n in node.body
+        if not (
+            isinstance(n, ast.Expr)
+            and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str)
+        )
+    ]
+    return bool(body) and not isinstance(body[-1], ast.Return | ast.Raise)
+
+
 # The ORM write calls that are evidence a producer performs what it claims only
 # to describe (§2.4.7 for the payload row, §2.4.11 for the read one). `write` is
 # NOT among them and its absence is the rule: §2.4.3 reserves read/write for a
@@ -306,10 +533,32 @@ _COMMAND_RECEIVERS = frozenset({"Command", "fields"})
 
 
 def is_declaration_only(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """A Protocol member or an ABC stub: `...` or `pass`, and no body at all.
+    """A definition that declares a shape and supplies no behaviour.
+
+    Three spellings of one thing. `...` and `pass` are the Protocol member and
+    the ABC stub. A body that is a single bare `return` or `return None` is the
+    same declaration in the ORM's dialect: a BASE EXTENSION POINT, whose whole
+    content is the name and the signature a dependent module will override.
+    `ir.attachment._get_zip_detached_reader` is one, and `cloud_storage`
+    supplies the reader; `res.users._get_mfa_type` and `_get_mfa_url` are two
+    more, and `auth_totp`, `auth_totp_mail` and `l10n_au_hr_payroll_api` supply
+    the values. Each is annotated `-> X | None`, which says the None is the
+    contract rather than a producer failing to produce.
 
     Its name comes from the contract it declares, so the body cannot be evidence
-    about it -- there is no body.
+    about it -- there is no body. That is why this belongs in the RULE and not
+    in the allowlist: an allowlist entry is an argument about one name, and this
+    is a class of name. The entry that used to carry `_get_stack_trace` was the
+    same shape and came out when this landed, which is the direction an
+    allowlist should move.
+
+    KNOWN RESIDUAL: a `_get_*` whose body is only `return` is now permanently
+    invisible to `empty-return`, and a producer somebody stubbed out and never
+    finished looks identical from here to a base extension point. The body
+    cannot separate them. What can is whether anything in the workspace
+    overrides the name -- an extension point has overrides and an abandoned stub
+    does not -- which is the check that was done by hand on the three above and
+    is the discriminator to reach for if this ever hides a real one.
     """
     body = [
         n
@@ -322,13 +571,20 @@ def is_declaration_only(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     ]
     if not body:
         return True
-    return len(body) == 1 and (
-        isinstance(body[0], ast.Pass)
-        or (
-            isinstance(body[0], ast.Expr)
-            and isinstance(body[0].value, ast.Constant)
-            and body[0].value.value is Ellipsis
-        )
+    if len(body) != 1:
+        return False
+    only = body[0]
+    if isinstance(only, ast.Pass):
+        return True
+    if (
+        isinstance(only, ast.Expr)
+        and isinstance(only.value, ast.Constant)
+        and only.value.value is Ellipsis
+    ):
+        return True
+    return isinstance(only, ast.Return) and (
+        only.value is None
+        or (isinstance(only.value, ast.Constant) and only.value.value is None)
     )
 
 
@@ -417,6 +673,23 @@ def classify_definition(
                 "to describe them -- §2.4.11's _get_or_create_*, or §2.4.7"
             )
             return ("producer-writes", why)
+    if verb == "get" and answers_a_question(node):
+        why = (
+            "every return is a boolean and one is computed -- §2.4.3's Predicate "
+            "row: `_is_` / `_has_` / `_can_`, with the question in the tail"
+        )
+        return ("bool-under-get", why)
+    if (
+        verb == RESOLVE_VERB
+        and not is_declaration_only(node)
+        and not has_not_applicable_path(node)
+    ):
+        why = (
+            "`resolve_` is reserved for a PARTIAL producer -- the object, or "
+            "nothing meaning not applicable (§2.4.3). This always produces one; "
+            "take _get_, or the row the body satisfies"
+        )
+        return ("resolve-total", why)
     if verb == "check" and returns_a_value(node) and not raises(node):
         why = (
             "`check_` promises a raise on failure and this returns instead -- "
@@ -464,22 +737,29 @@ def is_bare_abolished(name: str) -> bool:
 
 
 def measure(
-    root: Path | None = None, *, apply_allowlist: bool = True
+    root: Path | None = None,
+    *,
+    apply_allowlist: bool = True,
+    addon: str = "core",
 ) -> list[Violation]:
-    """Every definition the vocabulary refuses.
+    """Every definition the vocabulary refuses, in one scope.
 
     `apply_allowlist=False` is what the allowlist's own test needs: two of the
     rules read a body, so "would this name be reported" cannot be answered from
     the name, and an entry that hides nothing has to be caught by rescanning
     without it.
+
+    `addon` selects the allowlist and, through `CORE_ONLY_KINDS`, which rules
+    are gated. `root` still overrides where to look, so a planted tree can be
+    measured under either scope's rules.
     """
-    files = core_files(root)
+    files = scan_files(root if root is not None else addon_src(addon))
     if not files:
         raise RuntimeError(
-            f"no Python files under {root or CORE} -- refusing to report a count "
-            f"from an empty scan"
+            f"no Python files under {root or addon_src(addon)} -- refusing to "
+            f"report a count from an empty scan"
         )
-    allowed = load_allowlist() if apply_allowlist else {}
+    allowed = load_allowlist(addon) if apply_allowlist else {}
     found: list[Violation] = []
     for path in files:
         tree = _ast_cache.parse_file(path)
@@ -489,6 +769,10 @@ def measure(
             if node.name in allowed or nv._overrides_same_name(node):
                 continue
             if (hit := classify_definition(node)) is None:
+                continue
+            if addon != "core" and hit[0] in CORE_ONLY_KINDS:
+                continue
+            if addon == "core" and hit[0] in UNSWEPT_IN_CORE_KINDS:
                 continue
             found.append(
                 Violation(
@@ -503,31 +787,52 @@ def measure(
     return found
 
 
-def candidates(root: Path | None = None) -> list[Violation]:
-    """Bare abolished verbs that are not assemble verbs -- a population to read.
+def candidates(root: Path | None = None, addon: str = "core") -> list[Violation]:
+    """What this scope declines to gate -- a population to read, not a count.
 
-    Not a violation count: several are the contract they implement, and telling
-    those apart is what §2.4.6's `[review]` tier is for.
+    Two groups. Bare abolished verbs, where several are the contract they
+    implement and telling those apart is what §2.4.6's `[review]` tier is for.
+    And the kinds the scope holds back: `resolve-total` in core, §2.4.4's two
+    infix rules in an addon. Both are held back because nobody has read the
+    population, so printing it is the only thing that makes the deferral
+    honest -- and the only thing that lets the next reader close it.
     """
-    allowed = load_allowlist()
+    allowed = load_allowlist(addon)
     found: list[Violation] = []
-    for path in core_files(root):
+    for path in scan_files(root if root is not None else addon_src(addon)):
         tree = _ast_cache.parse_file(path)
         for node in ast.walk(tree):
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
-            if node.name in allowed or not is_bare_abolished(node.name):
+            if node.name in allowed:
                 continue
-            verb = node.name.lstrip("_").partition("_")[0]
-            found.append(
-                Violation(
-                    path=_sources.display(path, ROOT),
-                    line=node.lineno,
-                    name=node.name,
-                    kind="bare-review",
-                    why=f"`{verb}` alone -- read the body before renaming",
+            if is_bare_abolished(node.name):
+                verb = node.name.lstrip("_").partition("_")[0]
+                found.append(
+                    Violation(
+                        path=_sources.display(path, ROOT),
+                        line=node.lineno,
+                        name=node.name,
+                        kind="bare-review",
+                        why=f"`{verb}` alone -- read the body before renaming",
+                    )
                 )
-            )
+                continue
+            # The kinds this scope declines to gate are a population to READ,
+            # which is the whole content of holding them back. A rule that is
+            # neither blocking nor printed has been dropped, not deferred.
+            unswept = UNSWEPT_IN_CORE_KINDS if addon == "core" else CORE_ONLY_KINDS
+            hit = classify_definition(node)
+            if hit is not None and hit[0] in unswept:
+                found.append(
+                    Violation(
+                        path=_sources.display(path, ROOT),
+                        line=node.lineno,
+                        name=node.name,
+                        kind=f"{hit[0]}-review",
+                        why=hit[1],
+                    )
+                )
     found.sort(key=lambda v: (v.path, v.line))
     return found
 
@@ -545,20 +850,29 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="print bare non-assemble verbs -- §2.4.6 [review], not gated",
     )
+    parser.add_argument(
+        "--addon",
+        default="core",
+        choices=GOVERNED_ADDONS,
+        help="what to measure: core (default) is the odoo/ package, and the "
+        "rest are bundled addons swept against the body-reading rules. A "
+        "scope refuses rather than measures cleanly, because a tree nobody "
+        "has read is pinned by nothing",
+    )
     args = parser.parse_args(argv)
 
     if args.candidates:
-        for item in candidates():
+        for item in candidates(addon=args.addon):
             print(f"  {item}")
         return 0
 
     if args.allowed:
-        for name, why in sorted(load_allowlist().items()):
+        for name, why in sorted(load_allowlist(args.addon).items()):
             print(f"  {name:34} {why}")
         return 0
 
     try:
-        found = measure()
+        found = measure(addon=args.addon)
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -570,11 +884,15 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(v) for v in found], indent=2))
         return 0
 
-    print("Method vocabulary over every function in odoo/")
+    where = "odoo/" if args.addon == "core" else f"addons/{args.addon}/"
+    print(f"Method vocabulary over every function in {where}")
     print("=" * 72)
     for item in found if args.top == 0 else found[: args.top]:
         print(f"  {item}")
-    print(f"\n{len(found)} definition(s); {len(load_allowlist())} allowed by name")
+    print(
+        f"\n{len(found)} definition(s); "
+        f"{len(load_allowlist(args.addon))} allowed by name"
+    )
     return 0
 
 

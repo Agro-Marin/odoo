@@ -128,6 +128,7 @@ js_public_surface.py --addon mail --check|
 js_service_shape.py --addon account --count|jsserviceshape_account --count
 js_service_shape.py --addon mail --count|jsserviceshape_mail --count
 js_service_shape.py --addon stock --count|jsserviceshape_stock --count
+naming_core_vocabulary.py --addon stock --count|naming_stock --count
 py_count_as_boolean.py --addon addons --count|py_count_as_boolean_addons --count
 py_count_as_boolean.py --addon tests --count|py_count_as_boolean_tests --count
 py_hook_arity.py --addon addons --count|py_hook_arity_addons --count
@@ -241,7 +242,7 @@ own:
 | `xml_reference_coherence.py` | view-arch strings (`widget=`, `js_class=`, `t-call`) against the JS registries and templates |
 | `module_depends_installable.py` | an installable module naming, in `depends`, a module marked `installable: False` — disabling a module is how a replacement holds against the next module update, and it strands every dependent silently: the graph drops them with one WARNING, leaves them in state `to install`, and `odoo-bin` exits 0, so no suite runs and nothing reddens. Indian GST reporting sat unreachable that way until a manifest was read by hand |
 | `orphan_depends.py` | an `@api.depends` carried by a method no field wires as `compute=`, `inverse=` or `search=` — the list is inert, so the field declares no dependency and answers with whatever it computed first, and Python, ruff and the registry all accept it |
-| `naming_core_vocabulary.py` | §2.4's verb vocabulary over *every* function in the core package. `naming_vocabulary.py` implements the scope as a class-membership test, so module-level functions and plain-class methods are the population it cannot see |
+| `naming_core_vocabulary.py` | §2.4's verb vocabulary over *every* function in a scope. `naming_vocabulary.py` implements the scope as a class-membership test, so module-level functions and plain-class methods are the population it cannot see — and it matches a literal abolished token in a leading position, so the four rules here that read a **body** — six of them — are invisible to it whatever the tree. `--addon` names the scope: `core` is the core package, and a bundled addon is onboarded once it has been swept against them. Two rules are held back rather than gated everywhere, each because the population has not been read in that scope: §2.4.4's infix pair does not travel to an addon (`stock`'s four hits are all `assign`, that module's own operation), and `resolve-total` is gated in an addon but not in core, where nineteen are two populations — ordinary producers wearing a reserved word, and `resolve` as a term of art a layer below (`resolve_mro`, `resolve_specifier_url`). `--candidates` prints whatever the scope declines to gate, so a deferral stays visible. The two rules that read a body and are gated everywhere at zero are `bool-under-get` (§2.4.3's Predicate row, keyed on a COMPUTED boolean rather than on the return type, which is what the row itself warns against) and the four the core sweep landed with |
 | `exchange_vocabulary.py` | one exchange lifecycle, not forty-seven: `state`-shaped Selection fields across the modules that talk to a counterparty |
 | `credential_storage.py` | a third-party secret resting in a stored `Char`/`Text` field instead of the vault |
 
