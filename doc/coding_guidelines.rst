@@ -1222,7 +1222,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   316
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 26,247
+§2.4.3   Non-test methods declared on a model class                 26,246
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            132
@@ -1234,7 +1234,7 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   173
 §2.4.5   ``X_to_Y`` converter definitions                               96
 §2.4.5   … distinct names                                               54
-§2.4.7   ``_get_*`` definitions                                      6,120
+§2.4.7   ``_get_*`` definitions                                      6,119
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  6
