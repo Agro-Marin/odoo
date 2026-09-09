@@ -8,6 +8,17 @@ import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { HierarchyCard } from "./hierarchy_card.js";
 import { useHierarchyNodeDraggable } from "./hierarchy_node_draggable.js";
 
+/**
+ * Node ids travel through the DOM as `data-node-id` strings; the model indexes
+ * them as numbers. Parse them here, at the boundary.
+ *
+ * @param {String | undefined} rawNodeId
+ * @returns {Number | undefined}
+ */
+function parseNodeId(rawNodeId) {
+    return rawNodeId === undefined || rawNodeId === "" ? undefined : Number(rawNodeId);
+}
+
 export class HierarchyRenderer extends Component {
     static components = {
         HierarchyCard,
@@ -62,7 +73,7 @@ export class HierarchyRenderer extends Component {
         }
         this.scrollTarget = "none";
         useBus(this.props.model.bus, "hierarchyScrollTarget", (ev) => {
-            this.scrollTarget = ev.detail?.scrollTarget || "none";
+            this.scrollTarget = ev.detail?.scrollTarget ?? "none";
         });
         onPatched(this.onPatched);
     }
@@ -127,14 +138,14 @@ export class HierarchyRenderer extends Component {
     async nodeDrop({ element, row, nextRow, newParentNode }) {
         let parentNodeId, parentResId;
         if (newParentNode) {
-            parentNodeId = newParentNode.dataset.nodeId;
+            parentNodeId = parseNodeId(newParentNode.dataset.nodeId);
         } else if (nextRow?.dataset.rowId !== row.dataset.rowId) {
-            parentNodeId = nextRow.dataset.parentNodeId;
-            if (!parentNodeId) {
-                const nodes = this.rows[nextRow.dataset.rowId].nodes || [];
-                if (nodes) {
+            parentNodeId = parseNodeId(nextRow.dataset.parentNodeId);
+            if (parentNodeId === undefined) {
+                const nodes = this.rows[Number(nextRow.dataset.rowId)]?.nodes || [];
+                if (nodes.length) {
                     parentNodeId = nodes[0].parentNode?.id;
-                    if (!parentNodeId) {
+                    if (parentNodeId === undefined) {
                         parentResId = nodes[0].parentResId;
                         if (!nodes.every((node) => node.parentResId === parentResId)) {
                             this.notification.add(
@@ -151,7 +162,7 @@ export class HierarchyRenderer extends Component {
                 }
             }
         }
-        await this.props.model.updateParentNode(element.dataset.nodeId, {
+        await this.props.model.updateParentNode(parseNodeId(element.dataset.nodeId), {
             parentResId,
             parentNodeId,
         });

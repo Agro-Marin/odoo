@@ -1,6 +1,10 @@
+from types import SimpleNamespace
+
 from lxml import etree
 
 from odoo.tests import TransactionCase, tagged
+
+CARD = "<templates><t t-name='hierarchy-box'><field name='name'/></t></templates>"
 
 
 @tagged("post_install", "-at_install")
@@ -10,9 +14,10 @@ class TestWebHierarchyView(TransactionCase):
         super().setUpClass()
         cls.View = cls.env["ir.ui.view"]
 
-    def _validate(self, xml):
+    def _validate(self, xml, model="res.partner"):
+        name_manager = SimpleNamespace(model=self.env[model]) if model else None
         self.View._check_view_tag_hierarchy(
-            etree.fromstring(xml), None, {"validate": True}
+            etree.fromstring(xml), name_manager, {"validate": True}
         )
 
     # ── view type registration ───────────────────────────────────────
@@ -36,22 +41,54 @@ class TestWebHierarchyView(TransactionCase):
     def test_validate_accepts_fields_and_single_template(self):
         """A hierarchy of fields and one templates tag validates."""
         # no exception expected
-        self._validate('<hierarchy><field name="parent_id"/><templates/></hierarchy>')
+        self._validate(f'<hierarchy><field name="parent_id"/>{CARD}</hierarchy>')
 
     def test_validate_rejects_unknown_child_tag(self):
         """Only field and templates children are allowed."""
         with self.assertRaises(ValueError):
-            self._validate("<hierarchy><group/></hierarchy>")
+            self._validate(f"<hierarchy><group/>{CARD}</hierarchy>")
 
     def test_validate_rejects_multiple_templates(self):
         """At most one templates tag is allowed in a hierarchy view."""
         with self.assertRaises(ValueError):
-            self._validate("<hierarchy><templates/><templates/></hierarchy>")
+            self._validate(f"<hierarchy>{CARD}{CARD}</hierarchy>")
 
     def test_validate_rejects_invalid_attribute(self):
         """Attributes outside the hierarchy whitelist are rejected."""
         with self.assertRaises(ValueError):
-            self._validate('<hierarchy bogus="1"><field name="parent_id"/></hierarchy>')
+            self._validate(f'<hierarchy bogus="1">{CARD}</hierarchy>')
+
+    def test_validate_rejects_missing_card_template(self):
+        """The client cannot render a card without a hierarchy-box template."""
+        with self.assertRaises(ValueError):
+            self._validate('<hierarchy><field name="parent_id"/></hierarchy>')
+
+    def test_validate_rejects_unknown_parent_field(self):
+        """A parent_field naming nothing is refused with the view, not in the browser."""
+        with self.assertRaises(ValueError):
+            self._validate(f'<hierarchy parent_field="nope">{CARD}</hierarchy>')
+
+    def test_validate_rejects_parent_field_of_wrong_type(self):
+        """parent_field must be a many2one."""
+        with self.assertRaises(ValueError):
+            self._validate(f'<hierarchy parent_field="name">{CARD}</hierarchy>')
+
+    def test_validate_rejects_parent_field_on_another_model(self):
+        """parent_field must point back at the model of the view."""
+        with self.assertRaises(ValueError):
+            self._validate(f'<hierarchy parent_field="company_id">{CARD}</hierarchy>')
+
+    def test_validate_rejects_child_field_of_wrong_type(self):
+        """child_field must be a one2many, not the many2one holding the parent."""
+        with self.assertRaises(ValueError):
+            self._validate(f'<hierarchy child_field="parent_id">{CARD}</hierarchy>')
+
+    def test_validate_accepts_matching_relation_fields(self):
+        """The self-referencing pair of res.partner validates."""
+        # no exception expected
+        self._validate(
+            f'<hierarchy parent_field="parent_id" child_field="child_ids">{CARD}</hierarchy>'
+        )
 
     def test_validate_skipped_when_not_validating(self):
         """Validation is a no-op when node_info disables it."""
@@ -63,6 +100,34 @@ class TestWebHierarchyView(TransactionCase):
         )
 
     # ── hierarchy_read ──────────────────────────────────────────────────
+
+    def test_hierarchy_read_is_readonly(self):
+        """hierarchy_read only reads, and says so, like web_read does."""
+        Partner = type(self.env["res.partner"])
+        self.assertTrue(getattr(Partner.hierarchy_read, "_readonly", False))
+
+    def test_hierarchy_read_does_not_mutate_the_given_specification(self):
+        """The parent field is added to a copy, not to the caller's dict."""
+        partner = self.env["res.partner"].create({"name": "Standalone"})
+        specification = {"name": {}}
+        self.env["res.partner"].hierarchy_read(
+            [("id", "=", partner.id)], specification, "parent_id"
+        )
+        self.assertEqual(specification, {"name": {}})
+
+    def test_hierarchy_read_returns_the_parent_display_name(self):
+        """The parent field is read even when the view did not ask for it."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child = Partner.create({"name": "Child", "parent_id": parent.id})
+        [record] = [
+            r
+            for r in Partner.hierarchy_read(
+                [("id", "=", child.id)], {"name": {}}, "parent_id"
+            )
+            if r["id"] == child.id
+        ]
+        self.assertEqual(record["parent_id"]["display_name"], "Parent")
 
     def test_hierarchy_read_empty_domain(self):
         """A domain matching nothing returns an empty list."""
@@ -91,6 +156,33 @@ class TestWebHierarchyView(TransactionCase):
         )
         self.assertEqual({r["id"] for r in result}, {parent.id, child1.id, child2.id})
 
+    def test_hierarchy_read_single_record_expands_own_children(self):
+        """Focusing on a parentless record returns the children it has."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child = Partner.create({"name": "Child", "parent_id": parent.id})
+        result = Partner.hierarchy_read(
+            [("id", "=", parent.id)], {"name": {}}, "parent_id"
+        )
+        self.assertEqual({r["id"] for r in result}, {parent.id, child.id})
+
+    def test_hierarchy_read_single_record_skips_child_ids_of_shown_parents(self):
+        """A record whose children are already in the payload advertises none."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child = Partner.create({"name": "Child", "parent_id": parent.id})
+        grandchild = Partner.create({"name": "Grandchild", "parent_id": child.id})
+        by_id = {
+            r["id"]: r
+            for r in Partner.hierarchy_read(
+                [("id", "=", child.id)], {"name": {}}, "parent_id"
+            )
+        }
+        # child's children are displayed, so it needs no child ids; the
+        # grandchild has none at all.
+        self.assertNotIn("__child_ids__", by_id[child.id])
+        self.assertNotIn("__child_ids__", by_id[grandchild.id])
+
     def test_hierarchy_read_multi_match_computes_child_ids(self):
         """Multiple matches compute __child_ids__ per matched record via read_group."""
         Partner = self.env["res.partner"]
@@ -104,6 +196,21 @@ class TestWebHierarchyView(TransactionCase):
         by_id = {r["id"]: r for r in result}
         self.assertEqual(set(by_id[parent.id]["__child_ids__"]), {child1.id, child2.id})
         self.assertNotIn("__child_ids__", by_id[other.id])
+
+    def test_hierarchy_read_multi_match_keeps_child_ids_of_shown_parents(self):
+        """Every match gets its child ids when the domain matched several records."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child = Partner.create({"name": "Child", "parent_id": parent.id})
+        grandchild = Partner.create({"name": "Grandchild", "parent_id": child.id})
+        by_id = {
+            r["id"]: r
+            for r in Partner.hierarchy_read(
+                [("id", "in", [parent.id, child.id])], {"name": {}}, "parent_id"
+            )
+        }
+        self.assertEqual(by_id[parent.id]["__child_ids__"], [child.id])
+        self.assertEqual(by_id[child.id]["__child_ids__"], [grandchild.id])
 
     def test_hierarchy_read_explicit_child_field_skips_read_group(self):
         """An explicit child_field means the server never adds __child_ids__."""
@@ -130,3 +237,16 @@ class TestWebHierarchyView(TransactionCase):
             order="name",
         )
         self.assertEqual(len(result), 2)
+
+    def test_hierarchy_read_orders_the_records(self):
+        """The requested order is the order of the answer."""
+        Partner = self.env["res.partner"]
+        beta = Partner.create({"name": "ZZ Beta"})
+        alpha = Partner.create({"name": "ZZ Alpha"})
+        result = Partner.hierarchy_read(
+            [("id", "in", [beta.id, alpha.id])],
+            {"name": {}},
+            "parent_id",
+            order="name asc",
+        )
+        self.assertEqual([r["id"] for r in result], [alpha.id, beta.id])

@@ -24,6 +24,7 @@
                             resId="props.node.resId"
                             fields="props.node.model.fields"
                             activeFields="props.node.model.activeFields"
+                            context="props.node.model.context"
                             values="props.node.data"
                             t-slot-scope="data"
                     >

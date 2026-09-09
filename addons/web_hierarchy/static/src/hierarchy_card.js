@@ -47,12 +47,11 @@ export class HierarchyCard extends Component {
     }
 
     getRenderingContext(data) {
-        const record = getFormattedRecord(data.record);
         return {
-            context: this.props.node.context,
+            context: data.record.context,
             JSON,
             luxon,
-            record,
+            record: getFormattedRecord(data.record),
             __comp__: Object.assign(Object.create(this), { this: this }),
             __record__: data.record,
         };

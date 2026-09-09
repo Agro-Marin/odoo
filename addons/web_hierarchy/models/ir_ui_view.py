@@ -1,6 +1,15 @@
+from __future__ import annotations
+
+import typing
+
 from lxml import etree
 
 from odoo import _, fields, models
+
+if typing.TYPE_CHECKING:
+    from typing import Any
+
+    from lxml.etree import _Element
 
 HIERARCHY_VALID_ATTRIBUTES = {
     "__validate__",  # ir.ui.view implementation detail
@@ -17,6 +26,8 @@ HIERARCHY_VALID_ATTRIBUTES = {
     "default_order",
 }
 
+CARD_TEMPLATE_NAME = "hierarchy-box"
+
 
 class IrUiView(models.Model):
     _inherit = "ir.ui.view"
@@ -26,18 +37,22 @@ class IrUiView(models.Model):
     def _is_qweb_based_view(self, view_type):
         return super()._is_qweb_based_view(view_type) or view_type == "hierarchy"
 
-    def _check_view_tag_hierarchy(self, node, name_manager, node_info):
+    def _check_view_tag_hierarchy(
+        self,
+        node: _Element,
+        name_manager,
+        node_info: dict[str, Any],
+    ) -> None:
         if not node_info["validate"]:
             return
 
-        templates_count = 0
+        seen_templates = False
         for child in node.iterchildren(tag=etree.Element):
             if child.tag == "templates":
-                if not templates_count:
-                    templates_count += 1
-                else:
+                if seen_templates:
                     msg = _("Hierarchy view can contain only one templates tag")
                     raise self._prepare_view_error(msg, child)
+                seen_templates = True
             elif child.tag != "field":
                 msg = _(
                     "Hierarchy child can only be field or template, got %s", child.tag
@@ -52,6 +67,59 @@ class IrUiView(models.Model):
                 valid_attributes=HIERARCHY_VALID_ATTRIBUTES,
             )
             raise self._prepare_view_error(msg, node)
+
+        if not node.xpath(f".//*[@t-name='{CARD_TEMPLATE_NAME}']"):
+            # The client throws on a missing card template; refuse the arch here
+            # instead, where the error can name the view.
+            msg = _(
+                "Hierarchy view must define a 'hierarchy-box' template to render its cards"
+            )
+            raise self._prepare_view_error(msg, node)
+
+        if name_manager is not None:
+            self._check_hierarchy_relation_fields(node, name_manager.model)
+
+    def _check_hierarchy_relation_fields(self, node: _Element, model) -> None:
+        """Check the two fields wiring the records of ``model`` to each other.
+
+        The client reads these attributes to build its queries and raises a bare
+        JavaScript error when either is wrong, which reaches the user as a broken
+        view with no name attached. Refuse the arch instead.
+        """
+        for attribute, expected_type in (
+            ("parent_field", "many2one"),
+            ("child_field", "one2many"),
+        ):
+            field_name = node.get(attribute)
+            if not field_name:
+                continue
+            field = model._fields.get(field_name)
+            if field is None:
+                msg = _(
+                    "Invalid %(attribute)s: %(field_name)s does not exist on %(model)s",
+                    attribute=attribute,
+                    field_name=field_name,
+                    model=model._name,
+                )
+                raise self._prepare_view_error(msg, node)
+            if field.type != expected_type:
+                msg = _(
+                    "Invalid %(attribute)s: %(field_name)s is a %(actual_type)s, expected a %(expected_type)s",
+                    attribute=attribute,
+                    field_name=field_name,
+                    actual_type=field.type,
+                    expected_type=expected_type,
+                )
+                raise self._prepare_view_error(msg, node)
+            if field.comodel_name != model._name:
+                msg = _(
+                    "Invalid %(attribute)s: %(field_name)s points at %(comodel)s, expected %(model)s",
+                    attribute=attribute,
+                    field_name=field_name,
+                    comodel=field.comodel_name,
+                    model=model._name,
+                )
+                raise self._prepare_view_error(msg, node)
 
     def _get_view_info(self):
         return {

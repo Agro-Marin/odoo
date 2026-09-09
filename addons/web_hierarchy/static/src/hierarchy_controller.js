@@ -58,8 +58,6 @@ export class HierarchyController extends Component {
             this.render(true);
         });
         useViewButtons(this.rootRef, {
-            beforeExecuteAction: this.beforeExecuteActionButton.bind(this),
-            afterExecuteAction: this.afterExecuteActionButton.bind(this),
             reload: this.model.reload.bind(this.model),
         });
         useSetupAction({
@@ -72,16 +70,15 @@ export class HierarchyController extends Component {
         });
         this.searchBarToggler = useSearchBarToggler();
     }
+
     get displayNoContent() {
         return this.model.resIds.length === 0;
     }
 
     async openRecord(node, newWindow) {
-        const activeIds = this.model.root.resIds;
-        this.props.selectRecord(node.resId, { activeIds, newWindow });
+        this.props.selectRecord(node.resId, {
+            activeIds: this.model.resIds,
+            newWindow,
+        });
     }
-
-    async beforeExecuteActionButton() {}
-
-    async afterExecuteActionButton() {}
 }
