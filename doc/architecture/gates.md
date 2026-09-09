@@ -202,6 +202,7 @@ own:
 | `js_component_face.py` | which directories under `components/` must HAVE a face — `js_face_boundary` refuses an import that reaches *past* one but a face is discovered rather than declared, so nothing said when a directory needs one |
 | `js_component_data_access.py` | no component acquiring data at runtime — `components-below-entity` argues components take their data as props and enforces it by forbidding one import prefix no component uses |
 | `js_forced_render.py` | web core not sweeping a subtree with `render(true)` — a forced render hides reads that subscribe to nothing |
+| `js_view_chassis.py` | every *base* view type mounting `ViewLayout` in its controller template — nine view types outside `web` hand-rolled the same `Layout` and five slots, and each copy lost a different piece: a search bar that could not be collapsed, a no-content helper that was never rendered, a toggler button that did not exist. None of it was visible from the JS, because an import and a `static components` entry look the same whether or not the template renders what they name |
 | `js_patch_blind_facade.py` | a service's own callers going through its facade |
 | `js_function_length.py` | the web addon's JS function-length budget |
 | `js_duplication.py` | the web addon's duplicated JS, as byte-exact runs of 9+ significant lines — the one property the other JS gates cannot see, because a copied block is structurally identical to a block that belongs where it is |
