@@ -10,6 +10,6 @@ class ResGroups(models.Model):
         if vals.get("user_ids"):
             # TDE FIXME: maybe directly check users and subscribe them
             self.env["slide.channel"].sudo().search(
-                [("enroll_group_ids", "in", self._ids)]
+                [("enroll_group_ids", "in", self.mapped("all_implied_ids").ids)]
             )._add_groups_members()
         return write_res
