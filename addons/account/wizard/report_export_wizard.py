@@ -7,15 +7,15 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
-class AccountExportWizard(models.TransientModel):
+class Account_ReportsExportWizard(models.TransientModel):
     """Export an accounting report in one or more formats as attachments."""
 
-    _name = "account.export.wizard"
+    _name = "account_reports.export.wizard"
     _description = "Export wizard for accounting's reports"
 
     export_format_ids = fields.Many2many(
         string="Export to",
-        comodel_name="account.export.wizard.format",
+        comodel_name="account_reports.export.wizard.format",
         relation="dms_acc_rep_export_wizard_format_rel",
     )
     report_id = fields.Many2one(
@@ -38,7 +38,7 @@ class AccountExportWizard(models.TransientModel):
                 "account_report_generation_options", {}
             ).get("buttons", []):
                 if button_dict.get("file_export_type"):
-                    self.env["account.export.wizard.format"].create(
+                    self.env["account_reports.export.wizard.format"].create(
                         {
                             "name": button_dict["file_export_type"],
                             "fun_to_call": button_dict["action"],
@@ -77,8 +77,8 @@ class AccountExportWizard(models.TransientModel):
         return to_create_attachments
 
 
-class AccountExportWizardFormat(models.TransientModel):
-    _name = "account.export.wizard.format"
+class Account_ReportsExportWizardFormat(models.TransientModel):
+    _name = "account_reports.export.wizard.format"
     _description = "Export format for accounting's reports"
 
     name = fields.Char(string="Name", required=True)
@@ -86,7 +86,7 @@ class AccountExportWizardFormat(models.TransientModel):
     fun_param = fields.Char(string="Function Parameter")
     export_wizard_id = fields.Many2one(
         string="Parent Wizard",
-        comodel_name="account.export.wizard",
+        comodel_name="account_reports.export.wizard",
         required=True,
         ondelete="cascade",
     )

@@ -1072,7 +1072,7 @@ class TestManagerReachesTheModulesAcls(TestAccountReportsCommon):
             ("account.return.check", "write"),
             ("account.return.check.template", "create"),
             ("account.report.annotation", "create"),
-            ("account.export.wizard", "create"),
+            ("account_reports.export.wizard", "create"),
             ("account.multicurrency.revaluation.wizard", "create"),
             ("account.return.creation.wizard", "create"),
             ("account.return.submission.wizard", "create"),

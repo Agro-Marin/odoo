@@ -29,9 +29,25 @@ def migrate(cr, version):
         [RENAMED_VIEWS],
     )
 
-    # Stop before writing if anything would collide, rather than after. ir_model_data is
-    # UNIQUE (module, name), so a name account already owns would abort the whole upgrade
-    # with a constraint error naming no ids; this names them.
+    # Both modules reflected the same ir.model and ir.model.fields rows, so each holds its
+    # own xmlid pointing at the identical record -- 63 of them on a database carrying both.
+    # Those are duplicates, not conflicts: drop account_reports' copy, account already owns
+    # the same name against the same res_id.
+    cr.execute(
+        """
+        DELETE FROM ir_model_data r
+         USING ir_model_data a
+         WHERE r.module = 'account_reports'
+           AND a.module = 'account'
+           AND a.name = r.name
+           AND a.model = r.model
+           AND a.res_id = r.res_id
+        """
+    )
+
+    # Anything still sharing a name now points at a DIFFERENT record, which is a real
+    # conflict. Stop before writing rather than after: ir_model_data is UNIQUE (module,
+    # name), so letting it run would abort with a constraint error naming no ids at all.
     cr.execute(
         """
         SELECT r.model, r.name
@@ -42,8 +58,8 @@ def migrate(cr, version):
     )
     if collisions := cr.fetchall():
         raise ValueError(
-            "account_reports cannot fold into account: %s xmlid(s) exist in both, "
-            "rename them before upgrading -- %s"
+            "account_reports cannot fold into account: %s xmlid(s) name different records "
+            "in each, rename them before upgrading -- %s"
             % (len(collisions), ", ".join(f"{m}:{n}" for m, n in collisions[:20]))
         )
 
@@ -57,23 +73,32 @@ def migrate(cr, version):
     # The module is absorbed, not renamed, so its own row and the dependency edges naming
     # it are now phantoms -- the 120 dependents' manifests name `account` instead. Left in
     # place they keep the module reading `installed` with nothing on disk behind it.
-    # Two transient models carried the old module in their _name. Renamed with the fold,
-    # so ir_model, its xmlid and the backing table have to follow; nothing is stored in a
-    # TransientModel long enough to migrate, but the rows and the table are real.
-    for old, new in (
-        ("account_reports.export.wizard", "account.export.wizard"),
-        ("account_reports.export.wizard.format", "account.export.wizard.format"),
+    # Stored arches and stored expressions still spell the old module. Repointing the
+    # ir_model_data rows above makes `account_reports.x` unresolvable, and a view whose
+    # arch still names it fails validation BEFORE the upgrade can load the corrected
+    # source -- so the rewrite has to happen here, in the same pre-migration. \y is a word
+    # boundary, which keeps account_reports_cash_basis and the _account_reports_* method
+    # names out of it.
+    OLD = r"\yaccount_reports\."
+    for table, columns in (
+        ("ir_ui_view", ("arch_db",)),
+        ("ir_act_window", ("domain", "context")),
+        ("ir_act_server", ("code",)),
+        ("ir_filters", ("domain", "context")),
     ):
-        cr.execute("UPDATE ir_model SET model = %s WHERE model = %s", (new, old))
-        cr.execute(
-            "UPDATE ir_model_data SET name = %s WHERE model = 'ir.model' AND name = %s",
-            ("model_" + new.replace(".", "_"), "model_" + old.replace(".", "_")),
-        )
-        cr.execute("UPDATE ir_model_fields SET model = %s WHERE model = %s", (new, old))
-        cr.execute(
-            "ALTER TABLE IF EXISTS %s RENAME TO %s"
-            % (old.replace(".", "_"), new.replace(".", "_"))
-        )
+        for column in columns:
+            cast = "::text" if (table, column) == ("ir_ui_view", "arch_db") else ""
+            back = "::jsonb" if cast else ""
+            cr.execute(
+                f"""
+                UPDATE {table}
+                   SET {column} = regexp_replace(
+                           {column}{cast}, %s, 'account.', 'g'
+                       ){back}
+                 WHERE {column}{cast} ~ %s
+                """,
+                (OLD, OLD),
+            )
 
     cr.execute("DELETE FROM ir_module_module_dependency WHERE name = 'account_reports'")
     cr.execute("DELETE FROM ir_module_module WHERE name = 'account_reports'")

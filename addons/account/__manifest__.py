@@ -125,7 +125,6 @@ You could use this simplified accounting in case you work with an (external) acc
         "views/account_reconcile_menus.xml",
         # --- folded from account_reports ---
         "security/account_reports_security.xml",
-        "security/ir.model.access.csv",
         "data/pdf_export_templates.xml",
         "data/customer_reports_pdf_export_templates.xml",
         "data/balance_sheet.xml",
@@ -215,9 +214,7 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/js/search/search_bar/search_bar.js",
             "account/static/src/helpers/*.js",
             # --- folded from account_reports ---
-            "account/static/src/components/**/*",
             "account/static/src/js/**/*",
-            "account/static/src/views/**/*",
             "account/static/src/widgets/**/*",
             "account/static/src/scss/account_return.scss",
         ],
@@ -240,9 +237,7 @@ You could use this simplified accounting in case you work with an (external) acc
         "web.assets_tests": [
             "account/static/src/js/tours/tour_utils.js",
             "account/static/src/js/tours/account.js",
-            "account/static/tests/tours/**/*",
             # --- folded from account_reports ---
-            "account/static/tests/tours/**/*",
         ],
         "web.report_assets_common": [
             "account/static/src/css/report_invoice.css",
