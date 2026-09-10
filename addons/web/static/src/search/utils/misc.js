@@ -30,6 +30,16 @@ export const GROUPABLE_TYPES = [
     "tags",
 ];
 
+/**
+ * @param {string} fieldName
+ * @param {{ groupable?: boolean, type: string }} field
+ * @returns {boolean} whether a group-by menu may offer the field
+ */
+export function isGroupableField(fieldName, field) {
+    const { groupable, type } = field;
+    return Boolean(groupable) && fieldName !== "id" && GROUPABLE_TYPES.includes(type);
+}
+
 export const MENU_REGISTRY_VALIDATION = {
     Component: Function,
     groupNumber: { type: Number, optional: true },

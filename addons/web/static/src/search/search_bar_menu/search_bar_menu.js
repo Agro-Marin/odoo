@@ -18,7 +18,7 @@ import {
     editFavoriteFilter,
     FACET_ICONS,
     getDisplayedRegistryItems,
-    GROUPABLE_TYPES,
+    isGroupableField,
     MENU_REGISTRY_VALIDATION,
 } from "@web/search/utils/misc";
 
@@ -135,12 +135,11 @@ export class SearchBarMenu extends Component {
 
     /**
      * @param {string} fieldName
-     * @param {Record<string, any>} field
+     * @param {Object} field
      * @returns {boolean}
      */
     isGroupableField(fieldName, field) {
-        const { groupable, type } = field;
-        return groupable && fieldName !== "id" && GROUPABLE_TYPES.includes(type);
+        return isGroupableField(fieldName, field);
     }
 
     /**

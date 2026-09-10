@@ -209,6 +209,15 @@ export function handleBeforeUnload(
  * @param {any} value
  * @returns {boolean}
  */
+/**
+ * @param {{ value: any }} group
+ * @param {number} index
+ * @returns {string} the render key of a kanban group, stable across reloads
+ */
+export function kanbanGroupKey(group, index) {
+    return isNull(group.value) ? `group_key_${index}` : String(group.value);
+}
+
 export function isNull(value) {
     return value === null || value === undefined;
 }

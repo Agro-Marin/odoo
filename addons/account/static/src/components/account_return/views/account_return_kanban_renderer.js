@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { useService, useBus } from "@web/core/utils/hooks";
-import { isNull } from "@web/views/view_utils";
+import { useBus, useService } from "@web/core/utils/hooks";
 import { KanbanRenderer } from "@web/views/kanban";
-import { AccountReturnKanbanRecord } from "./account_return_kanban_record.js";
-import { AccountReturnBaseKanbanRenderer } from "./account_return_base_kanban_renderer.js";
 import { useDeleteRecords } from "@web/views/view_hook";
+import { kanbanGroupKey } from "@web/views/view_utils";
+
+import { AccountReturnBaseKanbanRenderer } from "./account_return_base_kanban_renderer.js";
+import { AccountReturnKanbanRecord } from "./account_return_kanban_record.js";
 
 export class AccountReturnKanbanRenderer extends AccountReturnBaseKanbanRenderer {
     static template = "account.account_return_kanban_renderer";
@@ -24,10 +25,10 @@ export class AccountReturnKanbanRenderer extends AccountReturnBaseKanbanRenderer
 
         useBus(this.env.bus, "return_reload_model", (ev) => {
             const recordIds = ev.detail.resIds;
-            let recordToReload = this.records.filter((record) =>
+            const recordToReload = this.records.filter((record) =>
                 recordIds.includes(record.resId),
             );
-            for (let record of recordToReload) {
+            for (const record of recordToReload) {
                 record.model.load();
             }
         });
@@ -46,7 +47,9 @@ export class AccountReturnKanbanRenderer extends AccountReturnBaseKanbanRenderer
             "action_view_account_return",
             [record.resIds],
         );
-        if (!action) return;
+        if (!action) {
+            return;
+        }
         return this.actionService.doAction(action);
     }
 
@@ -67,7 +70,7 @@ export class AccountReturnKanbanRenderer extends AccountReturnBaseKanbanRenderer
 
         return list.groups.map((group, i) => ({
             ...group,
-            key: isNull(group.value) ? `group_key_${i}` : String(group.value),
+            key: kanbanGroupKey(group, i),
         }));
     }
 }

@@ -17,6 +17,7 @@ import {
     getPeriodOptions,
     rankInterval,
 } from "@web/search/utils/dates";
+import { isGroupableField } from "@web/search/utils/misc";
 
 describe.current.tags("headless");
 
@@ -517,5 +518,21 @@ describe("getPeriodOptions caching", () => {
 
         expect(Object.isFrozen(options)).toBe(true);
         expect(Object.isFrozen(options[0])).toBe(true);
+    });
+});
+
+describe("isGroupableField", () => {
+    test("groupable, not id, and of a groupable type", () => {
+        expect(
+            isGroupableField("stage_id", { groupable: true, type: "many2one" }),
+        ).toBe(true);
+        expect(isGroupableField("id", { groupable: true, type: "integer" })).toBe(
+            false,
+        );
+        expect(isGroupableField("body", { groupable: true, type: "html" })).toBe(false);
+        expect(isGroupableField("name", { groupable: false, type: "char" })).toBe(
+            false,
+        );
+        expect(isGroupableField("name", { type: "char" })).toBe(false);
     });
 });

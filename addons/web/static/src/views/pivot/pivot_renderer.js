@@ -19,7 +19,7 @@ import { useReactiveModel } from "@web/model/model";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import { getIntervalOptions } from "@web/search/utils/dates";
-import { GROUPABLE_TYPES } from "@web/search/utils/misc";
+import { isGroupableField } from "@web/search/utils/misc";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
@@ -224,8 +224,7 @@ export class PivotRenderer extends Component {
      * @returns {boolean}
      */
     isGroupableField(fieldName, field) {
-        const { groupable, type } = field;
-        return groupable && fieldName !== "id" && GROUPABLE_TYPES.includes(type);
+        return isGroupableField(fieldName, field);
     }
 
     /** @param {string} fieldName */

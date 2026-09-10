@@ -1,18 +1,19 @@
 /** @odoo-module native */
 import { AccountReturnCheckKanbanRecord } from "@account/components/account_return/views/account_return_check_kanban_record";
-import { KanbanRenderer } from "@web/views/kanban";
-import { onWillStart, onWillDestroy } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
+import { WebChatter } from "@mail/chatter/web/web_chatter";
+import { onWillDestroy, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { parseXML } from "@web/core/utils/dom/xml";
+import { useService } from "@web/core/utils/hooks";
 import {
     extractFieldsFromArchInfo,
     getFieldsSpec,
     RelationalModel,
 } from "@web/model/relational_model";
-import { isNull } from "@web/views/view_utils";
+import { KanbanRenderer } from "@web/views/kanban";
+import { kanbanGroupKey } from "@web/views/view_utils";
+
 import { AccountReturnKanbanRecord } from "./account_return_kanban_record.js";
-import { WebChatter } from "@mail/chatter/web/web_chatter";
 
 const viewRegistry = registry.category("views");
 
@@ -63,7 +64,9 @@ export class AccountReturnCheckKanbanRenderer extends KanbanRenderer {
                 );
 
                 const accountReturnId = this.currentReturnId;
-                if (!accountReturnId) return;
+                if (!accountReturnId) {
+                    return;
+                }
                 this.specification = getFieldsSpec(
                     extractedFields.activeFields,
                     extractedFields.fields,
@@ -103,13 +106,17 @@ export class AccountReturnCheckKanbanRenderer extends KanbanRenderer {
                 this.props.list.model.load = async (params) => {
                     // Reload return card
                     const result = await this.originalListLoad(params);
-                    if (this.destroyed) return result;
+                    if (this.destroyed) {
+                        return result;
+                    }
                     const returnData = await this.orm.webRead(
                         "account.return",
                         [accountReturnId],
                         { specification: this.specification },
                     );
-                    if (this.destroyed) return result;
+                    if (this.destroyed) {
+                        return result;
+                    }
                     this.returnRecord.setData(returnData[0]);
 
                     // Reload chatter messages
@@ -162,7 +169,7 @@ export class AccountReturnCheckKanbanRenderer extends KanbanRenderer {
         }
         return list.groups.map((group, index) => ({
             ...group,
-            key: isNull(group.value) ? `group_key_${index}` : String(group.value),
+            key: kanbanGroupKey(group, index),
         }));
     }
 

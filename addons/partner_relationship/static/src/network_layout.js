@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+import { clamp } from "@web/core/utils/format/numbers";
+
 export const NODE_WIDTH = 170;
 export const NODE_HEIGHT = 40;
 
@@ -294,10 +296,6 @@ function preferredDistance(edge, degreeById, segment, size) {
         return 0.5;
     }
     return source < target ? 1 - clear : clear;
-}
-
-function clamp(value, low, high) {
-    return Math.min(Math.max(value, low), high);
 }
 
 // Where a placement actually puts a label. Exported so a checker or a test

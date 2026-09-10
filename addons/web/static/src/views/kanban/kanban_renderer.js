@@ -16,7 +16,7 @@ import { ActionHelper } from "@web/views/action_helper";
 import { useGroupManagement } from "@web/views/multi_record_group";
 import { useRecordSelection } from "@web/views/multi_record_selection";
 import { useBounceButton } from "@web/views/view_hook";
-import { archiveConfirmationProps, isNull } from "@web/views/view_utils";
+import { archiveConfirmationProps, kanbanGroupKey } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import { ColumnProgress } from "./column_progress.js";
@@ -337,10 +337,7 @@ export class KanbanRenderer extends Component {
                 .sort((a, b) =>
                     a.value && !b.value ? 1 : !a.value && b.value ? -1 : 0,
                 )
-                .map((group, i) => ({
-                    group,
-                    key: isNull(group.value) ? `group_key_${i}` : String(group.value),
-                }));
+                .map((group, i) => ({ group, key: kanbanGroupKey(group, i) }));
         } else {
             return list.records.map((record) => ({ record, key: record.id }));
         }
