@@ -1189,3 +1189,17 @@ test("the data-hotkeys provider defaults its scope, like the line above it does"
     const provider = registry.category("command_provider").get("data-hotkeys");
     expect(() => provider.provide(env)).not.toThrow();
 });
+
+test("the palette's namespace config is built once and rebuilt after a registry update", async () => {
+    await makeMockEnv();
+    const command = getService("command");
+    const first = (await command.openMainPalette({}), command._configByNamespace);
+    expect(first).not.toBe(null);
+    await command.openMainPalette({});
+    expect(command._configByNamespace).toBe(first);
+    registry.category("command_categories").add("probe_category", { name: "Probe" });
+    expect(command._configByNamespace).toBe(null);
+    await command.openMainPalette({});
+    expect(command._configByNamespace).not.toBe(first);
+    expect(command._configByNamespace.default.categories).toInclude("probe_category");
+});

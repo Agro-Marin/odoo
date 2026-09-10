@@ -8,7 +8,7 @@ import { isEqual } from "./py_compare.js";
  * @param {any} value
  * @returns {boolean}
  */
-export function pyHas(set, value) {
+function pyHas(set, value) {
     if (set.has(value)) {
         return true;
     }
@@ -33,7 +33,7 @@ export function pyHas(set, value) {
  * @param {any} value
  * @returns {Set<any>}
  */
-export function pySetAdd(set, value) {
+function pySetAdd(set, value) {
     if (!pyHas(set, value)) {
         set.add(value);
     }

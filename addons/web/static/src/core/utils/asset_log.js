@@ -67,7 +67,7 @@ export const viewLog = _makeNamespacedLog("view", "view");
 
 export const fieldLog = _makeNamespacedLog("field", "field");
 
-export const livechatLog = _makeNamespacedLog("livechat", "livechat");
+const livechatLog = _makeNamespacedLog("livechat", "livechat");
 
 /** @typedef {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }} CategoryLog */
 
@@ -89,11 +89,8 @@ export const makeAssetLog = _categoryBinder(assetLog);
 export const makeRpcLog = _categoryBinder(rpcLog);
 export const makeActionLog = _categoryBinder(actionLog);
 export const makeModelLog = _categoryBinder(modelLog);
-export const makeL10nLog = _categoryBinder(l10nLog);
 export const makeComponentLog = _categoryBinder(componentLog);
 export const makeServiceLog = _categoryBinder(serviceLog);
-export const makeViewLog = _categoryBinder(viewLog);
-export const makeFieldLog = _categoryBinder(fieldLog);
 export const makeLivechatLog = _categoryBinder(livechatLog);
 
 /** @returns {boolean} */

@@ -181,3 +181,18 @@ describe("Time.equals", () => {
         expect(a.equals(b, true)).toBe(false);
     });
 });
+
+describe("Time.roundMinutes", () => {
+    test("rounds to the nearest slot and carries into the next hour", () => {
+        const t = new Time({ hour: 9, minute: 53 });
+        t.roundMinutes(15);
+        expect([t.hour, t.minute]).toEqual([10, 0]);
+    });
+
+    test("never leaves the day: past 23:xx it settles on the last slot", () => {
+        // a semantic choice, pinned: 23:58 @15 is 23:45, not 00:00 tomorrow
+        const t = new Time({ hour: 23, minute: 58 });
+        t.roundMinutes(15);
+        expect([t.hour, t.minute]).toEqual([23, 45]);
+    });
+});

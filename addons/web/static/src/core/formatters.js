@@ -319,7 +319,11 @@ export function formatPercentage(value, options = {}) {
     const formatted = formatFloat(/** @type {any} */ (value) * 100, options);
     return `${formatted}${options.noSymbol ? "" : "%"}`;
 }
-formatPercentage.extractOptions = formatFieldFloat.extractOptions;
+formatPercentage.extractOptions = ({ attrs, options }) => ({
+    ...formatFieldFloat.extractOptions({ attrs, options }),
+    trailingZeros: Boolean(options.trailing_zeros),
+    noSymbol: Boolean(options.no_symbol),
+});
 
 /** @param {any[]|false} value */
 function formatProperties(value) {

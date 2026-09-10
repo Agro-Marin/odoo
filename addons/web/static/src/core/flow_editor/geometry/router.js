@@ -103,7 +103,7 @@ export function hasReversal(points) {
  * @param {number} [radius]
  * @returns {string}
  */
-export function polylineToRoundedPath(points, radius = 8) {
+function polylineToRoundedPath(points, radius = 8) {
     if (points.length < 2) {
         return "";
     }

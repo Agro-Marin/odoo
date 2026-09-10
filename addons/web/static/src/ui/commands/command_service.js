@@ -49,6 +49,17 @@ class CommandService {
         this.ui = ui;
         /** @type {Map<number, CommandRegistration>} */
         this.registeredCommands = new Map();
+        /** @type {Record<string, any> | null} */
+        this._configByNamespace = null;
+        for (const reg of [
+            commandProviderRegistry,
+            commandCategoryRegistry,
+            commandSetupRegistry,
+        ]) {
+            reg.addEventListener("UPDATE", () => {
+                this._configByNamespace = null;
+            });
+        }
         this.nextToken = 0;
         this.isPaletteOpened = false;
         /** @type {Function | undefined} */
@@ -70,9 +81,27 @@ class CommandService {
      * @param {Function} [onClose]
      */
     openMainPalette(config = /** @type {any} */ ({}), onClose) {
+        const providers = commandProviderRegistry.getAll();
+        this._configByNamespace ??= this._buildConfigByNamespace(providers);
+        config = Object.assign(
+            {
+                configByNamespace: this._configByNamespace,
+                FooterComponent: DefaultFooter,
+                providers,
+            },
+            config,
+        );
+        return this.openPalette(config, onClose);
+    }
+
+    /**
+     * @param {any[]} providers
+     * @returns {Record<string, any>}
+     */
+    _buildConfigByNamespace(providers) {
         /** @type {Record<string, any>} */
         const configByNamespace = {};
-        for (const provider of commandProviderRegistry.getAll()) {
+        for (const provider of providers) {
             const namespace = provider.namespace || "default";
             if (!configByNamespace[namespace]) {
                 configByNamespace[namespace] = {
@@ -108,15 +137,7 @@ class CommandService {
             }
         }
 
-        config = Object.assign(
-            {
-                configByNamespace,
-                FooterComponent: DefaultFooter,
-                providers: commandProviderRegistry.getAll(),
-            },
-            config,
-        );
-        return this.openPalette(config, onClose);
+        return configByNamespace;
     }
 
     /**

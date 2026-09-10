@@ -21,8 +21,7 @@ import {
 import { loadBundle } from "@web/core/assets";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { normalize } from "@web/core/l10n/utils";
-import { getTemplate } from "@web/core/templates";
-import { _t, appTranslateFn } from "@web/core/translation";
+import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { escapeRegExp } from "@web/core/utils/format/strings";
@@ -38,6 +37,7 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @property {string} name
  * @property {string[]} shortcodes
  */
+import { makeAppConfig } from "@web/env";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
@@ -749,14 +749,12 @@ class MobilePickerHost {
         pickerProps.close = () => this.close();
         const app = new App(
             PickerMobile,
-            /** @type {any} */ ({
-                name: "Popout",
-                env: this.component.env,
-                props: pickerProps,
-                getTemplate,
-                translatableAttributes: ["data-tooltip"],
-                translateFn: appTranslateFn,
-            }),
+            /** @type {any} */ (
+                makeAppConfig(this.component.env, {
+                    name: "Popout",
+                    props: pickerProps,
+                })
+            ),
         );
         app.mount(el);
         this.remove = () => {

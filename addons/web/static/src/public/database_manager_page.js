@@ -45,7 +45,7 @@ export function showGeneratedMasterPassword(root, password) {
  * @param {Window} [view]
  * @returns {() => void}
  */
-export function followColorScheme(view = window) {
+function followColorScheme(view = window) {
     const query = view.matchMedia("(prefers-color-scheme: dark)");
     /** @param {MediaQueryListEvent} ev */
     const apply = (ev) =>

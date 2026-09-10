@@ -17,7 +17,7 @@ export class ErrorHandler extends Component {
  * @param {any} node
  * @returns {HTMLElement | null}
  */
-export function getFirstElementOfNode(node) {
+function getFirstElementOfNode(node) {
     if (!node) {
         return null;
     }

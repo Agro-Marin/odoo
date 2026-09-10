@@ -3,6 +3,7 @@
 
 import { reactive } from "@odoo/owl";
 import { router as _router } from "@web/core/browser/router";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -707,7 +708,8 @@ export class ActionManager {
             Component: this.ControllerComponent,
             componentProps: { ...controller.props, _context: dispatch },
         };
-        this.dialogService.closeAll({ noReload: true });
+        // not awaited: web_studio's editor depends on the update firing first
+        this.dialogService.closeAll({ noReload: true }).catch(reportUncaught);
         this.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, controller.__info__);
         await dispatch.settled();
     }

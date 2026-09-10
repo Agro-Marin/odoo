@@ -387,6 +387,25 @@ export const globalValues = {
  * @param {HTMLElement | ShadowRoot} target
  * @param {Partial<ConstructorParameters<typeof App>[1]> & {
  */
+/**
+ * @param {OdooEnv | undefined} env
+ * @param {Record<string, any>} [overrides]
+ * @returns {Record<string, any>} the App configuration every Owl root shares
+ */
+export function makeAppConfig(env, overrides = {}) {
+    return {
+        env,
+        getTemplate,
+        dev: Boolean(/** @type {any} */ (env)?.debug || session.test_mode),
+        warnIfNoStaticProps: !session.test_mode,
+        translatableAttributes: ["data-tooltip"],
+        translateFn: appTranslateFn,
+        customDirectives,
+        globalValues,
+        ...overrides,
+    };
+}
+
 export async function mountComponent(component, target, appConfig = {}) {
     const { beforeMount, ...owlConfig } = appConfig;
     let { env } = appConfig;
@@ -403,18 +422,10 @@ export async function mountComponent(component, target, appConfig = {}) {
         env = makeEnv();
         await startServices(/** @type {OdooEnv} */ (env));
     }
-    const app = new App(component, {
-        env,
-        getTemplate,
-        dev: /** @type {any} */ (env).debug || session.test_mode,
-        warnIfNoStaticProps: !session.test_mode,
-        name: component.name,
-        translatableAttributes: ["data-tooltip"],
-        translateFn: appTranslateFn,
-        customDirectives,
-        globalValues,
-        ...owlConfig,
-    });
+    const app = new App(
+        component,
+        makeAppConfig(env, { name: component.name, ...owlConfig }),
+    );
     if (isRoot) {
         Component.env = app.env;
     }

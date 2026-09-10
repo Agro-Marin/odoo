@@ -389,3 +389,14 @@ test("formatBinary reports sizes in the same units as every upload widget", () =
     expect(formatBinary("a".repeat(1370))).toBe("1000.00 Bytes");
     expect(formatBinary("a".repeat(2740))).toBe("1.95 KB");
 });
+
+test("formatPercentage.extractOptions keeps the formatter's own defaults", () => {
+    const options = formatPercentage.extractOptions({ attrs: {}, options: {} });
+    expect(formatPercentage(0.5, options)).toBe("50%");
+    expect(formatPercentage(0.5, { ...options, digits: [16, 2] })).toBe("50%");
+    const trailing = formatPercentage.extractOptions({
+        attrs: {},
+        options: { trailing_zeros: true, no_symbol: true },
+    });
+    expect(formatPercentage(0.5, { ...trailing, digits: [16, 2] })).toBe("50.00");
+});

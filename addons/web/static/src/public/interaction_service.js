@@ -4,8 +4,7 @@
 import { App, Component } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { registry } from "@web/core/registry";
-import { getTemplate } from "@web/core/templates";
-import { appTranslateFn } from "@web/core/translation";
+import { makeAppConfig } from "@web/env";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
 import { PairSet } from "@web/public/utils";
@@ -146,15 +145,10 @@ export class InteractionService {
      */
     prepareRoot(el, C, props, position = "beforeend") {
         if (!this.owlApp) {
-            const appConfig = {
+            const appConfig = makeAppConfig(this.env, {
                 name: "Odoo Website",
-                getTemplate,
-                env: this.env,
-                dev: this.env.debug,
-                translateFn: appTranslateFn,
                 warnIfNoStaticProps: this.env.debug,
-                translatableAttributes: ["data-tooltip"],
-            };
+            });
             this.owlApp = new App(
                 /** @type {any} */ (null),
                 /** @type {any} */ (appConfig),

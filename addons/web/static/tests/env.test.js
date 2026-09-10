@@ -630,3 +630,15 @@ describe("service-start beacon", () => {
         expect(env.services["beacon-boot-fine"]).toBe("ok");
     });
 });
+
+test(`makeAppConfig carries the directives and globals every root needs, overrides last`, async () => {
+    const { makeAppConfig, customDirectives, globalValues } = await import("@web/env");
+    const config = makeAppConfig(undefined, { name: "probe", dev: false });
+    expect(config.customDirectives).toBe(customDirectives);
+    expect(config.globalValues).toBe(globalValues);
+    expect(config.name).toBe("probe");
+    expect(config.dev).toBe(false);
+    expect(typeof config.getTemplate).toBe("function");
+    expect(typeof config.translateFn).toBe("function");
+    expect(config.translatableAttributes).toEqual(["data-tooltip"]);
+});

@@ -3,9 +3,7 @@
 
 import { App, Component, whenReady } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { getTemplate } from "@web/core/templates";
-import { appTranslateFn } from "@web/core/translation";
-import { makeEnv, startServices } from "@web/env";
+import { makeAppConfig, makeEnv, startServices } from "@web/env";
 import lazyloader from "@web/public/lazyloader";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 
@@ -106,13 +104,10 @@ export async function startPublicApp() {
         await startServices(env);
 
         Component.env = env;
-        const app = new App(/** @type {any} */ (MainComponentsContainer), {
-            getTemplate,
-            env,
-            dev: /** @type {any} */ (env.debug),
-            translateFn: appTranslateFn,
-            translatableAttributes: ["data-tooltip"],
-        });
+        const app = new App(
+            /** @type {any} */ (MainComponentsContainer),
+            makeAppConfig(env, { name: "Odoo Public" }),
+        );
         setupGlobalPageBehaviors();
         const root = await app.mount(document.body);
         // @ts-expect-error -- debug property assigned to odoo global at runtime

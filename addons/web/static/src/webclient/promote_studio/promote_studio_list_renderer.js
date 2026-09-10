@@ -80,7 +80,4 @@ export const patchListRendererDesktop = () => ({
     },
 });
 
-export const unpatchListRendererDesktop = patch(
-    ListRenderer.prototype,
-    patchListRendererDesktop(),
-);
+patch(ListRenderer.prototype, patchListRendererDesktop());

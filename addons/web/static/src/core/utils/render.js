@@ -2,8 +2,7 @@
 /** @odoo-module native */
 
 import { App, blockDom, Component, markup } from "@odoo/owl";
-import { getTemplate } from "@web/core/templates";
-import { appTranslateFn } from "@web/core/translation";
+import { makeAppConfig } from "@web/env";
 
 /**
  * @param {string} template
@@ -48,12 +47,10 @@ let app;
 Object.defineProperty(renderToString, "app", {
     get: () => {
         if (!app) {
-            app = new App(Component, {
-                name: "renderToString",
-                getTemplate,
-                translatableAttributes: ["data-tooltip"],
-                translateFn: appTranslateFn,
-            });
+            app = new App(
+                Component,
+                makeAppConfig(undefined, { name: "renderToString", dev: false }),
+            );
         }
         return app;
     },
