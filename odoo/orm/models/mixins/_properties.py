@@ -56,7 +56,7 @@ class _PropertiesMixin(_ModelStubs):
         )
         return result[0]["definition"] if result else {}
 
-    def _clean_properties(self) -> None:
+    def _remove_stale_properties(self) -> None:
         for fname, field in self._fields.items():
             if not field.is_properties:
                 continue
@@ -80,7 +80,7 @@ class _PropertiesMixin(_ModelStubs):
     ) -> None:
         pass
 
-    def _additional_allowed_keys_properties_definition(self) -> tuple[str, ...]:
+    def _get_additional_allowed_keys_properties_definition(self) -> tuple[str, ...]:
         return ()
 
     def _convert_to_cache_properties_definition(self, value: typing.Any) -> typing.Any:

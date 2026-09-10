@@ -459,7 +459,7 @@ class CreateMixin(_ModelStubs):
             field._update_inverses(self.browse(record_ids), value)
         prof.mark("inverses")
 
-        records._parent_store_create()
+        records._update_parent_path_on_create()
 
         protected = [(data["protected"], data["record"]) for data in data_list]
         with self.env.protecting(protected):
@@ -573,7 +573,7 @@ class CreateMixin(_ModelStubs):
             ]
         )
 
-    def _parent_store_create(self) -> None:
+    def _update_parent_path_on_create(self) -> None:
         if not self._parent_store:
             return
         if not self.env.backend.supports_parent_store:

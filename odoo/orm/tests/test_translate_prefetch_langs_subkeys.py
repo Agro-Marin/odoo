@@ -41,11 +41,11 @@ def test_lang_cache_key_follows_real_cache_key():
     with model_test_env(ResLang, Container, Member) as env:
         field = env.registry["tpls.member"]._fields["label"]
         ctx_env = env(context={"scheme": "dark"})
-        assert field._lang_cache_key(ctx_env, "en_US") == ("en_US", "dark")
-        assert field._lang_cache_key(ctx_env, "fr_FR") == ("fr_FR", "dark")
+        assert field._get_lang_cache_key(ctx_env, "en_US") == ("en_US", "dark")
+        assert field._get_lang_cache_key(ctx_env, "fr_FR") == ("fr_FR", "dark")
         plain = env.registry["tpls.container"]._fields["name_translated"]
-        assert plain._lang_cache_key(env, "en_US") == ("en_US",)
-        assert plain._lang_cache_key(env, "fr_FR") == ("fr_FR",)
+        assert plain._get_lang_cache_key(env, "en_US") == ("en_US",)
+        assert plain._get_lang_cache_key(env, "fr_FR") == ("fr_FR",)
 
 
 def test_update_cache_dict_distributes_into_full_shaped_subcaches():

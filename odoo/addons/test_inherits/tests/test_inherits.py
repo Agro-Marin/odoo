@@ -160,7 +160,7 @@ class TestInherits(common.TransactionCase):
 
         field = parent._fields["test_unstored_inherits_shared_line_ids"]
         with patch.object(
-            field, "_cache_missing_ids", side_effect=lambda recs: iter(recs.ids)
+            field, "_iter_cache_missing_ids", side_effect=lambda recs: iter(recs.ids)
         ):
             parent.write(
                 {"test_unstored_inherits_shared_line_ids": [(0, 0, {"name": "Coucou"})]}

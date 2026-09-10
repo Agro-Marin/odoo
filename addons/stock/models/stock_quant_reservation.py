@@ -38,7 +38,7 @@ class StockQuantReservation(models.Model):
             ).method
         location_id = location_id.sudo()
         if location_id.parent_path:
-            ancestor_ids = list(location_id._ancestor_ids(include_self=True))
+            ancestor_ids = list(location_id._get_ancestor_ids(include_self=True))
             for loc in self.env["stock.location"].browse(ancestor_ids[::-1]):
                 if loc.removal_strategy_id:
                     return loc.removal_strategy_id.with_context(lang=None).method

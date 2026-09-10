@@ -1,7 +1,7 @@
 import threading
 import unittest
 
-from odoo.orm.components.model_graph import ModelGraph, _empty_triggers
+from odoo.orm.components.model_graph import ModelGraph, _get_empty_triggers
 
 from .test_model_graph import _field
 
@@ -9,7 +9,7 @@ N_WRITER_ITERATIONS = 120
 
 
 def _staged_map(entries):
-    staged = _empty_triggers()
+    staged = _get_empty_triggers()
     for dep, path, targets in entries:
         bucket = staged[dep][path]
         for target in targets:

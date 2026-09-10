@@ -867,7 +867,7 @@ class Property(abc.Mapping):
         self.field = field
         self._definitions_by_name: dict[str, typing.Any] | None = None
 
-    def _definitions(self) -> dict[str, typing.Any]:
+    def _get_definitions(self) -> dict[str, typing.Any]:
         index = self._definitions_by_name
         if index is None:
             values = self.field.convert_to_read(
@@ -882,7 +882,7 @@ class Property(abc.Mapping):
         if not self.record:
             yield from self._values
             return
-        definitions = self._definitions()
+        definitions = self._get_definitions()
         for key in self._values:
             if key in definitions:
                 yield key
@@ -897,7 +897,7 @@ class Property(abc.Mapping):
         if not self.record:
             return False
 
-        prop = self._definitions().get(property_name)
+        prop = self._get_definitions().get(property_name)
         if not prop:
             raise KeyError(property_name)
 
@@ -1170,7 +1170,7 @@ class PropertiesDefinition(Field):
     ) -> None:
         allowed_keys = (
             self.ALLOWED_KEYS
-            + env["base"]._additional_allowed_keys_properties_definition()
+            + env["base"]._get_additional_allowed_keys_properties_definition()
         )
         allowed_keys_set = set(allowed_keys)
 

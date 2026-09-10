@@ -46,11 +46,11 @@ def _get_unaccent_table(cr: BaseCursor, db_name: str) -> dict[int, str]:
     return table
 
 
-def forget_unaccent_table(db_name: str) -> None:
+def clear_unaccent_table(db_name: str) -> None:
     _UnaccentTables.by_db.pop(db_name, None)
 
 
-def forget_all_unaccent_tables() -> None:
+def clear_unaccent_tables() -> None:
     _UnaccentTables.by_db.clear()
 
 

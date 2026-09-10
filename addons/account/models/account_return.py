@@ -259,7 +259,7 @@ class AccountReturnType(models.Model):
         all_branch_companies_with_same_vat = company._get_branches_with_same_vat()
         sorted_branch_companies_with_same_vat = sorted(
             all_branch_companies_with_same_vat,
-            key=lambda comp: len(comp._ancestor_ids(include_self=True)),
+            key=lambda comp: len(comp._get_ancestor_ids(include_self=True)),
         )
         is_main_branch = (
             not company.parent_id or company == sorted_branch_companies_with_same_vat[0]

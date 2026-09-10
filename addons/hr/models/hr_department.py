@@ -120,7 +120,7 @@ class HrDepartment(models.Model):
     @api.depends("parent_path")
     def _compute_master_department_id(self):
         for dept in self:
-            dept.master_department_id = dept._root()
+            dept.master_department_id = dept._get_root()
 
     @api.depends_context("allowed_company_ids")
     @api.constrains("company_id")

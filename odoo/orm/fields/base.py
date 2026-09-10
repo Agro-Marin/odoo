@@ -71,7 +71,7 @@ __all__ = ["COMPANY_DEPENDENT_FIELDS", "Field", "call_hook", "resolve_mro"]
 _NO_ARGS: Mapping[str, typing.Any] = ReadonlyDict({})
 
 
-def _recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
+def _get_recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
     rs = object.__new__(records.__class__)
     rs.env = records.env
     rs._ids = tuple(ids)
@@ -332,11 +332,11 @@ class Field[T](
     def setup(self, model: BaseModel) -> None:
         if not self._setup_done:
             for key in self._extra_keys__:
-                if not model._valid_field_parameter(self, key):
+                if not model._is_valid_field_parameter(self, key):
                     _logger.warning(
                         "Field %s: unknown parameter %r, if this is an actual"
                         " parameter you may want to override the method"
-                        " _valid_field_parameter on the relevant model in order to"
+                        " _is_valid_field_parameter on the relevant model in order to"
                         " allow it",
                         self,
                         key,
@@ -496,7 +496,7 @@ class Field[T](
             return core.all_context_cached_ids(self)
         return core.all_cached_ids(self)
 
-    def _cache_missing_ids(self, records: ModelLike) -> Iterator[IdType]:
+    def _iter_cache_missing_ids(self, records: ModelLike) -> Iterator[IdType]:
         field_cache = self._get_cache(records.env)
         _pending = PENDING
         return (
@@ -699,12 +699,12 @@ class Field[T](
     def _update_protected(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
-        self.mark_dirty(_recordset_like(records, ids), value)
+        self.mark_dirty(_get_recordset_like(records, ids), value)
 
     def _update_new(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
-        new_records = _recordset_like(records, ids)
+        new_records = _get_recordset_like(records, ids)
         with records.env.protecting(
             records.pool.field_computed.get(self, [self]), new_records
         ):
@@ -720,7 +720,7 @@ class Field[T](
     def _update_real(
         self, records: BaseModel, ids: list[typing.Any], value: typing.Any
     ) -> None:
-        records = _recordset_like(records, ids)
+        records = _get_recordset_like(records, ids)
         write_value = self.convert_to_write(value, records)
         records.write({self.name: write_value})
 

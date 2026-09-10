@@ -2248,7 +2248,7 @@ class Base_ImportImport(models.TransientModel):
         ``KeyError('relation')`` while building its parse plan, escaping
         ``execute_import`` as an HTTP 500.
 
-        ``load`` now refuses the same paths (`_invalid_load_paths`), so this
+        ``load`` now refuses the same paths (`_get_invalid_load_paths`), so this
         check is belt-and-braces rather than the only guard -- but it is the
         one that runs before the file is parsed, and it names the column the
         user actually mapped. Keeping both is deliberate: this module builds a

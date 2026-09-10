@@ -35,7 +35,7 @@ def _strip_granularity_suffix(field_expr: str) -> str:
     return field_expr
 
 
-def _domain_depend_paths(domain: Domain) -> Iterator[str]:
+def _iter_domain_depend_paths(domain: Domain) -> Iterator[str]:
     for condition in domain.iter_conditions():
         yield _strip_granularity_suffix(condition.field_expr)
         value = condition.value
@@ -47,7 +47,7 @@ def _domain_depend_paths(domain: Domain) -> Iterator[str]:
             subdomain = Domain(value, internal=True)
         else:
             continue
-        for sub_path in _domain_depend_paths(subdomain):
+        for sub_path in _iter_domain_depend_paths(subdomain):
             yield f"{condition.field_expr}.{sub_path}"
 
 
@@ -520,7 +520,10 @@ class _RelationalMulti(_Relational):
             depends = unique(
                 itertools.chain(
                     depends,
-                    (self.name + "." + path for path in _domain_depend_paths(domain)),
+                    (
+                        self.name + "." + path
+                        for path in _iter_domain_depend_paths(domain)
+                    ),
                 )
             )
         return depends, depends_context
@@ -585,7 +588,7 @@ class _RelationalMulti(_Relational):
     ) -> None:
         raise NotImplementedError
 
-    def _writer_models(
+    def _get_writer_models(
         self, records_commands_list: Sequence[tuple[BaseModel, list[CommandValue]]]
     ) -> tuple[BaseModel, BaseModel]:
         model = records_commands_list[0][0].browse()

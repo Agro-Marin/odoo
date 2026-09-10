@@ -110,7 +110,7 @@ def update_db_notnull(
     has_notnull = column and column["is_nullable"] == "NO"
 
     if not column or (field.required and not has_notnull):
-        if model._table_has_rows():
+        if model._has_rows_in_table():
             model._init_column(field.name, new_column=not column)
 
     if field.required and not has_notnull:

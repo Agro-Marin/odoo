@@ -50,20 +50,20 @@ class UnitOfWork[F: FieldKey = FieldKey]:
                 seen[model_name] = None
         return list(seen)
 
-    def _pending_snapshot(self) -> dict[Any, frozenset]:
+    def _get_pending_snapshot(self) -> dict[Any, frozenset]:
         return {
             fld: frozenset(self.engine.pending_ids(fld))
             for fld in self.engine.pending_fields()
         }
 
-    def _dirty_snapshot(self) -> dict[Any, frozenset]:
+    def _get_dirty_snapshot(self) -> dict[Any, frozenset]:
         return {
             fld: frozenset(self.cache.get_dirty(fld) or ())
             for fld in self.cache.iter_dirty_fields()
         }
 
     @staticmethod
-    def _field_label(field: F) -> str:
+    def _get_field_label(field: F) -> str:
         return f"{getattr(field, 'model_name', '?')}.{getattr(field, 'name', field)}"
 
     def recompute_until_converged(
@@ -86,13 +86,13 @@ class UnitOfWork[F: FieldKey = FieldKey]:
                 break
 
             if iteration >= SNAPSHOT_AFTER:
-                snapshot = self._pending_snapshot()
+                snapshot = self._get_pending_snapshot()
                 repeats = repeats + 1 if snapshot == previous else 0
                 if repeats >= STALL_REPEATS:
                     result.iterations = iteration
                     result.converged = False
                     result.stalled_fields = sorted(
-                        self._field_label(f) for f in snapshot
+                        self._get_field_label(f) for f in snapshot
                     )
                     break
                 previous = snapshot
@@ -110,7 +110,9 @@ class UnitOfWork[F: FieldKey = FieldKey]:
             if result.converged:
                 result.stalled_fields = []
             else:
-                result.stalled_fields = sorted(self._field_label(f) for f in pending)
+                result.stalled_fields = sorted(
+                    self._get_field_label(f) for f in pending
+                )
 
         return result
 
@@ -141,14 +143,14 @@ class UnitOfWork[F: FieldKey = FieldKey]:
                 break
 
             if iteration >= SNAPSHOT_AFTER:
-                snapshot = (self._dirty_snapshot(), self._pending_snapshot())
+                snapshot = (self._get_dirty_snapshot(), self._get_pending_snapshot())
                 repeats = repeats + 1 if snapshot == previous else 0
                 if repeats >= STALL_REPEATS:
                     result.iterations = iteration
                     result.converged = False
                     result.stalled_fields = sorted(
-                        {self._field_label(f) for f in snapshot[0]}
-                        | {self._field_label(f) for f in snapshot[1]}
+                        {self._get_field_label(f) for f in snapshot[0]}
+                        | {self._get_field_label(f) for f in snapshot[1]}
                     )
                     break
                 previous = snapshot
@@ -162,8 +164,10 @@ class UnitOfWork[F: FieldKey = FieldKey]:
             if result.converged:
                 result.stalled_fields = []
             else:
-                labels = {self._field_label(f) for f in self.cache.iter_dirty_fields()}
-                labels.update(self._field_label(f) for f in pending)
+                labels = {
+                    self._get_field_label(f) for f in self.cache.iter_dirty_fields()
+                }
+                labels.update(self._get_field_label(f) for f in pending)
                 result.stalled_fields = sorted(labels)
 
         return result

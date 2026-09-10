@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
     from .base import Field
 
 
-def _batch_then_single(
+def _run_batch_then_single(
     batch: Callable[[], None],
     single: Callable[[], None],
     recs: BaseModel,
@@ -31,7 +31,7 @@ def _batch_then_single(
 
 def cache_miss_stored(field: Field, record: BaseModel, env: Environment, record_id):
     recs = field._to_prefetch(record)
-    _batch_then_single(
+    _run_batch_then_single(
         lambda: recs._fetch_field(field),
         lambda: record._fetch_field(field),
         recs,
@@ -77,7 +77,7 @@ def cache_miss_origin(field: Field, record: BaseModel, env: Environment, record_
             field.convert_to_cache(record._origin[field.name], record, validate=False),
         )
 
-    _batch_then_single(
+    _run_batch_then_single(
         _batch, _single, recs, catching=(AccessError, KeyError, MissingError)
     )
     return field._get_cache(env)[record_id]
@@ -89,7 +89,7 @@ def cache_miss_compute(field: Field, record: BaseModel, env: Environment, record
         field._update_cache(record, value)
     else:
         recs = record if field.recursive else field._to_prefetch(record)
-        if _batch_then_single(
+        if _run_batch_then_single(
             lambda: field.compute_value(recs),
             lambda: field.compute_value(record),
             recs,
@@ -98,7 +98,7 @@ def cache_miss_compute(field: Field, record: BaseModel, env: Environment, record
         ):
             recs = record
 
-        missing_recs_ids = tuple(field._cache_missing_ids(recs))
+        missing_recs_ids = tuple(field._iter_cache_missing_ids(recs))
         if missing_recs_ids:
             missing_recs = record.browse(missing_recs_ids)
             if field.readonly and not field.store:

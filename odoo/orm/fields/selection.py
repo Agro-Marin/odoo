@@ -170,7 +170,7 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
 
         self._selection = values
 
-    def _selection_modules(self, model: BaseModel) -> dict[str, set[str]]:
+    def _get_selection_modules(self, model: BaseModel) -> dict[str, set[str]]:
         if not isinstance(self.selection, list):
             return {}
         value_modules: defaultdict[str, set[str]] = defaultdict(set)

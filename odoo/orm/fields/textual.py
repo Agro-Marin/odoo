@@ -115,7 +115,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         self, record: BaseModel, env: Environment, record_id: IdType
     ) -> typing.Any:
         if _translation.is_fallback_required(self, record_id):
-            fb_val = _translation.scalar_fallback(self, env, record_id)
+            fb_val = _translation.get_scalar_fallback(self, env, record_id)
             if fb_val is not SENTINEL:
                 return self.convert_to_record(fb_val, record)
         return super()._get_cache_miss(record, env, record_id)
@@ -123,16 +123,11 @@ class BaseString(Field[str | typing.Literal[False]]):
     def _is_translate_fallback_required(self, record_id: typing.Any) -> bool:
         return _translation.is_fallback_required(self, record_id)
 
-    def _lang_cache_key(self, env: Environment, lang: str) -> tuple:
-        return _translation.lang_cache_key(self, env, lang)
+    def _get_lang_cache_key(self, env: Environment, lang: str) -> tuple:
+        return _translation.get_lang_cache_key(self, env, lang)
 
-    def _lang_fallback_cache_key(self, env: Environment) -> tuple:
-        return _translation.fallback_cache_key(self, env)
-
-    def _scalar_translate_fallback(
-        self, env: Environment, record_id: typing.Any
-    ) -> typing.Any:
-        return _translation.scalar_fallback(self, env, record_id)
+    def _get_lang_fallback_cache_key(self, env: Environment) -> tuple:
+        return _translation.get_fallback_cache_key(self, env)
 
     _related_translate = property(attrgetter("translate"))
 
@@ -178,10 +173,10 @@ class BaseString(Field[str | typing.Literal[False]]):
         _ddl.convert_db_column_translatable(self, model, column)
 
     def get_trans_terms(self, value: str | None) -> list[str]:
-        return _translation.trans_terms(self, value)
+        return _translation.get_trans_terms(self, value)
 
     def get_text_content(self, term: str) -> str:
-        return _translation.text_content(self, term)
+        return _translation.get_text_content(self, term)
 
     @override
     def convert_to_column(
@@ -232,7 +227,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         if not callable(self.translate):
             return value
         if isinstance(value, dict):
-            lang = self.translation_lang(record.env)
+            lang = self.get_translation_lang(record.env)
             value = value[lang]
         field_ = self
         record_: typing.Any = record
@@ -255,18 +250,18 @@ class BaseString(Field[str | typing.Literal[False]]):
         from_lang_value: str,
         to_lang_values: dict[str, str],
     ) -> dict[str, dict[str, str]]:
-        return _translation.translation_dictionary(
+        return _translation.get_translation_dictionary(
             self, from_lang_value, to_lang_values
         )
 
     def _get_stored_translations(self, record: ModelLike) -> dict[str, str] | None:
-        return _translation.stored_translations(self, record)
+        return _translation.get_stored_translations(self, record)
 
-    def translation_lang(self, env: Environment) -> str:
-        return _translation.translation_lang(self, env)
+    def get_translation_lang(self, env: Environment) -> str:
+        return _translation.get_translation_lang(self, env)
 
     def get_translation_fallback_langs(self, env: Environment) -> tuple[str, ...]:
-        return _translation.fallback_langs(self, env)
+        return _translation.get_fallback_langs(self, env)
 
     def _get_cache_impl(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
         if self.translate is True:
@@ -274,13 +269,13 @@ class BaseString(Field[str | typing.Literal[False]]):
         cache = super()._get_cache_impl(env)
         if not self.translate or env.context.get("prefetch_langs"):
             return cache
-        lang = self.translation_lang(env)
+        lang = self.get_translation_lang(env)
         return LangProxyDict(self, cache, lang)
 
-    def _cache_missing_ids(self, records: ModelLike) -> typing.Iterator[IdType]:
+    def _iter_cache_missing_ids(self, records: ModelLike) -> typing.Iterator[IdType]:
         if callable(self.translate) and records.env.context.get("prefetch_langs"):
             records = records.with_context(prefetch_langs=False)
-        return super()._cache_missing_ids(records)
+        return super()._iter_cache_missing_ids(records)
 
     def _to_prefetch(self, record: ModelType) -> ModelType:
         if callable(self.translate) and record.env.context.get("prefetch_langs"):
@@ -324,13 +319,13 @@ class BaseString(Field[str | typing.Literal[False]]):
 
     def _reconcile_obsolete_terms(
         self,
-        translation_dictionary: dict,
+        get_translation_dictionary: dict,
         new_terms: set,
         lang: str,
         env: Environment,
     ) -> None:
         _translation.reconcile_obsolete_terms(
-            self, translation_dictionary, new_terms, lang, env
+            self, get_translation_dictionary, new_terms, lang, env
         )
 
     @override

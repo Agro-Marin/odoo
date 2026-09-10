@@ -102,7 +102,7 @@ class One2many(_RelationalMulti):
                 )
         return False
 
-    def _additional_domain(self, env: Environment) -> Domain:
+    def _get_domain_additional(self, env: Environment) -> Domain:
         if self.comodel_name and self.inverse_name:
             comodel = env.registry[self.comodel_name]
             inverse_field = comodel._fields[self._get_inverse_name()]
@@ -112,12 +112,14 @@ class One2many(_RelationalMulti):
 
     @override
     def get_comodel_domain(self, model: ModelLike) -> Domain:
-        return super().get_comodel_domain(model) & self._additional_domain(model.env)
+        return super().get_comodel_domain(model) & self._get_domain_additional(
+            model.env
+        )
 
     @override
     def _internal_description_domain_raw(self, env: Environment) -> str | list:
         domain = super()._internal_description_domain_raw(env)
-        additional_domain = self._additional_domain(env)
+        additional_domain = self._get_domain_additional(env)
         if additional_domain.is_true():
             return domain
         return f"({domain}) + ({additional_domain})"
@@ -210,7 +212,7 @@ class One2many(_RelationalMulti):
             if delta.linked:
                 link(recs[-1], browse_lines(list(delta.linked)))
 
-    def _orphan_lines(self, comodel, model, recs, lines, inverse):
+    def _get_orphan_lines(self, comodel, model, recs, lines, inverse):
         domain = (
             self.get_comodel_domain(model)
             & Domain(inverse, "in", recs.ids)
@@ -272,7 +274,7 @@ class One2many(_RelationalMulti):
                 else:
                     flush()
                     lines = comodel.browse(delta.set_ids)
-                    unlink(self._orphan_lines(comodel, model, recs, lines, inverse))
+                    unlink(self._get_orphan_lines(comodel, model, recs, lines, inverse))
                     lines[inverse] = recs[-1]
             for _ref, vals in delta.created:
                 line_vals = dict(vals)
@@ -304,7 +306,7 @@ class One2many(_RelationalMulti):
         if not records_commands_list:
             return
 
-        model, comodel = self._writer_models(records_commands_list)
+        model, comodel = self._get_writer_models(records_commands_list)
 
         if self.store:
             self._write_real_stored(records_commands_list, model, comodel, create)
@@ -319,7 +321,7 @@ class One2many(_RelationalMulti):
         if not records_commands_list:
             return
 
-        model, comodel = self._writer_models(records_commands_list)
+        model, comodel = self._get_writer_models(records_commands_list)
 
         ids = {record.id for records, _ in records_commands_list for record in records}
         records = model.browse(ids)

@@ -336,7 +336,7 @@ class Environment(Mapping[str, "BaseModel"]):
     def _ir_defaults(self) -> BaseModel:
         return self["ir.default"].with_user(SUPERUSER_ID).with_company(self.company)
 
-    def _allowed_company_ids(self) -> list[int]:
+    def _get_allowed_company_ids(self) -> list[int]:
         company_ids = self.context.get("allowed_company_ids", [])
         if company_ids and not self.su:
             if set(company_ids) - set(self.user._get_company_ids()):
@@ -347,13 +347,13 @@ class Environment(Mapping[str, "BaseModel"]):
 
     @functools.cached_property
     def company(self) -> BaseModel:
-        if company_ids := self._allowed_company_ids():
+        if company_ids := self._get_allowed_company_ids():
             return self["res.company"].browse(company_ids[0])
         return self.user.company_id.with_env(self)
 
     @functools.cached_property
     def companies(self) -> BaseModel:
-        if company_ids := self._allowed_company_ids():
+        if company_ids := self._get_allowed_company_ids():
             return self["res.company"].browse(company_ids)
         return self["res.company"].browse(self.user._get_company_ids())
 

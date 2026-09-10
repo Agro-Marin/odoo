@@ -468,7 +468,7 @@ class StockLocationBlock(models.Model):
             for candidate in self.browse(
                 get_context_record_ids(self.env, "stock.location", location),
             )
-            if views & set(candidate._ancestor_ids(include_self=True))
+            if views & set(candidate._get_ancestor_ids(include_self=True))
         }
 
     def _get_domains_move_destination(self, leaf) -> tuple[Domain, Domain]:

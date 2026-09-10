@@ -2392,8 +2392,8 @@ class AccountMoveLine(models.Model):
     def flush_model(self, fnames=None):
         return super().flush_model(self._get_flush_fnames(fnames))
 
-    def _valid_field_parameter(self, field, name):
-        return name == "tracking" or super()._valid_field_parameter(field, name)
+    def _is_valid_field_parameter(self, field, name):
+        return name == "tracking" or super()._is_valid_field_parameter(field, name)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_posted(self):

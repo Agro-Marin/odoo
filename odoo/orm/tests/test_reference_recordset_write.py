@@ -37,7 +37,7 @@ def test_existing_recordset_write_verifies_and_memoizes():
         holder.write({"ref": target})
         assert holder.ref == target
         field = holder._fields["ref"]
-        assert ("refw.target", target.id) in field._verified_pairs(env)
+        assert ("refw.target", target.id) in field._get_verified_pairs(env)
 
 
 def test_create_with_recordset_stores_the_reference():

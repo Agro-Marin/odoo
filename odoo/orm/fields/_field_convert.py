@@ -72,7 +72,7 @@ class _FieldConvertMixin[T](_FieldStubs):
                 if value is not None:
                     langs_dict[cache_key[0]] = value
         if not langs_dict:
-            flat_value = self._flat_column_value(record, record_id)
+            flat_value = self._get_flat_column_value(record, record_id)
             if flat_value is SENTINEL:
                 if not found:
                     raise KeyError(record_id)
@@ -80,7 +80,7 @@ class _FieldConvertMixin[T](_FieldStubs):
                 langs_dict[record.env.lang or "en_US"] = flat_value
         return PsycopgJson(langs_dict) if langs_dict else None
 
-    def _flat_column_value(self, record: ModelLike, record_id) -> typing.Any:
+    def _get_flat_column_value(self, record: ModelLike, record_id) -> typing.Any:
         flat = record.env._core.get_field_data_or_none(self)
         return SENTINEL if flat is None else flat.get(record_id, SENTINEL)
 
@@ -118,7 +118,7 @@ class _FieldConvertMixin[T](_FieldStubs):
                         self.convert_to_column(value, record)
                     )
         if not values:
-            flat_value = self._flat_column_value(record, record_id)
+            flat_value = self._get_flat_column_value(record, record_id)
             if flat_value is SENTINEL:
                 if not found:
                     raise KeyError(record_id)

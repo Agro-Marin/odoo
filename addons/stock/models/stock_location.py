@@ -289,7 +289,7 @@ class StockLocation(models.Model):
         replenish_locations = self.filtered("replenish_location")
         if not replenish_locations:
             return
-        ancestor_ids = replenish_locations._ancestor_ids(include_self=True)
+        ancestor_ids = replenish_locations._get_ancestor_ids(include_self=True)
         others = self.with_context(active_test=False).search(
             Domain("replenish_location", "=", True)
             & Domain("id", "not in", replenish_locations.ids)
@@ -551,7 +551,7 @@ class StockLocation(models.Model):
     )
     def _compute_warehouse_id(self):
         chains = {
-            location.id: list(location._ancestor_ids(include_self=True))
+            location.id: list(location._get_ancestor_ids(include_self=True))
             for location in self
         }
         warehouses = (
@@ -588,7 +588,7 @@ class StockLocation(models.Model):
         )
         descendant_ids = defaultdict(list)
         for location in internal_locations:
-            for ancestor_id in location._ancestor_ids(include_self=True):
+            for ancestor_id in location._get_ancestor_ids(include_self=True):
                 descendant_ids[ancestor_id].append(location.id)
         for location in self:
             location.child_internal_location_ids = self.browse(

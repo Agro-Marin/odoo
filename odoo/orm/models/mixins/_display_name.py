@@ -10,7 +10,7 @@ class _DisplayNameMixin(_ModelStubs):
     __slots__ = ()
 
     @api.model
-    def _rec_name_fallback(self) -> str:
+    def _get_rec_name_fallback(self) -> str:
         return self._rec_name or "id"
 
     @api.depends(

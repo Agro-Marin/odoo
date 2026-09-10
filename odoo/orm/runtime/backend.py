@@ -62,7 +62,7 @@ def _unwrap_json(value: typing.Any) -> typing.Any:
     return value
 
 
-def _column_read_value(field: Field, value: typing.Any, env) -> typing.Any:
+def _get_column_read_value(field: Field, value: typing.Any, env) -> typing.Any:
     if (
         field.translate
         and isinstance(value, dict)
@@ -314,14 +314,14 @@ class PostgresBackend:
     def update_rows(
         self, model: BaseModel, fnames: tuple[str, ...], rows: list[tuple]
     ) -> None:
-        if (values := self._uniform_update_values(rows)) is not None:
+        if (values := self._resolve_uniform_update_values(rows)) is not None:
             self._update_rows_uniform(model, fnames, [row[0] for row in rows], values)
             return
         for sub_rows in batched(rows, UPDATE_BATCH_SIZE, strict=False):
             self._update_rows_values(model, fnames, sub_rows)
 
     @staticmethod
-    def _uniform_update_values(rows: list[tuple]) -> tuple | None:
+    def _resolve_uniform_update_values(rows: list[tuple]) -> tuple | None:
         if len(rows) < 2:
             return None
         values = rows[0][1:]
@@ -893,7 +893,7 @@ class InMemoryBackend:
             row = self.storage.get_row(model._table, record_id)
             if row is not None:
                 for field in column_fields:
-                    value = _column_read_value(field, row.get(field.name), env)
+                    value = _get_column_read_value(field, row.get(field.name), env)
                     fc = field_caches[field]
                     fc.setdefault(
                         record_id,
@@ -987,7 +987,7 @@ class InMemoryBackend:
         self.storage.remove_rows(model._table, list(sub_ids))
         return Data.browse(), Attachment.browse()
 
-    def _m2m_rows(self, relation: str):
+    def _iter_m2m_rows(self, relation: str):
         for row_id in self.storage.table_ids(relation):
             row = self.storage.get_row(relation, row_id)
             if row is not None:
@@ -1004,7 +1004,7 @@ class InMemoryBackend:
         wanted = set(ids)
         return [
             (row[column1], row[column2])
-            for _row_id, row in self._m2m_rows(relation)
+            for _row_id, row in self._iter_m2m_rows(relation)
             if row.get(column1) in wanted
         ]
 
@@ -1018,7 +1018,7 @@ class InMemoryBackend:
     ) -> None:
         existing: set[tuple] = {
             (row.get(column1), row.get(column2))
-            for _row_id, row in self._m2m_rows(relation)
+            for _row_id, row in self._iter_m2m_rows(relation)
         }
         to_insert = []
         for pair in pairs:
@@ -1040,7 +1040,7 @@ class InMemoryBackend:
         doomed = {tuple(pair) for pair in pairs}
         row_ids = [
             row_id
-            for row_id, row in self._m2m_rows(relation)
+            for row_id, row in self._iter_m2m_rows(relation)
             if (row.get(column1), row.get(column2)) in doomed
         ]
         if row_ids:

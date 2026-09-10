@@ -132,9 +132,9 @@ class UnlinkMixin(_ModelStubs):
         for field in registry.fields_reading_through_a_reference:
             field._invalidate_cache(env, keep_dirty=True)
         Reference.discard_verified_models(env, gone)
-        self._forget_ref_cache(gone)
+        self._invalidate_ref_cache(gone)
 
-    def _forget_ref_cache(self, model_names: typing.Iterable[str]) -> None:
+    def _invalidate_ref_cache(self, model_names: typing.Iterable[str]) -> None:
         ref_cache = self.env.transaction._ref_cache
         if not ref_cache:
             return

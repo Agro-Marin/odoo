@@ -116,7 +116,7 @@ class WriteMixin(_ModelStubs):
                 if (
                     not field.store
                     and (not field.inherited or not field.is_x2many)
-                    and any(field._cache_missing_ids(real_recs))
+                    and any(field._iter_cache_missing_ids(real_recs))
                 ):
                     field.mark_dirty(real_recs, vals[field.name])
 
@@ -221,7 +221,9 @@ class WriteMixin(_ModelStubs):
         prof = _OrmProfile(_orm_crud)
 
         parent_records = (
-            self._parent_store_update_prepare(vals_list) if self._parent_store else None
+            self._get_records_with_parent_changed(vals_list)
+            if self._parent_store
+            else None
         )
 
         log_vals: ValuesType = (
@@ -249,7 +251,7 @@ class WriteMixin(_ModelStubs):
         self._sync_log_access_cache(log_vals, log_only_ids)
 
         if parent_records:
-            parent_records._parent_store_update()
+            parent_records._update_parent_path_on_write()
 
         prof.stop()
         prof.report(
@@ -276,7 +278,7 @@ class WriteMixin(_ModelStubs):
     def _execute_update(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
         self.env.backend.update_rows(self, fnames, rows)
 
-    def _parent_store_update_prepare(self, vals_list: list[ValuesType]) -> Self:
+    def _get_records_with_parent_changed(self, vals_list: list[ValuesType]) -> Self:
         if not self._parent_store:
             return self.browse()
         if not self.env.backend.supports_parent_store:
@@ -315,7 +317,7 @@ class WriteMixin(_ModelStubs):
         )
         return self.browse(row[0] for row in rows)
 
-    def _parent_store_update(self) -> None:
+    def _update_parent_path_on_write(self) -> None:
         for parent, records in self.grouped(self._parent_name).items():
             prefix = parent.parent_path or ""
 

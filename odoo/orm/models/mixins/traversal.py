@@ -453,7 +453,7 @@ class TraversalMixin(_ModelStubs):
         for name, value in values.items():
             record[name] = value
 
-    def _ancestor_ids(self, include_self: bool = False) -> OrderedSet[int]:
+    def _get_ancestor_ids(self, include_self: bool = False) -> OrderedSet[int]:
         result: OrderedSet[int] = OrderedSet()
         unresolved: list[BaseModel] = []
         has_path = "parent_path" in self._fields
@@ -466,10 +466,10 @@ class TraversalMixin(_ModelStubs):
             else:
                 unresolved.append(rec)
         for rec in unresolved:
-            result.update(rec._ancestor_ids_by_walking(include_self))
+            result.update(rec._get_ancestor_ids_by_walking(include_self))
         return result
 
-    def _ancestor_ids_by_walking(self, include_self: bool) -> list[int]:
+    def _get_ancestor_ids_by_walking(self, include_self: bool) -> list[int]:
         parent_name = self._parent_name
         chain: list[int] = []
         seen: set = set()
@@ -482,13 +482,13 @@ class TraversalMixin(_ModelStubs):
         chain.reverse()
         return chain
 
-    def _root(self) -> Self:
+    def _get_root(self) -> Self:
         self.check_singleton()
-        for root_id in self._ancestor_ids(include_self=True):
+        for root_id in self._get_ancestor_ids(include_self=True):
             return self.browse(root_id)
         return self
 
-    def _descendant_ids(self, include_self: bool = False) -> OrderedSet[int]:
+    def _get_descendant_ids(self, include_self: bool = False) -> OrderedSet[int]:
         if not self.ids:
             return OrderedSet()
         found = OrderedSet(
@@ -507,7 +507,7 @@ class TraversalMixin(_ModelStubs):
         other.check_singleton()
         if self == other:
             return not strict
-        return other.id in self._ancestor_ids()
+        return other.id in self._get_ancestor_ids()
 
     def _has_cycle(self, field_name: str | None = None) -> bool:
         if not field_name:

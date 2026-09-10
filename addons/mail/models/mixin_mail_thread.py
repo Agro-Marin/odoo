@@ -669,8 +669,8 @@ class MixinMailThread(models.AbstractModel):
         doc_name = self.env["ir.model"]._get(self._name).name
         return _("%s created", doc_name)
 
-    def _valid_field_parameter(self, field: fields.Field, name: str) -> bool:
-        return name == "tracking" or super()._valid_field_parameter(field, name)
+    def _is_valid_field_parameter(self, field: fields.Field, name: str) -> bool:
+        return name == "tracking" or super()._is_valid_field_parameter(field, name)
 
     def _fallback_lang(self) -> Self:
         if not self.env.context.get("lang"):

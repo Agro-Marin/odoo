@@ -107,7 +107,7 @@ class Index(TableObject):
         super().__init__()
         self._index_definition = definition
 
-    def _definition_clause(self, registry: Registry) -> str:
+    def _get_definition_clause(self, registry: Registry) -> str:
         if callable(self._index_definition):
             return self._index_definition(registry)
         return self._index_definition
@@ -118,12 +118,12 @@ class Index(TableObject):
         return f"{'UNIQUE ' if self.unique else ''}INDEX {clause}"
 
     def get_definition(self, registry: Registry) -> str:
-        return self._format_definition(self._definition_clause(registry))
+        return self._format_definition(self._get_definition_clause(registry))
 
     def apply_to_database(self, model: BaseModel) -> None:
         cr = model.env.cr
         conname = self.full_name(model)
-        definition_clause = self._definition_clause(model.pool)
+        definition_clause = self._get_definition_clause(model.pool)
         definition = self._format_definition(definition_clause)
 
         if owning_constraint := sql.get_index_constraint(cr, conname):

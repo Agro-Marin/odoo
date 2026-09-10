@@ -16,7 +16,7 @@ if typing.TYPE_CHECKING:
 MAXINT = 2**31 - 1
 
 
-def _pg_float_text(value: float) -> str:
+def _float_to_pg_text(value: float) -> str:
     text = repr(float(value))
     return text.removesuffix(".0")
 
@@ -222,7 +222,7 @@ class Float(Field[float]):
     def _pattern_text(self, cache_value: typing.Any) -> str:
         if cache_value is None:
             return ""
-        return _pg_float_text(cache_value)
+        return _float_to_pg_text(cache_value)
 
     @override
     def convert_to_export(self, value, record: ModelLike) -> typing.Any:
@@ -295,7 +295,7 @@ class Monetary(Field[float]):
             )
         return name
 
-    def _currency_record(self, record: ModelLike):
+    def _resolve_currency_record(self, record: ModelLike):
         currency_field_name = self.get_currency_field(record)
         if not currency_field_name:
             return None
@@ -334,7 +334,7 @@ class Monetary(Field[float]):
         if not value:
             return value
         if record.ids:
-            currency = self._currency_record(record)
+            currency = self._resolve_currency_record(record)
             if currency:
                 return currency.with_env(record.env).round(value)
         return value
@@ -360,7 +360,7 @@ class Monetary(Field[float]):
             dummy = record.new({related_field_name: values[related_field_name]})
             currency = dummy[currency_field_name]
         else:
-            currency = self._currency_record(record).with_env(record.env)
+            currency = self._resolve_currency_record(record).with_env(record.env)
 
         value = float(value or 0.0)
         if currency:
@@ -404,7 +404,7 @@ class Monetary(Field[float]):
     def _pattern_text(self, cache_value: typing.Any) -> str:
         if cache_value is None:
             return ""
-        return _pg_float_text(cache_value)
+        return _float_to_pg_text(cache_value)
 
     @override
     def convert_to_read(

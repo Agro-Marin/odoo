@@ -34,7 +34,7 @@ PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[typing.Any, typing.Any], bool]] 
 IN_TO_ANY_THRESHOLD = 100
 
 
-def _like_regex_parts(value: str, exact: bool):
+def _iter_like_regex_parts(value: str, exact: bool):
     yield "^" if exact else ".*"
     escaped = False
     for char in value:
@@ -360,7 +360,7 @@ class _FieldSqlMixin(_FieldStubs):
 
         pattern = value if isinstance(value, str) else self._pattern_text(value)
         like_regex = re.compile(
-            "".join(_like_regex_parts(unaccent(pattern), "=" in operator)),
+            "".join(_iter_like_regex_parts(unaccent(pattern), "=" in operator)),
             flags=re.DOTALL,
         )
         render = self._pattern_getter(records, field_expr, getter)

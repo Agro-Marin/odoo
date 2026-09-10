@@ -45,11 +45,11 @@ class _RegistryModelsMixin(_RegistryStubs):
             if not table:
                 continue
             incumbent = by_table.get(table)
-            if incumbent is None or model_cls._name in self._ancestors(incumbent):
+            if incumbent is None or model_cls._name in self._get_ancestors(incumbent):
                 by_table[table] = model_cls
         return by_table
 
-    def _ancestors(self, model_cls: type[BaseModel]) -> set[str]:
+    def _get_ancestors(self, model_cls: type[BaseModel]) -> set[str]:
         seen: set[str] = set()
         queue = deque(getattr(model_cls, "_inherit", ()) or ())
         while queue:

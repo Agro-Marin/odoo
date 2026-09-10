@@ -28,7 +28,7 @@ def _get_term_translator(
     return lambda term: dictionary.get(term, {lang: None})[lang]
 
 
-def _id_or_origin(key: IdType) -> IdType | None:
+def _get_id_or_origin(key: IdType) -> IdType | None:
     return key or (key.origin if isinstance(key, NewId) else None)
 
 
@@ -39,30 +39,32 @@ def is_fallback_required(field: BaseString, record_id: typing.Any) -> bool:
     )
 
 
-def lang_cache_key(field: BaseString, env: Environment, lang: str) -> tuple:
+def get_lang_cache_key(field: BaseString, env: Environment, lang: str) -> tuple:
     cache_key = env.cache_key(field)
     if len(cache_key) == 1:
         return _EN_US_KEY if lang == "en_US" else (lang,)
     return (lang, *cache_key[1:])
 
 
-def fallback_cache_key(field: BaseString, env: Environment) -> tuple:
-    return lang_cache_key(field, env, "en_US")
+def get_fallback_cache_key(field: BaseString, env: Environment) -> tuple:
+    return get_lang_cache_key(field, env, "en_US")
 
 
-def scalar_fallback(
+def get_scalar_fallback(
     field: BaseString, env: Environment, record_id: typing.Any
 ) -> typing.Any:
     cur_val = field._get_cache(env).get(record_id, SENTINEL)
     if cur_val is not SENTINEL:
         return cur_val
-    fb_cache = env._core.get_context_data_or_none(field, fallback_cache_key(field, env))
+    fb_cache = env._core.get_context_data_or_none(
+        field, get_fallback_cache_key(field, env)
+    )
     if fb_cache is not None:
         return fb_cache.get(record_id, SENTINEL)
     return SENTINEL
 
 
-def trans_terms(field: BaseString, value: str | None) -> list[str]:
+def get_trans_terms(field: BaseString, value: str | None) -> list[str]:
     if not callable(field.translate):
         return [value] if value else []
     terms: list[str] = []
@@ -70,17 +72,17 @@ def trans_terms(field: BaseString, value: str | None) -> list[str]:
     return terms
 
 
-def text_content(field: BaseString, term: str) -> str:
+def get_text_content(field: BaseString, term: str) -> str:
     func = getattr(field.translate, "get_text_content", lambda term: term)
     return func(term)
 
 
-def translation_lang(field: BaseString, env: Environment) -> str:
+def get_translation_lang(field: BaseString, env: Environment) -> str:
     return (env.lang or "en_US") if field.translate is True else env._lang
 
 
-def fallback_langs(field: BaseString, env: Environment) -> tuple[str, ...]:
-    lang = translation_lang(field, env)
+def get_fallback_langs(field: BaseString, env: Environment) -> tuple[str, ...]:
+    lang = get_translation_lang(field, env)
     if lang == "_en_US":
         return "_en_US", "en_US"
     if lang == "en_US":
@@ -90,7 +92,7 @@ def fallback_langs(field: BaseString, env: Environment) -> tuple[str, ...]:
     return lang, "en_US"
 
 
-def translation_dictionary(
+def get_translation_dictionary(
     field: BaseString,
     from_lang_value: str,
     to_lang_values: dict[str, str],
@@ -114,7 +116,9 @@ def translation_dictionary(
     return dictionary
 
 
-def stored_translations(field: BaseString, record: ModelLike) -> dict[str, str] | None:
+def get_stored_translations(
+    field: BaseString, record: ModelLike
+) -> dict[str, str] | None:
     record.flush_recordset([field.name])
     cr = record.env.cr
     cr.execute(
@@ -129,7 +133,7 @@ def stored_translations(field: BaseString, record: ModelLike) -> dict[str, str] 
     return res[0] if res else None
 
 
-def stored_translations_multi(
+def get_stored_translations_multi(
     field: BaseString, records: ModelLike, dirty_ids: typing.Any
 ) -> dict[typing.Any, dict[str, str] | None]:
     pending = records.filtered(lambda rec: rec.id in (dirty_ids or ()))
@@ -215,7 +219,7 @@ def insert_cache(
                 sub = sub_caches.get(lang)
                 if sub is None:
                     sub = sub_caches[lang] = core.get_context_data(
-                        field, lang_cache_key(field, env, lang)
+                        field, get_lang_cache_key(field, env, lang)
                     )
                 return sub
 
@@ -262,7 +266,7 @@ def insert_cache(
                     **val,
                 }
     else:
-        lang = translation_lang(field, env)
+        lang = get_translation_lang(field, env)
         for id_, val in zip(records._ids, values, strict=True):
             if val is None:
                 field_cache.setdefault(id_, None)
@@ -282,7 +286,7 @@ def update_cache(
         for lang, scalar in cache_value.items():
             if lang.startswith("_"):
                 continue
-            sub = core.get_context_data(field, lang_cache_key(field, env, lang))
+            sub = core.get_context_data(field, get_lang_cache_key(field, env, lang))
             if len(ids) <= 1:
                 if ids:
                     sub[ids[0]] = scalar
@@ -297,7 +301,7 @@ def update_cache(
             id_ or getattr(id_, "origin", None) for id_ in records._ids
         ):
             en_cache = records.env._core.get_context_data(
-                field, fallback_cache_key(field, records.env)
+                field, get_fallback_cache_key(field, records.env)
             )
             for id_ in records._ids:
                 en_cache.setdefault(id_, cache_value)
@@ -320,7 +324,7 @@ def mark_dirty(field: BaseString, records: BaseModel, value: typing.Any) -> None
     dirty_ids = records.env._core.get_dirty(field) or ()
     _flush_pending_none(field, records, dirty_ids)
 
-    lang = translation_lang(field, records.env)
+    lang = get_translation_lang(field, records.env)
     if not (field.store and any(records._ids)):
         _mark_dirty_unstored(field, records, cache_value, lang)
     elif not callable(field.translate):
@@ -400,7 +404,7 @@ def get_mirrored_ids_by_language(
         return {}
     if lang == "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
         return {}
-    stored = _stored_translations_multi(field, records.browse(ids), dirty_ids)
+    stored = get_stored_translations_multi(field, records.browse(ids), dirty_ids)
     followers = defaultdict(list)
     for id_, translations in stored.items():
         if not translations or len(translations) < 2:
@@ -412,26 +416,6 @@ def get_mirrored_ids_by_language(
             if other_lang != lang and term == current:
                 followers[other_lang].append(id_)
     return followers
-
-
-def _stored_translations_multi(
-    field: BaseString,
-    records: BaseModel,
-    dirty_ids: typing.Any,
-) -> dict[IdType, dict[str, str] | None]:
-    pending = records.filtered(lambda rec: rec.id in (dirty_ids or ()))
-    if pending:
-        pending.flush_recordset([field.name])
-    cr = records.env.cr
-    cr.execute(
-        SQL(
-            "SELECT id, %s FROM %s WHERE id IN %s",
-            SQL.identifier(field.name),
-            SQL.identifier(records._table),
-            tuple(records._ids),
-        )
-    )
-    return dict(cr.fetchall())
 
 
 def mark_dirty_model_term_translation(
@@ -447,7 +431,7 @@ def mark_dirty_model_term_translation(
     if new_terms:
         real_records = records.filtered("id")
         if real_records:
-            stored_by_id = stored_translations_multi(
+            stored_by_id = get_stored_translations_multi(
                 field, real_records, records.env._core.get_dirty(field)
             )
     for record in records:
@@ -497,7 +481,7 @@ def mark_dirty_model_term_translation(
 
 def reconcile_obsolete_terms(
     field: BaseString,
-    translation_dictionary: dict,
+    get_translation_dictionary: dict,
     new_terms: set,
     lang: str,
     env: Environment,
@@ -509,7 +493,7 @@ def reconcile_obsolete_terms(
 
     is_text = getattr(field.translate, "is_text", None) or (lambda term: True)
     term_adapter = getattr(field.translate, "term_adapter", None)
-    for old_term in list(translation_dictionary.keys()):
+    for old_term in list(get_translation_dictionary.keys()):
         if old_term in new_terms:
             continue
         old_term_text = field.get_text_content(old_term)
@@ -517,7 +501,7 @@ def reconcile_obsolete_terms(
         if not matches:
             continue
         closest_term = get_close_matches(old_term, text2terms[matches[0]], 1, 0)[0]
-        if closest_term in translation_dictionary:
+        if closest_term in get_translation_dictionary:
             continue
         old_is_text = is_text(old_term)
         closest_is_text = is_text(closest_term)
@@ -532,11 +516,14 @@ def reconcile_obsolete_terms(
             adapter = term_adapter(closest_term)
             if adapter(old_term) is None:
                 continue
-            translation_dictionary[closest_term] = {
-                k: adapter(v) for k, v in translation_dictionary.pop(old_term).items()
+            get_translation_dictionary[closest_term] = {
+                k: adapter(v)
+                for k, v in get_translation_dictionary.pop(old_term).items()
             }
         else:
-            translation_dictionary[closest_term] = translation_dictionary.pop(old_term)
+            get_translation_dictionary[closest_term] = get_translation_dictionary.pop(
+                old_term
+            )
 
 
 _PROXY_MISSING = object()
@@ -559,7 +546,7 @@ class LangProxyDict(collections.abc.MutableMapping):
             return default
         if vals is None:
             return None
-        if not (self._field.compute or (self._field.store and _id_or_origin(key))):
+        if not (self._field.compute or (self._field.store and _get_id_or_origin(key))):
             return vals.get(self._lang, vals.get("en_US", default))
         return vals.get(self._lang, default)
 
@@ -567,7 +554,7 @@ class LangProxyDict(collections.abc.MutableMapping):
         vals = self._cache[key]
         if vals is None:
             return None
-        if not (self._field.compute or (self._field.store and _id_or_origin(key))):
+        if not (self._field.compute or (self._field.store and _get_id_or_origin(key))):
             return vals.get(self._lang, vals.get("en_US"))
         return vals[self._lang]
 
@@ -580,7 +567,7 @@ class LangProxyDict(collections.abc.MutableMapping):
             self._cache[key] = vals = {self._lang: value}
         else:
             vals[self._lang] = value
-        if not (self._field.compute or (self._field.store and _id_or_origin(key))):
+        if not (self._field.compute or (self._field.store and _get_id_or_origin(key))):
             vals.setdefault("en_US", value)
 
     def __delitem__(self, key: IdType) -> None:

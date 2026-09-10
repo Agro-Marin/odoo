@@ -142,7 +142,7 @@ class TestProcurement(TestMrpCommon):
         warehouse = self.warehouse_1
         warehouse.reception_steps = "three_steps"
         warehouse.mto_pull_id.route_id.active = True
-        self.env["stock.location"]._parent_store_compute()
+        self.env["stock.location"]._update_parent_path_of_table()
         warehouse.reception_route_id.rule_ids.filtered(
             lambda p: (
                 p.location_src_id == warehouse.wh_input_stock_loc_id

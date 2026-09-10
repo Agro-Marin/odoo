@@ -56,7 +56,7 @@ class Count(Integer):
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
         try:
-            counted = self._counted(model)
+            counted = self._get_counted_field(model)
         except KeyError:
             if model._abstract:
                 return
@@ -136,7 +136,7 @@ class Count(Integer):
                 return name
         return None
 
-    def _counted(self, model: BaseModel) -> typing.Any:
+    def _get_counted_field(self, model: BaseModel) -> typing.Any:
         return model._fields[self.count_of]
 
     def _can_count_in_database(self, model: BaseModel, counted: typing.Any) -> bool:
@@ -152,7 +152,7 @@ class Count(Integer):
         return bool(counted.relation and counted.column1 and counted.column2)
 
     def _compute_count(self, records: BaseModel) -> None:
-        counted = self._counted(records)
+        counted = self._get_counted_field(records)
         name = counted.name
         counts: dict[typing.Any, int] = {}
         pending: list[int] = []
@@ -173,7 +173,7 @@ class Count(Integer):
                 record[self.name] = len(record[name])
 
     def _count_in_database(self, records: BaseModel) -> dict[typing.Any, int]:
-        counted = self._counted(records)
+        counted = self._get_counted_field(records)
         env = records.env
         Comodel = env.registry[counted.comodel_name]
         active_test = counted.context.get(
@@ -200,7 +200,7 @@ class Count(Integer):
             type(comodel)
         )
         query = comodel._search(domain, bypass_access=bypass_access)
-        relation, column1, column2 = counted._relation_columns()
+        relation, column1, column2 = counted._get_relation_columns()
         sql_id1 = SQL.identifier(relation, column1)
         result.update(
             env.execute_query(

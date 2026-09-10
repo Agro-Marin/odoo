@@ -452,7 +452,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
 
         return SQL(", ").join(orderby_terms)
 
-    def _property_comodel(self, definition: dict, property_name: str):
+    def _get_property_comodel(self, definition: dict, property_name: str):
         comodel = self.env.get(definition.get("comodel"))
         if comodel is None or comodel._transient or comodel._abstract:
             raise UserError(
@@ -491,7 +491,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 tags,
             )
         else:
-            comodel = self._property_comodel(definition, property_name)
+            comodel = self._get_property_comodel(definition, property_name)
 
             condition = SQL(
                 "%s::int IN (SELECT id FROM %s)",
@@ -558,7 +558,7 @@ class _ReadGroupSQLMixin(_ModelStubs):
             )
 
         if property_type == "many2one":
-            comodel = self._property_comodel(definition, property_name)
+            comodel = self._get_property_comodel(definition, property_name)
 
             return SQL(
                 """ CASE

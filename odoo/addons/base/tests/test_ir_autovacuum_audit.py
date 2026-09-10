@@ -163,6 +163,8 @@ class TestAutovacuumTimeBudget(TransactionCase):
         self.assertIn("'everything'", "\n".join(capture.output))
 
     def test_transient_vacuum_reports_a_count_and_a_flag(self):
-        done, more = self.env["base.partner.merge.automatic.wizard"]._transient_vacuum()
+        done, more = self.env[
+            "base.partner.merge.automatic.wizard"
+        ]._vacuum_transient_rows()
         self.assertIsInstance(done, int)
         self.assertIs(more, False)

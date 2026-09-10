@@ -80,7 +80,7 @@ def propagate_related_attrs(
             setattr(field, attr, getattr(related_field, prop))
 
     for attr in related_field._extra_keys__:
-        if not hasattr(field, attr) and model._valid_field_parameter(field, attr):
+        if not hasattr(field, attr) and model._is_valid_field_parameter(field, attr):
             setattr(field, attr, getattr(related_field, attr))
 
 

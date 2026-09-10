@@ -4546,22 +4546,22 @@ class TestParentStore(TransactionCaseWithUserDemo):
             self.cats(1, 3).write({"parent": self.cats(9).id})
 
     def test_ancestor_ids_reads_the_path_and_orders_root_first(self):
-        self.assertEqual(list(self.cats(9)._ancestor_ids()), self.cats(0, 3, 6).ids)
+        self.assertEqual(list(self.cats(9)._get_ancestor_ids()), self.cats(0, 3, 6).ids)
         self.assertEqual(
-            list(self.cats(9)._ancestor_ids(include_self=True)),
+            list(self.cats(9)._get_ancestor_ids(include_self=True)),
             self.cats(0, 3, 6, 9).ids,
         )
-        self.assertEqual(list(self.cats(0)._ancestor_ids()), [])
+        self.assertEqual(list(self.cats(0)._get_ancestor_ids()), [])
         self.assertEqual(
-            list(self.cats(0)._ancestor_ids(include_self=True)), self.cats(0).ids
+            list(self.cats(0)._get_ancestor_ids(include_self=True)), self.cats(0).ids
         )
 
     def test_ancestor_ids_walks_when_the_record_has_no_path_yet(self):
         draft = self.cats().new({"name": "draft", "parent": self.cats(6).id})
         self.assertFalse(draft.parent_path)
-        self.assertEqual(list(draft._ancestor_ids()), self.cats(0, 3, 6).ids)
+        self.assertEqual(list(draft._get_ancestor_ids()), self.cats(0, 3, 6).ids)
         self.assertEqual(
-            list(draft._ancestor_ids(include_self=True)), self.cats(0, 3, 6).ids
+            list(draft._get_ancestor_ids(include_self=True)), self.cats(0, 3, 6).ids
         )
 
     def test_the_two_ancestor_branches_agree(self):
@@ -4569,34 +4569,34 @@ class TestParentStore(TransactionCaseWithUserDemo):
             saved = self.cats(index)
             draft = self.cats().new({"name": "d", "parent": saved.parent.id})
             self.assertEqual(
-                list(draft._ancestor_ids()),
-                list(saved._ancestor_ids()),
+                list(draft._get_ancestor_ids()),
+                list(saved._get_ancestor_ids()),
                 f"path and walk disagree below category {index}",
             )
 
     def test_root(self):
-        self.assertEqual(self.cats(9)._root(), self.cats(0))
-        self.assertEqual(self.cats(4)._root(), self.cats(0))
-        self.assertEqual(self.cats(0)._root(), self.cats(0))
+        self.assertEqual(self.cats(9)._get_root(), self.cats(0))
+        self.assertEqual(self.cats(4)._get_root(), self.cats(0))
+        self.assertEqual(self.cats(0)._get_root(), self.cats(0))
 
     def test_root_of_a_record_with_no_path_yet(self):
         draft = self.cats().new({"name": "draft", "parent": self.cats(6).id})
         self.assertFalse(draft.parent_path)
-        self.assertEqual(draft._root(), self.cats(0))
+        self.assertEqual(draft._get_root(), self.cats(0))
         orphan = self.cats().new({"name": "orphan"})
-        self.assertEqual(orphan._root(), orphan)
+        self.assertEqual(orphan._get_root(), orphan)
 
     def test_descendant_ids(self):
         self.assertEqual(
-            sorted(self.cats(3)._descendant_ids()),
+            sorted(self.cats(3)._get_descendant_ids()),
             sorted(self.cats(4, 5, 6, 7, 8, 9).ids),
         )
         self.assertEqual(
-            sorted(self.cats(3)._descendant_ids(include_self=True)),
+            sorted(self.cats(3)._get_descendant_ids(include_self=True)),
             sorted(self.cats(3, 4, 5, 6, 7, 8, 9).ids),
         )
-        self.assertEqual(list(self.cats(9)._descendant_ids()), [])
-        self.assertEqual(list(self.cats()._descendant_ids()), [])
+        self.assertEqual(list(self.cats(9)._get_descendant_ids()), [])
+        self.assertEqual(list(self.cats()._get_descendant_ids()), [])
 
     def test_is_descendant_of(self):
         self.assertTrue(self.cats(9)._is_descendant_of(self.cats(0)))
@@ -4620,7 +4620,7 @@ class TestParentStore(TransactionCaseWithUserDemo):
         created.parent = False
         self.assertTrue(created.parent_path.endswith("/"))
 
-        self.env["test_orm.category"]._parent_store_compute()
+        self.env["test_orm.category"]._update_parent_path_of_table()
         self.env.invalidate_all()
         for category in self._cats | created:
             self.assertTrue(category.parent_path.endswith("/"))
@@ -6065,7 +6065,7 @@ class TestUpdateDbNotNull(TransactionCase):
             patch.object(
                 registry, "post_init", new=lambda func, *a, **kw: func(*a, **kw)
             ),
-            patch.object(type(model), "_table_has_rows", return_value=False),
+            patch.object(type(model), "_has_rows_in_table", return_value=False),
         ):
             field.update_db_notnull(model, column)
         return model, field

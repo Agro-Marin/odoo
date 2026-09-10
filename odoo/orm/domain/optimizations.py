@@ -22,7 +22,7 @@ from .ast import (
     DomainNary,
     DomainOr,
     OptimizationLevel,
-    _nary_value_tiebreak,
+    _get_nary_value_tiebreak,
 )
 from .constants import (
     ACCEPTED_CONDITION_OPERATORS,
@@ -625,7 +625,7 @@ def _merge_set_conditions(
     not_in_sets = [c.value for c in conditions if c.operator == "not in"]
 
     def merged(operator: str, values: OrderedSet) -> list[DomainCondition]:
-        values = OrderedSet(sorted(values, key=_nary_value_tiebreak))
+        values = OrderedSet(sorted(values, key=_get_nary_value_tiebreak))
         return [DomainCondition(conditions[0].field_expr, operator, values)]
 
     if cls.OPERATOR == "&":

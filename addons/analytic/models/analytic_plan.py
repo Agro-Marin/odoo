@@ -153,7 +153,7 @@ class AccountAnalyticPlan(models.Model):
     @api.depends("parent_id", "parent_path")
     def _compute_root_id(self):
         for plan in self.sudo():
-            plan.root_id = plan._root()
+            plan.root_id = plan._get_root()
 
     def _search_root_id(self, operator, value):
         if operator != "=":

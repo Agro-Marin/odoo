@@ -328,7 +328,7 @@ class Image(Binary):
     def create(self, record_values: Sequence[tuple[BaseModel, typing.Any]]) -> None:
         new_record_values: list[tuple[BaseModel, typing.Any]] = []
         for record, value in record_values:
-            new_value = self._image_process(value, record.env)
+            new_value = self._process_image(value, record.env)
             new_record_values.append((record, new_value))
             cache_value = self.convert_to_cache(
                 value if self.related else new_value, record
@@ -342,7 +342,7 @@ class Image(Binary):
             **{"bin_size": False, "bin_size_" + self.name: False}
         )
         try:
-            new_value = self._image_process(value, records.env)
+            new_value = self._process_image(value, records.env)
         except UserError:
             if not any(records._ids):
                 return
@@ -362,7 +362,7 @@ class Image(Binary):
             value = self._process_related(record[self.name], record.env)
             self._update_cache(record, value, dirty=True)
 
-    def _image_process(
+    def _process_image(
         self, value: typing.Any, env: typing.Any
     ) -> bytes | typing.Literal[False]:
         if self.readonly and (
@@ -424,6 +424,6 @@ class Image(Binary):
         self, value: typing.Any, env: typing.Any
     ) -> bytes | typing.Literal[False]:
         try:
-            return self._image_process(super()._process_related(value, env), env)
+            return self._process_image(super()._process_related(value, env), env)
         except UserError:
             return False

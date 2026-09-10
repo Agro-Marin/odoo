@@ -158,7 +158,7 @@ class Cache:
         return model.browse(ids)
 
     def get_missing_ids(self, records: BaseModel, field: Field) -> Iterator[IdType]:
-        return field._cache_missing_ids(records)
+        return field._iter_cache_missing_ids(records)
 
     def invalidate(
         self,

@@ -77,12 +77,12 @@ class Base(models.AbstractModel):
 
     @api.model
     def _get_default_search_view(self) -> _Element:
-        element = E.field(name=self._rec_name_fallback())
+        element = E.field(name=self._get_rec_name_fallback())
         return E.search(element, string=self._description)
 
     @api.model
     def _get_default_list_view(self) -> _Element:
-        element = E.field(name=self._rec_name_fallback())
+        element = E.field(name=self._get_rec_name_fallback())
         return E.list(element, string=self._description)
 
     @api.model
@@ -92,14 +92,14 @@ class Base(models.AbstractModel):
     @api.model
     def _get_default_kanban_view(self) -> _Element:
 
-        field = E.field(name=self._rec_name_fallback())
+        field = E.field(name=self._get_rec_name_fallback())
         kanban_card = E.t(field, {"t-name": "card"})
         templates = E.templates(kanban_card)
         return E.kanban(templates, string=self._description)
 
     @api.model
     def _get_default_graph_view(self) -> _Element:
-        element = E.field(name=self._rec_name_fallback())
+        element = E.field(name=self._get_rec_name_fallback())
         return E.graph(element, string=self._description)
 
     @api.model
@@ -113,7 +113,7 @@ class Base(models.AbstractModel):
             return False
 
         view = E.calendar(string=self._description)
-        view.append(E.field(name=self._rec_name_fallback()))
+        view.append(E.field(name=self._get_rec_name_fallback()))
 
         if not set_first_of(
             [self._date_name, "date", "date_start", "x_date", "x_date_start"],

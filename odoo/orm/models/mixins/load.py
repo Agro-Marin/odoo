@@ -151,7 +151,7 @@ class LoadMixin(_ModelStubs):
 
         batch: list[tuple] = []
         batch_xml_ids: set[str] = set()
-        if invalid := self._invalid_load_paths(field_paths):
+        if invalid := self._get_invalid_load_paths(field_paths):
             return {"ids": False, "messages": invalid, "nextrow": 0}
 
         creatable_models = self._load_creatable_models(field_paths)
@@ -213,7 +213,7 @@ class LoadMixin(_ModelStubs):
         }
 
     @api.model
-    def _invalid_load_paths(self, field_paths: FieldPaths) -> list[dict]:
+    def _get_invalid_load_paths(self, field_paths: FieldPaths) -> list[dict]:
         messages = []
         for field_path in field_paths:
             if not field_path or field_path[0] in (None, "id", ".id"):
@@ -262,7 +262,7 @@ class LoadMixin(_ModelStubs):
             batch.append((xid, record, info))
         return info
 
-    def _o2m_only_row_predicate(
+    def _get_o2m_only_row_predicate(
         self, field_paths: FieldPaths
     ) -> Callable[[list[str]], bool]:
         fields = self._fields
@@ -362,7 +362,7 @@ class LoadMixin(_ModelStubs):
         limit: float = float("inf"),
     ) -> Generator[tuple[dict, dict]]:
         fields = self._fields
-        is_only_o2m_row = self._o2m_only_row_predicate(field_paths)
+        is_only_o2m_row = self._get_o2m_only_row_predicate(field_paths)
 
         property_definitions, property_columns = self._extract_property_definitions(
             field_paths
@@ -499,12 +499,12 @@ class LoadMixin(_ModelStubs):
         self.write(values)
         if to_write:
             self.write(to_write)
-            self._clean_properties()
+            self._remove_stale_properties()
 
     def _load_records_create(self, vals_list: list[ValuesType]) -> Self:
         records = self.create(vals_list)
         if any(field.is_properties for field in self._fields.values()):
-            records._clean_properties()
+            records._remove_stale_properties()
         return records
 
     def _load_records(self, data_list: list[dict], update: bool = False) -> Self:

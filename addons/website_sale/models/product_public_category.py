@@ -94,7 +94,7 @@ class ProductPublicCategory(models.Model):
     def _compute_parents_and_self(self):
         for category in self:
             category.parents_and_self = (
-                self.browse(category._ancestor_ids(include_self=True)) or category
+                self.browse(category._get_ancestor_ids(include_self=True)) or category
             )
 
     @api.depends("parents_and_self")

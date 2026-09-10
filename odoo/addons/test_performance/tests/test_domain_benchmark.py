@@ -2,7 +2,7 @@ import gc
 import logging
 
 from odoo.fields import Domain
-from odoo.orm.domain.ast import DomainCondition, _optimize_nary_sort_key
+from odoo.orm.domain.ast import DomainCondition, _get_nary_sort_key
 from odoo.tests.benchmark import PerfTimer
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import OrderedSet
@@ -191,18 +191,18 @@ class TestDomainBenchmark(TransactionCase):
 
     def test_20_sort_key_condition(self):
         cond = DomainCondition("name", "=", "test")
-        self._bench("sort_key: DomainCondition", lambda: _optimize_nary_sort_key(cond))
+        self._bench("sort_key: DomainCondition", lambda: _get_nary_sort_key(cond))
 
     def test_20_sort_key_nary(self):
         d = Domain(DOMAIN_SMALL)
-        self._bench("sort_key: DomainAnd", lambda: _optimize_nary_sort_key(d))
+        self._bench("sort_key: DomainAnd", lambda: _get_nary_sort_key(d))
 
     def test_21_sort_children(self):
         d = Domain(DOMAIN_MANY_CHILDREN)
         items = list(d.children) if hasattr(d, "children") else [d]
         self._bench(
             "sort: 10+ children by sort_key",
-            lambda: sorted(items, key=_optimize_nary_sort_key),
+            lambda: sorted(items, key=_get_nary_sort_key),
         )
 
     def test_30_to_sql_single(self):

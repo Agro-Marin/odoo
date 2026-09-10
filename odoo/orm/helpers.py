@@ -63,9 +63,9 @@ def to_record_ids(arg) -> list[int]:
         return [id_ for id_ in arg if id_]
 
 
-def _ancestor_company_ids(self: BaseModel, company_ids: list[int]) -> list[int]:
+def _get_ancestor_company_ids(self: BaseModel, company_ids: list[int]) -> list[int]:
     companies = self.env["res.company"].sudo().browse(company_ids)
-    return list(companies._ancestor_ids(include_self=True))
+    return list(companies._get_ancestor_ids(include_self=True))
 
 
 def check_company_domain_parent_of(
@@ -84,7 +84,9 @@ def check_company_domain_parent_of(
     if not companies:
         return Domain("company_id", "=", False)
 
-    return Domain("company_id", "in", _ancestor_company_ids(self, companies) + [False])
+    return Domain(
+        "company_id", "in", _get_ancestor_company_ids(self, companies) + [False]
+    )
 
 
 def check_companies_domain_parent_of(
@@ -98,4 +100,4 @@ def check_companies_domain_parent_of(
     if not companies:
         return Domain.TRUE
 
-    return Domain("company_ids", "in", _ancestor_company_ids(self, companies))
+    return Domain("company_ids", "in", _get_ancestor_company_ids(self, companies))

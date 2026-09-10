@@ -88,10 +88,10 @@ class Base(models.AbstractModel):
     _mail_default_email_cc_fields = ("email_cc", "partner_email_cc", "x_email_cc")
     _mail_default_timezone_fields = ("date_tz", "tz", "timezone")
 
-    def _valid_field_parameter(self, field: fields.Field, name: str) -> bool:
+    def _is_valid_field_parameter(self, field: fields.Field, name: str) -> bool:
         return (
             name == "tracking" and self._abstract
-        ) or super()._valid_field_parameter(field, name)
+        ) or super()._is_valid_field_parameter(field, name)
 
     @api.model
     @tools.ormcache()
@@ -1260,7 +1260,7 @@ class Base(models.AbstractModel):
 
     @api.model
     def _get_default_activity_view(self) -> etree._Element:
-        field = E.field(name=self._rec_name_fallback())
+        field = E.field(name=self._get_rec_name_fallback())
         activity_box = E.div(field, {"t-name": "activity-box"})
         templates = E.templates(activity_box)
         return E.activity(templates, string=self._description)

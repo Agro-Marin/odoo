@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 _Collector = Collector
 
 
-def _stored_compute_adjacency(triggers: defaultdict) -> dict:
+def _get_stored_compute_adjacency(triggers: defaultdict) -> dict:
     all_targets: set = set()
     for dep_field, paths in triggers.items():
         for targets in paths.values():
@@ -222,7 +222,7 @@ class _TriggerState:
 _MERGED_CACHE_MAX = 512
 
 
-def _empty_triggers() -> defaultdict:
+def _get_empty_triggers() -> defaultdict:
     return defaultdict(lambda: defaultdict(list))
 
 
@@ -243,7 +243,7 @@ class ModelGraph:
         self._depends: _Collector = _Collector()
         self._depends_context: _Collector = _Collector()
         self._computed: dict[Any, list] = {}
-        self._state: _TriggerState = _TriggerState(_empty_triggers())
+        self._state: _TriggerState = _TriggerState(_get_empty_triggers())
         self._epoch: int = 0
         self._invalidation_barrier: bool = False
         self._publish_lock = threading.Lock()
@@ -280,7 +280,7 @@ class ModelGraph:
 
     def reset_triggers(self) -> None:
         with self._publish_lock:
-            self._state = _TriggerState(_empty_triggers())
+            self._state = _TriggerState(_get_empty_triggers())
 
     def set_triggers(self, triggers: defaultdict, *, epoch: int | None = None) -> bool:
         state = _TriggerState(triggers)
@@ -326,7 +326,7 @@ class ModelGraph:
         self._inverses.discard_keys_and_values(fields)
 
         old_triggers = self._state.triggers
-        new_triggers = _empty_triggers()
+        new_triggers = _get_empty_triggers()
         for dep, buckets in old_triggers.items():
             if dep in discarded:
                 continue
@@ -424,8 +424,8 @@ class ModelGraph:
     def _get_recompute_order(
         triggers: defaultdict,
     ) -> dict[FieldLike, int]:
-        adjacency = _stored_compute_adjacency(triggers)
-        sccs = _strongly_connected_components(adjacency)
+        adjacency = _get_stored_compute_adjacency(triggers)
+        sccs = _get_strongly_connected_components(adjacency)
         _, component_adjacency, component_in_degree = _condense_components(
             adjacency, sccs
         )
@@ -484,7 +484,7 @@ class ModelGraph:
         return self._computed
 
 
-def _strongly_connected_components(
+def _get_strongly_connected_components(
     adjacency: dict[Any, set[Any]],
 ) -> list[list[Any]]:
     index_of: dict[Any, int] = {}

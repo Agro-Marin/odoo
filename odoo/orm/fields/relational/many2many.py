@@ -66,7 +66,7 @@ class Many2many(_RelationalMulti):
             **kwargs,
         )
 
-    def _relation_columns(self) -> tuple[str, str, str]:
+    def _get_relation_columns(self) -> tuple[str, str, str]:
         relation, column1, column2 = self.relation, self.column1, self.column2
         assert relation and column1 and column2, (
             f"{self}: row I/O before setup resolved the relation table"
@@ -176,7 +176,7 @@ class Many2many(_RelationalMulti):
             ) from e
 
         group = defaultdict(list)
-        relation, column1, column2 = self._relation_columns()
+        relation, column1, column2 = self._get_relation_columns()
         backend = records.env.backend
         if not backend.supports_joined_m2m_read:
             position = {id2: index for index, id2 in enumerate(query.get_result_ids())}
@@ -234,7 +234,7 @@ class Many2many(_RelationalMulti):
         if pairs:
             if store:
                 records.env.backend.link_m2m_pairs(
-                    records, *self._relation_columns(), pairs
+                    records, *self._get_relation_columns(), pairs
                 )
 
             y_to_xs: defaultdict[typing.Any, typing.Any] = defaultdict(OrderedSet)
@@ -268,7 +268,7 @@ class Many2many(_RelationalMulti):
 
             if store:
                 records.env.backend.unlink_m2m_pairs(
-                    records, *self._relation_columns(), pairs
+                    records, *self._get_relation_columns(), pairs
                 )
 
             for invf in records.pool.field_inverses[self]:
@@ -334,13 +334,13 @@ class Many2many(_RelationalMulti):
         if not records_commands_list:
             return
 
-        model, comodel = self._writer_models(records_commands_list)
+        model, comodel = self._get_writer_models(records_commands_list)
 
         ids = OrderedSet(rid for recs, cs in records_commands_list for rid in recs.ids)
         records = model.browse(ids)
 
         if self.store:
-            missing_ids = tuple(self._cache_missing_ids(records))
+            missing_ids = tuple(self._iter_cache_missing_ids(records))
             if missing_ids:
                 self.read(records.browse(missing_ids))
 
@@ -369,7 +369,7 @@ class Many2many(_RelationalMulti):
         if not records_commands_list:
             return
 
-        model, comodel = self._writer_models(records_commands_list)
+        model, comodel = self._get_writer_models(records_commands_list)
 
         def new(id_):
             return id_ and NewId(id_)
@@ -408,7 +408,7 @@ class Many2many(_RelationalMulti):
     ) -> SQL:
         if coquery.is_empty():
             return SQL("FALSE") if exists else SQL("TRUE")
-        rel_table, rel_id1, rel_id2 = self._relation_columns()
+        rel_table, rel_id1, rel_id2 = self._get_relation_columns()
         rel_alias = query.get_table_alias(alias, self.name)
         if not coquery.where_clause:
             return SQL(

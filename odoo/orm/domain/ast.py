@@ -119,7 +119,7 @@ def _recursion_error_as_value_error():
         ) from None
 
 
-def _checked_depth(depth: int) -> int:
+def _check_depth(depth: int) -> int:
     if depth > MAX_DOMAIN_NESTING:
         raise ValueError(
             f"Domain nesting too deep (>{MAX_DOMAIN_NESTING} levels); refusing "
@@ -169,7 +169,7 @@ _MERGE_OPTIMIZATIONS: list = []
 _CONSTANT_TIEBREAK: tuple[int, typing.Any] = (2, "")
 
 
-def _nary_value_tiebreak(value: typing.Any) -> tuple[int, typing.Any]:
+def _get_nary_value_tiebreak(value: typing.Any) -> tuple[int, typing.Any]:
     if isinstance(value, str):
         return (0, value)
     if isinstance(value, (int, float)):
@@ -183,11 +183,11 @@ def _nary_value_tiebreak(value: typing.Any) -> tuple[int, typing.Any]:
     return _CONSTANT_TIEBREAK
 
 
-def _nary_subtree_tiebreak(domain: Domain) -> tuple[int, typing.Any]:
+def _get_nary_subtree_tiebreak(domain: Domain) -> tuple[int, typing.Any]:
     return (2, repr(list(domain)))
 
 
-def _optimize_nary_sort_key(
+def _get_nary_sort_key(
     domain: Domain,
 ) -> tuple[str, str, str, tuple[int, typing.Any]]:
     if isinstance(domain, DomainCondition):
@@ -203,11 +203,11 @@ def _optimize_nary_sort_key(
             order = "like"
         else:
             order = positive_op
-        return domain.field_expr, order, op, _nary_value_tiebreak(domain.value)
+        return domain.field_expr, order, op, _get_nary_value_tiebreak(domain.value)
     elif hasattr(domain, "OPERATOR") and isinstance(domain.OPERATOR, str):
-        return "~", "", domain.OPERATOR, _nary_subtree_tiebreak(domain)
+        return "~", "", domain.OPERATOR, _get_nary_subtree_tiebreak(domain)
     else:
-        return "~", "~", domain.__class__.__name__, _nary_subtree_tiebreak(domain)
+        return "~", "~", domain.__class__.__name__, _get_nary_subtree_tiebreak(domain)
 
 
 def _leaf_to_domain(item: tuple | list, internal: bool) -> Domain:
@@ -518,7 +518,7 @@ class DomainNot(Domain):
     def __new__(cls, child: Domain):
         self = object.__new__(cls)
         object.__setattr__(self, "child", child)
-        object.__setattr__(self, "_depth", _checked_depth(child._depth + 1))
+        object.__setattr__(self, "_depth", _check_depth(child._depth + 1))
         object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
 
@@ -579,7 +579,7 @@ class DomainNary(Domain):
         object.__setattr__(
             self,
             "_depth",
-            _checked_depth(1 + max(child._depth for child in children)),
+            _check_depth(1 + max(child._depth for child in children)),
         )
         object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
@@ -646,7 +646,7 @@ class DomainNary(Domain):
             child._optimize(model, level) for child in self.children
         )
         if len(children) > 1:
-            children.sort(key=_optimize_nary_sort_key)
+            children.sort(key=_get_nary_sort_key)
             cls = type(self)
             present_ops = {
                 c.operator for c in children if isinstance(c, DomainCondition)
@@ -794,7 +794,7 @@ class DomainCondition(Domain):
         object.__setattr__(
             self,
             "_depth",
-            _checked_depth(value._depth + 1) if isinstance(value, Domain) else 1,
+            _check_depth(value._depth + 1) if isinstance(value, Domain) else 1,
         )
         object.__setattr__(self, "_field_instance", None)
         object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
@@ -1059,7 +1059,7 @@ class DomainCondition(Domain):
         if all(records._ids):
             return lambda rec: rec._ids[0] in matched
 
-        in_memory = self._value_predicate(records)
+        in_memory = self._get_value_predicate(records)
         return lambda rec: rec._ids[0] in matched if rec._ids[0] else in_memory(rec)
 
     def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
@@ -1081,9 +1081,9 @@ class DomainCondition(Domain):
         if self._is_search_defined(records):
             return self._search_defined_predicate(records)
 
-        return self._value_predicate(records)
+        return self._get_value_predicate(records)
 
-    def _value_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
+    def _get_value_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         op = self.operator
         if not all(records._ids):
             fallback = getattr(self, "_predicate_fallback", None)

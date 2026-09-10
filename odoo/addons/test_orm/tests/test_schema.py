@@ -105,7 +105,7 @@ class TestReflection(common.TransactionCase):
                                 self.assertEqual(filtered, field.selection)
                             else:
                                 self.assertEqual(selection, [])
-                            sel_modules = field._selection_modules(model)
+                            sel_modules = field._get_selection_modules(model)
                             for sel in ir_field.selection_ids:
                                 if "test_orm" in sel_modules.get(sel.value, set()):
                                     self.assertSelectionXID(sel)

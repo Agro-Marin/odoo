@@ -138,11 +138,11 @@ class MixinMailRender(models.AbstractModel):
     def _compute_render_model(self) -> None:
         self.render_model = False
 
-    def _valid_field_parameter(self, field: fields.Field, name: str) -> bool:
+    def _is_valid_field_parameter(self, field: fields.Field, name: str) -> bool:
         return name in [
             "render_engine",
             "render_options",
-        ] or super()._valid_field_parameter(field, name)
+        ] or super()._is_valid_field_parameter(field, name)
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

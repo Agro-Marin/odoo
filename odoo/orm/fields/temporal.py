@@ -41,7 +41,7 @@ def _get_sql_timezones_set(env) -> frozenset[str]:
     return names
 
 
-def _sql_timezone_name(env, tz_name: str) -> str | None:
+def _resolve_sql_timezone_name(env, tz_name: str) -> str | None:
     sql_names = _get_sql_timezones_set(env)
     if tz_name in sql_names:
         return tz_name
@@ -232,7 +232,7 @@ class BaseDate[T: date](Field[T | typing.Literal[False]]):
     ) -> SQL:
         sql_expr = field_sql
         if self.is_datetime and (tz_name := model.env.context.get("tz")):
-            if sql_tz := _sql_timezone_name(model.env, tz_name):
+            if sql_tz := _resolve_sql_timezone_name(model.env, tz_name):
                 sql_expr = SQL(
                     "timezone(%s, timezone('UTC', %s))",
                     SQL.literal(sql_tz),
@@ -382,14 +382,14 @@ class Datetime(BaseDate[datetime]):
         ):
             env = model.env
 
-            def resolve(v):
+            def parse(v):
                 return parse_date_expression(v, env) if isinstance(v, str) else v
 
             value = condition.value
             resolved = (
-                OrderedSet(resolve(v) for v in value)
+                OrderedSet(parse(v) for v in value)
                 if isinstance(value, OrderedSet)
-                else resolve(value)
+                else parse(value)
             )
             return DomainCondition(condition.field_expr, condition.operator, resolved)
         return condition

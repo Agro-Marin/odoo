@@ -47,7 +47,7 @@ class _RegistryCaches:
             lru.clear()
 
 
-def _calling_frame() -> typing.Any:
+def _get_calling_frame() -> typing.Any:
     frame = inspect.currentframe()
     for _ in range(3):
         if frame is None:
@@ -105,7 +105,7 @@ class _RegistrySignalingMixin(_RegistryStubs):
             level,
             "Invalidating %s model caches from %s",
             ",".join(cache_names),
-            format_frame(_calling_frame()),
+            format_frame(_get_calling_frame()),
         )
 
     def clear_cache(self, *cache_names: str) -> None:
@@ -202,7 +202,7 @@ class _RegistrySignalingMixin(_RegistryStubs):
         return changes
 
     @staticmethod
-    def _signalled_id(cr: BaseCursor, previous: int) -> int:
+    def _get_signalled_id(cr: BaseCursor, previous: int) -> int:
         row = cr.fetchone()
         if row and isinstance(row[0], int):
             return row[0]
@@ -211,7 +211,7 @@ class _RegistrySignalingMixin(_RegistryStubs):
     def _signal_registry_change(self, cr: BaseCursor) -> None:
         _logger.info("Registry changed, signaling through the database")
         cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES RETURNING id")
-        self.registry_sequence = self._signalled_id(cr, self.registry_sequence)
+        self.registry_sequence = self._get_signalled_id(cr, self.registry_sequence)
 
     def _signal_cache_changes(self, cr: BaseCursor) -> None:
         _logger.info(
@@ -225,6 +225,6 @@ class _RegistrySignalingMixin(_RegistryStubs):
                     SQL.identifier(signaling_table_name(cache_name)),
                 )
             )
-            self.cache_sequences[cache_name] = self._signalled_id(
+            self.cache_sequences[cache_name] = self._get_signalled_id(
                 cr, self.cache_sequences[cache_name]
             )

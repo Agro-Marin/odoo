@@ -120,5 +120,5 @@ def test_search_does_not_populate_unread_columns(env):
 
     assert item.search([("id", "=", item.id)]) == item
 
-    assert list(item._fields["name"]._cache_missing_ids(item)) == item.ids
+    assert list(item._fields["name"]._iter_cache_missing_ids(item)) == item.ids
     assert item.name == "stored"

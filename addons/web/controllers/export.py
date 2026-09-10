@@ -127,7 +127,7 @@ class Export(http.Controller):
 
         if import_compat:
             if parent_field_type in ["many2one", "many2many"]:
-                rec_name = Model._rec_name_fallback()
+                rec_name = Model._get_rec_name_fallback()
                 fields = {"id": fields["id"], rec_name: fields[rec_name]}
         else:
             fields[".id"] = {**fields["id"]}

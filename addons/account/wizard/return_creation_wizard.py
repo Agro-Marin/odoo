@@ -243,7 +243,7 @@ class AccountReturnCreationWizard(models.TransientModel):
         )
         root_company = min(
             all_branch_companies_with_same_vat,
-            key=lambda comp: len(comp._ancestor_ids(include_self=True)),
+            key=lambda comp: len(comp._get_ancestor_ids(include_self=True)),
         )
         tax_unit = (
             self.env["account.tax.unit"]

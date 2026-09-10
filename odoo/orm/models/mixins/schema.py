@@ -16,7 +16,7 @@ _logger = logging.getLogger("odoo.models")
 class SchemaMixin(_ModelStubs):
     __slots__ = ()
 
-    def _parent_store_compute(self) -> None:
+    def _update_parent_path_of_table(self) -> None:
         if not self._parent_store:
             return
 
@@ -92,7 +92,7 @@ class SchemaMixin(_ModelStubs):
             )
 
     @ormcache()
-    def _table_has_rows(self) -> bool:
+    def _has_rows_in_table(self) -> bool:
         self.env.cr.execute(
             SQL("SELECT 1 FROM %s LIMIT 1", SQL.identifier(self._table))
         )
@@ -161,7 +161,7 @@ class SchemaMixin(_ModelStubs):
             self._add_sql_constraints()
 
         if parent_path_compute:
-            self._parent_store_compute()
+            self._update_parent_path_of_table()
 
     @api.private
     def init(self) -> None:

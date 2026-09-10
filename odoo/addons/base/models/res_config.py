@@ -46,14 +46,14 @@ class ResConfigSettings(models.TransientModel):
     _name = "res.config.settings"
     _description = "Config Settings"
 
-    def _valid_field_parameter(self, field: Any, name: str) -> bool:
+    def _is_valid_field_parameter(self, field: Any, name: str) -> bool:
         return (
             name in ("default_model", "config_parameter")
             or (
                 field.type in ("boolean", "selection")
                 and name in ("group", "implied_group")
             )
-            or super()._valid_field_parameter(field, name)
+            or super()._is_valid_field_parameter(field, name)
         )
 
     def copy(self, default: ValuesType | None = None) -> Self:

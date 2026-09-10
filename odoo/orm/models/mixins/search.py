@@ -190,7 +190,7 @@ class SearchMixin(_ModelStubs):
         aggregator = Domain.AND if operator in Domain.NEGATIVE_OPERATORS else Domain.OR
         domains = []
         for field_name in search_fnames:
-            field = self._rec_names_search_field(field_name)
+            field = self._get_rec_names_search_field(field_name)
             if field.relational:
                 domains.append([(field_name + ".display_name", operator, value)])
             elif operator.endswith("like"):
@@ -210,7 +210,7 @@ class SearchMixin(_ModelStubs):
     @api.model
     @ormcache("field_name")
     def _is_rec_names_search_cyclic(self, field_name: str) -> bool:
-        field = self._rec_names_search_field(field_name)
+        field = self._get_rec_names_search_field(field_name)
         if not field.relational or not field.comodel_name:
             return False
         seen = {self._name}
@@ -228,7 +228,7 @@ class SearchMixin(_ModelStubs):
             )
             for entry in entries:
                 try:
-                    next_field = comodel._rec_names_search_field(entry)
+                    next_field = comodel._get_rec_names_search_field(entry)
                 except KeyError, ValueError:
                     continue
                 if next_field.relational and next_field.comodel_name:
@@ -236,7 +236,7 @@ class SearchMixin(_ModelStubs):
         return False
 
     @api.model
-    def _rec_names_search_field(self, field_name: str) -> Field:
+    def _get_rec_names_search_field(self, field_name: str) -> Field:
         model: typing.Any = self
         segments = field_name.split(".")
         for i, fname in enumerate(segments):
@@ -276,7 +276,7 @@ class SearchMixin(_ModelStubs):
 
     @api.model
     def _search_display_name_unset_field(self, field_name: str) -> Domain:
-        if not self._rec_names_search_field(field_name).relational:
+        if not self._get_rec_names_search_field(field_name).relational:
             return Domain(field_name, "=", False)
         segments = field_name.split(".")
         prefixes = [".".join(segments[: i + 1]) for i in range(len(segments))]

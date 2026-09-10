@@ -24,20 +24,22 @@ class TransientModel(Model):
     )
 
     @api.autovacuum
-    def _transient_vacuum(self) -> tuple[int, bool]:
+    def _vacuum_transient_rows(self) -> tuple[int, bool]:
         counts = []
         if self._transient_max_hours:
             counts.append(
-                self._transient_clean_rows_older_than(
+                self._remove_transient_rows_older_than(
                     self._transient_max_hours * 60 * 60
                 )
             )
 
         if self._transient_max_count:
-            counts.append(self._transient_clean_old_rows(self._transient_max_count))
+            counts.append(
+                self._remove_transient_rows_over_count(self._transient_max_count)
+            )
         return sum(counts), any(count >= GC_UNLINK_LIMIT for count in counts)
 
-    def _transient_clean_old_rows(self, max_count: int) -> int:
+    def _remove_transient_rows_over_count(self, max_count: int) -> int:
         self.env.cr.execute(
             SQL(
                 "SELECT 1 FROM %s OFFSET %s LIMIT 1",
@@ -46,12 +48,12 @@ class TransientModel(Model):
             )
         )
         if self.env.cr.fetchone():
-            return self._transient_clean_rows_older_than(
+            return self._remove_transient_rows_older_than(
                 _TRANSIENT_VACUUM_MIN_AGE_SECONDS
             )
         return 0
 
-    def _transient_clean_rows_older_than(self, seconds: float) -> int:
+    def _remove_transient_rows_older_than(self, seconds: float) -> int:
         seconds = max(seconds, _TRANSIENT_VACUUM_MIN_AGE_SECONDS)
         now = self.env.cr.now()
         domain = Domain("write_date", "<", now - datetime.timedelta(seconds=seconds))

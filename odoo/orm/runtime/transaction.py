@@ -118,7 +118,7 @@ class Transaction:
             self._compute_engine,
             max_iterations=MAX_FIXPOINT_ITERATIONS,
         )
-        self.unit_of_work.set_recompute_order(self._live_recompute_order)
+        self.unit_of_work.set_recompute_order(self._get_live_recompute_order)
 
         self.cache = Cache(self)
         self._ref_cache: dict[tuple[str, int], bool] = {}
@@ -229,7 +229,7 @@ class Transaction:
         if env := next(iter(self.envs), None):
             env.cr.cache.clear()
 
-    def _live_recompute_order(self) -> dict[typing.Any, int]:
+    def _get_live_recompute_order(self) -> dict[typing.Any, int]:
         registry = self.registry
         registry._get_field_triggers()
         return registry.model_graph.recompute_order

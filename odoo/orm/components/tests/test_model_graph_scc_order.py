@@ -3,7 +3,7 @@ import unittest
 
 from odoo.orm.components.model_graph import (
     ModelGraph,
-    _strongly_connected_components,
+    _get_strongly_connected_components,
 )
 
 from .test_model_graph import MockField
@@ -115,12 +115,12 @@ class TestSeededFuzzProperties(unittest.TestCase):
 class TestStronglyConnectedComponents(unittest.TestCase):
     def test_acyclic_graph_yields_singletons(self) -> None:
         a, b, c = "a", "b", "c"
-        components = _strongly_connected_components({a: {b}, b: {c}, c: set()})
+        components = _get_strongly_connected_components({a: {b}, b: {c}, c: set()})
         self.assertEqual(sorted(map(len, components)), [1, 1, 1])
 
     def test_cycle_is_one_component(self) -> None:
         a, b, c = "a", "b", "c"
-        components = _strongly_connected_components({a: {b}, b: {c}, c: {a}})
+        components = _get_strongly_connected_components({a: {b}, b: {c}, c: {a}})
         self.assertEqual([sorted(comp) for comp in components], [["a", "b", "c"]])
 
     def test_two_cycles_and_bridge(self) -> None:
@@ -131,7 +131,7 @@ class TestStronglyConnectedComponents(unittest.TestCase):
             "d": {"c"},
         }
         components = {
-            frozenset(comp) for comp in _strongly_connected_components(adjacency)
+            frozenset(comp) for comp in _get_strongly_connected_components(adjacency)
         }
         self.assertEqual(components, {frozenset({"a", "b"}), frozenset({"c", "d"})})
 
@@ -139,7 +139,7 @@ class TestStronglyConnectedComponents(unittest.TestCase):
         n = 20000
         adjacency = {i: {i + 1} for i in range(n)}
         adjacency[n] = set()
-        components = _strongly_connected_components(adjacency)
+        components = _get_strongly_connected_components(adjacency)
         self.assertEqual(len(components), n + 1)
 
 

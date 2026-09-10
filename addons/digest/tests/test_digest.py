@@ -809,7 +809,7 @@ class TestDigestDefects(TestDigestCommon):
         ):
             kpi_data = digest._get_kpi_data(self.company_1, self.user_admin)
 
-        # Two, not one: `_batch_then_single` retries a compute that raised on
+        # Two, not one: `_run_batch_then_single` retries a compute that raised on
         # the whole recordset once more per record, which is the ORM's own
         # behaviour and not something this module decides. Three columns used
         # to ask, so six.

@@ -53,7 +53,7 @@ class Reference(Selection["BaseModel | None"]):
                     return None
                 res_id = value.id
                 if isinstance(res_id, int):
-                    memo = self._verified_pairs(record.env)
+                    memo = self._get_verified_pairs(record.env)
                     if (
                         value._name,
                         res_id,
@@ -72,7 +72,7 @@ class Reference(Selection["BaseModel | None"]):
                 if res_id_int is not None:
                     if not validate:
                         return value
-                    memo = self._verified_pairs(record.env)
+                    memo = self._get_verified_pairs(record.env)
                     if (res_model, res_id_int) in memo:
                         return value
                     if res_model in self.get_values(record.env):
@@ -83,7 +83,7 @@ class Reference(Selection["BaseModel | None"]):
             return None
         raise ValueError(f"Wrong value for {self}: {value!r}")
 
-    def _verified_pairs(self, env) -> set[tuple[str, int]]:
+    def _get_verified_pairs(self, env) -> set[tuple[str, int]]:
         per_field = env.cr.cache.setdefault(REFERENCE_VERIFIED_CACHE_KEY, {})
         return per_field.setdefault((self.model_name, self.name), set())
 
@@ -206,7 +206,7 @@ class Many2oneReference(Integer):
     def _update_inverses(self, records: BaseModel, value: typing.Any) -> None:
         if not value:
             return
-        model_ids = self._record_ids_per_res_model(records)
+        model_ids = self._get_record_ids_per_res_model(records)
 
         for invf in records.pool.field_inverses[self]:
             ids = model_ids.get(invf.model_name)
@@ -222,7 +222,9 @@ class Many2oneReference(Integer):
                 ids1 = tuple(unique((ids0 or ()) + recs._ids))
                 invf._update_cache(corecord, ids1)
 
-    def _record_ids_per_res_model(self, records: BaseModel) -> dict[str, OrderedSet]:
+    def _get_record_ids_per_res_model(
+        self, records: BaseModel
+    ) -> dict[str, OrderedSet]:
         model_field = self.model_field
         if model_field is None:
             raise TypeError(f"{self} declares no model_field to group its ids by")

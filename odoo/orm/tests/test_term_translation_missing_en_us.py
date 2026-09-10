@@ -39,7 +39,7 @@ def test_write_over_legacy_row_without_en_us():
         legacy = {"fr_FR": "Bonjour"}
         with patch.object(
             _field_translation,
-            "stored_translations_multi",
+            "get_stored_translations_multi",
             return_value={doc.id: legacy},
         ):
             field._mark_dirty_model_term_translation(doc, "Hello", "de_DE")

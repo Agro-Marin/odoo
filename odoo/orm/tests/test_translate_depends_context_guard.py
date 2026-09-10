@@ -60,10 +60,10 @@ def test_fallback_key_follows_real_cache_key():
         field = env.registry["tcg.member"]._fields["label"]
         cache_key = env.cache_key(field)
         assert cache_key == ("en_US", "dark")
-        assert field._lang_fallback_cache_key(env) == ("en_US", "dark")
+        assert field._get_lang_fallback_cache_key(env) == ("en_US", "dark")
         fr_env = env(context={"scheme": "dark", "lang": "fr_FR"})
         assert fr_env.cache_key(field) == ("fr_FR", "dark")
-        assert field._lang_fallback_cache_key(fr_env) == ("en_US", "dark")
+        assert field._get_lang_fallback_cache_key(fr_env) == ("en_US", "dark")
 
 
 def test_stored_translate_strips_extra_context_deps(caplog):

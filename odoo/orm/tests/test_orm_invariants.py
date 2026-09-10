@@ -244,7 +244,7 @@ def test_monetary_column_rounds_via_currency() -> None:
         inv = env["i.invoice"].create({"currency_id": cur.id, "amount": 3.14159})
         field = env["i.invoice"]._fields["amount"]
 
-        assert field._currency_record(inv) == cur
+        assert field._resolve_currency_record(inv) == cur
         assert abs(field.convert_to_column(3.14159, inv) - 3.14) < 1e-9
 
         plain = env["i.invoice"].create({"amount": 9.999})

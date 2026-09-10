@@ -120,7 +120,7 @@ class IrModelFieldsSelection(models.Model):
         data_list = []
         for field in selection_fields:
             model = self.env[field.model_name]
-            for value, modules in field._selection_modules(model).items():
+            for value, modules in field._get_selection_modules(model).items():
                 for m in modules:
                     xml_id = selection_xmlid(m, field.model_name, field.name, value)
                     record = self.browse(

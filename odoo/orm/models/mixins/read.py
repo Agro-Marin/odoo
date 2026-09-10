@@ -355,7 +355,7 @@ class ReadMixin(_ModelStubs):
             if field in fields_done:
                 continue
             fields_done.add(field)
-            if ignore_when_in_cache and not any(field._cache_missing_ids(self)):
+            if ignore_when_in_cache and not any(field._iter_cache_missing_ids(self)):
                 continue
             if field.store:
                 fields_to_fetch.append(field)

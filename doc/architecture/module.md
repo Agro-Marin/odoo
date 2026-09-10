@@ -659,8 +659,8 @@ and a bare "three sites" states neither:
 | capability reads in the ORM | 6 | every `backend.supports_*` in non-test source |
 | dispatch sites that **branch instead of calling the port** | 3 of 15 | `many2many.read`, `reference._reference_exists`, `textual._languages_in_sync_with` |
 
-The other three reads guard a site that *does* dispatch: `create._parent_store_create`
-and `write._parent_store_update_prepare` on `supports_parent_store`, and
+The other three reads guard a site that *does* dispatch: `create._update_parent_path_on_create`
+and `write._get_records_with_parent_changed` on `supports_parent_store`, and
 `_query._search` on `supports_record_rules`.
 
 The three that branch are where the two backends run genuinely different

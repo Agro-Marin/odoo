@@ -17,7 +17,7 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
     ("models/mixins/create.py", "_create"): (
         "in-memory path skips the COPY fast path (performance only)"
     ),
-    ("models/mixins/create.py", "_parent_store_create"): (
+    ("models/mixins/create.py", "_update_parent_path_on_create"): (
         "guarded by backend.supports_parent_store"
     ),
     ("models/mixins/read.py", "_fetch_query"): (
@@ -30,7 +30,7 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
         "(COALESCE(...jsonb_build_object('en_US', ...)) || expr) and handles "
         "company_dependent columns; InMemoryBackend.update_rows does neither"
     ),
-    ("models/mixins/write.py", "_parent_store_update_prepare"): (
+    ("models/mixins/write.py", "_get_records_with_parent_changed"): (
         "guarded by backend.supports_parent_store"
     ),
     ("models/mixins/unlink.py", "_unlink_process_batch"): (
