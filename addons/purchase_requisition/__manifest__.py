@@ -1,6 +1,6 @@
 {
     "name": "Purchase Agreements",
-    "version": "0.1",
+    "version": "0.2",
     "category": "Supply Chain/Purchase",
     "description": """
 This module allows you to manage your Purchase Agreements.
