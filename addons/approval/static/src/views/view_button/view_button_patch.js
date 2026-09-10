@@ -22,26 +22,29 @@ patch(ViewButton.prototype, {
             method: kind === "object" && name,
             action: kind === "action" && name,
         });
-        if (kind === "action") {
-            // A window action has nothing on the server to refuse it, so the browser
-            // asks first; an object button is gated where it runs.
-            const onClickViewButton = this.env.onClickViewButton;
-            useSubEnv({
-                onClickViewButton: (params) =>
-                    onClickViewButton({
-                        ...params,
-                        beforeExecute: async () => {
-                            if (
-                                params.beforeExecute &&
-                                (await params.beforeExecute()) === false
-                            ) {
-                                return false;
-                            }
-                            return this.approvalGate.check();
-                        },
-                    }),
-            });
-        }
+        // A button stopped by its approvals warns and stays on the record, whatever
+        // its kind. A window action has nothing on the server to refuse it, so it is
+        // always asked; an object button is gated where it runs as well, so it is
+        // asked only while its loaded approvals say it is gated.
+        const onClickViewButton = this.env.onClickViewButton;
+        useSubEnv({
+            onClickViewButton: (params) =>
+                onClickViewButton({
+                    ...params,
+                    beforeExecute: async () => {
+                        if (
+                            params.beforeExecute &&
+                            (await params.beforeExecute()) === false
+                        ) {
+                            return false;
+                        }
+                        if (kind === "object" && !this.approvalGate.result?.gated) {
+                            return true;
+                        }
+                        return this.approvalGate.check();
+                    },
+                }),
+        });
     },
 
     /**

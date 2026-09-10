@@ -195,7 +195,8 @@ test("an action button is checked before it runs, and does not run unapproved", 
     expect.verifySteps(["check 42", "run 42"]);
 });
 
-test("an object button is not checked in the browser", async () => {
+test("a gated object button stopped by its approvals warns and does not run", async () => {
+    let approved = false;
     mockService("action", {
         async doActionButton(params) {
             expect.step(`run ${params.name}`);
@@ -203,6 +204,38 @@ test("an object button is not checked in the browser", async () => {
     });
     onRpc("approval.binding", "get_button_approvals", ({ args }) =>
         args[0].map(() => result()),
+    );
+    onRpc("approval.binding", "check_button_approval", ({ args }) => {
+        expect.step(`check ${args[2]}`);
+        return { approved, request_id: 5 };
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: oneButtonArch,
+    });
+    await contains("button[name='method_a'] span:first").click();
+    expect.verifySteps(["check method_a"]);
+    expect(".o_notification_bar.bg-warning").toHaveCount(1);
+    approved = true;
+    await contains("button[name='method_a'] span:first").click();
+    expect.verifySteps(["check method_a", "run method_a"]);
+});
+
+test("an object button its approvals leave ungated runs without asking", async () => {
+    mockService("action", {
+        async doActionButton(params) {
+            expect.step(`run ${params.name}`);
+        },
+    });
+    onRpc("approval.binding", "get_button_approvals", ({ args }) =>
+        args[0].map(() => ({
+            gated: false,
+            approved: true,
+            request: false,
+            steps: [],
+        })),
     );
     onRpc("approval.binding", "check_button_approval", () => {
         expect.step("check");
