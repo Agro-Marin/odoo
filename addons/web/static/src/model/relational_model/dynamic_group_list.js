@@ -102,6 +102,18 @@ export class DynamicGroupList extends DynamicList {
      * @param {string} targetGroupId
      */
     async moveRecord(dataRecordId, dataGroupId, refId, targetGroupId) {
+        return this.model.mutex.exec(() =>
+            this.moveRecordLocked(dataRecordId, dataGroupId, refId, targetGroupId),
+        );
+    }
+
+    /**
+     * @param {string} dataRecordId
+     * @param {string} dataGroupId
+     * @param {string} refId
+     * @param {string} targetGroupId
+     */
+    async moveRecordLocked(dataRecordId, dataGroupId, refId, targetGroupId) {
         const targetGroup = this.groups.find((g) => g.id === targetGroupId);
         if (dataGroupId === targetGroupId) {
             await targetGroup.list.resequenceLocked(
@@ -134,37 +146,33 @@ export class DynamicGroupList extends DynamicList {
 
         const sourceGroupValue = sourceGroup.value;
         const targetGroupValue = targetGroup.value;
-        const revert = () =>
-            this.model.mutex.exec(() => {
-                const currentTargetGroup = this.groups.find(
-                    (g) => g.value === targetGroupValue,
-                );
-                const currentSourceGroup = this.groups.find(
-                    (g) => g.value === sourceGroupValue,
-                );
-                currentTargetGroup?.removeRecords([record.id]);
-                currentSourceGroup?.addRecord(record, oldIndex);
-                record.discardLocked();
-            });
+        const revert = () => {
+            const currentTargetGroup = this.groups.find(
+                (g) => g.value === targetGroupValue,
+            );
+            const currentSourceGroup = this.groups.find(
+                (g) => g.value === sourceGroupValue,
+            );
+            currentTargetGroup?.removeRecords([record.id]);
+            currentSourceGroup?.addRecord(record, oldIndex);
+            record.discardLocked();
+        };
         try {
             const changes = { [targetGroup.groupByField.name]: value };
-            const res = await record.update(changes, { save: true });
+            await record.updateLocked(changes, { withoutOnchange: true });
+            const res = record.canSaveOnUpdate ? await record.saveLocked() : true;
             if (!res) {
                 return revert();
             }
         } catch (e) {
-            await revert();
+            revert();
             throw e;
         }
 
         const proms = [];
         if (mustReloadSourceList) {
             const { offset, limit, orderBy, domain } = sourceGroup.list;
-            proms.push(
-                this.model.mutex.exec(() =>
-                    sourceGroup.list.loadLocked(offset, limit, orderBy, domain),
-                ),
-            );
+            proms.push(sourceGroup.list.loadLocked(offset, limit, orderBy, domain));
         }
         if (!targetGroup.isFolded) {
             /** @type {DynamicListContract & { records: any[] }} */

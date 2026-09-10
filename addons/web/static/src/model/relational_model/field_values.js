@@ -316,7 +316,7 @@ export function fromUnityToServerValues(
     values,
     fields,
     activeFields,
-    { withReadonly, context } = {},
+    { withReadonly, evalContext } = {},
 ) {
     const { CREATE, UPDATE, LINK } = x2ManyCommands;
     const serverValues = {};
@@ -336,7 +336,7 @@ export function fromUnityToServerValues(
             if (activeField?.readonly) {
                 let readonly;
                 try {
-                    readonly = evaluateBooleanExpr(activeField.readonly, context);
+                    readonly = evaluateBooleanExpr(activeField.readonly, evalContext);
                 } catch {
                     readonly = false;
                 }

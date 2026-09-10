@@ -60,9 +60,18 @@ describe("_notify — the single UPDATE-emission path", () => {
 
     test("defers to the pending flag inside a blocked window", () => {
         const model = notifyStub({ blockNotification: true });
-        SearchModel.prototype._notify.call(model, { reloadSections: false });
+        SearchModel.prototype._notify.call(model);
         expect(model._steps).toEqual(["reset"]);
         expect(model._pendingNotification).toBe(true);
+        expect(model._pendingTrigger).toBe(undefined);
+    });
+
+    test("a trigger-only notification inside a blocked window does not schedule a section reload", () => {
+        const model = notifyStub({ blockNotification: true });
+        SearchModel.prototype._notify.call(model, { reloadSections: false });
+        expect(model._steps).toEqual(["reset"]);
+        expect(model._pendingNotification).toBe(undefined);
+        expect(model._pendingTrigger).toBe(true);
     });
 });
 

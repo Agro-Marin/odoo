@@ -1106,7 +1106,7 @@ export class StaticList extends EditableListDataPoint {
             unknownRecordCommands: this._unknownRecordCommands,
             fields: this.fields,
             activeFields: this.activeFields,
-            context: this.context,
+            evalContext: this.evalContext,
             withReadonly,
             getRecord: (id) => this._cache.get(id),
             getRecordChanges: (record, wr) =>

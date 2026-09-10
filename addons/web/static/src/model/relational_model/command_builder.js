@@ -13,7 +13,7 @@ const { CREATE, UPDATE, UNLINK, LINK, SET } = x2ManyCommands;
  * @param {Map<X2ManyRowId, X2ManyCommand[]>} params.unknownRecordCommands
  * @param {Object} params.fields
  * @param {Object} params.activeFields
- * @param {Object} params.context
+ * @param {Object} params.evalContext
  * @param {boolean} [params.withReadonly]
  * @param {(id: X2ManyRowId) => Object|undefined} params.getRecord
  * @param {(record: Object, withReadonly: boolean) => Object} params.getRecordChanges
@@ -25,7 +25,7 @@ export function serializeCommands(commands, params) {
         unknownRecordCommands,
         fields,
         activeFields,
-        context,
+        evalContext,
         withReadonly = false,
         getRecord,
         getRecordChanges,
@@ -44,7 +44,7 @@ export function serializeCommands(commands, params) {
             }
             const values = convertUnityValues(deferredValues, fields, activeFields, {
                 withReadonly,
-                context,
+                evalContext,
             });
             const record = getRecord(command[1]);
             if (record) {

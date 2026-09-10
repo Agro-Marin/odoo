@@ -16,7 +16,7 @@ describe("fromUnityToServerValues readonly modifier", () => {
             { flag: true },
             FIELDS,
             { flag: { readonly: "True" } },
-            { withReadonly: false, context: {} },
+            { withReadonly: false, evalContext: {} },
         );
         expect(out).toEqual({});
     });
@@ -26,7 +26,7 @@ describe("fromUnityToServerValues readonly modifier", () => {
             { flag: true },
             FIELDS,
             { flag: { readonly: "False" } },
-            { withReadonly: false, context: {} },
+            { withReadonly: false, evalContext: {} },
         );
         expect(out).toEqual({ flag: true });
     });
@@ -36,7 +36,7 @@ describe("fromUnityToServerValues readonly modifier", () => {
             { count: 5 },
             FIELDS,
             { count: { readonly: "ids" } },
-            { withReadonly: false, context: { ids: [] } },
+            { withReadonly: false, evalContext: { ids: [] } },
         );
         expect(out).toEqual({ count: 5 });
     });
@@ -46,7 +46,7 @@ describe("fromUnityToServerValues readonly modifier", () => {
             { count: 5 },
             FIELDS,
             { count: { readonly: "ids" } },
-            { withReadonly: false, context: { ids: [1] } },
+            { withReadonly: false, evalContext: { ids: [1] } },
         );
         expect(out).toEqual({});
     });
@@ -56,7 +56,7 @@ describe("fromUnityToServerValues readonly modifier", () => {
             { count: 5 },
             FIELDS,
             { count: { readonly: "missing_var == 1" } },
-            { withReadonly: false, context: {} },
+            { withReadonly: false, evalContext: {} },
         );
         expect(out).toEqual({ count: 5 });
     });
@@ -66,8 +66,36 @@ describe("fromUnityToServerValues readonly modifier", () => {
             { flag: true },
             FIELDS,
             { flag: { readonly: "True" } },
-            { withReadonly: true, context: {} },
+            { withReadonly: true, evalContext: {} },
         );
         expect(out).toEqual({ flag: true });
+    });
+
+    test("a modifier reads the record's eval context, parent included", () => {
+        const evalContext = { state: "done", parent: { locked: true } };
+        expect(
+            fromUnityToServerValues(
+                { count: 5 },
+                FIELDS,
+                { count: { readonly: "state != 'draft'" } },
+                { withReadonly: false, evalContext },
+            ),
+        ).toEqual({});
+        expect(
+            fromUnityToServerValues(
+                { flag: true },
+                FIELDS,
+                { flag: { readonly: "parent.locked" } },
+                { withReadonly: false, evalContext },
+            ),
+        ).toEqual({});
+        expect(
+            fromUnityToServerValues(
+                { flag: true },
+                FIELDS,
+                { flag: { readonly: "not parent.locked" } },
+                { withReadonly: false, evalContext },
+            ),
+        ).toEqual({ flag: true });
     });
 });

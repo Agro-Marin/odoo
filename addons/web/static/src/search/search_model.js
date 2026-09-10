@@ -114,6 +114,8 @@ export class SearchModel extends SearchQueryMixin(
 
     /** @type {QueryGroup[] | null} */
     _groups;
+    _pendingNotification = false;
+    _pendingTrigger = false;
 
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -452,9 +454,6 @@ export class SearchModel extends SearchQueryMixin(
 
     /** @returns {string[]} */
     get groupBy() {
-        if (!this.searchMenuTypes.has("groupBy")) {
-            return [];
-        }
         if (!this._groupBy) {
             this._groupBy = this._getGroupBy();
         }
@@ -693,6 +692,9 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {string[]}
      */
     _getGroupBy(options = {}) {
+        if (!this.searchMenuTypes.has("groupBy")) {
+            return [];
+        }
         const fallbackOnDefault = options.fallbackOnDefault ?? true;
         return computeGroupBy({
             groups: this._getGroups(),
@@ -800,7 +802,11 @@ export class SearchModel extends SearchQueryMixin(
         this._reset();
 
         if (this.blockNotification) {
-            this._pendingNotification = true;
+            if (reloadSections) {
+                this._pendingNotification = true;
+            } else {
+                this._pendingTrigger = true;
+            }
             return;
         }
 
@@ -810,6 +816,7 @@ export class SearchModel extends SearchQueryMixin(
                 await this._reloadSections();
             } while (this._pendingNotification);
         }
+        this._pendingTrigger = false;
 
         this.trigger(SearchModelEvent.UPDATE);
     }
@@ -848,11 +855,16 @@ export class SearchModel extends SearchQueryMixin(
 
     /** @returns {Promise<void>} */
     async _drainPendingNotification() {
-        if (this.blockNotification || !this._pendingNotification) {
+        if (this.blockNotification) {
             return;
         }
-        this._pendingNotification = false;
-        await this._notify();
+        if (this._pendingNotification) {
+            this._pendingNotification = false;
+            await this._notify();
+        } else if (this._pendingTrigger) {
+            this._pendingTrigger = false;
+            this.trigger(SearchModelEvent.UPDATE);
+        }
     }
 
     /**

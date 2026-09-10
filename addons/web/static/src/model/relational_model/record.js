@@ -86,6 +86,7 @@ export class RelationalRecord extends DataPoint {
         this.canSaveOnUpdate = !options.parentRecord;
         this.virtualId = options.virtualId || false;
         this._isEvalContextReady = false;
+        this._noUpdateParent = false;
 
         this._editState = new RecordEditState();
 

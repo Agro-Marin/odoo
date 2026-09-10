@@ -110,7 +110,7 @@ export function queryToState(source) {
  * @param {Record<string, any>} target
  */
 export function queryFromState(state, target) {
-    target.query = toWire(state.query);
+    target.query = toWire(state.query ?? []);
     target.orderByCount = state.orderByCount ?? false;
     target.defaultGroupByRemoved = state.defaultGroupByRemoved ?? false;
 }
@@ -133,7 +133,7 @@ export function itemsToState(source) {
  * @param {Record<string, any>} target
  */
 export function itemsFromState(state, target) {
-    target.searchItems = toWire(state.searchItems);
+    target.searchItems = toWire(state.searchItems ?? {});
     target.nextId = state.nextId;
     target.nextGroupId = state.nextGroupId;
     target.nextGroupNumber = state.nextGroupNumber;
