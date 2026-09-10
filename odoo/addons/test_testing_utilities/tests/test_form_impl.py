@@ -835,3 +835,50 @@ class TestEdition(TransactionCase):
             self.assertEqual(f.m2m[:], (b | c))
 
         self.assertEqual(r.m2m, (b | c))
+
+
+class TestDaterange(TransactionCase):
+    def _form(self, arch):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "test_testing_utilities.daterange",
+                "model": "test_testing_utilities.parent",
+                "type": "form",
+                "arch": arch,
+            }
+        )
+        return Form(self.env["test_testing_utilities.parent"], view=view)
+
+    def test_an_end_field_hidden_beside_its_range_is_written_through_it(self):
+        with self._form(
+            """<form>
+                <field name="value" widget="daterange" options="{'end_date_field': 'v'}"/>
+                <field name="v" invisible="1"/>
+            </form>"""
+        ) as form:
+            form.v = 7
+        self.assertEqual(form.record.v, 7)
+
+    def test_an_end_field_hides_with_its_range(self):
+        with self._form(
+            """<form>
+                <field name="value" widget="daterange" options="{'end_date_field': 'v'}"
+                       invisible="value == 3"/>
+                <field name="v" invisible="1"/>
+            </form>"""
+        ) as form:
+            form.value = 3
+            with self.assertRaisesRegex(AssertionError, "invisible"):
+                form.v = 7
+
+    def test_an_end_field_shown_on_its_own_stays_writable_when_its_range_hides(self):
+        with self._form(
+            """<form>
+                <field name="value" widget="daterange" options="{'end_date_field': 'v'}"
+                       invisible="value == 3"/>
+                <field name="v"/>
+            </form>"""
+        ) as form:
+            form.value = 3
+            form.v = 7
+        self.assertEqual(form.record.v, 7)
