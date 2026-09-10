@@ -224,20 +224,6 @@
                 "web.assets_tests",
             ],
         },
-        # web_tour hangs its three lazy bundles off web.assets_web,
-        # web.assets_frontend and web.assets_unit_tests_setup, and cannot name a
-        # page bundle it does not own. project.webclient is one, and carries
-        # web_tour/static/src/js/**/* itself, so without this the lazy
-        # web_tour.automatic has no owning page bundle on a sharing page and
-        # dies on "@web/core/utils/macro is not registered: the bundle importing
-        # it must load after the page bundle that owns it".
-        "dynamic_children": {
-            "project.webclient": [
-                "web_tour.automatic",
-                "web_tour.interactive",
-                "web_tour.recorder",
-            ],
-        },
     },
     "installable": True,
     "application": True,

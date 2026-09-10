@@ -103,6 +103,11 @@ Odoo Web tours.
                 "web_tour.interactive",
                 "web_tour.recorder",
             ],
+            "project.webclient": [
+                "web_tour.automatic",
+                "web_tour.interactive",
+                "web_tour.recorder",
+            ],
         },
     },
     "auto_install": True,
