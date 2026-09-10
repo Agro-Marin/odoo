@@ -149,4 +149,4 @@ class UnlinkMixin(_ModelStubs):
         Defaults: typing.Any,
         Attachment: typing.Any,
     ) -> tuple[Self, Self]:
-        return self.env.backend.delete(self, sub_ids, Data, Defaults, Attachment)
+        return self.env.backend.unlink_rows(self, sub_ids, Data, Defaults, Attachment)

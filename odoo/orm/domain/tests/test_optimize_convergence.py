@@ -60,7 +60,7 @@ class TestNonConvergence:
         assert "exhausts the evaluation stack" not in message
 
     def test_it_survives_the_recursion_error_wrapper(self, domain, model):
-        for entry in ("optimize", "optimize_full", "validate"):
+        for entry in ("optimize", "optimize_full", "check"):
             with patch.object(dast, "MAX_OPTIMIZE_ITERATIONS", 0):
                 with pytest.raises(DomainOptimizationError):
                     getattr(domain, entry)(model)

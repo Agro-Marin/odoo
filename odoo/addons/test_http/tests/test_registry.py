@@ -83,7 +83,7 @@ class TestHttpRegistry(BaseCase):
     def setUp(self):
         super().setUp()
         self.opener = requests.Session()
-        Registry.delete(get_db_name())
+        Registry.remove(get_db_name())
         close_db(get_db_name())
         odoo.http.invalidate_db_catalog_cache()
         self.addCleanup(odoo.http.invalidate_db_catalog_cache)
@@ -294,6 +294,6 @@ class TestHttpRegistry(BaseCase):
 
         with self.subTest(name="new registry"):
             self.authenticate(db=db_duplicate)
-            Registry.delete(db_duplicate)
+            Registry.remove(db_duplicate)
             res = self.url_open("/test_http/greeting-public")
             self.assertEqual(res.status_code, 200)

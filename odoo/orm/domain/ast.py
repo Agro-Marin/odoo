@@ -382,7 +382,7 @@ class Domain:
     def map_conditions(self, function: Callable[[DomainCondition], Domain]) -> Domain:
         return self
 
-    def validate(self, model: BaseModel) -> None:
+    def check(self, model: BaseModel) -> None:
         with _recursion_error_as_value_error():
             self._optimize(model, OptimizationLevel.FULL)
 

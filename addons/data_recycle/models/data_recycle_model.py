@@ -102,7 +102,7 @@ class Data_RecycleModel(models.Model):
             if model is None:
                 continue
             try:
-                recycle_model._get_domain_candidates().validate(model)
+                recycle_model._get_domain_candidates().check(model)
             except (ValueError, SyntaxError, TypeError) as error:
                 raise ValidationError(
                     self.env._(

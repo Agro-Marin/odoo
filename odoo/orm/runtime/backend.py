@@ -137,7 +137,7 @@ class StorageBackend(typing.Protocol):
         limit: int | None = None,
     ) -> BaseModel: ...
 
-    def delete(
+    def unlink_rows(
         self,
         model: BaseModel,
         sub_ids: tuple[int, ...],
@@ -556,7 +556,7 @@ class PostgresBackend:
         valid_ids = {*real_ids, *new_ids}
         return model.browse(i for i in model._ids if i in valid_ids)
 
-    def delete(
+    def unlink_rows(
         self,
         model: BaseModel,
         sub_ids: tuple[int, ...],
@@ -978,7 +978,7 @@ class InMemoryBackend:
             locked = locked[:limit]
         return model.browse(locked)
 
-    def delete(
+    def unlink_rows(
         self,
         model: BaseModel,
         sub_ids: tuple[int, ...],

@@ -1048,7 +1048,7 @@ class PropertiesDefinition(Field):
                         try:
                             dom = Domain(ast.literal_eval(property_domain))
                             model = record.env[property_model]
-                            dom.validate(model)
+                            dom.check(model)
                         except ValueError, SyntaxError, MemoryError:
                             del property_definition["domain"]
 

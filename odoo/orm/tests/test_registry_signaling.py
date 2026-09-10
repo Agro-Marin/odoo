@@ -211,7 +211,7 @@ def test_dead_db_mid_query_on_own_cursor_deletes_registry(monkeypatch):
     monkeypatch.setattr(Registry, "cursor", lambda self, readonly=False: _DyingCursor())
     deleted = []
     monkeypatch.setattr(
-        Registry, "delete", classmethod(lambda cls, db_name: deleted.append(db_name))
+        Registry, "remove", classmethod(lambda cls, db_name: deleted.append(db_name))
     )
     try:
         with pytest.raises(psycopg.OperationalError):
@@ -232,7 +232,7 @@ def test_dead_db_at_open_deletes_registry(monkeypatch):
     monkeypatch.setattr(Registry, "cursor", dying_open)
     deleted = []
     monkeypatch.setattr(
-        Registry, "delete", classmethod(lambda cls, db_name: deleted.append(db_name))
+        Registry, "remove", classmethod(lambda cls, db_name: deleted.append(db_name))
     )
     try:
         with pytest.raises(psycopg.OperationalError):
@@ -246,7 +246,7 @@ def test_dead_caller_cursor_keeps_registry(monkeypatch):
     name = "_sig_dead_caller_cr_db"
     reg = _make_registry(name, 5, 3)
     Registry.registries[name] = reg
-    monkeypatch.setattr(Registry, "delete", classmethod(_fail("Registry.delete")))
+    monkeypatch.setattr(Registry, "remove", classmethod(_fail("Registry.relete")))
     try:
         with pytest.raises(psycopg.OperationalError):
             reg.check_signaling(_DyingCursor())

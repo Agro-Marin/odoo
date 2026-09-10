@@ -1539,7 +1539,7 @@ class MailComposeMessage(models.TransientModel):
                 domain = ast.literal_eval(domain)
 
             domain = Domain(domain)
-            domain.validate(self.env[self.model])
+            domain.check(self.env[self.model])
         except (ValueError, SyntaxError) as e:
             raise ValidationError(
                 _(

@@ -34,9 +34,9 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
         "guarded by backend.supports_parent_store"
     ),
     ("models/mixins/unlink.py", "_unlink_process_batch"): (
-        "LOSSY: PostgresBackend.delete collects ir.model.data + ir.attachment "
+        "LOSSY: PostgresBackend.unlink_rows collects ir.model.data + ir.attachment "
         "rows and runs the many2one_company_dependents ir.default cleanup; "
-        "InMemoryBackend.delete() returns two EMPTY recordsets and does "
+        "InMemoryBackend.unlink_rows() returns two EMPTY recordsets and does "
         "neither. It IS now passed the Defaults recordset -- extracting "
         "PostgresBackend showed the port's signature was missing an argument "
         "the operation needs, which nobody had noticed because the SQL path "
@@ -128,18 +128,18 @@ def test_layer1_dispatch_stays_explicitly_enumerated():
     )
 
 
-def test_in_memory_delete_is_declared_lossy():
+def test_in_memory_unlink_rows_is_declared_lossy():
     import inspect
 
-    source = inspect.getsource(InMemoryBackend.delete)
+    source = inspect.getsource(InMemoryBackend.unlink_rows)
     assert "Data.browse(), Attachment.browse()" in source, (
-        "InMemoryBackend.delete no longer returns two empty recordsets. If it "
+        "InMemoryBackend.unlink_rows no longer returns two empty recordsets. If it "
         "now really collects ir.model.data / ir.attachment rows, drop this test "
         "and the LOSSY note on unlink in DISPATCH_SITES."
     )
-    params = list(inspect.signature(InMemoryBackend.delete).parameters)
+    params = list(inspect.signature(InMemoryBackend.unlink_rows).parameters)
     assert "Defaults" in params, (
-        "InMemoryBackend.delete no longer receives Defaults. It gained the "
+        "InMemoryBackend.unlink_rows no longer receives Defaults. It gained the "
         "argument when PostgresBackend was extracted and the SQL path started "
         "going through the port, which showed the signature was missing "
         "something the operation needs. Narrowing the port back would re-open "

@@ -1371,7 +1371,7 @@ class TestDropDatabaseRetry:
                 patch.object(db_mod.listing, "list_dbs", return_value=["x"])
             )
             stack.enter_context(
-                patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "delete")
+                patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "remove")
             )
             stack.enter_context(patch.object(db_mod.lifecycle.odoo.db, "close_db"))
             stack.enter_context(
@@ -1965,7 +1965,7 @@ class TestExpRenameRollback:
         stack = ExitStack()
         stack.enter_context(db_mod.lifecycle.odoo.tools.config.patch(list_db=True))
         stack.enter_context(
-            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "delete")
+            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "remove")
         )
         stack.enter_context(patch.object(db_mod.lifecycle.odoo.db, "close_db"))
         stack.enter_context(
@@ -2393,7 +2393,9 @@ class TestDatabaseDdlSetsAutocommitFirst:
             patch(
                 "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
             ),
-            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"),
+            patch.object(
+                db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"
+            ),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
             patch.object(db_mod.lifecycle, "_terminate_backends"),
             patch.object(db_mod.lifecycle, "_check_filestore_dest_free"),
@@ -2412,7 +2414,9 @@ class TestDatabaseDdlSetsAutocommitFirst:
             patch(
                 "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
             ),
-            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"),
+            patch.object(
+                db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"
+            ),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
             patch.object(db_mod.lifecycle, "_terminate_backends"),
         ):
@@ -2432,7 +2436,9 @@ class TestDatabaseDdlSetsAutocommitFirst:
             patch(
                 "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
             ),
-            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"),
+            patch.object(
+                db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"
+            ),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
             patch.object(db_mod.lifecycle, "_terminate_backends"),
             patch.object(db_mod.lifecycle.shutil, "move"),

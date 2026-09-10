@@ -20,16 +20,16 @@ def seeded():
 
 
 def test_delete_keeps_what_must_survive_a_rebuild(seeded):
-    Registry.delete(DB)
+    Registry.remove(DB)
 
     assert DB in reg_mod._ASSERTION_REPORTS, (
-        "Registry.delete dropped the assertion report. It runs inside "
+        "Registry.remove dropped the assertion report. It runs inside "
         "Registry.new on every rebuild, so this makes a registry reload discard "
         "every failure recorded before it and exit 0 -- the defect "
         "_ASSERTION_REPORTS was introduced to fix."
     )
     assert DB in cap_mod._UnaccentTables.by_db, (
-        "Registry.delete dropped the unaccent fold table. Rebuilding it costs a "
+        "Registry.remove dropped the unaccent fold table. Rebuilding it costs a "
         "12 352-codepoint probe query, paid on every registry rebuild."
     )
 
@@ -68,8 +68,8 @@ def test_teardown_call_sites_use_clear_database_state_not_delete():
         assert text.count("Registry.clear_database_state(") == count, (
             f"{rel} should call Registry.clear_database_state {count}x"
         )
-        assert "Registry.delete(" not in text, (
-            f"{rel} calls Registry.delete; a database that is gone must be "
+        assert "Registry.remove(" not in text, (
+            f"{rel} calls Registry.remove; a database that is gone must be "
             f"forgotten, or its unaccent table and assertion report leak for "
             f"the life of the process"
         )

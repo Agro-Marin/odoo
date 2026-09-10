@@ -142,7 +142,7 @@ class Registry(
         registry.new = registry.init = registry.registries = None  # type: ignore[method-assign, assignment]
         first_registry = not cls.registries
 
-        cls.delete(db_name)
+        cls.remove(db_name)
         cls.registries[db_name] = registry
         try:
             registry.setup_signaling()
@@ -183,7 +183,7 @@ class Registry(
                 exit_stack.close()
         except Exception:
             _logger.error("Failed to load registry")
-            cls.delete(db_name)
+            cls.remove(db_name)
             raise
 
         del registry._reinit_modules
@@ -230,7 +230,7 @@ class Registry(
 
     @classmethod
     @locked
-    def delete(cls, db_name: str) -> None:
+    def remove(cls, db_name: str) -> None:
         if db_name in cls.registries:
             del cls.registries[db_name]
         from odoo.tools.cache import remove_counters
@@ -251,12 +251,12 @@ class Registry(
                 _logger.info(
                     "Evicting idle registry for %s, idle for %.0fs", db_name, idle_for
                 )
-                cls.delete(db_name)
+                cls.remove(db_name)
 
     @classmethod
     @locked
     def clear_database_state(cls, db_name: str) -> None:
-        cls.delete(db_name)
+        cls.remove(db_name)
         clear_unaccent_table(db_name)
         _ASSERTION_REPORTS.pop(db_name, None)
 
@@ -511,7 +511,7 @@ class Registry(
             raise
         except psycopg.OperationalError:
             if own_cursor:
-                type(self).delete(self.db_name)
+                type(self).remove(self.db_name)
             raise
         return self
 

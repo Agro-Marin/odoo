@@ -2231,7 +2231,7 @@ class TestDroppedDBRecovery(BaseCase):
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
         Registry.registries[self.DB_NAME] = reg
-        self.addCleanup(Registry.delete, self.DB_NAME)
+        self.addCleanup(Registry.remove, self.DB_NAME)
 
         with patch.object(
             type(reg),
@@ -2249,7 +2249,7 @@ class TestDroppedDBRecovery(BaseCase):
         reg = object.__new__(Registry)
         reg.db_name = self.DB_NAME
         Registry.registries[self.DB_NAME] = reg
-        self.addCleanup(Registry.delete, self.DB_NAME)
+        self.addCleanup(Registry.remove, self.DB_NAME)
 
         with patch.object(
             type(reg),
@@ -2266,7 +2266,7 @@ class TestDroppedDBRecovery(BaseCase):
         reg.db_name = self.DB_NAME
         reg.registry_sequence = -1
         Registry.registries[self.DB_NAME] = reg
-        self.addCleanup(Registry.delete, self.DB_NAME)
+        self.addCleanup(Registry.remove, self.DB_NAME)
 
         mock_cr = MagicMock()
         mock_cr.__enter__ = MagicMock(return_value=mock_cr)
@@ -2736,7 +2736,7 @@ class TestExpDropClosesPoolTwice(BaseCase):
 
         with (
             patch("odoo.service.db.listing.list_dbs", return_value=[fake_db]),
-            patch("odoo.modules.registry.Registry.delete"),
+            patch("odoo.modules.registry.Registry.remove"),
             patch("odoo.service.db.lifecycle._terminate_backends"),
             patch("odoo.db.close_db", side_effect=fake_close_db),
             patch("odoo.db.db_connect", return_value=fake_conn),

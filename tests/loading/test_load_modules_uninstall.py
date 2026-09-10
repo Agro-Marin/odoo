@@ -72,7 +72,7 @@ def _mark_to_remove(dbname: str) -> None:
 def _run_update(dbname: str):
     from odoo.modules.registry import Registry
 
-    Registry.delete(dbname)
+    Registry.remove(dbname)
 
     new_calls: list[str] = []
     tail_calls: list[str] = []

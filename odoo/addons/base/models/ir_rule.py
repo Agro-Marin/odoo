@@ -93,7 +93,7 @@ class IrRule(models.Model):
                 try:
                     domain = safe_eval(rule.domain_force, eval_context)
                     model = self.env[rule.model_id.model].sudo()
-                    Domain(domain).validate(model)
+                    Domain(domain).check(model)
                 except Exception as e:
                     raise ValidationError(_("Invalid domain: %s", e)) from None
 

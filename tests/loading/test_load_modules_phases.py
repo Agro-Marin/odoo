@@ -63,7 +63,7 @@ class _Tracer:
 def _load(dbname: str, **kwargs) -> list[str]:
     from odoo.modules.registry import Registry
 
-    Registry.delete(dbname)
+    Registry.remove(dbname)
     with _Tracer() as tracer:
         Registry.new(dbname, **kwargs)
     return tracer.collapse()
@@ -150,7 +150,7 @@ def test_inherit_xmlids_are_re_reflected_before_the_orphan_sweep(base_db):
         patcher.start()
         patches.append(patcher)
     try:
-        Registry.delete(base_db)
+        Registry.remove(base_db)
         Registry.new(base_db, update_module=True)
     finally:
         for patcher in reversed(patches):

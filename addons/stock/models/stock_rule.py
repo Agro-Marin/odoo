@@ -166,7 +166,7 @@ class StockRule(models.Model):
             if not rule.push_domain:
                 continue
             try:
-                Domain(literal_eval(rule.push_domain)).validate(Move)
+                Domain(literal_eval(rule.push_domain)).check(Move)
             except Exception as error:
                 raise ValidationError(
                     _(
