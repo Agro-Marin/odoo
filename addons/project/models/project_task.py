@@ -2379,6 +2379,9 @@ class ProjectTask(models.Model):
             vals.update(additional_vals)
         elif additional_vals:
             super(ProjectTask, self.sudo()).write(additional_vals)
+        former_successors = (
+            self.successor_ids if "successor_ids" in vals else self.browse()
+        )
         result = super().write(vals)
 
         if not self.env.context.get("skip_dependency_sync"):
@@ -2386,7 +2389,7 @@ class ProjectTask(models.Model):
             if "predecessor_ids" in vals:
                 to_sync |= self
             if "successor_ids" in vals:
-                to_sync |= self.successor_ids
+                to_sync |= former_successors | self.successor_ids
             if to_sync:
                 to_sync._sync_dependency_rows()
 
