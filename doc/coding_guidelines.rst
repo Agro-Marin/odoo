@@ -1222,7 +1222,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   321
 §2.4.2   … of those, spelled ``_check_<field>``                        142
 §2.4.2   Multi-field constraints named for one trigger                  61
-§2.4.3   Non-test methods declared on a model class                 26,993
+§2.4.3   Non-test methods declared on a model class                 26,996
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            141
@@ -1234,29 +1234,29 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   188
 §2.4.5   ``X_to_Y`` converter definitions                              103
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,332
+§2.4.7   ``_get_*`` definitions                                      6,382
 §2.4.7   Abolished payload verbs, the four between them                  0
-§2.4.7   ``_generate_*`` definitions                                   153
+§2.4.7   ``_generate_*`` definitions                                   146
 §2.4.7   ``_calculate_*`` model methods                                  6
-§2.4.7   ``_prepare_*`` definitions                                    873
-§2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            38
-§2.4.8   ``_check_*`` definitions                                    1,207
+§2.4.7   ``_prepare_*`` definitions                                    876
+§2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            35
+§2.4.8   ``_check_*`` definitions                                    1,218
 §2.4.8   ``_validate_*`` definitions                                     4
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           1
-§2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     183
-§2.4.10  ``_raise_*`` model methods                                     17
-§2.4.10  … raising unconditionally                                      10
-§2.4.11  ``_find_*`` methods                                            26
-§2.4.11  … performing an ORM read                                        3
-§2.4.11  … doing something else entirely                                20
+§2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
+§2.4.10  ``_raise_*`` model methods                                     18
+§2.4.10  … raising unconditionally                                      11
+§2.4.11  ``_find_*`` methods                                            19
+§2.4.11  … performing an ORM read                                        1
+§2.4.11  … doing something else entirely                                17
 §2.4.11  ``_find_or_create_*`` methods                                   1
-§2.4.11  ``_get_or_create_*`` methods                                   32
-§2.4.11  ``_resolve_*`` definitions                                     31
-§2.4.12  ``_set_*`` definitions                                        136
-§2.4.12  ``_update_*`` definitions                                     367
-§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             258
-§2.4.12  ``inverse=`` targets spelled ``_set_*``                         2
-§2.4.12  ``_sync_*`` definitions                                        76
+§2.4.11  ``_get_or_create_*`` methods                                   34
+§2.4.11  ``_resolve_*`` definitions                                     28
+§2.4.12  ``_set_*`` definitions                                        129
+§2.4.12  ``_update_*`` definitions                                     396
+§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             259
+§2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
+§2.4.12  ``_sync_*`` definitions                                        78
 §2.4.12  ``_synchronize_*`` definitions                                  7
 §2.4.12  ``_post_*`` definitions                                       144
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      359
@@ -2051,12 +2051,12 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.5 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.6 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 705
+deriving and computing. The split that matters is against ``_prepare_``: 709
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 873 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 876 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -2219,8 +2219,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **347** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **275**
+**A ``bool`` return does not make a predicate** ``[review]``. **346** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **277**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
