@@ -1,3 +1,5 @@
+from freezegun import freeze_time
+
 from odoo import Command
 from odoo.tests import Form
 from odoo.tests.common import tagged
@@ -21,8 +23,10 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
             limit=1,
         )
 
+    @freeze_time("2025-07-20")
     def test_qty_received_does_sync_after_changing_validated_move_quantity(self):
-        self.product_a.standard_price = 5.0
+        with freeze_time("2025-07-19"):
+            self.product_a.standard_price = 5.0
         cost_methods = ["standard", "fifo", "average"]
         picking_types = [
             self.env["stock.picking.type"].search(
