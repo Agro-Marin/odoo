@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase
+from odoo.tools.assets.esm_graph import discover_transitive_import_specifiers
 from odoo.tools.assets.esm_registry import esm_registry
 
 from .common import asset_file
@@ -175,14 +176,32 @@ class TestEsmRegistryInstallationScope(TransactionCase):
 
         self.assertFalse(stolen, f"modules registering foreign bundles: {stolen}")
 
+    def _dependency_closure(self, module):
+        from odoo.modules import Manifest
+
+        closure, queue = set(), [module]
+        while queue:
+            manifest = Manifest.for_addon(queue.pop(), display_warning=False)
+            for dep in (manifest and manifest["depends"]) or ():
+                if dep not in closure:
+                    closure.add(dep)
+                    queue.append(dep)
+        return closure
+
+    def _wires_a_dependency_onto_its_own_page(self, module, parent, child):
+        return parent.partition(".")[0] == module and child.partition(".")[
+            0
+        ] in self._dependency_closure(module)
+
     def test_child_declarations_stay_in_their_namespace(self):
         misplaced = [
             (module, key, child)
             for module, esm in self._declarations()
             for key in ("dynamic_children", "import_map_includes")
-            for children in (esm.get(key) or {}).values()
+            for parent, children in (esm.get(key) or {}).items()
             for child in children
             if self._claims_a_live_foreign_namespace(module, child)
+            and not self._wires_a_dependency_onto_its_own_page(module, parent, child)
         ]
 
         self.assertFalse(
@@ -238,18 +257,32 @@ class TestSecondarySingletonSurface(TransactionCase):
 
         self.assertLessEqual(set(shared), self._specs(self.PARENT))
 
-    def test_the_guarantee_stops_at_direct_imports(self):
-        shared = set(self.env["ir.qweb"]._get_secondary_shared_specs(self.BUNDLE, {}))
+    def test_the_guarantee_covers_transitive_imports(self):
+        IrQweb = self.env["ir.qweb"]
+        scope = ("web.assets_frontend_lazy",)
+        shared = set(IrQweb._get_secondary_shared_specs(self.BUNDLE, {}, scope))
         if not shared:
             self.skipTest("no shared specifiers on this database")
-        parent_specs = self._specs(self.PARENT)
+        provider_specs = self._specs(scope[0])
         own_specs = self._specs(self.BUNDLE)
-
-        reachable_unstubbed = (parent_specs - shared) - own_specs
-
-        self.assertTrue(
-            reachable_unstubbed,
-            "the singleton guarantee now covers the whole parent surface -- "
-            "drop this test and the shortfall paragraph in "
-            "_get_secondary_shared_specs",
+        secondary = IrQweb._get_asset_bundle(
+            self.BUNDLE, js=True, css=False, assets_params={}
+        )
+        direct, _ext = secondary._bridges._discover_bridge_specifiers(
+            own_specs, set(IrQweb._external_libs())
+        )
+        inlined = set(direct) - provider_specs
+        if not inlined:
+            self.skipTest("every direct import is provided by the page")
+        reachable = discover_transitive_import_specifiers(
+            inlined,
+            known_specifiers=own_specs,
+            ext_libs=IrQweb._external_libs(),
+            bundle_name=self.BUNDLE,
+        )
+        self.assertEqual(
+            (reachable & provider_specs) - shared,
+            set(),
+            "a module the page already carries is reachable through an inlined "
+            "import, so esbuild inlines a second instance of it",
         )

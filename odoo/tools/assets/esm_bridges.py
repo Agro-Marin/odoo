@@ -259,7 +259,7 @@ class BridgeShimManager:
         return discovered, ext_seen
 
     def prepare_shim_sources(
-        self, specifiers: set[str], *, strict: bool = False
+        self, specifiers: set[str], *, strict: bool = False, wait: bool = False
     ) -> dict[str, str]:
         if not specifiers:
             return {}
@@ -271,7 +271,7 @@ class BridgeShimManager:
                 shims[spec] = _strict_stub_source(spec, src_names)
                 continue
             shim, _star = _bridge_shim_source(
-                spec, {"__default__"}, src_names, has_default
+                spec, {"__default__"}, src_names, has_default, wait=wait
             )
             shims[spec] = shim
         return shims

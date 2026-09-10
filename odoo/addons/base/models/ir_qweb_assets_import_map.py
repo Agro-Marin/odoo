@@ -155,10 +155,18 @@ class IrQweb(models.AbstractModel):
             own_specs,
             set(self._external_libs()),
         )
-        stubbed = frozenset(set(discovered) & shared)
+        reachable = set(discovered)
+        if inlined := reachable - shared:
+            reachable |= discover_transitive_import_specifiers(
+                inlined,
+                known_specifiers=own_specs,
+                ext_libs=self._external_libs(),
+                bundle_name=bundle,
+            )
+        stubbed = frozenset(reachable & shared)
         if page_scope:
             self._warn_on_late_secondary_providers(
-                bundle, assets_params, discovered, stubbed
+                bundle, assets_params, reachable, stubbed
             )
         return stubbed
 
@@ -201,7 +209,7 @@ class IrQweb(models.AbstractModel):
         )
         if not shared:
             return {}
-        return sec_ab._bridges.prepare_shim_sources(set(shared))
+        return sec_ab._bridges.prepare_shim_sources(set(shared), wait=True)
 
     def _merge_secondary_import_maps(
         self,

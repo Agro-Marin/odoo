@@ -1021,6 +1021,15 @@ class TestBridgeHelpers(TransactionCase):
         self.assertEqual(shim.count("export {"), 1)
         self.assertNotIn("_e0", shim)
 
+    def test_shim_source_waits_for_an_unregistered_provider(self):
+        shim, _star = _bridge_shim_source("@web/late", set(), {"x"}, False, wait=True)
+        self.assertIn("await new Promise(", shim)
+        self.assertIn('addEventListener("registered", _w)', shim)
+        self.assertIn("provider not registered after", shim)
+        self.assertIn('addEventListener("registered", _s)', shim)
+        eager, _star = _bridge_shim_source("@web/late", set(), {"x"}, False)
+        self.assertNotIn("await", eager)
+
     def test_shim_source_named_only_still_exports_default(self):
         shim, star = _bridge_shim_source("@web/baz", set(), {"x"}, False)
         self.assertFalse(star)

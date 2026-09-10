@@ -482,11 +482,45 @@ def _strict_stub_source(specifier: str, src_names: set[str]) -> str:
     return "\n".join(lines)
 
 
+BRIDGE_WAIT_MS = 10000
+
+
+def _bridge_wait_lines(specifier: str) -> list[str]:
+    spec = json.dumps(specifier)
+    warning = json.dumps(
+        f"[asset.loader] bridge {specifier}: provider not registered after "
+        f"{BRIDGE_WAIT_MS} ms, evaluating with undefined exports"
+    )
+    return [
+        "_s();",
+        f"if (!odoo.loader.modules.has({spec})) {{",
+        "  await new Promise((_r) => {",
+        "    const _w = () => {",
+        f"      if (odoo.loader.modules.has({spec})) {{",
+        '        odoo.loader.bus.removeEventListener("registered", _w);',
+        "        _r();",
+        "      }",
+        "    };",
+        '    odoo.loader.bus.addEventListener("registered", _w);',
+        "    setTimeout(() => {",
+        '      odoo.loader.bus.removeEventListener("registered", _w);',
+        f"      console.warn({warning});",
+        "      _r();",
+        f"    }}, {BRIDGE_WAIT_MS});",
+        "  });",
+        "  _s();",
+        "}",
+        'odoo.loader.bus.addEventListener("registered", _s);',
+    ]
+
+
 def _bridge_shim_source(
     specifier: str,
     kinds: set[str],
     src_names: set[str],
     has_default: bool,
+    *,
+    wait: bool = False,
 ) -> tuple[str, bool]:
     names = [
         name
@@ -502,8 +536,11 @@ def _bridge_shim_source(
     lines.extend(f"  _e{i} = _m.{name};" for i, name in enumerate(names))
     lines.append('  odoo.loader.bus.removeEventListener("registered", _s);')
     lines.append("}")
-    lines.append("_s();")
-    lines.append('odoo.loader.bus.addEventListener("registered", _s);')
+    if wait:
+        lines.extend(_bridge_wait_lines(specifier))
+    else:
+        lines.append("_s();")
+        lines.append('odoo.loader.bus.addEventListener("registered", _s);')
     exported = ["_d as default", *(f"_e{i} as {n}" for i, n in enumerate(names))]
     lines.append("export { " + ", ".join(exported) + " };")
     is_star_fallback = not src_names and not has_default and "__default__" not in kinds

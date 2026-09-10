@@ -13,6 +13,7 @@ from odoo.tools.assets.esbuild import (
 from odoo.tools.assets.esm_graph import (
     _TRANSITIVE_IMPORT_RE,
     _get_import_specifiers,
+    discover_transitive_import_specifiers,
     get_escaping_relative_imports,
 )
 from odoo.tools.assets.esm_lexer import lex_module
@@ -34,18 +35,14 @@ def _get_specs_imported_by_consumers(
     for consumer in consumers:
         own = [a for a in consumer.native_modules if a.module_path not in members]
         own_specs = {name for a in own for name in module_specifiers(a)}
+        direct: set[str] = set()
         for asset in own:
             lexed = lex_module(asset.raw_content)
             if lexed is not None:
-                imported.update(
-                    imp["n"] for imp in lexed["imports"] if imp["n"] in members
-                )
+                direct.update(imp["n"] for imp in lexed["imports"])
             else:
-                imported.update(
-                    spec
-                    for spec in _get_import_specifiers(asset.raw_content)
-                    if spec in members
-                )
+                direct.update(_get_import_specifiers(asset.raw_content))
+        imported.update(spec for spec in direct if spec in members)
         imported.update(
             resolved
             for _module, _spec, resolved in get_escaping_relative_imports(
@@ -53,6 +50,21 @@ def _get_specs_imported_by_consumers(
             )
             if resolved in members
         )
+        inlined = {
+            spec
+            for spec in direct
+            if spec.startswith("@") and spec not in members and spec not in own_specs
+        }
+        if inlined:
+            imported.update(
+                discover_transitive_import_specifiers(
+                    inlined,
+                    known_specifiers=own_specs,
+                    ext_libs=external_libs(),
+                    bundle_name=consumer.name,
+                )
+                & members
+            )
     return imported
 
 
