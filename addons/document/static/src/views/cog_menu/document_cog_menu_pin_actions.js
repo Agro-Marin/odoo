@@ -17,6 +17,7 @@ export class DocumentCogMenuPinAction extends Component {
     setup() {
         this.action = useService("action");
         this.notification = useService("notification");
+        this.documentService = useService("document.document");
 
         this.documentsState = useState({ actions: [], isLoading: true });
         this._reloadSearchModel = useDebounced(() => {
