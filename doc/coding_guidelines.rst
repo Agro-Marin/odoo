@@ -2976,7 +2976,7 @@ with a note saying the scan grew and not the tree.
   their callers -- an XML ``<function>`` and two ``write`` hooks -- had already
   stopped reading a return that was never there. A name can promise more than
   the body delivers, and only the body says so.
-* **``naming_core_vocabulary.py`` asks the same question of its seven scopes
+* **``naming_core_vocabulary.py`` asks the same question of its eight scopes
   as ``empty-return``**, keyed on ``get`` and ``prepare`` and without the store
   test, and holds each at a hard zero with an argued allowlist. The two do not
   double-report today because those scopes read zero under both; where they

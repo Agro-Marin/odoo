@@ -192,6 +192,15 @@ CORE = ROOT / "odoo"
 # calls `super()._collect_qty_changes(...)`. A probe that reaches past the entry
 # point asks a NEIGHBOURING question and answers it correctly, which is worse
 # than failing. Measure a scope with `measure()`.
+#
+# `mrp` is the eighth, on `purchase_stock`'s terms: its sweep is already landed
+# (`1ad4b4cbb623`), and `measure()` in a detached worktree at that commit reads
+# 0 with no allowlist entry. The two it reported before the sweep were the
+# body-reading rules exactly -- `_get_mo_count`, a five-field `compute=` hook
+# returning nothing, and `_check_planned_start`, which set a key on a caller's
+# dict and returned -- and both were invisible to the sibling gate at every
+# scope. The five `--candidates` rows are all `assign`, stock's own operation
+# (`_action_assign` and kin), which is the reading `stock`'s row already argues.
 GOVERNED_ADDONS = (
     "core",
     "stock",
@@ -200,6 +209,7 @@ GOVERNED_ADDONS = (
     "purchase",
     "point_of_sale",
     "purchase_stock",
+    "mrp",
 )
 
 # `addons/mail` was swept against every rule that travels and is NOT here yet,
