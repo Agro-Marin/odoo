@@ -112,3 +112,17 @@ class TestApprovalBindingEditor(common.TransactionCase):
         self.assertFalse(
             partner.active, "a binding that asks nobody does not stop the call"
         )
+
+    def test_approvers_given_without_a_group_satisfy_the_pool_check(self):
+        """The pool check waits for the approvers list to become members."""
+        category = self.env["approval.category"].create({"name": "No group"})
+        step = self.Step.create(
+            {
+                "category_id": category.id,
+                "name": "Members only",
+                "user_ids": [Command.set(self.first.ids)],
+            }
+        )
+        self.assertEqual(step.member_ids.user_id, self.first)
+        step.write({"group_id": False, "user_ids": [Command.set(self.second.ids)]})
+        self.assertEqual(step.member_ids.user_id, self.second)

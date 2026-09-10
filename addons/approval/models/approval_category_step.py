@@ -1,18 +1,9 @@
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 
 
 class ApprovalCategoryStep(models.Model):
-    """One step of a category's approval: a pool of users, and how many must approve.
-
-    A category without steps keeps its flat approver list and one request-wide
-    minimum. That shape cannot tell two steps that each need one of two people
-    from one step that needs two -- a minimum of 2 accepts both approvals from
-    the first -- and that is exactly what a Studio approval rule is. A category
-    that needs steps declares them, and one that does not is left as it was.
-    """
-
     _name = "approval.category.step"
     _inherit = ["mixin.approval.domain"]
     _description = "Approval Step"
@@ -85,7 +76,7 @@ class ApprovalCategoryStep(models.Model):
     def _domain_source_field(self) -> str:
         return "subject_domain"
 
-    @api.constrains("minimum", "member_ids", "group_id")
+    @api.constrains("minimum", "member_ids", "group_id", "user_ids")
     def _check_pool(self) -> None:
         for step in self:
             if step.minimum < 1:
@@ -133,25 +124,56 @@ class ApprovalCategoryStep(models.Model):
 
     def _inverse_user_ids(self) -> None:
         for step in self:
-            plain = step.member_ids.filtered(lambda member: not member.delegated_by_id)
-            plain.filtered(
-                lambda member, users=step.user_ids: member.user_id not in users
+            users = step.user_ids
+            missing = users - step.member_ids.user_id
+            if missing:
+                step.member_ids = [
+                    Command.create({"user_id": user.id}) for user in missing
+                ]
+            step.member_ids.filtered(
+                lambda member, users=users: (
+                    not member.delegated_by_id and member.user_id not in users
+                )
             ).unlink()
-            missing = step.user_ids - step.member_ids.user_id
-            step.member_ids = [Command.create({"user_id": user.id}) for user in missing]
+        self._check_pool()
 
-    def _get_pool_user_ids(self) -> set[int]:
-        """Who may approve this step today: valid members, and the group's users."""
+    def _get_member_user_ids(self) -> set[int]:
         self.check_singleton()
         today = fields.Date.context_today(self)
-        users = {
+        return {
             member.user_id.id
             for member in self.member_ids
             if not member.date_end or member.date_end >= today
         }
+
+    def _get_pool_user_ids(self) -> set[int]:
+        """Who may approve this step today: valid members, and the group's users."""
+        self.check_singleton()
+        users = self._get_member_user_ids()
         if self.group_id:
             users.update(self.group_id.all_user_ids.ids)
         return users
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_step_holding_decisions(self) -> None:
+        decided = (
+            self.env["approval.approver"]
+            .sudo()
+            .search_count(
+                [
+                    ("step_ids", "in", self.ids),
+                    ("state", "in", ("approved", "refused")),
+                ],
+                limit=1,
+            )
+        )
+        if decided:
+            raise UserError(
+                self.env._(
+                    "A step that holds decisions cannot be deleted. Archive it "
+                    "instead, so the decisions keep the step they were given for."
+                ),
+            )
 
     def _is_applicable_to_request(self, request) -> bool:
         self.check_singleton()

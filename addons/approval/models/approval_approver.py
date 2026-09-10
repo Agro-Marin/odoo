@@ -67,6 +67,7 @@ class ApprovalApprover(models.Model):
         relation="approval_approver_step_rel",
         column1="approver_id",
         column2="step_id",
+        context={"active_test": True},
         string="Steps",
         readonly=True,
         copy=False,
@@ -389,8 +390,15 @@ class ApprovalApprover(models.Model):
         return self.filtered(lambda approver: approver._is_notifiable())
 
     def _is_notifiable(self) -> bool:
+        """A step's group lets its members decide; only its listed members are asked."""
         self.check_singleton()
-        if not self.step_ids or not self.request_id.category_id.notify_sequentially:
+        if not self.step_ids:
+            return True
+        if not any(
+            self.user_id.id in step._get_member_user_ids() for step in self.step_ids
+        ):
+            return False
+        if not self.request_id.category_id.notify_sequentially:
             return True
         return bool(self.step_ids & self.request_id._get_open_steps())
 

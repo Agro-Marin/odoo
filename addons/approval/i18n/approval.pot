@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 21:34+0000\n"
-"PO-Revision-Date: 2026-09-10 21:34+0000\n"
+"POT-Creation-Date: 2026-09-10 22:29+0000\n"
+"PO-Revision-Date: 2026-09-10 22:29+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -49,6 +49,14 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_binding.py:0
 msgid "%(action)s runs on %(action_model)s, not on %(model)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(binding)s already has approval requests, so what it gates cannot change. "
+"Archive it and bind the new target instead."
 msgstr ""
 
 #. module: approval
@@ -631,6 +639,14 @@ msgstr ""
 #. module: approval
 #: model:ir.model.constraint,message:approval.constraint_approval_refusal_reason_name_src_uniq
 msgid "A refusal reason with this name already exists for this company."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_category_step.py:0
+msgid ""
+"A step that holds decisions cannot be deleted. Archive it instead, so the "
+"decisions keep the step they were given for."
 msgstr ""
 
 #. module: approval

@@ -431,12 +431,19 @@ class ApprovalBinding(models.Model):
         self.check_singleton()
         if self.mode != "advise" and not self._has_anyone_to_ask():
             return records.browse()
-        if not self.subject_domain:
+        if self.subject_domain:
+            domain = self._parse_domain_or_warn()
+            if domain is None:
+                return records.browse()
+            records = records.filtered_domain(domain)
+        steps = self.category_id.sudo().step_ids if self.mode != "advise" else ()
+        if not steps:
             return records
-        domain = self._parse_domain_or_warn()
-        if domain is None:
-            return records.browse()
-        return records.filtered_domain(domain)
+        return records.filtered(
+            lambda record: any(
+                step._is_applicable_to_document(record) for step in steps
+            )
+        )
 
     def _get_covered_ids(self, records) -> set[int]:
         self.check_singleton()
@@ -754,11 +761,38 @@ class ApprovalBinding(models.Model):
         return bindings
 
     def write(self, vals):
+        if {"model_id", "method", "action_id"} & vals.keys():
+            self._check_target_unchanged_once_requested(vals)
         result = super().write(vals)
         self._apply_to_registry()
         if not self.env.context.get(SYNC_CONTEXT_KEY):
             self._sync_reset_automation()
         return result
+
+    def _check_target_unchanged_once_requested(self, vals) -> None:
+        requested = (
+            self.env["approval.request"]
+            .sudo()
+            .search([("binding_id", "in", self.ids)])
+            .binding_id
+        )
+        for binding in requested:
+            current = {
+                "model_id": binding.model_id.id,
+                "method": binding.method or False,
+                "action_id": binding.action_id.id or False,
+            }
+            if any(
+                field in vals and (vals[field] or False) != value
+                for field, value in current.items()
+            ):
+                raise UserError(
+                    self.env._(
+                        "%(binding)s already has approval requests, so what it gates "
+                        "cannot change. Archive it and bind the new target instead.",
+                        binding=binding.name,
+                    ),
+                )
 
     def unlink(self):
         automations = self.sudo().reset_automation_id

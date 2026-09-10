@@ -767,6 +767,7 @@ class ApprovalRequest(models.Model):
         "approver_ids.step_ids",
         "approver_ids.step_ids.minimum",
         "approver_ids.step_ids.exclusive",
+        "approver_ids.step_ids.active",
     )
     def _compute_state(self) -> None:
         for request in self:
@@ -829,9 +830,9 @@ class ApprovalRequest(models.Model):
         for approver in approved:
             own = approver.step_ids.sorted(lambda step: (step.sequence, step.id))
             if any(own.mapped("exclusive")):
-                target = own.filtered(
-                    lambda step: len(assigned[step.id]) < step.minimum
-                )[:1]
+                target = own.sorted(
+                    lambda step: (step.sequence, not step.exclusive, step.id)
+                ).filtered(lambda step: len(assigned[step.id]) < step.minimum)[:1]
                 if target:
                     assigned[target.id] |= approver
                 continue

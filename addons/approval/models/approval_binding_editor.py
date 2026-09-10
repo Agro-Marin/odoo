@@ -17,7 +17,7 @@ class ApprovalBinding(models.Model):
             model, method, action_id
         ) or self._create_binding_for_button(model, method, action_id)
         category = binding.category_id
-        steps = category.with_context(active_test=False).step_ids
+        steps = category.step_ids
         sequence = min(max(steps.mapped("sequence"), default=0) + 1, 9)
         step = self.env["approval.category.step"].create(
             {

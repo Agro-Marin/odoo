@@ -270,6 +270,7 @@ class ApprovalCategory(models.Model):
     step_ids = fields.One2many(
         comodel_name="approval.category.step",
         inverse_name="category_id",
+        context={"active_test": True},
         string="Steps",
         help="Declare steps when approval must pass several pools, each needing its "
         "own approvals. Without steps the flat approver list and Minimum Approval "

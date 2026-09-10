@@ -12,6 +12,7 @@ from . import (
     test_binding_client,
     test_binding_editor,
     test_binding_reset,
+    test_binding_studio_parity,
     test_bulk_operations,
     test_category,
     test_category_steps,
