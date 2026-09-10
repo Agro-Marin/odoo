@@ -1,10 +1,8 @@
-import ast
 import logging
 import math
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.fields import Domain
 
 _logger = logging.getLogger(__name__)
 
@@ -15,7 +13,7 @@ _FLOAT_EQ_REL_TOL = 1e-9
 class ApprovalRule(models.Model):
     _name = "approval.rule"
     _description = "Conditional Approval Rule"
-    _inherit = ["mixin.approval.threshold"]
+    _inherit = ["mixin.approval.threshold", "mixin.approval.domain"]
     _order = "category_id, sequence, id"
 
     name = fields.Char(required=True)
@@ -441,61 +439,23 @@ class ApprovalRule(models.Model):
             else:
                 rule._check_subject_field(model)
 
+    def _domain_source_field(self) -> str:
+        return "subject_domain"
+
     def _check_subject_domain(self, model) -> None:
         self.check_singleton()
-        domain = self._parse_subject_domain()
-        if domain is None:
-            raise ValidationError(
-                self.env._(
-                    "Rule %(name)s has a source domain that is not a valid "
-                    "Python literal: %(domain)s",
-                    name=self.name,
-                    domain=self.subject_domain,
-                ),
-            )
-        for field_path in self._domain_field_paths(domain):
-            self._check_field_path(model, field_path)
+        self._check_domain_against_model(model)
 
     def _check_subject_field(self, model) -> None:
         self.check_singleton()
         if not self.subject_field:
             raise ValidationError(
                 self.env._(
-                    "Rule %(name)s compares a source field, so it needs a "
-                    "field name.",
+                    "Rule %(name)s compares a source field, so it needs a field name.",
                     name=self.name,
                 ),
             )
         self._check_field_path(model, self.subject_field)
-
-    def _check_field_path(self, model, field_path: str) -> None:
-        """Walk a dotted path so a typo is rejected here, not at approval time.
-
-        A rule that names a field nobody has silently never matches, which
-        reads as "approval was not required" rather than as a broken rule.
-        """
-        self.check_singleton()
-        current = model
-        for part in field_path.split("."):
-            field = current._fields.get(part)
-            if field is None:
-                raise ValidationError(
-                    self.env._(
-                        "Rule %(name)s reads %(path)s, but %(model)s has no "
-                        "field %(part)s.",
-                        name=self.name,
-                        path=field_path,
-                        model=current._name,
-                        part=part,
-                    ),
-                )
-            if not field.relational:
-                break
-            current = self.env[field.comodel_name]
-
-    @api.model
-    def _domain_field_paths(self, domain) -> set[str]:
-        return {condition.field_expr for condition in domain.iter_conditions()}
 
     _CONDITION_FIELD_DEPENDS = {
         "amount": ("amount", "currency_id", "date"),
@@ -534,25 +494,12 @@ class ApprovalRule(models.Model):
             return False
         return document.exists()
 
-    def _parse_subject_domain(self) -> Domain | None:
-        self.check_singleton()
-        try:
-            return Domain(ast.literal_eval(self.subject_domain or "[]"))
-        except (ValueError, SyntaxError, TypeError):
-            return None
-
     def _evaluate_domain(self, request) -> bool:
         subject = self._get_subject(request)
         if not subject:
             return False
-        domain = self._parse_subject_domain()
+        domain = self._parse_domain_or_warn()
         if domain is None:
-            _logger.warning(
-                "Approval rule %s: unparseable source domain %r, treated as "
-                "no match.",
-                self.id,
-                self.subject_domain,
-            )
             return False
         return bool(subject.filtered_domain(domain))
 

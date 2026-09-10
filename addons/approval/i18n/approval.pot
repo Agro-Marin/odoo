@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-06 21:57+0000\n"
-"PO-Revision-Date: 2026-09-06 21:57+0000\n"
+"POT-Creation-Date: 2026-09-10 15:28+0000\n"
+"PO-Revision-Date: 2026-09-10 15:28+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -97,11 +97,60 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(method)s cannot be gated. `automation` removes that method from every "
+"model in the registry when it re-registers its own hooks, without checking "
+"who installed it, so the gate would disappear silently rather than fail."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(method)s takes %(args)s, so it cannot be replayed after approval. Request "
+"mode only gates methods that take no argument; use Block mode for this one."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "%(model)s has no method %(method)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "%(model)s is not in the registry."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_domain.py:0
+msgid ""
+"%(name)s has a source domain that is not a valid Python literal: %(domain)s"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(name)s is in %(mode)s mode, so it needs an approval category to consult."
+msgstr ""
+
+#. module: approval
+#. odoo-python
 #: code:addons/approval/models/res_users.py:0
 msgid ""
 "%(name)s is still configured as an approver of this category but their user "
 "account was archived — new requests would stall on them. Please update the "
 "approver list."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_domain.py:0
+msgid "%(name)s reads %(path)s, but %(model)s has no field %(part)s."
 msgstr ""
 
 #. module: approval
@@ -120,6 +169,15 @@ msgid ""
 "%(principal)s's delegation to %(delegate)s was ended: %(delegate)s is now an"
 " approver of this request in their own right, and one person cannot hold two"
 " approvals."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(record)s needs an approval before %(method)s can run.\n"
+"\n"
+"Ask for approval on the document first."
 msgstr ""
 
 #. module: approval
@@ -409,6 +467,26 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.constraint,message:approval.constraint_approval_binding_model_method_domain_uniq
+msgid "A binding already covers that model, method and condition."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "A binding cannot gate the binding machinery."
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.actions.act_window,help:approval.action_approval_binding
+msgid ""
+"A binding intercepts a method so the approval is consulted before it\n"
+"                runs, for every caller rather than only the user interface. Start a\n"
+"                new one in Observe mode: it changes nothing and counts who reaches\n"
+"                the operation, including callers that arrive elevated."
+msgstr ""
+
+#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
@@ -473,6 +551,7 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__active
 #: model:ir.model.fields,field_description:approval.field_approval_category__active
 #: model:ir.model.fields,field_description:approval.field_approval_refusal_reason__active
 #: model:ir.model.fields,field_description:approval.field_approval_rule__active
@@ -611,6 +690,11 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding__sudo_policy__bypass
+msgid "Any elevated caller passes"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_refusal_reason__category_ids
 msgid "Applicable Categories"
 msgstr ""
@@ -626,6 +710,16 @@ msgid "Applied Rule"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__subject_domain
+msgid "Applies When"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding__sudo_policy__enforce
+msgid "Applies to everyone"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_delegate_wizard__apply_to
 msgid "Apply To"
 msgstr ""
@@ -633,6 +727,23 @@ msgstr ""
 #. module: approval
 #: model:mail.activity.type,name:approval.mail_activity_data_approval
 msgid "Approval"
+msgstr ""
+
+#. module: approval
+#: model:ir.model,name:approval.model_approval_binding
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
+msgid "Approval Binding"
+msgstr ""
+
+#. module: approval
+#: model:ir.model,name:approval.model_approval_binding_observation
+msgid "Approval Binding Observation"
+msgstr ""
+
+#. module: approval
+#: model:ir.actions.act_window,name:approval.action_approval_binding
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_list
+msgid "Approval Bindings"
 msgstr ""
 
 #. module: approval
@@ -782,6 +893,8 @@ msgid "Approval Requested Date"
 msgstr ""
 
 #. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_required
 msgid "Approval Required"
 msgstr ""
@@ -805,6 +918,11 @@ msgstr ""
 #: model:mail.message.subtype,description:approval.mt_approval_state
 #: model:mail.message.subtype,name:approval.mt_approval_state
 msgid "Approval Status Change"
+msgstr ""
+
+#. module: approval
+#: model:ir.model,name:approval.model_mixin_approval_domain
+msgid "Approval Subject Domain"
 msgstr ""
 
 #. module: approval
@@ -844,6 +962,13 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/mixin_approval.py:0
 msgid "Approval cannot be requested for this document right now."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__category_id
+msgid ""
+"Approval configuration consulted for this operation. Required for every mode"
+" but 'Observe'."
 msgstr ""
 
 #. module: approval
@@ -1109,6 +1234,7 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_kanban
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_search
@@ -1357,8 +1483,23 @@ msgid "Batch mode: every request refused with the reason below."
 msgstr ""
 
 #. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
+msgid "Behaviour"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields.selection,name:approval.selection__approval_rule__operator__between
 msgid "Between"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__binding_id
+msgid "Binding"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding__mode__block
+msgid "Block"
 msgstr ""
 
 #. module: approval
@@ -1551,6 +1692,7 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__category_id
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__category_id
 #: model:ir.model.fields,field_description:approval.field_approval_document_requirement__category_id
 #: model:ir.model.fields,field_description:approval.field_approval_request__category_id
@@ -1677,6 +1819,11 @@ msgid "Condition Field"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_rule__condition_type
+msgid "Condition Type"
+msgstr ""
+
+#. module: approval
 #: model:ir.model,name:approval.model_approval_rule
 msgid "Conditional Approval Rule"
 msgstr ""
@@ -1787,6 +1934,8 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__create_uid
+#: model:ir.model.fields,field_description:approval.field_approval_binding__create_uid
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__create_uid
@@ -1802,6 +1951,8 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__create_date
+#: model:ir.model.fields,field_description:approval.field_approval_binding__create_date
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_category__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__create_date
@@ -1879,6 +2030,7 @@ msgstr ""
 #. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__date
 #: model:ir.model.fields,field_description:approval.field_approval_request__date
 #: model:ir.model.fields.selection,name:approval.selection__approval_decision_wizard__change_field__date
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__pending_change_field__date
@@ -2143,6 +2295,8 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__display_name
+#: model:ir.model.fields,field_description:approval.field_approval_binding__display_name
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_category__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__display_name
@@ -2159,6 +2313,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_mail_activity__display_name
 #: model:ir.model.fields,field_description:approval.field_mail_activity_type__display_name
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__display_name
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_domain__display_name
 #: model:ir.model.fields,field_description:approval.field_mixin_approval_threshold__display_name
 #: model:ir.model.fields,field_description:approval.field_res_groups__display_name
 #: model:ir.model.fields,field_description:approval.field_res_users__display_name
@@ -2215,6 +2370,16 @@ msgid "Documents & Automation"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_rule__subject_domain
+msgid "Domain evaluated against the source document."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__subject_domain
+msgid "Domain on the gated model. Empty means every record."
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 msgid "Draft"
 msgstr ""
@@ -2267,6 +2432,21 @@ msgstr ""
 msgid ""
 "Effective minimum approvals needed. Defaults from category, overridden by "
 "matching tier when applicable."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__elevated_count
+msgid "Elevated Count"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding_observation__elevation__self_elevated
+msgid "Elevated by sudo()"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__elevation
+msgid "Elevation"
 msgstr ""
 
 #. module: approval
@@ -2341,6 +2521,11 @@ msgid "Favorites"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_rule__subject_field
+msgid "Field on the source model to compare."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__pending_change_field
 msgid ""
 "Field the requester must update before approval can resume. Set by the "
@@ -2400,6 +2585,21 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 msgid "From:"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.actions.act_window,help:approval.action_approval_binding
+msgid "Gate an operation on an approval"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
+msgid "Gated Operation"
+msgstr ""
+
+#. module: approval
+#: model:ir.ui.menu,name:approval.menu_approval_binding
+msgid "Gated Operations"
 msgstr ""
 
 #. module: approval
@@ -2548,6 +2748,8 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__id
+#: model:ir.model.fields,field_description:approval.field_approval_binding__id
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__id
 #: model:ir.model.fields,field_description:approval.field_approval_category__id
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__id
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__id
@@ -2564,6 +2766,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_mail_activity__id
 #: model:ir.model.fields,field_description:approval.field_mail_activity_type__id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__id
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_domain__id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval_threshold__id
 #: model:ir.model.fields,field_description:approval.field_res_groups__id
 #: model:ir.model.fields,field_description:approval.field_res_users__id
@@ -2723,6 +2926,8 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__write_uid
+#: model:ir.model.fields,field_description:approval.field_approval_binding__write_uid
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__write_uid
@@ -2738,6 +2943,8 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__write_date
+#: model:ir.model.fields,field_description:approval.field_approval_binding__write_date
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_category__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__write_date
@@ -2882,6 +3089,18 @@ msgid "Messages"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__method
+msgid "Method"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__method
+msgid ""
+"Method to gate. It is wrapped at registry load, so the gate holds for every "
+"caller, not only the user interface."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__approval_minimum
 msgid "Minimum Approval"
 msgstr ""
@@ -2939,6 +3158,17 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__mode
+msgid "Mode"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__model_id
+#: model:ir.model.fields,field_description:approval.field_approval_binding__model_name
+msgid "Model"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__res_model
 msgid ""
 "Model name of the source document (e.g., 'purchase.order', 'sale.order'). "
@@ -2951,6 +3181,14 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__target_model
 msgid "Model to create when approval is granted (if any)"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_rule__subject_model_id
+msgid ""
+"Model whose records this rule reads. Required for every condition type "
+"except 'Numeric threshold', which reads the request. A request whose source "
+"document is another model never matches."
 msgstr ""
 
 #. module: approval
@@ -3019,6 +3257,7 @@ msgid "My average time to approve/refuse requests"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__name
 #: model:ir.model.fields,field_description:approval.field_approval_category__name
 #: model:ir.model.fields,field_description:approval.field_approval_document_requirement__name
 #: model:ir.model.fields,field_description:approval.field_approval_request__name
@@ -3175,6 +3414,11 @@ msgid "Not Authorized"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding_observation__elevation__none
+msgid "Not elevated"
+msgstr ""
+
+#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_request_prediction.py:0
 msgid "Not enough comparable decided requests to predict an outcome."
@@ -3310,11 +3554,37 @@ msgid "Number of waiting approvals that will be delegated"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_rule__condition_type__threshold
+msgid "Numeric threshold"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_rule__threshold
 msgid ""
 "Numeric threshold to compare against, and the lower bound (inclusive) when "
 "the comparison is 'Between'. For priority: 0=Low, 1=Normal, 2=High, "
 "3=Urgent."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__observation_ids
+msgid "Observation"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__observation_count
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
+msgid "Observations"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding__mode__advise
+msgid "Observe"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
+msgid "Observed"
 msgstr ""
 
 #. module: approval
@@ -3822,6 +4092,11 @@ msgid "Reason:"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__res_id
+msgid "Record ID"
+msgstr ""
+
+#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model:ir.model.fields,field_description:approval.field_approval_request__reference
@@ -3962,6 +4237,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__request_id
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__request_name
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding__mode__request
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 msgid "Request"
 msgstr ""
@@ -4018,7 +4294,9 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_rule__condition_field
-msgid "Request field to evaluate"
+msgid ""
+"Request field to evaluate. Required for the 'Numeric threshold' condition "
+"type and ignored by the others."
 msgstr ""
 
 #. module: approval
@@ -4111,6 +4389,13 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_rule__operator
+msgid ""
+"Required for the 'Numeric threshold' condition type and ignored by the "
+"others."
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Requirements"
 msgstr ""
@@ -4187,6 +4472,34 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_rule_form
 msgid "Rule"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_rule.py:0
+msgid ""
+"Rule %(name)s compares a numeric threshold, so it needs both a request field"
+" and a comparison."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_rule.py:0
+msgid "Rule %(name)s compares a source field, so it needs a field name."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_rule.py:0
+msgid "Rule %(name)s names the model %(model)s, which is not in the registry."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_rule.py:0
+msgid ""
+"Rule %(name)s reads the source document, so it needs a source model. Without"
+" one it could never match."
 msgstr ""
 
 #. module: approval
@@ -4351,7 +4664,13 @@ msgid "Select which field the requester must update (date or description)."
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__self_elevated_count
+msgid "Self Elevated Count"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__sequence
+#: model:ir.model.fields,field_description:approval.field_approval_binding__sequence
 #: model:ir.model.fields,field_description:approval.field_approval_category__sequence
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__sequence
 #: model:ir.model.fields,field_description:approval.field_approval_document_requirement__sequence
@@ -4484,7 +4803,18 @@ msgid "Snapshot of category configuration at confirmation time"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_rule__subject_domain
+msgid "Source Domain"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_rule__subject_field
+msgid "Source Field"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__res_model_id
+#: model:ir.model.fields,field_description:approval.field_approval_rule__subject_model_id
 msgid "Source Model"
 msgstr ""
 
@@ -4496,6 +4826,21 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__source_synced
 msgid "Source Synced"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_rule__subject_value
+msgid "Source Value"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_rule__condition_type__domain
+msgid "Source document domain"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_rule__condition_type__field_selection
+msgid "Source document field"
 msgstr ""
 
 #. module: approval
@@ -4561,6 +4906,21 @@ msgstr ""
 msgid ""
 "Successfully delegated %(count)d approval(s) to %(delegate)s from %(start)s "
 "to %(end)s"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__sudo_policy
+msgid "Sudo Policy"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding_observation__elevation__superuser
+msgid "Superuser"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_binding__sudo_policy__superuser
+msgid "Superuser passes"
 msgstr ""
 
 #. module: approval
@@ -5041,6 +5401,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model,name:approval.model_res_users
 #: model:ir.model.fields,field_description:approval.field_approval_approver__user_id
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__user_id
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__user_id
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__user_id
 #: model:ir.model.fields,field_description:approval.field_approval_request__user_ids
@@ -5115,6 +5476,13 @@ msgid "Users who still need to approve this request"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_rule__subject_value
+msgid ""
+"Value the source field must equal. Compared as text against the field's raw "
+"value, so a Selection is matched on its stored key and a Many2one on its id."
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "View Pending"
 msgstr ""
@@ -5177,6 +5545,41 @@ msgid "Welcome to the Approval Dashboard!"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__mode
+msgid ""
+"What the binding does when it applies:\n"
+"\n"
+"        • Observe: the operation runs. Every call is recorded, including\n"
+"          whether the caller was elevated. This is how a gate is sized before\n"
+"          it is switched on -- turning a gate straight to Block surfaces the\n"
+"          flows that were quietly relying on not being gated, in production.\n"
+"        • Block: the operation is refused unless an approved request covers\n"
+"          the record. The document asks for its own approval separately.\n"
+"        • Request: the first call raises the approval instead of running, and\n"
+"          the operation runs once it is approved."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_rule__condition_type
+msgid ""
+"What this rule tests:\n"
+"\n"
+"        • Numeric threshold: a normalized figure on the request itself\n"
+"          (amount, quantity, date range, priority). Amounts are converted into\n"
+"          the rule's currency before comparison, and overlapping bands of\n"
+"          'Replace Approvers' rules are rejected outright.\n"
+"        • Source document domain: a domain evaluated against the document the\n"
+"          request was raised for. Bands cannot be checked for overlap, so the\n"
+"          first match by sequence wins.\n"
+"        • Source document field: a field on the source document equals a\n"
+"          value.\n"
+"\n"
+"        Only 'Numeric threshold' can be range-checked. The other two read the\n"
+"        source document, so a request with no source document, or one of\n"
+"        another model, never matches them."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_approver__decision_date
 msgid ""
 "When THIS approver personally approved or refused, stamped by the decision "
@@ -5232,6 +5635,14 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_rule__approver_required
 msgid "Whether the added approvers are mandatory"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding_observation__would_block
+msgid ""
+"Whether this call would have been refused had the binding been in Block "
+"mode. This is the number that decides whether switching it on is a small "
+"correction or a large one."
 msgstr ""
 
 #. module: approval
@@ -5304,6 +5715,23 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__sudo_policy
+msgid ""
+"Who the gate does NOT apply to.\n"
+"\n"
+"        `sudo()` flips `su` and keeps `uid`, so \"elevated\" covers both the\n"
+"        real superuser and an ordinary user who called through `sudo()`. Those\n"
+"        are different risks and this is deliberately not one switch:\n"
+"\n"
+"        • Applies to everyone: nothing passes. Correct for a gate that must\n"
+"          hold against internal callers too.\n"
+"        • Superuser passes: the default. Internal machinery keeps working, an\n"
+"          ordinary user cannot self-elevate past the gate.\n"
+"        • Any elevated caller passes: what `web_studio` does unconditionally.\n"
+"          Every bypass is still recorded, which is the part it does not do."
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_kanban
 msgid "Withdraw"
@@ -5312,6 +5740,11 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "Workload"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding_observation__would_block
+msgid "Would Block"
 msgstr ""
 
 #. module: approval
@@ -5518,6 +5951,14 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding_observation__elevation
+msgid ""
+"`sudo()` keeps `uid`, so a caller elevated by sudo() is distinguishable from"
+" the real superuser. The two are different risks and the point of observing "
+"is to count them separately."
+msgstr ""
+
+#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_kanban
@@ -5560,6 +6001,11 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_template_form
 msgid "e.g. Weekly Expense Report"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
+msgid "e.g. [('state', '=', 'draft')]"
 msgstr ""
 
 #. module: approval

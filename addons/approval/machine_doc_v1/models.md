@@ -8,9 +8,10 @@ approval.category                       [inherits mixin.mail.thread, mixin.catal
     |                           +-- user_id -----> res.users
     |                           +-- approver_ids -> res.users (m2m)
     |                           +-- currency_id -> res.currency
-    +-- rule_ids ---------> approval.rule      [inherits mixin.approval.threshold]
+    +-- rule_ids ---------> approval.rule      [inherits mixin.approval.threshold, mixin.approval.domain]
     |                           +-- approver_ids -> res.users (m2m)
     |                           +-- currency_id -> res.currency
+    |                           +-- subject_model_id -> ir.model
     +-- document_requirement_ids -> approval.document.requirement
     +-- template_count ----> approval.template (o2m via category_id)
     +-- allowed_user_ids --> res.users (m2m)
@@ -44,6 +45,15 @@ approval.request
 mixin.approval.threshold (Abstract)   — base of approval.rule
     +-- company_id --------> res.company   (empty = applies to every company)
     +-- currency_id -------> res.currency  (required; thresholds are in it)
+
+mixin.approval.domain (Abstract)      — base of approval.rule, approval.binding
+    (no fields; parses and path-checks a subject domain)
+
+approval.binding                        [inherits mixin.approval.domain]
+    +-- model_id ----------> ir.model
+    +-- category_id -------> approval.category
+    +-- observation_ids ---> approval.binding.observation (o2m)
+                                +-- user_id -----> res.users
 
 mixin.approval (Abstract)
     +-- approval_request_id -> approval.request
@@ -565,7 +575,7 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 | Model | `approval.rule` |
 | File | `models/approval_rule.py` |
 | Type | Model |
-| Inherits | `mixin.approval.threshold` (supplies `company_id` + `currency_id`) |
+| Inherits | `mixin.approval.threshold` (supplies `company_id` + `currency_id`), `mixin.approval.domain` (parses and path-checks `subject_domain`) |
 | Order | `category_id, sequence, id` |
 
 ### Fields
@@ -578,10 +588,15 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 | `company_id` | Many2one(`res.company`) | Yes | No | from `mixin.approval.threshold`; empty = every company |
 | `currency_id` | Many2one(`res.currency`) | Yes | **Yes** | from `mixin.approval.threshold`; `threshold` is expressed in it |
 | `category_id` | Many2one(`approval.category`) | Yes | Yes | ondelete=cascade, index |
-| `condition_field` | Selection(amount/quantity/date_range_days/priority) | Yes | Yes | |
-| `operator` | Selection(gt/gte/lt/lte/eq/neq/between) | Yes | Yes | string="Comparison" |
-| `threshold` | Float | Yes | Yes | the lower bound (inclusive) when `operator` is `between`; for `priority`, 0=Low 1=Normal 2=High 3=Urgent |
+| `condition_type` | Selection(threshold/domain/field_selection) | Yes | **Yes** | default="threshold". `threshold` compares a normalized figure on the request; `domain` and `field_selection` read the SOURCE DOCUMENT through `request.get_source_document()`, so a request with no source document, a deleted one, or one of another model never matches them |
+| `condition_field` | Selection(amount/quantity/date_range_days/priority) | Yes | No | required by `_check_condition_shape` for `threshold` rules only |
+| `operator` | Selection(gt/gte/lt/lte/eq/neq/between) | Yes | No | string="Comparison"; required for `threshold` rules only |
+| `threshold` | Float | Yes | No | `threshold` rules only. The lower bound (inclusive) when `operator` is `between`; for `priority`, 0=Low 1=Normal 2=High 3=Urgent |
 | `threshold_max` | Float | Yes | No | `between` only: the upper bound, EXCLUSIVE. 0 means unlimited, which is how the highest band is spelled |
+| `subject_model_id` | Many2one(`ir.model`) | Yes | No | ondelete=cascade. Required for `domain` and `field_selection`: the model the condition reads |
+| `subject_domain` | Char | Yes | No | `domain` rules: evaluated with `filtered_domain` against the source document; every dotted path is walked against the registry at save time |
+| `subject_field` | Char | Yes | No | `field_selection` rules: the field on the source model |
+| `subject_value` | Char | Yes | No | `field_selection` rules: compared as text against the raw value — a Selection's key, a Many2one's id |
 | `action_type` | Selection(add_approver/set_approvers/auto_approve/auto_refuse) | Yes | Yes | default="add_approver". `set_approvers` replaces the category's approvers AND its minimum; first match by sequence wins, and it is skipped entirely when the category draws approvers from a security group |
 | `approval_minimum` | Integer | Yes | No | default=1. `set_approvers` only: the minimum this band requires, overriding the category's |
 | `approver_ids` | Many2many(`res.users`) | Yes | No | |
@@ -593,17 +608,135 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 - `_name_category_uniq`: unique nulls not distinct (name, category_id, company_id)
 - `_check_approver_ids_required`: `add_approver`/`set_approvers` need at least one approver
 - `_check_approval_minimum`: `set_approvers` only — at least 1, and no more than the approvers the rule sets
-- `_check_range_bounds`: `between` only — the upper bound exceeds the lower one, or is 0 for unlimited
-- `_check_threshold`: a `priority` threshold is one of 0, 1, 2, 3
+- `_check_range_bounds`: `threshold` rules with `between` only — the upper bound exceeds the lower one, or is 0 for unlimited
+- `_check_threshold`: `threshold` rules only — a `priority` threshold is one of 0, 1, 2, 3
+- `_check_condition_shape`: a `threshold` rule needs `condition_field` and `operator`; any other type needs `subject_model_id`, and every path its `subject_domain` or `subject_field` names must exist on that model. Refused at save time because a rule that never matches reads as "approval was not required"
+- `_check_replacement_overlap`: compares `threshold` rules only. A domain cannot be interval-checked, so two `domain` replacement rules may coexist and the first match by sequence wins
 
 ### Key Methods
 
 | Method | Purpose |
 |--------|---------|
-| `_evaluate(request)` | Check if condition matches request |
+| `_evaluate(request)` | Dispatches on `condition_type` and is the only entry point. `_find_matching_replacement` used to call `_get_field_value` + `_compare` directly, which silently never matched a non-threshold rule |
+| `_get_subject(request)` | The source document, or False when it is absent, deleted, or not of `subject_model_id` |
+| `_evaluate_domain(request)` / `_evaluate_field_selection(request)` | The two source-document condition types |
 | `_get_field_value(request)` | Extract numeric value using match/case; `amount` goes through `_convert_request_amount()` so the comparison happens in the rule's currency |
 | `_compare(value, threshold)` | Apply operator |
 | `_get_approver_tuples()` | Return (user_id, required, sequence) list |
+
+---
+
+## mixin.approval.domain (Abstract)
+
+| Key | Value |
+|-----|-------|
+| Model | `mixin.approval.domain` |
+| File | `models/mixin_approval_domain.py` |
+| Type | AbstractModel |
+| Inherited by | `approval.rule`, `approval.binding` |
+
+Parsing and configuration-time checking of a domain evaluated against a
+source document rather than the request. Both inheritors let a user type such
+a domain. One naming a field nobody has never matches, and a rule or binding
+that never matches reads as "approval was not required" rather than as a
+broken configuration — so the paths are walked when the record is saved, not
+when a decision depends on them.
+
+### Key Methods
+
+| Method | Purpose |
+|--------|---------|
+| `_domain_source_field()` | Abstract: the Char field holding the domain (`subject_domain` on both inheritors) |
+| `_parse_domain()` / `_parse_domain_or_warn()` | `ast.literal_eval` into a `Domain`, or None; the second logs the unparseable value |
+| `_check_domain_against_model(model)` | Raises unless the domain parses and every path in it exists |
+| `_check_field_path(model, path)` | Walks a dotted path across relational fields |
+
+---
+
+## approval.binding
+
+| Key | Value |
+|-----|-------|
+| Model | `approval.binding` |
+| File | `models/approval_binding.py` |
+| Type | Model |
+| Inherits | `mixin.approval.domain` |
+| Order | `model_name, method, sequence, id` |
+
+Gates a method on an approval — the opposite direction to `mixin.approval`,
+which waits for the document to ask. The operation is intercepted and the
+approval consulted before it runs, for every caller rather than only the user
+interface. `_register_hook` wraps each gated method ONCE per (model, method),
+and the wrapper resolves every binding on it at call time. It is the mechanism
+`web_studio`'s approval rules use, without their two defects: an unconditional
+`sudo()` bypass, and patches that do not compose.
+
+Kill switch: `ir.config_parameter` `approval.binding_enabled`.
+
+### Fields
+
+| Field | Type | Stored | Required | Key Attributes |
+|-------|------|--------|----------|----------------|
+| `name` | Char | Yes | No | computed from model, method and mode |
+| `sequence` | Integer | Yes | No | default=10 |
+| `active` | Boolean | Yes | No | default=True |
+| `model_id` | Many2one(`ir.model`) | Yes | **Yes** | ondelete=cascade, index |
+| `model_name` | Char | Yes | No | related `model_id.model`, index — the lookup key |
+| `method` | Char | Yes | **Yes** | refused if `automation` claims it, if it does not exist, or if it is the binding machinery |
+| `category_id` | Many2one(`approval.category`) | Yes | No | ondelete=cascade. Required for `block` and `request` |
+| `subject_domain` | Char | Yes | No | string="Applies When"; empty means every record |
+| `mode` | Selection(advise/block/request) | Yes | **Yes** | default="advise". `advise` (labelled Observe) runs the operation and records it; `block` refuses unless an approved request covers the record; `request` raises the approval instead of running |
+| `sudo_policy` | Selection(enforce/superuser/bypass) | Yes | **Yes** | default="superuser". Who the gate does NOT apply to. `sudo()` flips `su` and keeps `uid`, so the real superuser and an ordinary user elevated by `sudo()` are separate risks and separate settings |
+| `observation_ids` | One2many(`approval.binding.observation`) | — | No | |
+| `observation_count` | Count | — | No | |
+| `elevated_count` | Integer | No | No | computed by one grouped read over observations |
+| `self_elevated_count` | Integer | No | No | same read; callers elevated by `sudo()`, not the superuser |
+
+### Constraints
+
+- `_model_method_domain_uniq`: unique nulls not distinct (model_id, method, subject_domain)
+- `_check_binding`: the model is in the registry; the method passes `_check_method_available`; the domain passes `_check_domain_against_model`; `block` and `request` have a category; `request` passes `_check_method_replayable`
+- `_check_method_available`: refuses `AUTOMATION_CLAIMED_METHODS` — `create`, `write`, `unlink`, `_compute_field_value`, `_onchange_methods__`, `message_post`. `automation._unregister_hook` does `delattr(Model, name)` for each across the whole registry without checking who installed it, so a gate there would disappear silently rather than fail
+- `_check_method_replayable`: `request` mode only gates a method taking nothing but `self`. Replaying stored arguments would have to guess at stale recordsets and closures, so the limit is enforced up front
+
+### Key Methods
+
+| Method | Purpose |
+|--------|---------|
+| `_register_hook()` / `_unregister_hook()` | Wrap each gated (model, method) once; unwrap only attributes carrying the `approval_binding_origin` marker |
+| `_get_guarded_method(model, method)` | The wrapper. Measures the CALLER's elevation once, applies every binding whose domain selects the record, inserts every observation in one statement, then runs, refuses, or raises the approval |
+| `_enforce(record, elevation, observations)` | One binding on one record. `elevation` is passed in rather than read from `self.env`: the binding is read through `sudo()`, so its own env reports every caller as elevated — which, under `bypass`, let an ordinary user straight through a Block gate |
+| `_elevation()` | `none`, `superuser` (uid is SUPERUSER_ID) or `self_elevated` |
+| `_bindings_for(model, method)` / `_get_binding_ids(model, method)` | `ormcache`d per (model, method). Runs under sudo with `active_test` forced, because neither uid nor context is part of the key |
+| `_apply_to_registry()` | On create and write. Clears the lookup cache, which is signalled to every worker; only a binding on a method nothing wraps yet re-registers and invalidates the registry |
+| `_raise_requests_for(records)` | `request` mode: asks through `mixin.approval` when the record has it, otherwise creates a request pointed at it by `res_model`/`res_id` |
+
+---
+
+## approval.binding.observation
+
+| Key | Value |
+|-----|-------|
+| Model | `approval.binding.observation` |
+| File | `models/approval_binding_observation.py` |
+| Type | Model |
+| Order | `id desc` |
+
+One row per gated call written by an Observe binding, or by any binding whose
+`sudo_policy` let an elevated caller pass. Append-only on purpose: a counter
+on the binding would contend for one row lock on every gated call, and the
+question the table answers needs the breakdown rather than a total.
+
+### Fields
+
+| Field | Type | Stored | Required | Key Attributes |
+|-------|------|--------|----------|----------------|
+| `binding_id` | Many2one(`approval.binding`) | Yes | **Yes** | ondelete=cascade, index |
+| `res_id` | Integer | Yes | No | index |
+| `user_id` | Many2one(`res.users`) | Yes | No | the caller's uid, which `sudo()` preserves |
+| `elevation` | Selection(none/superuser/self_elevated) | Yes | **Yes** | index |
+| `would_block` | Boolean | Yes | No | whether Block would have refused this call — the number that sizes switching a binding on |
+| `date` | Datetime | Yes | No | default=now, index |
 
 ---
 

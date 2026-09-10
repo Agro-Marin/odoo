@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.1.0.26 (matches `__manifest__.py`) |
+| Version | 19.0.1.2.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `automation`, `mixin_report_sql`, `mail` |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -47,7 +47,10 @@ dashboards.
 | `mixin_approval.py` | `mixin.approval` (Abstract) | Mixin for source documents (PO, SO, etc.) to integrate with approvals |
 | `mixin_approval_threshold.py` | `mixin.approval.threshold` (Abstract) | Base of `approval.rule`: `company_id` + `currency_id`, `_convert_request_amount()` (a request's amount is converted into the record's currency before any comparison) and `_intervals_overlap()` |
 | `approval_refusal_reason.py` | `approval.refusal.reason` | Predefined refusal reasons with usage tracking |
-| `approval_rule.py` | `approval.rule` | Conditional rules on amount / quantity / date range / priority: add approvers, REPLACE approvers (the former `approval.tier`, as `operator = between` + `action_type = set_approvers`), auto-approve, auto-refuse |
+| `approval_rule.py` | `approval.rule` | Conditional rules: add approvers, REPLACE approvers (the former `approval.tier`, as `operator = between` + `action_type = set_approvers`), auto-approve, auto-refuse. A rule compares a normalized figure on the request (amount / quantity / date range / priority) or, by `condition_type`, reads the SOURCE DOCUMENT through a domain or a field value |
+| `mixin_approval_domain.py` | `mixin.approval.domain` (Abstract) | Base of `approval.rule` and `approval.binding`: parses a subject domain and walks every dotted path in it against the registry at save time, because a condition that never matches reads as "approval was not required" |
+| `approval_binding.py` | `approval.binding` | Gates a model's method on an approval by wrapping it at registry load: Observe, Block or Request, with a `sudo_policy` that tells the real superuser apart from an ordinary user elevated by `sudo()` |
+| `approval_binding_observation.py` | `approval.binding.observation` | Append-only record of each gated call with the caller's elevation and whether Block would have refused it — how a binding is sized before it is switched on |
 | `approval_template.py` | `approval.template` | Request templates with smart defaults |
 | `approval_document_requirement.py` | `approval.document.requirement` | Required document types per category. A LABEL model since 19.0.1.0.23: the confirm-time check reads `ir.attachment.approval_requirement_id`, not the file name |
 | `approval_utils.py` | — (no model) | Module-level helpers shared across the split files: `is_approval_manager(env)` and `boolean_search_domain()` (the `search=` builder behind `is_overdue`, `is_delegated`, `is_pending_my_review`) |
@@ -91,6 +94,8 @@ dashboards.
 | `test_consent_approval.py` | Consent-based auto-approval after timeout |
 | `test_auto_action_rules.py` | Auto-approve/auto-refuse conditional rules |
 | `test_conditional_rules.py` | Rule evaluation, approver injection, live re-routing of a submitted request (`TestLiveRerouting`), routing-input lifecycle (`TestRoutingFieldLifecycle`) |
+| `test_subject_conditions.py` | Source-document conditions: `domain` and `field_selection` matching; absent, deleted and other-model source documents; configuration-time path validation; the overlap guard staying threshold-only |
+| `test_binding.py` | `approval.binding`: wrapping and unwrapping, one wrapper per method, Observe and Block, superuser vs `sudo()` elevation, the caller's elevation rather than the binding's, the kill switch, every configuration-time refusal |
 | `test_approver_replacement.py` | Approver-replacing rules: band matching, overlap validation, minimum override, batched constraints |
 | `test_document_requirements.py` | Required document validation on confirm, through the structural attachment link |
 | `test_sla_tracking.py` | SLA status computation, compliance tracking |
@@ -170,8 +175,11 @@ approval/
 |   +-- approval_approver.py          # Approver records
 |   +-- mixin_approval.py             # Source document mixin
 |   +-- mixin_approval_threshold.py   # Currency-aware threshold base
+|   +-- mixin_approval_domain.py      # Subject-domain parsing + path checks
 |   +-- approval_refusal_reason.py    # Refusal reasons
 |   +-- approval_rule.py              # Conditional rules
+|   +-- approval_binding.py           # Method gates wrapped at registry load
+|   +-- approval_binding_observation.py # Observed gated calls
 |   +-- approval_template.py          # Request templates
 |   +-- approval_document_requirement.py # Required documents
 |   +-- approval_utils.py             # Module-level helpers (no model)
@@ -189,8 +197,8 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 19 script directories (1.0.1 .. 1.0.26)
-+-- tests/                            # 29 test modules + common.py
-+-- views/                            # 9 XML view files
++-- tests/                            # 31 test modules + common.py
++-- views/                            # 10 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
 +-- security/                         # Groups, rules, ACL
@@ -201,15 +209,15 @@ approval/
 
 | Metric | Count |
 |--------|-------|
-| Python files (non-test, incl. `__init__`/`__manifest__`) | 31 |
-| Python test files | 29 (+ `common.py`) |
+| Python files (non-test, incl. `__init__`/`__manifest__`) | 34 |
+| Python test files | 31 (+ `common.py`) |
 | XML files (non-static) | 27 |
 | XML files (static templates) | 4 |
 | JS files | 16 |
 | SCSS files | 4 |
-| ORM models (new) | 10 in `models/` + 2 wizards + 3 report models |
+| ORM models (new) | 13 in `models/` + 2 wizards + 3 report models |
 | ORM models (extended) | 5 (ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |
-| Abstract models | 2 (mixin.approval, mixin.approval.threshold) |
+| Abstract models | 3 (mixin.approval, mixin.approval.threshold, mixin.approval.domain) |
 | SQL view models | 2 |
 | Transient models | 2 |
 | Test-only models | 1 |

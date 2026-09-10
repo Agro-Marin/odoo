@@ -130,6 +130,14 @@
         groups="approval.group_approval_manager" />
 
     <menuitem
+        id="menu_approval_binding"
+        name="Gated Operations"
+        parent="approvals_menu_config"
+        action="action_approval_binding"
+        sequence="19"
+        groups="approval.group_approval_manager" />
+
+    <menuitem
         id="menu_approval_refusal_reason"
         name="Refusal Reasons"
         parent="approvals_menu_config"

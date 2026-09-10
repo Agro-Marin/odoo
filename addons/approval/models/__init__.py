@@ -1,7 +1,10 @@
 from . import mixin_approval_threshold  # isort: skip
+from . import mixin_approval_domain  # isort: skip
 
 from . import (
     approval_approver,
+    approval_binding,
+    approval_binding_observation,
     approval_category,
     approval_category_approver,
     approval_document_requirement,
