@@ -203,7 +203,7 @@ export class Many2ManyTagsField extends FieldComponent {
             resId: record.resId,
             text: record.data.display_name,
             colorIndex: record.data[this.props.colorField],
-            onDelete: !this.props.readonly
+            onDelete: this.activeActions.onDelete
                 ? () => this.removeTag(record.id)
                 : undefined,
         };

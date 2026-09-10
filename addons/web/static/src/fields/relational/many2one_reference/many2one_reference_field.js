@@ -6,9 +6,7 @@ import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { stableM2OValue } from "@web/fields/relational/many2one/many2one";
 import {
-    extractM2OFieldProps,
-    m2oSupportedAttributes,
-    m2oSupportedOptions,
+    buildM2OFieldDescription,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
 import { getFieldDomain } from "@web/model/relational_model";
@@ -71,13 +69,8 @@ export class Many2OneReferenceField extends Many2OneField {
 }
 
 registerField("many2one_reference", {
-    component: Many2OneReferenceField,
+    ...buildM2OFieldDescription(Many2OneReferenceField),
     displayName: _t("Many2OneReference"),
-    supportedOptions: m2oSupportedOptions,
-    supportedAttributes: m2oSupportedAttributes,
-    extractProps(staticInfo, dynamicInfo) {
-        return extractM2OFieldProps(staticInfo, dynamicInfo);
-    },
     relatedFields: [{ name: "display_name", type: "char" }],
     supportedTypes: ["many2one_reference"],
 });

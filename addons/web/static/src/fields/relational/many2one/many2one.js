@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component, toRaw, useRef, useState } from "@odoo/owl";
+import { webNameSearch } from "@web/components/autocomplete/name_search";
 import { BarcodeScanner } from "@web/components/barcode/barcode_dialog";
 import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";
 import { useAction } from "@web/core/action_port";
@@ -444,17 +445,16 @@ export class Many2One extends Component {
 
     /** @param {string} barcode */
     async processScannedBarcode(barcode) {
-        const pairs = await this.orm.call(this.props.relation, "name_search", [], {
+        const records = await webNameSearch(this.orm, this.props.relation, {
             name: barcode,
             domain: this.props.domain(),
-            operator: "ilike",
             limit: 2,
             context: this.props.context,
         });
-        const validPairs = pairs.filter(([id]) => !!id);
-        if (validPairs.length === 1) {
-            const pair = validPairs[0];
-            return this.update({ id: pair[0], display_name: pair[1] });
+        const matches = records.filter((record) => record.id);
+        if (matches.length === 1) {
+            const { id, display_name } = matches[0];
+            return this.update({ id, display_name });
         } else {
             const input = this.input;
             if (!input) {

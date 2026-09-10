@@ -192,6 +192,4 @@ export class Many2OneField extends FieldComponent {
 
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const many2OneField = buildM2OFieldDescription(Many2OneField);
-registerField("many2one", many2OneField);
-
-registerField("res_partner_many2one", buildM2OFieldDescription(Many2OneField));
+registerField({ name: "many2one", aliases: ["res_partner_many2one"] }, many2OneField);
