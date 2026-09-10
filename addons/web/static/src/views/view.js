@@ -24,7 +24,11 @@ import { WithSearch } from "@web/search/with_search/with_search";
 import { session } from "@web/session";
 import { useActionLinks } from "@web/views/view_hook";
 
-import { computeViewClassName } from "./view_utils.js";
+import {
+    computeViewClassName,
+    defaultViewProps,
+    reportViewProps,
+} from "./view_utils.js";
 
 /**
  * @typedef {import("./view_config").ViewConfig} ViewConfig
@@ -103,12 +107,41 @@ viewRegistry.addValidation({
     Compiler: { type: Function, optional: true },
 
     props: { type: Function, optional: true },
+    modelParams: {
+        validate: (/** @type {any} */ m) =>
+            typeof m?.fromState === "function" && typeof m?.fromArch === "function",
+        optional: true,
+    },
     buttonTemplate: { type: String, optional: true },
     display: { type: Object, optional: true },
     searchMenuTypes: { type: Array, element: String, optional: true },
     canOrderByCount: { type: Boolean, optional: true },
     hideCustomGroupBy: { type: Boolean, optional: true },
 });
+
+/**
+ * The controller's props from the descriptor's declaration: a `props` factory
+ * when it still has one, `modelParams` {fromState, fromArch} for a report-shaped
+ * view, the parsed arch for everything with an ArchParser, and the generic
+ * props alone for a descriptor declaring none of the three.
+ *
+ * @param {any} descr
+ * @param {Record<string, any>} controllerProps
+ * @param {any} config
+ * @returns {Record<string, any>}
+ */
+export function buildComponentProps(descr, controllerProps, config) {
+    if (descr.props) {
+        return descr.props(controllerProps, descr, config);
+    }
+    if (descr.modelParams) {
+        return reportViewProps(controllerProps, descr, descr.modelParams, config);
+    }
+    if (descr.ArchParser) {
+        return defaultViewProps(controllerProps, descr);
+    }
+    return controllerProps;
+}
 
 export function getDefaultConfig() {
     const breadcrumbReactive = reactive([{ name: undefined }]);
@@ -423,9 +456,7 @@ export class View extends Component {
             searchMenuTypes,
         });
         this.Controller = descr.Controller;
-        this.componentProps = descr.props
-            ? descr.props(controllerProps, descr, config)
-            : controllerProps;
+        this.componentProps = buildComponentProps(descr, controllerProps, config);
         this.withSearchProps = this.getWithSearchProps(props, loaded, archXmlDoc, {
             descr,
             searchMenuTypes,

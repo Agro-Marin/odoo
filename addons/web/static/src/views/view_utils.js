@@ -310,17 +310,19 @@ export function multiRecordViewProps(genericProps, view) {
  * @param {Record<string, any>} view
  * @param {{
  * fromState: (state: any) => any,
- * fromArch: (archInfo: any, genericProps: Record<string, any>) => any,
+ * fromArch: (archInfo: any, genericProps: Record<string, any>, config?: any) => any,
  * }} buildModelParams
+ * @param {any} [config]
  * @returns {Record<string, any>}
  */
-export function reportViewProps(genericProps, view, buildModelParams) {
+export function reportViewProps(genericProps, view, buildModelParams, config) {
     const { arch, relatedModels, resModel, state } = genericProps;
     const modelParams = state
         ? buildModelParams.fromState(state)
         : buildModelParams.fromArch(
               new view.ArchParser().parse(arch, relatedModels, resModel),
               genericProps,
+              config,
           );
     return {
         ...genericProps,

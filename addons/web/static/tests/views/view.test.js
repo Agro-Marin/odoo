@@ -1340,3 +1340,64 @@ test("the descriptor schema is closed: an unknown key is refused, SearchPanel is
     }).toThrow(/unknown key 'multiRecord'/);
     expect(viewRegistry.contains("toy_with_dead_key")).toBe(false);
 });
+
+test("a descriptor with an ArchParser and no props factory gets the parsed arch", async () => {
+    class TinyParser {
+        parse(arch) {
+            return { tag: arch.tagName };
+        }
+    }
+    class TinyController extends Component {
+        static template = xml`<div class="o_tiny" t-esc="props.archInfo.tag"/>`;
+        static props = ["*"];
+    }
+    viewRegistry.add("toy_parsed", {
+        type: "toy",
+        Controller: TinyController,
+        ArchParser: TinyParser,
+        Model: toyView.Model,
+        Renderer: toyView.Renderer,
+    });
+    await mountWithCleanup(View, {
+        props: { resModel: "animal", type: "toy", jsClass: "toy_parsed" },
+    });
+    expect(".o_tiny").toHaveText("toy");
+});
+
+test("a descriptor declaring modelParams builds them from the arch, and from a state when given", async () => {
+    class TinyParser {
+        parse(arch) {
+            return { tag: arch.tagName };
+        }
+    }
+    class TinyController extends Component {
+        static template = xml`<div class="o_tiny" t-esc="props.modelParams.source"/>`;
+        static props = ["*"];
+    }
+    viewRegistry.add("toy_model_params", {
+        type: "toy",
+        Controller: TinyController,
+        ArchParser: TinyParser,
+        Model: toyView.Model,
+        Renderer: toyView.Renderer,
+        modelParams: {
+            fromState: (state) => ({ source: `state:${state.marker}` }),
+            fromArch: (archInfo, genericProps, config) => ({
+                source: `arch:${archInfo.tag}:${genericProps.resModel}:${typeof config}`,
+            }),
+        },
+    });
+    await mountWithCleanup(View, {
+        props: { resModel: "animal", type: "toy", jsClass: "toy_model_params" },
+    });
+    expect(".o_tiny").toHaveText("arch:toy:animal:object");
+    await mountWithCleanup(View, {
+        props: {
+            resModel: "animal",
+            type: "toy",
+            jsClass: "toy_model_params",
+            state: { marker: "restored" },
+        },
+    });
+    expect(".o_tiny:last").toHaveText("state:restored");
+});
