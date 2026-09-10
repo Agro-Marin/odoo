@@ -20,7 +20,11 @@ import { useLongTouchSelection } from "@web/views/multi_record_selection";
 import { SELF_HANDLED_SELECTOR } from "@web/views/self_handled";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { compileViewTemplates } from "@web/views/view_compiler";
-import { getColorIndex, getFormattedValue, getOpenActionParams } from "@web/views/view_utils";
+import {
+    getColorIndex,
+    getFormattedValue,
+    getOpenActionParams,
+} from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import { KANBAN_CARD_ATTRIBUTE, KANBAN_MENU_ATTRIBUTE } from "./kanban_arch_parser.js";

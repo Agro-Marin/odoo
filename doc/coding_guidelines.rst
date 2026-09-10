@@ -1222,7 +1222,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   321
 §2.4.2   … of those, spelled ``_check_<field>``                        144
 §2.4.2   Multi-field constraints named for one trigger                  61
-§2.4.3   Non-test methods declared on a model class                 27,048
+§2.4.3   Non-test methods declared on a model class                 27,053
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            143
@@ -2260,7 +2260,7 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **351** functions in
+**A ``bool`` return does not make a predicate** ``[review]``. **352** functions in
 this repository are annotated ``-> bool`` and are not predicates, against **279**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
@@ -3599,7 +3599,7 @@ like a change that will.
 
 **A name assembled at runtime is a schema, not a name** ``[review]``. The caller
 computes the name and reaches it through ``getattr``. ``odoo/addons/base`` carries
-13 of this repository's 36, on 7 % of its model methods::
+14 of this repository's 37, on 7 % of its model methods::
 
     getattr(self, f"_run_action_{self.state}")          ir_actions_server
     getattr(self, f"_auth_method_{auth}")                ir_http

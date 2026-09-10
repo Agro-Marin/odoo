@@ -1492,7 +1492,8 @@ export function defineModels(ModelClasses, options) {
     // snailmail and forty more -- served a chatter no /mail route answered.
     const routes = [];
     for (const ModelClass of models) {
-        routes.push(.../** @type {any} */ (ModelClass._mockRoutes ?? []));
+        const RouteModelClass = /** @type {any} */ (ModelClass);
+        routes.push(...(RouteModelClass._mockRoutes ?? []));
         if (seenModels.has(ModelClass)) {
             continue;
         }
