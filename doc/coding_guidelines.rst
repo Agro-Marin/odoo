@@ -1210,8 +1210,8 @@ Section  Population                                                  Count
 =======  =========================================================  ======
 §2.4.1   Field hooks the declaring model also calls on ``self``         13
 §2.4.1   Field hooks exempt from the dedication test                     0
-§2.4.1   Names wearing a hook prefix with no binding                   164
-§2.4.1   … definitions under those names                               229
+§2.4.1   Names wearing a hook prefix with no binding                   165
+§2.4.1   … definitions under those names                               230
 §2.4.2   Single-field ``@api.onchange`` hooks                          389
 §2.4.2   … spelled ``_onchange_<field>``                               283
 §2.4.2   ``@api.ondelete`` hooks                                       170
@@ -1222,7 +1222,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   321
 §2.4.2   … of those, spelled ``_check_<field>``                        144
 §2.4.2   Multi-field constraints named for one trigger                  61
-§2.4.3   Non-test methods declared on a model class                 27,002
+§2.4.3   Non-test methods declared on a model class                 27,004
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            143
@@ -1232,15 +1232,15 @@ Section  Population                                                  Count
 §2.4.4   ``fields`` family: distinct names spelled head-first          100
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
-§2.4.4   Other heads: definitions spelled head-first                   154
-§2.4.4   Other heads: definitions spelled tail-first                   189
+§2.4.4   Other heads: definitions spelled head-first                   153
+§2.4.4   Other heads: definitions spelled tail-first                   190
 §2.4.5   ``X_to_Y`` converter definitions                              102
 §2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      6,408
+§2.4.7   ``_get_*`` definitions                                      6,407
 §2.4.7   Abolished payload verbs, the four between them                  0
-§2.4.7   ``_generate_*`` definitions                                   142
+§2.4.7   ``_generate_*`` definitions                                   141
 §2.4.7   ``_calculate_*`` model methods                                  0
-§2.4.7   ``_prepare_*`` definitions                                    891
+§2.4.7   ``_prepare_*`` definitions                                    898
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            36
 §2.4.8   ``_check_*`` definitions                                    1,223
 §2.4.8   ``_validate_*`` definitions                                     0
@@ -2081,10 +2081,10 @@ running the other way.
 
 **``_get_`` is not a default.** It is 23.7 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 696
+deriving and computing. The split that matters is against ``_prepare_``: 690
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 891 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 898 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
