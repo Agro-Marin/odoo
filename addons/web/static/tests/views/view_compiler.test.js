@@ -818,3 +818,14 @@ describe("toInterpolatedStringExpression", () => {
         );
     });
 });
+
+test("a widget node binds to the record expression its compiler was given", () => {
+    const doc = new DOMParser().parseFromString(
+        `<widget name="w" widget_id="w9"/>`,
+        "text/xml",
+    ).documentElement;
+    const compiled = new ViewCompiler({ root: doc }).compile("root", {
+        recordExpr: "__record__",
+    });
+    expect(compiled.outerHTML).toInclude('record="__record__"');
+});

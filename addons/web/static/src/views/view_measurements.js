@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 
@@ -68,6 +69,22 @@ export const computeReportMeasures = (
  * @param {Object} measures
  * @returns {string[]}
  */
+/**
+ * @param {Array<string | { fieldName: string }>} specs arch group-bys, as strings or
+ *  as the objects a state restore hands back
+ * @param {Record<string, { invisible?: string }> | undefined} fieldAttrs
+ * @param {Record<string, any>} context
+ * @returns {Array<string | { fieldName: string }>} the specs whose field is not invisible
+ */
+export function visibleArchGroupBys(specs, fieldAttrs, context) {
+    return specs.filter((spec) => {
+        const fieldName =
+            typeof spec === "string" ? spec.split(":")[0] : spec.fieldName;
+        const invisible = fieldAttrs?.[fieldName]?.invisible;
+        return !invisible || !evaluateBooleanExpr(invisible, context);
+    });
+}
+
 export function dropUnknownMeasures(activeMeasures, measures) {
     const isKnown = (m) => m === "__count" || Boolean(measures[m]);
     if (activeMeasures.every(isKnown)) {

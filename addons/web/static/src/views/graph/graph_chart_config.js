@@ -57,16 +57,14 @@ export const gridOnTop = {
         });
 
         elements.forEach((point, eltIndex) => {
-            xAxis.ticks.forEach((value, tickIndex) => {
-                if (point.active && eltIndex === tickIndex) {
-                    const x = xAxis.getPixelForTick(tickIndex);
-                    ctx.beginPath();
-                    ctx.moveTo(x, chartArea.top);
-                    ctx.lineTo(x, chartArea.bottom);
-                    ctx.strokeStyle = graphGridColor();
-                    ctx.stroke();
-                }
-            });
+            if (point.active && eltIndex < xAxis.ticks.length) {
+                const x = xAxis.getPixelForTick(eltIndex);
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top);
+                ctx.lineTo(x, chartArea.bottom);
+                ctx.strokeStyle = graphGridColor();
+                ctx.stroke();
+            }
         });
     },
 };

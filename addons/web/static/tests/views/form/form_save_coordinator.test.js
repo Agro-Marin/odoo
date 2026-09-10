@@ -736,3 +736,22 @@ describe("FormSaveCoordinator — re-entrant requestUrgentSave", () => {
         expect(coordinator.status).toBe("saving");
     });
 });
+
+describe("FormSaveCoordinator — reset", () => {
+    test("a root reload leaves the error status behind", async () => {
+        const { coordinator } = makeContext({
+            save: async () => {
+                throw new Error("boom");
+            },
+            __proto__: MODEL_LIFECYCLE_PROTO,
+        });
+        await coordinator.requestSave({ errorMode: "rethrow" }).catch(() => {});
+        expect(coordinator.status).toBe("error");
+        expect(coordinator.lastError).not.toBe(null);
+
+        coordinator.reset();
+
+        expect(coordinator.status).toBe("clean");
+        expect(coordinator.lastError).toBe(null);
+    });
+});

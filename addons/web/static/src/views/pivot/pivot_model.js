@@ -1,7 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import {
     cartesian,
     sections,
@@ -21,6 +20,7 @@ import {
     computeReportMeasures,
     dropUnknownMeasures,
     processMeasure,
+    visibleArchGroupBys,
 } from "@web/views/view_measurements";
 
 import { computeExportedTableWidth, formatPivotForExport } from "./pivot_export.js";
@@ -402,13 +402,17 @@ export class PivotModel extends Model {
             return;
         }
         this._archGroupBysResolved = true;
-        const { fieldAttrs } = this.metaData;
-        const visible = (spec) => {
-            const invisible = fieldAttrs?.[spec.split(":")[0]]?.invisible;
-            return !invisible || !evaluateBooleanExpr(invisible, context);
-        };
-        this.metaData.rowGroupBys = this.metaData.rowGroupBys.filter(visible);
-        this.metaData.colGroupBys = this.metaData.colGroupBys.filter(visible);
+        const { fieldAttrs, rowGroupBys, colGroupBys } = this.metaData;
+        this.metaData.rowGroupBys = visibleArchGroupBys(
+            rowGroupBys,
+            fieldAttrs,
+            context,
+        );
+        this.metaData.colGroupBys = visibleArchGroupBys(
+            colGroupBys,
+            fieldAttrs,
+            context,
+        );
     }
 
     /**

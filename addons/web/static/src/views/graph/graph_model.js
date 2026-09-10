@@ -2,7 +2,6 @@
 /** @odoo-module native */
 
 import { Domain } from "@web/core/domain";
-import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { sortBy } from "@web/core/utils/collections/arrays";
@@ -20,7 +19,11 @@ import {
     getRawValue,
     makeDataPoint,
 } from "@web/views/graph/graph_data_points";
-import { computeReportMeasures, processMeasure } from "@web/views/view_measurements";
+import {
+    computeReportMeasures,
+    processMeasure,
+    visibleArchGroupBys,
+} from "@web/views/view_measurements";
 
 export const SEP = " / ";
 export const DATA_LIMIT = 80;
@@ -54,11 +57,8 @@ export class GraphModel extends Model {
      * @returns {string[]}
      */
     _visibleArchGroupBy(context) {
-        const { fieldAttrs } = this.metaData;
-        return this.metaData.groupBy.filter((spec) => {
-            const invisible = fieldAttrs?.[spec.split(":")[0]]?.invisible;
-            return !invisible || !evaluateBooleanExpr(invisible, context);
-        });
+        const { fieldAttrs, groupBy } = this.metaData;
+        return visibleArchGroupBys(groupBy, fieldAttrs, context);
     }
 
     /** @param {SearchParams} searchParams */

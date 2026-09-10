@@ -91,17 +91,15 @@ export function getTreeHeight(tree) {
  * @param {Object} tree
  * @returns {Object}
  */
-export function getLeafCounts(tree) {
-    const leafCounts = {};
-    let leafCount;
+export function getLeafCounts(tree, leafCounts = {}) {
+    let leafCount = 0;
     if (!tree.directSubTrees.size) {
         leafCount = 1;
     } else {
-        leafCount = [...tree.directSubTrees.values()].reduce((acc, subTree) => {
-            const subLeafCounts = getLeafCounts(subTree);
-            Object.assign(leafCounts, subLeafCounts);
-            return acc + leafCounts[JSON.stringify(subTree.root.values)];
-        }, 0);
+        for (const subTree of tree.directSubTrees.values()) {
+            getLeafCounts(subTree, leafCounts);
+            leafCount += leafCounts[JSON.stringify(subTree.root.values)];
+        }
     }
     leafCounts[JSON.stringify(tree.root.values)] = leafCount;
     return leafCounts;

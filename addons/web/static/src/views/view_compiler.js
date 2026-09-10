@@ -793,9 +793,9 @@ export class ViewCompiler {
      * @param {Element} el
      * @returns {Element}
      */
-    compileWidget(el) {
+    compileWidget(el, params = {}) {
         const widgetId = el.getAttribute("widget_id");
-        const props = { record: "__comp__.props.record" };
+        const props = { record: params.recordExpr || "__comp__.props.record" };
         if (el.hasAttribute("name")) {
             props.name = toStringExpression(el.getAttribute("name"));
         }

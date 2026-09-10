@@ -3437,3 +3437,25 @@ test("a static invisible still resolves at parse time, in every spelling", async
         );
     }
 });
+
+test.tags("desktop");
+test("switching back to a graph whose arch names its group-bys restores its state", async () => {
+    Foo._views.list = `<list />`;
+    Foo._views.graph = `<graph><field name="product_id"/></graph>`;
+
+    await mountWebClient();
+    await getService("action").doAction({
+        name: "Foo Action 1",
+        res_model: "foo",
+        type: "ir.actions.act_window",
+        views: [
+            [false, "graph"],
+            [false, "list"],
+        ],
+    });
+    await selectMode("line");
+    await switchView("graph");
+
+    expect(getModeButton("line")).toHaveClass("active");
+    expect(".o_graph_canvas_container canvas").toHaveCount(1);
+});

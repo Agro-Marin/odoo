@@ -179,6 +179,15 @@ export class FormSaveCoordinator extends StateMachine {
         }
     }
 
+    /** a root that reloads from the server is clean whatever the last save did */
+    reset() {
+        if (this.status !== "error") {
+            return;
+        }
+        this._transition("discard");
+        this.lastError = null;
+    }
+
     async requestDiscard() {
         const ownerEpoch = ++this._saveEpoch;
         await this.model.root.discard();

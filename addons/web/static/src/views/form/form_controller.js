@@ -365,6 +365,7 @@ export class FormController extends ViewController {
 
     onWillLoadRoot() {
         this.duplicateId = undefined;
+        this.saveCoordinator?.reset();
     }
 
     /** @param {any} record */
@@ -490,7 +491,7 @@ export class FormController extends ViewController {
             reload: false,
             saveOverride: this.props.saveRecord,
         });
-        if (saved && this.props.onSave) {
+        if (saved !== false && this.props.onSave) {
             this.props.onSave(this.model.root, { reload: false });
         }
         return saved;
@@ -513,7 +514,7 @@ export class FormController extends ViewController {
                 callback: () => this.model.bus.trigger(ModelEvent.PROPERTY_FIELD_EDIT),
             },
             duplicate: {
-                isAvailable: () => activeActions.create && activeActions.duplicate,
+                isAvailable: () => activeActions.duplicate,
                 callback: () => this.duplicateRecord(),
             },
             archive: {
@@ -636,7 +637,7 @@ export class FormController extends ViewController {
             errorMode: "rethrow",
             params,
         });
-        if (saved && this.props.onSave) {
+        if (saved !== false && this.props.onSave) {
             this.props.onSave(record, params);
         }
         return saved;
