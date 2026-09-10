@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
 from odoo.tools import OrderedSet, float_is_zero
 
 
@@ -917,9 +918,9 @@ class StockMove(models.Model):
         return res
 
     def _get_domain_picking_for_assignation(self):
-        domain = super()._get_domain_picking_for_assignation()
-        domain += self._get_domain_production_assignation()
-        return domain
+        return Domain(super()._get_domain_picking_for_assignation()) & Domain(
+            self._get_domain_production_assignation()
+        )
 
     def _get_domain_production_assignation(self):
         return [("move_ids.production_group_id", "=", self.production_group_id.id)]
