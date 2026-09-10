@@ -10,12 +10,7 @@ patch(ViewButton.prototype, {
     setup() {
         super.setup(...arguments);
         const { name, type } = this.props.clickParams || {};
-        const record = this.props.record;
-        if (
-            !name ||
-            !record?.resModel ||
-            !this.env.approvalGatedModels?.[record.resModel]
-        ) {
+        if (!name || !this.props.record?.resModel || !this._isApprovalGated()) {
             return;
         }
         const kind = (type || "").replace(/=$/, "");
@@ -47,6 +42,14 @@ patch(ViewButton.prototype, {
                     }),
             });
         }
+    },
+
+    /**
+     * Whether this button's record belongs to a model with approval bindings. An
+     * editor that draws every button's approvals, as Studio's does, overrides it.
+     */
+    _isApprovalGated() {
+        return Boolean(this.env.approvalGatedModels?.[this.props.record.resModel]);
     },
 });
 

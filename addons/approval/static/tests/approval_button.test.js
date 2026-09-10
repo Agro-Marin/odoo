@@ -1,8 +1,10 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
+import { ViewButton } from "@web/views/view_button";
 import {
     contains,
     defineModels,
+    patchWithCleanup,
     fields,
     mockService,
     models,
@@ -214,4 +216,19 @@ test("an object button is not checked in the browser", async () => {
     });
     await contains("button[name='method_a'] span:first").click();
     expect.verifySteps(["run method_a"]);
+});
+
+test("an editor can draw the approvals of a model the form does not flag", async () => {
+    patchWithCleanup(ViewButton.prototype, {
+        _isApprovalGated() {
+            return true;
+        },
+    });
+    onRpc("approval.binding", "get_button_approvals", ({ args }) => {
+        expect.step("asked");
+        return args[0].map(() => result());
+    });
+    await mountView({ type: "form", resModel: "plain", resId: 1, arch: oneButtonArch });
+    expect(".o_approval_button").toHaveCount(1);
+    expect.verifySteps(["asked"]);
 });
