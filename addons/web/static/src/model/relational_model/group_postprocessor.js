@@ -24,7 +24,7 @@ import { extractInfoFromGroupData } from "./field_values.js";
  * @param {string} groupByFieldName
  * @returns {Promise<void>}
  */
-async function ensurePropertyGroupBy(ctx, groupByFieldName) {
+async function loadPropertyGroupBy(ctx, groupByFieldName) {
     if (!groupByFieldName.includes(".")) {
         return;
     }
@@ -125,7 +125,7 @@ async function attachGroupContents(
  */
 async function extractGroups(ctx, currentConfig, groupsData) {
     const groupByFieldName = currentConfig.groupBy[0].split(":")[0];
-    await ensurePropertyGroupBy(ctx, groupByFieldName);
+    await loadPropertyGroupBy(ctx, groupByFieldName);
 
     const nextLevelGroupBy = currentConfig.groupBy.slice(1);
     const level = { groupByFieldName, nextLevelGroupBy };

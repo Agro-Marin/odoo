@@ -600,7 +600,7 @@ When refactoring a widget:
     (`<field readonly="..."/>`); both rely on model-level `props.fields[*].readonly`.
 
 11. **Registry schema validation runs in production with a soft warning** —
-    `core/registry.js:validateSchema` runs the OWL `validate()` call in every
+    `core/registry.js:isValidValue` runs the OWL `validate()` call in every
     environment. In debug mode it throws (fail fast for developers); in production
     it emits a `console.warn` prefixed `[registry]` so a single malformed
     registration cannot crash the page while still surfacing schema mismatches.
@@ -616,7 +616,7 @@ When refactoring a widget:
       of the registry, not in a central bootstrap file (`env.js` for services,
       `fields/field.js` for fields, `webclient/navbar/navbar.js` for systray) —
       the schema is discoverable when someone changes that consumer.
-    - Two schema forms are accepted by `core/registry.js:validateSchema`:
+    - Two schema forms are accepted by `core/registry.js:isValidValue`:
       object form (passed to OWL's `validate()`) for entries shaped like
       `{ key: spec }`, and predicate form (`(entry) => boolean`) for
       entries that are bare callables/classes.

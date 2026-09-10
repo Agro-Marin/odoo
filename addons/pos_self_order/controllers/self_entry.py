@@ -14,7 +14,7 @@ class PosSelfKiosk(http.Controller):
     def start_self_ordering(
         self, config_id=None, access_token=None, table_identifier=None, subpath=None
     ):
-        pos_config, _, config_access_token = self._verify_entry_access(
+        pos_config, _, config_access_token = self._get_entry_config_and_table(
             config_id, access_token, table_identifier
         )
         use_lna = bool(
@@ -46,7 +46,7 @@ class PosSelfKiosk(http.Controller):
     def get_self_ordering_data(
         self, config_id=None, access_token=None, table_identifier=None
     ):
-        pos_config, _, config_access_token = self._verify_entry_access(
+        pos_config, _, config_access_token = self._get_entry_config_and_table(
             config_id, access_token, table_identifier
         )
         data = pos_config.load_self_data()
@@ -57,13 +57,13 @@ class PosSelfKiosk(http.Controller):
     def get_self_ordering_relations(
         self, config_id=None, access_token=None, table_identifier=None
     ):
-        pos_config, _, _ = self._verify_entry_access(
+        pos_config, _, _ = self._get_entry_config_and_table(
             config_id, access_token, table_identifier
         )
         data = pos_config.load_data_params()
         return data
 
-    def _verify_entry_access(
+    def _get_entry_config_and_table(
         self, config_id=None, access_token=None, table_identifier=None
     ):
         table_sudo = False

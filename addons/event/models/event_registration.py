@@ -261,7 +261,7 @@ class EventRegistration(models.Model):
         for registration in self:
             if not registration[fname] and registration.partner_id:
                 registration[fname] = (
-                    registration._synchronize_partner_values(
+                    registration._prepare_partner_values(
                         registration.partner_id,
                         fnames={partner_fname},
                     ).get(partner_fname)
@@ -377,7 +377,7 @@ class EventRegistration(models.Model):
         ):
             raise ValidationError(_("Invalid event / ticket choice"))
 
-    def _synchronize_partner_values(self, partner, fnames=None):
+    def _prepare_partner_values(self, partner, fnames=None):
         if fnames is None:
             fnames = {"name", "email", "phone_ids"}
         if partner:

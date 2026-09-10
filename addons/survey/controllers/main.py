@@ -26,7 +26,7 @@ _logger = logging.getLogger(__name__)
 class Survey(http.Controller):
     MAX_UPLOADS_PER_ANSWER = 20
 
-    def _fetch_from_access_token(
+    def _get_from_access_token(
         self, survey_token: str, answer_token: str | bool
     ) -> tuple[Any, Any]:
         SurveySudo, UserInputSudo = (
@@ -113,7 +113,7 @@ class Survey(http.Controller):
         ensure_token: bool = True,
         check_partner: bool = True,
     ) -> dict[str, Any]:
-        survey_sudo, answer_sudo = self._fetch_from_access_token(
+        survey_sudo, answer_sudo = self._get_from_access_token(
             survey_token, answer_token
         )
         has_survey_access, can_answer = False, False
@@ -192,7 +192,7 @@ class Survey(http.Controller):
         "/survey/test/<string:survey_token>", type="http", auth="user", website=True
     )
     def survey_test(self, survey_token: str, **kwargs: Any) -> Response:
-        survey_sudo, _dummy = self._fetch_from_access_token(survey_token, False)
+        survey_sudo, _dummy = self._get_from_access_token(survey_token, False)
         try:
             answer_sudo = survey_sudo._create_answer(
                 user=request.env.user, test_entry=True
@@ -343,7 +343,7 @@ class Survey(http.Controller):
             )
 
         if answer_sudo.state == "in_progress":
-            self._prepare_survey_in_progress_data(
+            self._update_survey_in_progress_data(
                 data,
                 survey_sudo,
                 answer_sudo,
@@ -428,7 +428,7 @@ class Survey(http.Controller):
         )
         return data
 
-    def _prepare_survey_in_progress_data(
+    def _update_survey_in_progress_data(
         self,
         data: dict[str, Any],
         survey_sudo: Any,
@@ -712,7 +712,7 @@ class Survey(http.Controller):
         sitemap=False,
     )
     def survey_get_background(self, survey_token: str) -> Response:
-        survey_sudo, _dummy = self._fetch_from_access_token(survey_token, False)
+        survey_sudo, _dummy = self._get_from_access_token(survey_token, False)
         if not survey_sudo or not (
             survey_sudo.active
             or survey_sudo.with_user(request.env.user).has_access("read")
@@ -734,7 +734,7 @@ class Survey(http.Controller):
     def survey_section_get_background(
         self, survey_token: str, section_id: int
     ) -> Response:
-        survey_sudo, _dummy = self._fetch_from_access_token(survey_token, False)
+        survey_sudo, _dummy = self._get_from_access_token(survey_token, False)
 
         if not survey_sudo or not (
             survey_sudo.active
@@ -1000,7 +1000,7 @@ class Survey(http.Controller):
             time_limit += timedelta(seconds=10)
         return fields.Datetime.now() > time_limit
 
-    def _determine_next_page_after_submit(
+    def _get_next_page_after_submit(
         self,
         survey_sudo: Any,
         answer_sudo: Any,
@@ -1095,7 +1095,7 @@ class Survey(http.Controller):
         if self._check_time_limit_exceeded(survey_sudo, answer_sudo):
             return {}, {"error": "unauthorized"}
 
-        errors = self._validate_and_save_page(survey_sudo, answer_sudo, questions, post)
+        errors = self._save_page_answers(survey_sudo, answer_sudo, questions, post)
 
         if errors and not (
             answer_sudo.survey_time_limit_reached
@@ -1126,11 +1126,11 @@ class Survey(http.Controller):
                 survey_sudo, answer_sudo
             )
 
-        return self._determine_next_page_after_submit(
+        return self._get_next_page_after_submit(
             survey_sudo, answer_sudo, page_or_question_id, correct_answers, **post
         )
 
-    def _validate_and_save_page(
+    def _save_page_answers(
         self, survey_sudo: Any, answer_sudo: Any, questions: Any, post: dict[str, Any]
     ) -> dict[int, str]:
         gating_questions = (
@@ -1658,7 +1658,7 @@ class Survey(http.Controller):
         auth="user",
     )
     def survey_export_csv(self, survey: Any, **post: Any) -> Response:
-        header, rows = self._build_export_data(survey)
+        header, rows = self._prepare_export_data(survey)
 
         output = io.StringIO()
         writer = csv.writer(output)
@@ -1685,7 +1685,7 @@ class Survey(http.Controller):
         from openpyxl.styles import Alignment, Font, PatternFill
         from openpyxl.utils import get_column_letter
 
-        header, rows = self._build_export_data(survey)
+        header, rows = self._prepare_export_data(survey)
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -1728,7 +1728,7 @@ class Survey(http.Controller):
             ],
         )
 
-    def _build_export_data(self, survey: Any) -> tuple[list[str], list[list]]:
+    def _prepare_export_data(self, survey: Any) -> tuple[list[str], list[list]]:
         user_inputs = request.env["survey.user_input"].search(
             [
                 ("survey_id", "=", survey.id),

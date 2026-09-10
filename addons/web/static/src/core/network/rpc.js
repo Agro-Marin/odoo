@@ -4,7 +4,7 @@
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
-import { buildKey } from "@web/core/network/rpc_dedup";
+import { getKey } from "@web/core/network/rpc_dedup";
 import { rpcLog } from "@web/core/utils/asset_log";
 import { isObject, omit } from "@web/core/utils/collections/objects";
 import { globalSingleton } from "@web/core/utils/global_singleton";
@@ -53,7 +53,7 @@ const RPC_SETTINGS = new Set([
     "signal",
 ]);
 /** @param {{[key: string]: any}} settings */
-function validateRPCSettings(settings) {
+function checkRPCSettings(settings) {
     const invalidKeys = Object.keys(settings).filter((key) => !RPC_SETTINGS.has(key));
     if (invalidKeys.length) {
         const invalid = invalidKeys.map((k) => `"${k}"`).join(", ");
@@ -425,7 +425,7 @@ export function rpc(url, params = {}, settings = {}) {
  * @returns {Promise<any>}
  */
 rpc._rpc = function (url, params, settings) {
-    validateRPCSettings(settings);
+    checkRPCSettings(settings);
     if (settings.dedup) {
         return _rpcDeduped(url, params, settings);
     }
@@ -445,7 +445,7 @@ rpc._rpc = function (url, params, settings) {
  * @returns {Promise<any>}
  */
 function _rpcDeduped(url, params, settings) {
-    const key = `${buildKey(url, params)}|${dedupSettingsFingerprint(settings)}`;
+    const key = `${getKey(url, params)}|${dedupSettingsFingerprint(settings)}`;
     let entry = inflightDedup.get(key);
     if (!entry) {
         const shared = /** @type {any} */ (
@@ -518,7 +518,7 @@ function _rpcCached(url, params, settings, rpcCache) {
         issuedOwnRequest = true;
     };
     const cacheTable = params?.method || url;
-    const cacheKey = buildKey(url, params);
+    const cacheKey = getKey(url, params);
     const requestKey = `${cacheTable}/${cacheKey}`;
     const cacheProm = rpcCache.read(cacheTable, cacheKey, fallback, cacheSettings);
     const onDetach = () => {
@@ -579,7 +579,7 @@ function _rpcCached(url, params, settings, rpcCache) {
  * @param {{[key: string]: any}} settings
  * @returns {{ controller: AbortController, timeoutSignal: AbortSignal | null, init: RequestInit }}
  */
-function buildFetchRequest(url, data, settings) {
+function makeFetchRequest(url, data, settings) {
     const headers = new Headers(settings.headers || {});
     headers.set("Content-Type", "application/json");
     const controller = new AbortController();
@@ -631,7 +631,7 @@ function _rpcOnce(url, params, settings) {
         method: "call",
         params,
     };
-    const { controller, timeoutSignal, init } = buildFetchRequest(url, data, settings);
+    const { controller, timeoutSignal, init } = makeFetchRequest(url, data, settings);
     let aborted = false;
     const busSettings = settings.signal ? omit(settings, "signal") : settings;
     const { promise, resolve, reject } = Promise.withResolvers();

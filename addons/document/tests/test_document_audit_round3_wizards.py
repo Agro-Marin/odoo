@@ -19,11 +19,11 @@ SHARED_CONTENT = b"legitimately link-shared content"
 
 @tagged("post_install", "-at_install")
 class TestDocumentsZipShortcutLeak(HttpCase):
-    """A shortcut must never widen access to its target through ``_make_zip``.
+    """A shortcut must never widen access to its target through ``_get_zip_response``.
 
     ``ShareRoute._get_folder_children`` searches in ``sudo``, so its permission
     clauses only constrain the *shortcut* record. Dereferencing
-    ``shortcut_document_id`` in ``_make_zip`` therefore used to serve the
+    ``shortcut_document_id`` in ``_get_zip_response`` therefore used to serve the
     target's real filename and full plaintext to anybody holding the enclosing
     folder's share link.
     """

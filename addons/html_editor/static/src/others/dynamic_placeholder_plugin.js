@@ -5,7 +5,7 @@ import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/translation";
 import { DynamicPlaceholderPopover } from "@web/fields/dynamic_placeholder_popover";
 import {
-    buildQwebPlaceholder,
+    getQwebPlaceholder,
     placeholderExpression,
     resolveTzPath,
 } from "@web/fields/dynamic_placeholder_syntax";
@@ -100,7 +100,7 @@ export class DynamicPlaceholderPlugin extends Plugin {
             fieldType === "datetime"
                 ? await resolveTzPath(this.services.orm, resModel)
                 : undefined;
-        const { expression, body } = buildQwebPlaceholder({
+        const { expression, body } = getQwebPlaceholder({
             path: chain,
             fieldType,
             defaultValue,

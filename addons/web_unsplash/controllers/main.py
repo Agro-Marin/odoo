@@ -110,7 +110,7 @@ class Web_Unsplash(HTML_Editor):
         return uploads
 
     @http.route("/web_unsplash/fetch_images", type="jsonrpc", auth="user")
-    def fetch_unsplash_images(self, **post):
+    def get_unsplash_images(self, **post):
         access_key = self._get_access_key()
         app_id = self.get_unsplash_app_id()
         if not access_key or not app_id:

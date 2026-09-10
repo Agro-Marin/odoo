@@ -7,7 +7,7 @@ from odoo.tools.urls import keep_query
 
 from .document import ShareRoute
 from odoo.addons.web.controllers import home as web_home
-from odoo.addons.web.controllers.utils import ensure_db
+from odoo.addons.web.controllers.utils import select_db
 
 
 class Home(web_home.Home):
@@ -35,7 +35,7 @@ class Home(web_home.Home):
         if not access_token or "/" in access_token:
             return super().web_client(s_action, **kw)
 
-        ensure_db()
+        select_db()
         request.update_env(user=request.session.uid)
         request.env["ir.http"]._authenticate_explicit("public")
 

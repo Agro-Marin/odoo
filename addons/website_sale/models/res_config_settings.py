@@ -120,7 +120,7 @@ class ResConfigSettings(models.TransientModel):
             if self.group_gmc_feed and not self.env["product.feed"].search_count(
                 [("website_id", "=", website.id)], limit=1
             ):
-                website._populate_product_feeds()
+                website._create_product_feeds()
 
             # Due to an earlier oversight, the GMC feature flag was implemented as website-specific,
             # even though a group-based feature flag is global. This has been corrected in future

@@ -14,7 +14,7 @@ import {
     rpcBus,
 } from "@web/core/network/rpc";
 import { RAM_CACHE_MAX_ENTRIES, RPCCache } from "@web/core/network/rpc_cache";
-import { buildKey } from "@web/core/network/rpc_dedup";
+import { getKey } from "@web/core/network/rpc_dedup";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 
 mockIndexedDBForTests();
@@ -2079,7 +2079,7 @@ test("piggyback refcount: the last caller out cancels the fetch and evicts the p
     );
     await tick();
     await tick();
-    expect(rpcCache.ramCache.read("/test/", buildKey("/test/", {}))).toBe(undefined);
+    expect(rpcCache.ramCache.read("/test/", getKey("/test/", {}))).toBe(undefined);
 
     expect(await rpc("/test/", {}, { cache: true })).toEqual({ fresh: true });
     expect.verifySteps(["fetch 2"]);

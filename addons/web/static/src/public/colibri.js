@@ -416,7 +416,7 @@ export class Colibri {
      * @param {string[]} decorators
      * @returns {EventListener}
      */
-    _buildEventHandler(fn, keepInHistory, decorators) {
+    _getEventHandler(fn, keepInHistory, decorators) {
         if (!(/** @type {any} */ (fn).isHandler) && !keepInHistory) {
             const effect = fn;
             fn = (/** @type {any[]} */ ...args) =>
@@ -468,7 +468,7 @@ export class Colibri {
             event,
             options,
         ));
-        const eventListener = this._buildEventHandler(fn, keepInHistory, decorators);
+        const eventListener = this._getEventHandler(fn, keepInHistory, decorators);
         /** @type {Set<ListenerRecord>} */
         const records = new Set();
         const targets = [...nodes];

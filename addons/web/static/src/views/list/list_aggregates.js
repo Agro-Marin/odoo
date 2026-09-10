@@ -43,7 +43,7 @@ function aggregateFunction(column) {
  * @param {string} [fieldName]
  * @returns {Record<string, any>}
  */
-function buildFormatOptions(attrs, fieldDigits, fieldName) {
+function getFormatOptions(attrs, fieldDigits, fieldName) {
     let digits = fieldDigits;
     if (attrs.digits) {
         try {
@@ -72,7 +72,7 @@ function resolveAggregateFormat(column, field) {
         formatters.get(field.type, /** @type {any} */ (false));
     return {
         formatter,
-        formatOptions: buildFormatOptions(attrs, field.digits, column.name),
+        formatOptions: getFormatOptions(attrs, field.digits, column.name),
     };
 }
 

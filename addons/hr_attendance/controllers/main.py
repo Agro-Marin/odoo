@@ -227,7 +227,7 @@ class HrAttendance(http.Controller):
     @http.route(
         "/hr_attendance/attendance_barcode_scanned", type="jsonrpc", auth="public"
     )
-    def scan_barcode(self, token, barcode):
+    def change_attendance_by_barcode(self, token, barcode):
         company = self._get_company(token)
         if company:
             employee = (

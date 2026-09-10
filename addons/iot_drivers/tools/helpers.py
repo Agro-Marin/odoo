@@ -339,7 +339,7 @@ def get_version(detailed_version=False):
     return version
 
 
-def delete_iot_handlers():
+def remove_iot_handlers():
     """Delete all drivers, interfaces and libs if any.
     This is needed to avoid conflicts with the newly downloaded drivers.
     """
@@ -395,7 +395,7 @@ def download_iot_handlers(auto=True, server_url=None):
         _logger.exception("Bad IoT handlers response received: not a zip file")
         return
 
-    delete_iot_handlers()
+    remove_iot_handlers()
     path = path_file("odoo", "addons", "iot_drivers", "iot_handlers")
     zip_file.extractall(path)
 

@@ -50,7 +50,7 @@ class XenditController(http.Controller):
             ._search_by_reference("xendit", data)
         )
         if tx_sudo:
-            self._verify_notification_token(received_token, tx_sudo)
+            self._check_notification_token(received_token, tx_sudo)
             tx_sudo._process("xendit", data)
 
         return request.prepare_json_response(["accepted"], status=200)
@@ -77,7 +77,7 @@ class XenditController(http.Controller):
                 tx_sudo._set_pending()
         return request.redirect("/payment/status")
 
-    def _verify_notification_token(self, received_token, tx_sudo):
+    def _check_notification_token(self, received_token, tx_sudo):
         """Check that the received token matches the saved webhook token.
 
         :param str received_token: The callback token received with the payment data.

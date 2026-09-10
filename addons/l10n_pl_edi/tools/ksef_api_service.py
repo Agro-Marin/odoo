@@ -46,13 +46,13 @@ class KsefApiService:
             return "https://api.ksef.mf.gov.pl/v2"
         return "https://api-test.ksef.mf.gov.pl/v2"
 
-    def _make_headers(self, token):
+    def _get_headers(self, token):
         return {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
 
-    def _make_request(self, method, endpoint, is_auth_retry=False, **kwargs):
+    def _send_request(self, method, endpoint, is_auth_retry=False, **kwargs):
         """
         Helper method to make authenticated requests, handling token refresh on 401.
         :param method: 'GET' or 'POST'
@@ -63,7 +63,7 @@ class KsefApiService:
         kwargs.setdefault("headers", {})
         kwargs.setdefault("timeout", TIMEOUT)
         kwargs["headers"].update(
-            self._make_headers(self.company.sudo().l10n_pl_edi_access_token)
+            self._get_headers(self.company.sudo().l10n_pl_edi_access_token)
         )
         try:
             response = requests.request(method, endpoint, **kwargs)
@@ -72,7 +72,7 @@ class KsefApiService:
                 _logger.info("KSeF access token expired, refreshing...")
                 self.refresh_access_token()
                 # Pass is_auth_retry=True to prevent looping
-                return self._make_request(
+                return self._send_request(
                     method, endpoint, is_auth_retry=True, **kwargs
                 )
             elif response.status_code == 429:
@@ -178,7 +178,7 @@ class KsefApiService:
         headers = {"Content-Type": "application/json"}
 
         try:
-            response = self._make_request(
+            response = self._send_request(
                 "POST", endpoint, json=request_body, headers=headers
             )
             if "error_message" in response:
@@ -200,7 +200,7 @@ class KsefApiService:
             raise UserError(self.env._("No refresh token found to renew the session."))
 
         endpoint = f"{self.api_url}/auth/token/refresh"
-        headers = self._make_headers(refresh_token)
+        headers = self._get_headers(refresh_token)
 
         try:
             response = requests.post(endpoint, headers=headers, timeout=TIMEOUT)
@@ -252,7 +252,7 @@ class KsefApiService:
         endpoint = f"{self.api_url}/sessions/online/{self.company.sudo().l10n_pl_edi_session_id}/invoices"
         headers = {"Content-Type": "application/json"}
 
-        response = self._make_request(
+        response = self._send_request(
             "POST",
             endpoint,
             json=payload,
@@ -269,7 +269,7 @@ class KsefApiService:
 
         endpoint = f"{self.api_url}/sessions/online/{session_id}/close"
         try:
-            self._make_request("POST", endpoint)
+            self._send_request("POST", endpoint)
             _logger.info("KSeF session closed gracefully")
         except UserError as e:
             _logger.warning("Failed to close KSeF session gracefully: %s", e)
@@ -293,7 +293,7 @@ class KsefApiService:
             )
         endpoint = f"{self.api_url}/sessions/{session_id}"
         try:
-            response = self._make_request("GET", endpoint)
+            response = self._send_request("GET", endpoint)
             return response.json().get("status")
         except UserError as e:
             raise UserError(self.env._("Failed to check KSeF session: %s", e))
@@ -311,7 +311,7 @@ class KsefApiService:
 
         endpoint = f"{self.api_url}/sessions/online/{session_id}/invoices"
         params = {"pageSize": page_size, "pageOffset": page_offset}
-        response = self._make_request("GET", endpoint, params=params)
+        response = self._send_request("GET", endpoint, params=params)
         return response.json()
 
     def get_invoice_status(self, invoice_reference_number, session_id=None):
@@ -324,13 +324,13 @@ class KsefApiService:
             f"{self.api_url}/sessions/{session_id}/invoices/{invoice_reference_number}"
         )
 
-        response = self._make_request("GET", endpoint)
+        response = self._send_request("GET", endpoint)
         return response.json()
 
     def get_invoice_upo(self, invoice_reference_number, session_id=None):
         session_id = session_id or self.company.sudo().l10n_pl_edi_session_id
         endpoint = f"{self.api_url}/sessions/{session_id}/invoices/{invoice_reference_number}/upo"
-        response = self._make_request("GET", endpoint)
+        response = self._send_request("GET", endpoint)
         return response.content
 
     def get_challenge(self):
@@ -392,7 +392,7 @@ class KsefApiService:
     def check_auth_status(self, ref_number, temp_token):
         """Checks auth status with a retry loop for pending statuses."""
         endpoint = f"{self.api_url}/auth/{ref_number}"
-        headers = self._make_headers(temp_token)
+        headers = self._get_headers(temp_token)
 
         for _attempt in range(5):
             try:
@@ -449,7 +449,7 @@ class KsefApiService:
         endpoint = f"{self.api_url}/invoices/query/metadata"
         params = {"pageSize": page_size, "pageOffset": page_offset}
         try:
-            response = self._make_request(
+            response = self._send_request(
                 "POST", endpoint, json=query_criteria, params=params
             )
             return response.json()
@@ -459,7 +459,7 @@ class KsefApiService:
     def get_invoice_by_ksef_number(self, ksef_number):
         endpoint = f"{self.api_url}/invoices/ksef/{ksef_number}"
         try:
-            response = self._make_request("GET", endpoint)
+            response = self._send_request("GET", endpoint)
             return {"xml_content": response.content}
         except KSeFRateLimitError as e:
             return {"error": {"retry_after": e.retry_after, "message": str(e)}}

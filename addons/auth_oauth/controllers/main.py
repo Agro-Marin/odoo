@@ -11,7 +11,7 @@ from odoo.modules.registry import Registry
 from odoo.tools.misc import clean_context
 
 from odoo.addons.auth_signup.controllers.main import AuthSignupHome as Home
-from odoo.addons.web.controllers.utils import _get_login_redirect_url, ensure_db
+from odoo.addons.web.controllers.utils import _get_login_redirect_url, select_db
 
 _logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class OAuthLogin(Home):
 
     @http.route()
     def web_login(self, *args, **kw):
-        ensure_db()
+        select_db()
         if (
             request.httprequest.method == "GET"
             and request.session.uid
@@ -112,7 +112,7 @@ class OAuthController(http.Controller):
         dbname = state["d"]
         if not http.db_filter([dbname]):
             return BadRequest()
-        ensure_db(db=dbname)
+        select_db(db=dbname)
 
         provider = state["p"]
         request.update_context(**clean_context(state.get("c", {})))
@@ -149,7 +149,7 @@ class OAuthController(http.Controller):
             ):
                 resp.location = "/"
             return resp
-        except AttributeError:  # TODO juc master: useless since ensure_db()
+        except AttributeError:  # TODO juc master: useless since select_db()
             # auth_signup is not installed
             _logger.error(
                 "auth_signup not installed on database %s: oauth sign up cancelled.",

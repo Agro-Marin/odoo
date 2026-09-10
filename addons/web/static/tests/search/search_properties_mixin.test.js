@@ -79,12 +79,12 @@ test("retiring one properties field leaves the other field's group-bys alone", a
     };
     stubDefinitions(model, () => definitions);
 
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
     await activateAllPropertyGroupBys(model);
     expect(model.groupBy).toEqual(["properties.p1", "other_props.q1"]);
 
     definitions = { properties: [], other_props: definitions.other_props };
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     expect(model.groupBy).toEqual(["other_props.q1"]);
 });
@@ -97,14 +97,14 @@ test("overlapping fills that both retire everything still settle", async () => {
     };
     stubDefinitions(model, () => definitions);
 
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
     await activateAllPropertyGroupBys(model);
     expect(model.groupBy).toHaveLength(2);
 
     definitions = { properties: [], other_props: [] };
     await Promise.all([
-        model.fillSearchViewItemsProperty(),
-        model.fillSearchViewItemsProperty(),
+        model.updateSearchViewItemsProperty(),
+        model.updateSearchViewItemsProperty(),
     ]);
 
     expect(model.groupBy).toEqual([]);
@@ -119,12 +119,12 @@ test("retiring a property also retires its synthesised field metadata", async ()
     };
     stubDefinitions(model, () => definitions);
 
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
     expect(model.searchViewFields["properties.p1"]).not.toBe(undefined);
     expect(model.searchViewFields["other_props.q1"]).not.toBe(undefined);
 
     definitions = { properties: [], other_props: definitions.other_props };
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     expect(model.searchViewFields["properties.p1"]).toBe(undefined);
     expect(model.searchViewFields["other_props.q1"]).not.toBe(undefined);
@@ -189,14 +189,14 @@ test("a failing definitions fetch retires nothing", async () => {
     };
     stubDefinitions(model, () => definitions);
 
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
     await activateAllPropertyGroupBys(model);
     expect(model.groupBy).toEqual(["properties.p1"]);
 
     model._fetchPropertiesDefinition = async () => {
         throw new Error("rpc down");
     };
-    await model.fillSearchViewItemsProperty().catch(() => {});
+    await model.updateSearchViewItemsProperty().catch(() => {});
 
     expect(model.groupBy).toEqual(["properties.p1"]);
 });

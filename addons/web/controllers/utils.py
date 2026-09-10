@@ -64,7 +64,7 @@ def clean_action(action: dict, env: Any) -> dict:
     return cleaned_action
 
 
-def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -> None:
+def select_db(redirect: str = "/web/database/selector", db: str | None = None) -> None:
     if db is None:
         db = (raw_db := request.params.get("db")) and raw_db.strip()
 

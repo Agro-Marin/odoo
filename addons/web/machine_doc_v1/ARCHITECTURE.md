@@ -341,7 +341,7 @@ Shared logic extracted from form, list, and kanban controllers to eliminate dupl
 | `useControllerServices()` | Returns `{ action, dialog, notification, orm, uiHooks }` — replaces 4 `useService()` calls + `makeModelUIHooks()` in each controller |
 | `makeModelUIHooks({ action, dialog, notification })` | Builds 8 hook implementations so model/record/list never import UI services directly |
 | `computeArchiveEnabled(fields, { presentIn = fields })` | Shared active/x_active writability check. `presentIn` decides *which* of `active`/`x_active` is consulted; writability is always read from `fields`. `multi_record_controller` passes `props.fields` alone; `form_controller` passes `{ presentIn: this.model.root.activeFields }` so a field absent from the arch does not enable archiving. |
-| `buildActionMenuItems(staticItems, actionMenus)` | Shared filter-sort-map pipeline for action menu items |
+| `getActionMenuItems(staticItems, actionMenus)` | Shared filter-sort-map pipeline for action menu items |
 
 **Model UI Hooks** (injected via `makeModelUIHooks`):
 `onDisplayOnchangeWarning`, `onDisplayInvalidFields`, `onDisplayUrgentSave`, `onDisplayPropertyWarning`, `onDisplayArchiveAction`, `onConfirmArchive`, `onConfirmDuplicate`, `onDisplayLimitNotification`

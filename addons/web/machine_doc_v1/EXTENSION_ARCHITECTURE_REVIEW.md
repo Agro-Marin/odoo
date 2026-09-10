@@ -324,7 +324,7 @@ something the others would have missed:
    matches `signature_pad` and `socket_io`; only the resolved walk knows.
 2. **Check for `patch()` on the owner, including from `enterprise`.** A
    cross-repo break cannot be committed atomically. `SearchModel` is patched by
-   `enterprise/ai` (`validateField`, `applyAISearch`, `load`) and
+   `enterprise/ai` (`isGroupableField`, `applyAISearch`, `load`) and
    `enterprise/pos_appointment` (`facets`) — neither touching the two renamed.
 3. **Check for a patch *factory*.** `GraphModel._getProcessedDataPoints` looked
    identical to its three renamed siblings and is the one that must not move:

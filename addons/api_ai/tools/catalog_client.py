@@ -8,9 +8,9 @@ from .vendor_catalog import (
     PROVIDERS,
     TRANSCRIBE_TIMEOUT,
     audio_mimetype,
-    build_anthropic_content,
-    build_openai_content,
-    build_whisper_form,
+    get_anthropic_content,
+    get_openai_content,
+    get_whisper_form,
     read_anthropic_content,
     read_openai_content,
     read_whisper_transcript,
@@ -90,7 +90,7 @@ class CatalogAIClient:
             "model": self.vision_model if images else self._model,
             "messages": [
                 {"role": "system", "content": system},
-                {"role": "user", "content": build_openai_content(user, images)},
+                {"role": "user", "content": get_openai_content(user, images)},
             ],
             "max_tokens": self._token_budget(max_tokens),
             "temperature": temperature,
@@ -112,7 +112,7 @@ class CatalogAIClient:
             "model": self.vision_model if images else self._model,
             "system": system,
             "messages": [
-                {"role": "user", "content": build_anthropic_content(user, images)}
+                {"role": "user", "content": get_anthropic_content(user, images)}
             ],
             "max_tokens": self._token_budget(max_tokens),
             "temperature": temperature,
@@ -154,7 +154,7 @@ class CatalogAIClient:
             self._spec["audio_path"],
             self._audio_timeout,
             files={"file": (filename, audio_bytes, audio_mimetype(filename))},
-            data=build_whisper_form(
+            data=get_whisper_form(
                 self._spec["audio_model"], language=language, prompt=prompt
             ),
         )

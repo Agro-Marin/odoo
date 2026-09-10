@@ -57,7 +57,7 @@ function reconcilePropertyList(staticList, target) {
  * @param {Record<string, any>} currentValues
  * @returns {any}
  */
-function buildPropertyValue(record, property, propertyFieldName, currentValues) {
+function getPropertyValue(record, property, propertyFieldName, currentValues) {
     if (property.type === "many2many") {
         const staticList = currentValues[propertyFieldName];
         if (!staticList) {
@@ -125,7 +125,7 @@ export function processProperties(
             };
         }
 
-        data[propertyFieldName] = buildPropertyValue(
+        data[propertyFieldName] = getPropertyValue(
             record,
             property,
             propertyFieldName,

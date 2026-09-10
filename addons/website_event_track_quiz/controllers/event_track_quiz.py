@@ -12,7 +12,7 @@ class WebsiteEventTrackQuiz(EventTrackController):
 
     @http.route("/event_track/quiz/submit", type="jsonrpc", auth="public", website=True)
     def event_track_quiz_submit(self, event_id, track_id, answer_ids):
-        track = self._fetch_track(track_id)
+        track = self._get_track(track_id)
         track_sudo = track.sudo()
 
         event_track_visitor = track._get_event_track_visitors(force_create=True)
@@ -47,7 +47,7 @@ class WebsiteEventTrackQuiz(EventTrackController):
 
     @http.route("/event_track/quiz/reset", type="jsonrpc", auth="public", website=True)
     def quiz_reset(self, event_id, track_id):
-        track = self._fetch_track(track_id)
+        track = self._get_track(track_id)
         # When the 'unlimited tries' option is disabled and the user is not
         # identifed as an event manager, we do not allow the user to reset
         # the quiz. The event managers will always be able to reset the quiz

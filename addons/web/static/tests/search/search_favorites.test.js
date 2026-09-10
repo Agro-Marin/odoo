@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { user } from "@web/core/user";
 import {
-    buildIrFilterDescription,
+    getIrFilterDescription,
     irFilterToFavorite,
     reconciliateFavorites,
 } from "@web/search/search_favorites";
@@ -165,7 +165,7 @@ describe("irFilterToFavorite", () => {
     });
 });
 
-describe("buildIrFilterDescription", () => {
+describe("getIrFilterDescription", () => {
     function makeParams(overrides = {}) {
         return {
             description: "Sales this year",
@@ -187,7 +187,7 @@ describe("buildIrFilterDescription", () => {
     }
 
     test("serializes orderBy in 'field desc' notation and strips defaults", () => {
-        const { irFilter } = buildIrFilterDescription(makeParams());
+        const { irFilter } = getIrFilterDescription(makeParams());
 
         expect(irFilter.sort).toBe('["foo","bar desc"]');
         expect(irFilter.context.group_by).toEqual(["stage_id", "date:month"]);
@@ -200,7 +200,7 @@ describe("buildIrFilterDescription", () => {
     test("keeps intentional overrides of user-context keys, strips seeded values", () => {
         const userCtx = user.context;
         const overriddenLang = userCtx.lang === "fr_FR" ? "nl_NL" : "fr_FR";
-        const { irFilter, preFavorite } = buildIrFilterDescription(
+        const { irFilter, preFavorite } = getIrFilterDescription(
             makeParams({
                 getContext: () => ({
                     ...userCtx,
@@ -221,7 +221,7 @@ describe("buildIrFilterDescription", () => {
         const userCtx = user.context;
         expect(Array.isArray(userCtx.allowed_company_ids)).toBe(true);
 
-        const { irFilter, preFavorite } = buildIrFilterDescription(
+        const { irFilter, preFavorite } = getIrFilterDescription(
             makeParams({
                 getContext: () => ({ ...userCtx, custom_key: 1 }),
             }),
@@ -233,7 +233,7 @@ describe("buildIrFilterDescription", () => {
     });
 
     test("round-trips through irFilterToFavorite", () => {
-        const { irFilter } = buildIrFilterDescription(makeParams());
+        const { irFilter } = getIrFilterDescription(makeParams());
 
         const favorite = irFilterToFavorite({
             ...irFilter,

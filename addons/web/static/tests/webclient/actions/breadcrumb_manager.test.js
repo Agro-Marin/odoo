@@ -9,9 +9,9 @@ import {
 import { actionStorage } from "@web/webclient/actions/action_storage";
 import { BreadcrumbCache } from "@web/webclient/actions/breadcrumb_cache";
 import {
-    buildBreadcrumbs,
     controllersFromState,
     isMenuController,
+    prepareBreadcrumbs,
     refreshBreadcrumbDisplayNames,
 } from "@web/webclient/actions/breadcrumb_manager";
 
@@ -63,7 +63,7 @@ test("one crumb per controller, in stack order", async () => {
         makeController({ jsId: "a", displayName: "A" }),
         makeController({ jsId: "b", displayName: "B" }),
     ];
-    const crumbs = buildBreadcrumbs(stack, am);
+    const crumbs = prepareBreadcrumbs(stack, am);
     expect(crumbs.map((c) => c.jsId)).toEqual(["a", "b"]);
     expect(crumbs.map((c) => c.name)).toEqual(["A", "B"]);
 });
@@ -74,13 +74,13 @@ test("the home-menu controller is never given a crumb", async () => {
         makeController({ jsId: "menu", action: { tag: "menu" } }),
         makeController({ jsId: "real" }),
     ];
-    expect(buildBreadcrumbs(stack, am).map((c) => c.jsId)).toEqual(["real"]);
+    expect(prepareBreadcrumbs(stack, am).map((c) => c.jsId)).toEqual(["real"]);
 });
 
 test("name is a plain slot, so the reactive array can be written through", async () => {
     const am = makeFakeAm();
     const controller = makeController({ displayName: "Original" });
-    const [crumb] = buildBreadcrumbs([controller], am);
+    const [crumb] = prepareBreadcrumbs([controller], am);
 
     controller.displayName = "Changed On The Controller";
     expect(crumb.name).toBe("Original");
@@ -92,7 +92,7 @@ test("name is a plain slot, so the reactive array can be written through", async
 test("isFormView IS a getter, so it tracks the controller's live view type", async () => {
     const am = makeFakeAm();
     const controller = makeController({ props: { type: "list" } });
-    const [crumb] = buildBreadcrumbs([controller], am);
+    const [crumb] = prepareBreadcrumbs([controller], am);
     expect(crumb.isFormView).toBe(false);
     controller.props.type = "form";
     expect(crumb.isFormView).toBe(true);
@@ -100,14 +100,14 @@ test("isFormView IS a getter, so it tracks the controller's live view type", asy
 
 test("isFormView tolerates a controller with no props", async () => {
     const am = makeFakeAm();
-    const [crumb] = buildBreadcrumbs([makeController({ props: undefined })], am);
+    const [crumb] = prepareBreadcrumbs([makeController({ props: undefined })], am);
     expect(crumb.isFormView).toBe(false);
 });
 
 test("url is resolved lazily, through the router, from the controller's state", async () => {
     const am = makeFakeAm();
     const controller = makeController({ state: { action: 42 } });
-    const [crumb] = buildBreadcrumbs([controller], am);
+    const [crumb] = prepareBreadcrumbs([controller], am);
     expect(am.__calls.stateToUrl).toEqual([]);
     expect(crumb.url).toBe("/odoo/url-for-42");
     expect(am.__calls.stateToUrl).toHaveLength(1);
@@ -115,7 +115,7 @@ test("url is resolved lazily, through the router, from the controller's state", 
 
 test("selecting a crumb restores its own controller", async () => {
     const am = makeFakeAm();
-    const crumbs = buildBreadcrumbs(
+    const crumbs = prepareBreadcrumbs(
         [makeController({ jsId: "a" }), makeController({ jsId: "b" })],
         am,
     );

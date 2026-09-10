@@ -44,7 +44,7 @@ class HrVersion(models.Model):
                     leave._compute_date_from_to()
                     continue
                 all_new_leave_origin, all_new_leave_vals = (
-                    self._populate_all_new_leave_vals_from_split_leave(
+                    self._update_all_new_leave_vals_from_split_leave(
                         all_new_leave_origin,
                         all_new_leave_vals,
                         overlapping_contracts,
@@ -103,7 +103,7 @@ class HrVersion(models.Model):
                             continue
                         leaves_state = self._refuse_leave(leave, leaves_state)
                         all_new_leave_origin, all_new_leave_vals = (
-                            self._populate_all_new_leave_vals_from_split_leave(
+                            self._update_all_new_leave_vals_from_split_leave(
                                 all_new_leave_origin,
                                 all_new_leave_vals,
                                 overlapping_contracts,
@@ -201,7 +201,7 @@ class HrVersion(models.Model):
             leave.action_back_to_approval()
         return leaves_state
 
-    def _populate_all_new_leave_vals_from_split_leave(
+    def _update_all_new_leave_vals_from_split_leave(
         self,
         all_new_leave_origin,
         all_new_leave_vals,

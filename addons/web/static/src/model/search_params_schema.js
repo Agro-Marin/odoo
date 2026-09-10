@@ -25,7 +25,7 @@ export const SEARCH_PARAMS_SCHEMA = {
  * @param {any} payload
  * @returns {string[]}
  */
-export function validateSearchParams(payload) {
+export function getSearchParamsIssues(payload) {
     if (!payload || typeof payload !== "object") {
         return ["search params must be a plain object"];
     }

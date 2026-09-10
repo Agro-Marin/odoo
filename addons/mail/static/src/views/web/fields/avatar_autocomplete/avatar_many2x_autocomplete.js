@@ -23,7 +23,7 @@ export class Many2XAvatarUserAutocomplete extends Many2XAutocomplete {
             },
             {
                 enabled: this.addSearchMoreSuggestion.bind(this),
-                build: this.buildSearchMoreSuggestion.bind(this),
+                build: this.getSearchMoreSuggestion.bind(this),
             },
         ];
     }

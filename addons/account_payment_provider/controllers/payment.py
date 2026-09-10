@@ -33,7 +33,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         partner_sudo = (
             request.env.user.partner_id if logged_in else invoice_sudo.partner_id
         )
-        self._validate_transaction_kwargs(
+        self._check_transaction_kwargs(
             kwargs, additional_allowed_keys={"name_next_installment"}
         )
         return self._process_transaction(
@@ -65,7 +65,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
                     "Impossible to pay all the overdue invoices if they don't share the same currency."
                 )
             )
-        self._validate_transaction_kwargs(kwargs)
+        self._check_transaction_kwargs(kwargs)
         return self._process_transaction(
             partner.id,
             currencies[0].id,

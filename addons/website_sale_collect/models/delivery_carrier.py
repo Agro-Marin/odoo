@@ -120,7 +120,7 @@ class DeliveryCarrier(models.Model):
             pickup_location_values.update(
                 {
                     "additional_data": {"in_store_stock_data": in_store_stock_data},
-                    "distance": utils.calculate_partner_distance(
+                    "distance": utils.get_partner_distance(
                         partner_address, wh.partner_id
                     ),
                 }

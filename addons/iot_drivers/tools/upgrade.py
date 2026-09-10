@@ -175,7 +175,7 @@ def check_git_branch(server_url=None):
         _logger.exception("An error occurred while trying to update the code with git")
 
 
-def _ensure_production_remote():
+def _sync_production_remote():
     """Ensure that the remote repository is the production one
     (https://github.com/odoo/odoo.git).
     """
@@ -191,7 +191,7 @@ def checkout(branch):
     :param branch: The name of the branch to check out.
     """
     _logger.info("Preparing local repository for checkout")
-    _ensure_production_remote()
+    _sync_production_remote()
 
     _logger.warning("Checking out origin/%s", branch)
     if git("fetch", "origin", branch, "--depth=1", "--prune") is None:

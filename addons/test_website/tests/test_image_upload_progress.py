@@ -32,7 +32,7 @@ class TestImageUploadProgress(odoo.tests.HttpCase):
         self.patch(HTML_Editor, "media_library_search", media_library_search)
 
         @http.route("/web_unsplash/fetch_images", type="jsonrpc", auth="user")
-        def fetch_unsplash_images(self, **post):
+        def get_unsplash_images(self, **post):
             return {
                 "total": 1434,
                 "total_pages": 48,
@@ -61,9 +61,9 @@ class TestImageUploadProgress(odoo.tests.HttpCase):
             }
 
         # because not preprocessed by ControllerType metaclass
-        fetch_unsplash_images.original_endpoint.routing_type = "json"
+        get_unsplash_images.original_endpoint.routing_type = "json"
         # disable undraw, no third party should be called in tests
-        self.patch(Web_Unsplash, "fetch_unsplash_images", fetch_unsplash_images)
+        self.patch(Web_Unsplash, "get_unsplash_images", get_unsplash_images)
 
         self.start_tour(
             self.env["website"].get_client_action_url("/test_image_progress"),

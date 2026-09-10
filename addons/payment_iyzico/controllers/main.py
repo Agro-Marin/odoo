@@ -37,7 +37,7 @@ class IyzicoController(http.Controller):
             "Handling redirection from Iyzico with data:\n%s", pprint.pformat(data)
         )
         if token := data.get("token"):
-            self._verify_and_process(tx_ref, token)
+            self._check_and_process(tx_ref, token)
         else:
             _logger.warning("Received payment data with missing token.")
 
@@ -60,14 +60,14 @@ class IyzicoController(http.Controller):
         )
 
         if token := data.get("token"):
-            self._verify_and_process(data["paymentConversationId"], token)
+            self._check_and_process(data["paymentConversationId"], token)
         else:
             _logger.warning("Received webhook data with missing token.")
 
         return request.prepare_json_response("")  # Acknowledge the notification.
 
     @staticmethod
-    def _verify_and_process(tx_ref, token):
+    def _check_and_process(tx_ref, token):
         """Verify and process the payment data sent by Iyzico.
 
         :param str tx_ref: The reference of the transaction.

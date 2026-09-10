@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { buildWebReadGroupParams } from "@web/model/relational_model/read_group_builder";
+import { getWebReadGroupParams } from "@web/model/relational_model/read_group_builder";
 
 describe.current.tags("headless");
 
@@ -35,14 +35,14 @@ function makeConfig(overrides = {}) {
 const DEPS = { groupByInfo: {}, initialLimit: 80 };
 
 test("aggregates come from the declared scope, not the whole field set", () => {
-    const { aggregates } = buildWebReadGroupParams(makeConfig(), DEPS);
+    const { aggregates } = getWebReadGroupParams(makeConfig(), DEPS);
     expect(aggregates).toInclude("amount:sum");
     expect(aggregates).toInclude("qty:sum");
     expect(aggregates.join(",")).not.toInclude("name:");
 });
 
 test("a narrowed fieldsToAggregate narrows the request", () => {
-    const { aggregates } = buildWebReadGroupParams(
+    const { aggregates } = getWebReadGroupParams(
         makeConfig({ fieldsToAggregate: ["qty"] }),
         DEPS,
     );
@@ -50,7 +50,7 @@ test("a narrowed fieldsToAggregate narrows the request", () => {
 });
 
 test("an unlimited group list sends no limit rather than MAX_SAFE_INTEGER", () => {
-    const { params } = buildWebReadGroupParams(
+    const { params } = getWebReadGroupParams(
         makeConfig({ limit: Number.MAX_SAFE_INTEGER }),
         DEPS,
     );
@@ -59,7 +59,7 @@ test("an unlimited group list sends no limit rather than MAX_SAFE_INTEGER", () =
 });
 
 test("order is serialised, and the read_group_expand context is added", () => {
-    const { params } = buildWebReadGroupParams(makeConfig(), DEPS);
+    const { params } = getWebReadGroupParams(makeConfig(), DEPS);
     expect(params.order).toBe("stage_id ASC");
     expect(params.context.read_group_expand).toBe(true);
     expect(params.context.lang).toBe("en_US");
@@ -79,7 +79,7 @@ describe("opening_info", () => {
                 },
             },
         });
-        const { params } = buildWebReadGroupParams(config, DEPS);
+        const { params } = getWebReadGroupParams(config, DEPS);
         expect(params.opening_info).toEqual([{ value: 7, folded: true }]);
     });
 
@@ -96,7 +96,7 @@ describe("opening_info", () => {
                 },
             },
         });
-        const { params } = buildWebReadGroupParams(config, DEPS);
+        const { params } = getWebReadGroupParams(config, DEPS);
         expect(params.opening_info).toEqual([
             {
                 value: 7,
@@ -129,7 +129,7 @@ describe("opening_info", () => {
                 },
             },
         });
-        const { params } = buildWebReadGroupParams(config, DEPS);
+        const { params } = getWebReadGroupParams(config, DEPS);
         expect(params.opening_info).toEqual([{ value: 3, folded: true }]);
     });
 
@@ -159,14 +159,14 @@ describe("opening_info", () => {
                 },
             },
         });
-        const { params } = buildWebReadGroupParams(config, DEPS);
+        const { params } = getWebReadGroupParams(config, DEPS);
         expect(params.opening_info[0].groups).toEqual([{ value: 9, folded: true }]);
     });
 });
 
 test("groupby_read_specification is emitted only for declared groupByInfo", () => {
     const config = makeConfig({ groupBy: ["stage_id"] });
-    const withInfo = buildWebReadGroupParams(config, {
+    const withInfo = getWebReadGroupParams(config, {
         initialLimit: 80,
         groupByInfo: {
             stage_id: {
@@ -179,6 +179,6 @@ test("groupby_read_specification is emitted only for declared groupByInfo", () =
         "stage_id",
     ]);
 
-    const withoutInfo = buildWebReadGroupParams(config, DEPS);
+    const withoutInfo = getWebReadGroupParams(config, DEPS);
     expect(withoutInfo.params.groupby_read_specification).toEqual({});
 });

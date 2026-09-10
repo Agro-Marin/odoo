@@ -194,16 +194,16 @@ export class PropertyTags extends Component {
         this.props.onTagsChange(updatedTags, newValues);
     }
 
-    /** @param {string} deleteTag */
-    onTagDelete(deleteTag) {
+    /** @param {string} removeTag */
+    onTagDelete(removeTag) {
         if (this.props.deleteAction === "value") {
             const selectedTags = this.selectedTags;
-            const newValue = selectedTags.filter((tag) => tag !== deleteTag);
+            const newValue = selectedTags.filter((tag) => tag !== removeTag);
             this.props.onValueChange(newValue);
         } else {
             const availableTags = this.availableTags;
             this.props.onTagsChange(
-                availableTags.filter((tag) => tag[0] !== deleteTag),
+                availableTags.filter((tag) => tag[0] !== removeTag),
             );
         }
     }

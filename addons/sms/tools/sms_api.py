@@ -194,7 +194,7 @@ class SmsApi(
             },
         )
 
-    def _verify_account(self, verification_code):
+    def _confirm_account(self, verification_code):
         return self._contact_iap(
             "/api/sms/2/account/verify",
             {

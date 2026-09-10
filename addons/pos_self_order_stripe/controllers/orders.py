@@ -16,7 +16,7 @@ class PosSelfOrderControllerStripe(PosSelfOrderController):
     )
     def get_stripe_creditentials(self, access_token, payment_method_id):
         # stripe_connection_token
-        pos_config, _ = self._verify_authorization(access_token, "", {})
+        pos_config, _ = self._get_pos_config_and_table(access_token, "", {})
         payment_method = pos_config.payment_method_ids.filtered(
             lambda p: p.id == payment_method_id
         )
@@ -31,7 +31,7 @@ class PosSelfOrderControllerStripe(PosSelfOrderController):
     def stripe_capture_payment(
         self, access_token, order_access_token, payment_intent_id, payment_method_id
     ):
-        pos_config, _ = self._verify_authorization(access_token, "", {})
+        pos_config, _ = self._get_pos_config_and_table(access_token, "", {})
         stripe_confirmation = pos_config.env[
             "pos.payment.method"
         ].stripe_capture_payment(payment_intent_id)

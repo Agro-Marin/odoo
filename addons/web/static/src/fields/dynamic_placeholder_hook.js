@@ -8,7 +8,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 
 import { DynamicPlaceholderPopover } from "./dynamic_placeholder_popover.js";
 import {
-    buildInlinePlaceholder,
+    getInlinePlaceholder,
     placeholderExpression,
     resolveTzPath,
 } from "./dynamic_placeholder_syntax.js";
@@ -21,12 +21,12 @@ const TRIGGER_KEY = "#";
  * @param {{ path: string, defaultValue?: string, fieldType?: string }} spec
  * @returns {Promise<string>}
  */
-async function buildPlaceholderText(orm, model, { path, defaultValue, fieldType }) {
+async function getPlaceholderText(orm, model, { path, defaultValue, fieldType }) {
     const tzPath =
         fieldType === "datetime"
             ? ((await resolveTzPath(orm, model)) ?? undefined)
             : undefined;
-    return ` ${buildInlinePlaceholder({ path, fieldType, defaultValue, tzPath })}`;
+    return ` ${getInlinePlaceholder({ path, fieldType, defaultValue, tzPath })}`;
 }
 
 /**
@@ -76,7 +76,7 @@ export function useDynamicPlaceholder(/** @type {any} */ elementRef) {
         if (!element || !path) {
             return;
         }
-        const text = await buildPlaceholderText(orm, model, {
+        const text = await getPlaceholderText(orm, model, {
             path,
             defaultValue,
             fieldType,

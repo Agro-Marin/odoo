@@ -6,9 +6,9 @@ import { EventBus } from "@odoo/owl";
 import { user } from "@web/core/user";
 import { SupersededError } from "@web/core/utils/concurrency";
 import {
-    buildCallButtonArgs,
     executeActionButton,
     filterActionContext,
+    getCallButtonArgs,
     InvalidButtonParamsError,
 } from "@web/webclient/actions/action_button_executor";
 import { NavigationTracker } from "@web/webclient/actions/navigation_token";
@@ -202,32 +202,32 @@ test("args: a non-list value raises InvalidButtonParamsError", async () => {
     ).rejects.toThrow(/must evaluate to a list/);
 });
 
-test("buildCallButtonArgs: record id(s) then the parsed args list", () => {
-    expect(buildCallButtonArgs({ resId: 5 })).toEqual([[5]]);
-    expect(buildCallButtonArgs({ resIds: [1, 2] })).toEqual([[1, 2]]);
-    expect(buildCallButtonArgs({ resId: 5, name: "a", args: "[1, 'x']" })).toEqual([
+test("getCallButtonArgs: record id(s) then the parsed args list", () => {
+    expect(getCallButtonArgs({ resId: 5 })).toEqual([[5]]);
+    expect(getCallButtonArgs({ resIds: [1, 2] })).toEqual([[1, 2]]);
+    expect(getCallButtonArgs({ resId: 5, name: "a", args: "[1, 'x']" })).toEqual([
         [5],
         1,
         "x",
     ]);
-    expect(buildCallButtonArgs({ resId: 5, name: "a", args: `["it's"]` })).toEqual([
+    expect(getCallButtonArgs({ resId: 5, name: "a", args: `["it's"]` })).toEqual([
         [5],
         "it's",
     ]);
 });
 
-test("buildCallButtonArgs: an unparseable expression raises InvalidButtonParamsError", () => {
+test("getCallButtonArgs: an unparseable expression raises InvalidButtonParamsError", () => {
     let error;
     try {
-        buildCallButtonArgs({ name: "a", resId: 1, args: "[1, 2" });
+        getCallButtonArgs({ name: "a", resId: 1, args: "[1, 2" });
     } catch (e) {
         error = e;
     }
     expect(error).toBeInstanceOf(InvalidButtonParamsError);
 });
 
-test("buildCallButtonArgs: a non-list value is rejected with a descriptive error", () => {
-    expect(() => buildCallButtonArgs({ name: "a", resId: 1, args: "5" })).toThrow(
+test("getCallButtonArgs: a non-list value is rejected with a descriptive error", () => {
+    expect(() => getCallButtonArgs({ name: "a", resId: 1, args: "5" })).toThrow(
         /must evaluate to a list/,
     );
 });

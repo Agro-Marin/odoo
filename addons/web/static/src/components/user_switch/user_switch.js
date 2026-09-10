@@ -76,11 +76,11 @@ export class UserSwitch extends Component {
         );
         setLastConnectedUsers(this.state.users);
         if (!this.state.users.length) {
-            this.fillForm();
+            this.updateForm();
         }
     }
 
-    fillForm(login = "") {
+    updateForm(login = "") {
         if (this.form) {
             const loginInput = /** @type {HTMLInputElement | null} */ (
                 this.form.querySelector("input#login")

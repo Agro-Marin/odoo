@@ -111,8 +111,8 @@ dispatcher, so a JSON client gets this and a browser gets the page.
 """
 
 
-ENSURE_DB_PATHS: set[str] = set()
-ENSURE_DB_PATH_PREFIXES: tuple[str, ...] = ()
+SELECT_DB_PATHS: set[str] = set()
+SELECT_DB_PATH_PREFIXES: tuple[str, ...] = ()
 """A tuple, not a set, because its only reader feeds it to ``str.startswith``.
 
 ``startswith`` takes a tuple and nothing else, so a set here means the sole
@@ -120,16 +120,16 @@ call site rebuilds one on every request that loses its database.
 """
 
 
-def register_ensure_db_paths(*paths: str, prefixes: Iterable[str] = ()) -> None:
-    global ENSURE_DB_PATH_PREFIXES  # noqa: PLW0603  the module owns this registry
-    ENSURE_DB_PATHS.update(paths)
-    ENSURE_DB_PATH_PREFIXES = tuple(
-        dict.fromkeys((*ENSURE_DB_PATH_PREFIXES, *prefixes))
+def register_select_db_paths(*paths: str, prefixes: Iterable[str] = ()) -> None:
+    global SELECT_DB_PATH_PREFIXES  # noqa: PLW0603  the module owns this registry
+    SELECT_DB_PATHS.update(paths)
+    SELECT_DB_PATH_PREFIXES = tuple(
+        dict.fromkeys((*SELECT_DB_PATH_PREFIXES, *prefixes))
     )
 
 
-def is_ensure_db_path(path: str) -> bool:
-    return path in ENSURE_DB_PATHS or path.startswith(ENSURE_DB_PATH_PREFIXES)
+def is_select_db_path(path: str) -> bool:
+    return path in SELECT_DB_PATHS or path.startswith(SELECT_DB_PATH_PREFIXES)
 
 
 ROUTING_KEYS = frozenset(

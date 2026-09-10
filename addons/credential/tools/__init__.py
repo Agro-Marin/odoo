@@ -1,10 +1,10 @@
 from .authentication import (
     CaseInsensitiveHeaders,
-    verify_bearer_token,
-    verify_hmac_signature,
-    verify_signature,
+    is_bearer_token_valid,
+    is_hmac_signature_valid,
+    is_signature_valid,
     ip_in_allowlist,
-    verify_timestamp,
+    is_timestamp_valid,
 )
 from .base_lru_cache import BaseLRUCache
 from .json_payload import check_json_depth
@@ -38,8 +38,8 @@ __all__ = [
     "invalidate_all_connections",
     "invalidate_session_cache",
     "ip_in_allowlist",
-    "verify_bearer_token",
-    "verify_hmac_signature",
-    "verify_signature",
-    "verify_timestamp",
+    "is_bearer_token_valid",
+    "is_hmac_signature_valid",
+    "is_signature_valid",
+    "is_timestamp_valid",
 ]

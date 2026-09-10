@@ -8,7 +8,7 @@ class WebsiteBackend(http.Controller):
     @http.route(
         "/website/fetch_dashboard_data", type="jsonrpc", auth="user", readonly=True
     )
-    def fetch_dashboard_data(self, website_id):
+    def get_dashboard_data(self, website_id):
         Website = request.env["website"]
         has_group_system = request.env.user.has_group("base.group_system")
         has_group_designer = request.env.user.has_group(

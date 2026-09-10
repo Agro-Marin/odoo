@@ -347,7 +347,7 @@ export class ListKeyboardNavigation {
         if (!virt?.isActive) {
             return null;
         }
-        virt.ensureRowVisible(next.rowIndex);
+        virt.scrollRowIntoView(next.rowIndex);
         const flat = gridState.flatRows[next.rowIndex];
         this._pendingVirtFocus = {
             rowIndex: next.rowIndex,

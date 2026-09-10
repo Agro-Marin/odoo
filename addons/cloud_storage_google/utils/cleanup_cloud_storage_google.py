@@ -96,11 +96,11 @@ def get_blobs_to_be_deleted(blob_urls, batch_size=1000):
                 yield blob_url
 
 
-def delete_blobs(blob_urls, max_workers=None):
+def remove_blobs(blob_urls, max_workers=None):
     headers = {"Authorization": f"Bearer {credentials.token}"}
     deleted_cloud_storage_blobs_num = 0
 
-    def delete_blob_(blob_url):
+    def remove_blob(blob_url):
         nonlocal deleted_cloud_storage_blobs_num
         delete_response = requests.delete(blob_url, headers=headers, timeout=5)
         if delete_response.status_code == 204:
@@ -112,7 +112,7 @@ def delete_blobs(blob_urls, max_workers=None):
             _logger.warning("%s cannot be deleted:\n%s", blob_url, delete_response.text)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        executor.map(delete_blob_, blob_urls)
+        executor.map(remove_blob, blob_urls)
 
     _logger.info(" %d blobs are deleted by the script", deleted_cloud_storage_blobs_num)
 
@@ -123,4 +123,4 @@ if __name__ == "__main__":
         bucket_name=google_cloud_bucket_name, batch_size=1000
     )
     to_delete_blob_urls = get_blobs_to_be_deleted(all_blob_urls, batch_size=1000)
-    delete_blobs(to_delete_blob_urls)
+    remove_blobs(to_delete_blob_urls)

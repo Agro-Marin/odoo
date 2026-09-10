@@ -62,7 +62,7 @@ export class PropertiesGroupByItem extends Component {
         }
         this._loadingDefinitions = true;
         try {
-            await this.env.searchModel.fillSearchViewItemsProperty();
+            await this.env.searchModel.updateSearchViewItemsProperty();
             this.state.definitionsLoaded = true;
         } finally {
             this._loadingDefinitions = false;

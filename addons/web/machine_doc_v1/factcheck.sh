@@ -551,10 +551,10 @@ assert_eq "STATE_MANAGEMENT urgent-save: optimistic-locking parity documented" \
     "$(grep -c 'Optimistic-locking parity' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
 # The builder was extracted to concurrency_baseline.js so record_save.js and
 # dynamic_list.js cannot drift; assert the shared module + its consumer.
-assert_eq "concurrency_baseline.js exports buildConcurrencyBaseline" \
-    "$(grep -c 'export function buildConcurrencyBaseline' "$WEB/static/src/model/relational_model/concurrency_baseline.js")" "1"
+assert_eq "concurrency_baseline.js exports getConcurrencyBaseline" \
+    "$(grep -c 'export function getConcurrencyBaseline' "$WEB/static/src/model/relational_model/concurrency_baseline.js")" "1"
 assert_eq "record_save.js uses the shared concurrency baseline builder" \
-    "$(grep -c 'buildConcurrencyBaseline(' "$WEB/static/src/model/relational_model/record_save.js")" "1"
+    "$(grep -c 'getConcurrencyBaseline(' "$WEB/static/src/model/relational_model/record_save.js")" "1"
 assert_eq "record_save.js sends known_values on BOTH paths (urgent + normal)" \
     "$(grep -c 'known_values' "$WEB/static/src/model/relational_model/record_save.js")" "2"
 assert_eq "record_save.js no longer sends last_write_date" \

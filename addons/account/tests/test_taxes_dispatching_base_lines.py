@@ -207,14 +207,14 @@ class TestTaxesDispatchingBaseLines(TestTaxCommon):
         base_line = document["lines"][0]
         target_factors = [{"factor": 1.0}, {"factor": 3.0}, {"factor": 6.0}]
 
-        def populate_function(_base_line, target_factor, kwargs):
+        def update_kwargs(_base_line, target_factor, kwargs):
             kwargs["quantity"] = target_factor["factor"]
 
         pieces = AccountTax._split_base_line(
             base_line,
             self.env.company,
             target_factors,
-            populate_function=populate_function,
+            update_kwargs=update_kwargs,
         )
         total = sum(x["factor"] for x in target_factors)
         for piece, target_factor in zip(pieces, target_factors, strict=True):

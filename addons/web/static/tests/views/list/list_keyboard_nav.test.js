@@ -147,7 +147,7 @@ describe("findFocusMove — the virtualization handover", () => {
             getGridState: offscreenGrid,
             getVirtualization: () => ({
                 isActive: true,
-                ensureRowVisible: (/** @type {any} */ i) => ensured.push(i),
+                scrollRowIntoView: (/** @type {any} */ i) => ensured.push(i),
             }),
         });
 
@@ -165,7 +165,7 @@ describe("findFocusMove — the virtualization handover", () => {
     test("without an active virtualization there is no pending focus", async () => {
         const { nav, cell } = await mountNav({
             getGridState: offscreenGrid,
-            getVirtualization: () => ({ isActive: false, ensureRowVisible: () => {} }),
+            getVirtualization: () => ({ isActive: false, scrollRowIntoView: () => {} }),
         });
 
         nav.findFocusMove(cell(`[data-row-index="0"] td`), false, "down");
@@ -176,7 +176,7 @@ describe("findFocusMove — the virtualization handover", () => {
     test("resolveArrowMove reports a pending move as handled and stamps its origin", async () => {
         const { nav, cell } = await mountNav({
             getGridState: offscreenGrid,
-            getVirtualization: () => ({ isActive: true, ensureRowVisible: () => {} }),
+            getVirtualization: () => ({ isActive: true, scrollRowIntoView: () => {} }),
         });
         const origin = cell(`[data-row-index="0"] td`);
 
@@ -199,7 +199,7 @@ describe("resolvePendingVirtFocus", () => {
         });
         const { nav, cell } = await mountNav({
             getGridState: () => grid,
-            getVirtualization: () => ({ isActive: true, ensureRowVisible: () => {} }),
+            getVirtualization: () => ({ isActive: true, scrollRowIntoView: () => {} }),
         });
         nav.findFocusMove(cell(`[data-row-index="0"] td`), false, "down");
         expect(nav.pendingVirtFocus).not.toBe(null);

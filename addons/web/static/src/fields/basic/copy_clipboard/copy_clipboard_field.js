@@ -141,7 +141,7 @@ registerField("CopyClipboardButton", copyClipboardButtonField);
  * @param {Record<string, any>} wrapped
  * @returns {Record<string, any>}
  */
-function buildCopyClipboardField(component, wrapped) {
+function makeCopyClipboardField(component, wrapped) {
     return {
         ...wrapped,
         component,
@@ -160,14 +160,14 @@ function buildCopyClipboardField(component, wrapped) {
 }
 
 export const copyClipboardCharField = {
-    ...buildCopyClipboardField(CopyClipboardCharField, charField),
+    ...makeCopyClipboardField(CopyClipboardCharField, charField),
     displayName: _t("Copy Text to Clipboard"),
 };
 
 registerField("CopyClipboardChar", copyClipboardCharField);
 
 export const copyClipboardURLField = {
-    ...buildCopyClipboardField(CopyClipboardURLField, urlField),
+    ...makeCopyClipboardField(CopyClipboardURLField, urlField),
     displayName: _t("Copy URL to Clipboard"),
 };
 

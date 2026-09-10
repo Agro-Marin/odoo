@@ -18,6 +18,6 @@
         "security/sms_security.xml",
     ],
     "auto_install": True,
-    "post_init_hook": "_assign_default_sms_template_picking_id",
+    "post_init_hook": "_update_default_sms_template",
     "uninstall_hook": "_reset_sms_text_confirmation",
 }

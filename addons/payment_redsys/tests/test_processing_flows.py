@@ -20,7 +20,7 @@ class TestProcessingFlows(RedsysCommon, PaymentHttpCommon):
         url = self._build_url(RedsysController._return_url)
         with (
             patch(
-                "odoo.addons.payment_redsys.controllers.main.RedsysController._verify_signature",
+                "odoo.addons.payment_redsys.controllers.main.RedsysController._check_signature",
             ),
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -37,7 +37,7 @@ class TestProcessingFlows(RedsysCommon, PaymentHttpCommon):
         url = self._build_url(RedsysController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_redsys.controllers.main.RedsysController._verify_signature"
+                "odoo.addons.payment_redsys.controllers.main.RedsysController._check_signature"
             ),
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -53,7 +53,7 @@ class TestProcessingFlows(RedsysCommon, PaymentHttpCommon):
         url = self._build_url(RedsysController._return_url)
         with (
             patch(
-                "odoo.addons.payment_redsys.controllers.main.RedsysController._verify_signature"
+                "odoo.addons.payment_redsys.controllers.main.RedsysController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -69,7 +69,7 @@ class TestProcessingFlows(RedsysCommon, PaymentHttpCommon):
         url = self._build_url(RedsysController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_redsys.controllers.main.RedsysController._verify_signature"
+                "odoo.addons.payment_redsys.controllers.main.RedsysController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -82,7 +82,7 @@ class TestProcessingFlows(RedsysCommon, PaymentHttpCommon):
         """Test the verification of a notification with a valid signature."""
         tx = self._create_transaction("redirect")
         self._assert_does_not_raise(
-            Forbidden, RedsysController._verify_signature, self.payment_data, tx
+            Forbidden, RedsysController._check_signature, self.payment_data, tx
         )
 
     @mute_logger("odoo.addons.payment_redsys.controllers.main")
@@ -90,11 +90,11 @@ class TestProcessingFlows(RedsysCommon, PaymentHttpCommon):
         """Test the verification of a notification with a missing signature."""
         tx = self._create_transaction("redirect")
         payload = dict(self.payment_data, Ds_Signature=None)
-        self.assertRaises(Forbidden, RedsysController._verify_signature, payload, tx)
+        self.assertRaises(Forbidden, RedsysController._check_signature, payload, tx)
 
     @mute_logger("odoo.addons.payment_redsys.controllers.main")
     def test_reject_notification_with_invalid_signature(self):
         """Test the verification of a notification with an invalid signature."""
         tx = self._create_transaction("redirect")
         payload = dict(self.payment_data, Ds_Signature="dummy")
-        self.assertRaises(Forbidden, RedsysController._verify_signature, payload, tx)
+        self.assertRaises(Forbidden, RedsysController._check_signature, payload, tx)

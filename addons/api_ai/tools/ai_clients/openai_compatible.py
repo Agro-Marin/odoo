@@ -4,7 +4,7 @@ from ..vendor_catalog import (
     SYNTHESIZE_TIMEOUT,
     TRANSCRIBE_TIMEOUT,
     audio_mimetype,
-    build_whisper_form,
+    get_whisper_form,
     read_openai_content,
     read_whisper_segments,
     read_whisper_transcript,
@@ -19,7 +19,7 @@ class OpenAICompatibleClient(BaseAIClient):
     MAX_TEMPERATURE = 2.0
     MIN_TEMPERATURE = 0.0
 
-    def _validate_response(self, response_data):
+    def _get_response_body(self, response_data):
         if not isinstance(response_data, dict):
             raise CommError(
                 f"Invalid response type: expected dict but got {type(response_data).__name__}",
@@ -49,7 +49,7 @@ class OpenAICompatibleClient(BaseAIClient):
     ):
         model = self._resolve_model(model)
         try:
-            self._validate_params(
+            self._check_params(
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -64,7 +64,7 @@ class OpenAICompatibleClient(BaseAIClient):
             }
 
             response = self._client.post("/chat/completions", json=payload)
-            return self._validate_response(response)
+            return self._get_response_body(response)
 
         except ValueError, CommError:
             raise
@@ -154,7 +154,7 @@ class OpenAICompatibleClient(BaseAIClient):
             response = self._client.post(
                 spec["audio_path"],
                 files={"file": (filename, audio_bytes, audio_mimetype(filename))},
-                data=build_whisper_form(
+                data=get_whisper_form(
                     spec["audio_model"], language=language, prompt=prompt
                 ),
                 timeout=spec.get("audio_timeout") or TRANSCRIBE_TIMEOUT,
@@ -199,7 +199,7 @@ class OpenAICompatibleClient(BaseAIClient):
                         mimetype or audio_mimetype(filename),
                     )
                 },
-                data=build_whisper_form(
+                data=get_whisper_form(
                     model or spec["audio_model"],
                     language=language,
                     prompt=prompt,

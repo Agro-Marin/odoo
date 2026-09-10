@@ -7,10 +7,10 @@ import {
 } from "@web/core/utils/dnd/draggable_hook_builder_utils";
 import {
     applyParamsToContext,
+    checkParams,
     computeParamValues,
     makeDraggableContext,
     resolveParams,
-    validateParams,
 } from "@web/core/utils/dnd/draggable_hook_params";
 
 describe.current.tags("headless");
@@ -51,9 +51,9 @@ test("computeParamValues unwraps value getters but not callbacks", () => {
     expect(at("preventDrag")).toBe(preventDrag);
 });
 
-test("validateParams rejects a wrong type and names both sides", () => {
+test("checkParams rejects a wrong type and names both sides", () => {
     expect(() =>
-        validateParams(
+        checkParams(
             { ref: {}, elements: 42 },
             DEFAULT_ACCEPTED_PARAMS,
             DEFAULT_DEFAULT_PARAMS,
@@ -62,15 +62,15 @@ test("validateParams rejects a wrong type and names both sides", () => {
     ).toThrow(/invalid type for property "elements".*got number/);
 });
 
-test("validateParams rejects a missing mandatory param", () => {
+test("checkParams rejects a missing mandatory param", () => {
     expect(() =>
-        validateParams({}, DEFAULT_ACCEPTED_PARAMS, DEFAULT_DEFAULT_PARAMS, makeError),
+        checkParams({}, DEFAULT_ACCEPTED_PARAMS, DEFAULT_DEFAULT_PARAMS, makeError),
     ).toThrow(/missing required property "ref"/);
 });
 
-test("validateParams accepts a falsy value for a param that has a default", () => {
+test("checkParams accepts a falsy value for a param that has a default", () => {
     expect(() =>
-        validateParams(
+        checkParams(
             { ref: {}, delay: 0 },
             DEFAULT_ACCEPTED_PARAMS,
             DEFAULT_DEFAULT_PARAMS,
@@ -207,10 +207,10 @@ test("edgeScrolling starts enabled and detached from the shared default", () => 
     });
 });
 
-test("validateParams: absent means undefined, null or false; any other value is typed", () => {
+test("checkParams: absent means undefined, null or false; any other value is typed", () => {
     for (const absent of [undefined, null, false]) {
         expect(() =>
-            validateParams(
+            checkParams(
                 { ref: {}, groups: absent },
                 DEFAULT_ACCEPTED_PARAMS,
                 DEFAULT_DEFAULT_PARAMS,
@@ -220,7 +220,7 @@ test("validateParams: absent means undefined, null or false; any other value is 
     }
     for (const present of [{ enable: 0 }, { delay: "0" }, { handle: 5 }]) {
         expect(() =>
-            validateParams(
+            checkParams(
                 { ref: {}, ...present },
                 DEFAULT_ACCEPTED_PARAMS,
                 DEFAULT_DEFAULT_PARAMS,

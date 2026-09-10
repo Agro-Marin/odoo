@@ -15,7 +15,7 @@ class PosSelfOrderController(http.Controller):
         website=True,
     )
     def process_order(self, order, access_token, table_identifier, device_type):
-        pos_config, table = self._verify_authorization(
+        pos_config, table = self._get_pos_config_and_table(
             access_token, table_identifier, order
         )
         preset_id = order["preset_id"] if pos_config.use_presets else False
@@ -81,7 +81,7 @@ class PosSelfOrderController(http.Controller):
             [order["id"] for order in results["pos.order"]]
         )
 
-        self._verify_line_price(line_ids, pos_config, preset_id)
+        self._update_combo_line_prices(line_ids, pos_config, preset_id)
 
         amount_total, amount_untaxed = self._get_order_prices(order_ids.lines)
         order_ids.write(
@@ -117,7 +117,7 @@ class PosSelfOrderController(http.Controller):
             ]._load_pos_self_data_read(order.lines.custom_attribute_value_ids, config),
         }
 
-    def _verify_line_price(self, lines, pos_config, preset_id):
+    def _update_combo_line_prices(self, lines, pos_config, preset_id):
         pricelist = (
             preset_id.pricelist_id or pos_config.pricelist_id
             if preset_id
@@ -221,7 +221,7 @@ class PosSelfOrderController(http.Controller):
     @http.route(
         "/pos-self-order/validate-partner", auth="public", type="jsonrpc", website=True
     )
-    def validate_partner(
+    def save_partner(
         self,
         access_token,
         name,
@@ -234,7 +234,7 @@ class PosSelfOrderController(http.Controller):
         partner_id=None,
         email=None,
     ):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         # partner_id comes from the caller, so *record* access must be decided
         # with the service user's rights. Looking the partner up under sudo()
         # returned partners of other companies to anyone holding the kiosk
@@ -297,7 +297,7 @@ class PosSelfOrderController(http.Controller):
         "/pos-self-order/remove-order", auth="public", type="jsonrpc", website=True
     )
     def remove_order(self, access_token, order_id, order_access_token):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         pos_order = pos_config.env["pos.order"].browse(order_id)
 
         if not pos_order.exists() or not consteq(
@@ -320,7 +320,7 @@ class PosSelfOrderController(http.Controller):
     def get_orders_by_access_token(
         self, access_token, order_access_tokens, table_identifier=None
     ):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         table = pos_config.env["restaurant.table"].search(
             [("identifier", "=", table_identifier)], limit=1
         )
@@ -379,7 +379,7 @@ class PosSelfOrderController(http.Controller):
     def pos_self_order_kiosk_payment(
         self, pos_config_id, order, payment_method_id, access_token, device_type
     ):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         results = self.process_order(order, access_token, None, device_type)
 
         if not results["pos.order"][0].get("id"):
@@ -416,7 +416,7 @@ class PosSelfOrderController(http.Controller):
         website=True,
     )
     def pos_kiosk_increment_nb_print(self, access_token, order_id, order_access_token):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         pos_order = pos_config.env["pos.order"].browse(order_id)
 
         if not pos_order.exists() or not consteq(
@@ -439,7 +439,7 @@ class PosSelfOrderController(http.Controller):
         website=True,
     )
     def change_printer_status(self, access_token, has_paper):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         if has_paper != pos_config.has_paper:
             pos_config.write({"has_paper": has_paper})
 
@@ -447,7 +447,7 @@ class PosSelfOrderController(http.Controller):
         "/pos-self-order/get-slots", auth="public", type="jsonrpc", website=True
     )
     def get_slots(self, access_token, preset_id):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         preset = pos_config.env["pos.preset"].browse(preset_id)
         return preset.get_available_slots()
 
@@ -456,7 +456,7 @@ class PosSelfOrderController(http.Controller):
         amount_total = sum(lines.mapped("price_subtotal_incl"))
         return amount_total, amount_untaxed
 
-    def _verify_pos_config(self, access_token, check_active_session=True):
+    def _get_pos_config(self, access_token, check_active_session=True):
         """
         Finds the pos.config with the given access_token and returns a record with reduced privileges.
         The record is has no sudo access and is in the context of the record's company and current pos.session's user.
@@ -466,7 +466,7 @@ class PosSelfOrderController(http.Controller):
             .sudo()
             .search([("access_token", "=", access_token)], limit=1)
         )
-        if self._verify_config_constraint(pos_config_sudo, check_active_session):
+        if self._is_config_unusable(pos_config_sudo, check_active_session):
             raise Unauthorized("Invalid access token")
         company = pos_config_sudo.company_id
         user = pos_config_sudo.self_ordering_default_user_id
@@ -477,7 +477,7 @@ class PosSelfOrderController(http.Controller):
             .with_context(allowed_company_ids=company.ids)
         )
 
-    def _verify_config_constraint(self, pos_config_sudo, check_active_session=True):
+    def _is_config_unusable(self, pos_config_sudo, check_active_session=True):
         return (
             not pos_config_sudo
             or (
@@ -487,12 +487,12 @@ class PosSelfOrderController(http.Controller):
             or (check_active_session and not pos_config_sudo.has_active_session)
         )
 
-    def _verify_authorization(self, access_token, table_identifier, order):
+    def _get_pos_config_and_table(self, access_token, table_identifier, order):
         """
-        Similar to _verify_pos_config but also looks for the restaurant.table of the given identifier.
+        Similar to _get_pos_config but also looks for the restaurant.table of the given identifier.
         The restaurant.table record is also returned with reduced privileges.
         """
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         table_sudo = (
             request.env["restaurant.table"]
             .sudo()
@@ -522,5 +522,5 @@ class PosSelfOrderController(http.Controller):
 
     @http.route(["/pos-self/ping"], type="jsonrpc", auth="public")
     def pos_ping(self, access_token):
-        self._verify_pos_config(access_token, check_active_session=False)
+        self._get_pos_config(access_token, check_active_session=False)
         return {"response": "pong"}

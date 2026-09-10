@@ -103,7 +103,7 @@ export class SampleServer {
         if (!(params.model in this.data)) {
             throw new Error(`SampleServer: unknown model ${params.model}`);
         }
-        this._populateModels();
+        this._createSampleRecords();
         switch (params.method || params.route) {
             case "web_search_read":
                 return this._mockWebSearchReadUnity(params);
@@ -587,7 +587,7 @@ export class SampleServer {
         }
         let groups;
         if (this.existingGroups) {
-            this._tweakExistingGroups({ ...params, aggregates });
+            this._updateExistingGroupAggregates({ ...params, aggregates });
             groups = this.existingGroups;
         } else {
             groups = this._mockFormattedReadGroup({ ...params, aggregates });
@@ -636,7 +636,7 @@ export class SampleServer {
      * @private
      * @param {MockRpcParams} params
      */
-    _populateExistingGroups(params) {
+    _updateRecordsWithGroups(params) {
         const groups = this.existingGroups;
         const gb = this._resolveGroupBy(params.model, params.groupBy[0]);
         if (!gb) {
@@ -664,7 +664,7 @@ export class SampleServer {
     }
 
     /** @private */
-    _populateModels() {
+    _createSampleRecords() {
         if (!this.populated) {
             for (const modelName of Object.keys(this.data)) {
                 const model = this.data[modelName];
@@ -693,13 +693,13 @@ export class SampleServer {
      * @private
      * @param {MockRpcParams} params
      */
-    _tweakExistingGroups(params) {
+    _updateExistingGroupAggregates(params) {
         const groups = this.existingGroups;
         const gb = this._resolveGroupBy(params.model, params.groupBy[0]);
         if (!gb) {
             return;
         }
-        this._populateExistingGroups(params);
+        this._updateRecordsWithGroups(params);
 
         const { fieldName: groupBy, alias, field } = gb;
         const modelFields = this.data[params.model].fields;
@@ -751,7 +751,7 @@ SampleServer.UnimplementedRouteError = UnimplementedRouteError;
  * @param {any} orm
  * @returns {any}
  */
-export function buildSampleORM(resModel, fields, orm, relatedModels) {
+export function makeSampleORM(resModel, fields, orm, relatedModels) {
     const sampleServer = new SampleServer(resModel, fields, relatedModels);
     const fakeRPC = async (/** @type {any} */ _, /** @type {any} */ params) => {
         const { args, kwargs, method, model } = params;

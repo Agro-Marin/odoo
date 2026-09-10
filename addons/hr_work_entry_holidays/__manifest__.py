@@ -26,5 +26,5 @@ This application allows you to integrate time off in payslips.
     ],
     "installable": True,
     "auto_install": True,
-    "post_init_hook": "_validate_existing_work_entry",
+    "post_init_hook": "_check_existing_work_entries",
 }

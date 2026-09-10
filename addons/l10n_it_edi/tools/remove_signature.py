@@ -125,7 +125,7 @@ def remove_signature_fallback(content):
     """
     PKCS7_DATA_OID = "1.2.840.113549.1.7.1"
     result, header_found, data_found = None, False, False
-    for node in Reader().build_from_stream(content):
+    for node in Reader().read_stream(content):
         if node.kind == "ObjectIdentifier" and node.content == PKCS7_DATA_OID:
             header_found = True
         if header_found and node.kind == "OctetString":
@@ -295,7 +295,7 @@ class Reader:
         )
         return finalized_node
 
-    def build_from_stream(self, stream):
+    def read_stream(self, stream):
         """Build an Asn1 tree starting from a byte string from a p7m file"""
 
         self.clear()

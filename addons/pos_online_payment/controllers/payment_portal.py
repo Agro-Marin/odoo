@@ -23,7 +23,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         return order_sudo
 
     @staticmethod
-    def _ensure_session_open(pos_order_sudo):
+    def _check_session_open(pos_order_sudo):
         if pos_order_sudo.session_id.state != "opened":
             raise AccessError(_("The POS session is not opened."))
 
@@ -121,7 +121,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         :raise: ValidationError if data on the server prevents the payment
         """
         pos_order_sudo = self._check_order_access(pos_order_id, access_token)
-        self._ensure_session_open(pos_order_sudo)
+        self._check_session_open(pos_order_sudo)
 
         user_sudo = request.env.user
         if not pos_order_sudo.partner_id:
@@ -225,7 +225,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         :raise: UserError if data provided by the user is invalid/missing
         """
         pos_order_sudo = self._check_order_access(pos_order_id, access_token)
-        self._ensure_session_open(pos_order_sudo)
+        self._check_session_open(pos_order_sudo)
         exit_route = request.httprequest.args.get("exit_route")
         user_sudo = request.env.user
         if not pos_order_sudo.partner_id:
@@ -235,7 +235,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         if not partner_sudo:
             return self._redirect_login()
 
-        self._validate_transaction_kwargs(kwargs)
+        self._check_transaction_kwargs(kwargs)
         if kwargs.get("is_validation"):
             raise UserError(
                 _(

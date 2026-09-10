@@ -17,5 +17,5 @@
         "views/res_config_settings_view.xml",
     ],
     "auto_install": True,
-    "post_init_hook": "_synchronize_cron",
+    "post_init_hook": "_sync_cron",
 }

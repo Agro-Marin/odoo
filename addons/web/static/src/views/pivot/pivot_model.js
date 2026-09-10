@@ -690,11 +690,11 @@ export class PivotModel extends Model {
     _prepareData(group, groupSubdivisions, config) {
         return aggregateSubdivisions(group, groupSubdivisions, config, {
             sortRows: (sortedColumn, cfg) => this._sortRows(sortedColumn, cfg),
-            buildGroupLabels: (grp, groupBys, cfg) =>
+            prepareGroupLabels: (grp, groupBys, cfg) =>
                 this._getGroupLabels(grp, groupBys, cfg),
-            buildGroupValues: (grp, groupBys) => this._getGroupValues(grp, groupBys),
-            buildMeasureSpecs: (cfg) => this._getMeasureSpecs(cfg),
-            buildMeasurements: (subGroup, cfg, specs) =>
+            prepareGroupValues: (grp, groupBys) => this._getGroupValues(grp, groupBys),
+            prepareMeasureSpecs: (cfg) => this._getMeasureSpecs(cfg),
+            prepareMeasurements: (subGroup, cfg, specs) =>
                 this._getMeasurements(subGroup, cfg, specs),
         });
     }

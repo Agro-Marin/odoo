@@ -993,7 +993,7 @@ is computed and non-stored, recalculated per read.
 |--------|---------|
 | `get_dashboard()` | Singleton pattern: search or create |
 | `action_refresh()` | Invalidate cache + reload |
-| `_calculate_avg_response_time_sql()` | Efficient SQL AVG calculation |
+| `_get_avg_response_time_sql()` | Efficient SQL AVG calculation |
 
 ---
 

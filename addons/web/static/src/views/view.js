@@ -394,14 +394,14 @@ export class View extends Component {
             props.searchMenuTypes ||
             descr.searchMenuTypes ||
             /** @type {any} */ (this.constructor).searchMenuTypes;
-        const controllerProps = this.buildControllerProps(props, loaded, archXmlDoc, {
+        const controllerProps = this.getControllerProps(props, loaded, archXmlDoc, {
             searchMenuTypes,
         });
         this.Controller = descr.Controller;
         this.componentProps = descr.props
             ? descr.props(controllerProps, descr, config)
             : controllerProps;
-        this.withSearchProps = this.buildWithSearchProps(props, loaded, archXmlDoc, {
+        this.withSearchProps = this.getWithSearchProps(props, loaded, archXmlDoc, {
             descr,
             searchMenuTypes,
         });
@@ -481,7 +481,7 @@ export class View extends Component {
      * @param {{ searchMenuTypes: string[] }} params
      * @returns {Record<string, any>}
      */
-    buildControllerProps(props, loaded, archXmlDoc, { searchMenuTypes }) {
+    getControllerProps(props, loaded, archXmlDoc, { searchMenuTypes }) {
         const { resModel } = props;
         const { viewDescription, fields, relatedModels } = loaded;
         const info = {
@@ -531,7 +531,7 @@ export class View extends Component {
      * @param {{ descr: Record<string, any>, searchMenuTypes: string[] }} params
      * @returns {Record<string, any>}
      */
-    buildWithSearchProps(props, loaded, archXmlDoc, { descr, searchMenuTypes }) {
+    getWithSearchProps(props, loaded, archXmlDoc, { descr, searchMenuTypes }) {
         /** @type {Record<string, any>} */
         const withSearchProps = {
             ...pickDeclaredProps(toRaw(props), WithSearch.props),

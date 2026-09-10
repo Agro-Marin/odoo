@@ -9,7 +9,7 @@ from odoo.exceptions import AccessError, ConcurrencyError, UserError
 from odoo.http import request
 from odoo.tools import replace_exceptions, str2bool
 
-from odoo.addons.web.controllers.utils import ensure_db
+from odoo.addons.web.controllers.utils import select_db
 
 SERIALIZATION_FAILURE = "40001"
 
@@ -289,8 +289,8 @@ class TestHttp(http.Controller):
         raise UserError("Chevron seven, locked.")
 
     @http.route("/test_http/ensure_db", type="http", auth="none")
-    def ensure_db_endpoint(self, db=None):
-        ensure_db()
+    def select_db_endpoint(self, db=None):
+        select_db()
         assert request.db, "There should be a database"
         return request.db
 

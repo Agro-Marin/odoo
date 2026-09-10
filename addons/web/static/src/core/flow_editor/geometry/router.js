@@ -229,7 +229,7 @@ function blockingObstacles(points, obstacles) {
  * @param {import("./nodes").FlowRect[]} obstacles
  * @returns {FlowPoint[] | null}
  */
-function validateCandidate(startPoint, endPoint, routePoints, obstacles) {
+function resolveCandidate(startPoint, endPoint, routePoints, obstacles) {
     const points = mergeCollinearSegments(
         simplifyPoints([startPoint, ...routePoints, endPoint]),
     );
@@ -361,13 +361,13 @@ function corridorCandidates(A, B, obstacles) {
  */
 function findValidRoute(startPoint, endPoint, A, B, obstacles) {
     for (const candidate of elbowCandidates(A, B, obstacles)) {
-        const points = validateCandidate(startPoint, endPoint, candidate, obstacles);
+        const points = resolveCandidate(startPoint, endPoint, candidate, obstacles);
         if (points) {
             return points;
         }
     }
     for (const candidate of corridorCandidates(A, B, obstacles)) {
-        const points = validateCandidate(startPoint, endPoint, candidate, obstacles);
+        const points = resolveCandidate(startPoint, endPoint, candidate, obstacles);
         if (points) {
             return points;
         }
@@ -431,7 +431,7 @@ const SELF_LOOP_MARGINS = [40, 72, 104];
  * @param {number} [params.cornerRadius]
  * @returns {{ points: FlowPoint[], path: string, midpoint: { x: number, y: number } }}
  */
-export function buildSelfLoopPath({
+export function getSelfLoopPath({
     start,
     end,
     nodeRect,
@@ -462,7 +462,7 @@ export function buildSelfLoopPath({
     for (const { edge, sign } of sides) {
         for (const margin of SELF_LOOP_MARGINS) {
             const loopY = edge + sign * margin;
-            const points = validateCandidate(
+            const points = resolveCandidate(
                 startPoint,
                 endPoint,
                 [A, [A[0], loopY], [B[0], loopY], B],
@@ -498,7 +498,7 @@ export function buildSelfLoopPath({
  * @param {number} [params.cornerRadius]
  * @returns {{ points: FlowPoint[], path: string, midpoint: { x: number, y: number } }}
  */
-export function buildOrthogonalPath({
+export function getOrthogonalPath({
     start,
     end,
     obstacles = [],

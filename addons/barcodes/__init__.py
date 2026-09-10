@@ -1,7 +1,7 @@
 from . import models
 
 
-def _assign_default_nomenclature(env):
+def _update_default_nomenclature(env):
     companies_without_nomenclature = env["res.company"].search(
         [("nomenclature_id", "=", False)]
     )

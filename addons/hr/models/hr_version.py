@@ -19,7 +19,7 @@ def format_date_abbr(env, date):
     return format_date(date, date_format, locale=locale)
 
 
-def drop_values_from_other_companies(records, vals_list, default):
+def remove_values_from_other_companies(records, vals_list, default):
     given = set(default or ())
     companies = records.env["res.company"]
     for record, vals in zip(records, vals_list, strict=False):
@@ -594,7 +594,7 @@ class HrVersion(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
-        drop_values_from_other_companies(self, vals_list, default)
+        remove_values_from_other_companies(self, vals_list, default)
         return vals_list
 
     def write(self, vals):

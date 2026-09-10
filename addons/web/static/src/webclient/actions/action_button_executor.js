@@ -20,7 +20,7 @@ export class InvalidButtonParamsError extends Error {}
  * @returns {any[]}
  * @throws {InvalidButtonParamsError}
  */
-export function buildCallButtonArgs(params) {
+export function getCallButtonArgs(params) {
     let args = params.resId ? [[params.resId]] : [params.resIds];
     if (params.args) {
         let additionalArgs;
@@ -71,7 +71,7 @@ async function resolveButtonAction(am, params, context) {
         const callProm = rpc(
             `/web/dataset/call_button/${params.resModel}/${params.name}`,
             {
-                args: buildCallButtonArgs(params),
+                args: getCallButtonArgs(params),
                 kwargs: { context },
                 method: params.name,
                 model: params.resModel,

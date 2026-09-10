@@ -24,7 +24,7 @@ class GelatoController(Controller):
             order_id = int(event_data["orderReferenceId"])
             order_sudo = request.env["sale.order"].sudo().browse(order_id).exists()
             received_signature = request.httprequest.headers.get("signature", "")
-            self._verify_notification_signature(received_signature, order_sudo)
+            self._check_notification_signature(received_signature, order_sudo)
 
             fulfillment_status = event_data.get("fulfillmentStatus")
             if fulfillment_status == "failed":
@@ -79,7 +79,7 @@ class GelatoController(Controller):
         return request.prepare_json_response("")
 
     @staticmethod
-    def _verify_notification_signature(received_signature, order_sudo):
+    def _check_notification_signature(received_signature, order_sudo):
         company_sudo = order_sudo.company_id.sudo()
         expected_signature = company_sudo.gelato_webhook_secret
         if not expected_signature:

@@ -87,9 +87,9 @@ class OAuthController(http.Controller):
                     % service.name
                 )
 
-            state = self._build_state(credential_id)
+            state = self._get_oauth_state(credential_id)
 
-            redirect_uri = self._build_redirect_uri()
+            redirect_uri = self._get_redirect_uri()
 
             params = {
                 "response_type": "code",
@@ -300,7 +300,7 @@ class OAuthController(http.Controller):
                 request.env._("Token exchange failed: %s") % str(e),
             )
 
-    def _build_redirect_uri(self):
+    def _get_redirect_uri(self):
         base_url = (
             request.env["ir.config_parameter"]
             .sudo()
@@ -317,7 +317,7 @@ class OAuthController(http.Controller):
             )
         return f"{base_url}{_CALLBACK_PATH_REGISTERED_WITH_PROVIDERS}"
 
-    def _build_state(self, credential_id):
+    def _get_oauth_state(self, credential_id):
         nonce = secrets.token_urlsafe(32)
         request.session[_OAUTH_NONCE_SESSION_KEY] = nonce
 
@@ -340,7 +340,7 @@ class OAuthController(http.Controller):
     def _exchange_code_for_tokens(self, credential, code):
         service = credential.endpoint_id
 
-        redirect_uri = self._build_redirect_uri()
+        redirect_uri = self._get_redirect_uri()
 
         token_data = {
             "grant_type": "authorization_code",

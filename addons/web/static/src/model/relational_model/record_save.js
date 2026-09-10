@@ -6,14 +6,14 @@ import { RequestEntityTooLargeError } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
 import { modelLog } from "@web/core/utils/asset_log";
 
-import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
+import { getConcurrencyBaseline } from "./concurrency_baseline.js";
 import { FetchRecordError } from "./errors.js";
 import { getId, getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import {
-    buildCommitSpec,
     collectPendingCommands,
     commitSubtree,
+    getCommitSpec,
     healSubtreeReplayFailures,
     x2manyLists,
 } from "./x2many_tree.js";
@@ -146,7 +146,7 @@ function collectOrderBys(record, nextId) {
  * @param {{ reload: boolean, nextId: number | undefined, orderBys: Record<string, any>,
  * @returns {Record<string, any>}
  */
-function buildSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline }) {
+function getSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline }) {
     /** @type {Record<string, any>} */
     const kwargs = {
         context: record.context,
@@ -157,7 +157,7 @@ function buildSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline
                   getSpecEvalContext(record.config),
                   { orderBys },
               )
-            : buildCommitSpec(record),
+            : getCommitSpec(record),
         next_id: nextId,
     };
     if (record.resId) {
@@ -232,7 +232,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
 
     const changes = record.getChangesLocked();
     record.saveState.clearBeacon();
-    const concurrencyBaseline = buildConcurrencyBaseline(record, Object.keys(changes));
+    const concurrencyBaseline = getConcurrencyBaseline(record, Object.keys(changes));
     if (!creation && !Object.keys(changes).length) {
         return settleWithoutSaving(record, nextId);
     }
@@ -256,7 +256,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     record.saveState.enter();
     try {
         const orderBys = collectOrderBys(record, nextId);
-        const kwargs = buildSaveKwargs(record, {
+        const kwargs = getSaveKwargs(record, {
             reload,
             nextId,
             orderBys,

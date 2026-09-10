@@ -163,7 +163,7 @@ class Manager(Thread):
         if IS_RPI and helpers.get_odoo_server_url():
             helpers.generate_password()
 
-        certificate.ensure_validity()
+        certificate.update_certificate()
 
         # We first add the IoT Box to the connected DB because IoT handlers cannot be downloaded if
         # the identifier of the Box is not found in the DB. So add the Box to the DB.
@@ -175,7 +175,7 @@ class Manager(Thread):
             interface().start()
 
         # Set scheduled actions
-        schedule.every().day.at("00:00").do(certificate.ensure_validity)
+        schedule.every().day.at("00:00").do(certificate.update_certificate)
         schedule.every().day.at("00:00").do(helpers.reset_log_level)
         schedule.every().day.at("00:00").do(upgrade.check_git_branch)
 

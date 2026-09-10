@@ -188,7 +188,7 @@ export class CalendarArchParser extends ViewArchParser {
         if (!FILTER_ATTRIBUTE_NAMES.some((attr) => node.hasAttribute(attr))) {
             return;
         }
-        state.filtersInfo[fieldName] = this.buildFilterInfo(node, fieldName, {
+        state.filtersInfo[fieldName] = this.getFilterInfo(node, fieldName, {
             field: state.fields[fieldName],
             context: fieldInfo.context || "{}",
             previous: state.filtersInfo[fieldName],
@@ -201,7 +201,7 @@ export class CalendarArchParser extends ViewArchParser {
      * @param {{ field: any, context: string, previous?: any }} params
      * @returns {Record<string, any>}
      */
-    buildFilterInfo(node, fieldName, { field, context, previous }) {
+    getFilterInfo(node, fieldName, { field, context, previous }) {
         const filterInfo = previous || {
             avatarFieldName: null,
             colorFieldName: null,

@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 /** @type {string[]} */
-export const SEARCH_PANEL_PUBLISHED = ["_reloadSections", "_seedSearchPanel"];
+export const SEARCH_PANEL_PUBLISHED = ["_reloadSections", "_initSearchPanel"];
 
 /** @type {string[]} */
 export const SEARCH_PANEL_REQUIRES = [
@@ -32,7 +32,7 @@ export const SEARCH_PANEL_SHARED_STATE = [
 ];
 
 /** @type {string[]} */
-export const SEARCH_PROPERTIES_PUBLISHED = ["fillSearchViewItemsProperty"];
+export const SEARCH_PROPERTIES_PUBLISHED = ["updateSearchViewItemsProperty"];
 
 /** @type {string[]} */
 export const SEARCH_PROPERTIES_REQUIRES = ["_notify", "getSearchItems"];
@@ -99,7 +99,7 @@ export const SEARCH_SPLIT_DOMAIN_REQUIRES = [
     "createNewGroupBy",
     "deactivateGroup",
     "domainEvalContext",
-    "fillSearchViewItemsProperty",
+    "updateSearchViewItemsProperty",
     "isDebugMode",
 ];
 
@@ -182,7 +182,7 @@ export const SEARCH_MODEL_REQUIRES = [
     "_createGroupOfFavorites",
     "_reconciliateFavorites",
     "_reloadSections",
-    "_seedSearchPanel",
+    "_initSearchPanel",
 ];
 
 /** @type {string[]} */
@@ -227,7 +227,7 @@ export const SEARCH_MODEL_SHARED_STATE = [
 /** @type {Record<string, string>} */
 export const SEARCH_COMPOSITION_IDENTITY = {
     "search/search_panel/search_panel_mixin.js": "toggleCategoryValue",
-    "search/search_properties_mixin.js": "fillSearchViewItemsProperty",
+    "search/search_properties_mixin.js": "updateSearchViewItemsProperty",
     "search/search_favorites_mixin.js": "createNewFavorite",
     "search/search_split_domain_mixin.js": "splitAndAddDomain",
     "search/search_query_mixin.js": "toggleSearchItem",

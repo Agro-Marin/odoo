@@ -2,7 +2,7 @@
 import { loadBundle } from "@web/core/assets";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { ensureServicesStarted } from "@web/env";
+import { startMissingServices } from "@web/env";
 
 const actionRegistry = registry.category("actions");
 
@@ -27,7 +27,7 @@ export function addSpreadsheetActionLazyLoader(actionName, path, displayName) {
         // and call useService(...) before the service exists — which throws and
         // renders a blank action (notably: no dashboard ever shows). Force a
         // full startup pass so the bundle's services are available first.
-        await ensureServicesStarted(env);
+        await startMissingServices(env);
 
         if (actionRegistry.get(actionName) === actionLazyLoader) {
             // At this point, the real spreadsheet client action should be loaded and have

@@ -390,7 +390,7 @@ export class Many2XAutocomplete extends Component {
 
         if (request.length < this.props.searchThreshold) {
             if (this.addStartTypingSuggestion({ request, records })) {
-                suggestions.push(this.buildStartTypingSuggestion());
+                suggestions.push(this.getStartTypingSuggestion());
             }
         } else {
             records = await lock(this.search(request));
@@ -400,12 +400,12 @@ export class Many2XAutocomplete extends Component {
             ));
             if (records?.length) {
                 for (const record of records) {
-                    suggestions.push(this.buildRecordSuggestion(request, record));
+                    suggestions.push(this.getRecordSuggestion(request, record));
                 }
             } else if (this.addNoRecordsSuggestion()) {
-                suggestions.push(this.buildNoRecordsSuggestion());
+                suggestions.push(this.getNoRecordsSuggestion());
             } else if (this.addStartTypingSuggestion({ request, records })) {
-                suggestions.push(this.buildStartTypingSuggestion());
+                suggestions.push(this.getStartTypingSuggestion());
             }
         }
 
@@ -424,15 +424,15 @@ export class Many2XAutocomplete extends Component {
         return [
             {
                 enabled: this.addCreateSuggestion.bind(this),
-                build: this.buildCreateSuggestion.bind(this),
+                build: this.getCreateSuggestion.bind(this),
             },
             {
                 enabled: this.addCreateEditSuggestion.bind(this),
-                build: this.buildCreateEditSuggestion.bind(this),
+                build: this.getCreateEditSuggestion.bind(this),
             },
             {
                 enabled: this.addSearchMoreSuggestion.bind(this),
-                build: this.buildSearchMoreSuggestion.bind(this),
+                build: this.getSearchMoreSuggestion.bind(this),
             },
         ];
     }
@@ -483,7 +483,7 @@ export class Many2XAutocomplete extends Component {
      * @param {string} request
      * @returns {Object}
      */
-    buildCreateSuggestion(request) {
+    getCreateSuggestion(request) {
         return {
             cssClass: "o_m2o_dropdown_option o_m2o_dropdown_option_create",
             data: { slotName: "createItem" },
@@ -503,7 +503,7 @@ export class Many2XAutocomplete extends Component {
      * @param {string} request
      * @returns {Object}
      */
-    buildCreateEditSuggestion(request) {
+    getCreateEditSuggestion(request) {
         return {
             cssClass: "o_m2o_dropdown_option o_m2o_dropdown_option_create_edit",
             data: { slotName: "createEditItem" },
@@ -513,7 +513,7 @@ export class Many2XAutocomplete extends Component {
     }
 
     /** @returns {Object} */
-    buildNoRecordsSuggestion() {
+    getNoRecordsSuggestion() {
         return {
             cssClass: "o_m2o_no_result",
             data: { slotName: "noRecordsItem" },
@@ -526,7 +526,7 @@ export class Many2XAutocomplete extends Component {
      * @param {Object} record
      * @returns {Object}
      */
-    buildRecordSuggestion(request, record) {
+    getRecordSuggestion(request, record) {
         const label = record.__formatted_display_name || record.display_name;
         return {
             data: { record, slotName: "autoCompleteItem" },
@@ -541,7 +541,7 @@ export class Many2XAutocomplete extends Component {
      * @param {string} request
      * @returns {Object}
      */
-    buildSearchMoreSuggestion(request) {
+    getSearchMoreSuggestion(request) {
         return {
             cssClass: "o_m2o_dropdown_option o_m2o_dropdown_option_search_more",
             data: { slotName: "searchMoreItem" },
@@ -551,7 +551,7 @@ export class Many2XAutocomplete extends Component {
     }
 
     /** @returns {Object} */
-    buildStartTypingSuggestion() {
+    getStartTypingSuggestion() {
         return {
             cssClass: "o_m2o_start_typing",
             data: { slotName: "startTypingItem" },

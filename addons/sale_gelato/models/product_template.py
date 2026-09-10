@@ -47,7 +47,7 @@ class ProductTemplate(models.Model):
     def action_sync_gelato_template_info(self):
         try:
             endpoint = f"templates/{self.gelato_template_ref}"
-            template_info = utils.make_request(
+            template_info = utils.send_request(
                 self.env.company.sudo().gelato_api_key,
                 "ecommerce",
                 "v1",

@@ -3,9 +3,9 @@
 import { describe, expect, test } from "@odoo/hoot";
 import {
     allX2manyLists,
-    buildCommitSpec,
     collectPendingCommands,
     commitSubtree,
+    getCommitSpec,
     x2manyLists,
 } from "@web/model/relational_model/x2many_tree";
 
@@ -108,19 +108,19 @@ describe("collectPendingCommands", () => {
     });
 });
 
-describe("buildCommitSpec", () => {
+describe("getCommitSpec", () => {
     test("names only the fields that have staged work", () => {
         const record = makeRecord({
             dirty: makeList({ staged: true }),
             clean: makeList(),
         });
-        expect(buildCommitSpec(record)).toEqual({ dirty: {} });
+        expect(getCommitSpec(record)).toEqual({ dirty: {} });
     });
 
     test("a clean list whose child is dirty is still named, nested", () => {
         const child = makeRecord({ sub: makeList({ staged: true }) });
         const record = makeRecord({ lines: makeList({ cached: [child] }) });
-        expect(buildCommitSpec(record)).toEqual({ lines: { fields: { sub: {} } } });
+        expect(getCommitSpec(record)).toEqual({ lines: { fields: { sub: {} } } });
     });
 
     test("a property list is never specified, even when staged", () => {
@@ -128,7 +128,7 @@ describe("buildCommitSpec", () => {
             { "properties.rel": makeList({ staged: true }) },
             { "properties.rel": { relatedPropertyField: { name: "properties" } } },
         );
-        expect(buildCommitSpec(record)).toEqual({});
+        expect(getCommitSpec(record)).toEqual({});
     });
 });
 

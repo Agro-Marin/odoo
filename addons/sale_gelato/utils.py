@@ -8,7 +8,7 @@ from odoo.exceptions import UserError
 _logger = logging.getLogger(__name__)
 
 
-def make_request(api_key, subdomain, version, endpoint, payload=None, method="POST"):
+def send_request(api_key, subdomain, version, endpoint, payload=None, method="POST"):
     url = f"https://{subdomain}.gelatoapis.com/{version}/{endpoint}"
     headers = {"X-API-KEY": api_key or None}
     try:

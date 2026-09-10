@@ -240,7 +240,7 @@ class ApprovalDashboard(models.TransientModel):
         approved = decided_by_state.get("approved", 0)
         refused = decided_by_state.get("refused", 0)
 
-        avg_hours = self._calculate_avg_response_time_today_sql(
+        avg_hours = self._get_avg_response_time_today_sql(
             today_start,
             today_end,
         )
@@ -277,7 +277,7 @@ class ApprovalDashboard(models.TransientModel):
         def count_window(start: datetime, end: datetime) -> int:
             return sum(count for day, count in daily_counts if start <= day < end)
 
-        def calculate_trend(days: int) -> tuple[float, Any]:
+        def get_trend(days: int) -> tuple[float, Any]:
             period_start = today_end - timedelta(days=days)
             prev_period_start = today_end - timedelta(days=days * 2)
 
@@ -299,9 +299,9 @@ class ApprovalDashboard(models.TransientModel):
 
             return trend, display_val
 
-        trend_7, trend_7_display_val = calculate_trend(7)
-        trend_15, trend_15_display_val = calculate_trend(15)
-        trend_30, trend_30_display_val = calculate_trend(30)
+        trend_7, trend_7_display_val = get_trend(7)
+        trend_15, trend_15_display_val = get_trend(15)
+        trend_30, trend_30_display_val = get_trend(30)
 
         trend_7_display = self._format_trend_display(trend_7, trend_7_display_val)
         trend_15_display = self._format_trend_display(trend_15, trend_15_display_val)
@@ -539,9 +539,9 @@ class ApprovalDashboard(models.TransientModel):
         approvals_30d = sum(count for _day, count in approval_days)
         approvals_per_day_30d = round(approvals_30d / 30, 2)
 
-        avg_7d = self._calculate_avg_response_time_sql(days_7_ago_utc, today_end_utc)
-        avg_15d = self._calculate_avg_response_time_sql(days_15_ago_utc, today_end_utc)
-        avg_30d = self._calculate_avg_response_time_sql(days_30_ago_utc, today_end_utc)
+        avg_7d = self._get_avg_response_time_sql(days_7_ago_utc, today_end_utc)
+        avg_15d = self._get_avg_response_time_sql(days_15_ago_utc, today_end_utc)
+        avg_30d = self._get_avg_response_time_sql(days_30_ago_utc, today_end_utc)
 
         ninety_days_ago = today_utc - timedelta(days=90)
 
@@ -579,7 +579,7 @@ class ApprovalDashboard(models.TransientModel):
             dashboard.avg_response_hours_30d = avg_30d
             dashboard.median_approval_hours = median_hours
 
-    def _calculate_avg_response_time_sql(self, start_date: Any, end_date: Any) -> float:
+    def _get_avg_response_time_sql(self, start_date: Any, end_date: Any) -> float:
         self.env.cr.execute(
             SQL(
                 """
@@ -614,7 +614,7 @@ class ApprovalDashboard(models.TransientModel):
         result = self.env.cr.fetchone()
         return round(result[0], 2) if result and result[0] else 0.0
 
-    def _calculate_avg_response_time_today_sql(
+    def _get_avg_response_time_today_sql(
         self,
         today_start: Any,
         today_end: Any,

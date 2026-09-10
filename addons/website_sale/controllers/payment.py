@@ -12,7 +12,7 @@ from odoo.addons.payment.controllers import portal as payment_portal
 
 
 class PaymentPortal(payment_portal.PaymentPortal):
-    def _validate_transaction_for_order(self, transaction, sale_order):
+    def _check_transaction_for_order(self, transaction, sale_order):
         """
         Perform final checks against the transaction & sale_order.
         Override me to apply payment unrelated checks & processing
@@ -61,7 +61,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
 
         order_sudo._check_cart_is_ready_to_be_paid()
 
-        self._validate_transaction_kwargs(kwargs)
+        self._check_transaction_kwargs(kwargs)
         kwargs.update(
             {
                 "partner_id": order_sudo.partner_invoice_id.id,
@@ -95,7 +95,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         # it until the day the ecommerce supports multiple orders at the same time.
         request.session["__website_sale_last_tx_id"] = tx_sudo.id
 
-        self._validate_transaction_for_order(tx_sudo, order_sudo)
+        self._check_transaction_for_order(tx_sudo, order_sudo)
         if delay_token_charge:
             tx_sudo._charge_with_token()
 

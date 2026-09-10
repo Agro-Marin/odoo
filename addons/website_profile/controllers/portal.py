@@ -4,7 +4,7 @@ from odoo.addons.portal.controllers.portal import CustomerPortal
 
 
 class CustomerPortalProfile(CustomerPortal):
-    def _validate_address_values(self, address_values, partner_sudo, *args, **kwargs):
+    def _get_address_errors(self, address_values, partner_sudo, *args, **kwargs):
         """Overide to hide email validated button if changed on current partner."""
         if (
             partner_sudo == self.env.user.partner_id
@@ -13,6 +13,6 @@ class CustomerPortalProfile(CustomerPortal):
         ):
             request.session["validation_email_sent"] = False
 
-        return super()._validate_address_values(
+        return super()._get_address_errors(
             address_values, partner_sudo, *args, **kwargs
         )

@@ -144,7 +144,7 @@ class GroupsTreeNode:
             )
         return self.children[key]
 
-    def insert_leaf(self, group: dict[str, Any], data: list[list[Any]]) -> None:
+    def add_leaf(self, group: dict[str, Any], data: list[list[Any]]) -> None:
         leaf_path = [group.get(groupby_field) for groupby_field in self._groupby]
         count = group["__count"]
 

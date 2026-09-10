@@ -35,9 +35,10 @@ function makeConfig(metaData = {}) {
 /** @type {import("@web/views/pivot/pivot_aggregation").PivotAggregateDeps} */
 const deps = {
     sortRows: () => expect.step("sortRows"),
-    buildGroupLabels: (subGroup, groupBys) => groupBys.map((gb) => `${subGroup[gb]}!`),
-    buildGroupValues: (subGroup, groupBys) => groupBys.map((gb) => subGroup[gb]),
-    buildMeasurements: (subGroup) => ({ __count: subGroup.__count }),
+    prepareGroupLabels: (subGroup, groupBys) =>
+        groupBys.map((gb) => `${subGroup[gb]}!`),
+    prepareGroupValues: (subGroup, groupBys) => groupBys.map((gb) => subGroup[gb]),
+    prepareMeasurements: (subGroup) => ({ __count: subGroup.__count }),
 };
 
 /** @type {Parameters<typeof aggregateSubdivisions>[1]} */

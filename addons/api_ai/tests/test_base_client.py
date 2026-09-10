@@ -55,14 +55,14 @@ class TestClientContract(TransactionCase):
     def test_no_client_redefines_validate_params(self):
         for cls in CLIENTS:
             self.assertNotIn(
-                "_validate_params",
+                "_check_params",
                 cls.__dict__,
-                f"{cls.__name__} shadows the shared _validate_params",
+                f"{cls.__name__} shadows the shared _check_params",
             )
 
     def test_every_client_validates(self):
         for cls in CLIENTS:
-            self.assertTrue(hasattr(cls, "_validate_params"), cls.__name__)
+            self.assertTrue(hasattr(cls, "_check_params"), cls.__name__)
 
     def test_endpoint_codes_are_unique(self):
         codes = [cls.ENDPOINT_CODE for cls in CLIENTS]
@@ -133,44 +133,44 @@ class TestValidateParams(TransactionCase):
         self.probe = _Probe(self.env)
 
     def test_valid_temperature_accepted(self):
-        self.probe._validate_params(temperature=0.5)
+        self.probe._check_params(temperature=0.5)
 
     def test_temperature_bounds(self):
         for bad in (-0.1, 1.5):
             with self.assertRaises(ValueError):
-                self.probe._validate_params(temperature=bad)
+                self.probe._check_params(temperature=bad)
 
     def test_temperature_must_be_numeric(self):
         with self.assertRaises(ValueError):
-            self.probe._validate_params(temperature="warm")
+            self.probe._check_params(temperature="warm")
 
     def test_bool_is_not_a_temperature(self):
         with self.assertRaises(ValueError):
-            self.probe._validate_params(temperature=True)
+            self.probe._check_params(temperature=True)
 
     def test_max_tokens_must_be_a_positive_int(self):
         for bad in (0, -5, 1.5, "many"):
             with self.assertRaises(ValueError):
-                self.probe._validate_params(max_tokens=bad)
+                self.probe._check_params(max_tokens=bad)
 
     def test_bool_is_not_a_token_count(self):
         with self.assertRaises(ValueError):
-            self.probe._validate_params(max_tokens=True)
+            self.probe._check_params(max_tokens=True)
 
     def test_max_tokens_over_the_limit_only_warns(self):
-        self.probe._validate_params(max_tokens=self.probe.MAX_TOKENS_LIMIT + 1)
+        self.probe._check_params(max_tokens=self.probe.MAX_TOKENS_LIMIT + 1)
 
     def test_unknown_model_only_warns(self):
-        self.probe._validate_params(model="probe-99")
+        self.probe._check_params(model="probe-99")
 
     def test_known_model_accepted(self):
-        self.probe._validate_params(model="probe-1")
+        self.probe._check_params(model="probe-1")
 
     def test_empty_allowlist_accepts_anything(self):
         class Open(_Probe):
             VALID_MODELS = ()
 
-        Open(self.env)._validate_params(model="whatever")
+        Open(self.env)._check_params(model="whatever")
 
 
 @tagged("post_install", "-at_install")

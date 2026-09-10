@@ -295,12 +295,12 @@ describe("getSections", () => {
     });
 });
 
-describe("_ensureCategoryValue", () => {
+describe("_updateCategoryValue", () => {
     test("keeps activeValueId when it is in valueIds", () => {
         const cat = makeCategory(1, { activeValueId: 5 });
         const model = makeSearchModel(new Map());
 
-        model._ensureCategoryValue(cat, [false, 5, 10]);
+        model._updateCategoryValue(cat, [false, 5, 10]);
 
         expect(cat.activeValueId).toBe(5);
     });
@@ -309,7 +309,7 @@ describe("_ensureCategoryValue", () => {
         const cat = makeCategory(1, { activeValueId: 99 });
         const model = makeSearchModel(new Map());
 
-        model._ensureCategoryValue(cat, [false, 5, 10]);
+        model._updateCategoryValue(cat, [false, 5, 10]);
 
         expect(cat.activeValueId).toBe(false);
     });
@@ -318,7 +318,7 @@ describe("_ensureCategoryValue", () => {
         const cat = makeCategory(1, { activeValueId: 7 });
         const model = makeSearchModel(new Map());
 
-        model._ensureCategoryValue(cat, [false]);
+        model._updateCategoryValue(cat, [false]);
 
         expect(cat.activeValueId).toBe(false);
     });

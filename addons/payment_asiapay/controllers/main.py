@@ -42,12 +42,12 @@ class AsiaPayController(http.Controller):
             ._search_by_reference("asiapay", data)
         )
         if tx_sudo:
-            self._verify_signature(data, tx_sudo)
+            self._check_signature(data, tx_sudo)
             tx_sudo._process("asiapay", data)
         return "OK"  # Acknowledge the notification.
 
     @staticmethod
-    def _verify_signature(payment_data, tx_sudo):
+    def _check_signature(payment_data, tx_sudo):
         """Check that the received signature matches the expected one.
 
         :param dict payment_data: The payment data.

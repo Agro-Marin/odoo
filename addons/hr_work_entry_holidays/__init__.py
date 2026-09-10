@@ -1,5 +1,5 @@
 from . import models
 
 
-def _validate_existing_work_entry(env):
+def _check_existing_work_entries(env):
     env["hr.work.entry"].search([])._check_if_error()

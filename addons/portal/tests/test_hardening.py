@@ -10,8 +10,8 @@ from odoo.addons.portal.controllers.portal import (
 from odoo.addons.portal.utils import (
     get_portal_partner,
     resolve_thread_for_credentials,
-    validate_thread_with_hash_pid,
-    validate_thread_with_token,
+    is_thread_hash_pid_valid,
+    is_thread_token_valid,
 )
 
 
@@ -86,9 +86,9 @@ class TestDeletedThreadCredentials(PortalHardeningCommon):
     def test_valid_credentials_still_grant_access(self):
         record = self.customer.sudo()
         record.signup_type = "a-live-token"
-        self.assertTrue(validate_thread_with_token(record, "a-live-token"))
+        self.assertTrue(is_thread_token_valid(record, "a-live-token"))
         self.assertTrue(
-            validate_thread_with_hash_pid(
+            is_thread_hash_pid_valid(
                 record, record._sign_token(self.customer.id), self.customer.id
             )
         )

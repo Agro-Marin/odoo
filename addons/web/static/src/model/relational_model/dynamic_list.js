@@ -7,7 +7,7 @@ import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 import { Operation } from "@web/core/utils/operation";
 
-import { buildKnownValuesKwargs } from "./concurrency_baseline.js";
+import { getKnownValuesKwargs } from "./concurrency_baseline.js";
 import { EditableListDataPoint } from "./editable_list_datapoint.js";
 import { getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
@@ -284,7 +284,7 @@ export class DynamicList extends EditableListDataPoint {
      * @param {Record<string, any>} changes
      * @returns {() => Promise<any>}
      */
-    _buildMultiSaveCall(editedRecord, validRecords, changes) {
+    _getMultiSaveCall(editedRecord, validRecords, changes) {
         const resIds = unique(validRecords.map((r) => r.resId));
         const kwargs = {
             context: this.context,
@@ -302,7 +302,7 @@ export class DynamicList extends EditableListDataPoint {
                     changesById[record.resId] || record.getChangesLocked();
             }
             const valsList = resIds.map((resId) => changesById[resId]);
-            const multiKwargs = buildKnownValuesKwargs(
+            const multiKwargs = getKnownValuesKwargs(
                 validRecords,
                 Object.keys(changes),
                 kwargs,
@@ -316,7 +316,7 @@ export class DynamicList extends EditableListDataPoint {
                 );
         } else {
             const vals = editedRecord.getChangesLocked();
-            const saveKwargs = buildKnownValuesKwargs(
+            const saveKwargs = getKnownValuesKwargs(
                 validRecords,
                 Object.keys(vals),
                 kwargs,
@@ -604,7 +604,7 @@ export class DynamicList extends EditableListDataPoint {
             return false;
         }
 
-        const save = this._buildMultiSaveCall(editedRecord, validRecords, changes);
+        const save = this._getMultiSaveCall(editedRecord, validRecords, changes);
 
         const changesToConfirm = { ...changes };
         for (const fieldName of Object.keys(changes)) {

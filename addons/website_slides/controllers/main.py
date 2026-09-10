@@ -61,7 +61,7 @@ class WebsiteSlides(WebsiteProfile):
     # SLIDE UTILITIES
     # --------------------------------------------------
 
-    def _fetch_slide(self, slide_id):
+    def _get_slide(self, slide_id):
         slide = request.env["slide.slide"].browse(int(slide_id)).exists()
         if not slide:
             return {"error": "slide_wrong"}
@@ -1633,7 +1633,7 @@ class WebsiteSlides(WebsiteProfile):
         "/slides/slide/get_html_content", type="jsonrpc", auth="public", website=True
     )
     def get_html_content(self, slide_id):
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             return fetch_res
         return {
@@ -1653,7 +1653,7 @@ class WebsiteSlides(WebsiteProfile):
         self._slide_mark_completed(slide)
         next_slide = None
         if next_slide_id:
-            next_slide = self._fetch_slide(next_slide_id).get("slide", None)
+            next_slide = self._get_slide(next_slide_id).get("slide", None)
         return request.redirect(
             "/slides/slide/%s"
             % (
@@ -1669,7 +1669,7 @@ class WebsiteSlides(WebsiteProfile):
     def slide_set_completed(self, slide_id):
         if request.website.is_public_user():
             return {"error": "public_user"}
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             return fetch_res
         self._slide_mark_completed(fetch_res["slide"])
@@ -1696,7 +1696,7 @@ class WebsiteSlides(WebsiteProfile):
     def slide_set_uncompleted(self, slide_id):
         if request.website.is_public_user():
             return {"error": "public_user"}
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             return fetch_res
         self._slide_mark_uncompleted(fetch_res["slide"])
@@ -1716,7 +1716,7 @@ class WebsiteSlides(WebsiteProfile):
                 == "b2c",
             }
         # check slide access
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             return fetch_res
         # check slide operation
@@ -1824,12 +1824,12 @@ class WebsiteSlides(WebsiteProfile):
         :param int existing_question_id: Question ID to replace (delete + create)
         :return: rendered question template
         """
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             return fetch_res
         slide = fetch_res["slide"]
 
-        # _fetch_slide only proves read access. Editing a quiz is a publisher
+        # _get_slide only proves read access. Editing a quiz is a publisher
         # action and must be gated like every other mutating route here (see
         # slide_category_add / slide_archive / slide_preview). Without this, the
         # only remaining check was the survey.question ACL, which is not scoped
@@ -1918,7 +1918,7 @@ class WebsiteSlides(WebsiteProfile):
 
     @http.route("/slides/slide/quiz/get", type="jsonrpc", auth="public", website=True)
     def slide_quiz_get(self, slide_id):
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             return fetch_res
         slide = fetch_res["slide"]
@@ -1942,7 +1942,7 @@ class WebsiteSlides(WebsiteProfile):
         `quiz_attempts_count` alone, which is what makes the reward ladder
         decay across retries.
         """
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             return fetch_res
         slide = fetch_res["slide"]
@@ -1958,7 +1958,7 @@ class WebsiteSlides(WebsiteProfile):
     def slide_quiz_submit(self, slide_id, answer_ids):
         if request.website.is_public_user():
             return {"error": "public_user"}
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             return fetch_res
         slide = fetch_res["slide"]

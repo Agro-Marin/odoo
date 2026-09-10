@@ -25,7 +25,7 @@ import {
     computeSearchPanelDomain,
 } from "./search_domain.js";
 import { enrichSearchItem, indexQueryBySearchItem } from "./search_enrichment.js";
-import { buildFacets } from "./search_facets.js";
+import { getFacets } from "./search_facets.js";
 import { SearchFavoritesMixin } from "./search_favorites_mixin.js";
 import {
     computeGroupBy,
@@ -351,7 +351,7 @@ export class SearchModel extends SearchQueryMixin(
             this.display = this._getDisplay(config.display);
 
             if (this.display.searchPanel) {
-                await this._seedSearchPanel(searchPanelDefaults);
+                await this._initSearchPanel(searchPanelDefaults);
             }
         });
         this._pendingNotification = false;
@@ -655,7 +655,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     _getFacets() {
-        return buildFacets({
+        return getFacets({
             groups: this._getGroups(),
             searchItems: this.searchItems,
             getSearchItemDomain: (/** @type {ActiveItem} */ activeItem) =>

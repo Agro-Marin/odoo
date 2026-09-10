@@ -23,7 +23,7 @@ function reportRegistryAnomaly(message) {
  * @param {object | ((value: any) => boolean | void)} schema
  * @returns {boolean}
  */
-const validateSchema = (name, key, value, schema) => {
+const isValidValue = (name, key, value, schema) => {
     let error;
     try {
         if (typeof schema === "function") {
@@ -100,7 +100,7 @@ export class Registry extends EventBus {
      */
     add(key, value, { force, sequence } = {}) {
         if (this.validationSchema) {
-            if (!validateSchema(this.name, key, value, this.validationSchema)) {
+            if (!isValidValue(this.name, key, value, this.validationSchema)) {
                 return this;
             }
         }
@@ -247,7 +247,7 @@ export class Registry extends EventBus {
         }
         this.validationSchema = schema;
         for (const [key, value] of this.getEntries()) {
-            if (!validateSchema(this.name, key, value, schema)) {
+            if (!isValidValue(this.name, key, value, schema)) {
                 this.remove(key);
             }
         }

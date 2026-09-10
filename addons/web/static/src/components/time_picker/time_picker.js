@@ -307,7 +307,7 @@ export class TimePicker extends Component {
 
     /** @param {InputEvent} event */
     onInput(event) {
-        this.ensureOpen();
+        this.openIfClosed();
         this.isDirty = true;
         this.navigatedValue = null;
 
@@ -344,7 +344,7 @@ export class TimePicker extends Component {
     }
 
     /** @param {{ selectAll?: boolean }} [options] */
-    ensureOpen({ selectAll = false } = {}) {
+    openIfClosed({ selectAll = false } = {}) {
         if (this.dropdownState.isOpen) {
             return;
         }

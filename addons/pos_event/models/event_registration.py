@@ -79,7 +79,7 @@ class EventRegistration(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        self._populate_creation_vals(vals_list)
+        self._update_creation_vals(vals_list)
         result = super().create(vals_list)
         result._update_available_seat()
         return result
@@ -89,7 +89,7 @@ class EventRegistration(models.Model):
         self._update_available_seat()
         return result
 
-    def _populate_creation_vals(self, vals_list):
+    def _update_creation_vals(self, vals_list):
         for vals in vals_list:
             if "pos_order_line_id" in vals:
                 if "partner_id" not in vals:

@@ -143,16 +143,16 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
         # to be used.
         record_ids_gb = [set() for dummy in groupby_fields]
 
-        def populate_record_ids_gb_recursively(node, level=0):
+        def update_record_ids_gb_recursively(node, level=0):
             for k, v in node.items():
                 if k:
                     record_ids_gb[level].add(k)
                     if v.get("children"):
-                        populate_record_ids_gb_recursively(
+                        update_record_ids_gb_recursively(
                             v["children"], level=level + 1
                         )
 
-        populate_record_ids_gb_recursively(tax_amount_hierarchy)
+        update_record_ids_gb_recursively(tax_amount_hierarchy)
 
         sorting_map_list = []
         for i, comodel in enumerate(comodels):
@@ -182,7 +182,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
 
         # Compute report lines.
         lines = []
-        self._populate_lines_recursively(
+        self._update_lines_recursively(
             report,
             options,
             lines,
@@ -607,7 +607,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
 
         return res
 
-    def _populate_lines_recursively(
+    def _update_lines_recursively(
         self,
         report,
         options,
@@ -719,7 +719,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
             lines.append((0, report_line))
 
             # Process children recursively.
-            self._populate_lines_recursively(
+            self._update_lines_recursively(
                 report,
                 options,
                 lines,

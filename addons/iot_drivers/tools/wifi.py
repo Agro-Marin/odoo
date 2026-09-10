@@ -40,7 +40,7 @@ def _nmcli(args, sudo=False):
     return None
 
 
-def _scan_network():
+def _get_networks():
     """Scan for connected/available networks and return the SSID.
 
     :return: list of found SSIDs with a flag indicating whether it's the connected network
@@ -107,11 +107,11 @@ def get_available_ssids():
     :return: List of available SSIDs
     :rtype: list[str]
     """
-    ssids = _scan_network()
+    ssids = _get_networks()
 
     # If the list contains only the connected network, reload network manager and rescan
     if len(ssids) == 1 and is_current(ssids[0][1]) and _reload_network_manager():
-        ssids = _scan_network()
+        ssids = _get_networks()
 
     return [ssid for (_, ssid) in ssids]
 
@@ -153,7 +153,7 @@ def _connect(ssid, password):
     _logger.info("Connecting to network %s", ssid)
     _nmcli(["device", "wifi", "connect", ssid, "password", password], sudo=True)
 
-    if not _validate_configuration(ssid):
+    if not _save_configuration(ssid):
         _logger.warning("Failed to make network configuration persistent for %s", ssid)
 
     return is_current(ssid)
@@ -196,7 +196,7 @@ def reconnect(ssid=None, password=None, force_update=False):
     return connected_successfully
 
 
-def _validate_configuration(ssid):
+def _save_configuration(ssid):
     """For security reasons, everything that is saved in the root filesystem
     on IoT Boxes is lost after reboot. This method saves the network
     configuration file in the right filesystem (``/root_bypass_ramdisks``).

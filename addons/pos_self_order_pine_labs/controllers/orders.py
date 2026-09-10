@@ -12,7 +12,7 @@ class PosSelfOrderPineLabsController(PosSelfOrderController):
     def pine_labs_fetch_payment_status(
         self, access_token, order_id, payment_data, payment_method_id
     ):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         order = pos_config.env["pos.order"].browse(order_id)
         payment_method = pos_config.env["pos.payment.method"].browse(payment_method_id)
 
@@ -57,7 +57,7 @@ class PosSelfOrderPineLabsController(PosSelfOrderController):
     def pine_labs_cancel_transaction(
         self, access_token, order_id, payment_data, payment_method_id
     ):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         order = pos_config.env["pos.order"].browse(order_id)
         payment_method = pos_config.env["pos.payment.method"].browse(payment_method_id)
 

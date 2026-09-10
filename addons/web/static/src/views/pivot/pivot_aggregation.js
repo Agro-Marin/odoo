@@ -14,10 +14,10 @@ import { getGroupLabels, getGroupValues } from "./pivot_value_utils.js";
 /**
  * @typedef PivotAggregateDeps
  * @property {(sortedColumn: any, config: any) => void} sortRows
- * @property {(group: any, groupBys: string[], config: any) => any[]} [buildGroupLabels]
- * @property {(group: any, groupBys: string[]) => any[]} [buildGroupValues]
- * @property {(config: any) => string[]} [buildMeasureSpecs]
- * @property {(subGroup: any, config: any, measureSpecs: string[]) => Record<string, any>} [buildMeasurements]
+ * @property {(group: any, groupBys: string[], config: any) => any[]} [prepareGroupLabels]
+ * @property {(group: any, groupBys: string[]) => any[]} [prepareGroupValues]
+ * @property {(config: any) => string[]} [prepareMeasureSpecs]
+ * @property {(subGroup: any, config: any, measureSpecs: string[]) => Record<string, any>} [prepareMeasurements]
  */
 
 /**
@@ -48,14 +48,14 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
         groupColLabels = colSubTree.root.labels;
     }
 
-    const measureSpecs = (deps.buildMeasureSpecs ?? getMeasureSpecs)(config);
-    const buildMeasurements = deps.buildMeasurements ?? getMeasurements;
-    const buildGroupValues =
-        deps.buildGroupValues ??
+    const measureSpecs = (deps.prepareMeasureSpecs ?? getMeasureSpecs)(config);
+    const prepareMeasurements = deps.prepareMeasurements ?? getMeasurements;
+    const prepareGroupValues =
+        deps.prepareGroupValues ??
         ((/** @type {Object} */ grp, /** @type {string[]} */ groupBys) =>
             getGroupValues(grp, groupBys, metaData.fields));
-    const buildGroupLabels =
-        deps.buildGroupLabels ??
+    const prepareGroupLabels =
+        deps.prepareGroupLabels ??
         ((
             /** @type {Object} */ grp,
             /** @type {string[]} */ groupBys,
@@ -66,20 +66,20 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
         groupSubdivision.subGroups.forEach((subGroup) => {
             const rowValues = [
                 ...groupRowValues,
-                ...buildGroupValues(subGroup, groupSubdivision.rowGroupBy),
+                ...prepareGroupValues(subGroup, groupSubdivision.rowGroupBy),
             ];
             const rowLabels = [
                 ...groupRowLabels,
-                ...buildGroupLabels(subGroup, groupSubdivision.rowGroupBy, config),
+                ...prepareGroupLabels(subGroup, groupSubdivision.rowGroupBy, config),
             ];
 
             const colValues = [
                 ...groupColValues,
-                ...buildGroupValues(subGroup, groupSubdivision.colGroupBy),
+                ...prepareGroupValues(subGroup, groupSubdivision.colGroupBy),
             ];
             const colLabels = [
                 ...groupColLabels,
-                ...buildGroupLabels(subGroup, groupSubdivision.colGroupBy, config),
+                ...prepareGroupLabels(subGroup, groupSubdivision.colGroupBy, config),
             ];
 
             if (!colValues.length && rowValues.length) {
@@ -91,7 +91,11 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
 
             const key = JSON.stringify([rowValues, colValues]);
 
-            data.measurements[key] = buildMeasurements(subGroup, config, measureSpecs);
+            data.measurements[key] = prepareMeasurements(
+                subGroup,
+                config,
+                measureSpecs,
+            );
             data.currencyIds[key] = getCurrencyIds(subGroup, config, measureSpecs);
             data.counts[key] = subGroup.__count;
 

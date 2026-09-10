@@ -24,7 +24,7 @@ class CrmClient(MailPluginController):
     )
     def crm_lead_get_by_partner_id(self, partner, limit=5, offset=0, **kwargs):
         partner_instance = request.env["res.partner"].browse(partner)
-        return {"leads": self._fetch_partner_leads(partner_instance, limit, offset)}
+        return {"leads": self._get_partner_leads(partner_instance, limit, offset)}
 
     @http.route(
         "/mail_client_extension/lead/create_from_partner",

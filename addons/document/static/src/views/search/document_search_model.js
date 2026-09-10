@@ -298,7 +298,7 @@ export class DocumentsSearchModel extends SearchModel {
     /**
      * @override
      */
-    _ensureCategoryValue(category, valueIds) {
+    _updateCategoryValue(category, valueIds) {
         if (
             valueIds.includes(category.activeValueId) &&
             this._isCategoryValueReachable(category, category.activeValueId)

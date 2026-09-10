@@ -30,8 +30,8 @@ model defaults, vision and audio capability, and the timeouts and token floors
 measured against live keys. Callers that build their own request bodies read it
 instead of restating it -- ``telegram_bot`` is the one that does, because a
 bot's key belongs to the bot rather than the company and so cannot go through
-``credential.credential``. ``build_openai_content`` and
-``build_anthropic_content`` shape the two chat wires; ``strip_json_fence``, in
+``credential.credential``. ``get_openai_content`` and
+``get_anthropic_content`` shape the two chat wires; ``strip_json_fence``, in
 ``tools/json_payload.py``, is the fence half of ``parse_json_response`` for
 callers that must not let it raise.
 

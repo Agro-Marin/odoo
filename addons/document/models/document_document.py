@@ -826,7 +826,7 @@ class DocumentsDocument(models.Model):
         if "attachment_id" in vals:
             self.attachment_id.check_access("read")
 
-        versioned._prune_versions()
+        versioned._remove_excess_versions()
 
         if (new_active := vals.get("active")) is not None:
             if not new_active:

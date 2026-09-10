@@ -194,9 +194,9 @@ class ExchangeChannel(models.Model):
         self.check_singleton()
         return self.endpoint_id.should_retry(attempt_number)
 
-    def calculate_retry_delay(self, attempt_number: int) -> int:
+    def get_retry_delay(self, attempt_number: int) -> int:
         self.check_singleton()
-        return self.endpoint_id.calculate_retry_delay(attempt_number)
+        return self.endpoint_id.get_retry_delay(attempt_number)
 
     def _enqueue_send(self, delay: int | None = None) -> None:
         """Ask a worker to flush this channel's queue.

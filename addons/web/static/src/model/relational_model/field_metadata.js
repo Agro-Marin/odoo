@@ -98,7 +98,7 @@ export function makeActiveField({
  * @param {Record<string, any>} activeField
  * @returns {{ activeFields: Record<string, any>, fields: Record<string, any> }}
  */
-function ensureRelated(activeField) {
+function getOrCreateRelated(activeField) {
     if (!activeField.related) {
         activeField.related = { activeFields: {}, fields: {} };
     }
@@ -182,7 +182,7 @@ export function addFieldDependencies(activeFields, fields, fieldDependencies = [
  */
 function completeActiveField(activeField, extra) {
     if (extra.related) {
-        const related = ensureRelated(activeField);
+        const related = getOrCreateRelated(activeField);
         invalidateModifierDependencies(related.activeFields);
         invalidateAggregateSpecs(related.fields);
         for (const fieldName of Object.keys(extra.related.activeFields)) {
@@ -319,7 +319,7 @@ export function patchActiveFields(activeField, patch) {
     activeField.forceSave = activeField.forceSave || patch.forceSave;
     activeField.isHandle = activeField.isHandle || patch.isHandle;
     if (patch.related) {
-        const related = ensureRelated(activeField);
+        const related = getOrCreateRelated(activeField);
         invalidateModifierDependencies(related.activeFields);
         invalidateAggregateSpecs(related.fields);
         for (const fieldName of Object.keys(patch.related.activeFields)) {
@@ -410,7 +410,7 @@ function attachX2manyViews(activeField, fieldNode) {
  * @param {Record<string, any>} fields
  * @returns {Record<string, any>}
  */
-function buildActiveFieldFromNode(fieldNode, fields) {
+function getActiveFieldFromNode(fieldNode, fields) {
     const fieldName = fieldNode.name;
     const activeField = makeActiveField({
         context: fieldNode.context,
@@ -477,7 +477,7 @@ export function extractFieldsFromArchInfo({ fieldNodes, widgetNodes }, fields) {
     const activeFields = {};
     for (const fieldNode of Object.values(fieldNodes)) {
         const fieldName = fieldNode.name;
-        const activeField = buildActiveFieldFromNode(fieldNode, fields);
+        const activeField = getActiveFieldFromNode(fieldNode, fields);
         if (fieldName in activeFields) {
             patchActiveFields(activeFields[fieldName], activeField);
         } else {

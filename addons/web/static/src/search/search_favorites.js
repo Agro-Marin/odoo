@@ -202,7 +202,7 @@ export function reconciliateFavorites(
  * @param {string} params.resModel
  * @returns {{ preFavorite: Object, irFilter: Object }}
  */
-export function buildIrFilterDescription({
+export function getIrFilterDescription({
     description,
     isDefault,
     isShared,

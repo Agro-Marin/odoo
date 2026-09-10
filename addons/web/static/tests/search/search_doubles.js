@@ -163,7 +163,7 @@ const DOUBLES = {
         createNewFilters: () => {},
         createNewGroupBy: () => {},
         deactivateGroup: () => {},
-        fillSearchViewItemsProperty: () => {},
+        updateSearchViewItemsProperty: () => {},
         defaultGroupBy: undefined,
         env: {},
         treeProcessor: {},

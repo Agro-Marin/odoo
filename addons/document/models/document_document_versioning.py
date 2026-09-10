@@ -58,7 +58,7 @@ class DocumentsDocument(models.Model):
             )
         )
 
-    def _prune_versions(self) -> None:
+    def _remove_excess_versions(self) -> None:
         max_versions = (
             self.env["ir.config_parameter"]
             .sudo()

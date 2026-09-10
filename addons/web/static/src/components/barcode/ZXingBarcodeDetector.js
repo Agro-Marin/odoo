@@ -22,7 +22,7 @@ const FORMAT_NAMES = [
  * @param {any} ZXing
  * @returns {{ toZXing: Map<string, any>, toName: Map<any, string> }}
  */
-function buildFormatTables(ZXing) {
+function getFormatTables(ZXing) {
     const toZXing = new Map(
         FORMAT_NAMES.map((name) => [name, ZXing.BarcodeFormat[name.toUpperCase()]]),
     );
@@ -189,8 +189,8 @@ export class ZXingBarcodeDetector {
  * @param {any} ZXing
  * @returns {typeof BarcodeDetector}
  */
-export function buildZXingBarcodeDetector(ZXing) {
-    const formats = buildFormatTables(ZXing);
+export function makeZXingBarcodeDetector(ZXing) {
+    const formats = getFormatTables(ZXing);
     return /** @type {any} */ (
         class BoundZXingBarcodeDetector extends ZXingBarcodeDetector {
             /** @param {object} [opts] */

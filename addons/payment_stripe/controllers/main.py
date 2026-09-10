@@ -99,7 +99,7 @@ class StripeController(http.Controller):
                 if not tx_sudo:
                     return request.prepare_json_response("")
 
-                self._verify_signature(tx_sudo)
+                self._check_signature(tx_sudo)
 
                 if event["type"].startswith("payment_intent"):  # Payment operation.
                     if tx_sudo.tokenize:
@@ -209,7 +209,7 @@ class StripeController(http.Controller):
             converted_amount, is_refund=True
         )
 
-    def _verify_signature(self, tx_sudo):
+    def _check_signature(self, tx_sudo):
         """Check that the received signature matches the expected one.
 
         See https://stripe.com/docs/webhooks/signatures#verify-manually.

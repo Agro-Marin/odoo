@@ -37,7 +37,7 @@ export function getQueryGroups(query, searchItems) {
          * @param {Partial<ActiveItem>} init
          * @returns {any}
          */
-        const ensureActiveItem = (searchItemId, init) => {
+        const getOrCreateActiveItem = (searchItemId, init) => {
             let activeItem = activeItemMap.get(searchItemId);
             if (!activeItem) {
                 activeItem = { searchItemId, ...init };
@@ -49,19 +49,19 @@ export function getQueryGroups(query, searchItems) {
         for (const queryElem of queryElements) {
             const { searchItemId } = queryElem;
             if ("generatorId" in queryElem) {
-                ensureActiveItem(searchItemId, { generatorIds: [] }).generatorIds.push(
-                    queryElem.generatorId,
-                );
+                getOrCreateActiveItem(searchItemId, {
+                    generatorIds: [],
+                }).generatorIds.push(queryElem.generatorId);
             } else if ("intervalId" in queryElem) {
-                ensureActiveItem(searchItemId, { intervalIds: [] }).intervalIds.push(
-                    queryElem.intervalId,
-                );
+                getOrCreateActiveItem(searchItemId, {
+                    intervalIds: [],
+                }).intervalIds.push(queryElem.intervalId);
             } else if ("autocompleteValue" in queryElem) {
-                ensureActiveItem(searchItemId, {
+                getOrCreateActiveItem(searchItemId, {
                     autocompleteValues: [],
                 }).autocompleteValues.push(queryElem.autocompleteValue);
             } else {
-                ensureActiveItem(searchItemId, {});
+                getOrCreateActiveItem(searchItemId, {});
             }
         }
         for (const activeItem of activeItems) {

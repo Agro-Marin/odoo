@@ -11,48 +11,48 @@ from .common import APITransportTestCase
 from odoo.addons.api_transport.tools import (
     compute_payload_hash,
     sanitize_error_message,
-    validate_content_type,
-    validate_json_payload,
-    validate_payload_size,
+    inspect_content_type,
+    inspect_json_payload,
+    inspect_payload_size,
 )
 from odoo.addons.credential.tools import (
-    verify_bearer_token,
-    verify_hmac_signature,
-    verify_timestamp,
+    is_bearer_token_valid,
+    is_hmac_signature_valid,
+    is_timestamp_valid,
 )
 
 
 class TestVerifyBearerToken(TransactionCase):
     def test_valid_bearer_token(self):
         headers = {"Authorization": "Bearer my_secret_token"}
-        self.assertTrue(verify_bearer_token(headers, "my_secret_token"))
+        self.assertTrue(is_bearer_token_valid(headers, "my_secret_token"))
 
     def test_invalid_bearer_token(self):
         headers = {"Authorization": "Bearer wrong_token"}
-        self.assertFalse(verify_bearer_token(headers, "my_secret_token"))
+        self.assertFalse(is_bearer_token_valid(headers, "my_secret_token"))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_missing_authorization_header(self):
-        self.assertFalse(verify_bearer_token({}, "my_secret_token"))
+        self.assertFalse(is_bearer_token_valid({}, "my_secret_token"))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_malformed_authorization_header(self):
         headers = {"Authorization": "Basic abc123"}
-        self.assertFalse(verify_bearer_token(headers, "my_secret_token"))
+        self.assertFalse(is_bearer_token_valid(headers, "my_secret_token"))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_empty_bearer_token(self):
         headers = {"Authorization": "Bearer "}
-        self.assertFalse(verify_bearer_token(headers, "my_secret_token"))
+        self.assertFalse(is_bearer_token_valid(headers, "my_secret_token"))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_no_expected_token(self):
         headers = {"Authorization": "Bearer some_token"}
-        self.assertFalse(verify_bearer_token(headers, ""))
+        self.assertFalse(is_bearer_token_valid(headers, ""))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_non_dict_headers_rejected(self):
-        self.assertFalse(verify_bearer_token("not a dict", "token"))
+        self.assertFalse(is_bearer_token_valid("not a dict", "token"))
 
 
 class TestVerifyHmacSignature(TransactionCase):
@@ -69,7 +69,7 @@ class TestVerifyHmacSignature(TransactionCase):
         sig = self._sign(body, secret)
         headers = {"X-Hub-Signature-256": f"sha256={sig}"}
 
-        self.assertTrue(verify_hmac_signature(headers, body, secret, hashlib.sha256))
+        self.assertTrue(is_hmac_signature_valid(headers, body, secret, hashlib.sha256))
 
     def test_invalid_hmac_sha256(self):
         body = '{"event": "test"}'
@@ -77,7 +77,7 @@ class TestVerifyHmacSignature(TransactionCase):
         headers = {"X-Hub-Signature-256": f"sha256={sig}"}
 
         self.assertFalse(
-            verify_hmac_signature(headers, body, "correct_secret", hashlib.sha256)
+            is_hmac_signature_valid(headers, body, "correct_secret", hashlib.sha256)
         )
 
     def test_valid_hmac_sha512(self):
@@ -87,7 +87,7 @@ class TestVerifyHmacSignature(TransactionCase):
         headers = {"X-Hub-Signature-512": f"sha512={sig}"}
 
         self.assertTrue(
-            verify_hmac_signature(
+            is_hmac_signature_valid(
                 headers,
                 body,
                 secret,
@@ -99,18 +99,18 @@ class TestVerifyHmacSignature(TransactionCase):
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_missing_signature_header(self):
-        self.assertFalse(verify_hmac_signature({}, "body", "secret", hashlib.sha256))
+        self.assertFalse(is_hmac_signature_valid({}, "body", "secret", hashlib.sha256))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_no_secret_provided(self):
         headers = {"X-Hub-Signature-256": "sha256=abc"}
-        self.assertFalse(verify_hmac_signature(headers, "body", "", hashlib.sha256))
+        self.assertFalse(is_hmac_signature_valid(headers, "body", "", hashlib.sha256))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_non_hex_signature_rejected(self):
         headers = {"X-Hub-Signature-256": "sha256=not_hex_zzzz"}
         self.assertFalse(
-            verify_hmac_signature(headers, "body", "secret", hashlib.sha256)
+            is_hmac_signature_valid(headers, "body", "secret", hashlib.sha256)
         )
 
     def test_constant_time_comparison(self):
@@ -119,59 +119,59 @@ class TestVerifyHmacSignature(TransactionCase):
         sig = self._sign(body, secret)
         headers = {"X-Hub-Signature-256": f"sha256={sig}"}
 
-        self.assertTrue(verify_hmac_signature(headers, body, secret, hashlib.sha256))
+        self.assertTrue(is_hmac_signature_valid(headers, body, secret, hashlib.sha256))
 
 
 class TestVerifyTimestamp(TransactionCase):
     def test_current_unix_timestamp_valid(self):
-        self.assertTrue(verify_timestamp(time.time(), max_age_seconds=300))
+        self.assertTrue(is_timestamp_valid(time.time(), max_age_seconds=300))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_old_unix_timestamp_rejected(self):
         old_ts = time.time() - 600
-        self.assertFalse(verify_timestamp(old_ts, max_age_seconds=300))
+        self.assertFalse(is_timestamp_valid(old_ts, max_age_seconds=300))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_future_timestamp_rejected(self):
         future_ts = time.time() + 3600
         self.assertFalse(
-            verify_timestamp(
+            is_timestamp_valid(
                 future_ts, max_age_seconds=300, future_tolerance_seconds=60
             )
         )
 
     def test_iso_string_timestamp_valid(self):
         now_iso = datetime.now(tz=UTC).isoformat()
-        self.assertTrue(verify_timestamp(now_iso, max_age_seconds=300))
+        self.assertTrue(is_timestamp_valid(now_iso, max_age_seconds=300))
 
     def test_z_suffix_iso_string(self):
         now_iso = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        self.assertTrue(verify_timestamp(now_iso, max_age_seconds=300))
+        self.assertTrue(is_timestamp_valid(now_iso, max_age_seconds=300))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_negative_timestamp_rejected(self):
-        self.assertFalse(verify_timestamp(-1))
+        self.assertFalse(is_timestamp_valid(-1))
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_invalid_type_rejected(self):
-        self.assertFalse(verify_timestamp([123]))
+        self.assertFalse(is_timestamp_valid([123]))
 
 
 class TestValidatePayload(TransactionCase):
     def test_valid_json_payload(self):
-        is_valid, parsed, error = validate_json_payload('{"key": "value"}')
+        is_valid, parsed, error = inspect_json_payload('{"key": "value"}')
         self.assertTrue(is_valid)
         self.assertEqual(parsed["key"], "value")
         self.assertIsNone(error)
 
     def test_invalid_json_payload(self):
-        is_valid, parsed, error = validate_json_payload("not valid json")
+        is_valid, parsed, error = inspect_json_payload("not valid json")
         self.assertFalse(is_valid)
         self.assertIsNone(parsed)
         self.assertIn("Invalid JSON", error)
 
     def test_empty_payload_rejected(self):
-        is_valid, _parsed, _error = validate_json_payload("")
+        is_valid, _parsed, _error = inspect_json_payload("")
         self.assertFalse(is_valid)
 
     def test_deeply_nested_payload_rejected(self):
@@ -180,31 +180,31 @@ class TestValidatePayload(TransactionCase):
         for i in range(200):
             current["nested"] = {"level": i + 1}
             current = current["nested"]
-        is_valid, _, error = validate_json_payload(json.dumps(payload), max_depth=100)
+        is_valid, _, error = inspect_json_payload(json.dumps(payload), max_depth=100)
         self.assertFalse(is_valid)
         self.assertIn("depth", error)
 
     def test_payload_size_validation(self):
         small = b'{"ok": true}'
-        is_valid, error = validate_payload_size(small, max_size_bytes=1024)
+        is_valid, error = inspect_payload_size(small, max_size_bytes=1024)
         self.assertTrue(is_valid)
 
         large = b"x" * 2048
-        is_valid, error = validate_payload_size(large, max_size_bytes=1024)
+        is_valid, error = inspect_payload_size(large, max_size_bytes=1024)
         self.assertFalse(is_valid)
         self.assertIn("too large", error)
 
     def test_content_type_validation(self):
-        is_valid, _ = validate_content_type("application/json")
+        is_valid, _ = inspect_content_type("application/json")
         self.assertTrue(is_valid)
 
-        is_valid, _error = validate_content_type("text/plain")
+        is_valid, _error = inspect_content_type("text/plain")
         self.assertFalse(is_valid)
 
-        is_valid, _ = validate_content_type("application/json; charset=utf-8")
+        is_valid, _ = inspect_content_type("application/json; charset=utf-8")
         self.assertTrue(is_valid)
 
-        is_valid, _error = validate_content_type(None)
+        is_valid, _error = inspect_content_type(None)
         self.assertFalse(is_valid)
 
 
@@ -260,21 +260,21 @@ class TestChannelMixinRateLimit(TransactionCase):
     def test_calculate_retry_delay_fixed(self):
         self.service.retry_backoff_type = "fixed"
         self.service.retry_initial_delay = 30
-        self.assertEqual(self.service.calculate_retry_delay(1), 30)
-        self.assertEqual(self.service.calculate_retry_delay(5), 30)
+        self.assertEqual(self.service.get_retry_delay(1), 30)
+        self.assertEqual(self.service.get_retry_delay(5), 30)
 
     def test_calculate_retry_delay_linear(self):
         self.service.retry_backoff_type = "linear"
         self.service.retry_initial_delay = 30
-        self.assertEqual(self.service.calculate_retry_delay(1), 30)
-        self.assertEqual(self.service.calculate_retry_delay(3), 90)
+        self.assertEqual(self.service.get_retry_delay(1), 30)
+        self.assertEqual(self.service.get_retry_delay(3), 90)
 
     def test_calculate_retry_delay_exponential(self):
         self.service.retry_backoff_type = "exponential"
         self.service.retry_initial_delay = 60
-        self.assertEqual(self.service.calculate_retry_delay(1), 60)
-        self.assertEqual(self.service.calculate_retry_delay(2), 120)
-        self.assertEqual(self.service.calculate_retry_delay(3), 240)
+        self.assertEqual(self.service.get_retry_delay(1), 60)
+        self.assertEqual(self.service.get_retry_delay(2), 120)
+        self.assertEqual(self.service.get_retry_delay(3), 240)
 
     def test_should_retry_enabled(self):
         self.service.retry_enabled = True

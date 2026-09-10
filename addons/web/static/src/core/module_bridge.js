@@ -8,7 +8,7 @@ const VALID_EXPORT_NAME = /^[a-zA-Z_$][\w$]*$/;
  * @param {Iterable<string>} exportNames
  * @returns {string}
  */
-export function buildBridgeModuleSource(specifier, exportNames) {
+export function getBridgeModuleSource(specifier, exportNames) {
     /** @type {string[]} */
     const names = [];
     for (const name of exportNames) {

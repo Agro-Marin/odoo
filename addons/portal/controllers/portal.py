@@ -130,7 +130,7 @@ def _parse_counter_names(raw_counters):
     return [name for name in raw_counters if isinstance(name, str)]
 
 
-def _build_url_w_params(url_string, query_params, remove_duplicates=True):
+def _get_url_with_params(url_string, query_params, remove_duplicates=True):
     url = urlsplit(url_string)
     if remove_duplicates:
         url_params = dict(parse_qsl(url.query, keep_blank_values=True))
@@ -481,15 +481,13 @@ class CustomerPortal(Controller):
         address_values, extra_form_data = self._parse_form_data(form_data)
 
         if verify_address_values:
-            invalid_fields, missing_fields, error_messages = (
-                self._validate_address_values(
-                    address_values,
-                    partner_sudo,
-                    address_type,
-                    use_delivery_as_billing,
-                    required_fields or "",
-                    **extra_form_data,
-                )
+            invalid_fields, missing_fields, error_messages = self._get_address_errors(
+                address_values,
+                partner_sudo,
+                address_type,
+                use_delivery_as_billing,
+                required_fields or "",
+                **extra_form_data,
             )
             if error_messages:
                 return partner_sudo, {
@@ -571,7 +569,7 @@ class CustomerPortal(Controller):
 
         return address_values, extra_form_data
 
-    def _validate_address_values(
+    def _get_address_errors(
         self,
         address_values,
         partner_sudo,
@@ -586,7 +584,7 @@ class CustomerPortal(Controller):
 
         is_commercial_address = self._is_commercial_address(partner_sudo, **kwargs)
 
-        self._validate_address_partner_mutations(
+        self._add_address_partner_mutation_errors(
             address_values,
             partner_sudo,
             is_commercial_address,
@@ -594,13 +592,13 @@ class CustomerPortal(Controller):
             error_messages,
             **kwargs,
         )
-        self._validate_address_email_format(
+        self._add_address_email_format_errors(
             address_values, invalid_fields, error_messages
         )
-        self._validate_address_vat_format(
+        self._add_address_vat_format_errors(
             address_values, invalid_fields, error_messages
         )
-        self._validate_address_required_fields(
+        self._add_address_required_field_errors(
             address_values,
             address_type,
             use_delivery_as_billing,
@@ -617,7 +615,7 @@ class CustomerPortal(Controller):
             return partner_sudo == partner_sudo.commercial_partner_id
         return not request.env["res.partner"]._get_current_partner(**kwargs)
 
-    def _validate_address_partner_mutations(
+    def _add_address_partner_mutation_errors(
         self,
         address_values,
         partner_sudo,
@@ -723,7 +721,7 @@ class CustomerPortal(Controller):
         if partner_sudo != request.env["res.partner"]._get_current_partner(**kwargs):
             address_values.pop("company_name", None)
 
-    def _validate_address_email_format(
+    def _add_address_email_format_errors(
         self, address_values, invalid_fields, error_messages
     ):
         if address_values.get("email") and not single_email_re.match(
@@ -734,7 +732,7 @@ class CustomerPortal(Controller):
                 _("Invalid Email! Please enter a valid email address.")
             )
 
-    def _validate_address_vat_format(
+    def _add_address_vat_format_errors(
         self, address_values, invalid_fields, error_messages
     ):
         ResPartnerSudo = request.env["res.partner"].sudo()
@@ -756,7 +754,7 @@ class CustomerPortal(Controller):
                 invalid_fields.add("vat")
                 error_messages.append(exception.args[0])
 
-    def _validate_address_required_fields(
+    def _add_address_required_field_errors(
         self,
         address_values,
         address_type,

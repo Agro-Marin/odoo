@@ -2,7 +2,7 @@ from datetime import date
 
 from odoo.tests.common import TransactionCase
 
-from odoo.addons.hr_work_entry_holidays import _validate_existing_work_entry
+from odoo.addons.hr_work_entry_holidays import _check_existing_work_entries
 
 
 class TestValidateExistingWorkEntry(TransactionCase):
@@ -42,7 +42,7 @@ class TestValidateExistingWorkEntry(TransactionCase):
         validated.action_validate()
         self._break_it(validated)
 
-        _validate_existing_work_entry(self.env)
+        _check_existing_work_entries(self.env)
 
         self.assertEqual(
             validated.state,
@@ -73,7 +73,7 @@ class TestValidateExistingWorkEntry(TransactionCase):
     def test_hook_still_flags_an_open_entry(self):
         entry = self._break_it(self._create(date(2024, 4, 3)))
 
-        _validate_existing_work_entry(self.env)
+        _check_existing_work_entries(self.env)
 
         self.assertEqual(
             entry.state,

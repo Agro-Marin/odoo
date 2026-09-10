@@ -17,9 +17,9 @@ from .payload import (
     compute_payload_hash,
     sanitize_error_message,
     split_large_payload,
-    validate_content_type,
-    validate_json_payload,
-    validate_payload_size,
+    inspect_content_type,
+    inspect_json_payload,
+    inspect_payload_size,
 )
 
 __all__ = [
@@ -37,7 +37,7 @@ __all__ = [
     "register_url_secret",
     "sanitize_error_message",
     "split_large_payload",
-    "validate_content_type",
-    "validate_json_payload",
-    "validate_payload_size",
+    "inspect_content_type",
+    "inspect_json_payload",
+    "inspect_payload_size",
 ]

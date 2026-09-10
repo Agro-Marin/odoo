@@ -336,7 +336,7 @@ class AccountAnalyticAccount(models.Model):
                 new_unit_amount = unit_amount
                 for account in accounts:
                     plan = account.root_plan_id
-                    new_amount = plan._calculate_distribution_amount(
+                    new_amount = plan._get_distribution_amount(
                         amount,
                         percentage,
                         total_percentages[plan],
@@ -363,7 +363,7 @@ class AccountAnalyticAccount(models.Model):
             account_field_values = {}
             for account in accounts:
                 plan = account.root_plan_id
-                new_amount = plan._calculate_distribution_amount(
+                new_amount = plan._get_distribution_amount(
                     amount,
                     percentage,
                     total_percentages[plan],

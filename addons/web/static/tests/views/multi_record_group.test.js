@@ -12,7 +12,7 @@ function makeCtx(overrides = {}) {
         deletedGroups: [],
         /** @type {string[]} */
         createdGroups: [],
-        async deleteGroups(/** @type {any[]} */ groups) {
+        async removeGroups(/** @type {any[]} */ groups) {
             this.deletedGroups.push(groups);
         },
         createGroup(/** @type {string} */ value) {
@@ -112,7 +112,7 @@ test("deleteGroup deletes through the list and then notifies", async () => {
     const { ops, list } = makeCtx({
         onGroupDeleted: () => steps.push("notified"),
     });
-    list.deleteGroups = async (/** @type {any[]} */ groups) => {
+    list.removeGroups = async (/** @type {any[]} */ groups) => {
         steps.push(`deleted:${groups.length}`);
     };
 

@@ -72,15 +72,15 @@ def test_only_a_durable_failure_may_persist_the_logout(db_absent, transient, dur
 
 
 @pytest.fixture
-def ensure_db_path():
-    saved = set(constants.ENSURE_DB_PATHS)
-    constants.register_ensure_db_paths("/probe/ensure-db")
+def select_db_path():
+    saved = set(constants.SELECT_DB_PATHS)
+    constants.register_select_db_paths("/probe/ensure-db")
     yield "/probe/ensure-db"
-    constants.ENSURE_DB_PATHS.clear()
-    constants.ENSURE_DB_PATHS.update(saved)
+    constants.SELECT_DB_PATHS.clear()
+    constants.SELECT_DB_PATHS.update(saved)
 
 
-def test_an_ensure_db_path_is_rerouted_without_its_db_argument(ensure_db_path):
+def test_a_select_db_path_is_rerouted_without_its_db_argument(select_db_path):
     this, httprequest = _request(
         "/probe/ensure-db", {"db": "gone", "keep": "1", "also": "2"}
     )

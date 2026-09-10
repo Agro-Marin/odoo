@@ -36,10 +36,10 @@ class PortalAccount(CustomerPortal):
 
         return mandatory_fields
 
-    def _validate_address_values(self, address_values, *args, **kwargs):
+    def _get_address_errors(self, address_values, *args, **kwargs):
         # EXTENDS 'portal'
-        invalid_fields, missing_fields, error_messages = (
-            super()._validate_address_values(address_values, *args, **kwargs)
+        invalid_fields, missing_fields, error_messages = super()._get_address_errors(
+            address_values, *args, **kwargs
         )
 
         if address_values.get("invoice_sending_method") == "peppol":

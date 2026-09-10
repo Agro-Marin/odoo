@@ -441,7 +441,7 @@ export class ViewCompiler {
         if (node.hasAttribute("t-translation")) {
             node.removeAttribute("t-translation");
         }
-        this.validateNode(node);
+        this.warnForbiddenDirectives(node);
         let invisible;
         if (evalInvisible) {
             invisible = getModifier(node, "invisible");
@@ -807,7 +807,7 @@ export class ViewCompiler {
         return assignOwlDirectives(widget, el);
     }
 
-    validateNode(node) {
+    warnForbiddenDirectives(node) {
         const regexes = this.owlDirectiveRegexesWhitelist;
         for (const { name } of node.attributes) {
             if (name.startsWith("t-") && !regexes.some((regex) => regex.test(name))) {

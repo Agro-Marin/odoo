@@ -29,7 +29,7 @@ def format_product_stock_values(product, wh_id=None, qty_free=None):
     return {}
 
 
-def calculate_partner_distance(partner1, partner2):
+def get_partner_distance(partner1, partner2):
     """Calculate the Haversine distance between two partners.
 
     See https://en.wikipedia.org/wiki/Haversine_formula.

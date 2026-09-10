@@ -9,7 +9,7 @@ from .exceptions import ClientError
 from odoo.addons.credential.tools import check_json_depth
 
 
-def validate_payload_size(
+def inspect_payload_size(
     payload_bytes: bytes,
     max_size_bytes: int,
 ) -> tuple[bool, str | None]:
@@ -27,7 +27,7 @@ def validate_payload_size(
     return True, None
 
 
-def validate_content_type(
+def inspect_content_type(
     content_type: str | None,
     expected: str = "application/json",
 ) -> tuple[bool, str | None]:
@@ -74,7 +74,7 @@ def compute_payload_hash(payload: dict | str | Any) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-def validate_json_payload(
+def inspect_json_payload(
     body: str,
     max_depth: int = 100,
 ) -> tuple[bool, dict | None, str | None]:

@@ -270,7 +270,7 @@ class ShareRoute(http.Controller):
         env["document.access.log"]._log(document, env.user.partner_id, "view")
         return created
 
-    def _make_zip(self, name: str, documents: Any) -> Any:
+    def _get_zip_response(self, name: str, documents: Any) -> Any:
         entries = self._plan_zip_entries(name, documents)
         self._log_download(
             request.env["document.document"]
@@ -331,7 +331,7 @@ class ShareRoute(http.Controller):
             ext = "".join(pathlib.Path(pathname).suffixes)
             return f"{pathname.removesuffix(ext)}-{seen_names[pathname]}{ext}"
 
-        def make_zip_item(document: Any, folder: Any) -> Any:
+        def get_zip_item(document: Any, folder: Any) -> Any:
             if document.type == "url":
                 raise ValueError("cannot create a zip item out of an url")
             if not self._is_shortcut_target_reachable(document):
@@ -375,14 +375,14 @@ class ShareRoute(http.Controller):
                 for doc in documents_sudo
                 if doc.type == "binary"
                 and (doc.shortcut_document_id or doc).attachment_id
-                if (item := make_zip_item(doc, folder)) is not None
+                if (item := get_zip_item(doc, folder)) is not None
             )
             for folder_sudo in documents_sudo:
                 if folder_sudo.type != "folder":
                     continue
                 source_sudo = folder_sudo.shortcut_document_id or folder_sudo
 
-                if (sub_folder := make_zip_item(folder_sudo, folder)) is None:
+                if (sub_folder := get_zip_item(folder_sudo, folder)) is None:
                     continue
                 yield sub_folder
                 if source_sudo in seen_folders:
@@ -696,7 +696,7 @@ class ShareRoute(http.Controller):
             if not document_sudo._is_download_allowed():
                 raise Forbidden("downloading this folder is not allowed")
             self._log_download(document_sudo)
-            return self._make_zip(
+            return self._get_zip_response(
                 f"{document_sudo.name}.zip",
                 self._get_folder_children(document_sudo),
             )
@@ -833,7 +833,7 @@ class ShareRoute(http.Controller):
             ids_list = [int(x) for x in file_ids.split(",")]
         documents = request.env["document.document"].browse(ids_list)
         documents.check_access("read")
-        return self._make_zip(zip_name, documents)
+        return self._get_zip_response(zip_name, documents)
 
     @http.route(
         ["/documents/upload/", "/documents/upload/<access_token>"],

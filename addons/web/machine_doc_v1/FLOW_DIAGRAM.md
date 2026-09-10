@@ -38,7 +38,7 @@ Browser                          Server (Python)                    Database
   │  GET /web                        │                                  │
   ├─────────────────────────────────▶│                                  │
   │                                  │  home.py:web_client()            │
-  │                                  │  ├─ ensure_db()                  │
+  │                                  │  ├─ select_db()                  │
   │                                  │  │  └─ No DB? → redirect /web/database/selector
   │                                  │  ├─ Check session.uid            │
   │                                  │  │  └─ No uid? → redirect /web/login
@@ -130,7 +130,7 @@ Browser                          Server (Python)                    Database
   │  GET /web/login                │                                  │
   ├───────────────────────────────▶│                                  │
   │                                │  home.py:web_login()             │
-  │                                │  ├─ ensure_db()                  │
+  │                                │  ├─ select_db()                  │
   │                                │  └─ Render login template        │
   │  ◀─── Login HTML page ─────────│                                  │
   │                                │                                  │

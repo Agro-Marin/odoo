@@ -5,8 +5,8 @@ from odoo.tools import mute_logger
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.portal.controllers.portal import _pager_url, pager
 from odoo.addons.portal.utils import (
-    validate_thread_with_hash_pid,
-    validate_thread_with_token,
+    is_thread_hash_pid_valid,
+    is_thread_token_valid,
 )
 
 
@@ -32,34 +32,28 @@ class TestCredentialTypeCoercion(TransactionCase):
         for bad_hash in (5, 5.5, True, ["deadbeef"], {"a": 1}):
             with self.subTest(hash=bad_hash):
                 self.assertFalse(
-                    validate_thread_with_hash_pid(_FakeTokenThread(), bad_hash, 1)
+                    is_thread_hash_pid_valid(_FakeTokenThread(), bad_hash, 1)
                 )
 
     def test_hash_pid_non_numeric_pid(self):
         for bad_pid in (["1"], {"id": 1}, 1.5, object()):
             with self.subTest(pid=bad_pid):
                 self.assertFalse(
-                    validate_thread_with_hash_pid(
-                        _FakeTokenThread(), "deadbeef", bad_pid
-                    )
+                    is_thread_hash_pid_valid(_FakeTokenThread(), "deadbeef", bad_pid)
                 )
 
     def test_hash_pid_happy_path_still_validates(self):
         thread = _FakeTokenThread()
-        self.assertTrue(validate_thread_with_hash_pid(thread, thread._sign_token(7), 7))
-        self.assertTrue(
-            validate_thread_with_hash_pid(thread, thread._sign_token(7), "7")
-        )
+        self.assertTrue(is_thread_hash_pid_valid(thread, thread._sign_token(7), 7))
+        self.assertTrue(is_thread_hash_pid_valid(thread, thread._sign_token(7), "7"))
 
     def test_token_non_str(self):
         for bad_token in (5, ["a-real-token"], {"t": 1}, True):
             with self.subTest(token=bad_token):
-                self.assertFalse(
-                    validate_thread_with_token(_FakeTokenThread(), bad_token)
-                )
+                self.assertFalse(is_thread_token_valid(_FakeTokenThread(), bad_token))
 
     def test_token_happy_path_still_validates(self):
-        self.assertTrue(validate_thread_with_token(_FakeTokenThread("tok"), "tok"))
+        self.assertTrue(is_thread_token_valid(_FakeTokenThread("tok"), "tok"))
 
 
 class TestRecordPagerUrl(TransactionCase):

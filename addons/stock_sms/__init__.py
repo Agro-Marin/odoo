@@ -2,7 +2,7 @@ from . import models
 from . import wizard
 
 
-def _assign_default_sms_template_picking_id(env):
+def _update_default_sms_template(env):
     company_ids_without_default_sms_template_id = env["res.company"].search(
         [("stock_sms_confirmation_template_id", "=", False)]
     )

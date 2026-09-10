@@ -57,7 +57,7 @@ class SmsTwilioController(Controller):
             raise request.not_found()
 
         # Verify Twilio Signature
-        if not self._validate_twilio_signature(request, uuid):
+        if not self._is_twilio_signature_valid(request, uuid):
             _logger.warning(
                 "Twilio SMS: update_sms_status could not validate Twilio signature with uuid='%s'",
                 uuid,
@@ -91,7 +91,7 @@ class SmsTwilioController(Controller):
 
         return "OK"
 
-    def _validate_twilio_signature(self, request, uuid):
+    def _is_twilio_signature_valid(self, request, uuid):
         company_sudo = (
             request.env["sms.sms"]
             .sudo()

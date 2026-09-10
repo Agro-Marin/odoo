@@ -16,7 +16,7 @@ class DigestDigest(models.Model):
                 _("Do not have access, skip this data for user's digest email")
             )
 
-        self._calculate_company_based_kpi(
+        self._get_company_based_kpi(
             "hr.employee",
             "kpi_hr_recruitment_new_colleagues_value",
         )

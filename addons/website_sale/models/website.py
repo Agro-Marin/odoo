@@ -1219,7 +1219,7 @@ class Website(models.Model):
         )
         return product_count <= const.PRODUCT_FEED_SOFT_LIMIT
 
-    def _populate_product_feeds(self):
+    def _create_product_feeds(self):
         """Populate product feeds for the website with default values."""
         self.env["product.feed"].create(
             [

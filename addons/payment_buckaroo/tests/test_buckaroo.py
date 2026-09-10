@@ -78,7 +78,7 @@ class BuckarooTest(BuckarooCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         url = self._build_url(BuckarooController._webhook_url)
         with patch(
-            "odoo.addons.payment_buckaroo.controllers.main.BuckarooController._verify_signature"
+            "odoo.addons.payment_buckaroo.controllers.main.BuckarooController._check_signature"
         ):
             self._make_http_post_request(url, data=self.async_payment_data)
         self.assertEqual(tx.state, "done")
@@ -90,7 +90,7 @@ class BuckarooTest(BuckarooCommon, PaymentHttpCommon):
         url = self._build_url(BuckarooController._return_url)
         with (
             patch(
-                "odoo.addons.payment_buckaroo.controllers.main.BuckarooController._verify_signature"
+                "odoo.addons.payment_buckaroo.controllers.main.BuckarooController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -104,7 +104,7 @@ class BuckarooTest(BuckarooCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         self._assert_does_not_raise(
             Forbidden,
-            BuckarooController._verify_signature,
+            BuckarooController._check_signature,
             self.async_payment_data,
             self.async_payment_data["brq_signature"],
             tx,
@@ -116,7 +116,7 @@ class BuckarooTest(BuckarooCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         self.assertRaises(
             Forbidden,
-            BuckarooController._verify_signature,
+            BuckarooController._check_signature,
             self.async_payment_data,
             None,
             tx,
@@ -128,7 +128,7 @@ class BuckarooTest(BuckarooCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         self.assertRaises(
             Forbidden,
-            BuckarooController._verify_signature,
+            BuckarooController._check_signature,
             self.async_payment_data,
             "dummy",
             tx,

@@ -36,7 +36,7 @@ class OpenAIClient(OpenAICompatibleClient):
     def streaming_completion(self, messages, model=None, **kwargs):
         model = self._resolve_model(model)
         try:
-            self._validate_params(model=model, temperature=kwargs.get("temperature"))
+            self._check_params(model=model, temperature=kwargs.get("temperature"))
 
             payload = {
                 "model": model,

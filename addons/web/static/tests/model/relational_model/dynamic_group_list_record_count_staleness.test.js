@@ -64,12 +64,12 @@ describe("DynamicGroupList record count across reloads", () => {
         const list = makeGroupList({ limit: 10, searchCount: () => total });
 
         reload(list, Array(12).fill(2000));
-        await list._ensureCorrectRecordCount();
+        await list._updateRecordCount();
         expect(list.recordCount).toBe(FIRST_DOMAIN_TOTAL);
 
         total = 6;
         reload(list, [1, 2, 3], NARROWER_DOMAIN);
-        await list._ensureCorrectRecordCount();
+        await list._updateRecordCount();
 
         expect(list.recordCount).toBe(6);
         expect(list.isRecordCountTrustable).toBe(true);
@@ -87,13 +87,13 @@ describe("DynamicGroupList record count across reloads", () => {
         });
 
         reload(list, [10, 10, 10]);
-        await list._ensureCorrectRecordCount();
+        await list._updateRecordCount();
         expect(calls).toBe(1);
         expect(list.recordCount).toBe(FIRST_DOMAIN_TOTAL);
 
         total = 42;
         reload(list, [10, 10, 10], NARROWER_DOMAIN);
-        await list._ensureCorrectRecordCount();
+        await list._updateRecordCount();
 
         expect(calls).toBe(2);
         expect(list.recordCount).toBe(42);
@@ -110,11 +110,11 @@ describe("DynamicGroupList record count across reloads", () => {
         });
 
         reload(list, [10, 10, 10]);
-        await list._ensureCorrectRecordCount();
+        await list._updateRecordCount();
         expect(calls).toBe(1);
 
         reload(list, [10, 10, 10]);
-        await list._ensureCorrectRecordCount();
+        await list._updateRecordCount();
 
         expect(calls).toBe(1);
         expect(list.recordCount).toBe(FIRST_DOMAIN_TOTAL);

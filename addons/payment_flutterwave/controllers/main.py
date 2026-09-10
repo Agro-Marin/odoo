@@ -29,7 +29,7 @@ class FlutterwaveController(http.Controller):
         )
 
         if data.get("status") != "cancelled":
-            self._verify_and_process(data)
+            self._check_and_process(data)
         else:  # The customer cancelled the payment by clicking on the close button.
             pass  # Don't try to process this case because the transaction id was not provided.
 
@@ -67,12 +67,12 @@ class FlutterwaveController(http.Controller):
             )
             if tx_sudo:
                 signature = request.httprequest.headers.get("verif-hash")
-                self._verify_signature(signature, tx_sudo)
+                self._check_signature(signature, tx_sudo)
             tx_sudo._process("flutterwave", payment_data)
         return request.prepare_json_response("")
 
     @staticmethod
-    def _verify_signature(received_signature, tx_sudo):
+    def _check_signature(received_signature, tx_sudo):
         """Check that the received signature matches the expected one.
 
         :param dict received_signature: The signature received with the payment data.
@@ -92,7 +92,7 @@ class FlutterwaveController(http.Controller):
             raise Forbidden()
 
     @staticmethod
-    def _verify_and_process(data):
+    def _check_and_process(data):
         """Verify and process the payment data sent by Flutterwave.
 
         :param dict data: The payment data.

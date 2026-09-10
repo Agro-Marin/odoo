@@ -54,13 +54,13 @@ class ResUserGroupIdsField extends FieldComponent {
         );
         this.hierarchyGroups = groups;
         this.categories = /** @type {PrivilegeCategory[]} */ (
-            this.buildCategories(categories, privileges)
+            this.getCategories(categories, privileges)
         );
-        this.extraCategory = this.buildExtraCategory(groups);
+        this.extraCategory = this.getExtraCategory(groups);
 
-        const booleanFieldToGroupId = this.buildFields(privileges, groups);
+        const booleanFieldToGroupId = this.getFields(privileges, groups);
         this.fields = deepCopy(this._fields);
-        this.archInfo = this.buildArch();
+        this.archInfo = this.getArch();
 
         this.info = { booleanFieldToGroupId, groups: {}, privileges };
         useChildSubEnv({ resUserGroupsInfo: this.info });
@@ -78,7 +78,7 @@ class ResUserGroupIdsField extends FieldComponent {
      * @param {Object<string, any>} privileges
      * @returns {Array<Object<string, any>>}
      */
-    buildCategories(categories, privileges) {
+    getCategories(categories, privileges) {
         const orphans = Object.values(privileges)
             .filter((privilege) => !privilege.category_id)
             .sort((p1, p2) => p1.sequence - p2.sequence);
@@ -96,7 +96,7 @@ class ResUserGroupIdsField extends FieldComponent {
      * @param {Object<string, any>} groups
      * @returns {PrivilegeCategory}
      */
-    buildExtraCategory(groups) {
+    getExtraCategory(groups) {
         return {
             id: "extra",
             name: _t("Extra Rights"),
@@ -121,7 +121,7 @@ class ResUserGroupIdsField extends FieldComponent {
      * @param {Object<string, any>} groups
      * @returns {Object<string, number>}
      */
-    buildFields(privileges, groups) {
+    getFields(privileges, groups) {
         this._fields = {};
         /** @type {Record<string, number>} */
         const booleanFieldToGroupId = {};
@@ -176,7 +176,7 @@ class ResUserGroupIdsField extends FieldComponent {
     }
 
     /** @returns {Object<string, any>} */
-    buildArch() {
+    getArch() {
         const arch = `
             <t>
                 <group>

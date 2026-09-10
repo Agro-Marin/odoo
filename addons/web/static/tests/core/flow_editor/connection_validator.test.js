@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { validateConnection } from "@web/core/flow_editor/connection_validator";
+import { getConnectionValidity } from "@web/core/flow_editor/connection_validator";
 
 describe.current.tags("headless");
 
@@ -57,10 +57,10 @@ function connection(id, sourceNodeId, targetNodeId) {
  * @param {import("@web/core/flow_editor/flow_types").FlowConnection[]} [connections]
  */
 function validation(graphConnection, nodes, connections = []) {
-    return validateConnection(graphConnection, { nodes, connections });
+    return getConnectionValidity(graphConnection, { nodes, connections });
 }
 
-describe("validateConnection", () => {
+describe("getConnectionValidity", () => {
     test("rejects a self connection", () => {
         const graphNode = node("node");
         expect(validation(connection("self", "node", "node"), [graphNode])).toEqual({

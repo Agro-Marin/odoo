@@ -13,13 +13,13 @@ import {
 import { _t } from "@web/core/translation";
 
 import {
+    getConnectionValidity,
     normalizeConnectionValidation,
-    validateConnection,
 } from "./connection_validator.js";
 import { FlowConnection } from "./flow_connection.js";
 import { FlowEditorStore } from "./flow_editor_store.js";
 import { FlowNode } from "./flow_node.js";
-import { buildConnectionGeometry } from "./geometry/connections.js";
+import { getConnectionGeometry } from "./geometry/connections.js";
 import { clampScale, screenToWorld } from "./geometry/coordinates.js";
 import {
     expandRect,
@@ -28,7 +28,7 @@ import {
     getObstacleRects,
 } from "./geometry/nodes.js";
 import { DEFAULT_NODE_HEADER_HEIGHT, getPortAnchor } from "./geometry/ports.js";
-import { buildOrthogonalPath } from "./geometry/router.js";
+import { getOrthogonalPath } from "./geometry/router.js";
 
 const DEFAULT_NODE_SIZE = { width: 220, height: 120 };
 const DEFAULT_MIN_NODE_SIZE = { width: 120, height: 80 };
@@ -314,7 +314,7 @@ export class FlowEditor extends Component {
                 if (!sourceNode || !targetNode) {
                     return null;
                 }
-                return buildConnectionGeometry({
+                return getConnectionGeometry({
                     connection,
                     sourceNode,
                     targetNode,
@@ -344,7 +344,7 @@ export class FlowEditor extends Component {
         if (!sourceNode || !targetNode) {
             return null;
         }
-        return buildConnectionGeometry({
+        return getConnectionGeometry({
             connection: {
                 id: "flow-connection-draft",
                 sourceNodeId,
@@ -410,7 +410,7 @@ export class FlowEditor extends Component {
         }
         return {
             id: "flow-connection-draft",
-            ...buildOrthogonalPath({
+            ...getOrthogonalPath({
                 start: draft.pointer,
                 end,
                 obstacles: this._draftObstacles(draft.targetNodeId),
@@ -450,7 +450,7 @@ export class FlowEditor extends Component {
         }
         return {
             id: "flow-connection-draft",
-            ...buildOrthogonalPath({
+            ...getOrthogonalPath({
                 start,
                 end: pointer,
                 obstacles: this._draftObstacles(sourceNodeId),
@@ -634,7 +634,7 @@ export class FlowEditor extends Component {
             if (draft.targetNodeId === undefined || draft.targetPortId === undefined) {
                 return "invalid";
             }
-            return this.validateConnectionCandidate({
+            return this.getConnectionCandidateValidity({
                 id: "flow-connection-draft",
                 sourceNodeId: nodeId,
                 sourcePortId: portId,
@@ -647,7 +647,7 @@ export class FlowEditor extends Component {
         if (draft.targetNodeId !== nodeId || draft.targetPortId !== portId) {
             return;
         }
-        return this.validateConnectionCandidate({
+        return this.getConnectionCandidateValidity({
             id: "flow-connection-draft",
             sourceNodeId: draft.sourceNodeId,
             sourcePortId: draft.sourcePortId,
@@ -1106,7 +1106,7 @@ export class FlowEditor extends Component {
             targetNodeId: target.node.id,
             targetPortId: target.portId,
         };
-        const validation = this.validateConnectionCandidate(connection);
+        const validation = this.getConnectionCandidateValidity(connection);
         if (!validation.valid) {
             this.props.onConnectionRejected({ connection, validation });
             return;
@@ -1116,7 +1116,7 @@ export class FlowEditor extends Component {
             const persistedConnection =
                 result && typeof result === "object" ? result : connection;
             const persistedValidation =
-                this.validateConnectionCandidate(persistedConnection);
+                this.getConnectionCandidateValidity(persistedConnection);
             if (persistedValidation.valid) {
                 this.store.addConnection(persistedConnection);
             } else {
@@ -1175,8 +1175,8 @@ export class FlowEditor extends Component {
      * @param {import("./flow_types").FlowConnection} connection
      * @returns {import("./connection_validator").FlowConnectionValidation}
      */
-    validateConnectionCandidate(connection) {
-        const validation = validateConnection(connection, {
+    getConnectionCandidateValidity(connection) {
+        const validation = getConnectionValidity(connection, {
             nodes: this.store.nodes,
             connections: this.store.connections,
             allowSelfConnections: this.props.allowSelfConnections,

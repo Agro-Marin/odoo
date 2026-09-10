@@ -115,7 +115,7 @@ export class FormSaveCoordinator extends StateMachine {
             if (saveOverride) {
                 saved = await saveOverride(this.model.root, opts);
             } else {
-                const onError = this._buildOnError(errorMode, ownerEpoch);
+                const onError = this._getOnError(errorMode, ownerEpoch);
                 if (onError) {
                     opts.onError = onError;
                 }
@@ -194,7 +194,7 @@ export class FormSaveCoordinator extends StateMachine {
      * @param {number} ownerEpoch
      * @returns {((error: any, callbacks: any) => any) | undefined}
      */
-    _buildOnError(errorMode, ownerEpoch) {
+    _getOnError(errorMode, ownerEpoch) {
         if (errorMode === "silent") {
             return undefined;
         }

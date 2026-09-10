@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
-    buildOrthogonalPath,
+    getOrthogonalPath,
     hasReversal,
     segmentIntersectsRect,
     staircaseRoute,
@@ -50,9 +50,9 @@ function bendCount(points) {
     return bends;
 }
 
-describe("buildOrthogonalPath", () => {
+describe("getOrthogonalPath", () => {
     test("connects two ports on the same row with a straight line", () => {
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 0, y: 0 },
             end: { x: 300, y: 0 },
         });
@@ -61,7 +61,7 @@ describe("buildOrthogonalPath", () => {
     });
 
     test("connects two offset ports with a single elbow", () => {
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 0, y: 0 },
             end: { x: 300, y: 150 },
         });
@@ -71,7 +71,7 @@ describe("buildOrthogonalPath", () => {
 
     test("routes around an obstacle directly between aligned ports", () => {
         const obstacles = [{ x1: 100, y1: -20, x2: 200, y2: 20 }];
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 0, y: 0 },
             end: { x: 300, y: 0 },
             obstacles,
@@ -82,7 +82,7 @@ describe("buildOrthogonalPath", () => {
 
     test("never doubles back when an obstacle's expanded edge extends past the target", () => {
         const obstacles = [{ x1: 50, y1: 150, x2: 500, y2: 250 }];
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 0, y: 100 },
             end: { x: 100, y: 400 },
             obstacles,
@@ -93,7 +93,7 @@ describe("buildOrthogonalPath", () => {
 
     test("clears an obstacle blocking both elbow shapes by widening to a corridor", () => {
         const obstacles = [{ x1: 100, y1: -10, x2: 200, y2: 210 }];
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 0, y: 0 },
             end: { x: 300, y: 200 },
             obstacles,
@@ -107,7 +107,7 @@ describe("buildOrthogonalPath", () => {
             { x1: 100, y1: -100, x2: 200, y2: 50 },
             { x1: 100, y1: 50, x2: 200, y2: 200 },
         ];
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 0, y: 0 },
             end: { x: 300, y: 0 },
             obstacles,
@@ -122,7 +122,7 @@ describe("buildOrthogonalPath", () => {
             { x1: 100, y1: -10, x2: 200, y2: 10 },
             { x1: 100, y1: 20, x2: 200, y2: 100 },
         ];
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 0, y: 0 },
             end: { x: 300, y: 0 },
             obstacles,
@@ -135,7 +135,7 @@ describe("buildOrthogonalPath", () => {
 
     test("shrinks the lead stub when an obstacle sits within its reach of the port", () => {
         const obstacles = [{ x1: 10, y1: -50, x2: 60, y2: 50 }];
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 0, y: 0 },
             end: { x: 300, y: 100 },
             obstacles,
@@ -147,7 +147,7 @@ describe("buildOrthogonalPath", () => {
     });
 
     test("routes a target behind the source without reversing, even with no obstacles", () => {
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 300, y: 0 },
             end: { x: 0, y: 100 },
         });
@@ -157,7 +157,7 @@ describe("buildOrthogonalPath", () => {
     });
 
     test("routes a target behind the source on the exact same row without reversing", () => {
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 300, y: 100 },
             end: { x: 0, y: 100 },
         });
@@ -172,12 +172,12 @@ describe("buildOrthogonalPath", () => {
         const farAwayObstacleAt = (/** @type {number} */ y) => [
             { x1: -600, y1: y, x2: -500, y2: y + 100 },
         ];
-        const above = buildOrthogonalPath({
+        const above = getOrthogonalPath({
             start,
             end,
             obstacles: farAwayObstacleAt(-800),
         });
-        const below = buildOrthogonalPath({
+        const below = getOrthogonalPath({
             start,
             end,
             obstacles: farAwayObstacleAt(800),
@@ -188,7 +188,7 @@ describe("buildOrthogonalPath", () => {
     });
 
     test("never crashes when start and end are the same point", () => {
-        const { points } = buildOrthogonalPath({
+        const { points } = getOrthogonalPath({
             start: { x: 50, y: 50 },
             end: { x: 50, y: 50 },
         });
@@ -200,7 +200,7 @@ describe("buildOrthogonalPath", () => {
             { x1: 100, y1: -100, x2: 200, y2: 50 },
             { x1: 100, y1: 50, x2: 200, y2: 200 },
         ];
-        const { points, path } = buildOrthogonalPath({
+        const { points, path } = getOrthogonalPath({
             start: { x: 0, y: 0 },
             end: { x: 300, y: 0 },
             obstacles,

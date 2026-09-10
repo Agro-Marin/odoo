@@ -89,7 +89,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         url = self._build_url(StripeController._webhook_url)
         with patch(
-            "odoo.addons.payment_stripe.controllers.main.StripeController._verify_signature"
+            "odoo.addons.payment_stripe.controllers.main.StripeController._check_signature"
         ):
             self._make_json_request(url, data=self.payment_data)
         self.assertEqual(tx.state, "done")
@@ -149,7 +149,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
         payment_method_response = data["object"] = self._mock_setup_intent_request()
         with (
             patch(
-                "odoo.addons.payment_stripe.controllers.main.StripeController._verify_signature"
+                "odoo.addons.payment_stripe.controllers.main.StripeController._check_signature"
             ),
             patch(
                 "odoo.addons.payment.models.payment_provider.PaymentProvider._send_api_request",
@@ -171,7 +171,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
         url = self._build_url(StripeController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_stripe.controllers.main.StripeController._verify_signature"
+                "odoo.addons.payment_stripe.controllers.main.StripeController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -191,7 +191,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
         payload["data"]["object"]["description"] = None
 
         with patch(
-            "odoo.addons.payment_stripe.controllers.main.StripeController._verify_signature"
+            "odoo.addons.payment_stripe.controllers.main.StripeController._check_signature"
         ) as signature_check_mock:
             self._make_json_request(url, data=payload)
             self.assertEqual(signature_check_mock.call_count, 0)
@@ -204,7 +204,7 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
         url = self._build_url(StripeController._return_url)
         PaymentProvider = self.env.registry["payment.provider"]
         with (
-            patch.object(StripeController, "_verify_signature"),
+            patch.object(StripeController, "_check_signature"),
             patch.object(
                 PaymentProvider, "_send_api_request", self._mock_setup_intent_request
             ),

@@ -14,7 +14,7 @@ class DigestDigest(models.Model):
                 _("Do not have access, skip this data for user's digest email")
             )
 
-        self._calculate_company_based_kpi(
+        self._get_company_based_kpi(
             "sale.report",
             "kpi_all_sale_total_value",
             date_field="date_order",

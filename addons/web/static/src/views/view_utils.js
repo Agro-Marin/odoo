@@ -244,7 +244,7 @@ export function computeModelOptions(env, display) {
  * @param {Object} [args.extras={}]
  * @returns {Object}
  */
-export function buildMultiRecordModelParams({
+export function getMultiRecordModelParams({
     archInfo,
     props,
     uiHooks,
@@ -409,7 +409,7 @@ export const STATIC_ACTION_MENU_DESCRIPTORS = {
  * @param {Record<string, Record<string, any>>} overlays
  * @returns {Record<string, Record<string, any>>}
  */
-export function buildStaticActionMenuItems(overlays) {
+export function prepareStaticActionMenuItems(overlays) {
     /** @type {Record<string, Record<string, any>>} */
     const items = {};
     for (const [key, overlay] of Object.entries(overlays)) {
@@ -447,7 +447,7 @@ export function archiveConfirmationProps(archiveFn, { multi = false } = {}) {
  * @param {any} record
  * @returns {Record<string, any>}
  */
-export function buildOpenActionParams(openAction, record) {
+export function getOpenActionParams(openAction, record) {
     return {
         name: openAction.action,
         type: openAction.type,
@@ -466,7 +466,7 @@ export function buildOpenActionParams(openAction, record) {
  * @param {Record<string, any>} [actionMenus]
  * @returns {{ action: Record<string, any>[], print: Record<string, any>[] }}
  */
-export function buildActionMenuItems(staticItems, actionMenus) {
+export function getActionMenuItems(staticItems, actionMenus) {
     const staticActionItems = Object.entries(staticItems)
         .filter(([, item]) => item.isAvailable === undefined || item.isAvailable())
         .sort(([, item1], [, item2]) => (item1.sequence || 0) - (item2.sequence || 0))

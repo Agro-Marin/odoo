@@ -174,7 +174,7 @@ class L10nHuEdiConnection:
                 }
             )
             invoice_hashes.append(
-                self._calculate_invoice_hash(
+                self._get_invoice_hash(
                     invoice_operation["operation"] + invoice_data_b64
                 )
             )
@@ -461,7 +461,7 @@ class L10nHuEdiConnection:
                 }
             )
             annulment_hashes.append(
-                self._calculate_invoice_hash("ANNUL" + annulment_data_b64)
+                self._get_invoice_hash("ANNUL" + annulment_data_b64)
             )
 
         template_values.update(
@@ -497,7 +497,7 @@ class L10nHuEdiConnection:
     def _get_header_values(self, credentials, invoice_hashs=None):
         timestamp = datetime.utcnow()
         request_id = "ODOO" + secrets.token_hex(13)
-        request_signature = self._calculate_request_signature(
+        request_signature = self._get_request_signature(
             credentials["signature_key"],
             request_id,
             timestamp,
@@ -515,7 +515,7 @@ class L10nHuEdiConnection:
             "requestId": request_id,
             "timestamp": format_timestamp(timestamp),
             "login": credentials["username"],
-            "passwordHash": self._calculate_password_hash(credentials["password"]),
+            "passwordHash": self._get_password_hash(credentials["password"]),
             "taxNumber": credentials["vat"][:8],
             "requestSignature": request_signature,
             "softwareId": f"BE477472701-{module_version}"[:18],
@@ -529,15 +529,13 @@ class L10nHuEdiConnection:
             "format_bool": format_bool,
         }
 
-    def _calculate_password_hash(self, password):
+    def _get_password_hash(self, password):
         return hashlib.sha512(password.encode()).hexdigest().upper()
 
-    def _calculate_invoice_hash(self, value):
+    def _get_invoice_hash(self, value):
         return hashlib.sha3_512(value.encode()).hexdigest().upper()
 
-    def _calculate_request_signature(
-        self, key_sign, reqid, reqdate, invoice_hashs=None
-    ):
+    def _get_request_signature(self, key_sign, reqid, reqdate, invoice_hashs=None):
         strings = [reqid, reqdate.strftime("%Y%m%d%H%M%S"), key_sign]
 
         # merge the invoice CRCs if we got
@@ -545,7 +543,7 @@ class L10nHuEdiConnection:
             strings += invoice_hashs
 
         # return back the uppered hexdigest
-        return self._calculate_invoice_hash("".join(strings))
+        return self._get_invoice_hash("".join(strings))
 
     # === Helpers: HTTP Post === #
 

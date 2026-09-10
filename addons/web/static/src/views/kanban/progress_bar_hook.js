@@ -119,24 +119,24 @@ class ProgressBarState {
             return EMPTY_GROUP_INFO;
         }
         if (!this._groupsInfo[group.id]) {
-            this._seedGroupInfo(group);
+            this._initGroupInfo(group);
         }
         return this._groupsInfo[group.id];
     }
 
-    _seedAllGroups() {
+    _initAllGroups() {
         if (this._pbCounts === null) {
             return;
         }
         for (const group of this.model.root.groups || []) {
             if (!this._groupsInfo[group.id]) {
-                this._seedGroupInfo(group);
+                this._initGroupInfo(group);
             }
         }
     }
 
     /** @param {Group} group */
-    _seedGroupInfo(group) {
+    _initGroupInfo(group) {
         const key = groupKey(group.serverValue);
         this._aggregatesByKey.set(key, { ...group.aggregates });
         const pbCount = this._pbCounts[this._pbCountKey(group)];
@@ -724,7 +724,7 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
                 console.error(error);
                 return;
             }
-            progressBarState._seedAllGroups();
+            progressBarState._initAllGroups();
             if (model.isReady) {
                 progressBarState._refreshBars();
             } else {

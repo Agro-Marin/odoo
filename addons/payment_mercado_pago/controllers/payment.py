@@ -71,7 +71,7 @@ class MercadoPagoPaymentController(http.Controller):
             pprint.pformat(data),
         )
         if data.get("payment_id") != "null":
-            self._verify_and_process(data)
+            self._check_and_process(data)
         else:  # The customer cancelled the payment by clicking on the return button.
             pass  # Don't try to process this case because the payment id was not provided.
 
@@ -105,7 +105,7 @@ class MercadoPagoPaymentController(http.Controller):
         # (type of event) key as it is not populated for IPNs, and we don't want to process the
         # other types of events.
         if data.get("action") in ("payment.created", "payment.updated"):
-            self._verify_and_process(
+            self._check_and_process(
                 {
                     "external_reference": reference,
                     "payment_id": data.get("data", {}).get("id"),
@@ -114,7 +114,7 @@ class MercadoPagoPaymentController(http.Controller):
         return ""  # Acknowledge the notification.
 
     @staticmethod
-    def _verify_and_process(data):
+    def _check_and_process(data):
         """Verify and process the payment data sent by Mercado Pago.
 
         :param dict data: The payment data.

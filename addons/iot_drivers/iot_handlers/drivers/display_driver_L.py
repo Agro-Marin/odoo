@@ -176,10 +176,10 @@ class DisplayDriver(Driver):
 class DisplayController(http.Controller):
     @route.iot_route("/hw_proxy/customer_facing_display", type="jsonrpc", cors="*")
     def customer_facing_display(self):
-        display = self.ensure_display()
+        display = self.get_display()
         return display.data.get("customer_display_data", {})
 
-    def ensure_display(self):
+    def get_display(self):
         display: DisplayDriver = DisplayDriver.get_default_display()
         if not display:
             raise werkzeug.exceptions.ServiceUnavailable(

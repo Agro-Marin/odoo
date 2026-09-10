@@ -43,7 +43,7 @@ class DocumentsDocument(models.Model):
                     _("Only PDF documents can be attached inside a quote.")
                 )
             if doc.datas:
-                utils._ensure_document_not_encrypted(
+                utils._check_document_not_encrypted(
                     doc.attachment_id._get_content_prefix()
                 )
 

@@ -6,7 +6,7 @@ from odoo.exceptions import ValidationError
 from odoo.tools import pdf
 
 
-def _ensure_document_not_encrypted(document):
+def _check_document_not_encrypted(document):
     document_is_invalid = False
     try:
         document_is_invalid = pdf.PdfReader(
@@ -25,7 +25,7 @@ def _ensure_document_not_encrypted(document):
 
 def _get_form_fields_from_pdf(pdf_data):
     pdf_bytes = base64.b64decode(pdf_data)
-    _ensure_document_not_encrypted(pdf_bytes)
+    _check_document_not_encrypted(pdf_bytes)
 
     reader = pdf.PdfReader(io.BytesIO(pdf_bytes), strict=False)
 

@@ -39,7 +39,7 @@ export function computeParamValues(paramKeys, allAcceptedParams, params) {
  * @param {(reason: string) => Error} makeError
  * @returns {void}
  */
-export function validateParams(params, allAcceptedParams, defaultParams, makeError) {
+export function checkParams(params, allAcceptedParams, defaultParams, makeError) {
     for (const prop of Object.keys(allAcceptedParams)) {
         const type = typeof params[prop];
         const acceptedTypes = allAcceptedParams[prop].map((t) => t.name.toLowerCase());

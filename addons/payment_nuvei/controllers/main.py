@@ -38,7 +38,7 @@ class NuveiController(http.Controller):
             ._search_by_reference("nuvei", tx_data)
         )
         if tx_sudo:
-            self._verify_signature(tx_sudo, data, error_access_token=error_access_token)
+            self._check_signature(tx_sudo, data, error_access_token=error_access_token)
             tx_sudo._process("nuvei", data)
         return request.redirect("/payment/status")
 
@@ -61,13 +61,13 @@ class NuveiController(http.Controller):
             ._search_by_reference("nuvei", data)
         )
         if tx_sudo:
-            self._verify_signature(tx_sudo, data)
+            self._check_signature(tx_sudo, data)
             tx_sudo._process("nuvei", data)
 
         return "OK"  # Acknowledge the notification.
 
     @staticmethod
-    def _verify_signature(tx_sudo, payment_data, error_access_token=None):
+    def _check_signature(tx_sudo, payment_data, error_access_token=None):
         """Check that the received signature matches the expected one.
 
         :param payment.transaction tx_sudo: The sudoed transaction referenced by the notification

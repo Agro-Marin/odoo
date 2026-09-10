@@ -224,13 +224,11 @@ class WebsiteSaleL10nTW(WebsiteSale):
             )
         return rendering_values
 
-    def _validate_address_values(
+    def _get_address_errors(
         self, address_values, partner_sudo, address_type, *args, **kwargs
     ):
-        invalid_fields, missing_fields, error_messages = (
-            super()._validate_address_values(
-                address_values, partner_sudo, address_type, *args, **kwargs
-            )
+        invalid_fields, missing_fields, error_messages = super()._get_address_errors(
+            address_values, partner_sudo, address_type, *args, **kwargs
         )
 
         if (

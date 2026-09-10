@@ -20,39 +20,39 @@ class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
     def test_validate_params_temperature_valid(self):
         client = get_deepseek_client(self.env)
 
-        client._validate_params(temperature=0.0)
-        client._validate_params(temperature=1.0)
-        client._validate_params(temperature=2.0)
+        client._check_params(temperature=0.0)
+        client._check_params(temperature=1.0)
+        client._check_params(temperature=2.0)
 
     def test_validate_params_temperature_invalid(self):
         client = get_deepseek_client(self.env)
 
         with self.assertRaises(ValueError):
-            client._validate_params(temperature=-0.1)
+            client._check_params(temperature=-0.1)
 
         with self.assertRaises(ValueError):
-            client._validate_params(temperature=2.1)
+            client._check_params(temperature=2.1)
 
         with self.assertRaises(ValueError):
-            client._validate_params(temperature="not_a_number")
+            client._check_params(temperature="not_a_number")
 
     def test_validate_params_max_tokens_valid(self):
         client = get_deepseek_client(self.env)
 
-        client._validate_params(max_tokens=100)
-        client._validate_params(max_tokens=4096)
+        client._check_params(max_tokens=100)
+        client._check_params(max_tokens=4096)
 
     def test_validate_params_max_tokens_invalid(self):
         client = get_deepseek_client(self.env)
 
         with self.assertRaises(ValueError):
-            client._validate_params(max_tokens=0)
+            client._check_params(max_tokens=0)
 
         with self.assertRaises(ValueError):
-            client._validate_params(max_tokens=-100)
+            client._check_params(max_tokens=-100)
 
         with self.assertRaises(ValueError):
-            client._validate_params(max_tokens=math.pi)
+            client._check_params(max_tokens=math.pi)
 
     @patch("odoo.addons.api_ai.tools.ai_clients.base.get_api_client")
     def test_validate_response_valid_json(self, mock_get_client):
@@ -66,7 +66,7 @@ class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
             "elapsed_ms": 0,
         }
 
-        result = client._validate_response(wrapped_response)
+        result = client._get_response_body(wrapped_response)
         self.assertIsInstance(result, dict)
         self.assertEqual(result["status"], "success")
 
@@ -81,7 +81,7 @@ class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
         }
 
         with self.assertRaises(CommError) as cm:
-            client._validate_response(response_no_body)
+            client._get_response_body(response_no_body)
 
         self.assertIn("Invalid", str(cm.exception))
 
@@ -97,9 +97,9 @@ class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
 
         client = get_deepseek_client(self.env)
 
-        with patch.object(client, "_validate_params") as mock_validate:
+        with patch.object(client, "_check_params") as mock_validate:
             with patch.object(
-                client, "_validate_response", return_value=mock_response.json()
+                client, "_get_response_body", return_value=mock_response.json()
             ):
                 client.chat_completion(
                     messages=[{"role": "user", "content": "Hello"}],

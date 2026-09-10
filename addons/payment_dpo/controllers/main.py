@@ -21,13 +21,13 @@ class DPOController(http.Controller):
         _logger.info(
             "Handling redirection from DPO with data:\n%s", pprint.pformat(data)
         )
-        self._verify_and_process(data)
+        self._check_and_process(data)
 
         # Redirect the user to the status page.
         return request.redirect("/payment/status")
 
     @staticmethod
-    def _verify_and_process(data):
+    def _check_and_process(data):
         """Verify and process the payment data sent by DPO.
 
         :param dict data: The payment data.

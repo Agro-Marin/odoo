@@ -75,7 +75,7 @@ class PaypalTest(PaypalCommon, PaymentHttpCommon):
         url = self._build_url(PaypalController._webhook_url)
         with patch(
             "odoo.addons.payment_paypal.controllers.main.PaypalController"
-            "._verify_notification_origin"
+            "._check_notification_origin"
         ):
             self._make_json_request(url, data=self.payment_data)
         self.assertEqual(tx.state, "done")
@@ -88,7 +88,7 @@ class PaypalTest(PaypalCommon, PaymentHttpCommon):
         with (
             patch(
                 "odoo.addons.payment_paypal.controllers.main.PaypalController"
-                "._verify_notification_origin"
+                "._check_notification_origin"
             ) as origin_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"

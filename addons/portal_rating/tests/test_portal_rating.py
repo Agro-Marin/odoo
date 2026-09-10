@@ -58,9 +58,7 @@ class TestPortalRating(TransactionCase):
 
     def test_synchronize_publisher_values_fills_metadata(self):
         """A publisher comment auto-stamps the publisher partner and datetime."""
-        values = self.Rating._synchronize_publisher_values(
-            {"publisher_comment": "Nice"}
-        )
+        values = self.Rating._prepare_publisher_values({"publisher_comment": "Nice"})
         self.assertEqual(values["publisher_id"], self.env.user.partner_id.id)
         self.assertTrue(values["publisher_datetime"])
 
@@ -77,4 +75,4 @@ class TestPortalRating(TransactionCase):
             self.env, login="rating_restricted", groups="base.group_user"
         )
         with self.assertRaises(AccessError):
-            rating.with_user(restricted)._check_synchronize_publisher_values()
+            rating.with_user(restricted)._check_publisher_values()

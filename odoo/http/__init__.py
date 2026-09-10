@@ -17,8 +17,8 @@ from .constants import (
     STATIC_CACHE_LONG,
     STORED_SESSION_BYTES,
     prepare_default_session,
-    is_ensure_db_path,
-    register_ensure_db_paths,
+    is_select_db_path,
+    register_select_db_paths,
     register_session_rotation_excluded_paths,
 )
 
@@ -204,7 +204,7 @@ __all__ = [
     "get_session_max_inactivity",
     "invalidate_db_list_cache",
     "is_cors_preflight",
-    "is_ensure_db_path",
+    "is_select_db_path",
     "iter_map_routes",
     "prepare_default_session",
     "prepare_no_content_response",
@@ -212,7 +212,7 @@ __all__ = [
     "prepare_openapi_from_map",
     "prepare_routing_map",
     "prepare_rule_kwargs",
-    "register_ensure_db_paths",
+    "register_select_db_paths",
     "register_routing_parameters",
     "register_session_rotation_excluded_paths",
     "request",

@@ -101,7 +101,7 @@ describe("the two callers are now the line that differed", () => {
         expect([top.healed, leaf.healed]).toEqual([1, 1]);
     });
 
-    test("both walk PROPERTY-backed lists too, unlike buildCommitSpec", () => {
+    test("both walk PROPERTY-backed lists too, unlike getCommitSpec", () => {
         const list = makeList([], Promise.resolve(1));
         const record = makeRecord({ "properties.tags": list });
         record.fields["properties.tags"].relatedPropertyField = { name: "properties" };

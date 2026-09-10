@@ -13,7 +13,7 @@ class LunchController(http.Controller):
         self._check_user_impersonification(user_id)
         user = request.env["res.users"].browse(user_id) if user_id else request.env.user
 
-        infos = self._make_infos(user, order=False)
+        infos = self._get_infos(user, order=False)
 
         lines = self._get_current_lines(user)
         if lines:
@@ -139,7 +139,7 @@ class LunchController(http.Controller):
             )
         return user_location.id
 
-    def _make_infos(self, user, **kwargs):
+    def _get_infos(self, user, **kwargs):
         res = dict(kwargs)
 
         is_manager = request.env.user.has_group("lunch.group_lunch_manager")

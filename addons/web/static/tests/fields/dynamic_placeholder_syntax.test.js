@@ -2,9 +2,9 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
-    buildInlinePlaceholder,
-    buildQwebPlaceholder,
     escapeInlineDefault,
+    getInlinePlaceholder,
+    getQwebPlaceholder,
     isRenderableFieldType,
     placeholderExpression,
 } from "@web/fields/dynamic_placeholder_syntax";
@@ -34,35 +34,35 @@ describe("placeholderExpression", () => {
 
     test("both producers agree on the same field", () => {
         const spec = { path: "date_end", fieldType: "datetime", tzPath: "partner_id" };
-        expect(buildQwebPlaceholder(spec).expression).toBe(
-            buildInlinePlaceholder(spec).slice(2, -2),
+        expect(getQwebPlaceholder(spec).expression).toBe(
+            getInlinePlaceholder(spec).slice(2, -2),
         );
     });
 });
 
 describe("escapeInlineDefault", () => {
     test("`}}` in a default no longer terminates the placeholder", () => {
-        expect(buildInlinePlaceholder({ path: "x", defaultValue: "see }} here" })).toBe(
+        expect(getInlinePlaceholder({ path: "x", defaultValue: "see }} here" })).toBe(
             "{{object.x ||| see \\}\\} here}}",
         );
     });
 
     test("a backslash is escaped so it cannot escape the terminator", () => {
         expect(escapeInlineDefault("a\\b")).toBe("a\\\\b");
-        expect(buildInlinePlaceholder({ path: "x", defaultValue: "trail\\" })).toBe(
+        expect(getInlinePlaceholder({ path: "x", defaultValue: "trail\\" })).toBe(
             "{{object.x ||| trail\\\\}}",
         );
     });
 
     test("`|||` in a default is left exactly as typed", () => {
-        expect(
-            buildInlinePlaceholder({ path: "x", defaultValue: "a ||| b ||| c" }),
-        ).toBe("{{object.x ||| a ||| b ||| c}}");
+        expect(getInlinePlaceholder({ path: "x", defaultValue: "a ||| b ||| c" })).toBe(
+            "{{object.x ||| a ||| b ||| c}}",
+        );
     });
 
     test("no default means no separator", () => {
-        expect(buildInlinePlaceholder({ path: "x" })).toBe("{{object.x}}");
-        expect(buildInlinePlaceholder({ path: "x", defaultValue: "" })).toBe(
+        expect(getInlinePlaceholder({ path: "x" })).toBe("{{object.x}}");
+        expect(getInlinePlaceholder({ path: "x", defaultValue: "" })).toBe(
             "{{object.x}}",
         );
     });

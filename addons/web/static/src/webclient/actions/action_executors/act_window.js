@@ -4,7 +4,7 @@
 import { omit, pick } from "@web/core/utils/collections/objects";
 import { View } from "@web/views/view";
 
-import { buildActionViews } from "../action_info_builders.js";
+import { getActionViews } from "../action_info_builders.js";
 import { findView } from "../action_views.js";
 
 /**
@@ -54,7 +54,7 @@ export async function executeActWindowAction(action, options, am) {
     ) {
         return;
     }
-    const views = buildActionViews(action);
+    const views = getActionViews(action);
 
     let view =
         (options.viewType && views.find((v) => v.type === options.viewType)) ||

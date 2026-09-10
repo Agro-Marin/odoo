@@ -4,7 +4,7 @@
 import { actionContextCallbacks } from "@web/core/action_context_port";
 
 import {
-    buildIrFilterDescription,
+    getIrFilterDescription,
     irFilterToFavorite,
     reconciliateFavorites,
 } from "./search_favorites.js";
@@ -79,7 +79,7 @@ export const SearchFavoritesMixin = (Base) =>
             if (gs.length) {
                 localOrderBy = gs.flatMap((g) => g());
             }
-            return buildIrFilterDescription({
+            return getIrFilterDescription({
                 description,
                 isDefault,
                 isShared,

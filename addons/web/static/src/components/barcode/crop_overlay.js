@@ -60,7 +60,7 @@ export class CropOverlay extends Component {
             this.hasInitialPosition = true;
         }
         this.computeOverlayPosition();
-        this.calculateAndSetTransparentRect();
+        this.updateTransparentRect();
         this.notifyResize();
     }
 
@@ -79,7 +79,7 @@ export class CropOverlay extends Component {
         };
     }
 
-    calculateAndSetTransparentRect() {
+    updateTransparentRect() {
         const cropTransparentRect = this.getTransparentRec(
             this.relativePosition,
             this.boundaryOverlay,
@@ -211,7 +211,7 @@ export class CropOverlay extends Component {
             x: restrictedPosition.x - this.boundaryOverlay.left,
             y: restrictedPosition.y - this.boundaryOverlay.top,
         };
-        this.calculateAndSetTransparentRect();
+        this.updateTransparentRect();
     }
 
     pointerUp() {

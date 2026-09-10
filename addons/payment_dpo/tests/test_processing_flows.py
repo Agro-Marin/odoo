@@ -17,7 +17,7 @@ class TestProcessingFlows(DPOCommon, PaymentHttpCommon):
         self._create_transaction("redirect")
         url = self._build_url(DPOController._return_url)
         with patch(
-            "odoo.addons.payment_dpo.controllers.main.DPOController._verify_and_process"
+            "odoo.addons.payment_dpo.controllers.main.DPOController._check_and_process"
         ) as verify_and_process_mock:
             self._make_http_get_request(url, params=self.payment_data)
             self.assertEqual(verify_and_process_mock.call_count, 1)

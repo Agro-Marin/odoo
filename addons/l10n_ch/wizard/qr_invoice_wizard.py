@@ -26,7 +26,7 @@ class L10n_ChQr_InvoiceWizard(models.TransientModel):
     def default_get(self, fields):
         # Extends 'base'.
 
-        def determine_invoices_text(nb_inv, inv_format):
+        def get_invoices_text(nb_inv, inv_format):
             """
             Creates a sentence explaining nb_inv invoices could be printed in the inv_format format.
             """
@@ -56,10 +56,10 @@ class L10n_ChQr_InvoiceWizard(models.TransientModel):
             {
                 "nb_qr_inv": len(dispatched_invoices["qr"]),
                 "nb_classic_inv": len(dispatched_invoices["classic"]),
-                "qr_inv_text": determine_invoices_text(
+                "qr_inv_text": get_invoices_text(
                     nb_inv=len(dispatched_invoices["qr"]), inv_format="QR"
                 ),
-                "classic_inv_text": determine_invoices_text(
+                "classic_inv_text": get_invoices_text(
                     nb_inv=len(dispatched_invoices["classic"]), inv_format="classic"
                 ),
             }

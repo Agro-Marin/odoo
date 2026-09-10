@@ -54,7 +54,7 @@ class MassMailController(http.Controller):
             mailing_sudo = request.env["mailing.mailing"].sudo()
         return mailing_sudo
 
-    def _fetch_blocklist_record(self, email):
+    def _get_blocklist_record(self, email):
         if not email or not tools.email_normalize(email):
             return None
         return (
@@ -64,7 +64,7 @@ class MassMailController(http.Controller):
             .search([("email", "=", tools.email_normalize(email))])
         )
 
-    def _fetch_contacts(self, email):
+    def _get_contacts(self, email):
         if not email or not tools.email_normalize(email):
             return request.env["mailing.contact"]
         return (
@@ -73,10 +73,10 @@ class MassMailController(http.Controller):
             .search([("email_normalized", "=", tools.email_normalize(email))])
         )
 
-    def _fetch_subscription_optouts(self):
+    def _get_subscription_optouts(self):
         return request.env["mailing.subscription.optout"].sudo().search([])
 
-    def _fetch_user_information(self, email, hash_token):
+    def _get_user_information(self, email, hash_token):
         if hash_token or request.env.user._is_public():
             return email, hash_token
         return request.env.user.email_normalized, None
@@ -87,7 +87,7 @@ class MassMailController(http.Controller):
 
     @http.route("/mailing/my", type="http", website=True, auth="user")
     def mailing_my(self):
-        email, _hash_token = self._fetch_user_information(None, None)
+        email, _hash_token = self._get_user_information(None, None)
         if not email:
             raise Unauthorized
 
@@ -129,7 +129,7 @@ class MassMailController(http.Controller):
     ):
         mailing = request.env["mailing.mailing"].sudo().browse(mailing_id)
         # check that mailing exists/has access
-        email_found, hash_token_found = self._fetch_user_information(email, hash_token)
+        email_found, hash_token_found = self._get_user_information(email, hash_token)
         try:
             self._check_mailing_email_token(
                 mailing_id,
@@ -174,7 +174,7 @@ class MassMailController(http.Controller):
         self, mailing_id, document_id=None, email=None, hash_token=None
     ):
         # Unsubscribe user
-        email_found, hash_token_found = self._fetch_user_information(email, hash_token)
+        email_found, hash_token_found = self._get_user_information(email, hash_token)
         try:
             mailing_sudo = self._check_mailing_email_token(
                 int(mailing_id),
@@ -219,7 +219,7 @@ class MassMailController(http.Controller):
     def mailing_unsubscribe(
         self, mailing_id, document_id=None, email=None, hash_token=None
     ):
-        email_found, hash_token_found = self._fetch_user_information(email, hash_token)
+        email_found, hash_token_found = self._get_user_information(email, hash_token)
         try:
             mailing_sudo = self._check_mailing_email_token(
                 mailing_id,
@@ -313,15 +313,15 @@ class MassMailController(http.Controller):
     ):
         """Prepare common values used in various subscription management or
         blocklist flows done in portal."""
-        mail_blocklist = self._fetch_blocklist_record(email)
+        mail_blocklist = self._get_blocklist_record(email)
         email_normalized = tools.email_normalize(email)
 
         # fetch optout/blacklist reasons
-        opt_out_reasons = self._fetch_subscription_optouts()
+        opt_out_reasons = self._get_subscription_optouts()
 
         # as there may be several contacts / email -> consider any opt-in overrides
         # opt-out
-        contacts = self._fetch_contacts(email)
+        contacts = self._get_contacts(email)
         lists_optin = contacts.subscription_ids.filtered(
             lambda sub: not sub.opt_out
         ).list_id.filtered("active")
@@ -382,7 +382,7 @@ class MassMailController(http.Controller):
         lists_optin_ids=None,
         **post,
     ):
-        email_found, hash_token_found = self._fetch_user_information(email, hash_token)
+        email_found, hash_token_found = self._get_user_information(email, hash_token)
         try:
             _mailing_sudo = self._check_mailing_email_token(
                 mailing_id,
@@ -396,7 +396,7 @@ class MassMailController(http.Controller):
         except NotFound, Unauthorized:
             return "unauthorized"
 
-        contacts = self._fetch_contacts(email_found)
+        contacts = self._get_contacts(email_found)
         lists_optin = (
             request.env["mailing.list"].sudo().browse(lists_optin_ids or []).exists()
         )
@@ -434,7 +434,7 @@ class MassMailController(http.Controller):
         in 'mailing.subscription.optout' model) and the feedback itself (which
         is triggered by the optout reason 'is_feedback' fields).
         """
-        email_found, hash_token_found = self._fetch_user_information(email, hash_token)
+        email_found, hash_token_found = self._get_user_information(email, hash_token)
         try:
             mailing_sudo = self._check_mailing_email_token(
                 mailing_id,
@@ -464,7 +464,7 @@ class MassMailController(http.Controller):
 
         # blocklist addition: opt-out and feedback linked to the mail.blacklist records
         if last_action == "blocklist_add":
-            mail_blocklist = self._fetch_blocklist_record(email)
+            mail_blocklist = self._get_blocklist_record(email)
             if mail_blocklist:
                 if message:
                     mail_blocklist._track_set_log_message(message)
@@ -478,7 +478,7 @@ class MassMailController(http.Controller):
             not last_action
             and (not mailing_sudo or mailing_sudo.mailing_on_mailing_list)
         ):
-            contacts = self._fetch_contacts(email_found)
+            contacts = self._get_contacts(email_found)
             contacts.subscription_ids.filtered(
                 lambda sub: (
                     sub.opt_out
@@ -649,7 +649,7 @@ class MassMailController(http.Controller):
     def mail_blocklist_add(
         self, mailing_id=None, document_id=None, email=None, hash_token=None
     ):
-        email_found, hash_token_found = self._fetch_user_information(email, hash_token)
+        email_found, hash_token_found = self._get_user_information(email, hash_token)
         try:
             mailing_sudo = self._check_mailing_email_token(
                 mailing_id,
@@ -682,7 +682,7 @@ class MassMailController(http.Controller):
     def mail_blocklist_remove(
         self, mailing_id=None, document_id=None, email=None, hash_token=None
     ):
-        email_found, hash_token_found = self._fetch_user_information(email, hash_token)
+        email_found, hash_token_found = self._get_user_information(email, hash_token)
         try:
             mailing_sudo = self._check_mailing_email_token(
                 mailing_id,

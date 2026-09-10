@@ -18,7 +18,7 @@ import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
 import { SelectionBox } from "@web/views/view_components/selection_box";
-import { buildMultiRecordModelParams, exportableFields } from "@web/views/view_utils";
+import { exportableFields, getMultiRecordModelParams } from "@web/views/view_utils";
 
 import { KanbanCogMenu } from "./kanban_cog_menu.js";
 import { KanbanRenderer } from "./kanban_renderer.js";
@@ -255,7 +255,7 @@ export class KanbanController extends MultiRecordController {
 
         addFieldDependencies(activeFields, fields, this.progressBarAggregateFields);
 
-        return buildMultiRecordModelParams({
+        return getMultiRecordModelParams({
             archInfo: this.archInfo,
             props: this.props,
             uiHooks: this._uiHooks,

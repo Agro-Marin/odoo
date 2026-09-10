@@ -15,7 +15,7 @@ from odoo.libs.numbers import float_is_zero
 from odoo.tools import SQL, Query, convert, email_normalize, format_time
 
 from odoo.addons.hr.models.hr_version import (
-    drop_values_from_other_companies,
+    remove_values_from_other_companies,
     format_date_abbr,
 )
 from odoo.addons.mail.tools.discuss import Store
@@ -911,7 +911,7 @@ class HrEmployee(models.Model):
         for vals in vals_list:
             if vals:
                 vals.pop("employee_id", None)
-        drop_values_from_other_companies(self, vals_list, default)
+        remove_values_from_other_companies(self, vals_list, default)
         return vals_list
 
     def write(self, vals):

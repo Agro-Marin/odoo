@@ -15,7 +15,7 @@
  * @param {boolean} [graph.allowSelfConnections]
  * @returns {FlowConnectionValidation}
  */
-export function validateConnection(
+export function getConnectionValidity(
     connection,
     { nodes, connections, allowSelfConnections = false },
 ) {

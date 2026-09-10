@@ -207,7 +207,7 @@ class WebsiteProfile(http.Controller):
 
     # Ranks and Badges
     # ---------------------------------------------------
-    def _prepare_badges_domain(self, **kwargs):
+    def _get_domain_badges(self, **kwargs):
         """
         Hook for other modules to restrict the badges showed on profile page, depending of the context
         """
@@ -230,7 +230,7 @@ class WebsiteProfile(http.Controller):
             ranks = Rank.sudo().search([], order="karma_min DESC")
 
         Badge = request.env["gamification.badge"]
-        badges = Badge.sudo().search(self._prepare_badges_domain(**kwargs))
+        badges = Badge.sudo().search(self._get_domain_badges(**kwargs))
         badges = badges.sorted("granted_users_count", reverse=True)
         values = self._prepare_user_values(searches={"badges": True})
 
@@ -429,7 +429,7 @@ class WebsiteProfile(http.Controller):
         website=True,
         sitemap=False,
     )
-    def validate_email(self, token, user_id, email, **kwargs):
+    def confirm_email(self, token, user_id, email, **kwargs):
         done = (
             request.env["res.users"]
             .sudo()
@@ -444,7 +444,7 @@ class WebsiteProfile(http.Controller):
     @http.route(
         "/profile/validate_email/close", type="jsonrpc", auth="public", website=True
     )
-    def validate_email_done(self, **kwargs):
+    def close_email_confirmation(self, **kwargs):
         request.session["validation_email_done"] = False
         request.session["validation_email_sent"] = False
         return True

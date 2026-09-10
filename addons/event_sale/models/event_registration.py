@@ -128,7 +128,7 @@ class EventRegistration(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get("sale_order_line_id"):
-                so_line_vals = self._synchronize_so_line_values(
+                so_line_vals = self._prepare_so_line_values(
                     self.env["sale.order.line"].browse(vals["sale_order_line_id"])
                 )
                 vals.update(so_line_vals)
@@ -147,7 +147,7 @@ class EventRegistration(models.Model):
 
     def write(self, vals):
         if vals.get("sale_order_line_id"):
-            so_line_vals = self._synchronize_so_line_values(
+            so_line_vals = self._prepare_so_line_values(
                 self.env["sale.order.line"].browse(vals["sale_order_line_id"])
             )
             vals.update(so_line_vals)
@@ -168,7 +168,7 @@ class EventRegistration(models.Model):
 
         return super().write(vals)
 
-    def _synchronize_so_line_values(self, so_line):
+    def _prepare_so_line_values(self, so_line):
         if so_line:
             return {
                 # Avoid registering public users but respect the portal workflows

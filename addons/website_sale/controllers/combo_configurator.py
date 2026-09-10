@@ -18,7 +18,7 @@ class WebsiteSaleComboConfiguratorController(
         readonly=True,
     )
     def website_sale_combo_configurator_get_data(self, *args, **kwargs):
-        self._populate_currency_and_pricelist(kwargs)
+        self._update_currency_and_pricelist(kwargs)
         request.update_context(
             display_default_code=False
         )  # Hide internal product reference
@@ -32,7 +32,7 @@ class WebsiteSaleComboConfiguratorController(
         readonly=True,
     )
     def website_sale_combo_configurator_get_price(self, *args, **kwargs):
-        self._populate_currency_and_pricelist(kwargs)
+        self._update_currency_and_pricelist(kwargs)
         return super().sale_combo_configurator_get_price(*args, **kwargs)
 
     def _get_combo_item_data(

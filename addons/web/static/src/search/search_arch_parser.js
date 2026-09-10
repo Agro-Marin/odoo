@@ -536,7 +536,7 @@ export class SearchArchParser {
      * @param {number} sectionId
      * @returns {Record<string, any>}
      */
-    buildPanelSection(node, sectionId) {
+    getPanelSection(node, sectionId) {
         /** @type {Record<string, any>} */
         const attrs = {};
         for (const attrName of node.getAttributeNames()) {
@@ -606,7 +606,7 @@ export class SearchArchParser {
             if (this.isHidden(node)) {
                 continue;
             }
-            const section = this.buildPanelSection(node, sectionId);
+            const section = this.getPanelSection(node, sectionId);
             if (section.type === "category") {
                 hasCategoryWithCounters =
                     hasCategoryWithCounters || section.enableCounters;

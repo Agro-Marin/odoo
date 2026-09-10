@@ -358,10 +358,10 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
     }
     onDayCellDidMount(info) {
         super.onDayCellDidMount(info);
-        this.injectMobileWeekNumber(info);
+        this.addMobileWeekNumber(info);
     }
     /** @param {Object} info */
-    injectMobileWeekNumber(info) {
+    addMobileWeekNumber(info) {
         if (
             !this.env.isSmall ||
             this.customOptions.weekNumbersWithinDays ||

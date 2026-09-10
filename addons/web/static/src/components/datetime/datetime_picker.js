@@ -612,7 +612,7 @@ export class DateTimePicker extends Component {
     onTimeChange(valueIndex, newTime) {
         this.state.timeValues[valueIndex] = newTime;
         const value = this.values[valueIndex] || today();
-        this.validateAndSelect(value, valueIndex, "time");
+        this.selectIfValid(value, valueIndex, "time");
     }
 
     /**
@@ -620,7 +620,7 @@ export class DateTimePicker extends Component {
      * @param {number} valueIndex
      * @param {"date" | "time"} unit
      */
-    validateAndSelect(value, valueIndex, unit) {
+    selectIfValid(value, valueIndex, unit) {
         if (!this.props.onSelect) {
             return false;
         }
@@ -673,6 +673,6 @@ export class DateTimePicker extends Component {
         }
         const [value] = dateItem.range;
         const valueIndex = this.props.focusedDateIndex;
-        this.validateAndSelect(value, valueIndex, "date");
+        this.selectIfValid(value, valueIndex, "date");
     }
 }

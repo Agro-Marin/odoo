@@ -72,27 +72,27 @@ class TestAPIClient(APITransportTestCase):
     def test_url_building(self):
         client = get_api_client(self.env, "test_stripe")
 
-        url = client._build_url("/customers")
+        url = client._get_url("/customers")
         self.assertEqual(url, "https://api.stripe.test/v1/customers")
 
-        url = client._build_url("customers")
+        url = client._get_url("customers")
         self.assertEqual(url, "https://api.stripe.test/v1/customers")
 
-        url = client._build_url("/customers/123/charges")
+        url = client._get_url("/customers/123/charges")
         self.assertEqual(url, "https://api.stripe.test/v1/customers/123/charges")
 
     def test_full_url_endpoint(self):
         client = get_api_client(self.env, "test_stripe")
         full_url = "https://other-api.com/endpoint"
 
-        url = client._build_url(full_url)
+        url = client._get_url(full_url)
         self.assertEqual(url, full_url)
 
 
 @tagged("post_install", "-at_install", "api_transport")
 class TestRetryBackoffShape(APITransportTestCase):
     """`retry_backoff_type` must change the shape of the HTTP-level retry,
-    not just the queue-level one (`calculate_retry_delay`): a `fixed` or
+    not just the queue-level one (`get_retry_delay`): a `fixed` or
     `linear` endpoint used to get the same exponential curve as an
     `exponential` one because `urllib3.Retry` only knows exponential."""
 
@@ -135,29 +135,29 @@ class TestURLValidation(APITransportTestCase):
     def test_port_above_the_valid_range_is_rejected(self):
         client = self._client_for("https://api.example.com:99999")
         with self.assertRaises(ValueError):
-            client._build_url("/x")
+            client._get_url("/x")
 
     def test_port_zero_is_rejected(self):
         client = self._client_for("https://api.example.com:0")
         with self.assertRaises(ValueError):
-            client._build_url("/x")
+            client._get_url("/x")
 
     def test_malformed_dotted_quad_is_rejected(self):
         client = self._client_for("http://192.168.1.300")
         with self.assertRaises(ValueError):
-            client._build_url("/x")
+            client._get_url("/x")
 
     def test_dotless_internal_hostname_is_accepted(self):
         client = self._client_for("https://internal-host")
-        self.assertEqual(client._build_url("/x"), "https://internal-host/x")
+        self.assertEqual(client._get_url("/x"), "https://internal-host/x")
 
     def test_ipv6_literal_is_accepted(self):
         client = self._client_for("https://[::1]:8069")
-        self.assertEqual(client._build_url("/x"), "https://[::1]:8069/x")
+        self.assertEqual(client._get_url("/x"), "https://[::1]:8069/x")
 
     def test_valid_port_is_accepted(self):
         client = self._client_for("https://api.example.com:8069")
-        self.assertEqual(client._build_url("/x"), "https://api.example.com:8069/x")
+        self.assertEqual(client._get_url("/x"), "https://api.example.com:8069/x")
 
 
 @tagged("post_install", "-at_install", "api_transport")

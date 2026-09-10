@@ -12,7 +12,7 @@ class SmsAccountCode(models.TransientModel):
     verification_code = fields.Char(required=True)
 
     def action_register(self):
-        status = SmsApi(self.env, self.account_id)._verify_account(
+        status = SmsApi(self.env, self.account_id)._confirm_account(
             self.verification_code
         )["state"]
         if status != "success":

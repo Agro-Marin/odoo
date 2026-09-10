@@ -49,7 +49,7 @@ class BuckarooController(http.Controller):
             ._search_by_reference("buckaroo", data)
         )
         if tx_sudo:
-            self._verify_signature(raw_data, received_signature, tx_sudo)
+            self._check_signature(raw_data, received_signature, tx_sudo)
             tx_sudo._process("buckaroo", data)
         return request.redirect("/payment/status")
 
@@ -76,7 +76,7 @@ class BuckarooController(http.Controller):
         )
         if tx_sudo:
             # Check the integrity of the payment data
-            self._verify_signature(raw_data, received_signature, tx_sudo)
+            self._check_signature(raw_data, received_signature, tx_sudo)
             tx_sudo._process("buckaroo", data)
         return ""
 
@@ -94,7 +94,7 @@ class BuckarooController(http.Controller):
         return {key.lower(): val for key, val in data.items()}
 
     @staticmethod
-    def _verify_signature(payment_data, received_signature, tx_sudo):
+    def _check_signature(payment_data, received_signature, tx_sudo):
         """Check that the received signature matches the expected one.
 
         :param dict payment_data: The payment data.

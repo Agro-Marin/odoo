@@ -67,7 +67,7 @@ class AccountJournalReportHandler(models.AbstractModel):
         warnings=None,
     ):
 
-        def _prepare_result_dict(current_groupby, query_line):
+        def prepare_result_dict(current_groupby, query_line):
             """Create a line entry used by the custom engine."""
             if current_groupby == "account_id":
                 code = query_line["account_code"][0]
@@ -161,7 +161,7 @@ class AccountJournalReportHandler(models.AbstractModel):
         result_lines = []
 
         for query_line in query_lines:
-            result_lines.append(_prepare_result_dict(current_groupby, query_line))  # noqa: PERF401
+            result_lines.append(prepare_result_dict(current_groupby, query_line))  # noqa: PERF401
 
         return result_lines
 
@@ -395,7 +395,7 @@ class AccountJournalReportHandler(models.AbstractModel):
     # XLSX Export
     ##########################################################################
 
-    def _update_report_in_xlsx_sheet(self, options, workbook):
+    def _write_report_to_xlsx_sheet(self, options, workbook):
         """Override to handle the journal report XLSX export when used in composite reports."""
         report = self.env["account.report"].browse(options["report_id"])
         # We need to use fonts to calculate column width otherwise column width would be ugly
@@ -593,7 +593,7 @@ class AccountJournalReportHandler(models.AbstractModel):
                 "strings_to_formulas": False,
             },
         ) as workbook:
-            workbook = self._update_report_in_xlsx_sheet(options, workbook)
+            workbook = self._write_report_to_xlsx_sheet(options, workbook)
             report._add_options_xlsx_sheet(workbook, [print_options])
         output.seek(0)
         generated_file = output.read()

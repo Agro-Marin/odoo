@@ -458,7 +458,7 @@ class EventTrackController(http.Controller):
         readonly=True,
     )
     def event_track_page(self, event, track, **options):
-        track = self._fetch_track(track.id, allow_sudo=False)
+        track = self._get_track(track.id, allow_sudo=False)
 
         return request.render(
             "website_event_track.event_track_main",
@@ -513,7 +513,7 @@ class EventTrackController(http.Controller):
             if set_reminder_on = False, blacklist the track_partner
             otherwise, un-blacklist the track_partner
         """
-        track = self._fetch_track(track_id, allow_sudo=True)
+        track = self._get_track(track_id, allow_sudo=True)
         force_create = set_reminder_on or track.wishlisted_by_default
         event_track_partner = track._get_event_track_visitors(force_create=force_create)
 
@@ -752,7 +752,7 @@ class EventTrackController(http.Controller):
     # TOOLS
     # ------------------------------------------------------------
 
-    def _fetch_track(self, track_id, allow_sudo=False):
+    def _get_track(self, track_id, allow_sudo=False):
         track = request.env["event.track"].browse(track_id).exists()
         if not track:
             raise NotFound

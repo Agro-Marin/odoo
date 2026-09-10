@@ -20,7 +20,7 @@ class TestProcessingFlows(AsiaPayCommon, PaymentHttpCommon):
         url = self._build_url(AsiaPayController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_asiapay.controllers.main.AsiaPayController._verify_signature"
+                "odoo.addons.payment_asiapay.controllers.main.AsiaPayController._check_signature"
             ),
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -36,7 +36,7 @@ class TestProcessingFlows(AsiaPayCommon, PaymentHttpCommon):
         url = self._build_url(AsiaPayController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_asiapay.controllers.main.AsiaPayController._verify_signature"
+                "odoo.addons.payment_asiapay.controllers.main.AsiaPayController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -50,7 +50,7 @@ class TestProcessingFlows(AsiaPayCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         self._assert_does_not_raise(
             Forbidden,
-            AsiaPayController._verify_signature,
+            AsiaPayController._check_signature,
             self.webhook_payment_data,
             tx,
         )
@@ -60,11 +60,11 @@ class TestProcessingFlows(AsiaPayCommon, PaymentHttpCommon):
         """Test the verification of a notification with a missing signature."""
         tx = self._create_transaction("redirect")
         payload = dict(self.webhook_payment_data, secureHash="dummy")
-        self.assertRaises(Forbidden, AsiaPayController._verify_signature, payload, tx)
+        self.assertRaises(Forbidden, AsiaPayController._check_signature, payload, tx)
 
     @mute_logger("odoo.addons.payment_asiapay.controllers.main")
     def test_reject_notification_with_invalid_signature(self):
         """Test the verification of a notification with an invalid signature."""
         tx = self._create_transaction("redirect")
         payload = dict(self.webhook_payment_data, secureHash="dummy")
-        self.assertRaises(Forbidden, AsiaPayController._verify_signature, payload, tx)
+        self.assertRaises(Forbidden, AsiaPayController._check_signature, payload, tx)

@@ -321,7 +321,7 @@ class AccountReportLines(models.Model):
         if self.allow_account_audit_status_on_lines:
             lines = self._add_account_status_on_lines(lines, options)
 
-        self._update_account_names_for_consolidation(lines)
+        self._update_line_names_for_consolidation(lines)
 
         if self.custom_handler_model_id:
             lines = self.env[self.custom_handler_model_name]._custom_line_postprocessor(
@@ -2075,7 +2075,7 @@ class AccountReportLines(models.Model):
         if self.allow_account_audit_status_on_lines:
             lines = self._add_account_status_on_lines(lines, options)
 
-        self._update_account_names_for_consolidation(lines)
+        self._update_line_names_for_consolidation(lines)
 
         if self.custom_handler_model_id:
             lines = self.env[self.custom_handler_model_name]._custom_line_postprocessor(

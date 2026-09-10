@@ -435,7 +435,7 @@ class ExchangeTransmission(models.Model):
                 ),
             )
             return
-        delay = channel.calculate_retry_delay(attempt)
+        delay = channel.get_retry_delay(attempt)
         self.write(
             {
                 "state": "queued",

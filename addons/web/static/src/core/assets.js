@@ -6,7 +6,7 @@ import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 
 import {
-    buildBridgeModuleSource,
+    getBridgeModuleSource,
     isLoaderBridgeUrl,
     specToModuleUrl,
     toDataModuleUrl,
@@ -69,7 +69,7 @@ function absoluteTarget(url, targetDoc) {
  * @param {Map<string, string>} [keys]
  * @returns {number}
  */
-function seedInjectedImportMapKeys(targetDoc, keys) {
+function addInjectedImportMapKeys(targetDoc, keys) {
     const head = targetDoc.head || targetDoc.documentElement;
     if (!head) {
         return 0;
@@ -123,7 +123,7 @@ function resolveSpecifierTarget(specifier, importMap, injected, targetDoc) {
  * @param {Map<string, string>} injected
  * @returns {{ fresh: number, dup: number, conflicts: string[] }}
  */
-function injectFreshImportMapEntries(targetDoc, importMap, injected) {
+function addFreshImportMapEntries(targetDoc, importMap, injected) {
     /** @type {Record<string, string>} */
     const freshEntries = {};
     let dup = 0;
@@ -160,7 +160,7 @@ function getAssetCache(targetDoc) {
     if (!cacheMap) {
         cacheMap = new Map();
         assetCacheByDocument.set(targetDoc, cacheMap);
-        seedFromDocument(targetDoc, cacheMap);
+        loadFromDocument(targetDoc, cacheMap);
     }
     return cacheMap;
 }
@@ -169,7 +169,7 @@ function getAssetCache(targetDoc) {
  * @param {Document} targetDoc
  * @param {Map<string, Promise<any>>} cacheMap
  */
-function seedFromDocument(targetDoc, cacheMap) {
+function loadFromDocument(targetDoc, cacheMap) {
     const head = targetDoc.head;
     if (!head) {
         return;
@@ -191,7 +191,7 @@ function seedFromDocument(targetDoc, cacheMap) {
 function reseedFromDocument(targetDoc) {
     const cacheMap = assetCacheByDocument.get(targetDoc);
     if (cacheMap) {
-        seedFromDocument(targetDoc, cacheMap);
+        loadFromDocument(targetDoc, cacheMap);
     } else {
         getAssetCache(targetDoc);
     }
@@ -199,7 +199,7 @@ function reseedFromDocument(targetDoc) {
 
 whenReady(() => {
     reseedFromDocument(document);
-    const seeded = seedInjectedImportMapKeys(document);
+    const seeded = addInjectedImportMapKeys(document);
     log("whenReady:seeded-import-map-keys", seeded);
 });
 
@@ -298,8 +298,8 @@ export class AssetsLoadingError extends Error {}
  */
 async function loadESMBundleHere(specifiers, importMap) {
     if (importMap) {
-        seedInjectedImportMapKeys(document);
-        const { fresh, dup, conflicts } = injectFreshImportMapEntries(
+        addInjectedImportMapKeys(document);
+        const { fresh, dup, conflicts } = addFreshImportMapEntries(
             document,
             importMap,
             injectedImportMapKeys,
@@ -354,7 +354,7 @@ async function loadESMBundleHere(specifiers, importMap) {
  * @param {Record<string, string> | null} importMap
  * @returns {Record<string, any>}
  */
-function buildBridgeImportMap(targetDoc, importMap) {
+function getBridgeImportMap(targetDoc, importMap) {
     const targetWin = /** @type {any} */ (targetDoc.defaultView);
     const serverMap = importMap || {};
     /** @type {Record<string, any>} */
@@ -375,7 +375,7 @@ function buildBridgeImportMap(targetDoc, importMap) {
             }
             const bridgeTarget = isLoaderBridgeUrl(serverMap[spec])
                 ? serverMap[spec]
-                : toDataModuleUrl(buildBridgeModuleSource(spec, Object.keys(mod)));
+                : toDataModuleUrl(getBridgeModuleSource(spec, Object.keys(mod)));
             if (serverMap[spec] === undefined) {
                 extraMap[spec] = bridgeTarget;
             }
@@ -481,10 +481,10 @@ async function loadESMBundleInto(targetDoc, specifiers, importMap) {
         log("loadESMBundle:crossDoc cache-hit", "specs=", specifiers.length);
         return bundleCache.get(cacheKey);
     }
-    const extraMap = buildBridgeImportMap(targetDoc, importMap);
+    const extraMap = getBridgeImportMap(targetDoc, importMap);
     const injected = getInjectedImportMapKeys(targetDoc);
-    seedInjectedImportMapKeys(targetDoc, injected);
-    const { fresh, dup, conflicts } = injectFreshImportMapEntries(
+    addInjectedImportMapKeys(targetDoc, injected);
+    const { fresh, dup, conflicts } = addFreshImportMapEntries(
         targetDoc,
         extraMap,
         injected,
@@ -824,9 +824,9 @@ export const assets = {
     async loadESMModule(url, { targetDoc = document, importMap = null } = {}) {
         const here = targetDoc === document || targetDoc.defaultView === window;
         const injected = getInjectedImportMapKeys(targetDoc);
-        seedInjectedImportMapKeys(targetDoc, injected);
+        addInjectedImportMapKeys(targetDoc, injected);
         if (importMap) {
-            const { fresh, conflicts } = injectFreshImportMapEntries(
+            const { fresh, conflicts } = addFreshImportMapEntries(
                 targetDoc,
                 importMap,
                 injected,

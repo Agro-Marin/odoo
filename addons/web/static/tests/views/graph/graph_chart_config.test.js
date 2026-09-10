@@ -2,8 +2,8 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
-    buildAnimationOptions,
-    buildElementOptions,
+    getAnimationOptions,
+    getElementOptions,
     getMaxWidth,
 } from "@web/views/graph/graph_chart_config";
 
@@ -25,61 +25,61 @@ describe("getMaxWidth — tooltip width from the chart area", () => {
     });
 });
 
-describe("buildElementOptions — per-mode element styling", () => {
+describe("getElementOptions — per-mode element styling", () => {
     test("bar mode sets a hairline border", () => {
-        expect(buildElementOptions("bar", false)).toEqual({
+        expect(getElementOptions("bar", false)).toEqual({
             bar: { borderWidth: 1 },
         });
     });
 
     test("line mode fills only when stacked", () => {
-        expect(buildElementOptions("line", true)).toEqual({
+        expect(getElementOptions("line", true)).toEqual({
             line: { fill: true, tension: 0 },
         });
-        expect(buildElementOptions("line", false)).toEqual({
+        expect(getElementOptions("line", false)).toEqual({
             line: { fill: false, tension: 0 },
         });
     });
 
     test("scatter mode sets point radii and ignores stacked", () => {
-        const stacked = buildElementOptions("scatter", true);
+        const stacked = getElementOptions("scatter", true);
         expect(stacked).toEqual({ point: { radius: 5, hoverRadius: 8 } });
-        expect(buildElementOptions("scatter", false)).toEqual(stacked);
+        expect(getElementOptions("scatter", false)).toEqual(stacked);
     });
 
     test("a mode with no element styling yields an empty object", () => {
-        expect(buildElementOptions("pie", false)).toEqual({});
+        expect(getElementOptions("pie", false)).toEqual({});
     });
 });
 
-describe("buildAnimationOptions — staggered entry animation", () => {
+describe("getAnimationOptions — staggered entry animation", () => {
     test("pie animates its offset only, with no duration or delay", () => {
-        const options = buildAnimationOptions("pie", 10);
+        const options = getAnimationOptions("pie", 10);
         expect(options).toEqual({ offset: { duration: 200 } });
     });
 
     test("bar staggers each point across a fixed 350ms budget", () => {
-        const { delay } = buildAnimationOptions("bar", 10);
+        const { delay } = getAnimationOptions("bar", 10);
         expect(delay({ dataIndex: 0 })).toBe(0);
         expect(delay({ dataIndex: 4 })).toBe(140);
-        const denser = buildAnimationOptions("bar", 35).delay;
+        const denser = getAnimationOptions("bar", 35).delay;
         expect(denser({ dataIndex: 4 })).toBe(40);
     });
 
     test("the stagger is a one-shot: onComplete latches it off", () => {
-        const options = buildAnimationOptions("line", 10);
+        const options = getAnimationOptions("line", 10);
         expect(options.delay({ dataIndex: 4 })).toBe(140);
         options.onComplete();
         expect(options.delay({ dataIndex: 4 })).toBe(0);
     });
 
     test("no labels means no stagger rather than a division by zero", () => {
-        const { delay } = buildAnimationOptions("bar", 0);
+        const { delay } = getAnimationOptions("bar", 0);
         expect(delay({ dataIndex: 4 })).toBe(0);
     });
 
     test("a mode outside bar/line/scatter animates without staggering", () => {
-        const options = buildAnimationOptions("radar", 10);
+        const options = getAnimationOptions("radar", 10);
         expect(options.duration).toBe(600);
         expect(options.delay({ dataIndex: 4 })).toBe(0);
     });

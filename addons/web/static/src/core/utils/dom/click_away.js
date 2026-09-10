@@ -78,7 +78,7 @@ export function useClickAway(callback, { getAnchor, getContentEl } = {}) {
             : [document];
     }
 
-    function scanIframes() {
+    function armIframes() {
         for (const root of iframeRoots()) {
             for (const iframeEl of root.querySelectorAll("iframe")) {
                 armIframe(/** @type {HTMLIFrameElement} */ (iframeEl));
@@ -91,7 +91,7 @@ export function useClickAway(callback, { getAnchor, getContentEl } = {}) {
             /** @type {FocusEvent} */ (ev).relatedTarget ||
             getActiveElement(/** @type {Node} */ (ev.target));
         if (/** @type {Element} */ (target)?.tagName === "IFRAME") {
-            scanIframes();
+            armIframes();
             return callbackIfAway(/** @type {Node} */ (target));
         }
     }
@@ -116,8 +116,8 @@ export function useClickAway(callback, { getAnchor, getContentEl } = {}) {
     useEarlyExternalListener(window, "popstate", navigationHandler, {
         capture: true,
     });
-    scanIframes();
-    onMounted(() => scanIframes());
+    armIframes();
+    onMounted(() => armIframes());
     onWillDestroy(() => {
         for (const dispose of iframeDisposers) {
             dispose();

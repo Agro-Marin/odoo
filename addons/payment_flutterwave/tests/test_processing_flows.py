@@ -39,7 +39,7 @@ class TestProcessingFlows(FlutterwaveCommon, PaymentHttpCommon):
         with (
             patch(
                 "odoo.addons.payment_flutterwave.controllers.main.FlutterwaveController."
-                "_verify_signature"
+                "_check_signature"
             ),
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -56,7 +56,7 @@ class TestProcessingFlows(FlutterwaveCommon, PaymentHttpCommon):
         with (
             patch(
                 "odoo.addons.payment_flutterwave.controllers.main.FlutterwaveController"
-                "._verify_signature"
+                "._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -70,7 +70,7 @@ class TestProcessingFlows(FlutterwaveCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         self._assert_does_not_raise(
             Forbidden,
-            FlutterwaveController._verify_signature,
+            FlutterwaveController._check_signature,
             self.provider.flutterwave_webhook_secret,
             tx,
         )
@@ -79,12 +79,12 @@ class TestProcessingFlows(FlutterwaveCommon, PaymentHttpCommon):
     def test_reject_notification_with_missing_signature(self):
         """Test the verification of a notification with a missing signature."""
         tx = self._create_transaction("redirect")
-        self.assertRaises(Forbidden, FlutterwaveController._verify_signature, None, tx)
+        self.assertRaises(Forbidden, FlutterwaveController._check_signature, None, tx)
 
     @mute_logger("odoo.addons.payment_flutterwave.controllers.main")
     def test_reject_notification_with_invalid_signature(self):
         """Test the verification of a notification with an invalid signature."""
         tx = self._create_transaction("redirect")
         self.assertRaises(
-            Forbidden, FlutterwaveController._verify_signature, "dummy", tx
+            Forbidden, FlutterwaveController._check_signature, "dummy", tx
         )

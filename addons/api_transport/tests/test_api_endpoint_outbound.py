@@ -308,7 +308,7 @@ class TestUnauthenticatedService(TransactionCase):
 
     def test_no_auth_headers_are_invented(self):
         client = self.service._get_api_client()
-        headers = client._build_headers()
+        headers = client._get_headers()
         self.assertNotIn("Authorization", headers)
 
     def test_basic_auth_is_none(self):
@@ -353,19 +353,19 @@ class TestGenericVersionHeaders(TransactionCase):
         return service._get_api_client()
 
     def test_headers_are_sent_by_default(self):
-        headers = self._client_for(api_version="2024-01-01")._build_headers()
+        headers = self._client_for(api_version="2024-01-01")._get_headers()
         self.assertEqual(headers.get("API-Version"), "2024-01-01")
         self.assertEqual(headers.get("X-API-Version"), "2024-01-01")
 
     def test_opting_out_suppresses_both(self):
         headers = self._client_for(
             api_version="2024-01-01", send_version_headers=False
-        )._build_headers()
+        )._get_headers()
         self.assertNotIn("API-Version", headers)
         self.assertNotIn("X-API-Version", headers)
 
     def test_no_version_means_no_headers_either_way(self):
-        headers = self._client_for(send_version_headers=True)._build_headers()
+        headers = self._client_for(send_version_headers=True)._get_headers()
         self.assertNotIn("API-Version", headers)
 
     def test_the_seeded_self_versioning_services_are_opted_out(self):
@@ -388,7 +388,7 @@ class TestGenericVersionHeaders(TransactionCase):
             api_version="2023-06-01",
             api_version_header="anthropic-version",
             send_version_headers=False,
-        )._build_headers()
+        )._get_headers()
         self.assertEqual(headers.get("anthropic-version"), "2023-06-01")
         self.assertNotIn("API-Version", headers)
 

@@ -2,14 +2,14 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
+    getSearchParamsIssues,
     SEARCH_PARAMS_SCHEMA,
-    validateSearchParams,
 } from "@web/model/search_params_schema";
 
 describe.current.tags("headless");
 
 test("valid full payload passes", () => {
-    const issues = validateSearchParams({
+    const issues = getSearchParamsIssues({
         context: { lang: "en_US" },
         domain: [["name", "=", "Foo"]],
         groupBy: ["partner_id"],
@@ -20,7 +20,7 @@ test("valid full payload passes", () => {
 
 test("undefined values for every key (the production no-search-model load) pass", () => {
     expect(
-        validateSearchParams({
+        getSearchParamsIssues({
             context: undefined,
             domain: undefined,
             groupBy: undefined,
@@ -30,43 +30,43 @@ test("undefined values for every key (the production no-search-model load) pass"
 });
 
 test("empty payload (all-optional) passes", () => {
-    expect(validateSearchParams({})).toEqual([]);
+    expect(getSearchParamsIssues({})).toEqual([]);
 });
 
 test("non-object payload is rejected", () => {
-    expect(validateSearchParams(null)).toEqual([
+    expect(getSearchParamsIssues(null)).toEqual([
         "search params must be a plain object",
     ]);
-    expect(validateSearchParams(undefined)).toEqual([
+    expect(getSearchParamsIssues(undefined)).toEqual([
         "search params must be a plain object",
     ]);
-    expect(validateSearchParams("foo")).toEqual([
+    expect(getSearchParamsIssues("foo")).toEqual([
         "search params must be a plain object",
     ]);
 });
 
 test("orderBy missing required 'name' is flagged", () => {
-    const issues = validateSearchParams({
+    const issues = getSearchParamsIssues({
         orderBy: [{ asc: true }],
     });
     expect(issues.length).toBeGreaterThan(0);
 });
 
 test("groupBy of wrong element type is flagged", () => {
-    const issues = validateSearchParams({
+    const issues = getSearchParamsIssues({
         groupBy: [42, "ok"],
     });
     expect(issues.length).toBeGreaterThan(0);
 });
 
 test("fields outside the SEARCH_KEYS contract are flagged as unknown", () => {
-    const issues = validateSearchParams({ resId: 7 });
+    const issues = getSearchParamsIssues({ resId: 7 });
     expect(issues.length).toBe(1);
     expect(issues[0]).toMatch(/unknown field 'resId'/);
 });
 
 test("unknown field is flagged with a remediation hint", () => {
-    const issues = validateSearchParams({
+    const issues = getSearchParamsIssues({
         domain: [],
         somethingNew: "value",
     });
@@ -76,7 +76,7 @@ test("unknown field is flagged with a remediation hint", () => {
 });
 
 test("multiple unknown fields each surface as own issue", () => {
-    const issues = validateSearchParams({
+    const issues = getSearchParamsIssues({
         domain: [],
         foo: 1,
         bar: 2,

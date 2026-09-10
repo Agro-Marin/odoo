@@ -82,7 +82,7 @@ export function escapeInlineDefault(text) {
  * @param {PlaceholderSpec} spec
  * @returns {string}
  */
-export function buildInlinePlaceholder({ path, fieldType, defaultValue, tzPath }) {
+export function getInlinePlaceholder({ path, fieldType, defaultValue, tzPath }) {
     const expression = placeholderExpression(path, { fieldType, tzPath });
     const fallback = defaultValue ? ` ||| ${escapeInlineDefault(defaultValue)}` : "";
     return `{{${expression}${fallback}}}`;
@@ -92,7 +92,7 @@ export function buildInlinePlaceholder({ path, fieldType, defaultValue, tzPath }
  * @param {PlaceholderSpec} spec
  * @returns {{expression: string, body: string}}
  */
-export function buildQwebPlaceholder({ path, fieldType, defaultValue, tzPath }) {
+export function getQwebPlaceholder({ path, fieldType, defaultValue, tzPath }) {
     return {
         expression: placeholderExpression(path, { fieldType, tzPath }),
         body: defaultValue || "",

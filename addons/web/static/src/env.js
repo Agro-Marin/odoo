@@ -136,7 +136,7 @@ export async function startServices(env) {
  * @param {OdooEnv} env
  * @returns {Promise<void>}
  */
-export async function ensureServicesStarted(env) {
+export async function startMissingServices(env) {
     await Promise.resolve();
     await _startServices(env, new Map());
 }
@@ -308,7 +308,7 @@ async function _startServices(env, toStart) {
                             `undefined at the use site. Callers that ` +
                             `lazy-load a production bundle and read its ` +
                             `services synchronously should await ` +
-                            `ensureServicesStarted(env) after loadBundle. ` +
+                            `startMissingServices(env) after loadBundle. ` +
                             `Deduped per (skipped, missing) combination; ` +
                             `identical skips stay silent.)`,
                     );
@@ -330,7 +330,7 @@ async function _startServices(env, toStart) {
                 `[env] ${toStart.size} service(s) left unstarted with no ` +
                     `dependency cycle: ${[...toStart.keys()].join(", ")}. ` +
                     `A registry update raced this startup pass; the next ` +
-                    `startServices/ensureServicesStarted pass will start them.`,
+                    `startServices/startMissingServices pass will start them.`,
             );
         }
     }

@@ -67,7 +67,7 @@ export function makeActionState(controllerStack) {
  * @param {Record<string, any>} state
  * @returns {Context}
  */
-function buildActiveContext(state) {
+function getActiveContext(state) {
     /** @type {Context} */
     const context = {};
     if (state.active_id) {
@@ -107,7 +107,7 @@ function storedActionAnswersTo(lastAction, state, context) {
  * @returns {ActionRequest | null}
  */
 function resolveActionFromKey(state, lastAction, options) {
-    const context = buildActiveContext(state);
+    const context = getActiveContext(state);
     const [actionRequestKey, clientAction] = resolveClientAction(state.action);
     let actionRequest;
     if (actionRequestKey && clientAction) {

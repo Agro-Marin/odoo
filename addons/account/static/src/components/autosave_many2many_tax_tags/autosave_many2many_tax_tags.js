@@ -22,8 +22,8 @@ export class AutosaveMany2ManyTaxTagsField extends Many2ManyTaxTagsField {
         await this._saveOnUpdate();
     }
 
-    async deleteTag(id) {
-        await super.deleteTag(id);
+    async removeTag(id) {
+        await super.removeTag(id);
         await this._saveOnUpdate();
     }
 

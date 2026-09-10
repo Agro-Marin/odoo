@@ -202,4 +202,6 @@ class TestDeepgramTranscriptionParams(TransactionCase):
         client = _Client()
         for name, (kwargs, expected) in CASES.items():
             with self.subTest(case=name):
-                self.assertEqual(client._build_transcription_params(**kwargs), expected)
+                self.assertEqual(
+                    client._prepare_transcription_params(**kwargs), expected
+                )

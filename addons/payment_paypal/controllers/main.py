@@ -72,7 +72,7 @@ class PaypalController(http.Controller):
                 ._search_by_reference("paypal", normalized_data)
             )
             if tx_sudo:
-                self._verify_notification_origin(data, tx_sudo)
+                self._check_notification_origin(data, tx_sudo)
                 tx_sudo._process("paypal", normalized_data)
         return request.prepare_json_response("")
 
@@ -112,7 +112,7 @@ class PaypalController(http.Controller):
             _logger.warning(_("Invalid response format, can't normalize."))
         return result
 
-    def _verify_notification_origin(self, payment_data, tx_sudo):
+    def _check_notification_origin(self, payment_data, tx_sudo):
         """Check that the notification was sent by PayPal.
 
         See https://developer.paypal.com/docs/api/webhooks/v1/#verify-webhook-signature_post.

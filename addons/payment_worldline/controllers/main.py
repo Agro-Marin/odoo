@@ -74,12 +74,12 @@ class WorldlineController(http.Controller):
         if tx_sudo:
             received_signature = request.httprequest.headers.get("X-GCS-Signature")
             request_data = request.httprequest.data
-            self._verify_signature(request_data, received_signature, tx_sudo)
+            self._check_signature(request_data, received_signature, tx_sudo)
             tx_sudo._process("worldline", data)
         return request.prepare_json_response("")  # Acknowledge the notification.
 
     @staticmethod
-    def _verify_signature(request_data, received_signature, tx_sudo):
+    def _check_signature(request_data, received_signature, tx_sudo):
         """Check that the received signature matches the expected one.
 
         :param dict|bytes request_data: The request data.

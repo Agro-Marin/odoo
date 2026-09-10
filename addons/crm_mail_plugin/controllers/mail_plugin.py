@@ -9,7 +9,7 @@ _logger = logging.getLogger(__name__)
 
 
 class MailPluginController(mail_plugin.MailPluginController):
-    def _fetch_partner_leads(self, partner, limit=5, offset=0):
+    def _get_partner_leads(self, partner, limit=5, offset=0):
         partner_leads = request.env["crm.lead"].search(
             [("partner_id", "=", partner.id)], offset=offset, limit=limit
         )
@@ -55,7 +55,7 @@ class MailPluginController(mail_plugin.MailPluginController):
         if not partner:
             contact_values["leads"] = []
         else:
-            contact_values["leads"] = self._fetch_partner_leads(partner)
+            contact_values["leads"] = self._get_partner_leads(partner)
         return contact_values
 
     def _mail_content_logging_models_whitelist(self):

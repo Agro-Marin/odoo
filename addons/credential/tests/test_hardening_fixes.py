@@ -7,7 +7,7 @@ from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
-from odoo.addons.credential.tools.authentication import _verify_custom
+from odoo.addons.credential.tools.authentication import _is_custom_verification_valid
 
 
 class TestHardeningFixesBase(TransactionCase):
@@ -415,12 +415,14 @@ class TestRateLimitBucketLockTimeoutScope(TestHardeningFixesBase):
 class TestVerifyCustomPrefixGate(TransactionCase):
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_non_verify_method_rejected(self):
-        result = _verify_custom("res.partner.search_count", {}, "{}", env=self.env)
+        result = _is_custom_verification_valid(
+            "res.partner.search_count", {}, "{}", env=self.env
+        )
         self.assertFalse(result)
 
     @mute_logger("odoo.addons.credential.tools.authentication")
     def test_private_non_verify_method_rejected(self):
-        result = _verify_custom(
+        result = _is_custom_verification_valid(
             "res.partner._compute_display_name", {}, "{}", env=self.env
         )
         self.assertFalse(result)
@@ -436,7 +438,7 @@ class TestVerifyCustomPrefixGate(TransactionCase):
         with patch.object(
             partner_cls, "verify_test_webhook", create=True, new=fake_verify
         ):
-            result = _verify_custom(
+            result = _is_custom_verification_valid(
                 "res.partner.verify_test_webhook",
                 {"X-Test": "1"},
                 "body",

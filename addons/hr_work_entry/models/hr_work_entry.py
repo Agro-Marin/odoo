@@ -272,7 +272,7 @@ class HrWorkEntry(models.Model):
         return ["active"]
 
     @api.model
-    def _synchronise_state_and_active(self, vals):
+    def _sync_state_and_active(self, vals):
         if "state" in vals:
             vals["active"] = vals["state"] != "cancelled"
         elif vals.get("active") is False:
@@ -282,7 +282,7 @@ class HrWorkEntry(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         vals_list = [
-            self._synchronise_state_and_active(self._complete_version_id(dict(vals)))
+            self._sync_state_and_active(self._complete_version_id(dict(vals)))
             for vals in vals_list
         ]
         employee_ids = {
@@ -319,7 +319,7 @@ class HrWorkEntry(models.Model):
             self.filtered(lambda w: w.state == "cancelled").with_context(
                 hr_work_entry_no_check=True
             ).write({"state": "draft"})
-        vals = self._synchronise_state_and_active(vals)
+        vals = self._sync_state_and_active(vals)
         if not self._write_needs_check(vals):
             return super().write(vals)
         employee_ids = set(self.employee_id.ids)

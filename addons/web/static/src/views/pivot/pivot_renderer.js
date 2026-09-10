@@ -91,7 +91,7 @@ export class PivotRenderer extends Component {
         for (const [fieldName, field] of Object.entries(
             this.env.searchModel.searchViewFields,
         )) {
-            if (this.validateField(fieldName, field)) {
+            if (this.isGroupableField(fieldName, field)) {
                 fields.push(Object.assign({ name: fieldName }, field));
             }
         }
@@ -223,7 +223,7 @@ export class PivotRenderer extends Component {
      * @param {Object} field
      * @returns {boolean}
      */
-    validateField(fieldName, field) {
+    isGroupableField(fieldName, field) {
         const { groupable, type } = field;
         return groupable && fieldName !== "id" && GROUPABLE_TYPES.includes(type);
     }

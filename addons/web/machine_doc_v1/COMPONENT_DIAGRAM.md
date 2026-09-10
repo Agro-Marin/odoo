@@ -167,7 +167,7 @@ prose must not reach for them.
 |-------|------|-------|------|
 | JS | `static/src/boot/main.js` | 12 | Entry point — imports WebClient, calls `startWebClient()`. No `.catch`: the failure boundary lives INSIDE `startWebClient`, so an addon that replaces this entry file keeps it |
 | JS | `static/src/boot/start.js` | 183 | `startWebClient()` — `publishOdooInfo()`, `applyUserTimezone()` (validated: an unknown IANA zone makes every luxon DateTime invalid, silently), RPC cache, `whenReady()`, `mountComponent()`. Wraps its whole body: paints `paintBootFailureOverlay()` with the failing phase and never rejects. `applyBootBodyClasses()` runs via `mountComponent`'s `beforeMount`, i.e. BEFORE the first render |
-| JS | `static/src/env.js` | 410 | `makeEnv()`, `startServices()`, `ensureServicesStarted()`, `mountComponent()`, `customDirectives`, `globalValues` |
+| JS | `static/src/env.js` | 410 | `makeEnv()`, `startServices()`, `startMissingServices()`, `mountComponent()`, `customDirectives`, `globalValues` |
 | JS | `static/src/session.js` | 19 | Reads `odoo.__session_info__` into the exported `session`. **Does not delete it**: no `delete` exists in the tree; the raw payload stays on the `odoo` global for the page lifetime. |
 | JS | `static/src/module_loader.js` | 187 | Two jobs. (1) Installs `globalThis.odoo.loader` = `OdooModuleLoader`, 5 members: `modules` Map, `bus`, `registerNativeModules`, `handleAssetLoadError`, `_reloadPage`. Sibling esbuild bundles share singletons through `modules`; conflicting re-register → `module_rebind`. Not an ES module loader (AMD loader removed in the 2026 ESM migration). (2) JS error telemetry: global `error` / `unhandledrejection` → deduped beacon to `/web/observability/js_error`; failed `/web/assets/` tag → one page reload, guarded by a 60 s `sessionStorage` key. |
 | PY | `controllers/home.py` | 391 | `/`, `/web`, `/odoo`, `/odoo/<path:subpath>`, `/scoped_app/<path:subpath>`, `/web/webclient/load_menus`, `/web/login`, `/web/login_successful`, `/web/become`, `/web/health`, `/web/healthz`, `/web/readyz`, `/web/metrics`, `/robots.txt` |
@@ -177,7 +177,7 @@ prose must not reach for them.
 **Key invariants to check**:
 - Service dependency order is acyclic
 - `session_info()` never leaks sensitive data to public users
-- `ensure_db()` correctly redirects when no DB selected
+- `select_db()` correctly redirects when no DB selected
 - RPC cache secret tied to correct session
 
 ---
@@ -211,7 +211,7 @@ prose must not reach for them.
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
 | PY | `controllers/dataset.py` | 64 | `call_kw()`, `call_button()`, readonly detection |
-| PY | `controllers/utils.py` | 287 | `clean_action()`, `ensure_db()`, `generate_views()`, `get_action()`, `get_action_triples()`, `_get_login_redirect_url()`, `is_user_internal()`, `_local_web_translations()` |
+| PY | `controllers/utils.py` | 287 | `clean_action()`, `select_db()`, `generate_views()`, `get_action()`, `get_action_triples()`, `_get_login_redirect_url()`, `is_user_internal()`, `_local_web_translations()` |
 | JS | `static/src/core/network/orm_service.js` | 428 | `ORM.call()`, `read()`, `write()`, etc. Builds `/web/dataset/call_kw/<model>/<method>`. |
 | JS | `static/src/core/network/rpc.js` | 768 | JSON-RPC envelope, error handling. Transport is **`fetch`**, not `XMLHttpRequest`. |
 | JS | `static/src/core/network/rpc_cache.js` | 672 | Dual-layer (RAM Map + IndexedDB) RPC cache with AES-GCM encryption (no HMAC — relies on GCM auth tag). Per-table `pendingRequests` Map dedups concurrent fetches of the same cache key; `modelIndex` is the O(1) model→keys reverse index used by model-scoped invalidation. For general concurrent-RPC deduplication (same URL+params across all callers), see `core/network/rpc_dedup.js`. |
@@ -325,7 +325,7 @@ prose must not reach for them.
 > - **`sessionStorage` side-channels**: `current_action`, `current_state`,
 >   `current_lang`, written on every stack commit, used to restore the action on
 >   reload. Moving state to the router alone breaks `_openActionInNewWindow`.
-> - **Breadcrumb filter**: `buildBreadcrumbs` drops controllers where
+> - **Breadcrumb filter**: `prepareBreadcrumbs` drops controllers where
 >   `action?.tag === "menu" || action?.id === "menu"`
 >   (`breadcrumb_manager.js:20` — either key, not just `tag`). `loadBreadcrumbs`
 >   drops controllers whose server-side `load_breadcrumbs` errors (ACL/missing).
@@ -470,7 +470,7 @@ Counts are **subdirectories only** (one per widget). Loose sibling `.js` files
 | JS | `static/src/search/search_context.js` | 66 | Context dict builder |
 | JS | `static/src/search/search_favorites.js` | 227 | Save/load filters |
 | JS | `static/src/search/search_enrichment.js` | 79 | Apply dynamic context/domain enrichment to raw search items |
-| JS | `static/src/search/search_facets.js` | 155 | Facet data structures + render helpers (`buildFacets`) |
+| JS | `static/src/search/search_facets.js` | 155 | Facet data structures + render helpers (`getFacets`) |
 | JS | `static/src/search/search_state.js` | 151 | Reactive shared state consumed by ControlPanel + WithSearch |
 | JS | `static/src/search/search_query_mixin.js` | 338 | URL ↔ search state round-trip + CLEAR-CACHES emission on saved-favorite mutations |
 | JS | `static/src/search/search_split_domain_mixin.js` | 158 | Split composite domains back into atomic facets |

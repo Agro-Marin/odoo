@@ -38,7 +38,7 @@ class MollieController(http.Controller):
         _logger.info(
             "handling redirection from Mollie with data:\n%s", pprint.pformat(data)
         )
-        self._verify_and_process(data)
+        self._check_and_process(data)
         return request.redirect("/payment/status")
 
     @http.route(_webhook_url, type="http", auth="public", methods=["POST"], csrf=False)
@@ -53,11 +53,11 @@ class MollieController(http.Controller):
         _logger.info(
             "notification received from Mollie with data:\n%s", pprint.pformat(data)
         )
-        self._verify_and_process(data)
+        self._check_and_process(data)
         return ""  # Acknowledge the notification
 
     @staticmethod
-    def _verify_and_process(data):
+    def _check_and_process(data):
         """Verify and process the payment data sent by Mollie.
 
         :param dict data: The payment data.

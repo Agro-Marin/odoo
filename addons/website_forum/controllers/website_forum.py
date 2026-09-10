@@ -1241,5 +1241,5 @@ class WebsiteForum(WebsiteProfile):
         auth="user",
         website=True,
     )
-    def delete_comment(self, forum, post, comment, **kwarg):
+    def remove_comment(self, forum, post, comment, **kwarg):
         return post.unlink_comment(comment.id)[0]

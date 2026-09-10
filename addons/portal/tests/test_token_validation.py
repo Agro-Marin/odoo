@@ -6,19 +6,19 @@ from odoo.tools import mute_logger
 
 from odoo.addons.portal.controllers import portal as portal_controller
 from odoo.addons.portal.utils import (
-    validate_thread_with_hash_pid,
-    validate_thread_with_token,
+    is_thread_hash_pid_valid,
+    is_thread_token_valid,
 )
 
 
 class TestTokenValidatorUnit(TransactionCase):
     def test_hash_pid_on_tokenless_thread_returns_false(self):
         partner = self.env.ref("base.partner_root")
-        self.assertFalse(validate_thread_with_hash_pid(partner, "deadbeef", partner.id))
+        self.assertFalse(is_thread_hash_pid_valid(partner, "deadbeef", partner.id))
 
     def test_token_on_tokenless_thread_returns_false(self):
         partner = self.env.ref("base.partner_root")
-        self.assertFalse(validate_thread_with_token(partner, "some-token"))
+        self.assertFalse(is_thread_token_valid(partner, "some-token"))
 
     def test_token_with_empty_stored_value_does_not_raise(self):
 
@@ -29,7 +29,7 @@ class TestTokenValidatorUnit(TransactionCase):
             def __getitem__(self, key):
                 return False
 
-        self.assertFalse(validate_thread_with_token(_FakeThread(), "attacker-guess"))
+        self.assertFalse(is_thread_token_valid(_FakeThread(), "attacker-guess"))
 
 
 class TestDocumentCheckAccess(TransactionCase):

@@ -197,7 +197,7 @@ export class ListVirtualization {
     }
 
     /** @param {number} rowIndex */
-    ensureRowVisible(rowIndex) {
+    scrollRowIntoView(rowIndex) {
         const scroller = this.scroller;
         if (!this.active || !scroller) {
             return;

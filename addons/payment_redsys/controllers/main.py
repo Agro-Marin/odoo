@@ -35,7 +35,7 @@ class RedsysController(http.Controller):
             ._search_by_reference("redsys", data)
         )
         if tx_sudo:
-            self._verify_signature(encoded_data, tx_sudo)
+            self._check_signature(encoded_data, tx_sudo)
             tx_sudo._process("redsys", data)
         return request.redirect("/payment/status")
 
@@ -59,12 +59,12 @@ class RedsysController(http.Controller):
             ._search_by_reference("redsys", data)
         )
         if tx_sudo:
-            self._verify_signature(encoded_data, tx_sudo)
+            self._check_signature(encoded_data, tx_sudo)
             tx_sudo._process("redsys", data)
         return ""
 
     @staticmethod
-    def _verify_signature(payment_data, tx_sudo):
+    def _check_signature(payment_data, tx_sudo):
         """Check that the received signature matches the expected one.
 
         :param dict payment_data: The payment data to verify.

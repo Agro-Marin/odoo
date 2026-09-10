@@ -23,7 +23,7 @@ _iot_logger.setLevel(logging.DEBUG)
 _logger = logging.getLogger(__name__)
 
 
-def ensure_unique_name(name):
+def get_unique_name(name):
     existing_names = (
         request.env["iot.box"]
         .sudo()
@@ -251,7 +251,7 @@ class IoTController(IoTBoxLookup, http.Controller):
             return request.env["iot.box"]
 
         name = "IoT Box" if new_iot_version.startswith("L") else "Virtual IoT Box"
-        create_update_value["name"] = ensure_unique_name(name)
+        create_update_value["name"] = get_unique_name(name)
         _logger.info("Creating IoT with data: %s", create_update_value)
         box = request.env["iot.box"].sudo().create(create_update_value)
         # Clear the used token to force creating a new one for next IoT Box

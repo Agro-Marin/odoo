@@ -22,7 +22,7 @@ _logger = logging.getLogger(__name__)
 
 
 @require_db
-def ensure_validity():
+def update_certificate():
     """Ensure that the certificate is up to date
     Load a new if the current one is not valid or if there is none.
 

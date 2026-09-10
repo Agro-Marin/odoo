@@ -23,7 +23,7 @@ from odoo.tools.translate import LazyTranslate, _
 from .utils import (
     _get_login_redirect_url,
     _is_local_url,
-    ensure_db,
+    select_db,
     is_user_internal,
 )
 
@@ -79,7 +79,7 @@ class Home(http.Controller):
         readonly=_web_client_readonly,
     )
     def web_client(self, s_action: str | None = None, **kw: Any) -> Response:
-        ensure_db()
+        select_db()
         if not request.session.uid:
             return request.redirect_query(
                 "/web/login",
@@ -155,7 +155,7 @@ class Home(http.Controller):
         list_as_website_content=_lt("Login"),
     )
     def web_login(self, redirect: str | None = None, **kw: Any) -> Response:
-        ensure_db()
+        select_db()
         request.params["login_success"] = False
         if request.httprequest.method == "GET" and redirect and request.session.uid:
             if not _is_local_url(redirect):

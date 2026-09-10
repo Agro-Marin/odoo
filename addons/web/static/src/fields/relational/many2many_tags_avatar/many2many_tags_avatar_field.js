@@ -95,8 +95,8 @@ export class Many2ManyTagsAvatarFieldPopover extends Many2ManyTagsAvatarField {
      * @override
      * @param {string} id
      */
-    async deleteTag(id) {
-        await super.deleteTag(id);
+    async removeTag(id) {
+        await super.removeTag(id);
         await this._saveUpdate();
     }
 

@@ -91,7 +91,7 @@ function readGroupLabels(group, searchItems, getDateFilterDescription) {
  * @param {string|false} orderByCount
  * @returns {Facet}
  */
-function buildDefaultGroupByFacet(defaultGroupBy, searchViewFields, orderByCount) {
+function getDefaultGroupByFacet(defaultGroupBy, searchViewFields, orderByCount) {
     return {
         groupId: SPECIAL,
         type: "groupBy",
@@ -119,7 +119,7 @@ function buildDefaultGroupByFacet(defaultGroupBy, searchViewFields, orderByCount
  * @param {string} [params.viewType]
  * @returns {Facet[]}
  */
-export function buildFacets({
+export function getFacets({
     groups,
     searchItems,
     getSearchItemDomain,
@@ -172,7 +172,7 @@ export function buildFacets({
         viewType !== "kanban"
     ) {
         facets.unshift(
-            buildDefaultGroupByFacet(defaultGroupBy, searchViewFields, orderByCount),
+            getDefaultGroupByFacet(defaultGroupBy, searchViewFields, orderByCount),
         );
     }
     return facets;

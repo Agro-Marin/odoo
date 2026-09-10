@@ -54,7 +54,7 @@ _TEXT_EXCLUDED_XPATHS = (
 )
 
 
-def _drop_keeping_tail(element):
+def _remove_keeping_tail(element):
     parent = element.getparent()
     if parent is None:
         return
@@ -72,7 +72,7 @@ def text_from_html(html_fragment, collapse_whitespace=False):
 
     for xpath_filter in _TEXT_EXCLUDED_XPATHS:
         for element in tree.xpath(xpath_filter):
-            _drop_keeping_tail(element)
+            _remove_keeping_tail(element)
 
     content = " ".join(tree.itertext())
     if collapse_whitespace:

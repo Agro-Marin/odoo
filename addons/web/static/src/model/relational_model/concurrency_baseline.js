@@ -20,7 +20,7 @@ const NON_COMPARABLE_TYPES = new Set([
  * @param {Iterable<string>} fieldNames
  * @returns {Record<string, any>}
  */
-export function buildConcurrencyBaseline(record, fieldNames) {
+export function getConcurrencyBaseline(record, fieldNames) {
     /** @type {Record<string, any>} */
     const baseline = {};
     for (const fieldName of fieldNames) {
@@ -52,14 +52,14 @@ export function buildConcurrencyBaseline(record, fieldNames) {
  * @param {Record<string, any>} kwargs
  * @returns {Record<string, any>}
  */
-export function buildKnownValuesKwargs(records, fieldNames, kwargs) {
+export function getKnownValuesKwargs(records, fieldNames, kwargs) {
     /** @type {Record<string, any>} */
     const knownValues = {};
     for (const record of records) {
         if (!record.resId) {
             continue;
         }
-        const baseline = buildConcurrencyBaseline(
+        const baseline = getConcurrencyBaseline(
             /** @type {import("./record_contract").RecordContract} */ (
                 /** @type {unknown} */ (record)
             ),

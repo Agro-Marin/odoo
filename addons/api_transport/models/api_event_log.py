@@ -449,7 +449,7 @@ class ApiEventLog(models.Model):
             max_retries = getattr(channel, "retry_max_attempts", 3)
 
             if self.retry_count < max_retries:
-                delay_seconds = channel.calculate_retry_delay(self.retry_count + 1)
+                delay_seconds = channel.get_retry_delay(self.retry_count + 1)
                 next_retry = fields.Datetime.now() + timedelta(seconds=delay_seconds)
                 values["date_next_retry"] = next_retry
                 values["state"] = "retry"

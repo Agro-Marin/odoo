@@ -1,7 +1,7 @@
 from . import models
 
 
-def _synchronize_cron(env):
+def _sync_cron(env):
     cron = env.ref("crm_iap_enrich.ir_cron_lead_enrichment")
     if cron:
         config = env["ir.config_parameter"].get_param(

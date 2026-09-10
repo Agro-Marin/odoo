@@ -1477,7 +1477,7 @@ test("property-derived searchViewFields entries survive an export/import cycle",
         },
     });
     const model = await createSearchModel({ searchViewArch });
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
     const item = Object.values(model.searchItems).find(
         (i) => i.fieldName === "properties.my_char",
     );
@@ -1498,7 +1498,7 @@ test("property-derived searchViewFields entries survive an export/import cycle",
     );
 });
 
-test("fillSearchViewItemsProperty refetches definitions on each sequential call", async () => {
+test("updateSearchViewItemsProperty refetches definitions on each sequential call", async () => {
     const model = await createSearchModel({
         searchViewArch: `
             <search>
@@ -1517,9 +1517,9 @@ test("fillSearchViewItemsProperty refetches definitions on each sequential call"
         return Promise.resolve([]);
     };
 
-    await model.fillSearchViewItemsProperty();
-    await model.fillSearchViewItemsProperty();
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     expect(fetchedFields).toEqual(["properties", "properties", "properties"]);
 });
@@ -1540,18 +1540,18 @@ test("a property added on the parent record reaches the group-by items", async (
     const isPropertyGroupBy = (/** @type {any} */ item) =>
         item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type);
 
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
     expect(model.getSearchItems(isPropertyGroupBy)).toHaveLength(1);
 
     definitions = [
         ...definitions,
         { name: "my_int", string: "My Int", type: "integer" },
     ];
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
     expect(model.getSearchItems(isPropertyGroupBy)).toHaveLength(2);
 });
 
-test("concurrent fillSearchViewItemsProperty calls both see the loaded items", async () => {
+test("concurrent updateSearchViewItemsProperty calls both see the loaded items", async () => {
     const model = await createSearchModel({
         searchViewArch: `
             <search>
@@ -1577,8 +1577,8 @@ test("concurrent fillSearchViewItemsProperty calls both see the loaded items", a
     const isPropertyGroupBy = (/** @type {any} */ item) =>
         item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type);
 
-    const firstFill = model.fillSearchViewItemsProperty();
-    const secondFill = model.fillSearchViewItemsProperty();
+    const firstFill = model.updateSearchViewItemsProperty();
+    const secondFill = model.updateSearchViewItemsProperty();
 
     let secondSettled = false;
     secondFill.then(() => {
@@ -1748,7 +1748,7 @@ test("an active property group-by is retired when its definition is deleted", as
     model._fetchPropertiesDefinition = async () => [
         { definitionRecordId: 1, definitionRecordName: "Parent", definitions },
     ];
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     const item = Object.values(model.searchItems).find((i) => i.isProperty);
     await model.toggleSearchItem(item.id);
@@ -1756,7 +1756,7 @@ test("an active property group-by is retired when its definition is deleted", as
     expect(model.facets).toHaveLength(1);
 
     definitions = [];
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     expect(model.searchItems[item.id]).toBe(undefined);
     expect(model.query).toEqual([]);
@@ -1780,14 +1780,14 @@ test("a definition record dropping out entirely retires its group-bys", async ()
         },
     ];
     model._fetchPropertiesDefinition = async () => result;
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     const item = Object.values(model.searchItems).find((i) => i.isProperty);
     await model.toggleSearchItem(item.id);
     expect(model.groupBy).toEqual(["properties.p1"]);
 
     result = [];
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     expect(model.getSearchItems((/** @type {any} */ i) => i.isProperty)).toEqual([]);
     expect(model.groupBy).toEqual([]);
@@ -1812,12 +1812,12 @@ test("an untouched property group-by keeps its id across a refresh", async () =>
             ],
         },
     ];
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
     const idsBefore = model
         .getSearchItems((/** @type {any} */ i) => i.isProperty)
         .map((/** @type {any} */ i) => i.id);
 
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     expect(
         model
@@ -2058,7 +2058,7 @@ test("property group-bys join the group-by group instead of one group each", asy
             ],
         },
     ];
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     const archGroupBy = Object.values(model.searchItems).find(
         (item) => item.name === "group_by_foo",
@@ -2099,7 +2099,7 @@ test("property group-bys form their own group when the view has none", async () 
             ],
         },
     ];
-    await model.fillSearchViewItemsProperty();
+    await model.updateSearchViewItemsProperty();
 
     const groupIds = new Set(
         Object.values(model.searchItems)

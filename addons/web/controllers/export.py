@@ -437,7 +437,7 @@ class ExportFormat:
                 grouped_rows[group_index].extend(rows)
 
         for group_info, group_rows in zip(groups_data, grouped_rows, strict=True):
-            tree.insert_leaf(group_info, group_rows)
+            tree.add_leaf(group_info, group_rows)
         return tree
 
     def base(self, data: str) -> Response:

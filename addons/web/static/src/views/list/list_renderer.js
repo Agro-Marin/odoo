@@ -209,7 +209,7 @@ export class ListRenderer extends Component {
     /** @returns {void} */
     setupSharedContexts() {
         /** @type {import("./list_renderer").ListGridContext} */
-        this.gridContext = this.buildGridContext();
+        this.gridContext = this.getGridContext();
 
         this.rowFlags = reactive({ isEditing: false, canSelectRecord: true });
         this.rowApi = this.buildRowApi();
@@ -525,7 +525,7 @@ export class ListRenderer extends Component {
     }
 
     /** @returns {import("./list_renderer").ListGridContext} */
-    buildGridContext() {
+    getGridContext() {
         return {
             getProps: () => this.props,
             getEnv: () => this.env,

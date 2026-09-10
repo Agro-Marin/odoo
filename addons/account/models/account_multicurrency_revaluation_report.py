@@ -279,7 +279,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
     def _multi_currency_revaluation_get_custom_lines(
         self, options, line_code, current_groupby, next_groupby, offset=0, limit=None
     ):
-        def _prepare_result_dict(report, query_res):
+        def prepare_result_dict(report, query_res):
             return {
                 "balance_currency": query_res["balance_currency"]
                 if len(query_res["currency_id"]) == 1
@@ -495,5 +495,5 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
         rslt = []
         for query_res in query_res_lines:
             grouping_key = query_res["grouping_key"]
-            rslt.append((grouping_key, _prepare_result_dict(report, query_res)))
+            rslt.append((grouping_key, prepare_result_dict(report, query_res)))
         return rslt

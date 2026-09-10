@@ -100,7 +100,7 @@ export const SearchPanelMixin = (Base) =>
                 category,
                 result,
                 (/** @type {any} */ cat, /** @type {any} */ ids) =>
-                    this._ensureCategoryValue(cat, ids),
+                    this._updateCategoryValue(cat, ids),
             );
             this._sections = null;
         }
@@ -119,7 +119,7 @@ export const SearchPanelMixin = (Base) =>
          * @param {Category} category
          * @param {number[]} valueIds
          */
-        _ensureCategoryValue(category, valueIds) {
+        _updateCategoryValue(category, valueIds) {
             if (!valueIds.includes(category.activeValueId)) {
                 category.activeValueId = valueIds[0];
             }
@@ -234,7 +234,7 @@ export const SearchPanelMixin = (Base) =>
          * @param {Record<string, any>} searchPanelDefaults
          * @returns {Promise<void>}
          */
-        async _seedSearchPanel(searchPanelDefaults) {
+        async _initSearchPanel(searchPanelDefaults) {
             this.searchDomain = /** @type {DomainListRepr} */ (
                 this._getDomain({ withSearchPanel: false })
             );

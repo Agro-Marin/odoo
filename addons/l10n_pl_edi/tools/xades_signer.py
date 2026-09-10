@@ -22,7 +22,7 @@ class XadesSigner:
         self.cert = x509.load_pem_x509_certificate(cert_pem)
 
     @staticmethod
-    def _calculate_digest(node):
+    def _get_digest(node):
         c14n_node = etree.tostring(
             node, method="c14n", exclusive=True, with_comments=False, strip_text=False
         )
@@ -88,7 +88,7 @@ class XadesSigner:
             issuer_serial_node, etree.QName(NS_DS, "X509SerialNumber")
         ).text = str(self.cert.serial_number)
 
-        return self._calculate_digest(signed_props_node)
+        return self._get_digest(signed_props_node)
 
     def sign_authentication_challenge(self, challenge_code, nip):
         subject_str = ""
@@ -175,7 +175,7 @@ class XadesSigner:
         temp_root.xpath("./ds:Signature", namespaces=nsmap)[0].getparent().remove(
             temp_root.xpath("./ds:Signature", namespaces=nsmap)[0]
         )
-        digest1_node.text = self._calculate_digest(temp_root)
+        digest1_node.text = self._get_digest(temp_root)
         digest2_node.text = self._prepare_qualifying_properties(
             signature_node, sig_id, props_id
         )

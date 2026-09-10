@@ -58,7 +58,7 @@ class QuotationDocument(models.Model):
                 raise ValidationError(
                     _("Only PDF documents can be used as header or footer.")
                 )
-            utils._ensure_document_not_encrypted(
+            utils._check_document_not_encrypted(
                 doc.ir_attachment_id._get_content_prefix()
             )
 

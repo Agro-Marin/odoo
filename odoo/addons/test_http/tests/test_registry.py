@@ -66,8 +66,8 @@ class TestHttpRegistry(BaseCase):
         )
         cls.classPatch(
             odoo.http.constants,
-            "ENSURE_DB_PATHS",
-            odoo.http.constants.ENSURE_DB_PATHS | {"/test_http/ensure_db"},
+            "SELECT_DB_PATHS",
+            odoo.http.constants.SELECT_DB_PATHS | {"/test_http/ensure_db"},
         )
 
         cls._db_list = cls.startClassPatcher(patch("odoo.http.db_list"))

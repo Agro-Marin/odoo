@@ -16,7 +16,7 @@ class WebsiteSlidesSurvey(WebsiteSlides):
         website=True,
     )
     def slide_get_certification_url(self, slide_id, **kw):
-        fetch_res = self._fetch_slide(slide_id)
+        fetch_res = self._get_slide(slide_id)
         if fetch_res.get("error"):
             raise werkzeug.exceptions.NotFound
         slide = fetch_res["slide"]
@@ -159,7 +159,7 @@ class WebsiteSlidesSurvey(WebsiteSlides):
 
         # 1. Getting all certification badges, sorted by granted user desc
         domain = Domain.AND(
-            [[("survey_id", "!=", False)], self._prepare_badges_domain(**kwargs)]
+            [[("survey_id", "!=", False)], self._get_domain_badges(**kwargs)]
         )
         certification_badges = request.env["gamification.badge"].sudo().search(domain)
         # keep only the badge with challenge category = slides (the rest will be displayed under 'normal badges' section

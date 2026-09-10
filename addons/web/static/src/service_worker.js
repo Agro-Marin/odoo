@@ -47,7 +47,7 @@ const activateCaches = async () => {
     try {
         await migrateSupersededCaches();
         await collectSupersededAssets();
-        await deleteSupersededCaches();
+        await removeSupersededCaches();
     } catch {}
 };
 
@@ -150,7 +150,7 @@ const collectSupersededAssets = async () => {
 };
 
 /** @returns {Promise<void>} */
-const deleteSupersededCaches = async () => {
+const removeSupersededCaches = async () => {
     for (const name of await caches.keys()) {
         if (name !== cacheName && name !== staticCacheName && isOwnedCacheName(name)) {
             await caches.delete(name);

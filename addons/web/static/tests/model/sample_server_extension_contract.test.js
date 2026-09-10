@@ -55,7 +55,7 @@ test("a 3-argument patch still receives (modelName, fieldName, id)", () => {
         }
     }
     const server = /** @type {any} */ (new Patched("some.model", { ...FIELDS }));
-    server._populateModels();
+    server._createSampleRecords();
     const forDisplayName = seen.filter(([, fieldName]) => fieldName === "display_name");
     expect(forDisplayName.length).toBeGreaterThan(0);
     expect(forDisplayName.map(([, , id]) => id)).toEqual(

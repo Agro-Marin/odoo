@@ -4,11 +4,11 @@ from odoo.addons.website_sale.controllers.payment import PaymentPortal
 
 
 class PaymentPortalOnsite(PaymentPortal):
-    def _validate_transaction_for_order(self, transaction, sale_order):
+    def _check_transaction_for_order(self, transaction, sale_order):
         """
         Throws a ValidationError if the user tries to pay for a ticket which isn't available
         """
-        super()._validate_transaction_for_order(transaction, sale_order)
+        super()._check_transaction_for_order(transaction, sale_order)
         registration_domain = [
             ("sale_order_id", "=", sale_order.id),
             ("event_ticket_id", "!=", False),

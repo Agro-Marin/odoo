@@ -3007,11 +3007,19 @@ vocabulary in core is a list, not a package boundary**:
 * **``append_paths``** keeps its verb because both halves of the ``_append_``
   reservation hold: the receiver is an ordered list and the addition lands at its
   end, beside an ``insert_paths`` that takes the index.
-* **Four infix hits are nouns wearing a verb's spelling**, which is the case
+* **Three infix hits are nouns wearing a verb's spelling**, which is the case
   §2.4.4 warns the ratchet cannot tell apart: ``fill_temporal`` is a ``read_group``
-  parameter and a context key, ``ensure_db`` names the route flag declared in
-  ``addons/web``, ``on_delete`` is a field on ``ir.model.fields``, and a control
-  character is a character.
+  parameter and a context key, ``on_delete`` is a field on ``ir.model.fields``,
+  and a control character is a character. A fourth, ``ensure_db``, was argued
+  as a named concept -- ``ENSURE_DB_PATHS``, ``register_ensure_db_paths``,
+  ``is_ensure_db_path`` and the ``web`` controller function they are named for
+  -- and held out of the rename on the ground that renaming one half would
+  split the pair. The pair is renamed together instead (2026-09-09): the
+  function selects the request's database from its parameter, the session or
+  the single database on the cluster and redirects when none can be settled,
+  so it is ``select_db``, and the registry is ``SELECT_DB_PATHS`` with
+  ``register_select_db_paths`` and ``is_select_db_path``. Only the
+  ``test_http`` route URL keeps the old word, being a URL.
 
 **A bool return moved a name across the table, not just along it** ``[review]``.
 ``validate_csrf`` answers a question and never raises, so the Validation row sends

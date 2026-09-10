@@ -498,7 +498,7 @@ def _odoo_install(db: str, modules: tuple[str, ...], log_path: Path) -> None:
         )
 
 
-def ensure_db(
+def select_db(
     db: str, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
 ) -> None:
     LOG_DIR.mkdir(exist_ok=True)
@@ -523,7 +523,7 @@ def ensure_db(
 def boot_server(
     db: str, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
 ) -> dict:
-    ensure_db(db, modules, verbose=verbose)
+    select_db(db, modules, verbose=verbose)
     errors = []
     for port in PORT_RANGE:
         if not port_is_free(port) or not _reserve_port(port):

@@ -41,9 +41,9 @@ import { ViewController } from "@web/views/view_controller";
 import { useDeleteRecords } from "@web/views/view_hook";
 import {
     archiveConfirmationProps,
-    buildStaticActionMenuItems,
     computeArchiveEnabled,
     handleBeforeUnload,
+    prepareStaticActionMenuItems,
 } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
@@ -507,7 +507,7 @@ export class FormController extends ViewController {
 
     getStaticActionMenuItems() {
         const { activeActions } = this.archInfo;
-        return buildStaticActionMenuItems({
+        return prepareStaticActionMenuItems({
             addPropertyFieldValue: {
                 isAvailable: () => activeActions.addPropertyFieldValue,
                 callback: () => this.model.bus.trigger(ModelEvent.PROPERTY_FIELD_EDIT),

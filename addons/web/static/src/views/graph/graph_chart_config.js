@@ -270,7 +270,7 @@ export function styleScatterChartData(data) {
  * @param {number} labelsCount
  * @returns {Record<string, any>}
  */
-export function buildAnimationOptions(mode, labelsCount) {
+export function getAnimationOptions(mode, labelsCount) {
     let delayed;
     const gap = 350;
     /** @type {Record<string, any>} */
@@ -302,7 +302,7 @@ export function buildAnimationOptions(mode, labelsCount) {
  * @param {boolean} stacked
  * @returns {Object}
  */
-export function buildElementOptions(mode, stacked) {
+export function getElementOptions(mode, stacked) {
     const elementOptions = {};
     if (mode === "bar") {
         elementOptions.bar = { borderWidth: 1 };
@@ -319,7 +319,7 @@ export function buildElementOptions(mode, stacked) {
  * @param {Object} metaData
  * @returns {Object}
  */
-export function buildScaleOptions(data, metaData) {
+export function prepareScaleOptions(data, metaData) {
     const { labels } = data;
     const { fieldAttrs, measure, measures, mode, stacked } = metaData;
     if (mode === "pie") {
@@ -373,7 +373,7 @@ export function buildScaleOptions(data, metaData) {
  * @param {Object} [lineOverlayDataset]
  * @returns {Object[]}
  */
-export function buildTooltipItems(data, metaData, tooltipModel, lineOverlayDataset) {
+export function getTooltipItems(data, metaData, tooltipModel, lineOverlayDataset) {
     const { allIntegers, mode, groupBy, measure } = metaData;
     const sortedDataPoints = sortBy(tooltipModel.dataPoints, "raw", "desc");
     const items = [];

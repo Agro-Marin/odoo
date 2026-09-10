@@ -7,8 +7,8 @@ from odoo.exceptions import ValidationError
 from ...tools.authentication import (
     CaseInsensitiveHeaders,
     ip_in_allowlist,
-    verify_signature,
-    verify_timestamp,
+    is_signature_valid,
+    is_timestamp_valid,
 )
 from ...tools.rate_limiter import get_caller_rate_limiter
 
@@ -199,7 +199,7 @@ class MixinInboundGate(models.AbstractModel):
                     self.display_name,
                 )
                 return False
-            if not verify_timestamp(
+            if not is_timestamp_valid(
                 timestamp_value=timestamp_value,
                 max_age_seconds=self.timestamp_max_age_seconds,
                 env=self.env,
@@ -221,7 +221,7 @@ class MixinInboundGate(models.AbstractModel):
         if self.auth_type in ("hmac_sha256", "hmac_sha512"):
             secret = self.credential_id._get_verification_secret()
 
-        return verify_signature(
+        return is_signature_valid(
             signature_type=self.auth_type,
             headers=headers,
             body=body or "",

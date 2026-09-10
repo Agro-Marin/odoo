@@ -30,7 +30,7 @@ import { useKanbanSortable } from "./kanban_sortable_hook.js";
 
 const DRAGGABLE_GROUP_TYPES = ["many2one"];
 
-function validateColumnQuickCreateExamples(data) {
+function checkColumnQuickCreateExamples(data) {
     const { allowedGroupBys = [], examples = [], foldField = "" } = data;
     if (!allowedGroupBys.length) {
         throw new Error("The example data must contain an array of allowed groupbys");
@@ -120,7 +120,7 @@ export class KanbanRenderer extends Component {
             .category(/** @type {any} */ ("kanban_examples"))
             .get(this.props.archInfo.examples, null);
         if (this.exampleData) {
-            validateColumnQuickCreateExamples(this.exampleData);
+            checkColumnQuickCreateExamples(this.exampleData);
         }
         this.rootRef = useRef("root");
 

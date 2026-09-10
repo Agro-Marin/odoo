@@ -53,7 +53,7 @@ class SlideChannel(models.Model):
         channels = super().create(vals_list)
         channels.filtered(
             lambda channel: channel.enroll == "payment"
-        )._synchronize_product_publish()
+        )._sync_product_publish()
         return channels
 
     def write(self, vals):
@@ -61,10 +61,10 @@ class SlideChannel(models.Model):
         if "is_published" in vals:
             self.filtered(
                 lambda channel: channel.enroll == "payment"
-            )._synchronize_product_publish()
+            )._sync_product_publish()
         return res
 
-    def _synchronize_product_publish(self):
+    def _sync_product_publish(self):
         """
         Ensure that when publishing a course that its linked product is also published
         If all courses linked to a product are unpublished, we also unpublished the product

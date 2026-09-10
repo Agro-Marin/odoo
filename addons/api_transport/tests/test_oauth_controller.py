@@ -45,7 +45,7 @@ class TestOAuthTokenExchange(EncryptionKeyCase, TransactionCase):
         with (
             patch.object(
                 OAuthController,
-                "_build_redirect_uri",
+                "_get_redirect_uri",
                 return_value="https://odoo.test/api_gateway/oauth/callback",
             ),
             patch(

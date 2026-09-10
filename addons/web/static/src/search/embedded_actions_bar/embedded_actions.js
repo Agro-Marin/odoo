@@ -467,14 +467,14 @@ export class EmbeddedActions {
                       "This embedded action is global and will be removed for everyone.",
                   ),
             confirmLabel: _t("Delete"),
-            confirm: async () => await this.deleteAction(action),
+            confirm: async () => await this.removeAction(action),
             cancel: () => {},
         };
         this.dialogService.add(ConfirmationDialog, dialogProps);
     }
 
     /** @param {EmbeddedAction} action */
-    async deleteAction(action) {
+    async removeAction(action) {
         const { visibleEmbeddedActions, embeddedActions, currentEmbeddedAction } =
             this.embeddedInfos;
         await this.orm.unlink("ir.embedded.actions", [action.id]);

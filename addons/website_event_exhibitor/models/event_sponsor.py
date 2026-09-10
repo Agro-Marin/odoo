@@ -129,11 +129,11 @@ class EventSponsor(models.Model):
 
     @api.depends("partner_id")
     def _compute_name(self):
-        self._synchronize_with_partner("name")
+        self._sync_with_partner("name")
 
     @api.depends("partner_id")
     def _compute_email(self):
-        self._synchronize_with_partner("email")
+        self._sync_with_partner("email")
 
     @api.depends("partner_id")
     def _compute_phone_ids(self):
@@ -143,7 +143,7 @@ class EventSponsor(models.Model):
 
     @api.depends("partner_id")
     def _compute_image_512(self):
-        self._synchronize_with_partner("image_512")
+        self._sync_with_partner("image_512")
 
     @api.depends("image_512", "partner_id.image_256")
     def _compute_website_image_url(self):
@@ -162,7 +162,7 @@ class EventSponsor(models.Model):
                     "/website_event_exhibitor/static/src/img/event_sponsor_default.svg"
                 )
 
-    def _synchronize_with_partner(self, fname):
+    def _sync_with_partner(self, fname):
         """Synchronize with partner if not set. Setting a value does not write
         on partner as this may be event-specific information."""
         for sponsor in self:

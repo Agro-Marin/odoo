@@ -7,7 +7,7 @@ from odoo.addons.api_ai.tools.ai_clients import GroqClient, OpenAIClient
 from odoo.addons.api_ai.tools.ai_clients.deepseek import DeepSeekClient
 from odoo.addons.api_ai.tools.vendor_catalog import (
     PROVIDERS,
-    build_whisper_form,
+    get_whisper_form,
     read_whisper_transcript,
 )
 from odoo.addons.api_transport.tools.exceptions import CommError
@@ -17,7 +17,7 @@ from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 @tagged("post_install", "-at_install")
 class TestWhisperFormAndReader(TransactionCase):
     def test_the_form_always_asks_for_text(self):
-        form = build_whisper_form("whisper-1", language="es")
+        form = get_whisper_form("whisper-1", language="es")
         self.assertEqual(form["response_format"], "text")
         self.assertEqual(form["model"], "whisper-1")
         self.assertEqual(form["language"], "es")
@@ -25,7 +25,7 @@ class TestWhisperFormAndReader(TransactionCase):
 
     def test_the_form_carries_a_vocabulary_hint(self):
         self.assertEqual(
-            build_whisper_form("whisper-1", prompt="tarima, romana")["prompt"],
+            get_whisper_form("whisper-1", prompt="tarima, romana")["prompt"],
             "tarima, romana",
         )
 

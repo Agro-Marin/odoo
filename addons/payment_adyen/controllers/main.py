@@ -320,7 +320,7 @@ class AdyenController(http.Controller):
                 ._search_by_reference("adyen", payment_data)
             )
             if tx_sudo:
-                self._verify_signature(payment_data, tx_sudo)
+                self._check_signature(payment_data, tx_sudo)
 
                 # Check whether the event of the notification succeeded and reshape the notification
                 # data for parsing
@@ -343,7 +343,7 @@ class AdyenController(http.Controller):
         )  # Acknowledge the notification
 
     @staticmethod
-    def _verify_signature(payment_data, tx_sudo):
+    def _check_signature(payment_data, tx_sudo):
         """Check that the received signature matches the expected one.
 
         :param dict payment_data: The payment data containing the received signature.

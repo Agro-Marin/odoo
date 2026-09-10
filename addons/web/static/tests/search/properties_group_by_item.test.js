@@ -21,7 +21,7 @@ function makeItem(searchItems, { definitionsLoaded = false, fill } = {}) {
             getSearchItems: (
                 /** @type {(item: Record<string, any>) => boolean} */ predicate,
             ) => searchItems.filter(predicate),
-            fillSearchViewItemsProperty: fill || (async () => {}),
+            updateSearchViewItemsProperty: fill || (async () => {}),
         },
     };
     return component;
@@ -191,7 +191,7 @@ describe("what triggers the fetch", () => {
                 useSubEnv({
                     searchModel: {
                         getSearchItems: () => /** @type {any[]} */ ([]),
-                        fillSearchViewItemsProperty: fill,
+                        updateSearchViewItemsProperty: fill,
                     },
                 });
             }

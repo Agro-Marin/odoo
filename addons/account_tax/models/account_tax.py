@@ -2642,12 +2642,10 @@ class AccountTax(models.Model):
         return new_tax_details_list
 
     @api.model
-    def _split_base_line(
-        self, base_line, company, target_factors, populate_function=None
-    ):
+    def _split_base_line(self, base_line, company, target_factors, update_kwargs=None):
         """Split ``base_line`` (``price_unit`` and ``tax_details``) proportionally
         across ``target_factors``, returning one new base line per factor via
-        ``_prepare_base_line_for_taxes_computation``. ``populate_function(base_line,
+        ``_prepare_base_line_for_taxes_computation``. ``update_kwargs(base_line,
         target_factor, kwargs)``, if given, is called per split part to add or
         override extra kwargs (e.g. a caller-specific ``quantity``) before the
         new base line is built.
@@ -2664,8 +2662,8 @@ class AccountTax(models.Model):
                 "price_unit": factor * base_line["price_unit"],
                 "tax_details": new_tax_details_list[index],
             }
-            if populate_function:
-                populate_function(base_line, target_factors[index], kwargs)
+            if update_kwargs:
+                update_kwargs(base_line, target_factors[index], kwargs)
             new_base_lines[index] = self._prepare_base_line_for_taxes_computation(
                 base_line, **kwargs
             )
@@ -3422,7 +3420,7 @@ class AccountTax(models.Model):
                 neg_base_lines,
             )
 
-            def populate_function(base_line, target_factor, kwargs):
+            def update_kwargs(base_line, target_factor, kwargs):
                 kwargs["price_unit"] = base_line["price_unit"]
                 kwargs["quantity"] = -target_factor["quantity_to_dispatch"]
 
@@ -3437,7 +3435,7 @@ class AccountTax(models.Model):
                     base_line=neg_base_line,
                     company=company,
                     target_factors=target_factors,
-                    populate_function=populate_function,
+                    update_kwargs=update_kwargs,
                 )
                 for target_factor, new_base_line in zip(
                     target_factors, splitted_base_lines, strict=True

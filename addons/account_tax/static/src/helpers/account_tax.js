@@ -2116,7 +2116,7 @@ export const accountTaxHelpers = {
         base_line,
         company,
         target_factors,
-        { populate_function = null } = {},
+        { update_kwargs = null } = {},
     ) {
         const factors = this.normalize_target_factors(target_factors);
 
@@ -2135,8 +2135,8 @@ export const accountTaxHelpers = {
                 tax_details: new_tax_details_list[index],
             };
 
-            if (populate_function) {
-                populate_function(base_line, target_factors[index], kwargs);
+            if (update_kwargs) {
+                update_kwargs(base_line, target_factors[index], kwargs);
             }
 
             new_base_lines[index] = this.prepare_base_line_for_taxes_computation(

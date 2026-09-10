@@ -33,7 +33,7 @@ export class MultiRecordSelector extends BaseRecordSelector {
         super.setup();
         this.state = useState({ tags: [] });
         useTagNavigation("multiRecordSelector", {
-            delete: (index) => this.deleteTagAt(index),
+            delete: (index) => this.removeTagAt(index),
         });
     }
 
@@ -73,20 +73,20 @@ export class MultiRecordSelector extends BaseRecordSelector {
             id,
             text: displayNameFor(displayNames, id),
             onDelete: () => {
-                this.deleteTag(id);
+                this.removeTag(id);
             },
             img: tagAvatar(props.resModel, id),
         }));
     }
 
     /** @param {number} resId */
-    deleteTag(resId) {
+    removeTag(resId) {
         const props = /** @type {MultiRecordSelectorProps} */ (this.props);
         props.update(props.resIds.filter((id) => id !== resId));
     }
 
     /** @param {number} index */
-    deleteTagAt(index) {
+    removeTagAt(index) {
         this.state.tags[index]?.onDelete();
     }
 

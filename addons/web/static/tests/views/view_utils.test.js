@@ -4,13 +4,13 @@ import { describe, expect, test } from "@odoo/hoot";
 import { computeAggregatedValue } from "@web/views/view_measurements";
 import {
     archiveConfirmationProps,
-    buildOpenActionParams,
-    buildStaticActionMenuItems,
     computeArchiveEnabled,
     drillDownAction,
     drillDownContext,
     drillDownViews,
+    getOpenActionParams,
     handleBeforeUnload,
+    prepareStaticActionMenuItems,
 } from "@web/views/view_utils";
 
 describe.current.tags("headless");
@@ -154,9 +154,9 @@ describe("handleBeforeUnload", () => {
     });
 });
 
-describe("buildStaticActionMenuItems", () => {
+describe("prepareStaticActionMenuItems", () => {
     test("composes the shared presentation with the caller's behaviour", () => {
-        const items = buildStaticActionMenuItems({
+        const items = prepareStaticActionMenuItems({
             archive: { isAvailable: () => true, callback: () => "archived" },
             delete: { isAvailable: () => false, callback: () => "deleted" },
         });
@@ -170,9 +170,10 @@ describe("buildStaticActionMenuItems", () => {
 
     test("the caller may override presentation, and an unknown key throws", () => {
         expect(
-            buildStaticActionMenuItems({ delete: { skipSave: true } }).delete.skipSave,
+            prepareStaticActionMenuItems({ delete: { skipSave: true } }).delete
+                .skipSave,
         ).toBe(true);
-        expect(() => buildStaticActionMenuItems({ archiv: {} })).toThrow(
+        expect(() => prepareStaticActionMenuItems({ archiv: {} })).toThrow(
             /No static action menu descriptor for "archiv"/,
         );
     });
@@ -206,7 +207,7 @@ describe("archiveConfirmationProps", () => {
     });
 });
 
-describe("buildOpenActionParams", () => {
+describe("getOpenActionParams", () => {
     test("builds the doActionButton payload both views used to build inline", () => {
         let loaded = 0;
         const record = {
@@ -216,7 +217,7 @@ describe("buildOpenActionParams", () => {
             context: { a: 1 },
             model: { root: { load: async () => loaded++ } },
         };
-        const params = buildOpenActionParams({ action: "act", type: "object" }, record);
+        const params = getOpenActionParams({ action: "act", type: "object" }, record);
         expect(params.name).toBe("act");
         expect(params.type).toBe("object");
         expect(params.resModel).toBe("foo");

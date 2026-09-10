@@ -73,7 +73,7 @@ class DeepSeekClient(OpenAICompatibleClient):
 
         try:
             response = self._client.post("/chat/completions", json=payload)
-            result = self._validate_response(response)
+            result = self._get_response_body(response)
 
             if result.get("choices") and len(result["choices"]) > 0:
                 message = result["choices"][0].get("message", {})
@@ -112,7 +112,7 @@ class DeepSeekClient(OpenAICompatibleClient):
 
         try:
             response = self._client.post("/chat/completions", json=payload)
-            result = self._validate_response(response)
+            result = self._get_response_body(response)
 
             if result.get("choices") and len(result["choices"]) > 0:
                 message = result["choices"][0].get("message", {})
@@ -156,7 +156,7 @@ class DeepSeekClient(OpenAICompatibleClient):
 
             try:
                 response = self._client.post("/chat/completions", json=payload)
-                result = self._validate_response(response)
+                result = self._get_response_body(response)
 
                 if not result.get("choices"):
                     break

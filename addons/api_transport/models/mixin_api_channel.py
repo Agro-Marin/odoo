@@ -89,7 +89,7 @@ class MixinApiChannel(models.AbstractModel):
                     self.env._("Initial retry delay must be greater than 0"),
                 )
 
-    def calculate_retry_delay(self, attempt_number):
+    def get_retry_delay(self, attempt_number):
         self.check_singleton()
 
         base_delay = self.retry_initial_delay

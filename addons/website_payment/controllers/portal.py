@@ -89,7 +89,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         else:
             partner_id = request.env.user.partner_id.id
 
-        self._validate_transaction_kwargs(
+        self._check_transaction_kwargs(
             kwargs,
             additional_allowed_keys=(
                 "donation_comment",

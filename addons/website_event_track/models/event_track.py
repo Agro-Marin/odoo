@@ -602,7 +602,7 @@ class EventTrack(models.Model):
                 subtype_xmlid="website_event_track.mt_event_track",
                 **post_values,
             )
-            track._synchronize_with_stage(track.stage_id)
+            track._sync_with_stage(track.stage_id)
 
         return tracks
 
@@ -615,10 +615,10 @@ class EventTrack(models.Model):
             vals["kanban_state"] = "normal"
         if vals.get("stage_id"):
             stage = self.env["event.track.stage"].browse(vals["stage_id"])
-            self._synchronize_with_stage(stage)
+            self._sync_with_stage(stage)
         return super().write(vals)
 
-    def _synchronize_with_stage(self, stage):
+    def _sync_with_stage(self, stage):
         if stage.is_fully_accessible:
             self.is_published = True
         elif stage.is_cancel:

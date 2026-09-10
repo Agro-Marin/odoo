@@ -14,7 +14,7 @@ from odoo.addons.web.controllers.home import (
     LOGIN_SUCCESSFUL_PARAMS,
     SIGN_UP_REQUEST_PARAMS,
     Home,
-    ensure_db,
+    select_db,
 )
 from odoo.addons.web.controllers.settings import BaseSetup
 from odoo.addons.web.models.res_users import SKIP_CAPTCHA_LOGIN
@@ -28,7 +28,7 @@ LOGIN_SUCCESSFUL_PARAMS.add("account_created")
 class AuthSignupHome(Home):
     @http.route()
     def web_login(self, *args, **kw):
-        ensure_db()
+        select_db()
         response = super().web_login(*args, **kw)
         response.qcontext.update(self.get_auth_signup_config())
         if request.session.uid:

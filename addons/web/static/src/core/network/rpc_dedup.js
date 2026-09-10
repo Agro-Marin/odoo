@@ -20,7 +20,7 @@ function stableStringify(value, seen = new Set()) {
         return JSON.stringify(value);
     }
     if (seen.has(value)) {
-        throw new TypeError("buildKey: converting circular structure to a cache key");
+        throw new TypeError("getKey: converting circular structure to a cache key");
     }
     seen.add(value);
     if (Array.isArray(value)) {
@@ -44,6 +44,6 @@ function stableStringify(value, seen = new Set()) {
  * @param {any} params
  * @returns {string}
  */
-export function buildKey(url, params) {
+export function getKey(url, params) {
     return /** @type {string} */ (stableStringify({ url, params }));
 }

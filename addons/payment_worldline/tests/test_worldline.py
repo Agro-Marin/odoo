@@ -21,7 +21,7 @@ class WorldlineTest(WorldlineCommon, PaymentHttpCommon):
         """Send a notification to the webhook, ignore the signature, and check the response."""
         url = self._build_url(WorldlineController._webhook_url)
         with patch(
-            "odoo.addons.payment_worldline.controllers.main.WorldlineController._verify_signature"
+            "odoo.addons.payment_worldline.controllers.main.WorldlineController._check_signature"
         ):
             response = self._make_json_request(url, data=payload)
         self.assertEqual(
@@ -112,7 +112,7 @@ class WorldlineTest(WorldlineCommon, PaymentHttpCommon):
         url = self._build_url(WorldlineController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_worldline.controllers.main.WorldlineController._verify_signature"
+                "odoo.addons.payment_worldline.controllers.main.WorldlineController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -132,7 +132,7 @@ class WorldlineTest(WorldlineCommon, PaymentHttpCommon):
         expected_signature = b64encode(unencoded_result)
         self._assert_does_not_raise(
             Forbidden,
-            WorldlineController._verify_signature,
+            WorldlineController._check_signature,
             json.dumps(self.payment_data).encode(),
             expected_signature,
             tx,
@@ -144,7 +144,7 @@ class WorldlineTest(WorldlineCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         self.assertRaises(
             Forbidden,
-            WorldlineController._verify_signature,
+            WorldlineController._check_signature,
             json.dumps(self.payment_data).encode(),
             None,
             tx,
@@ -156,7 +156,7 @@ class WorldlineTest(WorldlineCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         self.assertRaises(
             Forbidden,
-            WorldlineController._verify_signature,
+            WorldlineController._check_signature,
             json.dumps(self.payment_data).encode(),
             "dummy",
             tx,

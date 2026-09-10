@@ -324,7 +324,7 @@ class PaymentPortal(portal.CustomerPortal):
         ):
             raise Forbidden
 
-        self._validate_transaction_kwargs(
+        self._check_transaction_kwargs(
             kwargs, additional_allowed_keys=("reference_prefix",)
         )
         tx_sudo = self._create_transaction(
@@ -584,7 +584,7 @@ class PaymentPortal(portal.CustomerPortal):
         return not partner.company_id or partner.company_id == document_company
 
     @staticmethod
-    def _validate_transaction_kwargs(kwargs, additional_allowed_keys=()):
+    def _check_transaction_kwargs(kwargs, additional_allowed_keys=()):
         """Verify that the keys of a transaction route's kwargs are all whitelisted.
 
         The whitelist consists of all the keys that are expected to be passed to a transaction

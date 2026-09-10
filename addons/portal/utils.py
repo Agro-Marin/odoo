@@ -12,7 +12,7 @@ def resolve_thread_for_credentials(thread: BaseModel) -> BaseModel:
     return thread.exists() if thread.ids else thread
 
 
-def validate_thread_with_hash_pid(
+def is_thread_hash_pid_valid(
     thread: BaseModel,
     _hash: str | None,
     pid: int | str | None,
@@ -33,7 +33,7 @@ def validate_thread_with_hash_pid(
     return bool(parent_sign_token) and consteq(_hash, parent_sign_token)
 
 
-def validate_thread_with_token(thread: BaseModel, token: str | None) -> bool:
+def is_thread_token_valid(thread: BaseModel, token: str | None) -> bool:
     token_field = thread._mail_post_token_field
     if not isinstance(token, str) or not token or token_field not in thread._fields:
         return False
@@ -50,9 +50,9 @@ def get_portal_partner(
     thread = resolve_thread_for_credentials(thread)
     if not thread:
         return thread.env["res.partner"]
-    if validate_thread_with_hash_pid(thread, _hash, pid):
+    if is_thread_hash_pid_valid(thread, _hash, pid):
         return thread.env["res.partner"].sudo().browse(int(pid))
-    if validate_thread_with_token(thread, token):
+    if is_thread_token_valid(thread, token):
         if partner := thread._mail_get_partners()[thread.id][:1]:
             return partner
     return thread.env["res.partner"]

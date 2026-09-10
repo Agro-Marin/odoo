@@ -74,7 +74,7 @@ class WebsiteSaleProductConfiguratorController(
         readonly=True,
     )
     def website_sale_product_configurator_get_values(self, *args, **kwargs):
-        self._populate_currency_and_pricelist(kwargs)
+        self._update_currency_and_pricelist(kwargs)
         return super().sale_product_configurator_get_values(*args, **kwargs)
 
     @route(
@@ -96,7 +96,7 @@ class WebsiteSaleProductConfiguratorController(
         readonly=True,
     )
     def website_sale_product_configurator_update_combination(self, *args, **kwargs):
-        self._populate_currency_and_pricelist(kwargs)
+        self._update_currency_and_pricelist(kwargs)
         return super().sale_product_configurator_update_combination(*args, **kwargs)
 
     @route(
@@ -107,7 +107,7 @@ class WebsiteSaleProductConfiguratorController(
         readonly=True,
     )
     def website_sale_product_configurator_get_optional_products(self, *args, **kwargs):
-        self._populate_currency_and_pricelist(kwargs)
+        self._update_currency_and_pricelist(kwargs)
         return super().sale_product_configurator_get_optional_products(*args, **kwargs)
 
     def _get_basic_product_information(

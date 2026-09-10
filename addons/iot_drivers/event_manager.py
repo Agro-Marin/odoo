@@ -13,7 +13,7 @@ class EventManager:
         self.events = []
         self.sessions = {}
 
-    def _delete_expired_sessions(self, ttl=70):
+    def _remove_expired_sessions(self, ttl=70):
         """Clear sessions that are no longer called.
 
         :param int ttl: time a session can stay unused before being deleted
@@ -37,7 +37,7 @@ class EventManager:
             "result": {},
             "time_request": time.time(),
         }
-        self._delete_expired_sessions()
+        self._remove_expired_sessions()
 
         self.sessions[session_id] = session
         return session

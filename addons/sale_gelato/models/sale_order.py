@@ -97,7 +97,7 @@ class SaleOrder(models.Model):
         }
         try:
             api_key = self.company_id.sudo().gelato_api_key
-            data = utils.make_request(api_key, "order", "v4", "orders", payload=payload)
+            data = utils.send_request(api_key, "order", "v4", "orders", payload=payload)
 
             self.env.cr.postcommit.add(
                 partial(self._confirm_order_on_gelato, data["id"])
@@ -153,7 +153,7 @@ class SaleOrder(models.Model):
         try:
             api_key = self.company_id.sudo().gelato_api_key
             payload = {"orderType": "order"}
-            data = utils.make_request(
+            data = utils.send_request(
                 api_key,
                 "order",
                 "v4",
@@ -187,7 +187,7 @@ class SaleOrder(models.Model):
         data = None
         try:
             api_key = self.company_id.sudo().gelato_api_key
-            data = utils.make_request(
+            data = utils.send_request(
                 api_key, "order", "v4", f"orders/{gelato_order_id}", method="DELETE"
             )
         except UserError:

@@ -56,7 +56,7 @@ function payloadChanged(fromCacheValue, result) {
     return !deepEqual(fromCacheValue, result);
 }
 
-function validateSettings(
+function checkSettings(
     /** @type {{ type: string, update: string }} */ { type, update },
 ) {
     if (!["ram", "disk"].includes(type)) {
@@ -573,7 +573,7 @@ export class RPCCache {
             onRequestIssued = undefined,
         } = {},
     ) {
-        validateSettings({ type, update });
+        checkSettings({ type, update });
         /** @type {{ crypto: Crypto, indexedDB: IndexedDB } | null} */
         const useDisk =
             type === "disk" && this.crypto && this.indexedDB

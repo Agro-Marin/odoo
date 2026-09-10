@@ -315,7 +315,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             return request.redirect(f"/web/login?redirect={request.httprequest.path}")
 
         is_category_in_query = category and isinstance(category, str)
-        category = self._validate_and_get_category(category)
+        category = self._get_category(category)
         # If the category is provided as a query parameter (which is deprecated), we redirect to the
         # "correct" shop URL, where the category has been removed from the query parameters and
         # added to the path.
@@ -629,7 +629,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 return request.redirect(self._get_shop_path(category))
 
         is_category_in_query = category and isinstance(category, str)
-        category = self._validate_and_get_category(category)
+        category = self._get_category(category)
         query = self._get_filtered_query_string(
             request.httprequest.query_string.decode(), keys_to_remove=["category"]
         )
@@ -698,7 +698,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         # Redirect to the "correct" product URL, which doesn't include `/product`, and where the
         # category has been removed from the query parameters and added to the path.
         category = int(category) if str(category).isdigit() else False
-        category = self._validate_and_get_category(category)
+        category = self._get_category(category)
         query = self._get_filtered_query_string(
             request.httprequest.query_string.decode(), keys_to_remove=["category"]
         )
@@ -2271,7 +2271,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             category.cover_image = image_data
 
     @staticmethod
-    def _populate_currency_and_pricelist(kwargs):
+    def _update_currency_and_pricelist(kwargs):
         website = request.website
         kwargs.update(
             {
@@ -2281,7 +2281,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         )
 
     @staticmethod
-    def _validate_and_get_category(category):
+    def _get_category(category):
         """Validate and return the `product.public.category` record corresponding to the provided
         category, which can be a record, a record id, or a slug.
 

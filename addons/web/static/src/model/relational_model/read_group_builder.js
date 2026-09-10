@@ -11,7 +11,7 @@ import { getAggregateSpecifications, getGroupServerValue } from "./field_values.
  * @param {Record<string, any>} groups
  * @returns {Array<Record<string, any>>}
  */
-function buildOpeningInfo(groups) {
+function getOpeningInfo(groups) {
     return Object.values(groups).map((group) => {
         const field = group.fields[group.groupByFieldName];
         const value =
@@ -27,7 +27,7 @@ function buildOpeningInfo(groups) {
             limit: group.list.limit,
             offset: group.list.offset,
             progressbar_domain: group.extraDomain,
-            groups: group.list.groups && buildOpeningInfo(group.list.groups),
+            groups: group.list.groups && getOpeningInfo(group.list.groups),
         };
     });
 }
@@ -43,13 +43,13 @@ function buildOpeningInfo(groups) {
  * @param {WebReadGroupBuilderDeps} deps
  * @returns {{ aggregates: string[]; params: Record<string, any> }}
  */
-export function buildWebReadGroupParams(config, deps) {
+export function getWebReadGroupParams(config, deps) {
     const { groupByInfo, initialLimit } = deps;
     const aggregates = getAggregateSpecifications(
         config.fields,
         config.fieldsToAggregate,
     );
-    const currentGroupInfos = buildOpeningInfo(
+    const currentGroupInfos = getOpeningInfo(
         /** @type {Record<string, any>} */ (config.groups),
     );
     const { activeFields, fields } = config;

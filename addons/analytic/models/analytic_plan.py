@@ -482,7 +482,7 @@ class AccountAnalyticPlan(models.Model):
                 )
         return res
 
-    def _calculate_distribution_amount(
+    def _get_distribution_amount(
         self, amount, percentage, total_percentage, distribution_on_each_plan
     ):
         """

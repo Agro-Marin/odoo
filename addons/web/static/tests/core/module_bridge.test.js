@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
-    buildBridgeModuleSource,
+    getBridgeModuleSource,
     isLoaderBridgeUrl,
     makeLazyFacade,
     specToModuleUrl,
@@ -13,7 +13,7 @@ describe.current.tags("headless");
 
 describe("bridge source generation", () => {
     test("emits the exact shape of the Python generator (_bridge_shim_source)", () => {
-        const source = buildBridgeModuleSource("@web/core/x", ["alpha"]);
+        const source = getBridgeModuleSource("@web/core/x", ["alpha"]);
         expect(source).toBe(
             [
                 `let _d, _e0;`,
@@ -32,7 +32,7 @@ describe("bridge source generation", () => {
     });
 
     test("skips 'default' and non-identifier export names", () => {
-        const source = buildBridgeModuleSource("@web/core/x", [
+        const source = getBridgeModuleSource("@web/core/x", [
             "default",
             "valid_name",
             "invalid-name",
@@ -49,7 +49,7 @@ describe("bridge source generation", () => {
     test("a producer that registers later still reaches the bridge", async () => {
         const spec = "@probe/registers/late";
         const mod = await import(
-            toDataModuleUrl(buildBridgeModuleSource(spec, ["alpha", "beta"]))
+            toDataModuleUrl(getBridgeModuleSource(spec, ["alpha", "beta"]))
         );
         expect(mod.alpha).toBe(undefined);
         expect(mod.default).toBe(undefined);
@@ -62,7 +62,7 @@ describe("bridge source generation", () => {
     });
 
     test("specifier is JSON-quoted (script-safe)", () => {
-        const source = buildBridgeModuleSource(`@web/we"ird`, []);
+        const source = getBridgeModuleSource(`@web/we"ird`, []);
         expect(source).toInclude(JSON.stringify(`@web/we"ird`));
     });
 
@@ -145,7 +145,7 @@ describe("makeLazyFacade (bridge-safe lazy exports)", () => {
 
 describe("bridge source with awkward export names", () => {
     test("a reserved word is re-exported under an alias, not `export const`", () => {
-        const source = buildBridgeModuleSource("@web/x", ["foo", "class", "await"]);
+        const source = getBridgeModuleSource("@web/x", ["foo", "class", "await"]);
         expect(source).not.toInclude("export const class");
         expect(source).toInclude("_m.class");
         expect(source).toInclude("as class");
@@ -154,7 +154,7 @@ describe("bridge source with awkward export names", () => {
     });
 
     test("the generated source parses as a module", async () => {
-        const source = buildBridgeModuleSource("@web/x", [
+        const source = getBridgeModuleSource("@web/x", [
             "ok",
             "class",
             "new",

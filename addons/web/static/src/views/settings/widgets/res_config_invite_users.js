@@ -46,7 +46,7 @@ class ResConfigInviteUsers extends Component {
      * @param {string} email
      * @returns {boolean}
      */
-    validateEmail(email) {
+    isValidEmail(email) {
         const re =
             /^([a-z0-9][-a-z0-9_+.]*)@((?:[\w-]+\.)*\w[\w-]{0,66})\.([a-z]{2,63}(?:\.[a-z]{2})?)$/i;
         return re.test(email);
@@ -67,7 +67,7 @@ class ResConfigInviteUsers extends Component {
         }
         const invalidEmails = [];
         for (const email of this.emails) {
-            if (!this.validateEmail(email)) {
+            if (!this.isValidEmail(email)) {
                 invalidEmails.push(email);
             }
         }

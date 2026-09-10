@@ -22,7 +22,7 @@ class DigestDigest(models.Model):
                 _("Do not have access, skip this data for user's digest email")
             )
 
-        self._calculate_company_based_kpi(
+        self._get_company_based_kpi(
             "project.task",
             "kpi_project_task_opened_value",
             additional_domain=[

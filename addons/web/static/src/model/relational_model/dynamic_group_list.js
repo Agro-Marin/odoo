@@ -91,8 +91,8 @@ export class DynamicGroupList extends DynamicList {
         await this.model.mutex.exec(() => this._createGroup(groupName, foldField));
     }
 
-    async deleteGroups(groups) {
-        await this.model.mutex.exec(() => this._deleteGroups(groups));
+    async removeGroups(groups) {
+        await this.model.mutex.exec(() => this._removeGroups(groups));
     }
 
     /**
@@ -199,7 +199,7 @@ export class DynamicGroupList extends DynamicList {
 
     async selectDomain(value) {
         return this.model.mutex.exec(async () => {
-            await this._ensureCorrectRecordCount();
+            await this._updateRecordCount();
             this._selectDomain(value);
         });
     }
@@ -345,7 +345,7 @@ export class DynamicGroupList extends DynamicList {
         );
     }
 
-    async _deleteGroups(groups) {
+    async _removeGroups(groups) {
         const shouldReload = groups.some((g) => g.count > 0);
         const succeeded = await this._unlinkGroups(groups);
         if (succeeded === false) {
@@ -369,7 +369,7 @@ export class DynamicGroupList extends DynamicList {
         }
     }
 
-    async _ensureCorrectRecordCount() {
+    async _updateRecordCount() {
         if (!this.isRecordCountTrustable) {
             this._countedDomainKey = JSON.stringify(this.domain);
             this._nbRecordsMatchingDomain = await this.model.orm.searchCount(
@@ -395,7 +395,7 @@ export class DynamicGroupList extends DynamicList {
             { commit: /** @type {any} */ (this.setData.bind(this)) },
         );
         if (this.isDomainSelected) {
-            await this._ensureCorrectRecordCount();
+            await this._updateRecordCount();
         }
     }
 
@@ -427,7 +427,7 @@ export class DynamicGroupList extends DynamicList {
     async _toggleSelection() {
         if (!this.records.length) {
             if (!this.isDomainSelected) {
-                await this._ensureCorrectRecordCount();
+                await this._updateRecordCount();
                 this._selectDomain(true);
             } else {
                 this._selectDomain(false);

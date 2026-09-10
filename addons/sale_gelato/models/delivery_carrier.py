@@ -65,7 +65,7 @@ class ProviderGelato(models.Model):
         }
         try:
             api_key = order.company_id.sudo().gelato_api_key
-            order_data = utils.make_request(
+            order_data = utils.send_request(
                 api_key, "order", "v4", "orders:quote", payload=payload
             )
         except UserError as e:

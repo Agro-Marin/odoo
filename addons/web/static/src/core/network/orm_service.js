@@ -8,7 +8,7 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 
 /** @param {any} value */
-function validateModel(value) {
+function checkModel(value) {
     if (typeof value !== "string" || !value.length) {
         throw new Error(`Invalid model name: ${value}`);
     }
@@ -18,7 +18,7 @@ function validateModel(value) {
  * @param {string} type
  * @param {any} value
  */
-function validatePrimitiveList(name, type, value) {
+function checkPrimitiveList(name, type, value) {
     if (!Array.isArray(value) || value.some((val) => typeof val !== type)) {
         throw new Error(`Invalid ${name} list: ${value}`);
     }
@@ -27,7 +27,7 @@ function validatePrimitiveList(name, type, value) {
  * @param {string} name
  * @param {any} obj
  */
-function validateObject(name, obj) {
+function checkObject(name, obj) {
     if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
         throw new Error(`${name} should be an object`);
     }
@@ -36,7 +36,7 @@ function validateObject(name, obj) {
  * @param {string} name
  * @param {any} array
  */
-function validateArray(name, array) {
+function checkArray(name, array) {
     if (!Array.isArray(array)) {
         throw new Error(`${name} should be an array`);
     }
@@ -104,7 +104,7 @@ export class ORM {
      * @returns {Promise<any>}
      */
     call(model, method, args = [], kwargs = {}) {
-        validateModel(model);
+        checkModel(model);
         if (NON_IDEMPOTENT_METHODS.has(method)) {
             if (this._retry) {
                 throw new Error(
@@ -162,9 +162,9 @@ export class ORM {
      * @returns {Promise<number[]>}
      */
     create(model, records, kwargs = {}) {
-        validateArray("records", records);
+        checkArray("records", records);
         for (const record of records) {
-            validateObject("record", record);
+            checkObject("record", record);
         }
         return this.call(model, "create", [records], kwargs);
     }
@@ -177,9 +177,9 @@ export class ORM {
      * @returns {Promise<any[]>}
      */
     read(model, ids, fields, kwargs = {}) {
-        validatePrimitiveList("ids", "number", ids);
+        checkPrimitiveList("ids", "number", ids);
         if (fields) {
-            validatePrimitiveList("fields", "string", fields);
+            checkPrimitiveList("fields", "string", fields);
         }
         if (!ids.length) {
             return Promise.resolve([]);
@@ -196,9 +196,9 @@ export class ORM {
      * @returns {Promise<any[]>}
      */
     async formattedReadGroup(model, domain, groupby, aggregates, kwargs = {}) {
-        validateArray("domain", domain);
-        validatePrimitiveList("groupby", "string", groupby);
-        validatePrimitiveList("aggregates", "string", aggregates);
+        checkArray("domain", domain);
+        checkPrimitiveList("groupby", "string", groupby);
+        checkPrimitiveList("aggregates", "string", aggregates);
         /** @type {any[]} */
         const res = await this.call(model, "formatted_read_group", [], {
             ...kwargs,
@@ -227,9 +227,9 @@ export class ORM {
         aggregates,
         kwargs = {},
     ) {
-        validateArray("domain", domain);
-        validateArray("grouping_sets", grouping_sets);
-        validatePrimitiveList("aggregates", "string", aggregates);
+        checkArray("domain", domain);
+        checkArray("grouping_sets", grouping_sets);
+        checkPrimitiveList("aggregates", "string", aggregates);
         /** @type {any[][]} */
         const res = await this.call(model, "formatted_read_grouping_sets", [], {
             ...kwargs,
@@ -252,7 +252,7 @@ export class ORM {
      * @returns {Promise<any[]>}
      */
     search(model, domain, kwargs = {}) {
-        validateArray("domain", domain);
+        checkArray("domain", domain);
         return this.call(model, "search", [domain], kwargs);
     }
 
@@ -264,9 +264,9 @@ export class ORM {
      * @returns {Promise<any[]>}
      */
     searchRead(model, domain, fields, kwargs = {}) {
-        validateArray("domain", domain);
+        checkArray("domain", domain);
         if (fields) {
-            validatePrimitiveList("fields", "string", fields);
+            checkPrimitiveList("fields", "string", fields);
         }
         return this.call(model, "search_read", [], {
             ...kwargs,
@@ -282,7 +282,7 @@ export class ORM {
      * @returns {Promise<number>}
      */
     searchCount(model, domain, kwargs = {}) {
-        validateArray("domain", domain);
+        checkArray("domain", domain);
         return this.call(model, "search_count", [domain], kwargs);
     }
 
@@ -293,7 +293,7 @@ export class ORM {
      * @returns {Promise<boolean>}
      */
     unlink(model, ids, kwargs = {}) {
-        validatePrimitiveList("ids", "number", ids);
+        checkPrimitiveList("ids", "number", ids);
         if (!ids.length) {
             return Promise.resolve(true);
         }
@@ -309,9 +309,9 @@ export class ORM {
      * @returns {Promise<{ groups: any[]; length: number }>}
      */
     webReadGroup(model, domain, groupby, aggregates, kwargs = {}) {
-        validateArray("domain", domain);
-        validatePrimitiveList("groupby", "string", groupby);
-        validatePrimitiveList("aggregates", "string", aggregates);
+        checkArray("domain", domain);
+        checkPrimitiveList("groupby", "string", groupby);
+        checkPrimitiveList("aggregates", "string", aggregates);
         return this.call(model, "web_read_group", [], {
             ...kwargs,
             domain,
@@ -329,7 +329,7 @@ export class ORM {
      * @returns {Promise<any[]>}
      */
     webRead(model, ids, kwargs = {}) {
-        validatePrimitiveList("ids", "number", ids);
+        checkPrimitiveList("ids", "number", ids);
         if (!ids.length) {
             return Promise.resolve([]);
         }
@@ -347,7 +347,7 @@ export class ORM {
      * @returns {Promise<any[]>}
      */
     webResequence(model, ids, kwargs = {}) {
-        validatePrimitiveList("ids", "number", ids);
+        checkPrimitiveList("ids", "number", ids);
         if (!ids.length) {
             return Promise.resolve([]);
         }
@@ -364,7 +364,7 @@ export class ORM {
      * @returns {Promise<{ records: any[]; length: number }>}
      */
     webSearchRead(model, domain, kwargs = {}) {
-        validateArray("domain", domain);
+        checkArray("domain", domain);
         return this.call(model, "web_search_read", [], { ...kwargs, domain });
     }
 
@@ -376,8 +376,8 @@ export class ORM {
      * @returns {Promise<boolean>}
      */
     write(model, ids, data, kwargs = {}) {
-        validatePrimitiveList("ids", "number", ids);
-        validateObject("data", data);
+        checkPrimitiveList("ids", "number", ids);
+        checkObject("data", data);
         return this.call(model, "write", [ids, data], kwargs);
     }
 
@@ -391,8 +391,8 @@ export class ORM {
      * @returns {Promise<any[]>}
      */
     webSave(model, ids, data, kwargs = {}) {
-        validatePrimitiveList("ids", "number", ids);
-        validateObject("data", data);
+        checkPrimitiveList("ids", "number", ids);
+        checkObject("data", data);
         return this.call(model, "web_save", [ids, data], kwargs);
     }
 
@@ -406,10 +406,10 @@ export class ORM {
      * @returns {Promise<any[]>}
      */
     webSaveMulti(model, ids, data, kwargs = {}) {
-        validatePrimitiveList("ids", "number", ids);
-        validateArray("data", data);
+        checkPrimitiveList("ids", "number", ids);
+        checkArray("data", data);
         data.forEach((d) => {
-            validateObject("data item", d);
+            checkObject("data item", d);
         });
         return this.call(model, "web_save_multi", [ids, data], kwargs);
     }

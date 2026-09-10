@@ -93,9 +93,9 @@ class TestBridgeShimLiterals(TransactionCase):
         bridge_js = file_path("web/static/src/core/module_bridge.js")
         names = sorted(self.NAMES)
         script = (
-            f"import {{ buildBridgeModuleSource }} from {json.dumps(bridge_js)};\n"
+            f"import {{ getBridgeModuleSource }} from {json.dumps(bridge_js)};\n"
             f"process.stdout.write("
-            f"buildBridgeModuleSource({json.dumps('@web/core/x')}, "
+            f"getBridgeModuleSource({json.dumps('@web/core/x')}, "
             f"{json.dumps(names)}));\n"
         )
 

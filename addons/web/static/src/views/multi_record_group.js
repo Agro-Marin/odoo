@@ -60,7 +60,7 @@ export function useGroupManagement(ctx) {
 
         /** @param {any} group */
         async deleteGroup(group) {
-            await ctx.getList().deleteGroups([group]);
+            await ctx.getList().removeGroups([group]);
             ctx.onGroupDeleted?.();
         },
 

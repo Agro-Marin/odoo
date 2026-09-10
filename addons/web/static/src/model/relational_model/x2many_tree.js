@@ -86,7 +86,7 @@ export function healSubtreeReplayFailures(record) {
  * @param {Set<unknown>} [seen]
  * @returns {Record<string, any>}
  */
-export function buildCommitSpec(record, seen = new Set()) {
+export function getCommitSpec(record, seen = new Set()) {
     /** @type {Record<string, any>} */
     const spec = {};
     if (seen.has(record)) {
@@ -96,7 +96,7 @@ export function buildCommitSpec(record, seen = new Set()) {
     for (const [fieldName, list] of x2manyLists(record)) {
         const nested = {};
         for (const child of list.cachedRecords) {
-            Object.assign(nested, buildCommitSpec(child, seen));
+            Object.assign(nested, getCommitSpec(child, seen));
         }
         const hasNested = Object.keys(nested).length > 0;
         if (!list.hasStagedCommands && !hasNested) {

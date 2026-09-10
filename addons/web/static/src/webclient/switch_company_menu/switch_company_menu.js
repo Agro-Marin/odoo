@@ -174,10 +174,10 @@ export class SwitchCompanyMenu extends Component {
             !filter || normalise(name).includes(filter);
         /** @type {Map<number, boolean>} */
         const inSubtree = new Map();
-        const scanSubtree = (company) => {
+        const matchesSubtree = (company) => {
             let found = matches(company.name);
             for (const child of childrenOf(company)) {
-                if (scanSubtree(child)) {
+                if (matchesSubtree(child)) {
                     found = true;
                 }
             }
@@ -199,7 +199,7 @@ export class SwitchCompanyMenu extends Component {
         const roots = user.allowedCompaniesWithAncestors
             .filter((c) => !c.parent_id)
             .sort((c1, c2) => c1.sequence - c2.sequence);
-        roots.forEach(scanSubtree);
+        roots.forEach(matchesSubtree);
         roots.forEach((c) => emit(c, 0, false));
 
         return companies;

@@ -115,7 +115,7 @@ two paths and nothing else, so between the port and this change `label` was draw
 nowhere while its help string said it was shown, and an `expression` edge offered
 a port reading "if" with the expression visible nowhere at all. `FlowEditor` now
 takes a `getConnectionLabel` prop, symmetric with `getConnectionClass`, and draws
-the result at the midpoint `buildConnectionGeometry` already computes.
+the result at the midpoint `getConnectionGeometry` already computes.
 
 ### What a typed step draws
 

@@ -9,9 +9,9 @@ import { useViewButtons } from "@web/views/view_button/view_button_hook";
 import { ViewController } from "@web/views/view_controller";
 import { useDeleteRecords, useExportRecords } from "@web/views/view_hook";
 import {
-    buildStaticActionMenuItems,
     computeArchiveEnabled,
     computeModelOptions,
+    prepareStaticActionMenuItems,
 } from "@web/views/view_utils";
 
 export class MultiRecordController extends ViewController {
@@ -147,7 +147,7 @@ export class MultiRecordController extends ViewController {
     }
 
     getStaticActionMenuItems() {
-        return buildStaticActionMenuItems({
+        return prepareStaticActionMenuItems({
             export: {
                 isAvailable: () => this.isExportEnable,
                 callback: () => this.exportRecords(),

@@ -27,7 +27,7 @@ from ._protocols import ir_http
 from .constants import (
     REJECTED_HTTP_METHODS,
     STATIC_ALLOWED_METHODS,
-    is_ensure_db_path,
+    is_select_db_path,
     prepare_allow_header,
 )
 from .core import _request_stack, request
@@ -245,7 +245,7 @@ class Application:
         if not durable:
             request.session.can_save = False
         request.session.logout()
-        if is_ensure_db_path(httprequest.path):
+        if is_select_db_path(httprequest.path):
             args_nodb = request.httprequest.args.copy()
             args_nodb.pop("db", None)
             request.reroute(

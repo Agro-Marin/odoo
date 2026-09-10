@@ -44,7 +44,7 @@ class ClaudeClient(BaseAIClient):
     MIN_TEMPERATURE = 0.0
     MAX_TOKENS_LIMIT = 8192
 
-    def _validate_response(self, response_data):
+    def _get_response_body(self, response_data):
         if not isinstance(response_data, dict):
             raise CommError(
                 f"Invalid response type: expected dict but got {type(response_data).__name__}",
@@ -91,7 +91,7 @@ class ClaudeClient(BaseAIClient):
     ):
         model = self._resolve_model(model)
         try:
-            self._validate_params(
+            self._check_params(
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -119,7 +119,7 @@ class ClaudeClient(BaseAIClient):
                 len(messages),
             )
             response = self._client.post("/messages", json=payload)
-            return self._validate_response(response)
+            return self._get_response_body(response)
 
         except ValueError as e:
             _logger.error("Invalid parameters for Claude create_message: %s", e)
@@ -147,7 +147,7 @@ class ClaudeClient(BaseAIClient):
     def streaming_completion(self, messages, model=None, **kwargs):
         model = self._resolve_model(model)
         try:
-            self._validate_params(model=model, temperature=kwargs.get("temperature"))
+            self._check_params(model=model, temperature=kwargs.get("temperature"))
 
             payload = {
                 "model": model,

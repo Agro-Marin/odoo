@@ -152,7 +152,7 @@ export class SearchPanel extends Component {
         return this.dropdownStates[sectionId];
     }
 
-    ensureExpansionState() {
+    initExpansionState() {
         for (const category of this.env.searchModel.getSections(
             (s) => s.type === "category",
         )) {
@@ -161,7 +161,7 @@ export class SearchPanel extends Component {
     }
 
     expandDefaultValue() {
-        this.ensureExpansionState();
+        this.initExpansionState();
         if (this.hasImportedState) {
             return;
         }

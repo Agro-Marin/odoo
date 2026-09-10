@@ -132,7 +132,7 @@ async function applyDisplayNames(entries, breadcrumbCache, onUnresolved) {
  * @param {ActionManager} am
  * @returns {Breadcrumb[]}
  */
-export function buildBreadcrumbs(stack, am) {
+export function prepareBreadcrumbs(stack, am) {
     return stack
         .filter((controller) => !isMenuController(controller.action))
         .map((controller) => ({

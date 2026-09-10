@@ -219,7 +219,7 @@ class AccountTaxUnit(models.Model):
                 )
 
     @api.constrains("company_ids")
-    def _check_companies(self):
+    def _check_company_ids(self):
         for record in self:
             if len(record.company_ids) < 2:
                 raise ValidationError(

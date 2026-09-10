@@ -33,7 +33,7 @@ class PaymobController(http.Controller):
             ._search_by_reference("paymob", data)
         )
         if tx_sudo:
-            self._verify_signature(data, tx_sudo)
+            self._check_signature(data, tx_sudo)
             tx_sudo._process("paymob", data)
         return request.redirect("/payment/status")
 
@@ -57,7 +57,7 @@ class PaymobController(http.Controller):
             ._search_by_reference("paymob", normalized_data)
         )
         if tx_sudo:
-            self._verify_signature(data, tx_sudo)
+            self._check_signature(data, tx_sudo)
             tx_sudo._process("paymob", normalized_data)
         return ""  # Acknowledge the notification
 
@@ -97,7 +97,7 @@ class PaymobController(http.Controller):
         )
         return response
 
-    def _verify_signature(self, payment_data, tx_sudo):
+    def _check_signature(self, payment_data, tx_sudo):
         """Check that the received signature matches the expected one.
 
         :param dict payment_data: The notification payload containing the received signature.

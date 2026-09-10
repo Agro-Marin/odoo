@@ -341,7 +341,7 @@ class OutboundAPIClient:
         skip_logging = kwargs.pop("skip_logging", False)
         raise_for_status = kwargs.pop("raise_for_status", True)
 
-        url = self._build_url(endpoint)
+        url = self._get_url(endpoint)
 
         if (
             method == "GET"
@@ -356,7 +356,7 @@ class OutboundAPIClient:
         if not skip_rate_limit:
             self.check_rate_limit()
 
-        self._prepare_request(url, kwargs)
+        self._update_request_kwargs(url, kwargs)
         start_time = datetime.now()
 
         try:
@@ -422,8 +422,8 @@ class OutboundAPIClient:
             )
             raise CommError(_("Unexpected error: %s") % error) from _masked_cause(e)
 
-    def _prepare_request(self, url, kwargs):
-        kwargs["headers"] = self._build_headers(kwargs.pop("headers", {}))
+    def _update_request_kwargs(self, url, kwargs):
+        kwargs["headers"] = self._get_headers(kwargs.pop("headers", {}))
 
         if "timeout" not in kwargs:
             kwargs["timeout"] = (
@@ -616,7 +616,7 @@ class OutboundAPIClient:
 
         return responses
 
-    def _build_url(self, endpoint):
+    def _get_url(self, endpoint):
         if endpoint.startswith(("http://", "https://")):
             return endpoint
 
@@ -675,7 +675,7 @@ class OutboundAPIClient:
 
         return full_url
 
-    def _build_headers(self, additional_headers=None):
+    def _get_headers(self, additional_headers=None):
         credential_headers = (
             self.credential.get_auth_headers() if self.credential else {}
         )
@@ -769,7 +769,7 @@ class OutboundAPIClient:
         except Exception as e:
             _logger.debug("Failed to increment cache error counter: %s", e)
 
-    def _ensure_log_hooks(self):
+    def _register_log_hooks(self):
         if "api.event.log.values" not in self.env.cr.precommit.data:
             self.env.cr.precommit.data["api.event.log.values"] = []
 
@@ -916,7 +916,7 @@ class OutboundAPIClient:
         error=None,
         error_type=None,
     ):
-        self._ensure_log_hooks()
+        self._register_log_hooks()
 
         safe_headers = self._redact_headers(request_kwargs.get("headers"))
         safe_body = self._serialize_payload_for_log(

@@ -8,7 +8,7 @@
                     <div class="list-group my-3">
                         <t t-foreach="state.users" t-as="user" t-key="user.login">
                             <div class="list-group-item d-flex justify-content-between align-items-center p-0">
-                                <button type="button" class="o_user_switch_login list-group-item-action d-flex justify-content-begin align-items-center border-0 bg-transparent text-start flex-fill px-3 py-2" t-on-click="() => this.fillForm(user.login)">
+                                <button type="button" class="o_user_switch_login list-group-item-action d-flex justify-content-begin align-items-center border-0 bg-transparent text-start flex-fill px-3 py-2" t-on-click="() => this.updateForm(user.login)">
                                     <img class="o_avatar o_user_avatar rounded me-2" t-attf-src="{{getAvatarUrl(user)}}" t-att-alt="user.login"/>
                                     <t t-esc="user.name" />
                                 </button>
@@ -18,7 +18,7 @@
                             </div>
                         </t>
                     </div>
-                    <button type="button" class="btn btn-link btn-sm w-100" t-on-click="() => this.fillForm()">
+                    <button type="button" class="btn btn-link btn-sm w-100" t-on-click="() => this.updateForm()">
                         <i class="fa-regular fa-circle-user"/> <span class="ms-1">Use another user</span>
                     </button>
                 </div>

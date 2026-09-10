@@ -29,9 +29,9 @@ export class DocumentsDetailsMany2ManyTagsField extends Many2ManyTagsField {
         }
     }
 
-    async deleteTag(id) {
+    async removeTag(id) {
         await this._preventMultiEdit(async () => {
-            await super.deleteTag(id);
+            await super.removeTag(id);
             await this.props.record.save();
         });
     }

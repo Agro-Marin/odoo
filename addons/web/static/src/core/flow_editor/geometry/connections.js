@@ -3,7 +3,7 @@
 
 import { getNodeRect, getObstacleRects } from "./nodes.js";
 import { getPortAnchor } from "./ports.js";
-import { buildOrthogonalPath, buildSelfLoopPath } from "./router.js";
+import { getOrthogonalPath, getSelfLoopPath } from "./router.js";
 
 /**
  * @typedef FlowConnectionGeometry
@@ -27,7 +27,7 @@ import { buildOrthogonalPath, buildSelfLoopPath } from "./router.js";
  * @param {number} [params.cornerRadius]
  * @returns {FlowConnectionGeometry | null}
  */
-export function buildConnectionGeometry({
+export function getConnectionGeometry({
     connection,
     sourceNode,
     targetNode,
@@ -71,7 +71,7 @@ export function buildConnectionGeometry({
           });
     const geometry =
         sourceNode.id === targetNode.id
-            ? buildSelfLoopPath({
+            ? getSelfLoopPath({
                   start,
                   end,
                   nodeRect: getNodeRect(sourceNode, defaultNodeSize),
@@ -79,7 +79,7 @@ export function buildConnectionGeometry({
                   lead,
                   cornerRadius,
               })
-            : buildOrthogonalPath({
+            : getOrthogonalPath({
                   start,
                   end,
                   obstacles,

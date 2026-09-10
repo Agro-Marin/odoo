@@ -112,7 +112,7 @@ Class constant: `pager_step = 20`.
 | HTTP POST | `/website/form/<string:model_name>` | public | `methods=["POST"]`, `website=True`, `csrf=False`, `captcha="website_form"` | `website_form()` | Validate + insert a submitted form record into `<model_name>`. Partial CSRF (only when session authenticated). Savepoint-wrapped; returns JSON `{id}` / `{error}` / `{error_fields}` / `False`. |
 
 > **Form pipeline helpers** (non-route, `form.py`): `_handle_website_form` →
-> `extract_data` → `insert_record` / `insert_attachment`, with per-type
+> `extract_data` → `create_record` / `create_attachments`, with per-type
 > `_input_filters` (`identity`, `integer`, `floating`, `html`, `boolean`,
 > `binary`, `one2many`, `many2many`, `tags`). For `mail.mail` submissions it
 > enforces an HMAC `website_form_signature` (anti open-relay) before `.send()`.
@@ -125,7 +125,7 @@ All JSONRPC, all `auth="user"`.
 
 | Method | Route | Kwargs | Handler | Purpose |
 |--------|-------|--------|---------|---------|
-| JSONRPC | `/website/fetch_dashboard_data` | `readonly=True` | `fetch_dashboard_data()` | Website dashboard data (group flags, website list, Plausible analytics share URL). |
+| JSONRPC | `/website/fetch_dashboard_data` | `readonly=True` | `get_dashboard_data()` | Website dashboard data (group flags, website list, Plausible analytics share URL). |
 | HTTP | `/website/iframefallback` | `website=True`, `readonly=True` | `get_iframe_fallback()` | Render `website.iframefallback` (editor iframe fallback). |
 | JSONRPC | `/website/check_new_content_access_rights` | `readonly=True` | `check_create_access_rights()` | Per-model `create` access for the "New Content" modal. Requires `group_website_restricted_editor` else Forbidden. |
 | JSONRPC | `/website/track_installing_modules` | `readonly=True` | `website_track_installing_modules()` | Track install progress of selected configurator features/dependencies. |

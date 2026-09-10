@@ -25,7 +25,7 @@ import { getId, getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { Group } from "./group.js";
 import { postprocessReadGroup } from "./group_postprocessor.js";
-import { buildWebReadGroupParams } from "./read_group_builder.js";
+import { getWebReadGroupParams } from "./read_group_builder.js";
 import { RelationalRecord } from "./record.js";
 import { SpecialDataCache } from "./special_data_cache.js";
 import { StaticList } from "./static_list.js";
@@ -799,7 +799,7 @@ export class RelationalModel extends Model {
      * @returns {Promise<{ groups: any[]; length: number }>}
      */
     async webReadGroup(config, cache, signal) {
-        const { aggregates, params } = buildWebReadGroupParams(config, {
+        const { aggregates, params } = getWebReadGroupParams(config, {
             groupByInfo: this.groupByInfo,
             initialLimit: this.initialLimit,
         });

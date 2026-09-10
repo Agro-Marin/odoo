@@ -20,14 +20,14 @@ import {
 import { Widget } from "@web/views/widgets/widget";
 
 import {
-    buildAnimationOptions,
-    buildElementOptions,
-    buildScaleOptions,
-    buildTooltipItems,
     generateBarLineLegendLabels,
     generatePieLegendLabels,
+    getAnimationOptions,
+    getElementOptions,
     getMaxWidth,
+    getTooltipItems,
     gridOnTop,
+    prepareScaleOptions,
     styleBarChartData,
     styleLineChartData,
     stylePieChartData,
@@ -120,7 +120,7 @@ export class GraphRenderer extends Component {
             maxWidth: getMaxWidth(this.chart.chartArea),
             measure: measures[measure].string,
             mode: this.model.metaData.mode,
-            tooltipItems: buildTooltipItems(
+            tooltipItems: getTooltipItems(
                 data,
                 metaData,
                 tooltipModel,
@@ -260,7 +260,7 @@ export class GraphRenderer extends Component {
 
     /** @returns {Object} */
     getScaleOptions() {
-        return buildScaleOptions(this.model.data, this.model.metaData);
+        return prepareScaleOptions(this.model.data, this.model.metaData);
     }
 
     loadAll() {
@@ -370,11 +370,11 @@ export class GraphRenderer extends Component {
                 legend: this.getLegendOptions(),
                 tooltip: this.getTooltipOptions(),
             },
-            elements: buildElementOptions(mode, stacked),
+            elements: getElementOptions(mode, stacked),
             onResize: () => {
                 this.resizeChart(options);
             },
-            animation: buildAnimationOptions(mode, this.model.data.labels.length),
+            animation: getAnimationOptions(mode, this.model.data.labels.length),
         };
         if (mode === "line") {
             options.interaction = {

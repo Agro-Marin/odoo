@@ -80,7 +80,7 @@ class BaseAIClient:
         self._default_model = provider.default_model_id.code or ""
         return self._default_model
 
-    def _validate_params(self, model=None, temperature=None, max_tokens=None):
+    def _check_params(self, model=None, temperature=None, max_tokens=None):
         if model is not None and self.VALID_MODELS and model not in self.VALID_MODELS:
             _logger.warning(
                 "Model %r is not in %s's known models %s. Sending it anyway; "

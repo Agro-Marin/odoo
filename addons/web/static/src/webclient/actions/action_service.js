@@ -30,7 +30,7 @@ import { executeActWindowAction } from "./action_executors/act_window.js";
 import { executeClientAction } from "./action_executors/client.js";
 import { executeCloseAction as closeAction } from "./action_executors/close.js";
 import { executeServerAction } from "./action_executors/server.js";
-import { buildActionInfo, buildViewInfo } from "./action_info_builders.js";
+import { prepareActionInfo, prepareViewInfo } from "./action_info_builders.js";
 import {
     loadAction,
     makeController as buildController,
@@ -40,9 +40,9 @@ import { getActionParams as actionParamsOf, makeActionState } from "./action_sta
 import { actionStorage } from "./action_storage.js";
 import { BreadcrumbCache } from "./breadcrumb_cache.js";
 import {
-    buildBreadcrumbs,
     controllersFromState as rebuildControllersFromState,
     isMenuController,
+    prepareBreadcrumbs,
 } from "./breadcrumb_manager.js";
 import { makeControllerComponent } from "./controller_component.js";
 import { loadState } from "./load_state.js";
@@ -374,7 +374,7 @@ export class ActionManager {
     }
 
     getBreadcrumbs(/** @type {any} */ stack) {
-        return buildBreadcrumbs(stack, this);
+        return prepareBreadcrumbs(stack, this);
     }
 
     getActionParams(/** @type {any} */ state) {
@@ -387,7 +387,7 @@ export class ActionManager {
      * @returns {{ props: ActionProps, config: Config }}
      */
     getActionInfo(action, props) {
-        return buildActionInfo(action, props, this);
+        return prepareActionInfo(action, props, this);
     }
 
     /**
@@ -397,7 +397,7 @@ export class ActionManager {
      * @param {Object} props
      */
     getViewInfo(view, action, views, props = {}) {
-        return buildViewInfo(view, action, views, props, this);
+        return prepareViewInfo(view, action, views, props, this);
     }
 
     /**

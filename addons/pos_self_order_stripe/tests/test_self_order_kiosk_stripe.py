@@ -63,7 +63,7 @@ class TestSelfOrderKioskStripe(SelfOrderCommonTest):
         )
 
     def test_get_stripe_creditentials(self):
-        """This test make sure the get_stripe_creditentials method does not crash because of `_verify_authorization` method"""
+        """This test make sure the get_stripe_creditentials method does not crash because of `_get_pos_config_and_table` method"""
         self.pos_config.open_ui()
         stripe_connection_token = "odoo.addons.pos_stripe.models.pos_payment_method.PosPaymentMethod.stripe_connection_token"
         connection_token = {
@@ -86,7 +86,7 @@ class TestSelfOrderKioskStripe(SelfOrderCommonTest):
             )
 
     def test_stripe_capture_payment(self):
-        """This test make sure the stripe_capture_payment method does not crash because of `_verify_authorization` method"""
+        """This test make sure the stripe_capture_payment method does not crash because of `_get_pos_config_and_table` method"""
         self.pos_config.access_token = "access_token"
         self.pos_config.open_ui()
         stripe_capture_payment = "odoo.addons.pos_stripe.models.pos_payment_method.PosPaymentMethod.stripe_capture_payment"

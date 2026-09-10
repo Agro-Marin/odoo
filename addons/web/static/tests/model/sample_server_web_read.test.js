@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
-import { buildSampleORM } from "@web/model/sample_server";
+import { makeSampleORM } from "@web/model/sample_server";
 
 describe.current.tags("headless");
 
@@ -47,7 +47,7 @@ describe("the sample ORM answers the routes the model actually calls", () => {
     test("web_read returns sample rows for the ids it is given", async () => {
         /** @type {any[][]} */
         const calls = [];
-        const orm = buildSampleORM("foo", FIELDS, makeRealOrm(calls));
+        const orm = makeSampleORM("foo", FIELDS, makeRealOrm(calls));
         const records = await orm.webRead("foo", [1, 3], {
             specification: { name: {} },
         });
@@ -59,7 +59,7 @@ describe("the sample ORM answers the routes the model actually calls", () => {
     test("...through _scopedOrm, which is how the model reaches it", async () => {
         /** @type {any[][]} */
         const calls = [];
-        const orm = buildSampleORM("foo", FIELDS, makeRealOrm(calls));
+        const orm = makeSampleORM("foo", FIELDS, makeRealOrm(calls));
         const scoped = RelationalModel.prototype._scopedOrm.call(
             { orm },
             { type: "disk" },

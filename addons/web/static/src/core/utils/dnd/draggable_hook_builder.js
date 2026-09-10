@@ -10,10 +10,10 @@ import {
 } from "./draggable_hook_builder_utils.js";
 import {
     applyParamsToContext,
+    checkParams,
     computeParamValues,
     makeDraggableContext,
     resolveParams,
-    validateParams,
 } from "./draggable_hook_params.js";
 
 export { DRAGGED_CLASS };
@@ -77,7 +77,7 @@ export function makeNativeDraggableHook(hookParams) {
     return {
         [hookName](/** @type {Record<string, any>} */ params) {
             const state = setupHooks.wrapState({ dragging: false, willDrag: false });
-            validateParams(params, allAcceptedParams, defaultParams, makeError);
+            checkParams(params, allAcceptedParams, defaultParams, makeError);
 
             /** @type {DraggableHookContext} */
             const ctx = makeDraggableContext(params.ref, state);

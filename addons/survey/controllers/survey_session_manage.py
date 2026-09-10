@@ -18,12 +18,12 @@ class UserInputSession(http.Controller):
     # than the slice being silent about it.
     MAX_LIVE_ANSWERS = 100
 
-    def _fetch_from_token(self, survey_token: str) -> Any:
+    def _get_from_token(self, survey_token: str) -> Any:
         return request.env["survey.survey"].search(
             [("access_token", "=", survey_token)]
         )
 
-    def _fetch_from_session_code(
+    def _get_from_session_code(
         self, session_code: str
     ) -> tuple[Any, dict[str, Any] | None]:
         if not session_code:
@@ -51,7 +51,7 @@ class UserInputSession(http.Controller):
         website=True,
     )
     def survey_session_manage(self, survey_token: str, **kwargs: Any) -> Response:
-        survey = self._fetch_from_token(survey_token)
+        survey = self._get_from_token(survey_token)
 
         if not survey:
             return NotFound()
@@ -80,7 +80,7 @@ class UserInputSession(http.Controller):
     def survey_session_next_question(
         self, survey_token: str, go_back: bool = False, **kwargs: Any
     ) -> dict[str, Any]:
-        survey = self._fetch_from_token(survey_token)
+        survey = self._get_from_token(survey_token)
 
         if not survey or not survey.session_state:
             return {}
@@ -126,7 +126,7 @@ class UserInputSession(http.Controller):
     def survey_session_results(
         self, survey_token: str, **kwargs: Any
     ) -> dict[str, Any] | bool:
-        survey = self._fetch_from_token(survey_token)
+        survey = self._get_from_token(survey_token)
 
         if not survey or survey.session_state != "in_progress":
             return False
@@ -148,7 +148,7 @@ class UserInputSession(http.Controller):
         website=True,
     )
     def survey_session_leaderboard(self, survey_token: str, **kwargs: Any) -> str:
-        survey = self._fetch_from_token(survey_token)
+        survey = self._get_from_token(survey_token)
 
         if not survey or survey.session_state != "in_progress":
             return ""
@@ -164,7 +164,7 @@ class UserInputSession(http.Controller):
 
     @http.route("/s/<string:session_code>", type="http", auth="public", website=True)
     def survey_start_short(self, session_code: str, **post) -> Response:
-        survey, survey_error = self._fetch_from_session_code(session_code)
+        survey, survey_error = self._get_from_session_code(session_code)
         if survey:
             return request.redirect(survey.get_start_url())
 
@@ -201,7 +201,7 @@ class UserInputSession(http.Controller):
         website=True,
     )
     def survey_check_session_code(self, session_code: str) -> dict[str, Any]:
-        survey, survey_error = self._fetch_from_session_code(session_code)
+        survey, survey_error = self._get_from_session_code(session_code)
         if survey_error:
             return survey_error
         return {"survey_url": survey.get_start_url()}

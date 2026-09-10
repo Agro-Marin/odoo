@@ -20,7 +20,7 @@ class TestProcessingFlows(RazorpayCommon, PaymentHttpCommon):
         url = self._build_url(RazorpayController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_razorpay.controllers.main.RazorpayController._verify_signature"
+                "odoo.addons.payment_razorpay.controllers.main.RazorpayController._check_signature"
             ),
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -36,7 +36,7 @@ class TestProcessingFlows(RazorpayCommon, PaymentHttpCommon):
         url = self._build_url(RazorpayController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_razorpay.controllers.main.RazorpayController._verify_signature"
+                "odoo.addons.payment_razorpay.controllers.main.RazorpayController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -55,7 +55,7 @@ class TestProcessingFlows(RazorpayCommon, PaymentHttpCommon):
         ):
             self._assert_does_not_raise(
                 Forbidden,
-                RazorpayController._verify_signature,
+                RazorpayController._check_signature,
                 self.webhook_payment_data,
                 "valid_signature",
                 tx,
@@ -68,7 +68,7 @@ class TestProcessingFlows(RazorpayCommon, PaymentHttpCommon):
         tx = self._create_transaction("redirect")
         self.assertRaises(
             Forbidden,
-            RazorpayController._verify_signature,
+            RazorpayController._check_signature,
             self.webhook_payment_data,
             None,
             tx,
@@ -85,7 +85,7 @@ class TestProcessingFlows(RazorpayCommon, PaymentHttpCommon):
         ):
             self.assertRaises(
                 Forbidden,
-                RazorpayController._verify_signature,
+                RazorpayController._check_signature,
                 self.webhook_payment_data,
                 "bad_signature",
                 tx,

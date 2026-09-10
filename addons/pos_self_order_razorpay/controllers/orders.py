@@ -15,7 +15,7 @@ class PosSelfOrderControllerRazorpay(PosSelfOrderController):
     def razorpay_payment_status(
         self, access_token, order_id, payment_data, payment_method_id
     ):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         order = pos_config.env["pos.order"].search(
             [("id", "=", order_id), ("config_id", "=", pos_config.id)], limit=1
         )
@@ -71,7 +71,7 @@ class PosSelfOrderControllerRazorpay(PosSelfOrderController):
     def razorpay_cancel_status(
         self, access_token, order_id, payment_data, payment_method_id
     ):
-        pos_config = self._verify_pos_config(access_token)
+        pos_config = self._get_pos_config(access_token)
         order = pos_config.env["pos.order"].search(
             [("id", "=", order_id), ("config_id", "=", pos_config.id)], limit=1
         )

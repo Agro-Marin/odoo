@@ -20,8 +20,8 @@ import { useService } from "@web/core/utils/hooks";
 import { SignalStore } from "@web/core/utils/reactive";
 
 import { SampleDataCoordinator } from "./sample_data_coordinator.js";
-import { buildSampleORM } from "./sample_server.js";
-import { validateSearchParams } from "./search_params_schema.js";
+import { makeSampleORM } from "./sample_server.js";
+import { getSearchParamsIssues } from "./search_params_schema.js";
 
 export class Model extends SignalStore {
     static services = [];
@@ -125,7 +125,7 @@ function getSearchParams(props) {
         }
     }
     if (_isSearchParamsValidationEnabled()) {
-        const issues = validateSearchParams(params);
+        const issues = getSearchParamsIssues(params);
         if (issues.length) {
             console.warn(
                 `[search-params] ${issues.length} issue(s) at useModel boundary:\n  - ` +
@@ -252,7 +252,7 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         if (useSampleModel && !model.hasData()) {
             sampleORM =
                 sampleORM ||
-                buildSampleORM(component.props.resModel, component.props.fields, orm, {
+                makeSampleORM(component.props.resModel, component.props.fields, orm, {
                     ...component.props.relatedModels,
                     ...model.getSampleRelatedModels(),
                 });

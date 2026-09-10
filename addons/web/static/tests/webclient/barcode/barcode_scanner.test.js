@@ -13,7 +13,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { scanBarcode } from "@web/components/barcode/barcode_dialog";
 import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scanner";
-import { buildZXingBarcodeDetector } from "@web/components/barcode/ZXingBarcodeDetector";
+import { makeZXingBarcodeDetector } from "@web/components/barcode/ZXingBarcodeDetector";
 import { browser } from "@web/core/browser/browser";
 
 import * as ZXing from "zxing-library";
@@ -384,7 +384,7 @@ test("leaving while the camera is still starting releases it and reports nothing
 test("a crop window too small to hold a symbol falls back to the whole frame", async () => {
     /** @type {any[]} */
     const sources = [];
-    const Detector = buildZXingBarcodeDetector(makeFakeZXing());
+    const Detector = makeZXingBarcodeDetector(makeFakeZXing());
     const detector = /** @type {any} */ (new Detector({ formats: ["qr_code"] }));
     detector.ctx = {
         drawImage: (/** @type {any[]} */ ...a) => sources.push(a.slice(1, 5)),
@@ -410,7 +410,7 @@ test("the bounding box spans every result point, not the first two", async () =>
         { x: 30, y: 40 },
         { x: 190, y: 40 },
     ];
-    const Detector = buildZXingBarcodeDetector(
+    const Detector = makeZXingBarcodeDetector(
         makeFakeZXing({ resultPoints: points, text: "Odoo" }),
     );
     const detector = /** @type {any} */ (new Detector({ formats: ["qr_code"] }));

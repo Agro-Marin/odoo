@@ -3,7 +3,7 @@ import os
 import sys
 
 
-def verify_setup():
+def is_encryption_setup_valid():
     env_var = "ODOO_API_ENCRYPTION_KEY"
     key = os.environ.get(env_var)
 
@@ -46,7 +46,7 @@ def main():
     except ImportError:
         sys.exit(1)
 
-    success = verify_setup()
+    success = is_encryption_setup_valid()
 
     sys.exit(0 if success else 1)
 

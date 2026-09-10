@@ -109,7 +109,7 @@ class DeepgramClient(BaseAIClient):
         "fi",
     ]
 
-    def _validate_response(self, response):
+    def _get_response_body(self, response):
         if not isinstance(response, dict):
             raise CommError(
                 f"Invalid response type: expected dict but got {type(response).__name__}",
@@ -152,7 +152,7 @@ class DeepgramClient(BaseAIClient):
 
     _KEYTERM_FAMILIES = ("nova-3", "flux")
 
-    def _build_transcription_params(self, **kwargs):
+    def _prepare_transcription_params(self, **kwargs):
         params = {}
 
         for name in self._PASSTHROUGH_PARAMS:
@@ -192,11 +192,11 @@ class DeepgramClient(BaseAIClient):
                 resolved = "true"
             params["summarize"] = resolved
 
-        params.update(self._build_keyword_params(**kwargs))
+        params.update(self._prepare_keyword_params(**kwargs))
 
         return params
 
-    def _build_keyword_params(self, **kwargs):
+    def _prepare_keyword_params(self, **kwargs):
         model_name = kwargs.get("model", "nova-3").lower()
 
         if any(family in model_name for family in self._KEYTERM_FAMILIES):
@@ -221,12 +221,12 @@ class DeepgramClient(BaseAIClient):
                 list(self.MODELS.keys()),
             )
 
-        params = self._build_transcription_params(model=model, **kwargs)
+        params = self._prepare_transcription_params(model=model, **kwargs)
 
         payload = {"url": audio_url}
 
         response = self._client.post("/listen", json=payload, params=params)
-        return self._validate_response(response)
+        return self._get_response_body(response)
 
     def transcribe_file(self, audio_data, mimetype=None, model=None, **kwargs):
         model = self._resolve_model(model)
@@ -237,7 +237,7 @@ class DeepgramClient(BaseAIClient):
                 list(self.MODELS.keys()),
             )
 
-        params = self._build_transcription_params(model=model, **kwargs)
+        params = self._prepare_transcription_params(model=model, **kwargs)
 
         headers = {}
         if mimetype:
@@ -255,7 +255,7 @@ class DeepgramClient(BaseAIClient):
             params=params,
             headers=headers,
         )
-        return self._validate_response(response)
+        return self._get_response_body(response)
 
     def transcribe_with_diarization(self, audio_url, model=None, **kwargs):
         model = self._resolve_model(model)
@@ -326,7 +326,7 @@ class DeepgramClient(BaseAIClient):
 
     def streaming_transcribe(self, model=None, **kwargs):
         model = self._resolve_model(model)
-        params = self._build_transcription_params(model=model, **kwargs)
+        params = self._prepare_transcription_params(model=model, **kwargs)
 
         if kwargs.get("interim_results"):
             params["interim_results"] = "true"
@@ -445,7 +445,7 @@ class DeepgramClient(BaseAIClient):
                 t.get("topic")
                 for t in result.get("results", {}).get("topics", {}).get("segments", [])
             ],
-            "overall_sentiment": self._calculate_overall_sentiment(result),
+            "overall_sentiment": self._get_overall_sentiment(result),
             "entities": result.get("results", {}).get("entities", []),
             "intents": result.get("results", {}).get("intents", {}),
             "speaker_count": len(
@@ -459,7 +459,7 @@ class DeepgramClient(BaseAIClient):
             "raw_result": result,
         }
 
-    def _calculate_overall_sentiment(self, result):
+    def _get_overall_sentiment(self, result):
         sentiments = result.get("results", {}).get("sentiments", {}).get("segments", [])
 
         if not sentiments:

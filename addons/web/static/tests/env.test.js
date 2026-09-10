@@ -21,9 +21,9 @@ import {
 import { registry } from "@web/core/registry";
 import {
     _resetCascadeWarningCache,
-    ensureServicesStarted,
     makeEnv,
     mountComponent,
+    startMissingServices,
     startServices,
 } from "@web/env";
 
@@ -257,7 +257,7 @@ test(`startServices: skips services with unreachable deps and warns (no throw)`,
     expect(env.services).toEqual({ a: "a", b: "b" });
 });
 
-test(`ensureServicesStarted: starts late-registered services without a registry listener`, async () => {
+test(`startMissingServices: starts late-registered services without a registry listener`, async () => {
     const env = makeEnv();
     await startServices(env);
     env.disposeServiceRegistryListener();
@@ -265,10 +265,10 @@ test(`ensureServicesStarted: starts late-registered services without a registry 
     registerService("consumer", ["provider"], (_env, deps) => `${deps.provider}-c`);
     expect(env.services).toEqual({});
 
-    await ensureServicesStarted(env);
+    await startMissingServices(env);
     expect(env.services).toEqual({ provider: "p", consumer: "p-c" });
 
-    await ensureServicesStarted(env);
+    await startMissingServices(env);
     expect(env.services).toEqual({ provider: "p", consumer: "p-c" });
 });
 
@@ -285,11 +285,11 @@ test(`a queued startup pass runs even if the in-flight pass rejects`, async () =
         return boomStarts === 1 ? deferredBoom : "recovered";
     });
 
-    const p1 = ensureServicesStarted(env);
+    const p1 = startMissingServices(env);
     await enteredBoom;
 
     registerService("good", [], () => "g");
-    const p2 = ensureServicesStarted(env);
+    const p2 = startMissingServices(env);
 
     deferredBoom.reject(new Error("boom"));
     await p1;

@@ -593,7 +593,7 @@ class AdyenTest(AdyenCommon, PaymentHttpCommon):
         """Send a notification to the webhook, ignore the signature, and check the response."""
         url = self._build_url(AdyenController._webhook_url)
         with patch(
-            "odoo.addons.payment_adyen.controllers.main.AdyenController._verify_signature"
+            "odoo.addons.payment_adyen.controllers.main.AdyenController._check_signature"
         ):
             response = self._make_json_request(url, data=payload).json()
         self.assertEqual(
@@ -609,7 +609,7 @@ class AdyenTest(AdyenCommon, PaymentHttpCommon):
         url = self._build_url(AdyenController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_adyen.controllers.main.AdyenController._verify_signature"
+                "odoo.addons.payment_adyen.controllers.main.AdyenController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -623,7 +623,7 @@ class AdyenTest(AdyenCommon, PaymentHttpCommon):
         tx = self._create_transaction("direct")
         self._assert_does_not_raise(
             Forbidden,
-            AdyenController._verify_signature,
+            AdyenController._check_signature,
             self.webhook_notification_payload,
             tx,
         )
@@ -635,7 +635,7 @@ class AdyenTest(AdyenCommon, PaymentHttpCommon):
             self.webhook_notification_payload, additionalData={"hmacSignature": None}
         )
         tx = self._create_transaction("direct")
-        self.assertRaises(Forbidden, AdyenController._verify_signature, payload, tx)
+        self.assertRaises(Forbidden, AdyenController._check_signature, payload, tx)
 
     @mute_logger("odoo.addons.payment_adyen.controllers.main")
     def test_reject_webhook_notification_with_invalid_signature(self):
@@ -644,7 +644,7 @@ class AdyenTest(AdyenCommon, PaymentHttpCommon):
             self.webhook_notification_payload, additionalData={"hmacSignature": "dummy"}
         )
         tx = self._create_transaction("direct")
-        self.assertRaises(Forbidden, AdyenController._verify_signature, payload, tx)
+        self.assertRaises(Forbidden, AdyenController._check_signature, payload, tx)
 
     @mute_logger("odoo.addons.payment_adyen.models.payment_transaction")
     def test_no_information_missing_from_partner_address(self):

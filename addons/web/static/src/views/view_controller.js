@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 import { Component, useRef } from "@odoo/owl";
-import { buildActionMenuItems, useControllerServices } from "@web/views/view_utils";
+import { getActionMenuItems, useControllerServices } from "@web/views/view_utils";
 
 export class ViewController extends Component {
     /** @type {any} */
@@ -40,7 +40,7 @@ export class ViewController extends Component {
 
     /** @returns {{ action: Object[], print: Object[] }} */
     get actionMenuItems() {
-        return buildActionMenuItems(
+        return getActionMenuItems(
             this.getStaticActionMenuItems(),
             this.props.info.actionMenus,
         );

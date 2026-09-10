@@ -58,7 +58,7 @@ function undefinedAsTrue(val) {
  * @param {Record<string, any>} params
  * @returns {Record<string, any>}
  */
-function buildButtonContext(clickParams, params) {
+function getButtonContext(clickParams, params) {
     let buttonContext = {};
     if (clickParams.context) {
         buttonContext =
@@ -106,7 +106,7 @@ async function executeViewButton(
         resId: params.resId,
         resIds: params.resIds,
         context: params.context || {},
-        buttonContext: buildButtonContext(clickParams, params),
+        buttonContext: getButtonContext(clickParams, params),
         onClose: async (onCloseInfo) => {
             if (
                 !closeDialog &&

@@ -342,7 +342,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         report = self.env["account.report"].browse(options["report_id"])
         report._check_groupby_fields([current_groupby] if current_groupby else [])
 
-        def _prepare_result_dict(query_res_lines):
+        def prepare_result_dict(query_res_lines):
             # The query should find exactly one account move line per bank statement line
             if current_groupby == "id":
                 res = query_res_lines[0]
@@ -419,7 +419,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
             else:
                 # If there is no last statement, the last statement section must be empty and the other must have all
                 # transaction
-                return self._compute_result([], current_groupby, _prepare_result_dict)
+                return self._compute_result([], current_groupby, prepare_result_dict)
         else:
             last_statement_id_condition = SQL("st_line.statement_id IS NULL")
 
@@ -483,9 +483,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         self.env.cr.execute(query)
         query_res_lines = self.env.cr.dictfetchall()
 
-        return self._compute_result(
-            query_res_lines, current_groupby, _prepare_result_dict
-        )
+        return self._compute_result(query_res_lines, current_groupby, prepare_result_dict)
 
     def _bank_reconciliation_report_custom_engine_outstanding_common(
         self, options, internal_type, current_groupby
@@ -500,7 +498,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         report = self.env["account.report"].browse(options["report_id"])
         report._check_groupby_fields([current_groupby] if current_groupby else [])
 
-        def _prepare_result_dict(query_res_lines):
+        def prepare_result_dict(query_res_lines):
             if current_groupby == "id":
                 res = query_res_lines[0]
                 convert = not (
@@ -635,13 +633,11 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         self.env.cr.execute(query)
         query_res_lines = self.env.cr.dictfetchall()
 
-        return self._compute_result(
-            query_res_lines, current_groupby, _prepare_result_dict
-        )
+        return self._compute_result(query_res_lines, current_groupby, prepare_result_dict)
 
-    def _compute_result(self, query_res_lines, current_groupby, _prepare_result_dict):
+    def _compute_result(self, query_res_lines, current_groupby, prepare_result_dict):
         if not current_groupby:
-            return _prepare_result_dict(query_res_lines)
+            return prepare_result_dict(query_res_lines)
         else:
             rslt = []
 
@@ -651,7 +647,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
                 all_res_per_grouping_key.setdefault(grouping_key, []).append(query_res)
 
             for grouping_key, query_res_lines in all_res_per_grouping_key.items():  # noqa: PLR1704
-                rslt.append((grouping_key, _prepare_result_dict(query_res_lines)))
+                rslt.append((grouping_key, prepare_result_dict(query_res_lines)))
 
             return rslt
 

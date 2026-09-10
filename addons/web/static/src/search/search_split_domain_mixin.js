@@ -81,7 +81,7 @@ export const SearchSplitDomainMixin = (Base) =>
          * @param {Record<string, any>} group
          * @returns {Promise<void>}
          */
-        async _ensurePropertyFieldsForFavorite(group) {
+        async _loadPropertyFieldsForFavorite(group) {
             if (this._firstSearchItemOf(group)?.type !== "favorite") {
                 return;
             }
@@ -90,7 +90,7 @@ export const SearchSplitDomainMixin = (Base) =>
                 groupBy.split(":")[0].includes("."),
             );
             if (needsPropertyFields) {
-                await this.fillSearchViewItemsProperty();
+                await this.updateSearchViewItemsProperty();
             }
         }
 
@@ -173,7 +173,7 @@ export const SearchSplitDomainMixin = (Base) =>
             const context = group ? this._mergedContextOfGroup(group) : undefined;
             const preFilters = await this._domainToPreFilters(domain, context);
             if (group) {
-                await this._ensurePropertyFieldsForFavorite(group);
+                await this._loadPropertyFieldsForFavorite(group);
             }
 
             this._withNotificationsBlocked(() => {

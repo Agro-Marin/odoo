@@ -20,7 +20,7 @@ class DigestDigest(models.Model):
                 _("Do not have access, skip this data for user's digest email")
             )
 
-        self._calculate_company_based_kpi("crm.lead", "kpi_crm_lead_created_value")
+        self._get_company_based_kpi("crm.lead", "kpi_crm_lead_created_value")
 
     def _compute_kpi_crm_opportunities_won_value(self):
         if not self.env.user.has_group("sales_team.group_sale_salesman"):
@@ -28,7 +28,7 @@ class DigestDigest(models.Model):
                 _("Do not have access, skip this data for user's digest email")
             )
 
-        self._calculate_company_based_kpi(
+        self._get_company_based_kpi(
             "crm.lead",
             "kpi_crm_opportunities_won_value",
             date_field="date_closed",

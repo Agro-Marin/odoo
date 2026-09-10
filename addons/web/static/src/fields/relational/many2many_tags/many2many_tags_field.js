@@ -204,7 +204,7 @@ export class Many2ManyTagsField extends FieldComponent {
             text: record.data.display_name,
             colorIndex: record.data[this.props.colorField],
             onDelete: !this.props.readonly
-                ? () => this.deleteTag(record.id)
+                ? () => this.removeTag(record.id)
                 : undefined,
         };
     }
@@ -262,7 +262,7 @@ export class Many2ManyTagsField extends FieldComponent {
     }
 
     /** @param {string} id */
-    async deleteTag(id) {
+    async removeTag(id) {
         return this.mutex.exec(() => this._forgetTag(id));
     }
 

@@ -7,8 +7,8 @@ from odoo.fields import Domain
 from odoo.addons.mail.tools.discuss import EMPTY_EDIT_MARKER
 from odoo.addons.portal.utils import (
     resolve_thread_for_credentials,
-    validate_thread_with_hash_pid,
-    validate_thread_with_token,
+    is_thread_hash_pid_valid,
+    is_thread_token_valid,
 )
 
 
@@ -127,8 +127,8 @@ class MixinMailThread(models.AbstractModel):
             return thread
         thread = resolve_thread_for_credentials(self.browse(thread_id).sudo())
         if thread and (
-            validate_thread_with_hash_pid(thread, hash, pid)
-            or validate_thread_with_token(thread, token)
+            is_thread_hash_pid_valid(thread, hash, pid)
+            or is_thread_token_valid(thread, token)
         ):
             return thread
         return self.browse()

@@ -63,7 +63,7 @@ function actionDisplayName(action) {
  * @param {ActionManager} am
  * @returns {{ props: ActionProps, currentState: Record<string, any>, config: Config, displayName: string }}
  */
-export function buildActionInfo(action, props, am) {
+export function prepareActionInfo(action, props, am) {
     /** @type {ActionProps} */
     const actionProps = { ...props, action, actionId: action.id };
     const currentState = attachActionState(
@@ -88,7 +88,7 @@ export function buildActionInfo(action, props, am) {
  * @param {BaseView[]} views
  * @returns {Record<string, any>[]}
  */
-function buildViewSwitcherEntries(view, views) {
+function getViewSwitcherEntries(view, views) {
     return views
         .filter((v) => v.multiRecord === view.multiRecord)
         .map((v) => {
@@ -167,7 +167,7 @@ function applyActionOverrides(viewProps, action, context) {
  * @param {Record<string, any>[]} viewSwitcherEntries
  * @returns {Config}
  */
-function buildViewConfig(view, action, context, viewSwitcherEntries) {
+function getViewConfig(view, action, context, viewSwitcherEntries) {
     const isForm = view.type === "form";
     return {
         actionId: action.id,
@@ -193,10 +193,10 @@ function buildViewConfig(view, action, context, viewSwitcherEntries) {
  * @param {ActionManager} am
  * @returns {{ props: ActionProps, currentState: Record<string, any>, config: Config, displayName: string }}
  */
-export function buildViewInfo(view, action, views, props, am) {
+export function prepareViewInfo(view, action, views, props, am) {
     props = props || {};
     const target = action.target;
-    const viewSwitcherEntries = buildViewSwitcherEntries(view, views);
+    const viewSwitcherEntries = getViewSwitcherEntries(view, views);
     const context = action.context || {};
     let groupBy = context.group_by || [];
     if (typeof groupBy === "string") {
@@ -236,7 +236,7 @@ export function buildViewInfo(view, action, views, props, am) {
     return {
         props: viewProps,
         currentState,
-        config: buildViewConfig(view, action, context, viewSwitcherEntries),
+        config: getViewConfig(view, action, context, viewSwitcherEntries),
         displayName: actionDisplayName(action),
     };
 }
@@ -246,7 +246,7 @@ export function buildViewInfo(view, action, views, props, am) {
  * @returns {BaseView[]}
  * @throws {Error}
  */
-export function buildActionViews(action) {
+export function getActionViews(action) {
     const views = [];
     const unknown = [];
     for (const [, type] of action.views) {

@@ -18,19 +18,19 @@ class RatingRating(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for values in vals_list:
-            self._synchronize_publisher_values(values)
+            self._prepare_publisher_values(values)
         ratings = super().create(vals_list)
         if any(rating.publisher_comment for rating in ratings):
-            ratings._check_synchronize_publisher_values()
+            ratings._check_publisher_values()
         return ratings
 
     def write(self, vals):
         if vals.get("publisher_comment"):
-            self._check_synchronize_publisher_values()
-        self._synchronize_publisher_values(vals)
+            self._check_publisher_values()
+        self._prepare_publisher_values(vals)
         return super().write(vals)
 
-    def _check_synchronize_publisher_values(self):
+    def _check_publisher_values(self):
         """Either current user is a member of website restricted editor group
         (done here by fetching the group record then using has_group, as it may
         not be defined and we do not want to make a complete bridge module just
@@ -51,13 +51,13 @@ class RatingRating(models.Model):
                     _("Updating rating comment require write access on related record")
                 ) from e
 
-    def _synchronize_publisher_values(self, values):
+    def _prepare_publisher_values(self, values):
         """Force publisher partner and date if not given in order to have
         coherent values. Those fields are readonly as they are not meant
         to be modified manually, behaving like a tracking.
 
         Access is not checked here: `create()` and `write()` each call
-        `_check_synchronize_publisher_values()` themselves, against the
+        `_check_publisher_values()` themselves, against the
         recordset that is actually meaningful at their call site (this
         helper alone cannot tell the two apart, and `create()`'s `self` is
         still empty when it prepares `vals_list`).

@@ -121,7 +121,7 @@ export const SearchPropertiesMixin = (Base) =>
             return this.query.length !== queryLength;
         }
 
-        async fillSearchViewItemsProperty() {
+        async updateSearchViewItemsProperty() {
             if (!this.searchViewFields) {
                 return;
             }
@@ -138,7 +138,7 @@ export const SearchPropertiesMixin = (Base) =>
                 }
                 let prom = inFlight.get(field.name);
                 if (!prom) {
-                    prom = this._fillPropertyFieldSearchItems(field);
+                    prom = this._updatePropertyFieldSearchItems(field);
                     prom.catch(() => {}).finally(() => {
                         if (inFlight.get(field.name) === prom) {
                             inFlight.delete(field.name);
@@ -152,7 +152,7 @@ export const SearchPropertiesMixin = (Base) =>
         }
 
         /** @param {Record<string, any>} field */
-        async _fillPropertyFieldSearchItems(field) {
+        async _updatePropertyFieldSearchItems(field) {
             const result = await this._fetchPropertiesDefinition(
                 this.resModel,
                 field.name,

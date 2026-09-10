@@ -8,7 +8,7 @@ from odoo.http import request
 from .base_controller import BaseCommController, ValidationResult
 from odoo.addons.api_transport.tools import (
     compute_payload_hash,
-    validate_json_payload,
+    inspect_json_payload,
 )
 
 _logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class InboundController(BaseCommController):
             error_message="Payload too large",
         )
 
-    def validate_inbound_request(  # pylint: disable=too-many-return-statements
+    def inspect_inbound_request(  # pylint: disable=too-many-return-statements
         self,
         endpoint_model: str,
         endpoint_identifier: str,
@@ -236,7 +236,7 @@ class InboundController(BaseCommController):
         if not require_json:
             return None, None, None
 
-        is_valid, payload_dict, error = validate_json_payload(body_str)
+        is_valid, payload_dict, error = inspect_json_payload(body_str)
         if not is_valid:
             _logger.warning("Invalid JSON payload: %s", error)
             return (

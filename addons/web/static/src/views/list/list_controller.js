@@ -19,9 +19,9 @@ import { ViewButton } from "@web/views/view_button/view_button";
 import { executeButtonCallback } from "@web/views/view_button/view_button_hook";
 import { SelectionBox } from "@web/views/view_components/selection_box";
 import {
-    buildMultiRecordModelParams,
-    buildOpenActionParams,
     exportableFields,
+    getMultiRecordModelParams,
+    getOpenActionParams,
     handleBeforeUnload,
 } from "@web/views/view_utils";
 
@@ -172,7 +172,7 @@ export class ListController extends MultiRecordController {
             );
         }
 
-        return buildMultiRecordModelParams({
+        return getMultiRecordModelParams({
             archInfo: this.archInfo,
             props: this.props,
             uiHooks: this._uiHooks,
@@ -297,7 +297,7 @@ export class ListController extends MultiRecordController {
         }
         if (this.props.allowOpenAction && this.archInfo.openAction) {
             this.actionService.doActionButton(
-                buildOpenActionParams(this.archInfo.openAction, record),
+                getOpenActionParams(this.archInfo.openAction, record),
                 { newWindow },
             );
         } else {

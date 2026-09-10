@@ -17,8 +17,8 @@ import { delay } from "@web/core/utils/concurrency";
 
 import { CropOverlay } from "./crop_overlay.js";
 import {
-    buildZXingBarcodeDetector,
     isVideoElementReady,
+    makeZXingBarcodeDetector,
 } from "./ZXingBarcodeDetector.js";
 
 const MAX_CONSECUTIVE_DETECT_ERRORS = 5;
@@ -76,7 +76,7 @@ export class BarcodeVideoScanner extends Component {
             let DetectorClass = browser.BarcodeDetector;
             if (!DetectorClass) {
                 const ZXing = await import("zxing-library");
-                DetectorClass = buildZXingBarcodeDetector(ZXing);
+                DetectorClass = makeZXingBarcodeDetector(ZXing);
             }
             const formats = await DetectorClass.getSupportedFormats();
             this.detector = new DetectorClass({ formats });

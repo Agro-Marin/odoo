@@ -32,7 +32,7 @@ class L10nARPortalAccount(L10nLatamBasePortalAccount):
             mandatory_fields.add("l10n_ar_afip_responsibility_type_id")
         return mandatory_fields
 
-    def _validate_address_values(
+    def _get_address_errors(
         self, address_values, partner_sudo, address_type, *args, **kwargs
     ):
         """We extend the method to add a new validation. If ARCA Resposibility is:
@@ -40,10 +40,8 @@ class L10nARPortalAccount(L10nLatamBasePortalAccount):
         * Final Consumer or Foreign Customer: then it can select any identification type.
         * Any other (Monotributista, RI, etc): should select always "CUIT" identification type
         """
-        invalid_fields, missing_fields, error_messages = (
-            super()._validate_address_values(
-                address_values, partner_sudo, address_type, *args, **kwargs
-            )
+        invalid_fields, missing_fields, error_messages = super()._get_address_errors(
+            address_values, partner_sudo, address_type, *args, **kwargs
         )
 
         # Identification type and ARCA Responsibility Combination

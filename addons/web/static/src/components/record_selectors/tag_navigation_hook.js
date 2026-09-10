@@ -19,8 +19,8 @@ export function useTagNavigation(refName, options = {}) {
         (target.tagName.toLowerCase() !== "input" || !target.value);
 
     const onBackspaceKeydown = (navigator) => {
-        const deleteTag = options.delete;
-        if (!deleteTag) {
+        const removeTag = options.delete;
+        if (!removeTag) {
             return;
         }
         const el = navigator.activeItem.el;
@@ -29,10 +29,10 @@ export function useTagNavigation(refName, options = {}) {
         );
         if (el.classList.contains("o-autocomplete--input")) {
             if (!el.value && tagItems.length) {
-                deleteTag(tagItems.length - 1);
+                removeTag(tagItems.length - 1);
             }
         } else {
-            deleteTag(tagItems.indexOf(navigator.activeItem));
+            removeTag(tagItems.indexOf(navigator.activeItem));
         }
         const inputItem = navigator.items.find((item) =>
             item.el.classList.contains("o-autocomplete--input"),

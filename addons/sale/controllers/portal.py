@@ -496,7 +496,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
         partner_sudo = (
             request.env.user.partner_id if logged_in else order_sudo.partner_invoice_id
         )
-        self._validate_transaction_kwargs(kwargs)
+        self._check_transaction_kwargs(kwargs)
         kwargs.update(
             {
                 "partner_id": partner_sudo.id,

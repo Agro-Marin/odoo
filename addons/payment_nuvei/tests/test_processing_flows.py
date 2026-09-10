@@ -19,7 +19,7 @@ class TestProcessingFlows(NuveiCommon):
         url = self._build_url(NuveiController._return_url)
         with (
             patch(
-                "odoo.addons.payment_nuvei.controllers.main.NuveiController._verify_signature"
+                "odoo.addons.payment_nuvei.controllers.main.NuveiController._check_signature"
             ),
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -36,7 +36,7 @@ class TestProcessingFlows(NuveiCommon):
         url = self._build_url(NuveiController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_nuvei.controllers.main.NuveiController._verify_signature"
+                "odoo.addons.payment_nuvei.controllers.main.NuveiController._check_signature"
             ),
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -52,7 +52,7 @@ class TestProcessingFlows(NuveiCommon):
         url = self._build_url(NuveiController._return_url)
         with (
             patch(
-                "odoo.addons.payment_nuvei.controllers.main.NuveiController._verify_signature"
+                "odoo.addons.payment_nuvei.controllers.main.NuveiController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -68,7 +68,7 @@ class TestProcessingFlows(NuveiCommon):
         url = self._build_url(NuveiController._webhook_url)
         with (
             patch(
-                "odoo.addons.payment_nuvei.controllers.main.NuveiController._verify_signature"
+                "odoo.addons.payment_nuvei.controllers.main.NuveiController._check_signature"
             ) as signature_check_mock,
             patch(
                 "odoo.addons.payment.models.payment_transaction.PaymentTransaction._process"
@@ -81,7 +81,7 @@ class TestProcessingFlows(NuveiCommon):
         """Test the verification of a notification with a valid signature."""
         tx = self._create_transaction("redirect")
         self._assert_does_not_raise(
-            Forbidden, NuveiController._verify_signature, tx, self.payment_data
+            Forbidden, NuveiController._check_signature, tx, self.payment_data
         )
 
     @mute_logger("odoo.addons.payment_nuvei.controllers.main")
@@ -89,11 +89,11 @@ class TestProcessingFlows(NuveiCommon):
         """Test the verification of a notification with a missing signature."""
         tx = self._create_transaction("redirect")
         payload = dict(self.payment_data, advanceResponseChecksum=None)
-        self.assertRaises(Forbidden, NuveiController._verify_signature, tx, payload)
+        self.assertRaises(Forbidden, NuveiController._check_signature, tx, payload)
 
     @mute_logger("odoo.addons.payment_nuvei.controllers.main")
     def test_reject_notification_with_invalid_signature(self):
         """Test the verification of a notification with an invalid signature."""
         tx = self._create_transaction("redirect")
         payload = dict(self.payment_data, advanceResponseChecksum="dummy")
-        self.assertRaises(Forbidden, NuveiController._verify_signature, tx, payload)
+        self.assertRaises(Forbidden, NuveiController._check_signature, tx, payload)

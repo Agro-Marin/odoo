@@ -50,7 +50,7 @@ function makeConfigHandler({ orm, notification, initialConfig } = {}) {
     return handler;
 }
 
-describe("EmbeddedActions.deleteAction", () => {
+describe("EmbeddedActions.removeAction", () => {
     test("server refusal leaves the tab and settings intact", async () => {
         let settingsCalls = 0;
         const self = makeSelf(
@@ -65,7 +65,7 @@ describe("EmbeddedActions.deleteAction", () => {
         );
 
         await expect(
-            EmbeddedActions.prototype.deleteAction.call(self, { id: 7 }),
+            EmbeddedActions.prototype.removeAction.call(self, { id: 7 }),
         ).rejects.toThrow();
 
         expect(self.embeddedInfos.visibleEmbeddedActions).toEqual([7, 8]);
@@ -85,7 +85,7 @@ describe("EmbeddedActions.deleteAction", () => {
             },
         );
 
-        await EmbeddedActions.prototype.deleteAction.call(self, { id: 7 });
+        await EmbeddedActions.prototype.removeAction.call(self, { id: 7 });
 
         expect(self.embeddedInfos.visibleEmbeddedActions).toEqual([8]);
         expect(self.embeddedInfos.embeddedActions.map((a) => a.id)).toEqual([8]);

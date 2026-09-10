@@ -85,7 +85,7 @@ class CaseInsensitiveHeaders(dict):
         return str(key).lower() in self._by_lower
 
 
-def verify_bearer_token(headers, expected_token):
+def is_bearer_token_valid(headers, expected_token):
     if not isinstance(headers, dict):
         _logger.error("Headers must be dict, got %s", type(headers).__name__)
         return False
@@ -109,7 +109,7 @@ def verify_bearer_token(headers, expected_token):
     return hmac.compare_digest(token, expected_token)
 
 
-def _verify_custom(verification_method, headers, body, env=None):
+def _is_custom_verification_valid(verification_method, headers, body, env=None):
     if not verification_method:
         return False
 
@@ -145,7 +145,7 @@ def _verify_custom(verification_method, headers, body, env=None):
         return False
 
 
-def verify_hmac_signature(
+def is_hmac_signature_valid(
     headers,
     body,
     secret,
@@ -185,10 +185,10 @@ def verify_hmac_signature(
     return hmac.compare_digest(signature.lower(), expected.lower())
 
 
-def verify_signature(signature_type, headers, body, secret=None, **kwargs):
+def is_signature_valid(signature_type, headers, body, secret=None, **kwargs):
     try:
         if signature_type == "hmac_sha256":
-            return verify_hmac_signature(
+            return is_hmac_signature_valid(
                 headers,
                 body,
                 secret,
@@ -197,7 +197,7 @@ def verify_signature(signature_type, headers, body, secret=None, **kwargs):
                 signature_prefix=kwargs.get("signature_prefix", "sha256="),
             )
         if signature_type == "hmac_sha512":
-            return verify_hmac_signature(
+            return is_hmac_signature_valid(
                 headers,
                 body,
                 secret,
@@ -206,13 +206,15 @@ def verify_signature(signature_type, headers, body, secret=None, **kwargs):
                 signature_prefix=kwargs.get("signature_prefix", "sha512="),
             )
         if signature_type in ("bearer", "api_key"):
-            return verify_bearer_token(headers, secret)
+            return is_bearer_token_valid(headers, secret)
         if signature_type == "custom":
             verification_method = kwargs.get("verification_method")
             if not verification_method:
                 _logger.error("Custom verification requires 'verification_method'")
                 return False
-            return _verify_custom(verification_method, headers, body, kwargs.get("env"))
+            return _is_custom_verification_valid(
+                verification_method, headers, body, kwargs.get("env")
+            )
         if signature_type == "none":
             return _handle_none_signature(kwargs.get("env"))
         _logger.warning("Unknown signature type: %s", signature_type)
@@ -223,7 +225,7 @@ def verify_signature(signature_type, headers, body, secret=None, **kwargs):
         return False
 
 
-def verify_timestamp(
+def is_timestamp_valid(
     timestamp_value,
     max_age_seconds=300,
     timestamp_format=None,
