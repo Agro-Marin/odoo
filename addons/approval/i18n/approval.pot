@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 17:58+0000\n"
-"PO-Revision-Date: 2026-09-10 17:58+0000\n"
+"POT-Creation-Date: 2026-09-10 18:14+0000\n"
+"PO-Revision-Date: 2026-09-10 18:14+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -130,6 +130,14 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_binding.py:0
 msgid "%(model)s is not in the registry."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(name)s approves on invoke, which needs Request mode: Block mode raises no "
+"request for the caller to approve."
 msgstr ""
 
 #. module: approval
@@ -1144,6 +1152,11 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_kanban
 msgid "Approve"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__approve_on_invoke
+msgid "Approve On Invoke"
 msgstr ""
 
 #. module: approval
@@ -4486,6 +4499,23 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__run_on_approval
+msgid ""
+"Request mode only. Run the operation, once and as the person who asked, when"
+" the request is approved. Off, approval only clears the gate and the "
+"operation runs when it is next called, which is how Studio approvals behave."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__approve_on_invoke
+msgid ""
+"Request mode only. When somebody who may approve a pending step of this "
+"record calls the operation, the call records their approval -- the way a "
+"Studio approval button works -- and the operation runs if nothing is left to"
+" approve. Otherwise the remaining approvers are asked and the call waits."
+msgstr ""
+
+#. module: approval
 #: model:approval.refusal.reason,description:approval.refusal_reason_timing_issue
 msgid "Request submitted at wrong time or does not meet timing requirements."
 msgstr ""
@@ -4741,6 +4771,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_category.py:0
 msgid "Rules: %s"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__run_on_approval
+msgid "Run On Approval"
 msgstr ""
 
 #. module: approval
@@ -5845,9 +5880,10 @@ msgid ""
 "          the record. A document implementing mixin.approval asks through its\n"
 "          own button; any other record is covered by an approved request that\n"
 "          points at it in this binding's category.\n"
-"        • Request: the call raises an approval instead of running, and the\n"
-"          operation runs once the request is approved -- exactly once, and as\n"
-"          the person who called it."
+"        • Request: the call raises an approval instead of running. With Run On\n"
+"          Approval, the operation then runs once the request is approved --\n"
+"          exactly once, and as the person who called it; without it, approval\n"
+"          only clears the gate for the next call."
 msgstr ""
 
 #. module: approval

@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.1.4.0 (matches `__manifest__.py`) |
+| Version | 19.0.1.5.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `automation`, `mixin_report_sql`, `mail` |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -96,7 +96,7 @@ dashboards.
 | `test_auto_action_rules.py` | Auto-approve/auto-refuse conditional rules |
 | `test_conditional_rules.py` | Rule evaluation, approver injection, live re-routing of a submitted request (`TestLiveRerouting`), routing-input lifecycle (`TestRoutingFieldLifecycle`) |
 | `test_subject_conditions.py` | Source-document conditions: `domain` and `field_selection` matching; absent, deleted and other-model source documents; configuration-time path validation; the overlap guard staying threshold-only |
-| `test_binding.py` | `approval.binding`: wrapping and unwrapping, one wrapper per method, Observe and Block, superuser vs `sudo()` elevation, the caller's elevation rather than the binding's, the kill switch, every configuration-time refusal; Request mode — no duplicate while pending, one replay as the requester, no replay after re-approval, no borrowing the approver's rights, no run once the snapshot moved, Block covered by a separately approved request |
+| `test_binding.py` | `approval.binding`: wrapping and unwrapping, one wrapper per method, Observe and Block, superuser vs `sudo()` elevation, the caller's elevation rather than the binding's, the kill switch, every configuration-time refusal; Request mode — no duplicate while pending, one replay as the requester, no replay after re-approval, no borrowing the approver's rights, no run once the snapshot moved, Block covered by a separately approved request; approve on invoke — an approver's call runs the operation exactly once, a non-approver's only raises the request, one step of two waits; run on approval off leaves the operation to the next call |
 | `test_approver_replacement.py` | Approver-replacing rules: band matching, overlap validation, minimum override, batched constraints |
 | `test_document_requirements.py` | Required document validation on confirm, through the structural attachment link |
 | `test_sla_tracking.py` | SLA status computation, compliance tracking |

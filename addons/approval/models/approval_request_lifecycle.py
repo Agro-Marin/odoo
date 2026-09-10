@@ -998,9 +998,11 @@ class ApprovalRequestLifecycle(models.Model):
         request = self.sudo()
         if (
             not request.binding_id
+            or not request.binding_id.run_on_approval
             or request.date_binding_replayed
             or not request.res_model
             or not request.res_id
+            or self.env.context.get("approval_binding_invoking")
         ):
             return
         request.binding_id._replay(request)

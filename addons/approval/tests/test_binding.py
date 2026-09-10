@@ -41,6 +41,8 @@ class TestApprovalBinding(common.TransactionCase):
         )
 
     def tearDown(self):
+        for wrapper, real in reversed(getattr(self, "_swapped_origins", [])):
+            wrapper.approval_binding_origin = real
         # the wrappers live on the registry, not in the transaction
         self.Binding._unregister_hook()
         super().tearDown()
@@ -382,3 +384,117 @@ class TestApprovalBinding(common.TransactionCase):
         self._approve(request)
         partner.action_archive()
         self.assertFalse(partner.active)
+
+    # -- approve on invoke, run on approval ----------------------------------
+
+    def _count_runs(self):
+        """Record every time the gated method's body actually runs.
+
+        Archiving twice looks exactly like archiving once, so a double run is
+        invisible to the record. The wrapper reads its origin at call time, so
+        swapping that reference counts executions without touching the method.
+        """
+        wrapper = self.env.registry["res.partner"].action_archive
+        real = wrapper.approval_binding_origin
+        runs = []
+
+        def counting(records, *args, **kwargs):
+            runs.append(tuple(records.ids))
+            return real(records, *args, **kwargs)
+
+        wrapper.approval_binding_origin = counting
+        self._swapped_origins = [
+            *getattr(self, "_swapped_origins", []),
+            (wrapper, real),
+        ]
+        return runs
+
+    def test_an_invoking_approver_runs_the_operation_exactly_once(self):
+        """Their click approves AND runs; the replay must not run it a second time."""
+        binding = self._request_binding(approve_on_invoke=True)
+        runs = self._count_runs()
+        partner = self._partner()
+        partner.with_user(self.approver).action_archive()
+        self.assertEqual(runs, [(partner.id,)], "run once, by the call itself")
+        self.assertFalse(partner.active)
+        request = self._requests_for(binding, partner)
+        self.assertEqual(request.state, "approved")
+        self.assertTrue(request.date_binding_replayed, "the one-shot is stamped")
+
+    def test_invoking_without_the_right_to_approve_only_raises_the_request(self):
+        binding = self._request_binding(approve_on_invoke=True)
+        requester = self._user("binding_inv_a", "base.group_partner_manager")
+        runs = self._count_runs()
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        self.assertEqual(runs, [])
+        self.assertEqual(self._requests_for(binding, partner).state, "pending")
+
+    def test_invoke_records_only_the_steps_the_caller_may_decide(self):
+        category = self.env["approval.category"].create(
+            {"name": "Invoke Steps", "approval_minimum": 1}
+        )
+        second = self._user("binding_inv_c", "base.group_partner_manager")
+        for sequence, user in ((10, self.approver), (20, second)):
+            self.env["approval.category.step"].create(
+                {
+                    "category_id": category.id,
+                    "name": f"Step {sequence}",
+                    "sequence": sequence,
+                    "member_ids": [(0, 0, {"user_id": user.id})],
+                }
+            )
+        binding = self._bind(
+            mode="request",
+            category_id=category.id,
+            approve_on_invoke=True,
+            run_on_approval=False,
+        )
+        runs = self._count_runs()
+        partner = self._partner()
+        partner.with_user(self.approver).action_archive()
+        request = self._requests_for(binding, partner)
+        self.assertEqual(runs, [], "one step of two is not enough")
+        self.assertEqual(request.state, "pending")
+        request.with_user(second).action_approve()
+        self.assertEqual(request.state, "approved")
+        self.assertEqual(runs, [], "run on approval is off, so approval runs nothing")
+        partner.with_user(self.approver).action_archive()
+        self.assertEqual(runs, [(partner.id,)], "the next call is covered and runs")
+
+    def test_run_on_approval_off_leaves_the_operation_to_the_next_call(self):
+        binding = self._request_binding(run_on_approval=False)
+        requester = self._user("binding_inv_b", "base.group_partner_manager")
+        runs = self._count_runs()
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        self._approve(self._requests_for(binding, partner))
+        self.assertEqual(runs, [])
+        self.assertTrue(partner.active)
+        partner.with_user(requester).action_archive()
+        self.assertEqual(runs, [(partner.id,)])
+
+    def test_approve_on_invoke_needs_request_mode(self):
+        with self.assertRaises(ValidationError):
+            self.Binding.create(
+                {
+                    "model_id": self.partner_model.id,
+                    "method": "action_archive",
+                    "mode": "block",
+                    "category_id": self.category.id,
+                    "approve_on_invoke": True,
+                }
+            )
+
+    def test_without_run_on_approval_a_method_with_arguments_may_be_gated(self):
+        """The zero-argument limit exists only because a replay has no arguments."""
+        binding = self.Binding.create(
+            {
+                "model_id": self.partner_model.id,
+                "method": "filtered_domain",
+                "mode": "request",
+                "category_id": self.category.id,
+                "run_on_approval": False,
+            }
+        )
+        self.assertTrue(binding.exists())

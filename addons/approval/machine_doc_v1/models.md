@@ -385,7 +385,7 @@ requester re-submits (`action_resubmit`).
 | `_reconcile_delegation_activities()` | escalation.py | Runs first on every escalation tick: repoints an approval To-Do at the effective approver when a delegation was set (or lifted) after the round had already opened, closing the duplicate. Without it the activity stays in the principal's inbox for the life of the delegation |
 | `cron_auto_expire()` | escalation.py | **Cancel** (not refuse) requests past `auto_expire_hours` via `_force_terminal` |
 | `cron_consent_approval()` | escalation.py | Auto-approve after consent window; skips sequential categories, refused approvers, `pending_change_field`, `_can_consent_approve()` vetoes |
-| `_replay_bound_operation()` | Called from `_notify_if_terminal_transition` when a request becomes `approved`, AFTER `_notify_source_document_state_change`, so an adopter sees itself approved before the operation it gated runs. Hands off to `approval.binding._replay`; does nothing once `date_binding_replayed` is set |
+| `_replay_bound_operation()` | Called from `_notify_if_terminal_transition` when a request becomes `approved`, AFTER `_notify_source_document_state_change`, so an adopter sees itself approved before the operation it gated runs. Hands off to `approval.binding._replay`; does nothing once `date_binding_replayed` is set, when the binding's `run_on_approval` is off, or while an invoking call is recording its own approval |
 | `_get_applicable_steps()` | The category's steps whose condition this request meets, in order. Routing stages one row per user over them instead of the flat approvers, group and replacement |
 | `_is_quorum_met(state_counts, threshold)` | Step mode when any row carries steps: every applicable step meets its quorum. Otherwise the flat `approval_minimum`, unchanged |
 | `_get_step_counts()` | Approvals per step. An approved row counts toward every step it belongs to, unless one is exclusive: then toward exactly one, the lowest step still short — Studio's exclusivity expressed as counting |
@@ -706,26 +706,29 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `method` | Char | Yes | **Yes** | refused if `automation` claims it, if it does not exist, or if it is the binding machinery |
 | `category_id` | Many2one(`approval.category`) | Yes | No | ondelete=cascade. Required for `block` and `request` |
 | `subject_domain` | Char | Yes | No | string="Applies When"; empty means every record |
-| `mode` | Selection(advise/block/request) | Yes | **Yes** | default="advise". `advise` (labelled Observe) runs the operation and records it; `block` refuses unless an approved request covers the record; `request` raises the approval instead of running, then runs the operation exactly once when it is approved, as the person who called it |
+| `mode` | Selection(advise/block/request) | Yes | **Yes** | default="advise". `advise` (labelled Observe) runs the operation and records it; `block` refuses unless an approved request covers the record; `request` raises the approval instead of running — and, with `run_on_approval`, runs the operation exactly once when it is approved, as the person who called it |
 | `sudo_policy` | Selection(enforce/superuser/bypass) | Yes | **Yes** | default="superuser". Who the gate does NOT apply to. `sudo()` flips `su` and keeps `uid`, so the real superuser and an ordinary user elevated by `sudo()` are separate risks and separate settings |
 | `observation_ids` | One2many(`approval.binding.observation`) | — | No | |
 | `observation_count` | Count | — | No | |
 | `elevated_count` | Integer | No | No | computed by one grouped read over observations |
 | `self_elevated_count` | Integer | No | No | same read; callers elevated by `sudo()`, not the superuser |
+| `approve_on_invoke` | Boolean | Yes | No | `request` mode only. When somebody who may approve a pending step calls the operation, the call records their approval — the way a Studio approval button works — and the operation runs if nothing is left; otherwise the remaining approvers are asked and the call waits |
+| `run_on_approval` | Boolean | Yes | No | default=True, `request` mode only. Run the operation once, as the requester, when the request is approved. Off, approval only clears the gate and the operation runs on the next call — how Studio approvals behave. Off also lifts the zero-argument limit, since there is no replay to feed |
 
 ### Constraints
 
 - `_model_method_domain_uniq`: unique nulls not distinct (model_id, method, subject_domain)
 - `_check_binding`: the model is in the registry; the method passes `_check_method_available`; the domain passes `_check_domain_against_model`; `block` and `request` have a category; `request` passes `_check_method_replayable`
 - `_check_method_available`: refuses `AUTOMATION_CLAIMED_METHODS` — `create`, `write`, `unlink`, `_compute_field_value`, `_onchange_methods__`, `message_post`. `automation._unregister_hook` does `delattr(Model, name)` for each across the whole registry without checking who installed it, so a gate there would disappear silently rather than fail
-- `_check_method_replayable`: `request` mode only gates a method taking nothing but `self`. Replaying stored arguments would have to guess at stale recordsets and closures, so the limit is enforced up front
+- `_check_method_replayable`: with `run_on_approval` on, `request` mode only gates a method taking nothing but `self`. Replaying stored arguments would have to guess at stale recordsets and closures, so the limit is enforced up front; with it off nothing is replayed and any method may be gated
+- `approve_on_invoke` needs `request` mode: Block mode raises no request for the caller to approve
 
 ### Key Methods
 
 | Method | Purpose |
 |--------|---------|
 | `_register_hook()` / `_unregister_hook()` | Wrap each gated (model, method) once; unwrap only attributes carrying the `approval_binding_origin` marker |
-| `_get_guarded_method(model, method)` | The wrapper. Measures the CALLER's elevation once, applies every binding whose domain selects the record, inserts every observation in one statement, then runs, refuses, or raises the approval |
+| `_get_guarded_method(model, method)` | The wrapper. Measures the CALLER's elevation once, applies every binding whose domain selects the record, and inserts every observation in one statement. Records that need no approval — or that an invoking caller's own approval just covered — run, and are stamped; the rest wait, and the call returns their requests. A single-record call runs or waits as a whole |
 | `_get_selected(records)` | The records the binding's domain selects, in one `filtered_domain` over the whole recordset |
 | `_get_covered_ids(records)` | The records an approval already stands for, in one pass. An adopter's own approved request is taken as it is — the mixin protects the fields approvers decide on and owns withdrawal. Any other record is covered by an approved request pointing at it in the binding's category, and, when this binding raised it, only while `binding_snapshot` still matches |
 | `_get_snapshot(record)` | The values the domain's paths read from the record now. No domain reads nothing, so its approval covers the operation whatever the record's state |
@@ -733,7 +736,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `_elevation()` | `none`, `superuser` (uid is SUPERUSER_ID) or `self_elevated` |
 | `_bindings_for(model, method)` / `_get_binding_ids(model, method)` | `ormcache`d per (model, method). Runs under sudo with `active_test` forced, because neither uid nor context is part of the key |
 | `_apply_to_registry()` | On create and write. Clears the lookup cache, which is signalled to every worker; only a binding on a method nothing wraps yet re-registers and invalidates the registry |
-| `_raise_requests_for(records)` | `request` mode, per binding. An adopter asks through its own `action_create_approval_request` with `approval_binding_for` in context; anything else gets a request pointed at it by `res_model`/`res_id`, carrying `binding_snapshot`. A request still open for the record is shown again, never raised twice |
+| `_raise_requests_for(records)` | `request` mode, per binding; returns the requests, and the wrapper builds the action. An adopter asks through its own `action_create_approval_request` with `approval_binding_for` in context; anything else gets a request pointed at it by `res_model`/`res_id`, carrying `binding_snapshot`. A request still open for the record is reused, never raised twice |
+| `_approve_on_invoke(requests)` | Records the caller's approval on every pending step they may decide. Runs with `approval_binding_invoking` in context, so a request this completes is NOT replayed: the call already running performs the operation, and a replay would perform it a second time. A refused approval leaves the request pending with its approvers asked |
+| `_mark_invoked_run(records)` | Stamps `date_binding_replayed` on the approved requests an invoking call just ran, so a later withdrawal and re-approval cannot run the operation again |
 | `_replay(request)` | Runs the method once after approval, as `request_owner_id` — never the approver, never under sudo, so an approval cannot lend the approver's rights (the superuser account keeps its `su`). Re-checks coverage first, so a record whose snapshot moved is not run. A `UserError` (including access, validation and missing-record errors) is recorded in `binding_replay_error` and the approval stands; anything else propagates. Runs with `approval_binding_replay` in context, under which the wrapper refuses rather than raising a new request |
 
 ---

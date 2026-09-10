@@ -8,11 +8,6 @@ from odoo.tools import ormcache
 
 _logger = logging.getLogger(__name__)
 
-# `automation._unregister_hook` walks the whole registry and does
-# `delattr(Model, name)` for each of these, without checking who installed the
-# attribute. A binding on any of them would be silently removed the next time
-# automation re-registers, so the gate would stop existing without any error.
-# `web_studio`'s approval rules refuse create/write/unlink for the same reason.
 AUTOMATION_CLAIMED_METHODS = frozenset(
     {
         "create",
@@ -27,20 +22,10 @@ AUTOMATION_CLAIMED_METHODS = frozenset(
 ORIGIN_ATTR = "approval_binding_origin"
 ENABLED_PARAM = "approval.binding_enabled"
 REPLAY_CONTEXT_KEY = "approval_binding_replay"
+INVOKE_CONTEXT_KEY = "approval_binding_invoking"
 
 
 class ApprovalBinding(models.Model):
-    """Gates a model's method on an approval, declaratively.
-
-    `mixin.approval` requires the document to ask for its own approval. A
-    binding is the other direction: the operation is intercepted, and the
-    approval is consulted before it runs. That is what lets an approval cover
-    an act that no document models -- applying an inventory adjustment,
-    granting access -- and it is the mechanism `web_studio`'s approval rules
-    already use, reimplemented here without their two defects (see `mode` and
-    `sudo_policy`).
-    """
-
     _name = "approval.binding"
     _inherit = ["mixin.approval.domain"]
     _description = "Approval Binding"
@@ -57,7 +42,11 @@ class ApprovalBinding(models.Model):
         ondelete="cascade",
         index=True,
     )
-    model_name = fields.Char(related="model_id.model", store=True, index=True)
+    model_name = fields.Char(
+        related="model_id.model",
+        store=True,
+        index=True,
+    )
     method = fields.Char(
         required=True,
         help="Method to gate. It is wrapped at registry load, so the gate "
@@ -91,9 +80,10 @@ class ApprovalBinding(models.Model):
           the record. A document implementing mixin.approval asks through its
           own button; any other record is covered by an approved request that
           points at it in this binding's category.
-        • Request: the call raises an approval instead of running, and the
-          operation runs once the request is approved -- exactly once, and as
-          the person who called it.""",
+        • Request: the call raises an approval instead of running. With Run On
+          Approval, the operation then runs once the request is approved --
+          exactly once, and as the person who called it; without it, approval
+          only clears the gate for the next call.""",
     )
     sudo_policy = fields.Selection(
         selection=[
@@ -117,13 +107,31 @@ class ApprovalBinding(models.Model):
           Every bypass is still recorded, which is the part it does not do.""",
     )
 
+    approve_on_invoke = fields.Boolean(
+        help="Request mode only. When somebody who may approve a pending step of "
+        "this record calls the operation, the call records their approval -- the "
+        "way a Studio approval button works -- and the operation runs if nothing "
+        "is left to approve. Otherwise the remaining approvers are asked and the "
+        "call waits.",
+    )
+    run_on_approval = fields.Boolean(
+        default=True,
+        help="Request mode only. Run the operation, once and as the person who "
+        "asked, when the request is approved. Off, approval only clears the gate "
+        "and the operation runs when it is next called, which is how Studio "
+        "approvals behave.",
+    )
     observation_ids = fields.One2many(
         comodel_name="approval.binding.observation",
         inverse_name="binding_id",
     )
     observation_count = fields.Count("observation_ids", "Observations")
-    elevated_count = fields.Integer(compute="_compute_elevation_counts")
-    self_elevated_count = fields.Integer(compute="_compute_elevation_counts")
+    elevated_count = fields.Integer(
+        compute="_compute_elevation_counts",
+    )
+    self_elevated_count = fields.Integer(
+        compute="_compute_elevation_counts",
+    )
 
     _model_method_domain_uniq = models.Constraint(
         "unique nulls not distinct (model_id, method, subject_domain)",
@@ -160,7 +168,15 @@ class ApprovalBinding(models.Model):
 
     # -- configuration-time validation ------------------------------------
 
-    @api.constrains("model_id", "method", "mode", "subject_domain", "category_id")
+    @api.constrains(
+        "model_id",
+        "method",
+        "mode",
+        "subject_domain",
+        "category_id",
+        "approve_on_invoke",
+        "run_on_approval",
+    )
     def _check_binding(self) -> None:
         for binding in self:
             model = self.env.get(binding.model_id.model)
@@ -183,7 +199,15 @@ class ApprovalBinding(models.Model):
                         mode=binding.mode,
                     ),
                 )
-            if binding.mode == "request":
+            if binding.approve_on_invoke and binding.mode != "request":
+                raise ValidationError(
+                    self.env._(
+                        "%(name)s approves on invoke, which needs Request mode: "
+                        "Block mode raises no request for the caller to approve.",
+                        name=binding.name,
+                    ),
+                )
+            if binding.mode == "request" and binding.run_on_approval:
                 binding._check_method_replayable(model)
 
     def _check_method_available(self, model) -> None:
@@ -214,15 +238,6 @@ class ApprovalBinding(models.Model):
             )
 
     def _check_method_replayable(self, model) -> None:
-        """Request mode runs the method again once the request is approved.
-
-        That is only safe when nothing about the original call has to be
-        remembered. Storing a call's arguments to replay them later is where
-        this design would start guessing: a recordset argument may be stale by
-        the time somebody approves, a keyword may carry a closure. So request
-        mode is limited to methods that take nothing but `self`, and the limit
-        is enforced here instead of discovered at replay time.
-        """
         self.check_singleton()
         function = getattr(model, self.method)
         signature = inspect.signature(function)
@@ -243,8 +258,6 @@ class ApprovalBinding(models.Model):
                     args=", ".join(p.name for p in required),
                 ),
             )
-
-    # -- evaluation --------------------------------------------------------
 
     @api.model
     def _enabled(self) -> bool:
@@ -269,7 +282,6 @@ class ApprovalBinding(models.Model):
         return elevation == "superuser"
 
     def _get_selected(self, records):
-        """The records this binding's domain selects. No domain means all."""
         self.check_singleton()
         if not self.subject_domain:
             return records
@@ -279,17 +291,6 @@ class ApprovalBinding(models.Model):
         return records.filtered_domain(domain)
 
     def _get_covered_ids(self, records) -> set[int]:
-        """The records an approval already stands for, found in one pass.
-
-        A document implementing `mixin.approval` owns its approval: it protects
-        the fields approvers decide on while the request is pending and runs
-        its own withdrawal lifecycle, so its approved request is taken as it
-        is. Any other record is covered by an approved request pointing at it
-        -- in this binding's category -- and, when this binding raised that
-        request, only while the values its condition reads still match the
-        snapshot taken when it did. An approval covers the record as it was
-        approved, not whatever it has become since.
-        """
         self.check_singleton()
         if not records:
             return set()
@@ -326,11 +327,6 @@ class ApprovalBinding(models.Model):
         return covered
 
     def _get_snapshot(self, record) -> dict:
-        """The values this binding's condition reads from the record, now.
-
-        A binding with no domain reads nothing, so its approval covers the
-        operation whatever state the record is in.
-        """
         self.check_singleton()
         if not self.subject_domain:
             return {}
@@ -364,18 +360,6 @@ class ApprovalBinding(models.Model):
         }
 
     def _enforce(self, record, elevation: str, observations: list, covered_ids) -> bool:
-        """Apply this binding to one record. Returns True if it wants a request.
-
-        Raises in Block mode when nothing covers the record.
-
-        `elevation` is the CALLER's, measured once by the wrapper. This binding
-        is read through `sudo()`, so asking `self.env` reports every caller as
-        elevated -- and under "Any elevated caller passes" that waved an
-        ordinary, unelevated user straight past a Block gate.
-
-        Observations are appended to `observations` rather than written here,
-        so a call on many records inserts them in one statement.
-        """
         self.check_singleton()
         covered = record.id in covered_ids
 
@@ -400,19 +384,6 @@ class ApprovalBinding(models.Model):
         return True
 
     def _raise_requests_for(self, records):
-        """Ask for approval instead of running, and show what was asked.
-
-        A record that implements `mixin.approval` asks through its own
-        `action_create_approval_request`, so its category matching and its
-        `_before_approval_request_submit` hook still run; the binding only
-        tells it which operation the request is for. Anything else gets a
-        request pointed at it by `res_model` / `res_id`, carrying a snapshot
-        of what the condition read.
-
-        A request still open for the record is shown again rather than raised
-        a second time: calling a gated operation twice while waiting is not
-        two requests for approval.
-        """
         self.check_singleton()
         Request = self.env["approval.request"]
         requests = Request
@@ -425,7 +396,7 @@ class ApprovalBinding(models.Model):
                     ).action_create_approval_request()
                     request = record.sudo().approval_request_id
                 requests |= request
-            return self._get_requests_action(requests)
+            return requests
 
         open_by_res_id = {
             request.res_id: request
@@ -454,7 +425,72 @@ class ApprovalBinding(models.Model):
                 )
                 request.action_confirm()
             requests |= request
-        return self._get_requests_action(requests)
+        return requests
+
+    def _approve_on_invoke(self, requests) -> None:
+        """Record the caller's approval on every step they may decide, as a Studio button does.
+
+        The replay is suppressed while it happens. If this approval completes a
+        request, the call running now performs the operation, and a replay would
+        perform it a second time.
+
+        A refusal to record the approval -- a pending change, an exclusive step
+        the caller already spent -- leaves the request pending with its
+        approvers asked, the way Studio falls back to asking when it cannot
+        approve.
+        """
+        self.check_singleton()
+        user = self.env.user
+        for request in requests.filtered(lambda r: r.state == "pending"):
+            approver = request._get_current_pending_approver(user)
+            if not approver:
+                continue
+            try:
+                with self.env.cr.savepoint():
+                    request.with_user(user).with_context(
+                        **{INVOKE_CONTEXT_KEY: True}
+                    ).action_approve(approver)
+            except UserError as exc:
+                _logger.info(
+                    "Approval binding %s: %s could not approve request %s on "
+                    "invoke: %s",
+                    self.id,
+                    user.login,
+                    request.id,
+                    exc,
+                )
+
+    def _mark_invoked_run(self, records) -> None:
+        """Stamp the one-shot on requests an invoking call just completed and ran.
+
+        The replay was suppressed while the caller approved, so the operation ran
+        once, in the call itself. The stamp keeps a later withdrawal and
+        re-approval from running it again.
+        """
+        self.check_singleton()
+        if not records:
+            return
+        if "approval_request_id" in records._fields:
+            requests = records.sudo().approval_request_id
+        else:
+            requests = (
+                self.env["approval.request"]
+                .sudo()
+                .search(
+                    [
+                        ("binding_id", "=", self.id),
+                        ("res_model", "=", records._name),
+                        ("res_id", "in", records.ids),
+                    ],
+                )
+            )
+        requests.filtered(
+            lambda r: (
+                r.binding_id == self
+                and r.state == "approved"
+                and not r.date_binding_replayed
+            ),
+        ).write({"date_binding_replayed": fields.Datetime.now()})
 
     def _get_requests_action(self, requests):
         if not requests:
@@ -682,10 +718,28 @@ class ApprovalBinding(models.Model):
                         method=method_name,
                     ),
                 )
-            action = False
+            waiting = records.browse()
+            shown = records.env["approval.request"]
             for binding, pending in wanting.items():
-                action = binding._raise_requests_for(pending) or action
-            return action
+                requests = binding._raise_requests_for(pending)
+                if binding.approve_on_invoke:
+                    binding._approve_on_invoke(requests)
+                covered_ids = binding._get_covered_ids(pending)
+                still = pending.filtered(
+                    lambda record, ids=covered_ids: record.id not in ids,
+                )
+                if still:
+                    waiting |= still
+                    shown |= requests
+            runnable = records - waiting
+            result = False
+            if runnable:
+                result = origin(runnable, *args, **kwargs)
+                for binding, pending in wanting.items():
+                    binding._mark_invoked_run(pending & runnable)
+            if waiting:
+                return Binding._get_requests_action(shown)
+            return result
 
         guarded.__name__ = method_name
         guarded.__qualname__ = f"{model_name}.{method_name}"
