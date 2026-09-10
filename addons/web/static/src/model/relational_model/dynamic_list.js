@@ -151,6 +151,14 @@ export class DynamicList extends EditableListDataPoint {
         return this.records.filter((record) => record.selected);
     }
 
+    /** @returns {number[] | false} the selected ids, or false when the whole domain is */
+    get selectedResIds() {
+        if (this.isDomainSelected || !this.selection.length) {
+            return false;
+        }
+        return this.selection.map((record) => record.resId);
+    }
+
     archive(isSelected) {
         return this.model.mutex.exec(() => this._toggleArchive(isSelected, true));
     }

@@ -143,9 +143,8 @@ export function useExportRecords(env, getDefaultExportList) {
     const _getExportedFields = async (isCompatible, parentParams) => {
         const root = model.root;
         let domain = parentParams ? [] : root.domain;
-        if (!parentParams && !root.isDomainSelected && root.selection.length) {
-            const ids = root.selection.map((e) => e.resId);
-            domain = [["id", "in", ids]];
+        if (!parentParams && root.selectedResIds) {
+            domain = [["id", "in", root.selectedResIds]];
         }
         return await rpc("/web/export/get_fields", {
             model: root.resModel,
@@ -178,10 +177,7 @@ export function useExportRecords(env, getDefaultExportList) {
                     domain: root.domain,
                     fields: exportedFields,
                     groupby: root.groupBy,
-                    ids:
-                        !root.isDomainSelected && root.selection.length
-                            ? root.selection.map((e) => e.resId)
-                            : false,
+                    ids: root.selectedResIds,
                     model: root.resModel,
                     order: orderBy.length ? orderByToString(orderBy) : undefined,
                 }),

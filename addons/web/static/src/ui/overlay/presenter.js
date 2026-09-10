@@ -109,6 +109,18 @@ export function makeOverlayPresenter({
     acceptedCache = null;
     return (target, hostedComponent, props = {}, options = {}) => {
         warnUnknownOptions(scope ?? "overlay", options, acceptedOptions());
+        if (target instanceof Node && !target.isConnected) {
+            // nothing to anchor to: settle the caller's onClose without ever
+            // hosting a component the container would have to restart
+            const closed = Promise.resolve().then(async () => {
+                try {
+                    await options.onClose?.();
+                } finally {
+                    onClosed?.();
+                }
+            });
+            return () => closed;
+        }
         const presentation = reactive({ isClosing: false });
         const remove = overlay.add(
             component,

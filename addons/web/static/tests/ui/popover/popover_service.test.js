@@ -278,3 +278,28 @@ test("close params reach onClose, as they do for a dialog", async () => {
     await animationFrame();
     expect(received).toEqual({ reason: "picked" });
 });
+
+test("a detached target hosts nothing and still settles onClose", async () => {
+    class Comp extends Component {
+        static template = xml`<div id="comp">in popover</div>`;
+        static props = ["*"];
+        setup() {
+            expect.step("setup");
+        }
+    }
+    const detached = document.createElement("div");
+    const remove = getService("popover").add(
+        detached,
+        Comp,
+        {},
+        {
+            onClose: () => expect.step("onClose"),
+        },
+    );
+    await animationFrame();
+
+    expect(".o_popover").toHaveCount(0);
+    expect.verifySteps(["onClose"]);
+    await remove();
+    expect.verifySteps([]);
+});
