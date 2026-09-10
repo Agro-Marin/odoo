@@ -80,6 +80,19 @@ And the store's record system under `mail/static/src/model/` declares `delete`
 as its own API -- `record.delete()`, `recordList.delete(...records)` and the
 no-inverse variant beside it -- mirroring `Set.prototype.delete`, so that tree
 joins `CONTRACT_TREES` for the same reason `html_editor`'s plugins do.
+
+**`--bodies` asks the two questions a regex cannot.** The regex half reads the
+verb a name opens with and nothing else, so a `get` that returns nothing and a
+`set` that returns a value pass it -- and `getResults`, a get that pushed into
+`this.commands` and returned nothing, was this reader's OWN rename before the
+body was read. `js_naming_bodies.js` beside this file parses each root with
+the `acorn` that eslint already ships in `node_modules` (no new dependency:
+the flag reports why and skips when `node` or the package is absent) and
+reports a get/is/has/can/find with no value return and a
+set/update/add/remove/reset/clear that produces one. The exemptions are the
+idioms the first run over `mail` taught: a store record's `<field>OnUpdate`
+hook, an empty extension-point stub, a getter/setter pair, a `return false`
+guard, a delegated call, and the subscribe idiom's returned disposer.
 """
 
 from __future__ import annotations
@@ -87,7 +100,10 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -315,6 +331,44 @@ def _why(verb: str) -> str:
     return f"§2.4.20 synonym -> {canonical} -- {why}"
 
 
+BODIES_SCRIPT = Path(__file__).with_name("js_naming_bodies.js")
+
+
+def measure_bodies(roots: list[Path]) -> list[Violation] | str:
+    """Body-aware rows for `roots`, or the reason the pass could not run."""
+    node = shutil.which("node")
+    if node is None:
+        return "node is not on PATH"
+    node_modules = ROOT / "node_modules"
+    if not (node_modules / "acorn").is_dir():
+        return f"acorn is not installed under {node_modules}"
+    env = dict(os.environ, NODE_PATH=str(node_modules))
+    result = subprocess.run(
+        [node, str(BODIES_SCRIPT), *map(str, roots)],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    if result.returncode != 0:
+        return (
+            result.stderr.strip().splitlines()[-1] if result.stderr else "node failed"
+        )
+    rows = json.loads(result.stdout or "[]")
+    found = [
+        Violation(
+            path=Path(_sources.display_across_repos(Path(r["path"]), ROOT)).as_posix(),
+            line=r["line"],
+            name=r["name"],
+            verb=r["verb"],
+            why=r["why"],
+        )
+        for r in rows
+    ]
+    found.sort(key=lambda v: (v.path, v.line))
+    return found
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -324,6 +378,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--count", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--top", type=int, default=30, help="0 for all")
+    parser.add_argument(
+        "--bodies",
+        action="store_true",
+        help="also parse each file with acorn and report a verb its body contradicts",
+    )
     args = parser.parse_args(argv)
 
     roots = (
@@ -338,6 +397,14 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    bodies_note = None
+    if args.bodies:
+        bodies = measure_bodies(roots)
+        if isinstance(bodies, str):
+            bodies_note = bodies
+        else:
+            found += bodies
+            found.sort(key=lambda v: (v.path, v.line))
 
     if args.count:
         print(len(found))
@@ -354,6 +421,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.top and len(found) > args.top:
         print(f"  ... and {len(found) - args.top} more (--top 0 for all)")
     print("-" * 72)
+    if bodies_note:
+        print(f"  --bodies skipped: {bodies_note}")
     by_verb = collections.Counter(v.verb for v in found)
     print(f"\n{len(found)} candidate(s) -- a population to READ, not a floor\n")
     for verb, n in by_verb.most_common():

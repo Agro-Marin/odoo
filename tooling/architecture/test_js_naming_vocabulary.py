@@ -118,3 +118,67 @@ def test_measure_reports_the_private_definition(tmp_path):
     assert "locateFile" not in found
     assert "deleteProperty" not in found
     assert "fillEmpty" not in found
+
+
+BODIES = textwrap.dedent(
+    """
+    export class Palette {
+        getResults(filtered) {
+            this.commands.push(filtered);
+        }
+        getTotal() {
+            return this.commands.length;
+        }
+        isDisplayedOnUpdate() {
+            this.x = 1;
+        }
+        _isActive(action) {}
+        get isEmpty() {
+            this.y = 2;
+        }
+        addEmoji(str) {
+            if (!str) {
+                return false;
+            }
+            this.emojis.push(str);
+        }
+        addTarget(target) {
+            this.targets.push(target);
+            return () => this.targets.pop();
+        }
+        updateAudioTrack() {
+            return this._mutex.exec(() => 1);
+        }
+        removeStyles(rule) {
+            const styles = {};
+            return styles;
+        }
+        computeActions() {
+            this.actions = [];
+        }
+    }
+    """
+)
+
+
+def test_bodies_report_the_verb_the_body_contradicts(tmp_path):
+    from js_naming_vocabulary import measure_bodies
+
+    (tmp_path / "a.js").write_text(BODIES)
+    found = measure_bodies([tmp_path])
+    if isinstance(found, str):
+        pytest.skip(found)
+    names = {v.name: v.why for v in found}
+    assert "getResults" in names
+    assert "removeStyles" in names
+    for idiom in (
+        "getTotal",
+        "isDisplayedOnUpdate",
+        "_isActive",
+        "isEmpty",
+        "addEmoji",
+        "addTarget",
+        "updateAudioTrack",
+        "computeActions",
+    ):
+        assert idiom not in names, idiom
