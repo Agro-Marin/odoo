@@ -62,6 +62,7 @@ GATES = {
     "field_hook_purity": ["--count"],
     "naming_vocabulary": ["--count"],
     "naming_core_vocabulary": ["--count"],
+    "js_naming_vocabulary": ["--count"],
     "order_line_qty": ["--count"],
     "readonly_tiers": ["--count"],
     "translation_catalog": ["--count"],
