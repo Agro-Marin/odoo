@@ -11,6 +11,7 @@ import { getKnownValuesKwargs } from "./concurrency_baseline.js";
 import { EditableListDataPoint } from "./editable_list_datapoint.js";
 import { getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
+import { sameMany2OneValue } from "./field_values.js";
 import { RelationalRecord } from "./record.js";
 import { formatServerValue } from "./record_value_transforms.js";
 import { resequenceRecords } from "./resequence.js";
@@ -27,12 +28,7 @@ const DEFAULT_HANDLE_FIELD = "sequence";
  */
 function isSameStoredValue(field, value, current) {
     if (field.type === "many2one") {
-        return (
-            Boolean(value) === Boolean(current) &&
-            (!value ||
-                (value.id === current.id &&
-                    value.display_name === current.display_name))
-        );
+        return sameMany2OneValue(value, current);
     }
     return (
         formatServerValue(field.type, value) === formatServerValue(field.type, current)
@@ -336,13 +332,14 @@ export class DynamicList extends EditableListDataPoint {
         const serverValuesById = Object.fromEntries(
             records.map((record) => [record.id, record]),
         );
+        const siblings = this.model.similarRecordCandidates?.();
         for (const record of validRecords) {
             const serverValues = serverValuesById[/** @type {number} */ (record.resId)];
             if (!serverValues) {
                 continue;
             }
             record.setData(serverValues);
-            this.model.updateSimilarRecords(record, serverValues);
+            this.model.updateSimilarRecords(record, serverValues, siblings);
         }
     }
 

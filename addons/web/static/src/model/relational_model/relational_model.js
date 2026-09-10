@@ -776,14 +776,27 @@ export class RelationalModel extends Model {
     }
 
     /**
+     * @returns {RelationalRecord[]} the records a reloaded one may be a second
+     * copy of: only a grouped root shows one record in several groups
+     */
+    similarRecordCandidates() {
+        if (this.config.isMonoRecord || !this.config.groupBy.length) {
+            return [];
+        }
+        return this.root.records;
+    }
+
+    /**
      * @param {RelationalRecord} reloadedRecord
      * @param {Record<string, unknown>} serverValues
+     * @param {RelationalRecord[]} [siblings]
      */
-    updateSimilarRecords(reloadedRecord, serverValues) {
-        if (this.config.isMonoRecord || !this.config.groupBy.length) {
-            return;
-        }
-        for (const record of this.root.records) {
+    updateSimilarRecords(
+        reloadedRecord,
+        serverValues,
+        siblings = this.similarRecordCandidates(),
+    ) {
+        for (const record of siblings) {
             if (record === reloadedRecord) {
                 continue;
             }

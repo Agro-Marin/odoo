@@ -644,10 +644,13 @@ export function useOpenMany2XRecord({
     const addDialog = useOwnedDialogs();
     const orm = useService("orm");
 
-    return async function openDialog(
-        { resId = false, forceModel = null, title, context, nextRecordsContext },
-        immediate = false,
-    ) {
+    return async function openDialog({
+        resId = false,
+        forceModel = null,
+        title,
+        context,
+        nextRecordsContext,
+    }) {
         const model = forceModel || resModel;
         let viewId;
         if (resId !== false) {
@@ -691,12 +694,10 @@ export function useOpenMany2XRecord({
             },
         );
 
-        if (!immediate) {
-            return /** @type {any} */ (
-                new Promise((_resolve) => {
-                    resolve = _resolve;
-                })
-            );
-        }
+        return /** @type {any} */ (
+            new Promise((_resolve) => {
+                resolve = _resolve;
+            })
+        );
     };
 }

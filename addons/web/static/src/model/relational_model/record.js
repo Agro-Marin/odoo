@@ -8,6 +8,7 @@ import { Operation } from "@web/core/utils/operation";
 
 import { DataPoint } from "./datapoint.js";
 import { getBasicEvalContext, getFieldContext } from "./field_context.js";
+import { sameMany2OneValue } from "./field_values.js";
 import { RecordEditState } from "./record_edit_state.js";
 import {
     archive,
@@ -946,12 +947,7 @@ export class RelationalRecord extends DataPoint {
             }
             const current = toRaw(this.data[fieldName]);
             const next = changes[fieldName];
-            if (
-                current &&
-                next &&
-                current.id === next.id &&
-                current.display_name === next.display_name
-            ) {
+            if (current && next && sameMany2OneValue(current, next)) {
                 delete changes[fieldName];
             }
         }

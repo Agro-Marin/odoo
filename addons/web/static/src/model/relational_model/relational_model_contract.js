@@ -30,6 +30,7 @@ export const RELATIONAL_MODEL_SURFACE = [
     "onchange",
     "patchConfig",
     "reloadWithConfig",
+    "similarRecordCandidates",
     "updateSimilarRecords",
 ];
 
@@ -62,6 +63,7 @@ export const RELATIONAL_MODEL_SURFACE = [
  * onchange: (config: any, params?: any) => Promise<any>,
  * patchConfig: (config: any, patch: any) => any,
  * reloadWithConfig: (config: any, patch: any, options?: { commit?: (data: Record<string, unknown>) => unknown }) => Promise<any>,
- * updateSimilarRecords: (reloadedRecord: any, serverValues: any) => void,
+ * similarRecordCandidates: () => any[],
+ * updateSimilarRecords: (reloadedRecord: any, serverValues: any, siblings?: any[]) => void,
  * }} RelationalModelContract
  */

@@ -312,6 +312,18 @@ function getValueFromGroupData(field, rawValue) {
  * @param {Record<string, object>} activeFields
  * @param {{ withReadonly?: boolean, context?: Record<string, unknown> }} [options]
  */
+/**
+ * @param {{ id: number, display_name?: string } | false | null | undefined} a
+ * @param {{ id: number, display_name?: string } | false | null | undefined} b
+ * @returns {boolean} whether two many2one values name the same record the same way
+ */
+export function sameMany2OneValue(a, b) {
+    return (
+        Boolean(a) === Boolean(b) &&
+        (!a || (a.id === b.id && a.display_name === b.display_name))
+    );
+}
+
 export function fromUnityToServerValues(
     values,
     fields,
