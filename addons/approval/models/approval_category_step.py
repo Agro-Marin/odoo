@@ -67,6 +67,12 @@ class ApprovalCategoryStep(models.Model):
         ondelete="cascade",
         help="Model the condition reads. Required when a condition is set.",
     )
+    subject_model_name = fields.Char(
+        related="subject_model_id.model",
+        string="Source Model Name",
+        help="The source model's technical name, which the condition's domain editor "
+        "reads its fields from.",
+    )
     subject_domain = fields.Char(
         string="Applies When",
         help="Domain on the request's source document. The step applies only to "

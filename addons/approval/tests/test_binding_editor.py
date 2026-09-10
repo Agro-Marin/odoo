@@ -2,6 +2,7 @@ import datetime
 
 from odoo import fields
 from odoo.fields import Command
+from odoo.service.model import call_kw
 from odoo.tests import common, tagged
 
 
@@ -80,6 +81,33 @@ class TestApprovalBindingEditor(common.TransactionCase):
         )
         self.assertEqual(self.Step.search(action["domain"]), step)
         self.assertEqual(action["context"]["default_category_id"], step.category_id.id)
+
+    def test_the_steps_action_opens_them_as_a_kanban_with_a_quick_create(self):
+        """Studio's sidebar button promises a kanban of the button's approvals."""
+        self._add_step()
+        action = self.Binding.action_open_button_steps(
+            "res.partner", "action_archive", False
+        )
+        self.assertEqual(action["view_mode"].split(",")[0], "kanban")
+        kanban = self.Step.get_view(view_type="kanban")
+        self.assertIn(
+            "approval.approval_category_step_view_form_quick_create", kanban["arch"]
+        )
+        self.Step.get_view(
+            self.env.ref("approval.approval_category_step_view_form_quick_create").id,
+            view_type="form",
+        )
+
+    def test_the_steps_action_answers_the_web_clients_button_call(self):
+        """The sidebar opens it as a button: /web/dataset/call_button sends ids first."""
+        step = self._add_step()
+        action = call_kw(
+            self.Binding,
+            "action_open_button_steps",
+            [[], "res.partner", "action_archive", False],
+            {},
+        )
+        self.assertEqual(self.Step.search(action["domain"]), step)
 
     def test_a_button_whose_steps_are_all_archived_is_no_longer_gated(self):
         """Studio's test_disable_approvals: archiving the last rule lifts the gate."""

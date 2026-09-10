@@ -88,10 +88,11 @@
                                 invisible="condition_type == 'threshold'"
                                 required="condition_type != 'threshold'"
                                 options="{'no_create': True}" />
+                            <field name="subject_model_name" invisible="1" />
                             <field
                                 name="subject_domain"
                                 widget="domain"
-                                options="{'model': 'subject_model_id'}"
+                                options="{'model': 'subject_model_name'}"
                                 invisible="condition_type != 'domain'"
                                 required="condition_type == 'domain'" />
                             <field

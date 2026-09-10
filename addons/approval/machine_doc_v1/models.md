@@ -622,6 +622,7 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 | `threshold` | Float | Yes | No | `threshold` rules only. The lower bound (inclusive) when `operator` is `between`; for `priority`, 0=Low 1=Normal 2=High 3=Urgent |
 | `threshold_max` | Float | Yes | No | `between` only: the upper bound, EXCLUSIVE. 0 means unlimited, which is how the highest band is spelled |
 | `subject_model_id` | Many2one(`ir.model`) | Yes | No | ondelete=cascade. Required for `domain` and `field_selection`: the model the condition reads |
+| `subject_model_name` | Char | No | No | related `subject_model_id.model`. The domain editor in the form reads its fields from it: the widget takes a model name, and handed the many2one it crashed the form |
 | `subject_domain` | Char | Yes | No | `domain` rules: evaluated with `filtered_domain` against the source document; every dotted path is walked against the registry at save time |
 | `subject_field` | Char | Yes | No | `field_selection` rules: the field on the source model |
 | `subject_value` | Char | Yes | No | `field_selection` rules: compared as text against the raw value — a Selection's key, a Many2one's id |
@@ -769,7 +770,7 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `_get_checkpoint_guard(model, checkpoint, operations)` / `_enforce_at_checkpoint(records, bindings, operation)` | Operation checkpoints. A model that declares `_operation_checkpoints = {operation: private_hook}` (`account.move`: `action_post` -> `_post_check_business_rules`) has the hook wrapped too, so a binding on the operation holds on every path that crosses it. The paths that never reach the operation's own wrapper get Block semantics: a checkpoint can neither ask for an approval nor keep a request, so a record Block or Request mode would stop is refused there |
 | `_admit(records, operation)` / `_get_admitted_ids(records, operation)` | The operation's wrapper marks the records it lets through, as (model, operation, ids) in `approval_binding_admitted`; their checkpoint does not check them again. Records the admitted call touches on its own (a reversal a posting creates) are still checked |
 | `create_step_for_button(model, method, action_id)` | Adds a step to a button; the first one binds the button in Studio's shape (Request, approve-on-invoke, run-on-approval off, a category that requests its steps in order). A step starts with the Internal User group and the gated model as subject model; its sequence is the last plus one, capped at 9 |
-| `action_open_button_steps(model, method, action_id)` | The list and form of a button's steps, replacing Studio's rule kanban |
+| `action_open_button_steps(model, method, action_id)` | A button's steps as a kanban (then list and form), with a quick-create card -- the card Studio's rule kanban showed: name, exclusivity, group, order, approvers |
 | `_has_anyone_to_ask()` | False when the category has no active step, no approver and no routing rule; `_get_selected` then selects nothing outside Observe mode, so a button whose steps are all archived is no longer gated |
 | `_get_selected(records)` | The records a call is gated on: the binding's subject domain, then — outside Observe mode — only records some active step of the category applies to, so a record no step applies to runs ungated (Studio's `test_03`) |
 | `_check_target_unchanged_once_requested(vals)` | `write` refuses to change `model_id`, `method` or `action_id` once the binding has requests: the decisions on them were given for that target |
@@ -835,6 +836,7 @@ does not is left as it was.
 | `exclusive` | Boolean | Yes | No | an approval counting toward this step counts toward no other step of the request, and the other way round |
 | `notify_user_ids` | Many2many(`res.users`) | Yes | No | posted an internal note when an approver of this step decides |
 | `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition reads; required when `subject_domain` is set |
+| `subject_model_name` | Char | No | No | related `subject_model_id.model`. The domain editor in the form reads its fields from it: the widget takes a model name, and handed the many2one it crashed the form |
 | `subject_domain` | Char | Yes | No | string="Applies When". The step applies only to requests whose source document matches |
 | `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
 | `_get_member_user_ids()` / `_get_pool_user_ids()` | Listed members within their term, who are asked; the pool adds the group's users, who may decide but are not asked |

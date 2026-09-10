@@ -32,7 +32,6 @@ class ApprovalBinding(models.Model):
             category.notify_sequentially = True
         return step.id
 
-    @api.model
     def action_open_button_steps(
         self, model: str, method=False, action_id=False
     ) -> dict[str, Any]:
@@ -43,7 +42,7 @@ class ApprovalBinding(models.Model):
             "type": "ir.actions.act_window",
             "name": self.env._("Approval Steps: %(binding)s", binding=binding.name),
             "res_model": "approval.category.step",
-            "view_mode": "list,form",
+            "view_mode": "kanban,list,form",
             "domain": [("category_id", "=", binding.category_id.id)],
             "context": {
                 "default_category_id": binding.category_id.id,

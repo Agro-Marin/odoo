@@ -1,3 +1,7 @@
+import ast
+
+from lxml import etree
+
 from odoo import fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
@@ -31,6 +35,23 @@ class TestCategorySteps(ApprovalCommon):
             for name, login in (("Step Three", "step_u3"), ("Step Four", "step_u4"))
         )
         cls.step_group = cls.env["res.groups"].create({"name": "Step Test Group"})
+
+    def test_every_domain_editor_reads_its_model_from_a_model_name(self):
+        """The domain widget takes a model name; a many2one hands it a record value."""
+        for model_name in ("approval.category.step", "approval.rule"):
+            Model = self.env[model_name]
+            arch = etree.fromstring(Model.get_view(view_type="form")["arch"])
+            editors = [
+                node for node in arch.iter("field") if node.get("widget") == "domain"
+            ]
+            self.assertTrue(editors, model_name)
+            for node in editors:
+                source = ast.literal_eval(node.get("options") or "{}").get("model")
+                self.assertEqual(
+                    Model._fields[source].type,
+                    "char",
+                    f"{model_name}.{node.get('name')} reads its model from {source}",
+                )
 
     def _category(self, **vals):
         return self._make_category(name=f"Steps {self.id()}", **vals)

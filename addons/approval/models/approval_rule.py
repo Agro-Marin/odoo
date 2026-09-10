@@ -68,6 +68,12 @@ class ApprovalRule(models.Model):
         "condition type except 'Numeric threshold', which reads the request. "
         "A request whose source document is another model never matches.",
     )
+    subject_model_name = fields.Char(
+        related="subject_model_id.model",
+        string="Source Model Name",
+        help="The source model's technical name, which the condition's domain editor "
+        "reads its fields from.",
+    )
     subject_domain = fields.Char(
         string="Source Domain",
         help="Domain evaluated against the source document.",
