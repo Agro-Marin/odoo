@@ -59,7 +59,7 @@ export class InteractionService {
     }
 
     /**
-     * @template
+     * @template T
      * @param {() => T} fn
      * @returns {T}
      */

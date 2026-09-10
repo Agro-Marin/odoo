@@ -20,7 +20,7 @@ export class SupersededError extends Error {
     }
 }
 
-/** @template */
+/** @template T */
 export class KeepLast {
     /**
      * @param {Object} [options]
@@ -109,7 +109,7 @@ export class Mutex {
     }
 
     /**
-     * @template
+     * @template T
      * @param {() => (T | Promise<T>)} action
      * @returns {Promise<T>}
      */
@@ -148,7 +148,7 @@ export class Mutex {
     }
 }
 
-/** @template */
+/** @template T */
 export class KeepLastByKey {
     /**
      * @param {Object} [options]
@@ -198,7 +198,7 @@ export class KeepLastByKey {
     }
 }
 
-/** @template */
+/** @template T */
 export class Race {
     constructor() {
         /** @type {Promise<T> | null} */
@@ -259,7 +259,7 @@ export class InFlight {
         return this._count > 0;
     }
     /**
-     * @template
+     * @template T
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
      */
@@ -283,7 +283,7 @@ export class InFlight {
 }
 
 /**
- * @template
+ * @template [T=unknown]
  * @returns {Promise<T> & { resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void }}
  */
 export class Deferred {

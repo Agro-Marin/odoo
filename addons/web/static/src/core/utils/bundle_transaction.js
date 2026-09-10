@@ -7,7 +7,7 @@ let depth = 0;
 const pending = new Set();
 
 /**
- * @template
+ * @template T
  * @param {() => Promise<T>} evaluate
  * @returns {Promise<T>}
  */

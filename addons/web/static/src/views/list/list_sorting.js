@@ -68,9 +68,7 @@ export const listSortingMixin = {
                     previous?.dataset.groupId,
                 );
             } else {
-                this.resequencePromise = this.props.list.resequence(dataRowId, refId, {
-                    handleField: this.props.list.handleField,
-                });
+                this.resequencePromise = this.props.list.resequence(dataRowId, refId);
             }
             await this.resequencePromise;
         } finally {

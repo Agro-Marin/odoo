@@ -13,6 +13,7 @@ import {
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMacOS, isMobileOS } from "@web/core/browser/feature_detection";
+import { isCtrlOrCmdKey } from "@web/core/browser/hotkeys";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { CommandPaletteEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
@@ -105,7 +106,7 @@ function moreResultsMessage(hidden) {
 }
 
 /**
- * @template {CommandItem}
+ * @template {CommandItem} T
  * @param {T[]} commands
  * @param {string[]} categories
  * @returns {Map<string, T[]>}
@@ -468,7 +469,7 @@ export class CommandPalette extends Component {
     onCommandClicked(event, index) {
         event.preventDefault();
         this.selectCommand(index);
-        const ctrlKey = isMacOS() ? event.metaKey : event.ctrlKey;
+        const ctrlKey = isCtrlOrCmdKey(event);
         this.executeSelectedCommand(ctrlKey);
     }
 

@@ -63,10 +63,6 @@ Object.defineProperty(renderToString, "app", {
     configurable: true,
 });
 
-export function invalidateRenderToStringApp() {
-    app = undefined;
-}
-
 /**
  * @param {string} template
  * @param {object} [context]

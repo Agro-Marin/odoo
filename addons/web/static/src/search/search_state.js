@@ -6,7 +6,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 export const SPECIAL = Symbol("special");
 
 /**
- * @template
+ * @template T
  * @param {T} value
  * @returns {T | undefined}
  */

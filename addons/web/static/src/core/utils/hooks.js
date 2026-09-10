@@ -27,12 +27,6 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
     const ref = useRef(refName || "autofocus");
     const uiService = useService("ui");
 
-    if (!mobile && hasTouch()) {
-        return ref;
-    }
-    if (!mobile && isMobileOS()) {
-        return ref;
-    }
     function isFocusable(/** @type {HTMLElement | null} */ el) {
         if (!el) {
             return false;
@@ -48,6 +42,9 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
     }
     useEffect(
         (el) => {
+            if (!mobile && (hasTouch() || isMobileOS())) {
+                return;
+            }
             if (isFocusable(el)) {
                 el.focus();
                 if (
@@ -184,7 +181,7 @@ function makeGuardedView(component, observed, methods) {
 export const SERVICES_METADATA = {};
 
 /**
- * @template {keyof import("services").ServiceFactories}
+ * @template {keyof import("services").ServiceFactories} K
  * @param {K} serviceName
  * @returns {import("services").ServiceFactories[K]}
  */
@@ -194,7 +191,7 @@ export function useService(serviceName) {
 }
 
 /**
- * @template {keyof import("services").ServiceFactories}
+ * @template {keyof import("services").ServiceFactories} K
  * @param {K} serviceName
  * @returns {import("services").ServiceFactories[K] | null}
  */

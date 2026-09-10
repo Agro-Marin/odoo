@@ -8,12 +8,12 @@ import { toRaw } from "@odoo/owl";
  * @param {any} b
  * @returns {boolean}
  */
-function sameValue(a, b) {
+export function sameValue(a, b) {
     return a === b || (Number.isNaN(a) && Number.isNaN(b));
 }
 
 /**
- * @template
+ * @template T
  * @param {T} obj1
  * @param {T} obj2
  * @param {(a: any, b: any) => boolean} [comparisonFn]
@@ -144,7 +144,7 @@ function _deepEqualInner(a, b, seen) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T} value
  * @param {WeakMap<object, object>} [seen]
  * @returns {T}
@@ -198,7 +198,7 @@ export function toRawDeep(value, seen = new WeakMap()) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T} object
  * @return {T}
  */
@@ -232,8 +232,8 @@ export function isObject(value) {
 }
 
 /**
- * @template {Record<string, any>}
- * @template {keyof T}
+ * @template {Record<string, any>} T
+ * @template {keyof T} K
  * @param {T} object
  * @param {...(K)} properties
  * @returns {Omit<T, K>}
@@ -278,8 +278,8 @@ function hasPropertyBelowObject(object, property) {
 }
 
 /**
- * @template
- * @template {keyof T}
+ * @template T
+ * @template {keyof T} K
  * @param {T} object
  * @param {...(K)} properties
  * @returns {Pick<T, K>}

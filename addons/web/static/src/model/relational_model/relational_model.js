@@ -334,7 +334,7 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * @template
+     * @template T
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}
      */
@@ -543,6 +543,7 @@ export class RelationalModel extends Model {
                 { ...config, resIds },
                 getSpecEvalContext(config),
                 cache,
+                signal,
             );
             return { records, length: config.resIds.length };
         }

@@ -5,7 +5,7 @@ import { onWillUnmount, useComponent } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 
 /**
- * @template {(...args: any[]) => any}
+ * @template {(...args: any[]) => any} T
  * @param {T} callback
  * @param {() => Promise<void>} [synchronize]
  * @returns {(...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>}
@@ -88,7 +88,7 @@ function debounceEdges(options) {
 }
 
 /**
- * @template {Function}
+ * @template {Function} T
  * @param {T} func
  * @param {number | "animationFrame" | (() => number)} delay
  * @param {boolean | {leading?: boolean, trailing?: boolean}} [options]
@@ -191,7 +191,7 @@ export function setRecurringAnimationFrame(callback) {
 }
 
 /**
- * @template {Function}
+ * @template {Function} T
  * @param {T} func
  * @returns {T & { cancel: () => void }}
  */
@@ -259,7 +259,7 @@ export function throttleForAnimation(func) {
 }
 
 /**
- * @template {Function}
+ * @template {Function} T
  * @param {T} callback
  * @param {number | "animationFrame" | (() => number)} delay
  * @param {{execBeforeUnmount?: boolean, immediate?: boolean, trailing?: boolean}} [options]
@@ -280,7 +280,7 @@ export function useDebounced(
 }
 
 /**
- * @template {Function}
+ * @template {Function} T
  * @param {T} func
  * @returns {T & { cancel: () => void }}
  */

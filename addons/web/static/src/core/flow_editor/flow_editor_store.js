@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-import { reactive } from "@odoo/owl";
-
 import { DEFAULT_FLOW_VIEWPORT } from "./flow_types.js";
 import { clampScale } from "./geometry/coordinates.js";
 
@@ -315,12 +313,4 @@ export class FlowEditorStore {
             connectionIds.has(id),
         );
     }
-}
-
-/**
- * @param {ConstructorParameters<typeof FlowEditorStore>[0]} [params]
- * @returns {FlowEditorStore}
- */
-export function createFlowEditorStore(params) {
-    return reactive(new FlowEditorStore(params));
 }

@@ -403,7 +403,7 @@ export class DateTimePickerController {
     };
 
     /**
-     * @template {"format" | "parse"}
+     * @template {"format" | "parse"} T
      * @param {T} operation
      * @param {T extends "format" ? DateTime : string} value
      * @returns {[T extends "format" ? string : DateTime, null] | [null, Error]}

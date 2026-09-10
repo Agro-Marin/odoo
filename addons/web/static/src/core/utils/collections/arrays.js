@@ -2,13 +2,13 @@
 /** @odoo-module native */
 
 /**
- * @template
- * @template {string | number | symbol}
+ * @template T
+ * @template {string | number | symbol} K
  * @typedef {keyof T | ((item: T) => K)} Criterion
  */
 
 /**
- * @template
+ * @template T
  * @param {...T[]} args
  * @returns {(T[] | undefined)[]}
  */
@@ -32,8 +32,8 @@ function _cartesian(...args) {
 
 /**
  * @private
- * @template
- * @template {string | number | symbol}
+ * @template T
+ * @template {string | number | symbol} K
  * @param {Criterion<T, K>} [criterion]
  * @returns {(element: T) => any}
  */
@@ -54,7 +54,7 @@ function _getExtractorFrom(criterion) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T | Iterable<T>} [value]
  * @returns {T[]}
  */
@@ -65,7 +65,7 @@ export function ensureArray(value) {
 }
 
 /**
- * @template
+ * @template T
  * @param {Iterable<T>} iter1
  * @param {Iterable<T>} iter2
  * @returns {T[]}
@@ -84,8 +84,8 @@ export function isIterable(value) {
 }
 
 /**
- * @template
- * @template {string | number | symbol}
+ * @template T
+ * @template {string | number | symbol} K
  * @param {Iterable<T>} iterable
  * @param {Criterion<T, K>} [criterion]
  * @returns {Record<K, T[]>}
@@ -98,8 +98,8 @@ export function groupBy(iterable, criterion) {
 }
 
 /**
- * @template
- * @template {string | number | symbol}
+ * @template T
+ * @template {string | number | symbol} K
  * @param {Iterable<T>} iterable
  * @param {Criterion<T, K>} [criterion]
  * @param {"asc" | "desc"} [order="asc"]
@@ -127,7 +127,7 @@ export function sortBy(iterable, criterion, order = "asc") {
 }
 
 /**
- * @template
+ * @template T
  * @param {Iterable<T>} iter1
  * @param {Iterable<T>} iter2
  * @returns {T[]}
@@ -139,7 +139,7 @@ export function symmetricalDifference(iter1, iter2) {
 }
 
 /**
- * @template
+ * @template T
  * @param {...T[]} args
  * @returns {(T | T[] | undefined)[]}
  */
@@ -154,7 +154,7 @@ export function cartesian(...args) {
 }
 
 /**
- * @template
+ * @template T
  * @param {Iterable<T>} iterable
  * @returns {T[][]}
  */
@@ -168,7 +168,7 @@ export function sections(iterable) {
 }
 
 /**
- * @template
+ * @template T
  * @param {Iterable<T>} iterable
  * @returns {T[]}
  */
@@ -177,7 +177,7 @@ export function unique(iterable) {
 }
 
 /**
- * @template
+ * @template T1, T2
  * @param {Iterable<T1>} iter1
  * @param {Iterable<T2>} iter2
  * @param {boolean} [fill=false]
@@ -196,7 +196,7 @@ export function zip(iter1, iter2, fill = false) {
 }
 
 /**
- * @template
+ * @template T1, T2, T
  * @param {Iterable<T1>} iter1
  * @param {Iterable<T2>} iter2
  * @param {(e1: T1, e2: T2) => T} mapFn
@@ -206,7 +206,7 @@ export function zipWith(iter1, iter2, mapFn) {
     return zip(iter1, iter2).map(([e1, e2]) => mapFn(e1, e2));
 }
 /**
- * @template
+ * @template T
  * @param {T[]} arr
  * @param {number} width
  * @returns {T[][]}

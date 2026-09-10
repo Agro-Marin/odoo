@@ -1,16 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+import { sameValue } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
-
-/**
- * @param {any} a
- * @param {any} b
- * @returns {boolean}
- */
-function sameValue(a, b) {
-    return a === b || (Number.isNaN(a) && Number.isNaN(b));
-}
 
 /**
  * @param {Record<string, any>} currentState

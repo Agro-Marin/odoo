@@ -130,7 +130,7 @@ export const menuUsage = {
     },
 
     /**
-     * @template {{ xmlid?: string }}
+     * @template {{ xmlid?: string }} T
      * @param {T[]} items
      * @param {number} [limit]
      * @returns {T[]}

@@ -337,7 +337,7 @@ const staleWhileRevalidate = async (event) => {
             }
             return response;
         })
-        .catch(() => cached);
+        .catch(() => cached ?? Response.error());
     if (cached) {
         event.waitUntil(networkPromise);
         return cached;
@@ -477,4 +477,5 @@ sw.__ODOO_SW_TEST_HOOKS__ = {
     extractSessionInfo,
     isStaleWhileRevalidateURL,
     restoreSessionInfo,
+    staleWhileRevalidate,
 };

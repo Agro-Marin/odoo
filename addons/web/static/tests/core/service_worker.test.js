@@ -21,6 +21,45 @@ function loadServiceWorkerHooks() {
 
 const url = (/** @type {string} */ path) => new URL(path, "https://example.com");
 
+/**
+ * @param {any} caches
+ * @param {any} fetch
+ */
+async function loadServiceWorkerHooksWith(caches, fetch) {
+    const response = await globals.fetch("/web/static/src/service_worker.js");
+    const source = await response.text();
+    /** @type {any} */
+    const fakeSelf = { addEventListener: () => {} };
+    new Function("self", "caches", "fetch", source)(fakeSelf, caches, fetch);
+    return fakeSelf.__ODOO_SW_TEST_HOOKS__;
+}
+
+describe("staleWhileRevalidate", () => {
+    test("a network failure with nothing cached answers an error response, not undefined", async () => {
+        const caches = { open: async () => ({ match: async () => undefined }) };
+        const fetch = () => Promise.reject(new TypeError("offline"));
+        const hooks = await loadServiceWorkerHooksWith(caches, fetch);
+        const request = new Request(
+            "https://example.com/web/assets/1/abc123/web.assets_web.min.js",
+        );
+        const response = await hooks.staleWhileRevalidate({ request, waitUntil() {} });
+        expect(response).not.toBe(undefined);
+        expect(response.type).toBe("error");
+    });
+
+    test("a network failure with a cached copy answers the cached copy", async () => {
+        const cached = new Response("cached");
+        const caches = { open: async () => ({ match: async () => cached }) };
+        const fetch = () => Promise.reject(new TypeError("offline"));
+        const hooks = await loadServiceWorkerHooksWith(caches, fetch);
+        const request = new Request(
+            "https://example.com/web/assets/1/abc123/web.assets_web.min.js",
+        );
+        const response = await hooks.staleWhileRevalidate({ request, waitUntil() {} });
+        expect(response).toBe(cached);
+    });
+});
+
 describe("extractSessionInfo", () => {
     test("extracts a simple session info object", async () => {
         const { extractSessionInfo } = await loadServiceWorkerHooks();

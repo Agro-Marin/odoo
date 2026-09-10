@@ -57,7 +57,7 @@ export function extractNumericOptions({ options }) {
 }
 
 /**
- * @template {number | Operation}
+ * @template {number | Operation} T
  * @param {T} parsed
  * @param {number} divisor
  * @returns {T}

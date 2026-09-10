@@ -5,7 +5,7 @@ import { browser } from "@web/core/browser/browser";
 import { isObject } from "@web/core/utils/collections/objects";
 
 /**
- * @template
+ * @template [T=unknown]
  * @typedef {[Record<string, T>] | T[]} Substitutions
  */
 
@@ -29,7 +29,7 @@ const HTML_ESCAPED_CHARACTERS = [
 const R_EMAIL =
     /^(([^<>()[\].,;:\s@"]+(\.[^<>()[\].,;:\s@"]+)*)|(".+"))@(([^<>()[\].,;:\s@"]+\.)+[^<>()[\].,;:\s@"]{2,})$/i;
 const R_FALSY = /^(false|0)$/i;
-const R_KEYED_SUBSTITUTION = /%\((?<key>[^)]+)\)s/g;
+const R_KEYED_SUBSTITUTION = /%%|%\((?<key>[^)]+)\)s/g;
 const R_NUMERIC = /^\d+$/;
 const R_REGEX_SPECIAL_CHARS = /[.*+?^${}()|[\]\\]/g;
 
@@ -154,7 +154,7 @@ export function isNumeric(value) {
 }
 
 /**
- * @template
+ * @template T, M
  * @param {Substitutions<T>} substitutions
  * @param {(value: T) => M} mapFn
  * @returns {Substitutions<M>}
@@ -177,7 +177,7 @@ export function mapSubstitutions(substitutions, mapFn) {
 }
 
 /**
- * @template
+ * @template T
  * @param {string} str
  * @param {Substitutions<T>} substitutions
  * @returns {string}
@@ -188,7 +188,9 @@ export function sprintf(str, ...substitutions) {
     }
     if (hasSubstitutionDict(substitutions)) {
         const dict = /** @type {Record<string, any>} */ (substitutions[0]);
-        return str.replaceAll(R_KEYED_SUBSTITUTION, (_match, key) => dict[key] ?? "");
+        return str.replaceAll(R_KEYED_SUBSTITUTION, (match, key) =>
+            match === "%%" ? "%" : (dict[key] ?? ""),
+        );
     } else {
         const raw = [""];
         for (let i = 0; i < str.length; i++) {

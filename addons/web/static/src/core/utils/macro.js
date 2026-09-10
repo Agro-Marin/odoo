@@ -88,7 +88,7 @@ async function waitForTrigger(trigger, signal) {
 }
 
 /**
- * @template
+ * @template T
  * @param {() => T} predicate
  * @param {{ signal?: AbortSignal }} [options]
  * @returns {Promise<T>}

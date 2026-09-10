@@ -96,7 +96,7 @@ export const actionStorage = {
     },
 
     /**
-     * @template
+     * @template T
      * @param {{ serializedAction?: string, state: Object }} entry
      * @param {() => T} fn
      * @returns {T}

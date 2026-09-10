@@ -23,7 +23,7 @@ export { formatAST } from "./py_utils.js";
 const _astCache = new LruCache(512);
 
 /**
- * @template {AST}
+ * @template {AST} T
  * @param {T} node
  * @returns {T}
  */

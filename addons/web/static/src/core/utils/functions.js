@@ -41,7 +41,7 @@ class IdentityKeyMap {
 }
 
 /**
- * @template {(...args: any[]) => any}
+ * @template {(...args: any[]) => any} T
  * @param {T} func
  * @returns {T}
  */

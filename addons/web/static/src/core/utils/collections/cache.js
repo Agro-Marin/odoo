@@ -18,7 +18,7 @@ function assertPrimitiveSegment(segment) {
     }
 }
 
-/** @template */
+/** @template T */
 export class Cache {
     /**
      * @param {(...args: any[]) => T} getValue

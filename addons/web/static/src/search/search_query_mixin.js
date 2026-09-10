@@ -7,7 +7,7 @@ import { SPECIAL } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
 /**
- * @template {new (...args: any[]) => any}
+ * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchQueryMixin = (Base) =>

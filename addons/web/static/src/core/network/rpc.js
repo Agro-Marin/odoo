@@ -18,7 +18,7 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 /** @typedef {{ */
 
 /**
- * @template
+ * @template T
  * @typedef {Promise<T> & { abort: (rejectError?: boolean) => void }} RpcPromise
  */
 
@@ -65,7 +65,7 @@ function checkRPCSettings(settings) {
 }
 
 /**
- * @template {Promise<any>}
+ * @template {Promise<any>} T
  * @param {T} promise
  * @param {AbortSignal | undefined} signal
  * @returns {T}

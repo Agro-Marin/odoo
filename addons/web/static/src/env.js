@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 import { App, Component, EventBus } from "@odoo/owl";
-import { isMacOS } from "@web/core/browser/feature_detection";
+import { isCtrlOrCmdKey } from "@web/core/browser/hotkeys";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -375,7 +375,7 @@ export const globalValues = {
             if (hasPrevent) {
                 ev.preventDefault();
             }
-            const ctrlKey = isMacOS() ? ev.metaKey : ev.ctrlKey;
+            const ctrlKey = isCtrlOrCmdKey(ev);
             const isMiddleClick = (ctrlKey && ev.button === 0) || ev.button === 1;
             return value(ev, isMiddleClick);
         }

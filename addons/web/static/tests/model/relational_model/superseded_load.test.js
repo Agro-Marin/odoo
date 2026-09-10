@@ -130,3 +130,38 @@ test("the winning load's signal is never aborted", async () => {
     expect(signals.length > 0).toBe(true);
     expect(/** @type {AbortSignal} */ (signals.at(-1)).aborted).toBe(false);
 });
+
+test("a load driven by explicit resIds carries the abort signal too", async () => {
+    /** @type {AbortSignal[]} */
+    const signals = [];
+    patchWithCleanup(RelationalModel.prototype, {
+        _scopedOrm(/** @type {any} */ cache, /** @type {AbortSignal} */ signal) {
+            if (signal) {
+                signals.push(signal);
+            }
+            return super._scopedOrm(cache, signal);
+        },
+    });
+    const hold = new Deferred();
+    onRpc("foo", "web_read", async () => {
+        await hold;
+    });
+
+    const model = await mountListAndGetModel();
+    // a multi-record root driven by known ids reads them instead of searching
+    model.config.resIds = [1, 2];
+    const before = signals.length;
+    const superseded = model.load().catch(() => {});
+    await animationFrame();
+    expect(signals.length).toBe(before + 1);
+    const supersededSignal = /** @type {AbortSignal} */ (signals[before]);
+    expect(supersededSignal.aborted).toBe(false);
+
+    const winner = model.load();
+    expect(supersededSignal.aborted).toBe(true);
+
+    hold.resolve();
+    await winner;
+    await superseded;
+    await animationFrame();
+});

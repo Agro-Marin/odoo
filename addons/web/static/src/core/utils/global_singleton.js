@@ -4,7 +4,7 @@
 const NAMESPACE = "__odoo_singletons__";
 
 /**
- * @template
+ * @template T
  * @param {string} key
  * @param {() => T} factory
  * @returns {T}

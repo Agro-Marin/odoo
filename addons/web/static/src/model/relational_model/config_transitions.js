@@ -11,7 +11,7 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
  */
 
 /**
- * @template
+ * @template T
  * @param {Record<string, any>} params
  * @param {string} key
  * @param {T} fallback

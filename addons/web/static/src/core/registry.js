@@ -48,27 +48,27 @@ const isValidValue = (name, key, value, schema) => {
 };
 
 /**
- * @template
- * @template
+ * @template S
+ * @template C
  * @typedef {import("registries").RegistryData<S, C>} RegistryData
  */
 
 /**
- * @template
+ * @template T
  * @typedef {T extends RegistryData<any, any> ? T : RegistryData<T, {}>} ToRegistryData
  */
 
 /**
- * @template
+ * @template T
  * @typedef {ToRegistryData<T>["__itemShape"]} GetRegistryItemShape
  */
 
 /**
- * @template
+ * @template T
  * @typedef {ToRegistryData<T>["__categories"]} GetRegistryCategories
  */
 
-/** @template */
+/** @template T */
 export class Registry extends EventBus {
     /** @param {string} [name] */
     constructor(name) {
@@ -221,7 +221,7 @@ export class Registry extends EventBus {
     }
 
     /**
-     * @template {keyof GetRegistryCategories<T> & string}
+     * @template {keyof GetRegistryCategories<T> & string} K
      * @param {K} subcategory
      * @returns {Registry<GetRegistryCategories<T>[K]>}
      */
@@ -260,7 +260,7 @@ export const registry = /** @type {any} */ (
 );
 
 /**
- * @template
+ * @template T
  * @param {Registry<T>} registry
  * @returns {{ entries: [string, GetRegistryItemShape<T>][] }}
  */

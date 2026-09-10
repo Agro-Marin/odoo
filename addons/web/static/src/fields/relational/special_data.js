@@ -37,7 +37,7 @@ function subscribersFor(specialDataCaches, key) {
 }
 
 /**
- * @template
+ * @template T, [Props=any]
  * @param {(orm: Services["orm"], props: Component<Props>["props"]) => Promise<T>} loadFn
  * @returns {{ data: T }}
  */

@@ -14,7 +14,7 @@ import {
 } from "@web/webclient/menus/menu_utils";
 
 /**
- * @template {{ xmlid?: string }}
+ * @template {{ xmlid?: string }} T
  * @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config
  * @param {T[]} apps
  * @returns {T[]}
@@ -26,7 +26,7 @@ export function shownApps(config, apps) {
 }
 
 /**
- * @template {{ xmlid?: string }}
+ * @template {{ xmlid?: string }} T
  * @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config
  * @param {T[]} apps
  * @returns {T[]}
@@ -85,8 +85,7 @@ export function useHomeMenuLayoutSync(onChange) {
             }
             user.updateUserSettings("homemenu_config", settings.homemenu_config);
             onChange();
-        } catch {
-        }
+        } catch {}
     });
 }
 
@@ -273,8 +272,7 @@ export class HomeMenuLayout {
                         homeMenuLayoutStorageKey(),
                         JSON.stringify({ config: raw, at: Date.now() }),
                     );
-                } catch {
-                }
+                } catch {}
             } catch (error) {
                 this.pending.unshift(...changes);
                 this.state.status = "error";

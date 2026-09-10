@@ -60,7 +60,7 @@ function camelToKebab(str) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T | (() => T)} valueOrFn
  * @returns {T}
  */
@@ -101,7 +101,7 @@ export function safePrevent(ev, { stop } = {}) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T | (() => T)} value
  * @returns {() => T}
  */

@@ -100,7 +100,6 @@ export async function completeUncaughtError(
     if (originalError.message) {
         uncaughtError.message = `${uncaughtError.message} > ${originalError.message}`;
     }
-    uncaughtError.cause = originalError;
 }
 
 /**

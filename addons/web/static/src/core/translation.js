@@ -48,7 +48,7 @@ function translationSprintf(str, substitutions) {
 }
 
 /**
- * @template
+ * @template [T=unknown]
  * @typedef {import("@web/core/utils/format/strings").Substitutions<T>} Substitutions
  */
 
@@ -68,7 +68,7 @@ export function _t(source, ...substitutions) {
 const _pluralRulesCache = new Map();
 
 /**
- * @template {string | TranslatedString | Markup}
+ * @template {string | TranslatedString | Markup} T
  * @param {number} count
  * @param {Partial<Record<Intl.LDMLPluralRule, T>> & { other: T }} forms
  * @returns {T}

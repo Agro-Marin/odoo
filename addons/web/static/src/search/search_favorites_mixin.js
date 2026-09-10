@@ -11,7 +11,7 @@ import {
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js";
 
 /**
- * @template {new (...args: any[]) => any}
+ * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchFavoritesMixin = (Base) =>

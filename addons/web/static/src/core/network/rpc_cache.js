@@ -68,7 +68,7 @@ function checkSettings(
 }
 
 /**
- * @template
+ * @template T
  * @param {T} value
  * @param {WeakSet<object>} [seen]
  * @returns {T}

@@ -61,8 +61,8 @@ function findAncestorPropertyDescriptor(objToPatch, key) {
 }
 
 /**
- * @template {Record<string, any>}
- * @template {Partial<T>}
+ * @template {Record<string, any>} T
+ * @template {Partial<T>} U
  * @param {T} objToPatch
  * @param {U & ThisType<T & U>} extension
  * @returns {() => void}

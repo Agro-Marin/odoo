@@ -2,8 +2,8 @@
 /** @odoo-module native */
 
 /**
- * @template {WeakKey}
- * @template
+ * @template {WeakKey} K
+ * @template V
  */
 export class PairSet {
     constructor() {

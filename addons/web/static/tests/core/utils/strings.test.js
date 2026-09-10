@@ -138,6 +138,12 @@ describe("sprintf", () => {
         expect(sprintf("Escape %%s%s", "this!")).toBe("Escape %sthis!");
         expect(sprintf("Escape %foo!", "this")).toBe("Escape %foo!");
     });
+
+    test("supports escaped '%' signs in keyed mode too", () => {
+        expect(sprintf("100%% of %(x)s", { x: "it" })).toBe("100% of it");
+        expect(sprintf("%(x)s%%", { x: 50 })).toBe("50%");
+        expect(sprintf("%%(x)s", { x: "raw" })).toBe("%(x)s");
+    });
 });
 
 test("capitalize", () => {

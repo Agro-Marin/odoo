@@ -26,7 +26,7 @@ export class NavigationToken {
     }
 
     /**
-     * @template
+     * @template T
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
      */
@@ -66,7 +66,7 @@ export class NavigationTracker {
     }
 
     /**
-     * @template
+     * @template T
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
      */
@@ -75,7 +75,7 @@ export class NavigationTracker {
     }
 
     /**
-     * @template
+     * @template T
      * @param {NavigationToken} token
      * @param {Promise<T>} promise
      * @returns {Promise<T>}

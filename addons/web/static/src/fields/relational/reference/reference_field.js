@@ -53,7 +53,7 @@ export class ReferenceField extends FieldComponent {
 
         const SUPERSEDED = Symbol("superseded");
         /**
-         * @template
+         * @template T
          * @param {Promise<T>} promise
          * @returns {Promise<T | typeof SUPERSEDED>}
          */

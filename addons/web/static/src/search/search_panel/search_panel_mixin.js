@@ -19,7 +19,7 @@ function sectionErrorMessage(error) {
 }
 
 /**
- * @template {new (...args: any[]) => any}
+ * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchPanelMixin = (Base) =>

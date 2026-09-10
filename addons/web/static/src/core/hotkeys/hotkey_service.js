@@ -4,7 +4,7 @@
 import { browser } from "@web/core/browser/browser";
 import {
     adoptAccessKeys,
-    AUTHORIZED_KEYS,
+    AUTHORIZED_KEY_SET,
     getActiveHotkey,
     MODIFIERS,
 } from "@web/core/browser/hotkeys";
@@ -107,7 +107,7 @@ export class HotkeyService {
         }
 
         const singleKey = hotkey.split("+").pop();
-        if (!AUTHORIZED_KEYS.includes(singleKey)) {
+        if (!AUTHORIZED_KEY_SET.has(singleKey)) {
             return;
         }
 
@@ -335,7 +335,7 @@ export class HotkeyService {
             .filter(Boolean);
         const modifiers = MODIFIERS.filter((modifier) => parts.includes(modifier));
         const keys = parts.filter((k) => !MODIFIERS.includes(k));
-        if (keys.some((k) => !AUTHORIZED_KEYS.includes(k))) {
+        if (keys.some((k) => !AUTHORIZED_KEY_SET.has(k))) {
             throw new Error(
                 `You are trying to subscribe for an hotkey ('${hotkey}')
             that contains parts not whitelisted: ${keys.join(", ")}`,

@@ -247,7 +247,7 @@ export class Domain {
     }
 
     /**
-     * @template {Record<string, any>}
+     * @template {Record<string, any>} T
      * @param {T[]} records
      * @returns {T[]}
      */
@@ -295,7 +295,7 @@ const TRUE_LEAF = [1, "=", 1];
 /** @type {Condition} */
 const FALSE_LEAF = [0, "=", 1];
 /**
- * @template {Domain}
+ * @template {Domain} T
  * @param {T} domain
  * @returns {T}
  */

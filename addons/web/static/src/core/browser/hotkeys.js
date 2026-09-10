@@ -21,7 +21,7 @@ const NAV_KEYS = [
 ];
 export const MODIFIERS = ["alt", "control", "shift"];
 export const AUTHORIZED_KEYS = [...ALPHANUM_KEYS, ...NAV_KEYS, "escape", "<", ">"];
-const AUTHORIZED_KEY_SET = new Set(AUTHORIZED_KEYS);
+export const AUTHORIZED_KEY_SET = new Set(AUTHORIZED_KEYS);
 
 const MODIFIER_KEYS = new Set([
     ...MODIFIERS,
@@ -40,6 +40,14 @@ const MODIFIER_KEYS = new Set([
 ]);
 
 /**
+ * @param {KeyboardEvent | MouseEvent} ev
+ * @returns {boolean} the platform's primary modifier: Cmd on macOS, Ctrl elsewhere
+ */
+export function isCtrlOrCmdKey(ev) {
+    return isMacOS() ? ev.metaKey : ev.ctrlKey;
+}
+
+/**
  * @param {KeyboardEvent} ev
  * @returns {string}
  */
@@ -55,7 +63,7 @@ export function getActiveHotkey(ev) {
     if (isMacOS() ? ev.ctrlKey : ev.altKey) {
         hotkey.push("alt");
     }
-    if (isMacOS() ? ev.metaKey : ev.ctrlKey) {
+    if (isCtrlOrCmdKey(ev)) {
         hotkey.push("control");
     }
     if (ev.shiftKey) {

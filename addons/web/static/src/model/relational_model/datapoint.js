@@ -34,7 +34,7 @@ export class DataPoint extends SignalStore {
 
     /**
      * @abstract
-     * @template
+     * @template [O={}]
      * @param {RelationalModelConfig} _config
      * @param {DataPointPayload} [_data]
      * @param {O} [_options]

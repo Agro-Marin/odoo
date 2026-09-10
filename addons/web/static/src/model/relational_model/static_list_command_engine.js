@@ -43,7 +43,7 @@ function expandSetCommands(commands) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T[]} items
  * @param {Record<string|number, number>} removedIds
  * @param {(item: T) => string | number} keyOf

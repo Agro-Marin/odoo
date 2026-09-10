@@ -6,7 +6,7 @@ import { Component } from "@odoo/owl";
 import { fieldHandle } from "./field_handle.js";
 
 /**
- * @template
+ * @template [P=any]
  * @extends {Component<P>}
  */
 export class FieldComponent extends Component {

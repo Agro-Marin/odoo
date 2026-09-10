@@ -24,7 +24,7 @@ export function fmt4(n) {
 }
 
 /**
- * @template
+ * @template T
  * @param {number} a
  * @param {number} b
  * @param {(quotient: number, remainder: number) => T} fn

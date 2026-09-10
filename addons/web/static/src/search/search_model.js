@@ -247,7 +247,6 @@ export class SearchModel extends SearchQueryMixin(
             searchViewDescription.viewId = searchViewId;
         }
 
-        this.searchViewArch = searchViewDescription.arch || "<search/>";
         this.searchViewFields = searchViewFields || {};
         if (searchViewDescription.irFilters) {
             this.irFilters = searchViewDescription.irFilters;
@@ -816,7 +815,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @template
+     * @template T
      * @param {() => T} fn
      * @returns {T}
      */
@@ -832,7 +831,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @template
+     * @template T
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}
      */
@@ -857,7 +856,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @template
+     * @template T
      * @param {T} value
      * @returns {T}
      */

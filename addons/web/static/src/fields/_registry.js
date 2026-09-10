@@ -16,7 +16,7 @@ export function fieldKey(spec) {
 }
 
 /**
- * @template {Partial<import("registries").FieldsRegistryItemShape>}
+ * @template {Partial<import("registries").FieldsRegistryItemShape>} T
  * @param {string | FieldRegistrationSpec} nameOrSpec
  * @param {T} widget
  * @param {...any} rest
@@ -27,7 +27,7 @@ export function registerField(nameOrSpec, widget, ...rest) {
 }
 
 /**
- * @template
+ * @template T
  * @param {string | FieldRegistrationSpec} nameOrSpec
  * @param {T} widget
  * @param {any[]} rest

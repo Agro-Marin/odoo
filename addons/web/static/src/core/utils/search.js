@@ -59,7 +59,7 @@ function _match(pattern, str, preNormalized = false) {
 }
 
 /**
- * @template
+ * @template T
  * @param {string} pattern
  * @param {T[]} list
  * @param {(element: T) => (string|string[])} fn

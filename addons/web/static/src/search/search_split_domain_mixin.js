@@ -6,7 +6,7 @@ import { _t } from "@web/core/translation";
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
 
 /**
- * @template {new (...args: any[]) => any}
+ * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchSplitDomainMixin = (Base) =>

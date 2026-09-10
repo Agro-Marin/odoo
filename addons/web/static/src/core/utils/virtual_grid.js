@@ -7,7 +7,7 @@ import { pick, shallowEqual } from "@web/core/utils/collections/objects";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 /**
- * @template
+ * @template T
  * @typedef VirtualGridParams
  * @property {ReturnType<typeof import("@odoo/owl").useRef>} scrollableRef
  * @property {ScrollPosition} [initialScroll={
@@ -87,7 +87,7 @@ function getIndexes({
 }
 
 /**
- * @template
+ * @template T
  * @param {VirtualGridParams<T>} params
  * @returns {VirtualGridIndexes & VirtualGridSetters}
  */

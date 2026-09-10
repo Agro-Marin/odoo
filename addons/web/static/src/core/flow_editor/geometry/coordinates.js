@@ -28,17 +28,3 @@ export function screenToWorld(point, canvasRect, viewport) {
         y: (point.y - canvasRect.top - viewport.y) / scale,
     };
 }
-
-/**
- * @param {import("../flow_types").FlowPosition} point
- * @param {{ left: number, top: number }} canvasRect
- * @param {import("../flow_types").FlowViewport} viewport
- * @returns {{ x: number, y: number }}
- */
-export function worldToScreen(point, canvasRect, viewport) {
-    const scale = clampScale(viewport.scale);
-    return {
-        x: canvasRect.left + viewport.x + point.x * scale,
-        y: canvasRect.top + viewport.y + point.y * scale,
-    };
-}

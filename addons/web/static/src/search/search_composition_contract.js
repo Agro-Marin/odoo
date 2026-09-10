@@ -218,7 +218,6 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "referenceMoment",
     "searchMenuTypes",
     "searchPanelInfo",
-    "searchViewArch",
     "sections",
     "treeProcessor",
     "viewService",

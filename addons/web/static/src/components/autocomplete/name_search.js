@@ -42,7 +42,7 @@ export function webNameSearch(
 }
 
 /**
- * @template
+ * @template T
  * @param {T[]} records
  * @param {number} limit
  * @returns {{ records: T[], hasMore: boolean }}

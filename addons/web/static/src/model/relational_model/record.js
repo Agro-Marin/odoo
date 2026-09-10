@@ -50,8 +50,8 @@ import {
 } from "./record_value_transforms.js";
 
 /**
- * @template {keyof any}
- * @template
+ * @template {keyof any} K
+ * @template T
  * @typedef {{ [P in K]: T }} RecordType
  */
 
@@ -886,6 +886,8 @@ export class RelationalRecord extends DataPoint {
             fieldNames: onChangeFields,
             evalContext: toRaw(this.evalContext),
             onError: (e) => {
+                // apply-then-undo is a state no-op on purpose: it forces the
+                // Field components to re-render from the pre-onchange values
                 const undoChanges = this.applyChanges(
                     changes,
                     {},

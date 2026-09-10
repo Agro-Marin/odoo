@@ -16,7 +16,7 @@ const FALSE = Symbol("False");
 const MOVE_RECONCILE_DELAY = 300;
 
 /**
- * @template
+ * @template T
  * @param {() => Promise<T>} load
  * @returns {Promise<T | undefined>}
  */

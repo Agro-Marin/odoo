@@ -41,7 +41,7 @@ export class HomeMenuGrid {
     }
 
     /**
-     * @template
+     * @template T
      * @param {string} key
      * @param {() => T} compute
      * @returns {T}

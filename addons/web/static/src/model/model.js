@@ -103,7 +103,7 @@ export class Model extends SignalStore {
 }
 
 /**
- * @template {Model}
+ * @template {Model} M
  * @param {M} model
  * @returns {M}
  */

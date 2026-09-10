@@ -47,7 +47,7 @@ export class UrgentSaveCoordinator extends StateMachine {
     }
 
     /**
-     * @template
+     * @template T
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}
      */
@@ -93,7 +93,7 @@ export class UrgentSaveCoordinator extends StateMachine {
     }
 
     /**
-     * @template
+     * @template T
      * @param {Promise<T> | undefined} promise
      * @returns {Promise<T | undefined>}
      */
@@ -106,7 +106,7 @@ export class UrgentSaveCoordinator extends StateMachine {
     }
 
     /**
-     * @template
+     * @template T
      * @param {() => T | Promise<T>} fn
      * @returns {T | undefined | Promise<T>}
      */
