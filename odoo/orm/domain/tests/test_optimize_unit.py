@@ -533,25 +533,25 @@ class TestHierarchyBooleanValues(unittest.TestCase):
     def test_scalar_true_raises_clean_value_error(self):
         for op in ("child_of", "parent_of"):
             with self.assertRaisesRegex(ValueError, "not a valid hierarchy value"):
-                optimizations._operator_hierarchy(
+                optimizations._optimize_hierarchy(
                     DomainCondition("id", op, True), _HierarchyStubModel()
                 )
 
     def test_scalar_false_collapses_to_false_domain(self):
         for op in ("child_of", "parent_of"):
-            result = optimizations._operator_hierarchy(
+            result = optimizations._optimize_hierarchy(
                 DomainCondition("id", op, False), _HierarchyStubModel()
             )
             self.assertIs(result, Domain.FALSE)
 
     def test_collection_true_raises_clean_value_error(self):
         with self.assertRaisesRegex(ValueError, "not a valid hierarchy value"):
-            optimizations._operator_hierarchy(
+            optimizations._optimize_hierarchy(
                 DomainCondition("id", "child_of", [True, 3]), _HierarchyStubModel()
             )
 
     def test_collection_false_is_dropped(self):
-        result = optimizations._operator_hierarchy(
+        result = optimizations._optimize_hierarchy(
             DomainCondition("id", "child_of", [False]), _HierarchyStubModel()
         )
         self.assertIs(result, Domain.FALSE)

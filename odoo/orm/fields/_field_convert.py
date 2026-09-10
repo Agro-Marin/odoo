@@ -61,7 +61,7 @@ class _FieldConvertMixin[T](_FieldStubs):
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 
-    def _column_update_model_translation(
+    def _get_column_update_model_translation(
         self, record: ModelLike, record_id
     ) -> typing.Any:
         langs_dict = {}
@@ -84,7 +84,7 @@ class _FieldConvertMixin[T](_FieldStubs):
         flat = record.env._core.get_field_data_or_none(self)
         return SENTINEL if flat is None else flat.get(record_id, SENTINEL)
 
-    def _column_update_plain(self, record: ModelLike, record_id) -> typing.Any:
+    def _get_column_update_plain(self, record: ModelLike, record_id) -> typing.Any:
         env = record.env
         if not self._is_context_dependent(env):
             value = env._core.get_field_data(self)[record_id]
@@ -101,7 +101,7 @@ class _FieldConvertMixin[T](_FieldStubs):
             return PENDING
         raise KeyError(record_id)
 
-    def _column_update_company_dependent(
+    def _get_column_update_company_dependent(
         self, record: ModelLike, record_id
     ) -> typing.Any:
         values = {}
@@ -133,13 +133,13 @@ class _FieldConvertMixin[T](_FieldStubs):
     def get_column_update(self, record: ModelLike) -> typing.Any:
         record_id = record.id
         if self.translate is True:
-            return self._column_update_model_translation(record, record_id)
+            return self._get_column_update_model_translation(record, record_id)
         if self.translate:
             value = record.env._core.get_field_data(self)[record_id]
             return PsycopgJson(value) if value else None
         if not self.company_dependent:
-            return self._column_update_plain(record, record_id)
-        return self._column_update_company_dependent(record, record_id)
+            return self._get_column_update_plain(record, record_id)
+        return self._get_column_update_company_dependent(record, record_id)
 
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True

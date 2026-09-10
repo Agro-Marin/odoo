@@ -150,14 +150,14 @@ def nary_condition_optimization(
 
 
 @operator_optimization(["=?"])
-def _operator_equal_if_value(condition, _):
+def _optimize_equal_if_value(condition, _):
     if not condition.value:
         return _TRUE_DOMAIN
     return DomainCondition(condition.field_expr, "=", condition.value)
 
 
 @operator_optimization(["<>"])
-def _operator_different(condition, _):
+def _optimize_different(condition, _):
     warnings.warn(
         "Operator '<>' is deprecated since 19.0, use '!=' directly",
         DeprecationWarning,
@@ -167,7 +167,7 @@ def _operator_different(condition, _):
 
 
 @operator_optimization(["=="])
-def _operator_equals(condition, _):
+def _optimize_equals(condition, _):
     warnings.warn(
         "Operator '==' is deprecated since 19.0, use '=' directly",
         DeprecationWarning,
@@ -177,7 +177,7 @@ def _operator_equals(condition, _):
 
 
 @operator_optimization(["=", "!="])
-def _operator_equal_as_in(condition, _):
+def _optimize_equal_as_in(condition, _):
     value = condition.value
     operator = "in" if condition.operator == "=" else "not in"
     if isinstance(value, COLLECTION_TYPES):
@@ -504,12 +504,12 @@ def _optimize_inequality_against_collection(condition, model):
 
 
 @operator_optimization(["parent_of", "child_of"], OptimizationLevel.FULL)
-def _operator_hierarchy(condition, model):
+def _optimize_hierarchy(condition, model):
     hierarchy: typing.Callable[..., typing.Any]
     if condition.operator == "parent_of":
-        hierarchy = _operator_parent_of_domain
+        hierarchy = _get_domain_parent_of
     else:
-        hierarchy = _operator_child_of_domain
+        hierarchy = _get_domain_child_of
     value = condition.value
     if value is False:
         return _FALSE_DOMAIN
@@ -565,7 +565,7 @@ def _operator_hierarchy(condition, model):
     return DomainCondition(field.name, "in", result)
 
 
-def _operator_child_of_domain(comodel: BaseModel, parent: str) -> Domain | OrderedSet:
+def _get_domain_child_of(comodel: BaseModel, parent: str) -> Domain | OrderedSet:
     if comodel._parent_store and parent == comodel._parent_name:
         try:
             paths = comodel.mapped("parent_path")
@@ -585,7 +585,7 @@ def _operator_child_of_domain(comodel: BaseModel, parent: str) -> Domain | Order
     return child_ids
 
 
-def _operator_parent_of_domain(comodel: BaseModel, parent: str) -> OrderedSet:
+def _get_domain_parent_of(comodel: BaseModel, parent: str) -> OrderedSet:
     parent_ids: OrderedSet[int]
     if comodel._parent_store and parent == comodel._parent_name:
         try:

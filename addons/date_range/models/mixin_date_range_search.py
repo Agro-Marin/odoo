@@ -63,7 +63,7 @@ class MixinDateRangeSearch(models.AbstractModel):
         """
         # Odoo 19's domain optimizer normalizes ``('field', '=', X)``
         # to ``('field', 'in', OrderedSet((X,)))`` before dispatching to
-        # search methods (see _operator_equal_as_in in
+        # search methods (see _optimize_equal_as_in in
         # core/odoo/orm/domain/optimizations.py). The value for
         # ``= True`` / ``= False`` therefore arrives here as a single-
         # element collection containing a bool, NOT as a scalar. Unwrap
