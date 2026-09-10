@@ -23,7 +23,7 @@ effectRegistry.addValidation((v) => typeof v === "function");
  * @param {import("@odoo/owl").ComponentConstructor} [params.Component]
  * @param {Object} [params.props]
  */
-function rainbowMan(env, params = {}) {
+function rainbowMan(env, params = {}, options = {}) {
     const message = params.message || _t("Well Done!");
     if (user.showEffect) {
         /** @type {import("./rainbow_man").RainbowManProps} */
@@ -36,7 +36,9 @@ function rainbowMan(env, params = {}) {
         };
         return { Component: RainbowMan, props };
     }
-    return { remove: env.services.notification.add(message) };
+    return {
+        remove: env.services.notification.add(message, { onClose: options.onClose }),
+    };
 }
 effectRegistry.add("rainbow_man", rainbowMan);
 
@@ -63,7 +65,11 @@ class EffectService {
             return () => {};
         }
         const effect = effectRegistry.get(type);
-        const { Component, props, remove: ownRemove } = effect(this.env, params) || {};
+        const {
+            Component,
+            props,
+            remove: ownRemove,
+        } = effect(this.env, params, options) || {};
         if (ownRemove) {
             return ownRemove;
         }

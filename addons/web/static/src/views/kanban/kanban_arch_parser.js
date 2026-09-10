@@ -8,6 +8,11 @@ import { parseFieldNode } from "@web/views/field_arch";
 import { requiredAttribute, ViewArchParser } from "@web/views/view_arch_parser";
 import { getActiveActions } from "@web/views/view_utils";
 
+/** @param {string | null} value */
+function parseIntAttribute(value) {
+    return value ? Number.parseInt(value, 10) : null;
+}
+
 export const KANBAN_CARD_ATTRIBUTE = "card";
 export const KANBAN_MENU_ATTRIBUTE = "menu";
 
@@ -37,8 +42,8 @@ export class KanbanArchParser extends ViewArchParser {
      * className: string | null,
      * canOpenRecords: boolean,
      * defaultOrder: any[],
-     * limit: string | null,
-     * countLimit: string | null,
+     * limit: number | null,
+     * countLimit: number | null,
      * recordsDraggable: boolean,
      * groupsDraggable: boolean,
      * defaultGroupBy: string[] | null,
@@ -77,8 +82,8 @@ export class KanbanArchParser extends ViewArchParser {
             className: xmlDoc.getAttribute("class") || null,
             canOpenRecords: exprToBoolean(xmlDoc.getAttribute("can_open"), true),
             defaultOrder: stringToOrderBy(xmlDoc.getAttribute("default_order") || null),
-            limit: xmlDoc.getAttribute("limit"),
-            countLimit: xmlDoc.getAttribute("count_limit"),
+            limit: parseIntAttribute(xmlDoc.getAttribute("limit")),
+            countLimit: parseIntAttribute(xmlDoc.getAttribute("count_limit")),
             recordsDraggable: exprToBoolean(
                 xmlDoc.getAttribute("records_draggable"),
                 true,
@@ -281,7 +286,6 @@ export class KanbanArchParser extends ViewArchParser {
             defaultOrder = stringToOrderBy(`${state.handleField}, id`);
         }
 
-        const { limit, countLimit } = root;
         return {
             ...root,
             defaultOrder,
@@ -292,8 +296,6 @@ export class KanbanArchParser extends ViewArchParser {
             widgetNodes: state.widgetNodes,
             handleField: state.handleField,
             headerButtons: state.headerButtons,
-            limit: limit ? Number.parseInt(limit, 10) : null,
-            countLimit: countLimit ? Number.parseInt(countLimit, 10) : null,
             progressAttributes,
             templateDocs: state.templateDocs,
             tooltipInfo: state.tooltipInfo,
