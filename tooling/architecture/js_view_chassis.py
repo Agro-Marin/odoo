@@ -76,11 +76,6 @@ PINNED_HANDROLLED: dict[str, str] = {
         "its five hand-rolled slots include the buttonTemplate call every gantt "
         "subclass hangs its toolbar on (web_gantt's owner, 2026-09-08)"
     ),
-    "calendar": (
-        "blocked by QWeb inheritance: 3 templates t-inherit web.CalendarController "
-        "and all 3 xpath //Layout, which the conversion renames "
-        "(calendar, hr_holidays, enterprise/knowledge)"
-    ),
     "kanban": (
         "blocked by QWeb inheritance: 14 templates t-inherit web.KanbanView, "
         "4 of them xpath //Layout (document, enterprise/sign, enterprise/social, "

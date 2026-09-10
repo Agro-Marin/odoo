@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates>
     <t t-name="calendar.AttendeeCalendarController" t-inherit="web.CalendarController" t-inherit-mode="primary">
-        <xpath expr="//Layout" position="inside">
+        <xpath expr="//ViewLayout" position="inside">
             <t t-set-slot="control-panel-create-button">
                 <button class="btn btn-primary o-calendar-button-new" t-on-click="onClickAddButton">New</button>
             </t>
         </xpath>
         <!-- Add header div to be filled with synchronization buttons in synchronization modules. -->
-        <xpath expr="//Layout//div[hasclass('o_calendar_container')]//h5[hasclass('d-inline-flex')]" position="after">
+        <xpath expr="//ViewLayout//div[hasclass('o_calendar_container')]//h5[hasclass('d-inline-flex')]" position="after">
             <div id="header_synchronization_settings" class="mx-2 ms-lg-auto">
                 <t t-if="(model.credentialStatus.google_calendar or model.credentialStatus.microsoft_calendar)
                 and (!model.syncStatus.google_calendar or ['sync_stopped', 'missing_credentials'].includes(model.syncStatus.google_calendar))
