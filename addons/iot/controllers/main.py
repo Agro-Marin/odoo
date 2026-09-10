@@ -58,7 +58,7 @@ class IoTController(IoTBoxLookup, http.Controller):
         )
         in_image = {
             manifest.name
-            for manifest in Manifest.all_addon_manifests()
+            for manifest in Manifest.get_all_addon_manifests()
             if manifest["iot_handlers_in_image"]
         }
 

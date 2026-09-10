@@ -86,7 +86,9 @@ class TestOrphanAssets(lint_case.LintCase):
         installed = set(
             env["ir.module.module"].search([("state", "=", "installed")]).mapped("name")
         )
-        manifests = [m for m in Manifest.all_addon_manifests() if m.name in installed]
+        manifests = [
+            m for m in Manifest.get_all_addon_manifests() if m.name in installed
+        ]
         bundles = set(self.served_bundle_names(env))
         bundles.update(IrAsset.search([]).mapped("bundle"))
 

@@ -10,7 +10,7 @@ from unittest.mock import patch
 from odoo.modules.module import (
     Manifest,
     MissingDependencyError,
-    _normalise_manifest,
+    _normalize_manifest,
     check_python_external_dependency,
     get_module_icon_path,
 )
@@ -148,39 +148,39 @@ class TestManifestAutoInstall(BaseCase):
 
     def test_auto_install_string_is_rejected(self):
         with self.assertRaisesRegex(TypeError, "forget.*brackets"):
-            _normalise_manifest(
+            _normalize_manifest(
                 "m", {**self.BASE, "auto_install": "sale", "depends": ["sale"]}
             )
 
     def test_auto_install_non_bool_non_collection_rejected(self):
         with self.assertRaisesRegex(TypeError, "must be a bool"):
-            _normalise_manifest(
+            _normalize_manifest(
                 "m", {**self.BASE, "auto_install": 5, "depends": ["base"]}
             )
 
     def test_auto_install_trigger_must_be_a_dependency(self):
         with self.assertRaisesRegex(AssertionError, "must be dependencies"):
-            _normalise_manifest(
+            _normalize_manifest(
                 "m", {**self.BASE, "auto_install": ["sale"], "depends": ["base"]}
             )
 
     def test_auto_install_true_expands_to_all_depends(self):
-        manifest = _normalise_manifest(
+        manifest = _normalize_manifest(
             "m", {**self.BASE, "auto_install": True, "depends": ["base", "sale"]}
         )
         self.assertEqual(manifest["auto_install"], {"base", "sale"})
 
     def test_auto_install_list_subset_of_depends_is_kept(self):
-        manifest = _normalise_manifest(
+        manifest = _normalize_manifest(
             "m", {**self.BASE, "auto_install": ["base"], "depends": ["base", "sale"]}
         )
         self.assertEqual(manifest["auto_install"], {"base"})
 
     def test_base_depends_forced_empty(self):
-        self.assertEqual(_normalise_manifest("base", dict(self.BASE))["depends"], [])
+        self.assertEqual(_normalize_manifest("base", dict(self.BASE))["depends"], [])
 
     def test_non_base_empty_depends_forced_to_base(self):
-        self.assertEqual(_normalise_manifest("m", dict(self.BASE))["depends"], ["base"])
+        self.assertEqual(_normalize_manifest("m", dict(self.BASE))["depends"], ["base"])
 
 
 class TestManifestCache(_ManifestCase):
@@ -237,13 +237,13 @@ class TestManifestCache(_ManifestCase):
 
     def test_a_manifest_edited_on_disk_is_seen_by_the_full_scan(self):
         name = self._make("probe_scanned", version="1.0")
-        found = {m.name: m for m in Manifest.all_addon_manifests()}
+        found = {m.name: m for m in Manifest.get_all_addon_manifests()}
         self.assertEqual(found[name]["version"], f"{major_version}.1.0")
         self._write(
             name,
             {"name": "X", "license": "LGPL-3", "author": "x", "version": "9.9"},
         )
-        found = {m.name: m for m in Manifest.all_addon_manifests()}
+        found = {m.name: m for m in Manifest.get_all_addon_manifests()}
         self.assertEqual(found[name]["version"], f"{major_version}.9.9")
 
     def test_a_manifest_removed_from_disk_stops_resolving(self):
@@ -260,7 +260,7 @@ class TestManifestCache(_ManifestCase):
         ):
             self.assertIs(Manifest.for_addon(name), first)
             self.assertIs(
-                next(m for m in Manifest.all_addon_manifests() if m.name == name),
+                next(m for m in Manifest.get_all_addon_manifests() if m.name == name),
                 first,
             )
 
@@ -300,24 +300,24 @@ class TestManifestVersionResilience(_ManifestCase):
 
     def test_malformed_version_demotes_to_uninstallable(self):
         with self.assertLogs("odoo.modules.module", "WARNING") as capture:
-            manifest = _normalise_manifest("m", {**self.BASE, "version": "1.0-beta"})
+            manifest = _normalize_manifest("m", {**self.BASE, "version": "1.0-beta"})
         self.assertFalse(manifest["installable"])
         self.assertIn("invalid version", capture.output[0])
 
     def test_malformed_version_on_uninstallable_module_is_tolerated(self):
-        manifest = _normalise_manifest(
+        manifest = _normalize_manifest(
             "m", {**self.BASE, "version": "1.0-beta", "installable": False}
         )
         self.assertFalse(manifest["installable"])
 
     def test_non_string_version_is_normalised_to_str(self):
         with self.assertLogs("odoo.modules.module", "WARNING"):
-            manifest = _normalise_manifest("m", {**self.BASE, "version": 19})
+            manifest = _normalize_manifest("m", {**self.BASE, "version": 19})
         self.assertFalse(manifest["installable"])
         self.assertIsInstance(manifest["version"], str)
 
     def test_non_string_version_on_uninstallable_module_is_normalised_to_str(self):
-        manifest = _normalise_manifest(
+        manifest = _normalize_manifest(
             "m", {**self.BASE, "version": 19, "installable": False}
         )
         self.assertFalse(manifest["installable"])
@@ -325,7 +325,7 @@ class TestManifestVersionResilience(_ManifestCase):
 
     def test_string_depends_rejected(self):
         with self.assertRaisesRegex(TypeError, "forget.*brackets"):
-            _normalise_manifest("m", {**self.BASE, "depends": "base"})
+            _normalize_manifest("m", {**self.BASE, "depends": "base"})
 
 
 class TestModuleIcon(_ManifestCase):

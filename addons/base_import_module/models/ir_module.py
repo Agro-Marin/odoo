@@ -158,7 +158,7 @@ class IrModuleModule(models.Model):
     def _get_imported_module_vals(self, terp, with_demo):
         values = self.get_values_from_terp(terp)
         try:
-            icon_path = terp.raw_value("icon") or str(
+            icon_path = terp.get_raw_value("icon") or str(
                 Path(terp.name) / "static/description/icon.png"
             )
             file_path(icon_path, env=self.env, check_exists=True)

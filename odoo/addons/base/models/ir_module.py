@@ -1054,7 +1054,7 @@ class IrModuleModule(models.Model):
         auto_install_requirements: dict[int, Collection[str]] = {}
         category_cache: dict[str, int] = {}
 
-        for manifest in modules.Manifest.all_addon_manifests():
+        for manifest in modules.Manifest.get_all_addon_manifests():
             mod = known_mods_names.get(manifest.name)
             values = self.get_values_from_terp(manifest)
 

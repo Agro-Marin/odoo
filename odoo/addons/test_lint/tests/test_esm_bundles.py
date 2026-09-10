@@ -86,7 +86,7 @@ def _runtime_fetched_bundles() -> dict[str, str]:
 
 @functools.cache
 def _declaration_index():
-    manifests = list(Manifest.all_addon_manifests())
+    manifests = list(Manifest.get_all_addon_manifests())
     addon_dirs = {m.name: Path(m.path) for m in manifests}
 
     declared = set()

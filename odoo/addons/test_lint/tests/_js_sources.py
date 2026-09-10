@@ -15,7 +15,7 @@ COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 @functools.cache
 def addon_js() -> tuple[tuple[str, Path, str], ...]:
     out = []
-    for manifest in Manifest.all_addon_manifests():
+    for manifest in Manifest.get_all_addon_manifests():
         static_root = Path(manifest.path) / "static"
         if not static_root.is_dir():
             continue

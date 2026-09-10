@@ -152,7 +152,7 @@ class TestEsmRegistryInstallationScope(TransactionCase):
     def _declarations(self):
         from odoo.modules import Manifest
 
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             esm = manifest.get("esm")
             if esm:
                 yield manifest.name, esm

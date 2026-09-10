@@ -974,7 +974,7 @@ class TestInstalledAddonGate(TransactionCase):
     def _uninstalled_addon_file(self):
         installed = self.env["ir.asset"]._get_addons_installed()
         resolution = Resolution(active=installed)
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             if manifest.name in installed:
                 continue
             paths = self.env["ir.asset"]._resolve_paths(

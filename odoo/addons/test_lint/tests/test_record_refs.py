@@ -50,7 +50,7 @@ class TestRecordReferences(lint_case.LintCase):
         cls.defined = set()
         cls.known_modules = set()
         cls.references = []
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             cls.known_modules.add(manifest.name)
             cls._scan_xml(manifest.name, Path(manifest.path))
             cls._scan_csv(manifest.name, Path(manifest.path))

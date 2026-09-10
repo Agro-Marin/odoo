@@ -50,7 +50,7 @@ def get_odoo_module_name(python_module_name: str) -> str:
 
 def _module_roots(modules: tuple[str, ...] | None = None) -> list[str]:
     if modules is None:
-        return [m.path for m in Manifest.all_addon_manifests()]
+        return [m.path for m in Manifest.get_all_addon_manifests()]
     return [m.path for name in modules if (m := Manifest.for_addon(name))]
 
 
@@ -78,7 +78,7 @@ def core_xml_files() -> list[str]:
 def core_module_names() -> frozenset[str]:
     return frozenset(
         manifest.name
-        for manifest in Manifest.all_addon_manifests()
+        for manifest in Manifest.get_all_addon_manifests()
         if is_core_path(str(manifest.path))
     )
 
@@ -185,7 +185,7 @@ def _compute_served_bundle_names(installed: frozenset[str], env) -> tuple[str, .
     names = set()
     included = set()
     built = set()
-    for manifest in Manifest.all_addon_manifests():
+    for manifest in Manifest.get_all_addon_manifests():
         if manifest.name not in installed:
             continue
         assets = manifest.get("assets") or {}

@@ -67,7 +67,7 @@ class TestBundlesAssemble(lint_case.LintCase):
         )
         declared = {
             bundle
-            for manifest in Manifest.all_addon_manifests()
+            for manifest in Manifest.get_all_addon_manifests()
             for bundle in (manifest.get("assets") or {})
         }
         _logger.info(

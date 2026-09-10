@@ -128,7 +128,7 @@ registers exactly the surface.
 ESM bundle membership is **declarative**, not hardcoded: each module declares
 its own ESM bundle relationships in its `__manifest__.py` under an
 `esm` key; the aggregate is built once per process from
-`Manifest.all_addon_manifests()` by `esm_registry()`
+`Manifest.get_all_addon_manifests()` by `esm_registry()`
 (odoo/tools/assets/esm_registry.py, returning an `EsmRegistry`
 NamedTuple) and invalidated by `invalidate_esm_registry()`,
 wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical

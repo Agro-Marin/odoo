@@ -153,7 +153,7 @@ def _mark_auto_install_modules(cr: Cursor) -> None:
 def initialize(cr: Cursor) -> None:
     _create_base_schema(cr)
 
-    manifests = Manifest.all_addon_manifests()
+    manifests = Manifest.get_all_addon_manifests()
     category_cache: dict[str, int] = {}
     module_rows = [
         (

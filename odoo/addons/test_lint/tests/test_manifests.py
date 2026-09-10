@@ -31,7 +31,7 @@ class ManifestLinter(LintCase):
         checked = 0
         violations = []
         self.advisories = []
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             if not is_core_path(str(manifest.path)):
                 continue
             checked += 1

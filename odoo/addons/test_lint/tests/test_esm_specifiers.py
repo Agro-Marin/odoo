@@ -43,7 +43,7 @@ class TestEsmSpecifiers(lint_case.LintCase):
     def test_esm_specifiers_resolve(self):
         addon_paths = {
             manifest.name: Path(manifest.path)
-            for manifest in Manifest.all_addon_manifests()
+            for manifest in Manifest.get_all_addon_manifests()
         }
         broken = []
         scanned = 0

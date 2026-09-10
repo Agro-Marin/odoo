@@ -18,7 +18,7 @@ class TestMenuParents(lint_case.LintCase):
         cls.defined = set()
         cls.references = []
         cls.known_modules = set()
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             cls.known_modules.add(manifest.name)
             core = lint_case.is_core_path(str(manifest.path))
             for path in Path(manifest.path).rglob("*.xml"):

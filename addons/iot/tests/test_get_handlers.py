@@ -122,7 +122,7 @@ class TestHandlerNamespace(HttpCase):
         down.
         """
         owners = collections.defaultdict(list)
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             handlers = pathlib.Path(manifest.path) / "iot_handlers"
             if not handlers.is_dir():
                 continue
@@ -156,7 +156,7 @@ class TestHandlerDependencies(HttpCase):
     def _shippers(self):
         """handler path -> the module that ships it, and each module's manifest."""
         ships, manifests = {}, {}
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             handlers = pathlib.Path(manifest.path) / "iot_handlers"
             if not handlers.is_dir():
                 continue
@@ -170,7 +170,7 @@ class TestHandlerDependencies(HttpCase):
     def _edges(self, ships):
         """(importer, provider, handler) for every cross-module handler import."""
         edges = set()
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             handlers = pathlib.Path(manifest.path) / "iot_handlers"
             if not handlers.is_dir():
                 continue

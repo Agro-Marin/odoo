@@ -144,15 +144,15 @@ class MigrationManager:
         self.cr = cr
         self.graph = graph
         self.migrations = {}
-        self._index_migration_scripts()
+        self.index_migration_scripts()
 
     def _is_migration_required(self, pkg: module_graph.ModuleNode) -> bool:
         return pkg.load_state == "to upgrade"
 
     def update(self) -> None:
-        self._index_migration_scripts()
+        self.index_migration_scripts()
 
-    def _index_migration_scripts(self) -> None:
+    def index_migration_scripts(self) -> None:
         for pkg in self.graph:
             if pkg.name in self.migrations:
                 continue

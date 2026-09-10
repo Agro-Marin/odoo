@@ -97,7 +97,7 @@ class TestPurchaseMrpAssets(TransactionCase):
         bundled = set()
         for bundle in set(IrAsset.search([]).mapped("bundle")) | {
             key
-            for manifest in Manifest.all_addon_manifests()
+            for manifest in Manifest.get_all_addon_manifests()
             for key in (manifest.get("assets") or {})
         }:
             with contextlib.suppress(Exception):

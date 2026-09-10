@@ -138,7 +138,7 @@ class TestExternalLibsValidator(BaseCase):
         from odoo.modules import Manifest
 
         cross_addon = []
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             declared = (manifest.get("esm") or {}).get("external_libs") or {}
             for spec, url in declared.items():
                 if url.lstrip("/").split("/")[0] != manifest.name:
@@ -243,7 +243,7 @@ class TestEsmManifestShapeGuards(BaseCase):
 
         fake = SimpleNamespace(name="probe_addon", get=lambda key: esm)
         with patch.object(
-            Manifest, "all_addon_manifests", staticmethod(lambda: [fake])
+            Manifest, "get_all_addon_manifests", staticmethod(lambda: [fake])
         ):
             return reg._prepare_esm_registry()
 

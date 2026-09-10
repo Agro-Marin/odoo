@@ -18,7 +18,7 @@ GLOB_CHARS = "*?["
 @tagged("post_install", "-at_install")
 class TestAssetPathsExist(lint_case.LintCase):
     def test_manifest_asset_paths_match_a_file(self):
-        manifests = list(Manifest.all_addon_manifests())
+        manifests = list(Manifest.get_all_addon_manifests())
         addon_dirs = {m.name: Path(m.path) for m in manifests}
         attachment_urls = set()
         with self.superuser_env() as env:

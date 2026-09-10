@@ -53,7 +53,7 @@ class TestTestHoles(LintCase):
 
         errors = []
         checked = 0
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             if not lint_case.is_core_path(str(manifest.path)):
                 continue
             checker.names.clear()

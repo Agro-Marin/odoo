@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 def core_module_roots_by_name() -> list[tuple[str, str]]:
     return sorted(
         (str(manifest.path), manifest.name)
-        for manifest in Manifest.all_addon_manifests()
+        for manifest in Manifest.get_all_addon_manifests()
         if lint_case.is_core_path(str(manifest.path))
     )
 

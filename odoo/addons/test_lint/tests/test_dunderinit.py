@@ -16,7 +16,7 @@ class TestDunderinit(lint_case.LintCase):
     def test_dunderinit(self):
         modules_list = [
             mod
-            for mod in Manifest.all_addon_manifests()
+            for mod in Manifest.get_all_addon_manifests()
             if mod.name not in WHITELIST and lint_case.is_core_path(str(mod.path))
         ]
         missing = [

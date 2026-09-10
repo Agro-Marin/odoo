@@ -66,7 +66,7 @@ class TestSetupBundleHasNoTests(lint_case.LintCase):
 
         offenders = []
         checked = 0
-        for manifest in Manifest.all_addon_manifests():
+        for manifest in Manifest.get_all_addon_manifests():
             for bundle, entries in (manifest.get("assets") or {}).items():
                 if not bundle.endswith(SETUP_SUFFIX):
                     continue

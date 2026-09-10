@@ -174,7 +174,7 @@ class TestCorePathScoping(BaseCase):
                 )
 
     def test_the_real_siblings_on_this_addons_path_are_excluded(self):
-        roots = [manifest.path for manifest in Manifest.all_addon_manifests()]
+        roots = [manifest.path for manifest in Manifest.get_all_addon_manifests()]
         self.assertTrue(roots, "no addon roots at all")
         core = [path for path in roots if lint_case.is_core_path(str(path))]
         self.assertTrue(core, "no core addon roots -- the scoping reached nothing")
@@ -207,7 +207,7 @@ class TestScanScope(BaseCase):
         self.assertIn("base", names)
         self.assertIn("web", names)
         self.assertTrue(
-            names <= {m.name for m in Manifest.all_addon_manifests()},
+            names <= {m.name for m in Manifest.get_all_addon_manifests()},
             "core modules must be modules the addons path actually carries",
         )
 

@@ -233,7 +233,7 @@ class Manifest(Mapping[str, typing.Any]):
 
     @functools.cached_property
     def __manifest_cached(self) -> dict[str, typing.Any]:
-        return _normalise_manifest(self.name, self.__manifest_content)
+        return _normalize_manifest(self.name, self.__manifest_content)
 
     @functools.cached_property
     def description(self) -> str:
@@ -256,7 +256,7 @@ class Manifest(Mapping[str, typing.Any]):
 
     @functools.cached_property
     def icon(self) -> str:
-        return _get_module_icon_path(self.name, self.raw_value("icon"))
+        return _get_module_icon_path(self.name, self.get_raw_value("icon"))
 
     @functools.cached_property
     def static_path(self) -> str | None:
@@ -274,7 +274,7 @@ class Manifest(Mapping[str, typing.Any]):
             return val
         return copy.deepcopy(val)
 
-    def raw_value(self, key: str) -> typing.Any:
+    def get_raw_value(self, key: str) -> typing.Any:
         return copy.deepcopy(self.__manifest_cached.get(key))
 
     def _force_parse(self) -> None:
@@ -379,7 +379,7 @@ class Manifest(Mapping[str, typing.Any]):
         return None
 
     @staticmethod
-    def all_addon_manifests() -> list[Manifest]:
+    def get_all_addon_manifests() -> list[Manifest]:
         modules: dict[str, Manifest] = {}
         for adp in odoo.addons.__path__:
             if not Path(adp).is_dir():
@@ -461,11 +461,11 @@ def _get_module_icon_path(module: str, declared: typing.Any) -> str:
 
 def get_module_icon_path(module: str) -> str:
     manifest = Manifest.for_addon(module, display_warning=False)
-    declared = manifest.raw_value("icon") if manifest else None
+    declared = manifest.get_raw_value("icon") if manifest else None
     return _get_module_icon_path(module, declared)
 
 
-def _normalise_auto_install(module: str, manifest: dict, depends: Collection) -> None:
+def _normalize_auto_install(module: str, manifest: dict, depends: Collection) -> None:
     auto_install = manifest["auto_install"]
     if isinstance(auto_install, str):
         raise TypeError(
@@ -490,7 +490,7 @@ def _normalise_auto_install(module: str, manifest: dict, depends: Collection) ->
         )
 
 
-def _normalise_version(module: str, manifest: dict) -> None:
+def _normalize_version(module: str, manifest: dict) -> None:
     try:
         manifest["version"] = adapt_version(str(manifest["version"]))
     except ValueError:
@@ -512,7 +512,7 @@ def _normalise_version(module: str, manifest: dict) -> None:
         manifest["installable"] = False
 
 
-def _normalise_manifest(module: str, manifest_content: dict) -> dict:
+def _normalize_manifest(module: str, manifest_content: dict) -> dict:
 
     manifest = {
         k: (v.copy() if isinstance(v, (list, dict)) else v)
@@ -554,8 +554,8 @@ def _normalise_manifest(module: str, manifest_content: dict) -> dict:
         )
     assert isinstance(depends, Collection)
 
-    _normalise_auto_install(module, manifest, depends)
-    _normalise_version(module, manifest)
+    _normalize_auto_install(module, manifest, depends)
+    _normalize_version(module, manifest)
 
     return manifest
 
@@ -607,7 +607,7 @@ def load_odoo_module(module_name: str) -> None:
 
 
 def get_module_names() -> list[str]:
-    return [m.name for m in Manifest.all_addon_manifests()]
+    return [m.name for m in Manifest.get_all_addon_manifests()]
 
 
 def adapt_version(version: str) -> str:

@@ -629,7 +629,7 @@ class TestSortManifestsOverTheRepository(LintCase):
         offences = []
         checked = 0
         with tempfile.TemporaryDirectory() as tmp:
-            for index, manifest in enumerate(Manifest.all_addon_manifests()):
+            for index, manifest in enumerate(Manifest.get_all_addon_manifests()):
                 source = Path(manifest.path) / "__manifest__.py"
                 if not is_core_path(str(source)) or not source.is_file():
                     continue

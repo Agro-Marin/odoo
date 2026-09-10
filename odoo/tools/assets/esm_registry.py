@@ -223,7 +223,7 @@ def _prepare_esm_registry() -> EsmRegistry:
     exports: set = set()
     external_lib_owner: dict = {}
     declaring_modules = 0
-    for manifest in Manifest.all_addon_manifests():
+    for manifest in Manifest.get_all_addon_manifests():
         esm = _validated_esm_section(manifest)
         if esm is None:
             continue
