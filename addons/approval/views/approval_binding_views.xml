@@ -55,6 +55,12 @@
                             <field
                                 name="subject_domain"
                                 placeholder="e.g. [('state', '=', 'draft')]" />
+                            <field
+                                name="reset_domain"
+                                placeholder="e.g. [('state', '=', 'draft')]" />
+                            <field
+                                name="reset_automation_id"
+                                invisible="not reset_automation_id" />
                             <field name="sequence" />
                             <field name="active" invisible="1" />
                         </group>

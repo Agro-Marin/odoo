@@ -2789,7 +2789,7 @@ grounds in ascending weight:
   happens, while ``self._raise_x_error()`` looks like every other call and the
   lines after it are unreachable in a way a reader has to deduce;
 * nothing types it. A function that never returns is ``NoReturn``; **0** of this
-  repository's **19** ``_raise_*`` model methods say so, and some claim
+  repository's **20** ``_raise_*`` model methods say so, and some claim
   ``-> None``, which is false.
 
 The cost is accepted -- the call site says the verb twice, and ``B904`` fires the
@@ -3772,7 +3772,7 @@ Three consequences, in ascending expense:
    it orphans stored records in every database with no gate, test or import error
    to say so.
 
-**Wearing a dispatch prefix does not make a name a key** ``[review]``. **12**
+**Wearing a dispatch prefix does not make a name a key** ``[review]``. **15**
 definitions begin ``_render_qweb_``; exactly **3** are keys, because ``_render``
 builds its target from ``report_type``, whose Selection offers three values. **The
 set of keys is the enumerable domain of the variable half, never the set of names
@@ -5509,7 +5509,7 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **100** times against ``_unique``'s
+tail -- the tree spells that tail ``_uniq`` **101** times against ``_unique``'s
 **52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**

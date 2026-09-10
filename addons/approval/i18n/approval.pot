@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 18:29+0000\n"
-"PO-Revision-Date: 2026-09-10 18:29+0000\n"
+"POT-Creation-Date: 2026-09-10 18:49+0000\n"
+"PO-Revision-Date: 2026-09-10 18:49+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -220,6 +220,14 @@ msgid ""
 "%(principal)s's delegation to %(delegate)s was ended: %(delegate)s is now an"
 " approver of this request in their own right, and one person cannot hold two"
 " approvals."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(record)s came to match the reset condition of %(binding)s, so this "
+"approval no longer covers it and was reset to draft."
 msgstr ""
 
 #. module: approval
@@ -1147,6 +1155,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/mixin_approval.py:0
 msgid "Approval requested for %s"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "Approval reset: %(binding)s"
 msgstr ""
 
 #. module: approval
@@ -2549,6 +2563,17 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_binding__subject_domain
 msgid "Domain on the gated model. Empty means every record."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__reset_domain
+msgid ""
+"Domain on the gated model. When a covered record comes to match it, the "
+"approval that covered the record is reset to draft, so the next call asks "
+"again -- the way web_studio resets its approvals when a sale order, invoice "
+"or purchase order returns to draft, for any model and condition. It fires on"
+" the transition INTO the condition only, so an approval given while the "
+"record already matches is not wiped by the next edit."
 msgstr ""
 
 #. module: approval
@@ -4691,6 +4716,22 @@ msgid "Res Name"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__reset_automation_id
+msgid "Reset Automation"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__reset_domain
+msgid "Reset When"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "Reset the approvals of %(binding)s"
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 msgid ""
 "Reset this APPROVED request to draft? This revokes the approval and notifies"
@@ -5369,6 +5410,11 @@ msgid ""
 "The approver record making this decision. Empty in batch mode, where "
 "request_ids carries the targets and each request resolves its own pending "
 "row for the current user."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__reset_automation_id
+msgid "The automation rule this binding keeps in step with Reset When."
 msgstr ""
 
 #. module: approval

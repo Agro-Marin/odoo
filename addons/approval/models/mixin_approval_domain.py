@@ -9,53 +9,45 @@ _logger = logging.getLogger(__name__)
 
 
 class MixinApprovalDomain(models.AbstractModel):
-    """Shared parsing and configuration-time checking of a subject domain.
-
-    Both `approval.rule` and `approval.binding` let a user write a domain that
-    is evaluated against a source document rather than against the request.
-    A domain naming a field nobody has never matches, and a rule or binding
-    that never matches reads as "approval was not required" rather than as a
-    broken configuration — so the paths are walked against the registry when
-    the record is saved, not when a decision depends on them.
-    """
-
     _name = "mixin.approval.domain"
     _description = "Approval Subject Domain"
 
     def _domain_source_field(self) -> str:
-        """Name of the Char field on the concrete model holding the domain."""
         raise NotImplementedError
 
-    def _parse_domain(self) -> Domain | None:
+    def _parse_domain(self, field_name: str | None = None) -> Domain | None:
         self.check_singleton()
-        raw = self[self._domain_source_field()]
+        raw = self[field_name or self._domain_source_field()]
         try:
             return Domain(ast.literal_eval(raw or "[]"))
         except ValueError, SyntaxError, TypeError:
             return None
 
-    def _parse_domain_or_warn(self) -> Domain | None:
+    def _parse_domain_or_warn(self, field_name: str | None = None) -> Domain | None:
         self.check_singleton()
-        domain = self._parse_domain()
+        field_name = field_name or self._domain_source_field()
+        domain = self._parse_domain(field_name)
         if domain is None:
             _logger.warning(
-                "%s %s: unparseable subject domain %r, treated as no match.",
+                "%s %s: unparseable domain %r in %s, treated as no match.",
                 self._name,
                 self.id,
-                self[self._domain_source_field()],
+                self[field_name],
+                field_name,
             )
         return domain
 
-    def _check_domain_against_model(self, model) -> None:
+    def _check_domain_against_model(self, model, field_name: str | None = None) -> None:
         self.check_singleton()
-        domain = self._parse_domain()
+        field_name = field_name or self._domain_source_field()
+        domain = self._parse_domain(field_name)
         if domain is None:
             raise ValidationError(
                 self.env._(
                     "%(name)s has a source domain that is not a valid Python "
                     "literal: %(domain)s",
                     name=self.display_name,
-                    domain=self[self._domain_source_field()],
+                    domain=self[field_name],
                 ),
             )
         for field_path in self._domain_field_paths(domain):

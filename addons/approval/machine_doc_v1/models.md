@@ -654,7 +654,7 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 | Model | `mixin.approval.domain` |
 | File | `models/mixin_approval_domain.py` |
 | Type | AbstractModel |
-| Inherited by | `approval.rule`, `approval.binding` |
+| Inherited by | `approval.rule`, `approval.binding`, `approval.category.step` |
 
 Parsing and configuration-time checking of a domain evaluated against a
 source document rather than the request. Both inheritors let a user type such
@@ -668,8 +668,8 @@ when a decision depends on them.
 | Method | Purpose |
 |--------|---------|
 | `_domain_source_field()` | Abstract: the Char field holding the domain (`subject_domain` on both inheritors) |
-| `_parse_domain()` / `_parse_domain_or_warn()` | `ast.literal_eval` into a `Domain`, or None; the second logs the unparseable value |
-| `_check_domain_against_model(model)` | Raises unless the domain parses and every path in it exists |
+| `_parse_domain(field_name=None)` / `_parse_domain_or_warn(field_name=None)` | `ast.literal_eval` into a `Domain`, or None; the second logs the unparseable value. `field_name` defaults to `_domain_source_field()`, and a binding passes `reset_domain` |
+| `_check_domain_against_model(model, field_name=None)` | Raises unless the domain parses and every path in it exists |
 | `_check_field_path(model, path)` | Walks a dotted path across relational fields |
 
 ---
@@ -716,6 +716,8 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `run_on_approval` | Boolean | Yes | No | default=True, `request` mode only. Run the operation once, as the requester, when the request is approved. Off, approval only clears the gate and the operation runs on the next call — how Studio approvals behave. Off also lifts the zero-argument limit, since there is no replay to feed |
 | `action_id` | Many2one(`ir.actions.actions`) | Yes | No | ondelete=cascade. The action to gate instead of a method; a binding gates exactly one of the two |
 | `is_enforced` | Boolean | No | No | computed. True for a method, a server action or a report; False for a window or client action, which only opens a view — nothing the server can intercept, so only the client's check stands in the way |
+| `reset_domain` | Char | Yes | No | string="Reset When". Domain on the gated model; when a covered record comes to match it, the approval that covered it is reset to draft. Fires on the transition INTO the condition only |
+| `reset_automation_id` | Many2one(`automation.rule`) | Yes | No | readonly, copy=False, ondelete=set null. The managed rule that keeps Reset When in effect |
 
 ### Constraints
 
@@ -726,6 +728,7 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 - `approve_on_invoke` needs `request` mode: Block mode raises no request for the caller to approve
 - A binding gates exactly one of `method` and `action_id`; the uniqueness constraint covers (model_id, method, action_id, subject_domain), so two actions on one model can each be bound
 - With `run_on_approval` in `request` mode, only a method or a server action can be run again; a window, client or report action needs it off
+- `reset_domain`, when set, must name paths that exist on the gated model
 
 ### Key Methods
 
@@ -744,10 +747,13 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `_elevation()` | `none`, `superuser` (uid is SUPERUSER_ID) or `self_elevated` |
 | `_bindings_for(model, method)` / `_get_binding_ids(model, method)` | `ormcache`d per (model, method). Runs under sudo with `active_test` forced, because neither uid nor context is part of the key |
 | `_apply_to_registry()` | On create and write. Clears the lookup cache, which is signalled to every worker; only a binding on a method nothing wraps yet re-registers and invalidates the registry |
-| `_raise_requests_for(records)` | `request` mode, per binding; returns the requests, and the wrapper builds the action. An adopter asks through its own `action_create_approval_request` with `approval_binding_for` in context; anything else gets a request pointed at it by `res_model`/`res_id`, carrying `binding_snapshot`. A request still open for the record is reused, never raised twice |
+| `_raise_requests_for(records)` | `request` mode, per binding; returns the requests, and the wrapper builds the action. An adopter asks through its own `action_create_approval_request` with `approval_binding_for` in context; anything else gets a request pointed at it by `res_model`/`res_id`, carrying `binding_snapshot`. A request still open for the record is reused, never raised twice — and one reset to draft is confirmed again, with a fresh snapshot |
 | `_approve_on_invoke(requests)` | Records the caller's approval on every pending step they may decide. Runs with `approval_binding_invoking` in context, so a request this completes is NOT replayed: the call already running performs the operation, and a replay would perform it a second time. A refused approval leaves the request pending with its approvers asked |
 | `_mark_invoked_run(records)` | Stamps `date_binding_replayed` on the approved requests an invoking call just ran, so a later withdrawal and re-approval cannot run the operation again |
 | `_replay(request)` | Runs the method once after approval, as `request_owner_id` — never the approver, never under sudo, so an approval cannot lend the approver's rights (the superuser account keeps its `su`). Re-checks coverage first, so a record whose snapshot moved is not run. A `UserError` (including access, validation and missing-record errors) is recorded in `binding_replay_error` and the approval stands; anything else propagates. Runs with `approval_binding_replay` in context, under which the wrapper refuses rather than raising a new request |
+| `_sync_reset_automation()` | One managed `on_create_or_write` rule per binding with a Reset When. Its pre-update filter is the condition inverted, so it fires on the transition into it. After creation only the name, the two filters and the trigger fields are written: never `trigger`, whose change makes `_compute_filter_pre_domain` clear the pre-update filter, and never `model_id`, whose write recomputes `trigger` to nothing. A changed model gets a new rule |
+| `_reset_coverage(records)` | Resets the covering approved requests to draft through `action_reset_to_draft`, so an adopter hears it through `_on_approval_reset`, and clears the one-shot stamp so the next cycle runs on approval again |
+| `_get_covering_requests(records)` / `_get_reset_field_ids(domain)` | The approved requests that could be covering the records; the fields the condition reads, which become the rule's trigger fields |
 
 ---
 

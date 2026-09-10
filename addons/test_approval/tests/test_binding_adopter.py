@@ -68,3 +68,27 @@ class TestBindingOnAnAdopter(ApprovalCommon):
         self.doc.approval_request_id.with_user(self.approver_1).action_approve()
         self.doc.action_record_operation()
         self.assertEqual(self.doc.operation_count, 2)
+
+    def test_a_document_back_in_draft_has_its_approval_reset_through_its_own_lifecycle(
+        self,
+    ):
+        """An adopter owns its approval, so the reset goes through the request's own
+        reset-to-draft, and the document hears about it as it would from a manager."""
+        self.binding.write(
+            {
+                "run_on_approval": False,
+                "reset_domain": "[('state', '=', 'draft')]",
+            }
+        )
+        self.doc.action_record_operation()
+        request = self.doc.approval_request_id
+        request.with_user(self.approver_1).action_approve()
+        self.assertEqual(self.doc.state, "approved")
+
+        self.doc.state = "draft"
+        self.assertEqual(request.state, "new", "the covering approval was reset")
+        self.assertEqual(self.doc.last_approval_state, "new")
+
+        self.doc.action_record_operation()
+        self.assertEqual(request.state, "pending", "the reused request is asked again")
+        self.assertEqual(self.doc.operation_count, 0)
