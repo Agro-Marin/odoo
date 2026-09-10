@@ -30,6 +30,7 @@ GATES = {
     "js_forced_render": ["--check"],
     "js_view_chassis": ["--check"],
     "js_view_descriptor": ["--check"],
+    "js_dead_icon_class": ["--check"],
     "qweb_inherit_surface": ["--check"],
     "js_ts_check": ["--check"],
     "js_suite_parity": ["--check"],

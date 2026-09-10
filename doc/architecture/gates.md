@@ -57,7 +57,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             js_component_face js_component_data_access js_shadow_root \
             js_patch_blind_facade js_public_surface js_extension_surface \
             js_env_config_surface js_arch_info_surface js_field_record_surface \
-            qweb_inherit_surface js_view_descriptor \
+            qweb_inherit_surface js_view_descriptor js_dead_icon_class \
             js_action_surface js_template_binding \
             xml_reference_coherence js_mixin_coupling edi_vocabulary \
             payment_vocabulary exchange_vocabulary credential_storage \
@@ -208,6 +208,7 @@ own:
 | `js_patch_blind_facade.py` | a service's own callers going through its facade |
 | `qweb_inherit_surface.py` | every `t-inherit` of a template under `web/static/src/views/`, pinned by inheriting file and shrink-only — a view controller's template is a fourth extension surface beside overrides, `patch()` and import specifiers, and the only one written in QWeb. Eleven inheritors xpath `//Layout` inside three controller templates, which is what blocked the `list`, `kanban` and `calendar` chassis conversions; nothing had counted them, because the three JS gates read JavaScript |
 | `js_view_descriptor.py` | two halves of the view-type contribution contract, resolved through the class chain across every repository: every base view type's `ArchParser` extends `ViewArchParser` (zero of nine extension parsers did until 2026-09-09, because the base sat on no public-surface row), and a controller asking for sample data has a model that overrides `hasData()` -- `Model.hasData()` answers true unconditionally, so without the override `sample="1"` is inert and the hook warns once per mount instead of once per tree |
+| `js_dead_icon_class.py` | a test naming an `fa-*` class that neither FontAwesome 7's stylesheet (canonical names and aliases alike) nor any non-test source declares, comments stripped -- the class a template stopped rendering when the FontAwesome 7 upgrade renamed its icons. A one-count assertion on it reads as a feature defect and a negated one reads as a pass; room lost eighteen tests and account's annotation tour its only negative check to this shape. Held at zero, with a deliberate non-icon exempted by name and reason |
 | `js_function_length.py` | the web addon's JS function-length budget |
 | `js_duplication.py` | the web addon's duplicated JS, as byte-exact runs of 9+ significant lines — the one property the other JS gates cannot see, because a copied block is structurally identical to a block that belongs where it is |
 | `js_vacuous_assertions.py` | a zero-count HOOT assertion naming a class no non-test file declares — the one assertion shape a wrong selector cannot be told from a passing test |
