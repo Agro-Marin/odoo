@@ -12,6 +12,11 @@ export const fonts = {
             return this.cacheCssSelectors[cacheKey];
         }
         this.cacheCssSelectors[cacheKey] = [];
+        // FontAwesome 7 writes an icon and each of its aliases as separate
+        // rules with the same glyph, canonical name first; one icon per
+        // glyph, or the picker lists it twice and stores whichever name
+        // was clicked.
+        const byCss = new Map();
         const sheets = document.styleSheets;
         for (let i = 0; i < sheets.length; i++) {
             let rules;
@@ -54,7 +59,14 @@ export const fonts = {
                     }
                 }
                 if (data) {
-                    this.cacheCssSelectors[cacheKey].push(data);
+                    const known = byCss.get(data.css);
+                    if (known) {
+                        known.selector += ", " + data.selector;
+                        known.names.push(...data.names);
+                    } else {
+                        byCss.set(data.css, data);
+                        this.cacheCssSelectors[cacheKey].push(data);
+                    }
                 }
             }
         }

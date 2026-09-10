@@ -72,7 +72,7 @@ test("Ensure order of operations when clicking very fast on two options", async 
     await click(".options-container [data-class-action='fa-2x']");
     await animationFrame();
     expect(":iframe .s_rating_icons").not.toHaveClass("fa-2x");
-    await contains(".modal-dialog .fa-glass").click();
+    await contains(".modal-dialog .fa-martini-glass-empty").click();
     expect(":iframe .s_rating").toHaveAttribute(
         "data-active-custom-icon",
         "fa-solid fa-martini-glass-empty",

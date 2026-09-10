@@ -233,14 +233,14 @@ test("Can replace icon using toolbar", async () => {
     expect("main.modal-body a.nav-link.active").toHaveText("Icons");
     expect("main.modal-body span.fa-heart.o_we_attachment_selected").toHaveCount(1);
 
-    await contains("main.modal-body span.fa-search").click();
+    await contains("main.modal-body span.fa-magnifying-glass").click();
     await animationFrame();
     expect("main.modal-body").toHaveCount(0);
-    expect("span.fa-search").toHaveCount(1);
+    expect("span.fa-magnifying-glass").toHaveCount(1);
     expect("span.fa-heart").toHaveCount(0);
 
     undo(editor);
-    expect("span.fa-search").toHaveCount(0);
+    expect("span.fa-magnifying-glass").toHaveCount(0);
     expect("span.fa-heart").toHaveCount(1);
 });
 
@@ -263,9 +263,9 @@ test("Styles should be preserved when replacing icon", async () => {
     await waitFor(".o-we-toolbar");
     await contains("button[name='icon_replace']").click();
     await animationFrame();
-    await contains("main.modal-body span.fa-search").click();
+    await contains("main.modal-body span.fa-magnifying-glass").click();
     await animationFrame();
-    expect("span.fa-search.fa-3x").toHaveCount(1);
+    expect("span.fa-magnifying-glass.fa-3x").toHaveCount(1);
 });
 
 test("Can replace a odoo icon", async () => {
@@ -284,9 +284,9 @@ test("Can replace a odoo icon", async () => {
     );
     execCommand(editor, "replaceIcon");
     await animationFrame();
-    await contains("main.modal-body span.fa-search").click();
+    await contains("main.modal-body span.fa-magnifying-glass").click();
     await animationFrame();
-    expect("span.fa-solid.fa-search").toHaveCount(1);
+    expect("span.fa-solid.fa-magnifying-glass").toHaveCount(1);
     expect("span.oi.oi-plus").toHaveCount(0);
 });
 
@@ -308,9 +308,9 @@ test("Can replace a font awesome brand icon", async () => {
     );
     execCommand(editor, "replaceIcon");
     await animationFrame();
-    await contains("main.modal-body span.fa-search").click();
+    await contains("main.modal-body span.fa-magnifying-glass").click();
     await animationFrame();
-    expect("span.fa-solid.fa-search").toHaveCount(1);
+    expect("span.fa-solid.fa-magnifying-glass").toHaveCount(1);
     expect("span.fab.fa-opera").toHaveCount(0);
 });
 
@@ -332,9 +332,9 @@ test("Can replace a font awesome duotone icon", async () => {
     );
     execCommand(editor, "replaceIcon");
     await animationFrame();
-    await contains("main.modal-body span.fa-search").click();
+    await contains("main.modal-body span.fa-magnifying-glass").click();
     await animationFrame();
-    expect("span.fa-solid.fa-search").toHaveCount(1);
+    expect("span.fa-solid.fa-magnifying-glass").toHaveCount(1);
     expect("span.fad.fa-bus-alt").toHaveCount(0);
 });
 
@@ -356,9 +356,9 @@ test("Can replace a font awesome regular icon", async () => {
     );
     execCommand(editor, "replaceIcon");
     await animationFrame();
-    await contains("main.modal-body span.fa-search").click();
+    await contains("main.modal-body span.fa-magnifying-glass").click();
     await animationFrame();
-    expect("span.fa-solid.fa-search").toHaveCount(1);
+    expect("span.fa-solid.fa-magnifying-glass").toHaveCount(1);
     expect("span.far.fa-money-bill-alt").toHaveCount(0);
 });
 
