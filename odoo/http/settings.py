@@ -46,13 +46,15 @@ class HttpSettings:
         return Path(self.data_dir, "filestore")
 
 
-def _from_live_config() -> HttpSettings:
+def _get_settings_from_live_config() -> HttpSettings:
     import odoo.tools
 
     return HttpSettings.from_config(odoo.tools.config)
 
 
-slot: SettingsSlot[HttpSettings] = SettingsSlot("odoo.http", _from_live_config)
+slot: SettingsSlot[HttpSettings] = SettingsSlot(
+    "odoo.http", _get_settings_from_live_config
+)
 current = slot.current
 installed = slot.installed
 override = slot.override
