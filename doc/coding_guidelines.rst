@@ -1268,13 +1268,13 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   192
 §2.4.5   ``X_to_Y`` converter definitions                              103
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,440
+§2.4.7   ``_get_*`` definitions                                      6,423
 §2.4.7   Abolished payload verbs, the four between them                  0
-§2.4.7   ``_generate_*`` definitions                                   139
+§2.4.7   ``_generate_*`` definitions                                   122
 §2.4.7   ``_calculate_*`` model methods                                  0
 §2.4.7   ``_prepare_*`` definitions                                    900
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            36
-§2.4.8   ``_check_*`` definitions                                    1,231
+§2.4.8   ``_check_*`` definitions                                    1,229
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
@@ -1287,10 +1287,10 @@ Section  Population                                                  Count
 §2.4.11  ``_get_or_create_*`` methods                                   32
 §2.4.11  ``_resolve_*`` definitions                                     29
 §2.4.12  ``_set_*`` definitions                                        127
-§2.4.12  ``_update_*`` definitions                                     422
+§2.4.12  ``_update_*`` definitions                                     423
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             262
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
-§2.4.12  ``_sync_*`` definitions                                        88
+§2.4.12  ``_sync_*`` definitions                                        89
 §2.4.12  ``_synchronize_*`` definitions                                  0
 §2.4.12  ``_post_*`` definitions                                       144
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      359
@@ -2016,11 +2016,11 @@ running the other way.
   ``[review]``. That is broader than both and would take a convention wholesale.
   ``modules/loading.py``'s ``_PackageLoader`` holds one package and writes the
   object in every one of its stage methods -- ``import_python_module``,
-  ``load_models``, ``report_cost`` -- and is right to: the receiver is an
-  **agent**, not the object, so *package loader import python module* is not a
-  stutter the way *db drop database* is. Where a class is agent-shaped and the
-  siblings already write the object, a bare verb is the odd one out and owes its
-  noun like any other: ``announce``, ``mark_loaded`` and ``stamp_installed`` were
+  ``load_models``, ``log_cost`` (``report_cost`` until ``a13f69bf0c81``) --
+  and is right to: the receiver is an **agent**, not the object, so *package
+  loader import python module* is not a stutter the way *db drop database* is.
+  Where a class is agent-shaped and the siblings already write the object, a
+  bare verb is the odd one out and owes its noun like any other: ``announce``, ``mark_loaded`` and ``stamp_installed`` were
   that class's three exceptions and are ``announce_module``,
   ``mark_module_loaded`` and ``mark_module_installed``.
 * **A preposition at the end of a name is an operand the author meant to write**
@@ -2111,7 +2111,7 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.8 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.7 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
 deriving and computing. The split that matters is against ``_prepare_``: 692
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
@@ -2296,8 +2296,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **342** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **288**
+**A ``bool`` return does not make a predicate** ``[review]``. **335** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **295**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -3388,7 +3388,7 @@ alone held six with no verb at all: ``fallback_loc``, ``next_move``,
   fix: nothing outside the method can collide with the name, so nothing pushes
   back on a private spelling. The freedom and the drift are one fact.
 * **The backlog inside it is drained, and that was always the point**
-  ``[gate doc_restated_counts]``: of them, **3** open with a verb the abolished
+  ``[gate doc_restated_counts]``: of them, **0** open with a verb the abolished
   table reports and **7** with a reserved one. It was 8 and 7 when this
   bullet was written, which is what made the population worth naming as a
   discipline rather than as debt -- and the gate that could see it did not exist
@@ -4013,7 +4013,7 @@ beside the searches above; the binding is by *convention*, so no ``ref=``, no
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
 call sites ever see. **95** parameters annotated ``field_name`` are ``str`` and
-**0** are a ``Field``, against ``field``'s **134** ``Field`` and **17** ``str``.
+**0** are a ``Field``, against ``field``'s **132** ``Field`` and **17** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s
 ``_get_placeholder_filename(self, field: str)`` is *bound by name*, so its
