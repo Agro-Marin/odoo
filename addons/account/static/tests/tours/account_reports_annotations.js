@@ -180,7 +180,7 @@ registry.category("web_tour.tours").add("account_reports_annotations", {
         },
         {
             content: "Check there are now only two lines annotated",
-            trigger: "tr:nth-child(12):not(:has(.fa-commenting))",
+            trigger: "tr:nth-child(12):not(:has(.o_account_report_chatter_annoted))",
             run: () => {
                 const annotations = document.querySelectorAll(
                     ".btn_annotation.o_account_report_chatter_annoted",
