@@ -85,7 +85,8 @@ function parseString(/** @type {string} */ str) {
             continue;
         }
         const value = eqIdx === -1 ? "" : part.slice(eqIdx + 1);
-        const decoded = tryDecode(value || "");
+        // application/x-www-form-urlencoded: the server spells a space as "+"
+        const decoded = tryDecode(value.replaceAll("+", " "));
         result[key] = cast(decoded);
     }
     return result;

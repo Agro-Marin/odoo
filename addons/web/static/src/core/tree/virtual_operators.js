@@ -140,7 +140,7 @@ function eliminateStartsWithOperators(tree) {
  * @param {Tree} c
  * @returns {c is Connector}
  */
-function isSimpleAnd(c) {
+function isSimpleAndOfConditions(c) {
     if (
         c.type === "connector" &&
         c.value === "&" &&
@@ -159,7 +159,7 @@ function isSimpleAnd(c) {
  * @returns {{ path: Value, value1: Value | Tree, value2: Value | Tree } | false}
  */
 function matchRange(c, upper) {
-    if (isSimpleAnd(c)) {
+    if (isSimpleAndOfConditions(c)) {
         const [
             { path: p1, operator: op1, value: value1 },
             { path: p2, operator: op2, value: value2 },

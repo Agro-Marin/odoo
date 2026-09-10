@@ -3,6 +3,7 @@
 
 import { Component, onWillRender, onWillUpdateProps, useState } from "@odoo/owl";
 import { TimePicker } from "@web/components/time_picker/time_picker";
+import { getStartOfLocalWeek } from "@web/core/l10n/date_utils";
 import {
     clampDate,
     getMaxValidDate,
@@ -10,7 +11,6 @@ import {
     isInRange,
     today,
 } from "@web/core/l10n/dates";
-import { localization } from "@web/core/l10n/localization";
 import { DateTime, Info } from "@web/core/l10n/luxon";
 import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/translation";
@@ -75,14 +75,7 @@ const getStartOfDecade = (date) => Math.floor(date.year / 10) * 10;
 const getStartOfCentury = (date) => Math.floor(date.year / 100) * 100;
 
 /** @param {DateTime} date */
-const getStartOfWeek = (date) => {
-    const { weekStart } = localization;
-    return date.set({
-        weekday: /** @type {any} */ (
-            date.weekday < weekStart ? weekStart - 7 : weekStart
-        ),
-    });
-};
+const getStartOfWeek = (date) => getStartOfLocalWeek(date);
 
 /**
  * @param {number} min

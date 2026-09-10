@@ -90,15 +90,20 @@ userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
 
 /** @returns {Promise<Record<number, {toCompanyRate: number, date: import("@web/core/l10n/dates").NullableDateTime}>>} */
 export async function getCurrencyRates() {
-    if (!ratesPromise) {
-        const prom = fetchCurrencyRates().finally(() => {
-            if (ratesPromise === prom) {
-                ratesPromise = null;
-            }
-        });
-        ratesPromise = prom;
-    }
-    await ratesPromise;
+    let epochSeen;
+    do {
+        epochSeen = ratesEpoch;
+        if (!ratesPromise) {
+            const prom = fetchCurrencyRates().finally(() => {
+                if (ratesPromise === prom) {
+                    ratesPromise = null;
+                }
+            });
+            ratesPromise = prom;
+        }
+        await ratesPromise;
+        // a company change while awaiting dropped that fetch's result
+    } while (epochSeen !== ratesEpoch);
     return rates;
 }
 

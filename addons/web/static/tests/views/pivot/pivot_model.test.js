@@ -737,3 +737,31 @@ describe("PivotModel.toggleMeasure — batching across concurrent toggles", () =
         expect(model.nextActiveMeasures).toBe(null);
     });
 });
+
+describe("PivotModel.toggleMeasure — the sorted column", () => {
+    test("removing the measure a column is sorted by drops the sort", async () => {
+        const model = {
+            metaData: {
+                activeMeasures: ["__count", "foo"],
+                sortedColumn: { measure: "foo", order: "asc", groupId: [[], []] },
+            },
+            data: {},
+            loads: { isBusy: false, whenIdle: async () => {} },
+            nextActiveMeasures: null,
+            measureToggleEpoch: 0,
+            _buildMetaData() {
+                return {
+                    activeMeasures: [...this.metaData.activeMeasures],
+                    sortedColumn: this.metaData.sortedColumn,
+                };
+            },
+            async _loadData() {
+                return true;
+            },
+            notify() {},
+        };
+        await PivotModel.prototype.toggleMeasure.call(model, "foo");
+        expect(model.metaData.activeMeasures).toEqual(["__count"]);
+        expect(model.metaData.sortedColumn).toBe(null);
+    });
+});

@@ -54,6 +54,14 @@ describe("parseHash", () => {
         expect(parseHash("#action=114")).toEqual({ action: 114 });
     });
 
+    test("a form-encoded space, the plus the server emits, is a space", () => {
+        expect(parseHash("#model=res.partner&name=John+Doe&pct=100%25")).toEqual({
+            model: "res.partner",
+            name: "John Doe",
+            pct: "100%",
+        });
+    });
+
     test("can parse a hash with 2 key/value pairs", () => {
         expect(parseHash("#action=114&active_id=mail.box_inbox")).toEqual({
             action: 114,

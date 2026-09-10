@@ -518,6 +518,9 @@ export class PivotModel extends Model {
                 }
                 const metaData = this._buildMetaData();
                 metaData.activeMeasures = activeMeasures;
+                if (metaData.sortedColumn?.measure === fieldName) {
+                    metaData.sortedColumn = null;
+                }
                 this.metaData = metaData;
             } else {
                 activeMeasures.push(fieldName);
