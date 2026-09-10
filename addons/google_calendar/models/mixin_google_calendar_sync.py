@@ -378,7 +378,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
             "need_sync": False,
         }
 
-    def _need_video_call(self):
+    def _is_video_call_required(self):
         """Implement this method to return True if the event needs a video call
         :return: bool
         """
@@ -407,7 +407,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
                         values,
                         token=token,
                         timeout=timeout,
-                        need_video_call=self._need_video_call(),
+                        need_video_call=self._is_video_call_required(),
                     )
                     self.with_context(dont_notify=True).write(
                         self._get_post_sync_values(values, google_values)

@@ -508,7 +508,7 @@ class SaleOrderLine(models.Model):
                 if not old_auto_price and line._origin.id:
                     old_auto_price = origin_price_auto.get(line._origin.id, 0.0)
 
-                should_update = line._should_update_price(
+                should_update = line._is_price_update_required(
                     auto_price, old_auto_price, force_recompute
                 )
 
@@ -551,7 +551,7 @@ class SaleOrderLine(models.Model):
             if not old_auto_discount and line._origin.id:
                 old_auto_discount = origin_discount_auto.get(line._origin.id, 0.0)
 
-            should_update_discount = line._should_update_discount(
+            should_update_discount = line._is_discount_update_required(
                 auto_discount, old_auto_discount, force_recompute
             )
             line.discount_auto = auto_discount

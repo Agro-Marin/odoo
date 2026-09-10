@@ -14,7 +14,7 @@ class IrAttachment(models.Model):
             .search([("attachment_id", "in", self.ids)])
         )
         linked_edi_formats_ws = linked_edi_documents.edi_format_id.filtered(
-            lambda edi_format: edi_format._needs_web_services()
+            lambda edi_format: edi_format._is_web_service_required()
         )
         if linked_edi_formats_ws:
             raise UserError(

@@ -183,7 +183,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                     self._is_applicable_to_company(method, move.company_id),
                     partner.peppol_verification_state == "valid",
                     move.company_id.account_peppol_proxy_state != "rejected",
-                    move._need_ubl_cii_xml(invoice_edi_format)
+                    move._is_ubl_cii_xml_required(invoice_edi_format)
                     or (
                         move.ubl_cii_xml_id
                         and move.peppol_move_state not in ("processing", "done")

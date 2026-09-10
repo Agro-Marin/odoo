@@ -60,7 +60,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.out_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.out_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             xml_doc = edi_document._get_xml()
@@ -74,14 +74,16 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.out_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.out_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             self.out_invoice.action_post()
             self.out_invoice.l10n_es_tbai_post_document_id = edi_document.id
             refund = self.create_total_refund()
             edi_document = refund._l10n_es_tbai_create_edi_document(cancel=False)
-            edi_document._generate_xml(refund._l10n_es_tbai_get_values(cancel=False))
+            edi_document._create_tbai_xml_attachment(
+                refund._l10n_es_tbai_get_values(cancel=False)
+            )
             xml_doc = edi_document._get_xml()
             xml_doc.remove(xml_doc.find("Signature", namespaces=NS_MAP))
 
@@ -100,7 +102,9 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
                 }
             )
             edi_document = invoice._l10n_es_tbai_create_edi_document(cancel=False)
-            edi_document._generate_xml(invoice._l10n_es_tbai_get_values(cancel=False))
+            edi_document._create_tbai_xml_attachment(
+                invoice._l10n_es_tbai_get_values(cancel=False)
+            )
             xml_doc = edi_document._get_xml()
             xml_doc.remove(xml_doc.find("Signature", namespaces=NS_MAP))
             xml_expected = etree.fromstring(super()._get_sample_xml("xml_post.xml"))
@@ -160,7 +164,9 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
 
         with freeze_time(self.frozen_today):
             edi_document = invoice._l10n_es_tbai_create_edi_document(cancel=False)
-            edi_document._generate_xml(invoice._l10n_es_tbai_get_values(cancel=False))
+            edi_document._create_tbai_xml_attachment(
+                invoice._l10n_es_tbai_get_values(cancel=False)
+            )
             xml_doc = edi_document._get_xml()
             xml_doc.remove(xml_doc.find("Signature", namespaces=NS_MAP))
             xml_expected_base = etree.fromstring(
@@ -209,7 +215,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.out_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.out_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             xml_doc = edi_document._get_xml()
@@ -234,7 +240,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.out_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.out_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             xml_doc = edi_document._get_xml()
@@ -285,7 +291,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.in_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.in_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             xml_doc = edi_document._get_xml()
@@ -328,7 +334,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.in_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.in_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             xml_doc = edi_document._get_xml()
@@ -368,7 +374,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.in_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.in_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             xml_doc = edi_document._get_xml()
@@ -422,7 +428,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.in_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.in_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             xml_doc = edi_document._get_xml()
@@ -452,7 +458,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
         cancel_edi_document = self.out_invoice._l10n_es_tbai_create_edi_document(
             cancel=True
         )
-        cancel_edi_document._generate_xml(
+        cancel_edi_document._create_tbai_xml_attachment(
             self.out_invoice._l10n_es_tbai_get_values(cancel=True)
         )
         xml_doc = cancel_edi_document._get_xml()
@@ -472,7 +478,7 @@ class TestEdiTbaiXmls(TestEsEdiTbaiCommon):
             edi_document = self.out_invoice._l10n_es_tbai_create_edi_document(
                 cancel=False
             )
-            edi_document._generate_xml(
+            edi_document._create_tbai_xml_attachment(
                 self.out_invoice._l10n_es_tbai_get_values(cancel=False)
             )
             xml_doc = edi_document._get_xml()

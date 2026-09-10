@@ -49,7 +49,7 @@ class StockMoveLine(models.Model):
         analytic_move_to_recompute.sudo()._create_analytic_move()
         return res
 
-    def _should_exclude_for_valuation(self):
+    def _is_excluded_from_valuation(self):
         self.check_singleton()
         return bool(self.owner_id and self.owner_id != self.company_id.partner_id)
 
@@ -79,7 +79,7 @@ class StockMoveLine(models.Model):
                 delta = sum(
                     ml.quantity_product_uom - old_qty_by_ml.get(ml, 0)
                     for ml in mls
-                    if not ml._should_exclude_for_valuation()
+                    if not ml._is_excluded_from_valuation()
                 )
                 if delta:
                     move._set_value(correction_quantity=delta)
@@ -89,15 +89,15 @@ class StockMoveLine(models.Model):
     def _is_consigned_valued_line(self):
         return (
             self.picked
-            and self._should_exclude_for_valuation()
+            and self._is_excluded_from_valuation()
             and (
                 (
-                    not self.location_id._should_be_valued()
-                    and self.location_dest_id._should_be_valued()
+                    not self.location_id._is_valuation_required()
+                    and self.location_dest_id._is_valuation_required()
                 )
                 or (
-                    self.location_id._should_be_valued()
-                    and not self.location_dest_id._should_be_valued()
+                    self.location_id._is_valuation_required()
+                    and not self.location_dest_id._is_valuation_required()
                 )
             )
         )

@@ -125,7 +125,7 @@ class MixinMailComposer(models.AbstractModel):
         template_value = self.template_id[self._get_template_field(field)]
         return value == template_value or not (value or template_value)
 
-    def _must_render_template_value(self, field: str) -> bool:
+    def _is_template_value_render_required(self, field: str) -> bool:
         self.check_singleton()
         return (
             field == "body"
@@ -170,7 +170,7 @@ class MixinMailComposer(models.AbstractModel):
         from_template = self._is_value_from_template(field)
         translation_asked = bool(compute_lang or set_lang)
 
-        if self._must_render_template_value(field) or (
+        if self._is_template_value_render_required(field) or (
             translation_asked and from_template
         ):
             if translation_asked and not res_ids_lang and not set_lang:

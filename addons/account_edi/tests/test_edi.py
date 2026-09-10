@@ -55,7 +55,9 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
                 "_test_edi_post_invoice",
                 lambda edi_format, inv: {inv: {"success": True}},
             ),
-            self.with_custom_method("_needs_web_services", lambda edi_format: True),
+            self.with_custom_method(
+                "_is_web_service_required", lambda edi_format: True
+            ),
         ):
             (invoice1 + invoice2).action_post()
 
@@ -78,7 +80,9 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
                 "_test_edi_post_invoice",
                 lambda edi_format, inv: {inv: {"success": True}},
             ),
-            self.with_custom_method("_needs_web_services", lambda edi_format: True),
+            self.with_custom_method(
+                "_is_web_service_required", lambda edi_format: True
+            ),
         ):
             (invoice1 + invoice2).action_post()
 
@@ -93,7 +97,9 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
                 "_get_move_applicability",
                 lambda edi_format, inv: {"post": edi_format._test_edi_post_invoice},
             ),
-            self.with_custom_method("_needs_web_services", lambda edi_format: True),
+            self.with_custom_method(
+                "_is_web_service_required", lambda edi_format: True
+            ),
         ):
             with self.with_custom_method(
                 "_test_edi_post_invoice",
@@ -122,7 +128,9 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
                     "cancel": edi_format._test_edi_cancel_invoice,
                 },
             ),
-            self.with_custom_method("_needs_web_services", lambda edi_format: True),
+            self.with_custom_method(
+                "_is_web_service_required", lambda edi_format: True
+            ),
             self.with_custom_method(
                 "_test_edi_post_invoice",
                 lambda edi_format, inv: {inv: {"success": True}},
@@ -167,7 +175,9 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
 
         with (
             self.with_custom_method("_get_move_applicability", get_move_applicability),
-            self.with_custom_method("_needs_web_services", lambda edi_format: True),
+            self.with_custom_method(
+                "_is_web_service_required", lambda edi_format: True
+            ),
             self.with_custom_method("_test_edi_post_invoice_step1", step1),
             self.with_custom_method("_test_edi_post_invoice_step2", step2),
         ):
@@ -187,7 +197,9 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
                 "_get_move_applicability",
                 lambda edi_format, inv: {"post": edi_format._test_edi_post_invoice},
             ),
-            self.with_custom_method("_needs_web_services", lambda edi_format: True),
+            self.with_custom_method(
+                "_is_web_service_required", lambda edi_format: True
+            ),
             self.with_custom_method(
                 "_test_edi_post_invoice",
                 lambda edi_format, inv: {inv: {"success": True}},
@@ -209,7 +221,9 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
                 "_get_move_applicability",
                 lambda edi_format, inv: {"post": edi_format._test_edi_post_invoice},
             ),
-            self.with_custom_method("_needs_web_services", lambda edi_format: True),
+            self.with_custom_method(
+                "_is_web_service_required", lambda edi_format: True
+            ),
             self.with_custom_method(
                 "_test_edi_post_invoice",
                 lambda edi_format, inv: {inv: {"success": True}},
@@ -242,7 +256,9 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
                 "_get_move_applicability",
                 lambda edi_format, inv: {"post": edi_format._test_edi_post_invoice},
             ),
-            self.with_custom_method("_needs_web_services", lambda edi_format: True),
+            self.with_custom_method(
+                "_is_web_service_required", lambda edi_format: True
+            ),
             self.with_custom_method(
                 "_test_edi_post_invoice",
                 lambda edi_format, inv: {inv: {"success": True}},

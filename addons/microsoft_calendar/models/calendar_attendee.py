@@ -25,7 +25,7 @@ class CalendarAttendee(models.Model):
     def _microsoft_sync_event(self, answer):
         params = {"comment": "", "sendResponse": True}
         # Microsoft prevent user to answer the meeting when they are the organizer
-        linked_events = self.event_id._get_synced_events()
+        linked_events = self.event_id._filtered_synced()
         for event in linked_events:
             if (
                 event._check_microsoft_sync_status()

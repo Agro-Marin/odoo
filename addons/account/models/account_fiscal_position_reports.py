@@ -7,6 +7,4 @@ class AccountFiscalPosition(models.Model):
     def action_create_foreign_taxes(self):
         # EXTENDS account
         super().action_create_foreign_taxes()
-        self.env["account.return.type"]._generate_or_refresh_all_returns(
-            self.company_id.root_id
-        )
+        self.env["account.return.type"]._sync_all_returns(self.company_id.root_id)

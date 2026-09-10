@@ -1170,7 +1170,7 @@ class AccountPayment(models.Model):
                 and line_ids is None
             ):
                 continue
-            pay._generate_journal_entry(
+            pay._create_journal_entry(
                 write_off_line_vals=write_off_line_vals,
                 force_balance=force_balance,
                 line_ids=line_ids,
@@ -1207,7 +1207,7 @@ class AccountPayment(models.Model):
 
     def write(self, vals):
         if vals.get("state") in ("in_process", "paid") and not vals.get("move_id"):
-            self.filtered(lambda p: not p.move_id)._generate_journal_entry()
+            self.filtered(lambda p: not p.move_id)._create_journal_entry()
             self.move_id.filtered(lambda m: m.state == "draft").action_post()
 
         res = super().write(vals)
@@ -1339,7 +1339,7 @@ class AccountPayment(models.Model):
             "journal_id",
         )
 
-    def _generate_journal_entry(
+    def _create_journal_entry(
         self, write_off_line_vals=None, force_balance=None, line_ids=None
     ):
         if len(self) > 1 and (write_off_line_vals or force_balance or line_ids):

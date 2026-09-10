@@ -6,7 +6,7 @@ class DiscussChannel(models.Model):
 
     calendar_event_ids = fields.One2many("calendar.event", "videocall_channel_id")
 
-    def _should_invite_members_to_join_call(self):
+    def _is_call_invitation_required(self):
         if self.calendar_event_ids:
             return False
-        return super()._should_invite_members_to_join_call()
+        return super()._is_call_invitation_required()

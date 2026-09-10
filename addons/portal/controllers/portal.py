@@ -318,12 +318,12 @@ class CustomerPortal(Controller):
 
     def _get_mandatory_address_form_fields(self, country_sudo):
         base_fields = {"name", "email"}
-        if not self._needs_address():
+        if not self._is_address_required():
             return base_fields
         base_fields.add("phone")
         return base_fields | self._get_mandatory_address_fields(country_sudo)
 
-    def _needs_address(self):
+    def _is_address_required(self):
         return True
 
     def _get_mandatory_address_fields(self, country_sudo):

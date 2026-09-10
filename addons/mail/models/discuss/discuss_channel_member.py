@@ -568,7 +568,7 @@ class DiscussChannelMember(models.Model):
                     "serverInfo": self._get_rtc_server_info(rtc_session, ice_servers),
                 },
             )
-        if self.channel_id._should_invite_members_to_join_call():
+        if self.channel_id._is_call_invitation_required():
             self._rtc_invite_members()
 
     def _join_sfu(self, ice_servers: list | None = None, force: bool = False) -> None:

@@ -424,7 +424,7 @@ class ProductPricelist(models.Model):
         result = defaultdict(lambda: ProductPricelist)
         remaining_partner_ids = []
         for partner in Partner.browse(partner_ids):
-            if partner.specific_property_product_pricelist._get_partner_pricelist_multi_filter_hook():
+            if partner.specific_property_product_pricelist._filtered_partner_pricelist_multi():
                 result[partner.id] = partner.specific_property_product_pricelist
             else:
                 remaining_partner_ids.append(partner.id)
@@ -447,7 +447,7 @@ class ProductPricelist(models.Model):
             ("company_id", "in", [company_id, False]),
         ]
 
-    def _get_partner_pricelist_multi_filter_hook(self):
+    def _filtered_partner_pricelist_multi(self):
         return self.filtered("active")
 
     def _get_products_price(self, products, *args, **kwargs):

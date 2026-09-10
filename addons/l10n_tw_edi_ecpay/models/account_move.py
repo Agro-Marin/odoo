@@ -220,16 +220,16 @@ class AccountMove(models.Model):
                 lambda m: m.l10n_tw_edi_refund_state
             ).show_reset_to_draft_button = False
 
-    def _need_cancel_request(self):
+    def _is_cancel_request_required(self):
         # EXTENDS 'account'
-        return super()._need_cancel_request() or self.l10n_tw_edi_state in [
+        return super()._is_cancel_request_required() or self.l10n_tw_edi_state in [
             "invoiced",
             "valid",
         ]
 
     def button_request_cancel(self):
         # EXTENDS 'account'
-        if self._need_cancel_request() and self.l10n_tw_edi_state in [
+        if self._is_cancel_request_required() and self.l10n_tw_edi_state in [
             "invoiced",
             "valid",
         ]:

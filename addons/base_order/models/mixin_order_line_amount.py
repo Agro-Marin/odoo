@@ -213,9 +213,11 @@ class MixinOrderLineAmount(models.AbstractModel):
                 old_discount_shadow = old_discount_shadow or saved_discount
             line.price_unit_auto = auto_price
             line.discount_auto = auto_discount
-            if line._should_update_price(auto_price, old_price_shadow, force_recompute):
+            if line._is_price_update_required(
+                auto_price, old_price_shadow, force_recompute
+            ):
                 line.price_unit = auto_price
-                if line._should_update_discount(
+                if line._is_discount_update_required(
                     auto_discount, old_discount_shadow, force_recompute
                 ):
                     line.discount = auto_discount
@@ -225,7 +227,7 @@ class MixinOrderLineAmount(models.AbstractModel):
             f"{self._name} must implement _get_auto_price_and_discount()"
         )
 
-    def _should_update_price(
+    def _is_price_update_required(
         self, new_auto_price, old_auto_price, force_recompute=False
     ):
         self.check_singleton()
@@ -262,7 +264,7 @@ class MixinOrderLineAmount(models.AbstractModel):
             != 0
         )
 
-    def _should_update_discount(
+    def _is_discount_update_required(
         self, new_auto_discount, old_auto_discount, force_recompute=False
     ):
         self.check_singleton()

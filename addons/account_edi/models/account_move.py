@@ -46,7 +46,7 @@ class AccountMove(models.Model):
         for move in self:
             all_states = set(
                 move.edi_document_ids.filtered(
-                    lambda d: d.edi_format_id._needs_web_services()
+                    lambda d: d.edi_format_id._is_web_service_required()
                 ).mapped("state")
             )
             if all_states == {"sent"}:
@@ -118,7 +118,7 @@ class AccountMove(models.Model):
                 )
             )
             format_web_services = to_process.edi_format_id.filtered(
-                lambda f: f._needs_web_services()
+                lambda f: f._is_web_service_required()
             )
             move.edi_web_services_to_process = ", ".join(
                 f.name for f in format_web_services
@@ -129,7 +129,7 @@ class AccountMove(models.Model):
         for doc in self.edi_document_ids:
             move_applicability = doc.edi_format_id._get_move_applicability(self)
             if (
-                doc.edi_format_id._needs_web_services()
+                doc.edi_format_id._is_web_service_required()
                 and doc.state in ("sent", "to_cancel")
                 and move_applicability
                 and move_applicability.get("cancel")
@@ -156,7 +156,7 @@ class AccountMove(models.Model):
             for doc in move.edi_document_ids:
                 move_applicability = doc.edi_format_id._get_move_applicability(move)
                 if (
-                    doc.edi_format_id._needs_web_services()
+                    doc.edi_format_id._is_web_service_required()
                     and doc.state == "sent"
                     and move_applicability
                     and move_applicability.get("cancel")
@@ -171,7 +171,7 @@ class AccountMove(models.Model):
             for doc in move.sudo().edi_document_ids:
                 move_applicability = doc.edi_format_id._get_move_applicability(move)
                 if (
-                    doc.edi_format_id._needs_web_services()
+                    doc.edi_format_id._is_web_service_required()
                     and doc.state == "to_cancel"
                     and move_applicability
                     and move_applicability.get("cancel")
@@ -372,7 +372,7 @@ class AccountMove(models.Model):
             for doc in move.edi_document_ids:
                 move_applicability = doc.edi_format_id._get_move_applicability(move)
                 if (
-                    doc.edi_format_id._needs_web_services()
+                    doc.edi_format_id._is_web_service_required()
                     and doc.state == "sent"
                     and move_applicability
                     and move_applicability.get("cancel")

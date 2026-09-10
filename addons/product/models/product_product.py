@@ -1457,7 +1457,9 @@ class ProductProduct(models.Model):
 
     def _prepare_sellers(self, params=False):
         all_sellers = self.sudo().variant_seller_ids
-        sellers = all_sellers._get_filtered_supplier(self.env.company, self, params)
+        sellers = all_sellers._filtered_for_company_and_product(
+            self.env.company, self, params
+        )
         return sellers.sorted(lambda s: (s.sequence, -s.min_qty, s.price, s.id))
 
     def _select_seller(

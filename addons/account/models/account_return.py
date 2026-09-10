@@ -288,7 +288,7 @@ class AccountReturnType(models.Model):
 
         if root_companies:
             to_treat = root_companies[0]
-            self._generate_or_refresh_all_returns(to_treat)
+            self._sync_all_returns(to_treat)
             to_treat.account_last_return_cron_refresh = now
 
             if len(root_companies) > 1:
@@ -327,7 +327,7 @@ class AccountReturnType(models.Model):
                 )
 
     @api.model
-    def _generate_or_refresh_all_returns(self, root_companies):
+    def _sync_all_returns(self, root_companies):
         """Generate or update the returns of every root company, non domestic tax unit and
         foreign VAT fiscal position, then vacuum the returns that configuration changes made
         obsolete.
@@ -1280,7 +1280,7 @@ class AccountReturn(models.Model):
                 ]
             )
         )
-        self.env["account.return.type"]._generate_or_refresh_all_returns(root_companies)
+        self.env["account.return.type"]._sync_all_returns(root_companies)
 
     @api.model
     def _evaluate_deadline(
@@ -1775,12 +1775,12 @@ class AccountReturn(models.Model):
 
             report.with_context(
                 allowed_company_ids=self.company_ids.ids
-            )._generate_carryover_external_values(options)
+            )._create_carryover_external_values(options)
             self._generate_locking_attachments(options)
 
             if self.is_tax_return:
                 # Create the tax closing move
-                self._generate_tax_closing_entries(options)
+                self._create_tax_closing_entries(options)
 
                 # Reset any tax lock date exceptions
                 self.env["account.lock_exception"].search(
@@ -1804,7 +1804,7 @@ class AccountReturn(models.Model):
                     for company in self.company_ids:
                         self.env["account.report"].with_company(
                             company
-                        )._generate_default_external_values(
+                        )._create_default_external_values(
                             self.date_from, self.date_to, True, company=company
                         )
                         company.sudo().tax_lock_date = self.date_to
@@ -2351,7 +2351,7 @@ class AccountReturn(models.Model):
     ####################################################################################################
     ####  Tax Closing
     ####################################################################################################
-    def _generate_tax_closing_entries(self, options):
+    def _create_tax_closing_entries(self, options):
         """Create and post one closing move per company of the return.
 
         :param options: report options
@@ -2741,7 +2741,7 @@ class AccountReturn(models.Model):
             ):  # We do not run checks if the main company is not selected
                 continue
 
-            if record._should_run_checks():
+            if record._is_check_run_required():
                 check_codes_to_ignore = set(
                     record.check_ids.filtered(lambda x: x.state != record.state).mapped(  # noqa: B023
                         "code"
@@ -2775,7 +2775,7 @@ class AccountReturn(models.Model):
             self.env["account.return.check"].with_user(SUPERUSER_ID).create(to_create)
         to_unlink.unlink()
 
-    def _should_run_checks(self):
+    def _is_check_run_required(self):
         # To override in order to run checks in other custom-made states
         self.check_singleton()
         return self.state == "new"

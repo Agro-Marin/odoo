@@ -511,7 +511,7 @@ class MixinAccountWithholdingLine(models.AbstractModel):
             ]
         )
 
-    def _need_update_withholding_lines_placeholder(self):
+    def _is_withholding_lines_placeholder_update_required(self):
         """Determines if the lines' placeholders needs update or not."""
         return self and any(
             line.previous_placeholder_type != line.placeholder_type for line in self

@@ -423,7 +423,7 @@ class ExchangeTransmission(models.Model):
         self.check_singleton()
         channel = self.channel_id
         attempt = self.retry_count + 1
-        if not channel.should_retry(attempt):
+        if not channel.is_retry_required(attempt):
             self._settle(
                 Verdict(
                     state="rejected",

@@ -14,7 +14,7 @@
         corresponding module is installed, ensuring that dynamic snippets are correctly created and linked
         at the right time.
     -->
-    <function model="ir.module.module" name="_generate_primary_snippet_templates">
+    <function model="ir.module.module" name="_create_primary_snippet_templates">
         <value eval="[ref('base.module_website_sale')]" />
     </function>
 

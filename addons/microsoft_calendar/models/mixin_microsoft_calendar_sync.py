@@ -124,14 +124,14 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
     def _get_microsoft_service(self):
         return MicrosoftCalendarService(self.env["microsoft.service"])
 
-    def _get_synced_events(self):
+    def _filtered_synced(self):
         """
         Get events already synced with Microsoft Outlook.
         """
         return self.filtered(lambda e: e.ms_universal_event_id)
 
     def unlink(self):
-        synced = self._get_synced_events()
+        synced = self._filtered_synced()
         if self.env.user._get_microsoft_sync_status() != "sync_paused":
             for ev in synced:
                 ev._microsoft_delete(ev._get_organizer(), ev.microsoft_id)
@@ -156,10 +156,10 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         cancelled_records = self - records_to_sync
 
         records_to_sync._check_attendees_have_email()
-        updated_records = records_to_sync._get_synced_events()
+        updated_records = records_to_sync._filtered_synced()
         new_records = records_to_sync - updated_records
 
-        for record in cancelled_records._get_synced_events():
+        for record in cancelled_records._filtered_synced():
             record._microsoft_delete(record._get_organizer(), record.microsoft_id)
         for record in new_records:
             values = record._microsoft_values(self._get_fields_microsoft_synced())
@@ -660,7 +660,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         """
         raise NotImplementedError
 
-    def _need_video_call(self):
+    def _is_video_call_required(self):
         """
         Implement this method to return True if the event needs a video call
         :return: bool

@@ -38,8 +38,8 @@ class MaintenanceRequest(models.Model):
             if technician and request.company_id in technician.company_ids:
                 request.user_id = technician
 
-    def _need_new_activity(self, vals):
-        return super()._need_new_activity(vals) or vals.get("asset_id")
+    def _is_new_activity_required(self, vals):
+        return super()._is_new_activity_required(vals) or vals.get("asset_id")
 
     def _get_activity_note(self):
         self.check_singleton()

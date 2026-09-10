@@ -344,7 +344,7 @@ class StockPicking(models.Model):
             weight += move.product_qty * move.product_id.weight
         return weight
 
-    def _should_generate_commercial_invoice(self):
+    def _is_commercial_invoice_required(self):
         self.check_singleton()
         return (
             self.picking_type_id.warehouse_id.partner_id.country_id

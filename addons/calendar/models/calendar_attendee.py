@@ -265,7 +265,7 @@ class CalendarAttendee(models.Model):
     def _notify_attendees_recipients(self, notify_author=False):
         """The attendees of `self` that a notification will actually reach.
 
-        An e-mail address, not excluded by `_should_notify_attendee`, and on an
+        An e-mail address, not excluded by `_is_attendee_notification_required`, and on an
         event that does not opt out through `_skip_send_mail_status_update`.
         Everything the caller does afterwards is sized to this set and not to
         `self` -- copying an attachment or rendering a template for an attendee
@@ -282,7 +282,9 @@ class CalendarAttendee(models.Model):
         return self.browse(notified_ids).filtered(
             lambda attendee: (
                 attendee.email
-                and attendee._should_notify_attendee(notify_author=notify_author)
+                and attendee._is_attendee_notification_required(
+                    notify_author=notify_author
+                )
             )
         )
 
@@ -361,7 +363,7 @@ class CalendarAttendee(models.Model):
 
         return attachments_by_attendee
 
-    def _should_notify_attendee(self, notify_author=False):
+    def _is_attendee_notification_required(self, notify_author=False):
         """Utility method that determines if the attendee should be notified.
         By default, we do not want to notify (aka no message and no mail) the current user
         if he is part of the attendees. But for reminders, mail_notify_author could be forced

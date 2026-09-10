@@ -99,7 +99,7 @@ class TestInvoiceLineClassification(TransactionCase):
                 ],
             }
         )
-        discount_lines = invoice.invoice_line_ids._get_discount_lines()
+        discount_lines = invoice.invoice_line_ids._filtered_discount_lines()
         self.assertEqual(discount_lines.product_id, discount_product)
 
     def test_other_products_are_not_discounts(self):
@@ -113,4 +113,4 @@ class TestInvoiceLineClassification(TransactionCase):
                 ],
             }
         )
-        self.assertFalse(invoice.invoice_line_ids._get_discount_lines())
+        self.assertFalse(invoice.invoice_line_ids._filtered_discount_lines())

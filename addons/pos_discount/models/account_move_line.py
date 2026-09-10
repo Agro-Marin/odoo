@@ -4,8 +4,8 @@ from odoo import models
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    def _get_discount_lines(self):
-        lines = super()._get_discount_lines()
+    def _filtered_discount_lines(self):
+        lines = super()._filtered_discount_lines()
         discount_line_ids = []
         for line in self - lines:
             pos_orders = line.move_id.sudo().pos_order_ids

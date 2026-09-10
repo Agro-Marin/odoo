@@ -768,7 +768,7 @@ class AccountMove(models.Model):
                     "company_id": self.company_id.id,
                 }
             )
-            self.l10n_id_coretax_document._generate_xml()
+            self.l10n_id_coretax_document._create_efaktur_xml_attachment()
 
         # If there is more than one document, or all invoices for a document were not selected, the resulting file could cause mistakes;
         # They could get a file with additional invoices for example. In this case, we redirect them to the document view to make it clearer.

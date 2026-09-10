@@ -29,9 +29,9 @@ class SaleOrderLine(models.Model):
                 order.disabled_auto_rewards += rewards
         return super().unlink()
 
-    def _should_show_strikethrough_price(self):
+    def _is_strikethrough_price_shown(self):
         """Override of `website_sale` to hide the strikethrough price for rewards."""
-        return super()._should_show_strikethrough_price() and not self.is_reward_line
+        return super()._is_strikethrough_price_shown() and not self.is_reward_line
 
     def _is_sellable(self):
         """Override of `website_sale` to flag reward lines as not sellable.

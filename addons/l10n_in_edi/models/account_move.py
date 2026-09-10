@@ -139,9 +139,12 @@ class AccountMove(models.Model):
             and self.l10n_in_edi_status == "sent"
         )
 
-    def _need_cancel_request(self):
+    def _is_cancel_request_required(self):
         # EXTENDS 'account'
-        return super()._need_cancel_request() or self._l10n_in_edi_need_cancel_request()
+        return (
+            super()._is_cancel_request_required()
+            or self._l10n_in_edi_need_cancel_request()
+        )
 
     # Indian E-invoice Business Methods
     def _l10n_in_check_einvoice_eligible(self):

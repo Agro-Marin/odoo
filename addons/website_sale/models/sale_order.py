@@ -308,7 +308,7 @@ class SaleOrder(models.Model):
             return self.env["website"].browse(website_id).get_base_url()
         return super()._get_note_url()
 
-    def _needs_customer_address(self):
+    def _is_customer_address_required(self):
         """Return whether we need the address details of the customer (country, street, ...).
 
         Make it true by default as it's required before payment for taxes based on fiscal position.

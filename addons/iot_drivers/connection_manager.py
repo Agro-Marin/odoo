@@ -45,7 +45,7 @@ class ConnectionManager(Thread):
     def run(self):
         # Double loop is needed in case the IoT Box isn't initially connected to the internet
         while True:
-            while self._should_poll_to_connect_database():
+            while self._is_database_connect_poll_required():
                 if not self.iot_box_registered:
                     self._register_iot_box()
 
@@ -53,7 +53,7 @@ class ConnectionManager(Thread):
                 time.sleep(self._get_next_polling_interval())
             time.sleep(5)
 
-    def _should_poll_to_connect_database(self):
+    def _is_database_connect_poll_required(self):
         return (
             not helpers.get_odoo_server_url()
             and helpers.get_ip()

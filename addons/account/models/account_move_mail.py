@@ -195,7 +195,7 @@ class AccountMove(models.Model):
         extra_files_data = []
         for file_data in files_data:
             if (
-                self._should_attach_to_record(file_data["attachment"])
+                self._is_record_attachment_required(file_data["attachment"])
                 or file_data["xml_tree"] is not None
             ):
                 valid_files_data.append(file_data)

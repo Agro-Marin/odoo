@@ -85,7 +85,7 @@ class TestL10nHrEdiMerApi(TestL10nHrEdiCommon, TestAccountMoveSendCommon):
             }
             for move in [invoice]
         }
-        self.env["mixin.account.move.send"]._generate_invoice_documents(
+        self.env["mixin.account.move.send"]._render_invoice_documents(
             moves_data, allow_fallback_pdf=False
         )
 

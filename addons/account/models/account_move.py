@@ -2469,14 +2469,14 @@ class AccountMove(models.Model):
                 invoice.show_discount_details = False
                 invoice.show_payment_term_details = False
 
-    def _need_cancel_request(self):
+    def _is_cancel_request_required(self):
         self.check_singleton()
         return False
 
     @api.depends("country_code")
     def _compute_need_cancel_request(self):
         for move in self:
-            move.need_cancel_request = move._need_cancel_request()
+            move.need_cancel_request = move._is_cancel_request_required()
 
     @api.depends("partner_id", "invoice_source_email", "partner_id.display_name")
     @api.depends_context("uid")
@@ -6136,7 +6136,7 @@ class AccountMove(models.Model):
         )
         return self._post_needing_confirmation(need_confirmation)
 
-    def _get_moves_requiring_confirmation(self):
+    def _filtered_requiring_confirmation(self):
         return self.filtered(
             lambda move: (
                 (move.date or move.invoice_date) > fields.Date.context_today(self)
@@ -6150,7 +6150,7 @@ class AccountMove(models.Model):
             raise UserError(_("There are no journal items in the draft state to post."))
 
         return draft_moves._post_needing_confirmation(
-            draft_moves._get_moves_requiring_confirmation(),
+            draft_moves._filtered_requiring_confirmation(),
             view_id=self.env.ref("account.validate_account_move_view").id,
         )
 
@@ -6214,11 +6214,11 @@ class AccountMove(models.Model):
     def _get_fields_to_detach(self):
         return ["invoice_pdf_report_file"]
 
-    def _should_detach_attachments(self):
+    def _is_attachment_detach_required(self):
         return self.is_sale_document()
 
     def _detach_attachments(self):
-        moves = self.filtered(lambda move: move._should_detach_attachments())
+        moves = self.filtered(lambda move: move._is_attachment_detach_required())
         files_to_detach = (
             self.env["ir.attachment"]
             .sudo()

@@ -110,7 +110,7 @@ class MixinAccountMoveSend(models.AbstractModel):
             extra_edis=extra_edis,
             pdf_report=pdf_report,
         )
-        if move._need_ubl_cii_xml(invoice_edi_format):
+        if move._is_ubl_cii_xml_required(invoice_edi_format):
             builder = move.partner_id.commercial_partner_id._get_edi_builder(
                 invoice_edi_format
             )
@@ -164,7 +164,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         # EXTENDS 'account'
         super()._hook_invoice_document_before_pdf_report_render(invoice, invoice_data)
 
-        if invoice._need_ubl_cii_xml(invoice_data["invoice_edi_format"]):
+        if invoice._is_ubl_cii_xml_required(invoice_data["invoice_edi_format"]):
             builder = invoice.partner_id.commercial_partner_id._get_edi_builder(
                 invoice_data["invoice_edi_format"]
             )

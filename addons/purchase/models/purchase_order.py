@@ -357,7 +357,7 @@ class PurchaseOrder(models.Model):
 
     def action_lock(self):
         for order in self:
-            if not order._should_be_locked() and not self.env.user.has_group(
+            if not order._is_lock_required() and not self.env.user.has_group(
                 "purchase.group_order_lock"
             ):
                 raise AccessError(

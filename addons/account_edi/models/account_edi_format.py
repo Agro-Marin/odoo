@@ -36,7 +36,7 @@ class AccountEdiFormat(models.Model):
             journals._compute_edi_format_ids()
 
         # activate cron
-        if any(edi_format._needs_web_services() for edi_format in edi_formats):
+        if any(edi_format._is_web_service_required() for edi_format in edi_formats):
             self.env.ref("account_edi.ir_cron_edi_network").active = True
 
         return edi_formats
@@ -66,7 +66,7 @@ class AccountEdiFormat(models.Model):
         """
         self.check_singleton()
 
-    def _needs_web_services(self):
+    def _is_web_service_required(self):
         """Indicate if the EDI must be generated asynchronously through to some web services.
 
         :return: True if such a web service is available, False otherwise.

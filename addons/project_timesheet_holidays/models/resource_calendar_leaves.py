@@ -318,7 +318,7 @@ class ResourceCalendarLeaves(models.Model):
         result = super().write(vals)
         global_time_off_updated and global_time_off_updated.sudo()._generate_timesheeets()
         if overlapping_leaves:
-            overlapping_leaves.sudo()._generate_timesheets()
+            overlapping_leaves.sudo()._create_timesheets()
         return result
 
     @api.ondelete(at_uninstall=False)
@@ -328,6 +328,6 @@ class ResourceCalendarLeaves(models.Model):
         for global_leave in global_leaves:
             overlapping_leaves += global_leave._get_overlapping_hr_leaves()
         if overlapping_leaves:
-            overlapping_leaves.sudo()._generate_timesheets(
+            overlapping_leaves.sudo()._create_timesheets(
                 ignored_resource_calendar_leaves=global_leaves.ids
             )

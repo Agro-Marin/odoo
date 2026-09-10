@@ -1040,19 +1040,19 @@ class AccountReportExport(models.Model):
                 y_offset += 1
             return y_offset
 
-        def should_print_option(option_key):
+        def is_option_printable(option_key):
             """Check if the option should be printed based on options_to_print."""
             return not options_to_print or option_key in options_to_print
 
         # Company
-        if should_print_option("companies"):
+        if is_option_printable("companies"):
             companies = options["companies"]
             title = _("Companies") if len(companies) > 1 else _("Company")
             lines = [company["name"] for company in companies]
             y_offset = write_filter_lines(title, lines, y_offset)
 
         # Journals
-        if should_print_option("journals") and (journals := options.get("journals")):
+        if is_option_printable("journals") and (journals := options.get("journals")):
             journal_titles = [
                 journal.get("title") for journal in journals if journal.get("selected")
             ]
@@ -1060,13 +1060,13 @@ class AccountReportExport(models.Model):
                 y_offset = write_filter_lines(_("Journals"), journal_titles, y_offset)
 
         # Partners
-        if should_print_option("selected_partner_ids") and (
+        if is_option_printable("selected_partner_ids") and (
             partner_names := options.get("selected_partner_ids")
         ):
             y_offset = write_filter_lines(_("Partners"), partner_names, y_offset)
 
         # Partner categories
-        if should_print_option("selected_partner_categories") and (
+        if is_option_printable("selected_partner_categories") and (
             partner_categories := options.get("selected_partner_categories")
         ):
             y_offset = write_filter_lines(
@@ -1074,7 +1074,7 @@ class AccountReportExport(models.Model):
             )
 
         # Horizontal groups
-        if should_print_option("selected_horizontal_group_id") and (
+        if is_option_printable("selected_horizontal_group_id") and (
             group_id := options.get("selected_horizontal_group_id")
         ):
             for horizontal_group in options["available_horizontal_groups"]:
@@ -1086,7 +1086,7 @@ class AccountReportExport(models.Model):
                     break
 
         # Currency
-        if should_print_option("company_currency") and options.get("company_currency"):
+        if is_option_printable("company_currency") and options.get("company_currency"):
             y_offset = write_filter_lines(
                 _("Company Currency"),
                 [options["company_currency"]["currency_name"]],
@@ -1094,7 +1094,7 @@ class AccountReportExport(models.Model):
             )
 
         # Filters
-        if should_print_option("aml_ir_filters"):
+        if is_option_printable("aml_ir_filters"):
             if options.get("aml_ir_filters") and any(
                 opt["selected"] for opt in options["aml_ir_filters"]
             ):

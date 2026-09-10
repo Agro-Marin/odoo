@@ -751,7 +751,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         failed = self.env["account.move"]
         for move, move_data in moves_data.items():
             try:
-                self._generate_dynamic_reports_for_move(move, move_data)
+                self._create_dynamic_reports_for_move(move, move_data)
             except Exception:
                 if not from_cron:
                     raise
@@ -768,7 +768,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return failed
 
     @api.model
-    def _generate_dynamic_reports_for_move(self, move, move_data):
+    def _create_dynamic_reports_for_move(self, move, move_data):
         mail_attachments_widget = move_data.get("mail_attachments_widget", [])
 
         dynamic_reports = [
@@ -876,7 +876,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return
 
     @api.model
-    def _generate_invoice_documents(self, invoices_data, allow_fallback_pdf=False):
+    def _render_invoice_documents(self, invoices_data, allow_fallback_pdf=False):
         for invoice, invoice_data in invoices_data.items():
             self._hook_invoice_document_before_pdf_report_render(invoice, invoice_data)
             invoice_data["blocking_error"] = invoice_data.get("error") and not (
@@ -955,7 +955,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         self._link_invoice_documents(invoices_to_link)
 
     @api.model
-    def _generate_invoice_fallback_documents(self, invoices_data):
+    def _create_invoice_fallback_documents(self, invoices_data):
         for invoice, invoice_data in invoices_data.items():
             if not invoice.invoice_pdf_report_id and invoice_data.get("error"):
                 invoice_data.pop("error")
@@ -996,7 +996,7 @@ class MixinAccountMoveSend(models.AbstractModel):
             for move in moves
         }
 
-        self._generate_invoice_documents(
+        self._render_invoice_documents(
             moves_data, allow_fallback_pdf=allow_fallback_pdf
         )
 
@@ -1019,7 +1019,7 @@ class MixinAccountMoveSend(models.AbstractModel):
             if move_data.get("error")
         }
         if allow_fallback_pdf and errors:
-            self._generate_invoice_fallback_documents(errors)
+            self._create_invoice_fallback_documents(errors)
 
         success = {
             move: move_data

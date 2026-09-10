@@ -193,10 +193,10 @@ class AccountMove(models.Model):
 
     # === Overrides === #
 
-    def _need_cancel_request(self):
+    def _is_cancel_request_required(self):
         # EXTEND account
         # Technical annulment should be available only in debug mode
-        return super()._need_cancel_request() or (
+        return super()._is_cancel_request_required() or (
             self.l10n_hu_edi_state in ["confirmed", "confirmed_warning"]
             and request
             and request.session.debug
@@ -204,7 +204,7 @@ class AccountMove(models.Model):
 
     def button_request_cancel(self):
         # EXTEND 'account'
-        if self._need_cancel_request() and self.l10n_hu_edi_state in [
+        if self._is_cancel_request_required() and self.l10n_hu_edi_state in [
             "confirmed",
             "confirmed_warning",
         ]:

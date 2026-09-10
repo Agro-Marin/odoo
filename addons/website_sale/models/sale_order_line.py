@@ -138,7 +138,7 @@ class SaleOrderLine(models.Model):
                 )
             )
 
-    def _should_show_strikethrough_price(self):
+    def _is_strikethrough_price_shown(self):
         """Compute whether the strikethrough price should be shown.
 
         The strikethrough price should be shown if there is a discount on a sellable line for

@@ -80,7 +80,7 @@ class MixinAccountMoveSend(models.AbstractModel):
     # -------------------------------------------------------------------------
 
     @api.model
-    def _generate_sinvoice_file_date(self, invoice, invoice_data):
+    def _update_invoice_data_sinvoice_file(self, invoice, invoice_data):
         # Ensure that we still generate the file if 'generate' is ul10n_vn_edi_invoice_transaction_id-checked but send it.
         need_file = (
             invoice_data["invoice_edi_format"] == "vn_sinvoice"
@@ -110,7 +110,7 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _hook_invoice_document_before_pdf_report_render(self, invoice, invoice_data):
         # EXTENDS 'account'
         super()._hook_invoice_document_before_pdf_report_render(invoice, invoice_data)
-        self._generate_sinvoice_file_date(invoice, invoice_data)
+        self._update_invoice_data_sinvoice_file(invoice, invoice_data)
 
     def _call_web_service_before_invoice_pdf_render(self, invoices_data):
         # EXTENDS 'account'
@@ -134,7 +134,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                         )
                     # If we don't have the file data and the file, we will regenerate it.
                     else:
-                        self._generate_sinvoice_file_date(invoice, invoice_data)
+                        self._update_invoice_data_sinvoice_file(invoice, invoice_data)
                         # In case the above call ended in an error, we skip setting json_data
                         if "sinvoice_attachments" not in invoice_data:
                             continue

@@ -723,7 +723,7 @@ class HrExpense(models.Model):
                 continue
 
             product_id = expense.product_id
-            if expense._needs_product_price_computation():
+            if expense._is_product_price_computation_required():
                 expense.price_unit = product_id._compute_price(
                     "standard_price",
                     uom=expense.product_uom_id,
@@ -1798,7 +1798,7 @@ class HrExpense(models.Model):
 
         return self.env["res.users"]
 
-    def _needs_product_price_computation(self):
+    def _is_product_price_computation_required(self):
         self.check_singleton()
         return self.product_has_cost
 

@@ -190,9 +190,9 @@ class ExchangeChannel(models.Model):
 
     # TRANSPORT METHODS
 
-    def should_retry(self, attempt_number: int) -> bool:
+    def is_retry_required(self, attempt_number: int) -> bool:
         self.check_singleton()
-        return self.endpoint_id.should_retry(attempt_number)
+        return self.endpoint_id.is_retry_required(attempt_number)
 
     def get_retry_delay(self, attempt_number: int) -> int:
         self.check_singleton()

@@ -121,7 +121,7 @@ class AccountMove(models.Model):
         super().button_request_cancel()
 
         active_myinvois_document = self._get_active_myinvois_document()
-        if self._need_cancel_request() and active_myinvois_document:
+        if self._is_cancel_request_required() and active_myinvois_document:
             return active_myinvois_document.action_cancel_submission()
 
         return super().button_request_cancel()
@@ -132,10 +132,13 @@ class AccountMove(models.Model):
         fields_list.append("l10n_my_edi_file")
         return fields_list
 
-    def _need_cancel_request(self):
+    def _is_cancel_request_required(self):
         # EXTENDS 'account'
         # For the in_progress state, we do not want to allow resetting to draft nor cancelling. We need to wait for the result first.
-        return super()._need_cancel_request() or self._get_active_myinvois_document()
+        return (
+            super()._is_cancel_request_required()
+            or self._get_active_myinvois_document()
+        )
 
     def _get_name_invoice_report(self):
         # EXTENDS 'account'

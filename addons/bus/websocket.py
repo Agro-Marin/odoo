@@ -353,7 +353,7 @@ class Websocket:
                 if self._timeout_manager.has_frame_response_timed_out():
                     self._terminate()
                     continue
-                if not readables and self._timeout_manager.should_send_ping_frame():
+                if not readables and self._timeout_manager.is_ping_frame_required():
                     self._send_ping_frame()
                     continue
                 if self.__cmd_queue in readables:
@@ -802,7 +802,7 @@ class TimeoutManager:
             now >= expiration for expiration in self._expiration_time_by_opcode.values()
         )
 
-    def should_send_ping_frame(self):
+    def is_ping_frame_required(self):
         return (
             not self.has_frame_response_timed_out()
             and not self.has_keep_alive_timed_out()

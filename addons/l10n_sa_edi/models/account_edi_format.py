@@ -587,12 +587,12 @@ class AccountEdiFormat(models.Model):
             )
         return errors
 
-    def _needs_web_services(self):
+    def _is_web_service_required(self):
         """
         Override to add a check on edi document format code
         """
         self.check_singleton()
-        return self.code == "sa_zatca" or super()._needs_web_services()
+        return self.code == "sa_zatca" or super()._is_web_service_required()
 
     def _is_compatible_with_journal(self, journal):
         """

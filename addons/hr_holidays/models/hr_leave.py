@@ -1492,7 +1492,7 @@ Versions:
         self.activity_update()
         self._post_leave_cancel()
 
-    def _get_leaves_on_public_holiday(self):
+    def _filtered_on_public_holiday(self):
         return self.filtered(lambda l: l.employee_id and not l.number_of_days)
 
     def _split_leaves(self, split_date_from, split_date_to=False):
@@ -1558,7 +1558,7 @@ Versions:
 
     def _action_validate(self, check_state=True):
         current_employee = self.env.user.employee_id
-        leaves = self._get_leaves_on_public_holiday()
+        leaves = self._filtered_on_public_holiday()
         if check_state and any(not holiday.can_validate for holiday in self):
             raise UserError(_("You can't validate this leave."))
         if leaves:

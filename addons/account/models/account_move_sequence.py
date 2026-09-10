@@ -14,7 +14,7 @@ from odoo.addons.account.tools import format_structured_reference_iso
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    def _must_check_constrains_date_sequence(self):
+    def _is_date_sequence_check_required(self):
         return self.state == "posted" and not self.quick_edit_mode
 
     def _get_reference_move_domain(self, is_payment):

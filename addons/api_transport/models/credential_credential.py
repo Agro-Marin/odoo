@@ -360,7 +360,7 @@ class CredentialCredential(models.Model):
             endpoint_code = record.endpoint_id.code
             credential_hash = record.credential_hash
 
-            def should_invalidate(key, _sc=endpoint_code, _ch=credential_hash):
+            def is_invalidation_required(key, _sc=endpoint_code, _ch=credential_hash):
                 parts = key.split(":")
                 if len(parts) != 3:
                     return False
@@ -369,7 +369,7 @@ class CredentialCredential(models.Model):
                     return False
                 return not (_ch and key_hash != _ch)
 
-            count = cache.invalidate_matching(should_invalidate)
+            count = cache.invalidate_matching(is_invalidation_required)
 
             _logger.info(
                 "Invalidated %d cached sessions for credential '%s' (service: %s)",

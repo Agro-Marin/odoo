@@ -97,7 +97,7 @@ class AccountPayment(models.Model):
         self.check_singleton()
         if (
             not self.display_withholding
-            or not self.withholding_line_ids._need_update_withholding_lines_placeholder()
+            or not self.withholding_line_ids._is_withholding_lines_placeholder_update_required()
         ):
             return
 

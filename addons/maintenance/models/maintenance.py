@@ -463,13 +463,13 @@ class MaintenanceRequest(models.Model):
             self.activity_update()
         if vals.get("user_id") or vals.get("schedule_date"):
             self.activity_update()
-        if self._need_new_activity(vals):
+        if self._is_new_activity_required(vals):
             # need to change description of activity also so unlink old and create new activity
             self.activity_unlink(["maintenance.mail_act_maintenance_request"])
             self.activity_update()
         return res
 
-    def _need_new_activity(self, vals):
+    def _is_new_activity_required(self, vals):
         return vals.get("equipment_id")
 
     def _get_activity_note(self):

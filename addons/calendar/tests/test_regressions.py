@@ -757,7 +757,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
                 }
             )
         )
-        # The organizer is the one writing, so `_should_notify_attendee`
+        # The organizer is the one writing, so `_is_attendee_notification_required`
         # excludes them; the guest is the single recipient.
         self.assertEqual(len(mails), 1)
 

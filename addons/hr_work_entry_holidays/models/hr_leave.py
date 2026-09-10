@@ -139,10 +139,10 @@ class HrLeave(models.Model):
         ):
             return super().create(vals_list)
 
-    def _get_leaves_on_public_holiday(self):
+    def _filtered_on_public_holiday(self):
         return (
             super()
-            ._get_leaves_on_public_holiday()
+            ._filtered_on_public_holiday()
             .filtered(
                 lambda l: (
                     l.holiday_status_id.work_entry_type_id.code

@@ -24,7 +24,7 @@ class SaleOrderLine(models.Model):
         self.check_singleton()
         return self.is_delivery
 
-    def _get_invalid_delivery_weight_lines(self):
+    def _filtered_invalid_delivery_weight(self):
         """Retrieve lines containing physical products with no weight defined."""
         return self.filtered(
             lambda line: (
@@ -36,7 +36,7 @@ class SaleOrderLine(models.Model):
         )
 
     # override to allow deletion of delivery line in a confirmed order
-    def _check_line_unlink(self):
+    def _filtered_unlink_forbidden(self):
         """
         Extend the allowed deletion policy of SO lines.
 
@@ -46,7 +46,7 @@ class SaleOrderLine(models.Model):
         :returns: set of lines that cannot be deleted
         """
 
-        undeletable_lines = super()._check_line_unlink()
+        undeletable_lines = super()._filtered_unlink_forbidden()
         return undeletable_lines.filtered(lambda line: not line.is_delivery)
 
     def _compute_pricelist_item_id(self):

@@ -17,7 +17,7 @@ class IrHttp(models.AbstractModel):
     _inherit = "ir.http"
 
     @classmethod
-    def _must_check_identity(cls):
+    def _is_identity_check_required(cls):
         """
         Determine whether the current user session requires identity confirmation.
 
@@ -99,7 +99,7 @@ class IrHttp(models.AbstractModel):
 
         :rtype: dict or None
         """
-        check_identity = cls._must_check_identity() or {}
+        check_identity = cls._is_identity_check_required() or {}
         first_fa = check_identity.get("1fa")
         user = request.env.user
         auth_methods = user._get_auth_methods()
@@ -197,7 +197,7 @@ class IrHttp(models.AbstractModel):
         """
         super()._authenticate(endpoint)
         if endpoint.routing["auth"] == "user" and request.session.uid is not None:
-            if must_check_identity := cls._must_check_identity():
+            if must_check_identity := cls._is_identity_check_required():
                 if must_check_identity.get("logout"):
                     raise SessionExpiredException(
                         f"User {request.session.uid} needs to login again"

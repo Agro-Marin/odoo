@@ -50,7 +50,7 @@ class AccountMove(models.Model):
             if move._get_deferred_entries_method() == "on_validation" and any(
                 move.line_ids.mapped("deferred_start_date")
             ):
-                move._generate_deferred_entries()
+                move._create_deferred_entries()
         return posted
 
     def action_draft(self):
@@ -323,7 +323,7 @@ class AccountMove(models.Model):
             )
         return moves_vals, lines_vals
 
-    def _generate_deferred_entries(self):
+    def _create_deferred_entries(self):
         self.check_singleton()
         if self.state != "posted":
             return

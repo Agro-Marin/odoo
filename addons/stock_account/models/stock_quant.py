@@ -40,7 +40,7 @@ class StockQuant(models.Model):
                 or (quant.company_id or self.env.company).cost_method
             )
 
-    def _should_exclude_for_valuation(self):
+    def _is_excluded_from_valuation(self):
         self.check_singleton()
         return bool(self.owner_id and self.owner_id != self.company_id.partner_id)
 
@@ -61,8 +61,8 @@ class StockQuant(models.Model):
             lambda quant: (
                 quant.location_id
                 and quant.product_id
-                and quant.location_id._should_be_valued()
-                and not quant._should_exclude_for_valuation()
+                and quant.location_id._is_valuation_required()
+                and not quant._is_excluded_from_valuation()
                 and not quant.product_id.uom_id.is_zero(quant.quantity)
             )
         )

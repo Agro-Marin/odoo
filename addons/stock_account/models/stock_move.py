@@ -329,7 +329,7 @@ class StockMove(models.Model):
         accounts_cache = {}
         moves_by_entry = defaultdict(lambda: self.env["stock.move"])
         for move in self:
-            if move._should_create_account_move():
+            if move._is_account_move_required():
                 key = (
                     move.company_id,
                     move._get_partner_id_for_valuation_lines(),
@@ -751,10 +751,10 @@ class StockMove(models.Model):
                 continue
             if not move_line.picked:
                 continue
-            if move_line._should_exclude_for_valuation():
+            if move_line._is_excluded_from_valuation():
                 continue
-            from_valued = move_line.location_id._should_be_valued()
-            to_valued = move_line.location_dest_id._should_be_valued()
+            from_valued = move_line.location_id._is_valuation_required()
+            to_valued = move_line.location_dest_id._is_valuation_required()
             if (
                 (not from_valued and to_valued)
                 if incoming
@@ -859,7 +859,7 @@ class StockMove(models.Model):
             "category": "other",
         }
 
-    def _should_create_account_move(self):
+    def _is_account_move_required(self):
         self.check_singleton()
         return bool(
             self.product_id.is_storable
@@ -874,7 +874,7 @@ class StockMove(models.Model):
             and self.product_id.valuation == "real_time"
         )
 
-    def _should_exclude_for_valuation(self):
+    def _is_excluded_from_valuation(self):
         self.check_singleton()
         return (
             self.restrict_partner_id
@@ -890,6 +890,6 @@ class StockMove(models.Model):
         )
         return sum(
             sml.quantity_product_uom
-            * (-1 if sml.location_dest_id._should_be_valued() else 1)
+            * (-1 if sml.location_dest_id._is_valuation_required() else 1)
             for sml in consigned_lines
         )

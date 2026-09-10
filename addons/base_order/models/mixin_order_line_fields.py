@@ -508,7 +508,7 @@ class MixinOrderLineFields(models.AbstractModel):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_confirmed(self):
-        lines_to_block = self._check_line_unlink()
+        lines_to_block = self._filtered_unlink_forbidden()
         if lines_to_block:
             state_description = dict(
                 self._fields["state"]._description_selection(self.env),
@@ -529,7 +529,7 @@ class MixinOrderLineFields(models.AbstractModel):
                 ),
             )
 
-    def _check_line_unlink(self):
+    def _filtered_unlink_forbidden(self):
         return self.filtered(
             lambda line: line.state == "done" and not line.display_type,
         )

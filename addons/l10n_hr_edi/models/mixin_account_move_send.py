@@ -133,7 +133,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                 [
                     self._is_applicable_to_company(method, move.company_id),
                     partner.vat,  # Alternatively, partner GLN when proper support for that is added
-                    move._need_ubl_cii_xml(invoice_edi_format)
+                    move._is_ubl_cii_xml_required(invoice_edi_format)
                     or (
                         move.ubl_cii_xml_id
                         and move.l10n_hr_mer_document_status not in {"20", "30", "40"}

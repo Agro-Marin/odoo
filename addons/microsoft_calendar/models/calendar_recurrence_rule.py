@@ -41,7 +41,7 @@ class CalendarRecurrence(models.Model):
         # If a synced event becomes a recurrence, the event needs to be deleted from
         # Microsoft since it's now the recurrence which is synced.
         vals = []
-        for event in events._get_synced_events():
+        for event in events._filtered_synced():
             if (
                 event.active
                 and event.ms_universal_event_id

@@ -201,7 +201,7 @@ class ProductSupplierinfo(models.Model):
     def write(self, vals):
         return super().write(self._sanitize_vals(vals))
 
-    def _get_filtered_supplier(self, company_id, product_id, params=False):
+    def _filtered_for_company_and_product(self, company_id, product_id, params=False):
         return self.filtered(
             lambda s: (
                 (not s.company_id or s.company_id.id == company_id.id)

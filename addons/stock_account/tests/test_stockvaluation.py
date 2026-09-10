@@ -2987,7 +2987,7 @@ class TestStockValuation(TestStockValuationCommon):
                 "company_id": False,
             }
         )
-        self.assertFalse(location._should_be_valued())
+        self.assertFalse(location._is_valuation_required())
 
         move = self.env["stock.move"].create(
             {

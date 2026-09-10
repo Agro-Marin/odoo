@@ -427,9 +427,11 @@ class AccountMove(models.Model):
             self._l10n_vn_edi_is_sent() and self.l10n_vn_edi_invoice_state != "canceled"
         )
 
-    def _need_cancel_request(self):
+    def _is_cancel_request_required(self):
         # EXTEND 'account'
-        return super()._need_cancel_request() or self._l10n_vn_need_cancel_request()
+        return (
+            super()._is_cancel_request_required() or self._l10n_vn_need_cancel_request()
+        )
 
     def _post_entries(self):
         # EXTEND 'account'

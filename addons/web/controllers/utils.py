@@ -37,7 +37,7 @@ def _is_local_url(url: str | None) -> bool:
 def clean_action(action: dict, env: Any) -> dict:
     action_type = action.setdefault("type", "ir.actions.act_window_close")
     if action_type == "ir.actions.act_window" and not action.get("views"):
-        generate_views(action)
+        update_action_views(action)
 
     action_model = env[action["type"]]
     readable_fields = (
@@ -98,7 +98,7 @@ def select_db(redirect: str = "/web/database/selector", db: str | None = None) -
         abort(request.redirect(request.httprequest.url, 302))
 
 
-def generate_views(action: dict) -> None:
+def update_action_views(action: dict) -> None:
     view_id = action.get("view_id") or False
     if isinstance(view_id, (list, tuple)):
         view_id = view_id[0]

@@ -38,7 +38,7 @@ class AccountJournal(models.Model):
                 ]
             )
             # If the formats we are unchecking do not need a webservice, we don't need them to be correctly sent
-            if documents.filtered(lambda d: d.edi_format_id._needs_web_services()):
+            if documents.filtered(lambda d: d.edi_format_id._is_web_service_required()):
                 raise UserError(
                     _(
                         "Cannot deactivate (%s) on this journal because not all documents are synchronized",

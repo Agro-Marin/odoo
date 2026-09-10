@@ -1829,7 +1829,7 @@ class DiscussChannel(models.Model):
                     },
                 )
 
-    def _should_invite_members_to_join_call(self) -> bool:
+    def _is_call_invitation_required(self) -> bool:
         self.check_singleton()
         return len(self.rtc_session_ids) == 1 and self._auto_invites_members_to_call()
 

@@ -36,7 +36,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                 [
                     self._is_applicable_to_company(method, move.company_id),
                     partner.nemhandel_verification_state == "valid",
-                    move._need_ubl_cii_xml(invoice_edi_format)
+                    move._is_ubl_cii_xml_required(invoice_edi_format)
                     or (
                         move.ubl_cii_xml_id
                         and move.nemhandel_move_state not in {"processing", "done"}

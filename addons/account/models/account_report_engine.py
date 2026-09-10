@@ -425,7 +425,7 @@ class AccountReport(models.Model):
             or None
         )
 
-    def _generate_common_warnings(self, options, warnings):
+    def _add_common_warnings(self, options, warnings):
         # Display a warning if we're displaying only the data of the current company, but it's also part of a tax unit
         if options.get("available_tax_units") and options["tax_unit"] == "company_only":
             warnings["account.common_warning_tax_unit"] = {}
@@ -522,7 +522,7 @@ class AccountReport(models.Model):
                 if account_code and account_name:
                     line["name"] = f"{account_code} {account_name}"
 
-    def _generate_carryover_external_values(self, options):
+    def _create_carryover_external_values(self, options):
         """Generates the account.report.external.value objects corresponding to this report's carryover under the provided options.
 
         In case of multicompany setup, we need to split the carryover per company, for ease of audit, and so that the carryover isn't broken when
@@ -612,7 +612,7 @@ class AccountReport(models.Model):
                 )
 
     @api.model
-    def _generate_default_external_values(
+    def _create_default_external_values(
         self, date_from, date_to, is_tax_report=False, company=None
     ):
         """Generates the account.report.external.value objects for the given dates.

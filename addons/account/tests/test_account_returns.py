@@ -848,9 +848,7 @@ class TestAccountReturn(TestAccountReportsCommon):
             )
             self.basic_return_type.deadline_periodicity = "fiscalyear"
 
-            self.env["account.return.type"]._generate_or_refresh_all_returns(
-                self.env.company
-            )
+            self.env["account.return.type"]._sync_all_returns(self.env.company)
 
         existing_returns = self.env["account.return"].search(
             [

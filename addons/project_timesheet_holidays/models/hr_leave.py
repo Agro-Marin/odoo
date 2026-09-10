@@ -10,10 +10,10 @@ class HrLeave(models.Model):
     )
 
     def _apply_leave_request(self):
-        self._generate_timesheets()
+        self._create_timesheets()
         return super()._apply_leave_request()
 
-    def _generate_timesheets(self, ignored_resource_calendar_leaves=None):
+    def _create_timesheets(self, ignored_resource_calendar_leaves=None):
         vals_list = []
         leave_ids = []
         calendar_leaves_data = self.env["resource.calendar.leaves"]._read_group(

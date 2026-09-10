@@ -38,8 +38,8 @@ class PurchaseOrder(models.Model):
         self.check_singleton()
         return self.picking_type_id and self.picking_type_id.code == "dropship"
 
-    def _should_set_dest_address(self):
-        return super()._should_set_dest_address() or self._is_dropshipped()
+    def _is_dest_address_required(self):
+        return super()._is_dest_address_required() or self._is_dropshipped()
 
 
 class PurchaseOrderLine(models.Model):

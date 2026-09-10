@@ -47,8 +47,8 @@ class StockLocation(models.Model):
     @api.depends("company_id", "usage")
     def _compute_is_valued_internal(self):
         for location in self:
-            location.is_valued_internal = location._should_be_valued()
+            location.is_valued_internal = location._is_valuation_required()
 
-    def _should_be_valued(self):
+    def _is_valuation_required(self):
         self.check_singleton()
         return bool(self.company_id) and self.usage in ["internal", "transit"]

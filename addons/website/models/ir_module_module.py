@@ -560,7 +560,7 @@ class IrModuleModule(models.Model):
             ]
         )
 
-    def _generate_primary_snippet_templates(self):
+    def _create_primary_snippet_templates(self):
         def split_key(snippet_key):
             return (
                 snippet_key.split(".")
@@ -711,7 +711,7 @@ class IrModuleModule(models.Model):
                 "Generated %s primary snippet templates for %r", create_count, self.name
             )
 
-    def _generate_primary_page_templates(self):
+    def _create_primary_page_templates(self):
         View = self.env["ir.ui.view"]
         manifest = Manifest.for_addon(self.name)
         templates = manifest["new_page_templates"]

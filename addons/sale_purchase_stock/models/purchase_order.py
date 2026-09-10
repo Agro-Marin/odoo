@@ -12,13 +12,13 @@ class PurchaseOrder(models.Model):
     def _compute_dest_address_id(self):
         super()._compute_dest_address_id()
         for order in self:
-            if not order._should_set_dest_address():
+            if not order._is_dest_address_required():
                 continue
             shipping_addresses = order._get_sale_orders().partner_shipping_id
             if len(shipping_addresses) == 1:
                 order.dest_address_id = shipping_addresses
 
-    def _should_set_dest_address(self):
+    def _is_dest_address_required(self):
         self.check_singleton()
         return bool(self.dest_address_id)
 

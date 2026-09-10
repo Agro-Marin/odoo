@@ -46,13 +46,13 @@ class EfakturDocument(models.Model):
         """Download E-Faktur of related attachment"""
         for document in self.filtered(lambda doc: doc.invoice_ids):
             if not document.attachment_id:
-                document._generate_xml()
+                document._create_efaktur_xml_attachment()
         return {
             "type": "ir.actions.act_url",
             "url": f"/l10n_id_efaktur_coretax/download_attachments/{','.join(map(str, self.attachment_id.ids))}",
         }
 
-    def _generate_xml(self, regenerate=False):
+    def _create_efaktur_xml_attachment(self, regenerate=False):
         """Generate the XML file as content and save it as attachment in this record"""
         self.check_singleton()
 
@@ -133,4 +133,4 @@ class EfakturDocument(models.Model):
         )
 
     def action_regenerate(self):
-        self._generate_xml(regenerate=True)
+        self._create_efaktur_xml_attachment(regenerate=True)

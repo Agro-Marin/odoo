@@ -741,7 +741,7 @@ class TestL10nPlEdi(AccountTestInvoicingCommon, CronMixinCase):
         with patch(
             "odoo.addons.l10n_pl_edi.models.account_move_send.AccountMoveSend._call_web_service_before_invoice_pdf_render"
         ):
-            self.env["account.move.send"]._generate_invoice_documents(moves_data)
+            self.env["account.move.send"]._render_invoice_documents(moves_data)
 
     def test_l10n_pl_edi_send_success(self):
         invoice = self.standard_invoice

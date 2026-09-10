@@ -279,7 +279,9 @@ class MixinAccountDocumentImport(models.AbstractModel):
 
     def _fix_attachments_on_record(self, attachments):
         self.check_singleton()
-        attachments_to_attach = attachments.filtered(self._should_attach_to_record)
+        attachments_to_attach = attachments.filtered(
+            self._is_record_attachment_required
+        )
         if attachments_to_attach:
             attachments_to_write = attachments_to_attach.filtered(
                 lambda a: a.res_model != self._name or a.res_id != self.id
@@ -316,7 +318,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
         valid_attachments.write({"res_model": self._name, "res_id": self.id})
         extra_attachments.write({"res_model": False, "res_id": 0})
 
-    def _should_attach_to_record(self, attachment):
+    def _is_record_attachment_required(self, attachment):
         return (
             attachment
             and not attachment.res_field

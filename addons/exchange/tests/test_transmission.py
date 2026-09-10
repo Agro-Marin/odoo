@@ -86,7 +86,7 @@ class TestExchangeTransmission(ExchangeCase):
         self.assertEqual(
             transmission.state,
             "rejected",
-            "should_retry compares attempt < retry_max_attempts, so a cap of "
+            "is_retry_required compares attempt < retry_max_attempts, so a cap of "
             "two allows one retry and settles on the second failure",
         )
         self.assertIn("Gave up", transmission.message)

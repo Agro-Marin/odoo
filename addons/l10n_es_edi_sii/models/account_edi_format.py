@@ -788,9 +788,9 @@ class AccountEdiFormat(models.Model):
                 "cancel": self._l10n_es_edi_sii_cancel_invoices,
             }
 
-    def _needs_web_services(self):
+    def _is_web_service_required(self):
         # OVERRIDE
-        return self.code == "es_sii" or super()._needs_web_services()
+        return self.code == "es_sii" or super()._is_web_service_required()
 
     def _check_move_configuration(self, move):
         # OVERRIDE

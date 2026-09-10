@@ -41,6 +41,6 @@ class TestTimeoffEvent(TestHrHolidaysCommon):
         timeoff_event = self.env["calendar.event"].search(search_criteria)
         self.assertTrue(timeoff_event, "The timeoff event should exist")
         self.assertFalse(
-            timeoff_event._need_video_call(),
+            timeoff_event._is_video_call_required(),
             "The timeoff event does not need a video call",
         )

@@ -313,7 +313,7 @@ class CalendarEvent(models.Model):
     def unlink(self):
         # Forbid recurrent events unlinking from calendar list view with sync active.
         if self and self._check_microsoft_sync_status():
-            synced_events = self._get_synced_events()
+            synced_events = self._filtered_synced()
             change_from_microsoft = self.env.context.get("dont_notify", False)
             recurrence_deletion = any(
                 ev.recurrency and ev.recurrence_id and ev.follow_recurrence
@@ -736,7 +736,7 @@ class CalendarEvent(models.Model):
         if (
             not self.location
             and "videocall_location" in fields_to_sync
-            and self._need_video_call()
+            and self._is_video_call_required()
         ):
             values["isOnlineMeeting"] = True
             values["onlineMeetingProvider"] = "teamsForBusiness"

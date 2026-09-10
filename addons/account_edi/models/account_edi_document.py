@@ -169,7 +169,7 @@ class AccountEdiDocument(models.Model):
 
                 if move.state == "posted" and all(
                     doc.state == "cancelled"
-                    or not doc.edi_format_id._needs_web_services()
+                    or not doc.edi_format_id._is_web_service_required()
                     for doc in move.edi_document_ids
                 ):
                     # The user requested a cancellation of the EDI and it has been approved. Then, the invoice
@@ -239,7 +239,7 @@ class AccountEdiDocument(models.Model):
     def _process_documents_no_web_services(self):
         """Post and cancel all the documents that don't need a web service."""
         jobs = self.filtered(
-            lambda d: not d.edi_format_id._needs_web_services()
+            lambda d: not d.edi_format_id._is_web_service_required()
         )._prepare_jobs()
         for job in jobs:
             self._process_job(job)
@@ -252,7 +252,7 @@ class AccountEdiDocument(models.Model):
         :return:            The number of remaining jobs to process.
         """
         all_jobs = self.filtered(
-            lambda d: d.edi_format_id._needs_web_services()
+            lambda d: d.edi_format_id._is_web_service_required()
         )._prepare_jobs()
         jobs_to_process = all_jobs[0:job_count] if job_count else all_jobs
 

@@ -133,9 +133,7 @@ class ResCompany(models.Model):
         # filter only ever cost correctness.
         self.env["account.return.type"].sudo().search([])._set_default_values(companies)
 
-        self.env["account.return.type"]._generate_or_refresh_all_returns(
-            companies.root_id
-        )
+        self.env["account.return.type"]._sync_all_returns(companies.root_id)
         return companies
 
     def write(self, vals):
@@ -148,7 +146,7 @@ class ResCompany(models.Model):
                 # 2 years to make sure we cover all cases, such as yearly returns with a deadline of more than 1 year.
                 forced_date_from=self.account_opening_date - relativedelta(years=2),
                 forced_date_to=datetime.date.today() + relativedelta(years=1),
-            )._generate_or_refresh_all_returns(roots_to_recompute)
+            )._sync_all_returns(roots_to_recompute)
 
         elif (
             set(vals)
@@ -160,9 +158,7 @@ class ResCompany(models.Model):
             }
             and self.account_opening_date
         ):
-            self.env["account.return.type"]._generate_or_refresh_all_returns(
-                roots_to_recompute
-            )
+            self.env["account.return.type"]._sync_all_returns(roots_to_recompute)
 
         return res
 

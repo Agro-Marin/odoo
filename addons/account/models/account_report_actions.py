@@ -768,7 +768,7 @@ class AccountReportActions(models.Model):
             )
             self.env["account.return.type"].with_context(
                 only_refresh_conditional_types=True
-            )._generate_or_refresh_all_returns(root_companies)
+            )._sync_all_returns(root_companies)
 
         return self.env["account.return"].action_view_tax_return_view(
             additional_context={

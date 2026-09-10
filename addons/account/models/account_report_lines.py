@@ -153,7 +153,7 @@ class AccountReportLines(models.Model):
         self.env.flush_all()
 
         if warnings is not None:
-            self._generate_common_warnings(options, warnings)
+            self._add_common_warnings(options, warnings)
 
         # Merge static and dynamic lines in a common list
         if all_column_groups_expression_totals is None:
@@ -676,7 +676,7 @@ class AccountReportLines(models.Model):
         :return:        Lines sorted by the selected column.
         """
 
-        def needs_to_be_at_bottom(line_elem):
+        def is_bottom_placement_required(line_elem):
             return self._get_markup(line_elem.get("id")) in ("total", "load_more")
 
         def _cell_value(line_dict):
@@ -698,8 +698,8 @@ class AccountReportLines(models.Model):
 
             a_line_dict = lines[a_line] if result_as_index else a_line
             b_line_dict = lines[b_line] if result_as_index else b_line
-            a_total = needs_to_be_at_bottom(a_line_dict)
-            b_total = needs_to_be_at_bottom(b_line_dict)
+            a_total = is_bottom_placement_required(a_line_dict)
+            b_total = is_bottom_placement_required(b_line_dict)
             a_model = self._get_model_info_from_id(a_line_dict["id"])[0]
             b_model = self._get_model_info_from_id(b_line_dict["id"])[0]
 

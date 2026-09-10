@@ -108,7 +108,7 @@ class AccountEdiTestCommon(AccountTestInvoicingCommon):
 
         with (
             patch(
-                "odoo.addons.account_edi.models.account_edi_format.AccountEdiFormat._needs_web_services",
+                "odoo.addons.account_edi.models.account_edi_format.AccountEdiFormat._is_web_service_required",
                 new=_needs_web_services_method,
             ),
             patch(

@@ -624,7 +624,7 @@ class MixinOrder(models.AbstractModel):
         self.check_singleton()
         return self.env.user
 
-    def _should_be_locked(self):
+    def _is_lock_required(self):
         self.check_singleton()
         if self.company_id[self._get_lock_setting_field()] == "lock":
             return True
@@ -776,7 +776,7 @@ class MixinOrder(models.AbstractModel):
         self._check_confirm_allowed()
         self.write(self._prepare_confirmation_values())
         self.with_context(self._get_confirmation_context())._action_confirm()
-        self.filtered(lambda order: order._should_be_locked()).action_lock()
+        self.filtered(lambda order: order._is_lock_required()).action_lock()
         return True
 
     def action_cancel(self):

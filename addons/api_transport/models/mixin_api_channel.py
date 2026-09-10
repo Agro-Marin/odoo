@@ -100,7 +100,7 @@ class MixinApiChannel(models.AbstractModel):
             return base_delay * attempt_number
         return base_delay * (2 ** (attempt_number - 1))
 
-    def should_retry(self, attempt_number):
+    def is_retry_required(self, attempt_number):
         self.check_singleton()
 
         if not self.retry_enabled:

@@ -429,7 +429,7 @@ class SaleOrderLine(models.Model):
         task.message_post(body=task_msg)
         return task
 
-    def _get_so_lines_task_global_project(self):
+    def _filtered_task_global_project(self):
         return self.filtered(
             lambda sol: (
                 sol.is_service
@@ -437,7 +437,7 @@ class SaleOrderLine(models.Model):
             )
         )
 
-    def _get_so_lines_new_project(self):
+    def _filtered_new_project(self):
         return self.filtered(
             lambda sol: (
                 sol.is_service
@@ -455,10 +455,8 @@ class SaleOrderLine(models.Model):
                 and not (sol._is_line_optional() and sol.product_qty == 0)
             )
         )
-        so_line_task_global_project = (
-            sale_order_lines._get_so_lines_task_global_project()
-        )
-        so_line_new_project = sale_order_lines._get_so_lines_new_project()
+        so_line_task_global_project = sale_order_lines._filtered_task_global_project()
+        so_line_new_project = sale_order_lines._filtered_new_project()
         task_templates = self.env["project.task"]
 
         map_so_project = {}

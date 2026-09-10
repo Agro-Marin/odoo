@@ -571,8 +571,8 @@ class AccountEdiFormat(models.Model):
     # EDI OVERRIDDEN METHODS
     # -------------------------------------------------------------------------
 
-    def _needs_web_services(self):
-        return self.code == "eg_eta" or super()._needs_web_services()
+    def _is_web_service_required(self):
+        return self.code == "eg_eta" or super()._is_web_service_required()
 
     def _get_move_applicability(self, move):
         # EXTENDS account_edi

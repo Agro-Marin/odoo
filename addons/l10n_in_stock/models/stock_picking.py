@@ -4,8 +4,8 @@ from odoo import models
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    def _should_generate_commercial_invoice(self):
-        super()._should_generate_commercial_invoice()
+    def _is_commercial_invoice_required(self):
+        super()._is_commercial_invoice_required()
         return True
 
     def _get_l10n_in_dropship_dest_partner(self):

@@ -100,7 +100,7 @@ class StockValuationReport(models.AbstractModel):
             "initial_balance": initial_balance,
         }
 
-        if self._should_include_inventory_loss():
+        if self._is_inventory_loss_included():
             location_valuation_vals = company._get_location_valuation_vals(
                 date,
                 location_domain=[("usage", "=", "inventory")],
@@ -166,7 +166,7 @@ class StockValuationReport(models.AbstractModel):
         )
         return report_data
 
-    def _should_include_inventory_loss(self):
+    def _is_inventory_loss_included(self):
         return bool(
             self.env["stock.location"].search_count(
                 [

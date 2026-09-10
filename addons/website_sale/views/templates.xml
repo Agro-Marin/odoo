@@ -3255,7 +3255,7 @@
             class="d-flex flex-column flex-md-row align-items-end align-items-md-start justify-content-md-end mb-1"
             name="website_sale_cart_line_price">
             <del
-                t-if="line._should_show_strikethrough_price()"
+                t-if="line._is_strikethrough_price_shown()"
                 class="me-md-2 text-muted text-nowrap opacity-50"
                 t-out="line._get_displayed_unit_price() * line.product_qty"
                 t-options="{'widget': 'monetary', 'display_currency': website.currency_id}" />

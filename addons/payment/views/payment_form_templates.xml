@@ -313,7 +313,7 @@
         <!-- === Inline form === -->
         <div name="o_payment_inline_form" class="position-relative d-none">
         <t
-            t-if="inline_form_xml_id and provider_sudo._should_build_inline_form(  is_validation=mode == 'validation'  )"
+            t-if="inline_form_xml_id and provider_sudo._is_inline_form_required(  is_validation=mode == 'validation'  )"
             t-call="{{inline_form_xml_id}}">
         <t t-set="provider_id" t-value="provider_sudo.id" />
         </t>

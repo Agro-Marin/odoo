@@ -13,9 +13,9 @@ class SaleOrderLine(models.Model):
             if line.event_ticket_id:
                 line.name_short = line.event_ticket_id.display_name
 
-    def _should_show_strikethrough_price(self):
+    def _is_strikethrough_price_shown(self):
         """Override of `website_sale` to hide the strikethrough price for events."""
-        return super()._should_show_strikethrough_price() and not self.event_id
+        return super()._is_strikethrough_price_shown() and not self.event_id
 
     def _is_reorder_allowed(self):
         return not self.event_id and super()._is_reorder_allowed()

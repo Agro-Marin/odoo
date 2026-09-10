@@ -45,7 +45,7 @@ class AccountMove(models.Model):
 
     def _check_edi_documents_for_reset_to_draft(self):
         docs = self.edi_document_ids.filtered(
-            lambda d: d.edi_format_id._needs_web_services()
+            lambda d: d.edi_format_id._is_web_service_required()
         )
         if (
             len(docs) == 1
@@ -57,7 +57,7 @@ class AccountMove(models.Model):
 
     def _edi_allow_button_draft(self):
         docs = self.edi_document_ids.filtered(
-            lambda d: d.edi_format_id._needs_web_services()
+            lambda d: d.edi_format_id._is_web_service_required()
         )
         if (
             len(docs) == 1

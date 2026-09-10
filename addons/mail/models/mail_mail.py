@@ -682,7 +682,7 @@ class MailMail(models.Model):
             return None
         return self._resolve_unfollow_span(body)
 
-    def _wants_unfollow_link(
+    def _is_unfollow_link_required(
         self,
         partner: ResPartner | Literal[False],
         doc_to_followers: dict | None = None,
@@ -711,7 +711,7 @@ class MailMail(models.Model):
         if block is None:
             return self._strip_unfollow_block(body)
         start, end = block
-        if self._wants_unfollow_link(partner, doc_to_followers):
+        if self._is_unfollow_link_required(partner, doc_to_followers):
             unfollow_url = self.env["mixin.mail.thread"]._notify_get_action_link(
                 "unfollow", model=self.model, res_id=self.res_id, pid=partner.id
             )
@@ -962,7 +962,7 @@ class MailMail(models.Model):
         body_without_unfollow_link = None
         for email_values in email_list:
             partner = email_values["partner"]
-            if unfollow_block is not None and self._wants_unfollow_link(
+            if unfollow_block is not None and self._is_unfollow_link_required(
                 partner, doc_to_followers
             ):
                 body_personalized = self._apply_unfollow_block(

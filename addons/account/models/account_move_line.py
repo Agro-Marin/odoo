@@ -1074,7 +1074,7 @@ class AccountMoveLine(models.Model):
     def _compute_product_uom_id(self):
         for line in self.filtered(lambda l: l.parent_state == "draft"):
             if line.move_id.is_purchase_document():
-                sellers = line.product_id.seller_ids._get_filtered_supplier(
+                sellers = line.product_id.seller_ids._filtered_for_company_and_product(
                     line.company_id, line.product_id, False
                 )
                 product_uom = line.product_id.uom_id
@@ -4173,7 +4173,7 @@ class AccountMoveLine(models.Model):
     def _get_downpayment_lines(self):
         return self.env["account.move.line"]
 
-    def _get_discount_lines(self):
+    def _filtered_discount_lines(self):
         return self.filtered(lambda line: line.display_type == "discount")
 
     def _is_empty_line(self):

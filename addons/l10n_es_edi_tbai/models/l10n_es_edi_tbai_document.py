@@ -440,7 +440,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
             return error
 
         if not self.xml_attachment_id:
-            self._generate_xml(values)
+            self._create_tbai_xml_attachment(values)
 
         if not self.chain_index and not self.is_cancel and values["is_sale"]:
             # Assign unique 'chain index' from dedicated sequence
@@ -634,7 +634,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
 
     L10N_ES_TBAI_VERSION = 1.2
 
-    def _generate_xml(self, values):
+    def _create_tbai_xml_attachment(self, values):
         self.check_singleton()
 
         def format_float(value, precision_digits=2):

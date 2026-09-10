@@ -37,10 +37,10 @@ class ResUsers(models.Model):
     def _onboard_users_into_project(self, users):
         res = super()._onboard_users_into_project(users)
         if res:
-            res._generate_onboarding_todo()
+            res._create_onboarding_todo()
         return res
 
-    def _generate_onboarding_todo(self):
+    def _create_onboarding_todo(self):
         create_vals = []
         for user in self:
             self_lang = self.with_context(lang=user.lang or self.env.user.lang)

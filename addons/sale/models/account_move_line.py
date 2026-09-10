@@ -77,8 +77,8 @@ class AccountMoveLine(models.Model):
 
         return values_list
 
-    def _get_discount_lines(self):
-        lines = super()._get_discount_lines()
+    def _filtered_discount_lines(self):
+        lines = super()._filtered_discount_lines()
         discount_line_ids = []
         for company, company_lines in self.grouped("company_id").items():
             discount_product = company.sudo().sale_discount_product_id

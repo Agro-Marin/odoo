@@ -200,13 +200,13 @@ class HrWorkEntry(models.Model):
         self.browse(conflict_ids).write({"state": "conflict"})
         return bool(conflict_ids)
 
-    def _get_leaves_entries_outside_schedule(self):
+    def _filtered_leaves_outside_schedule(self):
         return self.filtered(
             lambda w: w.work_entry_type_id.is_leave and w.state not in CLOSED_STATES
         )
 
     def _mark_leaves_outside_schedule(self):
-        entries_by_calendar = self._get_leaves_entries_outside_schedule().grouped(
+        entries_by_calendar = self._filtered_leaves_outside_schedule().grouped(
             lambda w: w.version_id.resource_calendar_id
         )
         outside_entries = self.env["hr.work.entry"]

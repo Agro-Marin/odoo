@@ -764,7 +764,7 @@ class PaymentProvider(models.Model):
         """
         return False
 
-    def _should_build_inline_form(self, is_validation=False):
+    def _is_inline_form_required(self, is_validation=False):
         """Return whether the inline payment form should be instantiated.
 
         For a provider to handle both direct payments and payments with redirection, it must

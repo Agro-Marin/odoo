@@ -8,7 +8,7 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _is_ro_edi_applicable(self, move):
         return all(
             [
-                move._need_ubl_cii_xml("ciusro") or move.ubl_cii_xml_id,
+                move._is_ubl_cii_xml_required("ciusro") or move.ubl_cii_xml_id,
                 move.country_code == "RO",
                 not move.l10n_ro_edi_state,
             ]

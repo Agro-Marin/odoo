@@ -104,7 +104,7 @@ class MixinSequence(models.AbstractModel):
             return (date(1, 1, 1), date(9999, 12, 31), None, None)
         raise NotImplementedError(reset)
 
-    def _must_check_constrains_date_sequence(self):
+    def _is_date_sequence_check_required(self):
         return True
 
     def _year_match(self, format_value, year):
@@ -152,7 +152,7 @@ class MixinSequence(models.AbstractModel):
             .get_param("sequence.mixin.constraint_start_date", "1970-01-01")
         )
         for record in self:
-            if not record._must_check_constrains_date_sequence():
+            if not record._is_date_sequence_check_required():
                 continue
             record_date = fields.Date.to_date(record[record._sequence_date_field])
             sequence = record[record._sequence_field]

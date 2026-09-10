@@ -260,7 +260,7 @@ class AccountMove(models.Model):
             }
         return super()._get_edi_decoder(file_data, new)
 
-    def _need_ubl_cii_xml(self, ubl_cii_format):
+    def _is_ubl_cii_xml_required(self, ubl_cii_format):
         self.check_singleton()
         return (
             not self.ubl_cii_xml_id

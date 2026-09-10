@@ -52,7 +52,7 @@ class TestItAccountMoveSend(TestItEdi, TestAccountMoveSendCommon):
         with patch(
             "odoo.addons.l10n_it_edi.models.mixin_account_move_send.MixinAccountMoveSend._call_web_service_after_invoice_pdf_render"
         ):
-            self.env["mixin.account.move.send"]._generate_invoice_documents(moves_data)
+            self.env["mixin.account.move.send"]._render_invoice_documents(moves_data)
 
     def test_invoice_multi_without_l10n_it_edi_xml_export(self):
         # Prepare

@@ -279,13 +279,13 @@ class TestChannelMixinRateLimit(TransactionCase):
     def test_should_retry_enabled(self):
         self.service.retry_enabled = True
         self.service.retry_max_attempts = 3
-        self.assertTrue(self.service.should_retry(1))
-        self.assertTrue(self.service.should_retry(2))
-        self.assertFalse(self.service.should_retry(3))
+        self.assertTrue(self.service.is_retry_required(1))
+        self.assertTrue(self.service.is_retry_required(2))
+        self.assertFalse(self.service.is_retry_required(3))
 
     def test_should_retry_disabled(self):
         self.service.retry_enabled = False
-        self.assertFalse(self.service.should_retry(1))
+        self.assertFalse(self.service.is_retry_required(1))
 
 
 class TestRateLimitStrictPosture(TransactionCase):

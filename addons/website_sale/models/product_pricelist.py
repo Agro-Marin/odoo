@@ -88,8 +88,8 @@ class ProductPricelist(models.Model):
             domain += self._get_domain_website_pricelists(website)
         return domain
 
-    def _get_partner_pricelist_multi_filter_hook(self):
-        res = super()._get_partner_pricelist_multi_filter_hook()
+    def _filtered_partner_pricelist_multi(self):
+        res = super()._filtered_partner_pricelist_multi()
         website = ir_http.get_request_website()
         if website:
             res = res.filtered(lambda pl: pl._is_available_on_website(website))
