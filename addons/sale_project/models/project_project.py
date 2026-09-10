@@ -1092,7 +1092,6 @@ class ProjectProject(models.Model):
             "total"
         ]["invoiced"]
         self._add_invoice_items(domain, profitability_items, with_action=with_action)
-        self._add_purchase_items(profitability_items, with_action=with_action)
         return profitability_items
 
     def _get_stat_buttons(self):

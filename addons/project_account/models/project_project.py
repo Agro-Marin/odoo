@@ -9,6 +9,12 @@ class ProjectProject(models.Model):
     _name = "project.project"
     _inherit = "project.project"
 
+    def _get_profitability_items(self, with_action=True):
+        profitability_items = super()._get_profitability_items(with_action)
+        if self.account_id:
+            self._add_purchase_items(profitability_items, with_action=with_action)
+        return profitability_items
+
     def _add_purchase_items(self, profitability_items, with_action=True):
         domain = self._get_domain_add_purchase_items()
         with_action = with_action and (
@@ -26,7 +32,7 @@ class ProjectProject(models.Model):
         return [
             ("move_type", "in", ["in_invoice", "in_refund"]),
             ("parent_state", "in", ["draft", "posted"]),
-            ("price_subtotal", ">", 0),
+            ("price_subtotal", "!=", 0),
             ("id", "not in", purchase_order_line_invoice_line_ids),
         ]
 
