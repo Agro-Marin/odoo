@@ -82,7 +82,7 @@ export class QtyAtDateWidget extends Component {
         }
     }
 
-    async calcDataForDisplay() {
+    async updateCalcData() {
         const { data } = this.props.record;
         const lineUomId = data.product_uom_id?.[0];
         const productId = data.product_id?.[0];
@@ -147,7 +147,7 @@ export class QtyAtDateWidget extends Component {
 
     async showPopup(ev) {
         const target = ev.currentTarget;
-        await this.calcDataForDisplay();
+        await this.updateCalcData();
         this.updateCalcData();
         this.popover.open(target, {
             record: this.props.record,
