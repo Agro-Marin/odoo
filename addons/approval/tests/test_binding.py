@@ -213,6 +213,67 @@ class TestApprovalBinding(common.TransactionCase):
                 {"model_id": self.partner_model.id, "method": "no_such_method"}
             )
 
+    def test_a_binding_on_a_python_protocol_name_is_refused(self):
+        """An Observe binding on `__setattr__` once broke building any partner."""
+        for method in ("__setattr__", "__init__", "__getitem__"):
+            with self.subTest(method=method), self.assertRaises(ValidationError):
+                self.Binding.create(
+                    {"model_id": self.partner_model.id, "method": method}
+                )
+
+    def test_a_binding_on_the_orm_api_is_refused(self):
+        """The gate calls these itself, so wrapping one recurses or breaks the model."""
+        for method in (
+            "search",
+            "browse",
+            "sudo",
+            "with_context",
+            "filtered_domain",
+            "check_access",
+            "_unregister_hook",
+        ):
+            with self.subTest(method=method), self.assertRaises(ValidationError):
+                self.Binding.create(
+                    {"model_id": self.partner_model.id, "method": method}
+                )
+
+    def test_the_orm_lifecycle_actions_may_be_gated(self):
+        for method in ("action_archive", "action_unarchive", "toggle_active"):
+            with self.subTest(method=method):
+                binding = self.Binding.create(
+                    {"model_id": self.partner_model.id, "method": method}
+                )
+                self.assertTrue(binding.exists())
+
+    def test_a_private_method_is_accepted_only_from_module_data(self):
+        with self.assertRaises(ValidationError):
+            self.Binding.create(
+                {"model_id": self.partner_model.id, "method": "_fields_sync"}
+            )
+        binding = self.Binding.with_context(install_module="approval").create(
+            {"model_id": self.partner_model.id, "method": "_fields_sync"}
+        )
+        binding.write({"subject_domain": "[('active', '=', True)]"})
+        self.assertEqual(binding.subject_domain, "[('active', '=', True)]")
+
+    def test_a_stored_binding_on_the_orm_api_is_not_applied(self):
+        """A row written before the refusal existed must not wrap the method at load."""
+        binding = self._bind()
+        self.env.cr.execute(
+            "UPDATE approval_binding SET method = 'with_context' WHERE id = %s",
+            [binding.id],
+        )
+        binding.invalidate_recordset(["method"])
+        self.env.registry.clear_cache()
+        self.Binding._unregister_hook()
+        with self.assertLogs("odoo.addons.approval.models.approval_binding", "WARNING"):
+            self.Binding._register_hook()
+        partner_class = self.env.registry["res.partner"]
+        self.assertIsNone(
+            getattr(partner_class.with_context, "approval_binding_origin", None)
+        )
+        self.assertTrue(self.env["res.partner"].create({"name": "Buildable"}).exists())
+
     def test_block_and_request_modes_need_a_category(self):
         with self.assertRaises(ValidationError):
             self.Binding.create(
@@ -225,12 +286,16 @@ class TestApprovalBinding(common.TransactionCase):
 
     def test_request_mode_refuses_a_method_it_could_not_replay(self):
         """Storing arbitrary call arguments to replay later is where this
-        design would start guessing, so the limit is enforced up front."""
+        design would start guessing, so the limit is enforced up front.
+
+        `activity_feedback` also annotates with a name its module never imports,
+        so reading its signature the default way raises NameError on 3.14.
+        """
         with self.assertRaises(ValidationError):
             self.Binding.create(
                 {
                     "model_id": self.partner_model.id,
-                    "method": "filtered_domain",
+                    "method": "activity_feedback",
                     "mode": "request",
                     "category_id": self.category.id,
                 }
@@ -491,7 +556,7 @@ class TestApprovalBinding(common.TransactionCase):
         binding = self.Binding.create(
             {
                 "model_id": self.partner_model.id,
-                "method": "filtered_domain",
+                "method": "activity_feedback",
                 "mode": "request",
                 "category_id": self.category.id,
                 "run_on_approval": False,

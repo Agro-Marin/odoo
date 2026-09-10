@@ -1,3 +1,4 @@
+import annotationlib
 import datetime
 import inspect
 import logging
@@ -18,6 +19,10 @@ AUTOMATION_CLAIMED_METHODS = frozenset(
         "_onchange_methods__",
         "message_post",
     }
+)
+
+ORM_LIFECYCLE_ACTIONS = frozenset(
+    {"action_archive", "action_unarchive", "toggle_active"}
 )
 
 ORIGIN_ATTR = "approval_binding_origin"
@@ -327,7 +332,9 @@ class ApprovalBinding(models.Model):
                     method=self.method,
                 ),
             )
-        if self.method == "_register_hook" or self.model_id.model == self._name:
+        if refusal := self._get_method_refusal(self.method):
+            raise ValidationError(refusal)
+        if self.model_id.model == self._name:
             raise ValidationError(
                 self.env._("A binding cannot gate the binding machinery."),
             )
@@ -341,10 +348,39 @@ class ApprovalBinding(models.Model):
                 ),
             )
 
+    @api.model
+    def _get_method_refusal(self, method: str) -> str | None:
+        if method not in ORM_LIFECYCLE_ACTIONS and hasattr(models.BaseModel, method):
+            return self.env._(
+                "%(method)s is the ORM's own API, not an operation. Every caller of "
+                "the model goes through it, the gate included, so wrapping it "
+                "recurses or breaks the model. Gate the method that performs the "
+                "business operation instead.",
+                method=method,
+            )
+        return None
+
+    @api.constrains("model_id", "method")
+    def _check_private_method_from_module_data(self) -> None:
+        if self.env.context.get("install_module"):
+            return
+        for binding in self:
+            if binding.method and binding.method.startswith("_"):
+                raise ValidationError(
+                    self.env._(
+                        "%(method)s is private. A binding on a private method is "
+                        "accepted only from a module's data, where it is reviewed "
+                        "with the code that calls the method.",
+                        method=binding.method,
+                    ),
+                )
+
     def _check_method_replayable(self, model) -> None:
         self.check_singleton()
         function = getattr(model, self.method)
-        signature = inspect.signature(function)
+        signature = inspect.signature(
+            function, annotation_format=annotationlib.Format.FORWARDREF
+        )
         required = [
             parameter
             for name, parameter in signature.parameters.items()
@@ -876,6 +912,11 @@ class ApprovalBinding(models.Model):
                 )
                 continue
             if not binding.method or binding.method in AUTOMATION_CLAIMED_METHODS:
+                continue
+            if refusal := self._get_method_refusal(binding.method):
+                _logger.warning(
+                    "Approval binding %s is not applied: %s", binding.id, refusal
+                )
                 continue
             pairs.setdefault(binding.model_name, set()).add(binding.method)
 

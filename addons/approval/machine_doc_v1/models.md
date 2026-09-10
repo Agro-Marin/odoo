@@ -703,7 +703,7 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `active` | Boolean | Yes | No | default=True |
 | `model_id` | Many2one(`ir.model`) | Yes | **Yes** | ondelete=cascade, index |
 | `model_name` | Char | Yes | No | related `model_id.model`, index — the lookup key |
-| `method` | Char | Yes | **Yes** | refused if `automation` claims it, if it does not exist, or if it is the binding machinery |
+| `method` | Char | Yes | **Yes** | refused if `automation` claims it, if it is the ORM's own API, if it is private outside module data, if it does not exist, or if it is the binding machinery |
 | `category_id` | Many2one(`approval.category`) | Yes | No | ondelete=cascade. Required for `block` and `request` |
 | `subject_domain` | Char | Yes | No | string="Applies When"; empty means every record |
 | `mode` | Selection(advise/block/request) | Yes | **Yes** | default="advise". `advise` (labelled Observe) runs the operation and records it; `block` refuses unless an approved request covers the record; `request` raises the approval instead of running — and, with `run_on_approval`, runs the operation exactly once when it is approved, as the person who called it |
@@ -724,7 +724,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 - `_model_method_domain_uniq`: unique nulls not distinct (model_id, method, subject_domain)
 - `_check_binding`: the model is in the registry; the method passes `_check_method_available`; the domain passes `_check_domain_against_model`; `block` and `request` have a category; `request` passes `_check_method_replayable`
 - `_check_method_available`: refuses `AUTOMATION_CLAIMED_METHODS` — `create`, `write`, `unlink`, `_compute_field_value`, `_onchange_methods__`, `message_post`. `automation._unregister_hook` does `delattr(Model, name)` for each across the whole registry without checking who installed it, so a gate there would disappear silently rather than fail
-- `_check_method_replayable`: with `run_on_approval` on, `request` mode only gates a method taking nothing but `self`. Replaying stored arguments would have to guess at stale recordsets and closures, so the limit is enforced up front; with it off nothing is replayed and any method may be gated
+- `_check_method_replayable`: with `run_on_approval` on, `request` mode only gates a method taking nothing but `self`. The signature is read with `annotationlib.Format.FORWARDREF`: nine `res.partner` methods annotate with names their module never imports, and the default reading raises `NameError` on 3.14. Replaying stored arguments would have to guess at stale recordsets and closures, so the limit is enforced up front; with it off nothing is replayed and any method may be gated
+- `_get_method_refusal(method)`: refuses every name `BaseModel` defines, dunders included, except the lifecycle actions in `ORM_LIFECYCLE_ACTIONS` (`action_archive`, `action_unarchive`, `toggle_active`). The gate calls the ORM's API itself (`browse`, `filtered_domain`, `sudo`), so wrapping one recurses or breaks the model; an Observe binding on `__setattr__` broke building any partner in the process.
+- `_check_private_method_from_module_data` (fires on `model_id` and `method` only): a private method is accepted only with `install_module` in the context, which is to say from module data. Editing any other field of such a binding from the interface is unaffected.
 - `approve_on_invoke` needs `request` mode: Block mode raises no request for the caller to approve
 - A binding gates exactly one of `method` and `action_id`; the uniqueness constraint covers (model_id, method, action_id, subject_domain), so two actions on one model can each be bound
 - With `run_on_approval` in `request` mode, only a method or a server action can be run again; a window, client or report action needs it off
@@ -734,7 +736,7 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 
 | Method | Purpose |
 |--------|---------|
-| `_register_hook()` / `_unregister_hook()` | Wrap each gated (model, method) once; unwrap only attributes carrying the `approval_binding_origin` marker |
+| `_register_hook()` / `_unregister_hook()` | Wrap each gated (model, method) once, skipping and logging a stored binding `_get_method_refusal` refuses; unwrap only attributes carrying the `approval_binding_origin` marker |
 | `_get_guarded_method(model, method)` | The method wrapper. Resolves the bindings on (model, method) and hands the call to `_gate` |
 | `_gate(records, bindings, label, call)` | The one routine behind a wrapped method, a gated server action and a gated report. Measures the CALLER's elevation once, applies every binding whose domain selects the record, and inserts every observation in one statement. Records that need no approval — or that an invoking caller's own approval just covered — are passed to `call` and stamped; the rest wait, and the requests action is returned |
 | `_bindings_for_action(action_id)` / `_get_action_binding_ids(action_id)` | The bindings on one action, `ormcache`d with `active_test` forced, like the method lookup |
