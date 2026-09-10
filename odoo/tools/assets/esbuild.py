@@ -75,6 +75,13 @@ def _esbuild_argv(
         *external_flags,
         f"--target={target}",
         "--resolve-extensions=.js,.mjs,.json",
+        # Every addons repo carries a tsconfig.json whose `paths` point "@web/*"
+        # and kin at the checkout BESIDE it, for tsc. esbuild honours the
+        # nearest tsconfig.json per source file, so a sibling repo's modules
+        # would resolve core through that mapping instead of the aliases
+        # above -- a second copy of every core module whenever the served
+        # tree is not that sibling (a worktree), and a split singleton.
+        "--tsconfig-raw={}",
         *output_flags,
         f"--metafile={metafile_path}",
         *sourcemap_flags,
