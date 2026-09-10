@@ -238,7 +238,7 @@ class ConnectionPool:
                 and frozenset(t for t in k if t[0] != "password_fp") == ident
             ]
             stale_pools = [self._pools.pop(k) for k in stale_keys]
-            self._probe.forget_keys(stale_keys)
+            self._probe.clear_keys(stale_keys)
 
             reap_keys = self._reaper.get_keys_reapable(self._pools, exclude_key=key)
             reaped_pools = [self._pools.pop(k) for k in reap_keys]
@@ -449,11 +449,11 @@ class ConnectionPool:
                         if self._pools.get(key) is pool:
                             del self._pools[key]
                     self._close_pool_safely(pool)
-                self._probe.forget(key)
+                self._probe.clear_key(key)
                 _logger.info("Connection to the database failed: %s", e)
                 raise PoolError(str(e)) from e
             except psycopg.Error as e:
-                self._probe.forget(key)
+                self._probe.clear_key(key)
                 _logger.info("Connection to the database failed: %s", e)
                 raise
         raise PoolError("getconn retry budget exhausted")
@@ -539,7 +539,7 @@ class ConnectionPool:
     def close_database(self, db_name: str) -> None:
         with self._lock:
             pools = [self._pools.pop(k) for k in self._get_keys_for_database(db_name)]
-            self._probe.forget_keys_matching(
+            self._probe.clear_keys_matching(
                 lambda k: dict(k).get("database") == db_name
             )
         self._close_pools(pools, "for %s" % db_name)
@@ -548,7 +548,7 @@ class ConnectionPool:
         with self._lock:
             pools = list(self._pools.values())
             self._pools.clear()
-            self._probe.forget_all()
+            self._probe.clear()
         self._close_pools(pools, "")
 
     def _close_pools(self, pools: list[_PsycopgPool], scope: str) -> None:

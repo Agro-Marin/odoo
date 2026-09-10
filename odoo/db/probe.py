@@ -50,19 +50,19 @@ class ReachabilityProbe:
         with self._lock:
             self._proven.add(key)
 
-    def forget(self, key: frozenset) -> None:
+    def clear_key(self, key: frozenset) -> None:
         with self._lock:
             self._proven.discard(key)
 
-    def forget_keys(self, keys) -> None:
+    def clear_keys(self, keys) -> None:
         with self._lock:
             self._proven.difference_update(keys)
 
-    def forget_all(self) -> None:
+    def clear(self) -> None:
         with self._lock:
             self._proven.clear()
 
-    def forget_keys_matching(self, predicate) -> None:
+    def clear_keys_matching(self, predicate) -> None:
         with self._lock:
             self._proven.difference_update(
                 [key for key in self._proven if predicate(key)]
