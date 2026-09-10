@@ -170,7 +170,7 @@ class TestL10nEsEdiVerifactuPosOrder(TestL10nEsEdiVerifactuPosCommon):
                     )
                 )
                 refund.l10n_es_edi_verifactu_refund_reason = "R5"
-                refund_payment.with_context(**payment_context).check()
+                refund_payment.with_context(**payment_context).action_make_payment()
                 self.pos_session.action_pos_session_validate()
 
         self.assertRecordValues(

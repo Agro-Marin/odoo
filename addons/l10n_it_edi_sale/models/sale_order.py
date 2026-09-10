@@ -43,8 +43,8 @@ class SaleOrder(models.Model):
                 or len(partner.l10n_it_pa_index or "") == 7
             )
 
-    def _prepare_invoice(self):
-        res = super()._prepare_invoice()
+    def _prepare_invoice_vals(self):
+        res = super()._prepare_invoice_vals()
         has_origin_document_fields_filled = any(
             [
                 self.l10n_it_origin_document_type,

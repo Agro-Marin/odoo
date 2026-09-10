@@ -46,8 +46,8 @@ class AccountMove(models.Model):
         self.action_nemhandel_send_approval_response()
         return res
 
-    def button_cancel(self):
-        res = super().button_cancel()
+    def action_cancel(self):
+        res = super().action_cancel()
         if action := self.action_nemhandel_open_rejection_wizard():
             action["context"] = {"cancel_res": res}
             return action

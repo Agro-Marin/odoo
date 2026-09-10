@@ -33,7 +33,7 @@ class L10nTWITestEdiSaleOrder(L10nTWITestEdi):
         )
 
         so.action_confirm()
-        invoice = self.env["account.move"].create(so._prepare_invoice())
+        invoice = self.env["account.move"].create(so._prepare_invoice_vals())
 
         self.assertRecordValues(
             invoice,

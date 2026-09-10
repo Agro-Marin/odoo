@@ -223,17 +223,6 @@ class AccountMove(models.Model):
         domain = [("user_ids", "in", internal_users.user_ids.ids)]
         return domain
 
-    @api.model
-    def UNUSED_get_ubl_cii_builder_from_xml_tree(self, tree):
-        customization_id = tree.find("{*}CustomizationID")
-        if customization_id is not None:
-            if (
-                customization_id.text
-                == "urn:cen.eu:en16931:2017#compliant#urn:mfin.gov.hr:cius-2025:1.0#conformant#urn:mfin.gov.hr:ext-2025:1.0"
-            ):
-                return self.env["account.edi.xml.ubl_hr"]
-        return super()._get_ubl_cii_builder_from_xml_tree(tree)
-
     def _import_file_type_rules(self):
         # EXTENDS 'account'
         return [

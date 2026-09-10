@@ -1,5 +1,3 @@
-from typing import Dict
-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -32,14 +30,6 @@ class PosConfig(models.Model):
                         "The online payment method used for self-order in a POS config must have at least one published payment provider supporting the currency of that POS config."
                     )
                 )
-
-    def _get_self_ordering_data(self):
-        res = super()._get_self_ordering_data()
-        payment_methods = self._get_self_ordering_payment_methods_data(
-            self.self_order_online_payment_method_id
-        )
-        res["pos_payment_methods"] += payment_methods
-        return res
 
     def has_valid_self_payment_method(self):
         res = super().has_valid_self_payment_method()

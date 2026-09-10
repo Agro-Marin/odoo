@@ -17,13 +17,8 @@ class ResPartner(models.Model):
             "l10n_hu_group_vat",
         ]
 
-    @api.model
-    def _run_vies_test(self, vat_number, default_country):
+    def _check_vies(self, vat):
         """Convert back the hungarian format to EU format: 12345678-1-12 => HU12345678"""
-        if (
-            default_country
-            and default_country.code == "HU"
-            and not vat_number.startswith("HU")
-        ):
-            vat_number = f"HU{vat_number[:8]}"
-        return super()._run_vies_test(vat_number, default_country)
+        if self.country_code == "HU" and vat and not vat.upper().startswith("HU"):
+            vat = f"HU{vat[:8]}"
+        return super()._check_vies(vat)

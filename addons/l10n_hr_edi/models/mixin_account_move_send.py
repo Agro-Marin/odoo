@@ -13,7 +13,7 @@ class MixinAccountMoveSend(models.AbstractModel):
     _inherit = "mixin.account.move.send"
 
     @api.model
-    def _check_move_constrains(self, moves):
+    def _check_move_constraints(self, moves):
         # HR-BR-37: Invoice must contain HR-BT-4: Operator code in accordance with the Fiscalization Act.
         if any(
             (move.country_code == "HR" and not move.l10n_hr_operator_name)
@@ -101,7 +101,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                     "For Croatia, Legal Notes should be provided for all cash basis taxes."
                 )
             )
-        super()._check_move_constrains(moves)
+        super()._check_move_constraints(moves)
 
     # -------------------------------------------------------------------------
     # SENDING METHODS

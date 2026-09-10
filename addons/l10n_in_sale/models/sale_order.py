@@ -80,8 +80,8 @@ class SaleOrder(models.Model):
                     company.id
                 )._get_fiscal_position(virtual_partner)
 
-    def _prepare_invoice(self):
-        invoice_vals = super()._prepare_invoice()
+    def _prepare_invoice_vals(self):
+        invoice_vals = super()._prepare_invoice_vals()
         if self.country_code == "IN":
             invoice_vals["l10n_in_reseller_partner_id"] = (
                 self.l10n_in_reseller_partner_id.id

@@ -610,13 +610,13 @@ class AccountMove(models.Model):
         ):
             move.action_l10n_pl_edi_update_invoice_status()
 
-    def button_draft(self):
+    def action_draft(self):
         """
         When going from canceled => draft, we ensure to clear the edi fields
         so that the invoice can be resent if required.
         """
         # EXTEND account
-        res = super().button_draft()
+        res = super().action_draft()
         moves = self.filtered(
             lambda move: (
                 move.country_code == "PL" and move.l10n_pl_edi_status == "rejected"

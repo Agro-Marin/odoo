@@ -55,7 +55,7 @@ class AccountMove(models.Model):
             return True
         return super()._check_edi_documents_for_reset_to_draft()
 
-    def _edi_allow_button_draft(self):
+    def _edi_allow_action_draft(self):
         docs = self.edi_document_ids.filtered(
             lambda d: d.edi_format_id._is_web_service_required()
         )
@@ -65,4 +65,4 @@ class AccountMove(models.Model):
             and docs.state != "to_cancel"
         ):
             return True
-        return super()._edi_allow_button_draft()
+        return super()._edi_allow_action_draft()

@@ -15,27 +15,18 @@ class EfakturProductCode(models.Model):
         for record in self:
             record.display_name = f"{record.code} - {record.description}"
 
-    @api.model
-    def _name_search(self, name, domain=None, operator="ilike", limit=None, order=None):
-        domain = domain or []
-
-        # Try to reverse the `name_get` structure
-        parts = name.split(" - ")
-        if len(parts) == 2:
-            name_domain = [
-                ("code", operator, parts[0]),
-                ("description", operator, parts[1]),
-            ]
-            return self._search(Domain.AND([name_domain, domain]), limit=limit)
-
-        if name and operator == "ilike":
-            name_domain = [
-                "|",
-                ("code", operator, name),
-                ("description", operator, name),
-            ]
-            return self._search(Domain.AND([name_domain, domain]), limit=limit)
-
-        return super()._name_search(
-            name=name, domain=domain, operator=operator, limit=limit, order=order
-        )
+    def _search_display_name(self, operator, value):
+        if (
+            operator in ("ilike", "=ilike", "like", "=like")
+            and value
+            and isinstance(value, str)
+        ):
+            code, separator, description = value.partition(" - ")
+            if separator:
+                return Domain("code", operator, code) & Domain(
+                    "description", operator, description
+                )
+            return Domain("code", operator, value) | Domain(
+                "description", operator, value
+            )
+        return super()._search_display_name(operator, value)

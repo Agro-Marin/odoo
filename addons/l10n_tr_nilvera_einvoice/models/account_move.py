@@ -74,13 +74,6 @@ class AccountMove(models.Model):
     def _l10n_tr_get_category_move_type(self, document_category):
         return CATEGORY_MOVE_TYPE_MAP.get(document_category.lower())
 
-    @api.model
-    def _get_ubl_cii_builder_from_xml_tree(self, tree):
-        customization_id = tree.find("{*}CustomizationID")
-        if customization_id is not None and "TR1.2" in customization_id.text:
-            return self.env["account.edi.xml.ubl.tr"]
-        return super()._get_ubl_cii_builder_from_xml_tree(tree)
-
     def action_draft(self):
         # EXTENDS account
         for move in self.filtered("l10n_tr_nilvera_uuid"):

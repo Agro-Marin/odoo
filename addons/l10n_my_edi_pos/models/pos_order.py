@@ -1,4 +1,4 @@
-from odoo import Command, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -78,15 +78,6 @@ class PosOrder(models.Model):
                     )
 
         return super()._process_order(order, existing_order)
-
-    @api.model
-    def _order_fields(self, ui_order):
-        order_fields = super()._order_fields(ui_order)
-        if ui_order.get("consolidated_invoice_ids"):
-            order_fields["consolidated_invoice_ids"] = [
-                Command.link(ui_order["consolidated_invoice_ids"])
-            ]
-        return order_fields
 
     @api.model
     def _generate_pos_order_invoice(self):

@@ -11,8 +11,8 @@ class SaleOrder(models.Model):
         default=lambda self: self.env["l10n_ec.sri.payment"].sudo().search([], limit=1),
     )
 
-    def _prepare_invoice(self):
-        res = super()._prepare_invoice()
+    def _prepare_invoice_vals(self):
+        res = super()._prepare_invoice_vals()
         if self.country_code == "EC":
             res["l10n_ec_sri_payment_id"] = self.l10n_ec_sri_payment_id.id
         return res

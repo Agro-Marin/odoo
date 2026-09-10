@@ -98,7 +98,9 @@ class AccountEdiProxyClientUser(models.Model):
         processed_uuids = []
         other_messages = {}
         origin_message_uuids = [
-            content["origin_message_uuid"] for content in messages.values()
+            content["origin_message_uuid"]
+            for content in messages.values()
+            if content["document_type"] == "ApplicationResponse"
         ]
         origin_moves = (
             self.env["account.move"]
@@ -194,7 +196,7 @@ class AccountEdiProxyClientUser(models.Model):
         processed_message_uuids = []
         other_messages = {}
         for uuid, content in messages.items():
-            if uuid_to_record[uuid]._name != "nemhandel.response":
+            if uuid == "error" or uuid_to_record[uuid]._name != "nemhandel.response":
                 other_messages[uuid] = content
                 continue
 

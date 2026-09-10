@@ -44,8 +44,10 @@ class PurchaseOrder(models.Model):
             self.grid_update = False
             self.grid = json.dumps(self._get_matrix(self.grid_product_tmpl_id))
 
-    def _must_delete_date_commitment(self, field_name):
-        return super()._must_delete_date_commitment(field_name) or field_name == "grid"
+    def _is_date_commitment_removed_by(self, field_name):
+        return (
+            super()._is_date_commitment_removed_by(field_name) or field_name == "grid"
+        )
 
     @api.onchange("grid")
     def _apply_grid(self):

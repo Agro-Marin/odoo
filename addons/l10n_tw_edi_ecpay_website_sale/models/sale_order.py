@@ -19,8 +19,8 @@ class SaleOrder(models.Model):
     l10n_tw_edi_carrier_number = fields.Char(string="Carrier Number")
     l10n_tw_edi_carrier_number_2 = fields.Char(string="Carrier Number 2")
 
-    def _prepare_invoice(self):
-        res = super()._prepare_invoice()
+    def _prepare_invoice_vals(self):
+        res = super()._prepare_invoice_vals()
         if (
             self.company_id.country_id.code == "TW"
             and self.company_id._is_ecpay_enabled()

@@ -474,16 +474,6 @@ class AccountEdiFormat(models.Model):
 
     # ====== EDI Format Overrides =======
 
-    def _is_required_for_invoice(self, invoice):
-        """
-        Override to add ZATCA edi checks on required invoices
-        """
-        self.check_singleton()
-        if self.code != "sa_zatca":
-            return super()._is_required_for_invoice(invoice)
-
-        return invoice.is_sale_document() and invoice.country_code == "SA"
-
     def _check_move_configuration(self, invoice):
         """
         Override to add ZATCA compliance checks on the Invoice

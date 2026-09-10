@@ -251,14 +251,6 @@ class AccountAnalyticLine(models.Model):
             ("timesheet_invoice_id", "=", False),
         ]
 
-    def _filtered_to_merge(self):
-        res = super()._filtered_to_merge()
-        return res.filtered(
-            lambda l: (
-                not l.timesheet_invoice_id or l.timesheet_invoice_id.state != "posted"
-            )
-        )
-
     @api.ondelete(at_uninstall=False)
     def _unlink_except_invoiced(self):
         if any(

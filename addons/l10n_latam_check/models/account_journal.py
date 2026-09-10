@@ -1,4 +1,4 @@
-from odoo import api, models
+from odoo import models
 
 
 class AccountJournal(models.Model):
@@ -14,13 +14,6 @@ class AccountJournal(models.Model):
             res |= self.env.ref(
                 "l10n_latam_check.account_payment_method_return_third_party_checks"
             )
-        return res
-
-    @api.model
-    def _get_reusable_payment_methods(self):
-        """We are able to have multiple times Checks payment method in a journal"""
-        res = super()._get_reusable_payment_methods()
-        res.add("own_checks")
         return res
 
     def create(self, vals_list):
