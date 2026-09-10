@@ -22,19 +22,30 @@ class MaintenanceRequest(models.Model):
         help="While scheduled, the asset is unavailable time for planning, work orders and every other reader of its calendar.",
     )
 
-    @api.depends("asset_id")
+    @api.depends("asset_id.maintenance_team_id")
     def _compute_maintenance_team_id(self):
+        super()._compute_maintenance_team_id()
         for request in self:
-            if request.asset_id.maintenance_team_id:
-                request.maintenance_team_id = request.asset_id.maintenance_team_id
-        return super()._compute_maintenance_team_id()
+            team = request.asset_id.maintenance_team_id
+            if team and (not team.company_id or team.company_id == request.company_id):
+                request.maintenance_team_id = team
 
-    @api.depends("asset_id")
+    @api.depends("asset_id.technician_user_id")
     def _compute_user_id(self):
+        super()._compute_user_id()
         for request in self:
-            if request.asset_id.technician_user_id:
-                request.user_id = request.asset_id.technician_user_id
-        return super()._compute_user_id()
+            technician = request.asset_id.technician_user_id
+            if technician and request.company_id in technician.company_ids:
+                request.user_id = technician
+
+    def _need_new_activity(self, vals):
+        return super()._need_new_activity(vals) or vals.get("asset_id")
+
+    def _get_activity_note(self):
+        self.check_singleton()
+        if self.asset_id and not self.equipment_id:
+            return self.env._("Request planned for %s", self.asset_id._get_html_link())
+        return super()._get_activity_note()
 
     def _get_fields_reservation_date(self):
         return ("schedule_date", "schedule_end")

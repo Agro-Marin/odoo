@@ -104,3 +104,34 @@ class TestResourceAssetMaintenance(TransactionCase):
         self.assertEqual(self.press.maintenance_count, 1)
         self.assertEqual(self.press.maintenance_open_count, 1)
         self.assertFalse(self._bookings(), "an unscheduled request blocks nothing")
+
+    def test_the_asset_outranks_the_equipment_for_team_and_technician(self):
+        """The bridge used to set the asset's team, then let the base compute
+        overwrite it with the equipment's."""
+        other_team = self.env["maintenance.team"].create({"name": "Electricians"})
+        technician = self.env["res.users"].create(
+            {"name": "Asset tech", "login": "asset_tech"}
+        )
+        equipment = self.env["maintenance.equipment"].create(
+            {"name": "Old press", "maintenance_team_id": other_team.id}
+        )
+        self.press.write(
+            {"maintenance_team_id": self.team.id, "technician_user_id": technician.id}
+        )
+        request = self.env["maintenance.request"].create({"name": "Check"})
+        request.write({"equipment_id": equipment.id, "asset_id": self.press.id})
+        self.assertEqual(request.maintenance_team_id, self.team)
+        self.assertEqual(request.user_id, technician)
+        request.asset_id = False
+        self.assertEqual(request.maintenance_team_id, other_team)
+
+    def test_an_asset_only_request_plans_an_activity_on_the_asset(self):
+        request = self._request()
+        activity = request.activity_ids.filtered(
+            lambda a: (
+                a.activity_type_id
+                == self.env.ref("maintenance.mail_act_maintenance_request")
+            )
+        )
+        self.assertEqual(len(activity), 1)
+        self.assertIn(self.press.name, activity.note)
