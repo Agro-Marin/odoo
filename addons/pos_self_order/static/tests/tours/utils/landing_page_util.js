@@ -41,18 +41,21 @@ export function checkCarouselAutoPlaying() {
         content: `Check that the slideshow is working`,
         trigger: `.carousel-item.active`,
         async run() {
-            const firstSlideHtml = document.querySelector(
-                ".carousel-item.active",
-            )?.outerHTML;
-            await delay(150);
-            const currentSlideHtml = document.querySelector(
-                ".carousel-item.active",
-            )?.outerHTML;
-            if (firstSlideHtml === currentSlideHtml) {
-                throw new Error(
-                    "Slideshow is not working. Slide should change in all self ordering mode.",
-                );
+            // The slideshow advances every 100ms in test mode but a slide
+            // takes bootstrap's 600ms transition to land, so sample until it
+            // moves rather than once at a fixed offset.
+            const activeSlideHtml = () =>
+                document.querySelector(".carousel-item.active")?.outerHTML;
+            const firstSlideHtml = activeSlideHtml();
+            for (let i = 0; i < 20; i++) {
+                await delay(150);
+                if (activeSlideHtml() !== firstSlideHtml) {
+                    return;
+                }
             }
+            throw new Error(
+                "Slideshow is not working. Slide should change in all self ordering mode.",
+            );
         },
     };
 }

@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from werkzeug.exceptions import BadRequest, NotFound, Unauthorized
 
 from odoo import Command, fields, http
@@ -342,6 +344,13 @@ class PosSelfOrderController(http.Controller):
             ]
 
         for data in order_access_tokens:
+            # The device's write_date is serialized to the second while the
+            # stored one keeps its microseconds, so "changed since" means
+            # written in a LATER second: an exact ">" would return every
+            # order on every poll.
+            known_until = fields.Datetime.to_datetime(
+                data.get("write_date") or "1970-01-01 00:00:00"
+            )
             domain = Domain.OR(
                 [
                     domain,
@@ -349,7 +358,7 @@ class PosSelfOrderController(http.Controller):
                         "&",
                         ("access_token", "=", data["access_token"]),
                         "|",
-                        ("write_date", ">", data.get("write_date")),
+                        ("write_date", ">=", known_until + timedelta(seconds=1)),
                         ("state", "!=", data.get("state")),
                     ],
                 ]
