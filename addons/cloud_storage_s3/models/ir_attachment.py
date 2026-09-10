@@ -2,7 +2,6 @@ import logging
 import re
 import uuid
 from collections import defaultdict
-from functools import partial
 from itertools import batched
 from urllib.parse import unquote
 
@@ -62,12 +61,13 @@ class IrAttachment(models.Model):
         )
 
     def _s3_queue_mirror(self):
+        # Only flag the rows: the upload is left to
+        # ``_cron_mirror_pending_to_s3``. Uploading from a postcommit callback
+        # runs it in the request thread, which keeps the main transaction
+        # idle-in-transaction for as long as S3 takes to answer.
         to_mirror = self._filter_s3_mirrorable()
         if to_mirror:
             to_mirror.s3_mirror_pending = True
-            self.env.cr.postcommit.add(
-                partial(self._s3_mirror_postcommit, to_mirror.ids)
-            )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -87,11 +87,6 @@ class IrAttachment(models.Model):
                 lambda a: not a.s3_blob_name and not a.s3_mirror_pending
             )._s3_queue_mirror()
         return res
-
-    def _s3_mirror_postcommit(self, ids):
-        with self.env.registry.cursor() as cr:
-            env = api.Environment(cr, self.env.uid, self.env.context)
-            env["ir.attachment"].browse(ids).exists()._s3_mirror_to_cloud()
 
     def _post_add_create(self, **kwargs):
         if kwargs.get("cloud_storage") and self._is_s3_hybrid():
