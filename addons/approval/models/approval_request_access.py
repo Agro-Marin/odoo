@@ -301,15 +301,7 @@ class ApprovalRequestAccess(models.Model):
 
     def _check_refusal_reopener(self) -> None:
         self.check_singleton()
-        if self.env.su or is_approval_manager(self.env):
-            return
-        refused = self.approver_ids.filtered(
-            lambda a: a.state == "refused" and a.decided_by_user_id,
-        )
-        user = self.env.user
-        if user in refused.decided_by_user_id or self._is_later_step_member(
-            refused, user
-        ):
+        if self.env.su or self._can_reopen_refusal(self.env.user):
             return
         raise AccessError(
             self.env._(
@@ -319,14 +311,20 @@ class ApprovalRequestAccess(models.Model):
             ),
         )
 
+    def _can_reopen_refusal(self, user) -> bool:
+        self.check_singleton()
+        if user._is_approval_manager():
+            return True
+        refused = self.approver_ids.filtered(
+            lambda a: a.state == "refused" and a.decided_by_user_id,
+        )
+        return user in refused.decided_by_user_id or self._is_later_step_member(
+            refused, user
+        )
+
     def _check_withdraw_actor(self, approver) -> None:
         self.check_singleton()
-        if self.env.su or is_approval_manager(self.env):
-            return
-        user = self.env.user
-        if approver._get_effective_approver() == user or self._is_later_step_member(
-            approver, user
-        ):
+        if self.env.su or self._can_withdraw_approver(approver, self.env.user):
             return
         raise AccessError(
             self.env._(
@@ -335,6 +333,14 @@ class ApprovalRequestAccess(models.Model):
                 approver=approver._get_effective_approver().name,
                 name=self.display_name,
             ),
+        )
+
+    def _can_withdraw_approver(self, approver, user) -> bool:
+        self.check_singleton()
+        return (
+            user._is_approval_manager()
+            or approver._get_effective_approver() == user
+            or self._is_later_step_member(approver, user)
         )
 
     def _is_later_step_member(self, approvers, user) -> bool:

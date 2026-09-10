@@ -111,7 +111,7 @@ class ApprovalRequestRouting(models.Model):
         """The category's steps whose condition this request meets, in order."""
         self.check_singleton()
         return self.category_id.step_ids.filtered(
-            lambda step: step._applies_to(self),
+            lambda step: step._is_applicable_to_request(self),
         ).sorted(lambda step: (step.sequence, step.id))
 
     def _get_additional_approvers(self) -> list[tuple[int, bool, int]]:

@@ -804,30 +804,40 @@ class ApprovalRequest(models.Model):
         return state_counts.get("approved", 0) >= approval_threshold
 
     def _get_step_counts(self) -> dict[int, int]:
-        """How many approvals each step of this request has, exclusivity applied.
+        self.check_singleton()
+        return {
+            step_id: len(approvers)
+            for step_id, approvers in self._get_step_assignment().items()
+        }
+
+    def _get_step_assignment(self) -> dict[int, Any]:
+        """Which approved rows count toward each step, exclusivity applied.
 
         An approved row counts toward every step it belongs to, unless one of them
         is exclusive: then it counts toward exactly one, the lowest step still short
         of its quorum. That is Studio's rule -- a user who decided an exclusive step
         decides nothing else on the same record, and the other way round --
-        expressed as counting rather than as refused writes.
+        expressed as counting rather than as refused writes. The approval button
+        shows this assignment, so what it draws is what the quorum counts.
         """
         self.check_singleton()
         steps = self.approver_ids.step_ids.sorted(lambda step: (step.sequence, step.id))
-        counts = dict.fromkeys(steps.ids, 0)
+        assigned = {step.id: self.env["approval.approver"] for step in steps}
         approved = self.approver_ids.filtered(
             lambda approver: approver.state == "approved" and approver.step_ids,
         ).sorted(lambda approver: (approver.sequence, approver.id))
         for approver in approved:
             own = approver.step_ids.sorted(lambda step: (step.sequence, step.id))
             if any(own.mapped("exclusive")):
-                target = own.filtered(lambda step: counts[step.id] < step.minimum)[:1]
+                target = own.filtered(
+                    lambda step: len(assigned[step.id]) < step.minimum
+                )[:1]
                 if target:
-                    counts[target.id] += 1
+                    assigned[target.id] |= approver
                 continue
             for step in own:
-                counts[step.id] += 1
-        return counts
+                assigned[step.id] |= approver
+        return assigned
 
     def _get_unmet_steps(self):
         self.check_singleton()

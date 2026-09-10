@@ -9,6 +9,7 @@ from . import (
     test_auto_expire,
     test_binding,
     test_binding_actions,
+    test_binding_client,
     test_binding_reset,
     test_bulk_operations,
     test_category,

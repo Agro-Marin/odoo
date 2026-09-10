@@ -388,7 +388,7 @@ requester re-submits (`action_resubmit`).
 | `_replay_bound_operation()` | Called from `_notify_if_terminal_transition` when a request becomes `approved`, AFTER `_notify_source_document_state_change`, so an adopter sees itself approved before the operation it gated runs. Hands off to `approval.binding._replay`; does nothing once `date_binding_replayed` is set, when the binding's `run_on_approval` is off, or while an invoking call is recording its own approval |
 | `_get_applicable_steps()` | The category's steps whose condition this request meets, in order. Routing stages one row per user over them instead of the flat approvers, group and replacement |
 | `_is_quorum_met(state_counts, threshold)` | Step mode when any row carries steps: every applicable step meets its quorum. Otherwise the flat `approval_minimum`, unchanged |
-| `_get_step_counts()` | Approvals per step. An approved row counts toward every step it belongs to, unless one is exclusive: then toward exactly one, the lowest step still short — Studio's exclusivity expressed as counting |
+| `_get_step_counts()` / `_get_step_assignment()` | Approvals per step. An approved row counts toward every step it belongs to, unless one is exclusive: then toward exactly one, the lowest step still short — Studio's exclusivity expressed as counting |
 | `_get_unmet_steps()` / `_get_open_steps()` | The steps still short of their quorum, and the lowest-sequence ones among them, which are the ones being asked |
 | `_check_steps_can_be_met(steps)` | At confirmation, refuses a step whose pool is smaller than its quorum, rather than leaving a request that could never be approved |
 | `_notify_step_decision(approvers, acting_user, decision)` | Posts an internal note to the notify list of every step the decided rows count toward |
@@ -756,6 +756,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `_sync_reset_automation()` | One managed `on_create_or_write` rule per binding with a Reset When. Its pre-update filter is the condition inverted, so it fires on the transition into it. After creation only the name, the two filters and the trigger fields are written: never `trigger`, whose change makes `_compute_filter_pre_domain` clear the pre-update filter, and never `model_id`, whose write recomputes `trigger` to nothing. A changed model gets a new rule |
 | `_reset_coverage(records)` | Resets the covering approved requests to draft through `action_reset_to_draft`, so an adopter hears it through `_on_approval_reset`, and clears the one-shot stamp so the next cycle runs on approval again |
 | `_get_covering_requests(records)` / `_get_reset_field_ids(domain)` | The approved requests that could be covering the records; the fields the condition reads, which become the rule's trigger fields |
+| `get_button_approvals(specs)` | For each `{model, res_id, method, action_id}`: `{gated, approved, request, steps}`. Each step carries who may decide it and its decisions, assigned by `approval.request._get_step_assignment`, so what the button draws is what the quorum counts. A category without steps is one step with `id` false. Read access on the record is checked first |
+| `check_button_approval(model, res_id, method, action_id)` | `_gate` with a no-op operation: `{approved, request_id}`. It raises or reuses the request and marks the one-shot, because the browser runs the action next |
+| `action_decide_approval(...)` / `action_withdraw_decision(..., approver_id)` | Decide as the caller, or withdraw through `action_withdraw_approver` (a refusal through `action_reset_to_draft`); the rights are `_can_withdraw_approver` / `_can_reopen_refusal`, the same predicates the checks raise from |
 
 ---
 
@@ -831,7 +834,7 @@ does not is left as it was.
 | Method | Purpose |
 |--------|---------|
 | `_get_pool_user_ids()` | Who may approve today: members whose `date_end` has not passed, plus the group's users |
-| `_applies_to(request)` | No condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
+| `_is_applicable_to_request(request)` | No condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
 
 ---
 
@@ -1116,6 +1119,13 @@ is computed and non-stored, recalculated per read.
 |------|--------------------------|
 | Hook | `_unlink_approved_approval_request()` via `@api.ondelete` |
 | Rule | Blocks deletion of attachments on finalized requests |
+
+### base (extended)
+
+| | |
+|------|--------------------------|
+| File | `models/models.py` |
+| Method | `get_views()` sets `has_approval_bindings` on each related model with an active Block or Request binding, read from `approval.binding._get_names_of_gated_models` (ormcache, cleared with every binding write) |
 
 ### mail.activity (extended)
 

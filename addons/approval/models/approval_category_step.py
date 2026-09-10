@@ -127,11 +127,16 @@ class ApprovalCategoryStep(models.Model):
             users.update(self.group_id.all_user_ids.ids)
         return users
 
-    def _applies_to(self, request) -> bool:
+    def _is_applicable_to_request(self, request) -> bool:
         self.check_singleton()
         if not self.subject_domain:
             return True
-        document = request.get_source_document()
+        return self._is_applicable_to_document(request.get_source_document())
+
+    def _is_applicable_to_document(self, document) -> bool:
+        self.check_singleton()
+        if not self.subject_domain:
+            return True
         if (
             not document
             or not self.subject_model_id

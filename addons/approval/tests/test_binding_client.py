@@ -1,0 +1,227 @@
+from odoo.exceptions import AccessError
+from odoo.tests import common, tagged
+
+
+@tagged("post_install", "-at_install")
+class TestApprovalBindingClient(common.TransactionCase):
+    """What the approval button asks `approval.binding`, and what it is told."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Binding = cls.env["approval.binding"]
+        cls.partner_model = cls.env["ir.model"]._get("res.partner")
+        cls.approver, cls.peer, cls.later, cls.requester = (
+            cls._user(login)
+            for login in (
+                "client_approver",
+                "client_peer",
+                "client_later",
+                "client_req",
+            )
+        )
+        cls.flat_category = cls.env["approval.category"].create(
+            {"name": "Client Flat", "approval_minimum": 1}
+        )
+        cls.env["approval.category.approver"].create(
+            {
+                "category_id": cls.flat_category.id,
+                "user_id": cls.approver.id,
+                "required": True,
+                "sequence": 10,
+            }
+        )
+        cls.step_category = cls.env["approval.category"].create(
+            {"name": "Client Steps", "approval_minimum": 1}
+        )
+        for sequence, users in ((10, (cls.approver, cls.peer)), (20, (cls.later,))):
+            cls.env["approval.category.step"].create(
+                {
+                    "category_id": cls.step_category.id,
+                    "name": f"Step {sequence}",
+                    "sequence": sequence,
+                    "member_ids": [(0, 0, {"user_id": user.id}) for user in users],
+                }
+            )
+
+    @classmethod
+    def _user(cls, login):
+        groups = (
+            cls.env.ref("base.group_user"),
+            cls.env.ref("base.group_partner_manager"),
+        )
+        return cls.env["res.users"].create(
+            {
+                "name": login,
+                "login": login,
+                "email": f"{login}@test.com",
+                "group_ids": [(6, 0, [group.id for group in groups])],
+            }
+        )
+
+    def tearDown(self):
+        self.Binding._unregister_hook()
+        super().tearDown()
+
+    def _bind(self, category, **vals):
+        binding = self.Binding.create(
+            {
+                "model_id": self.partner_model.id,
+                "method": "action_archive",
+                "mode": "request",
+                "category_id": category.id,
+                "run_on_approval": False,
+                **vals,
+            }
+        )
+        self.Binding._unregister_hook()
+        self.Binding._register_hook()
+        return binding
+
+    def _partner(self, **vals):
+        return self.env["res.partner"].create({"name": "Client Partner", **vals})
+
+    def _spec(self, partner, user, method="action_archive", action_id=False):
+        return self.Binding.with_user(user).get_button_approvals(
+            [
+                {
+                    "model": "res.partner",
+                    "res_id": partner.id,
+                    "method": method,
+                    "action_id": action_id,
+                }
+            ]
+        )[0]
+
+    def test_get_views_flags_a_model_gated_in_block_or_request_mode(self):
+        binding = self._bind(self.flat_category, mode="advise")
+        views = self.env["res.partner"].get_views([[False, "form"]])
+        self.assertFalse(views["models"]["res.partner"]["has_approval_bindings"])
+        binding.mode = "request"
+        views = self.env["res.partner"].get_views([[False, "form"]])
+        self.assertTrue(views["models"]["res.partner"]["has_approval_bindings"])
+
+    def test_an_ungated_button_draws_nothing(self):
+        result = self._spec(self._partner(), self.requester, "open_commercial_entity")
+        self.assertEqual(
+            result, {"gated": False, "approved": True, "request": False, "steps": []}
+        )
+
+    def test_before_any_call_the_steps_show_who_may_decide(self):
+        self._bind(self.step_category)
+        result = self._spec(self._partner(), self.peer)
+        self.assertTrue(result["gated"])
+        self.assertFalse(result["approved"])
+        self.assertFalse(result["request"])
+        self.assertEqual(
+            [(step["name"], step["can_decide"]) for step in result["steps"]],
+            [("Step 10", True), ("Step 20", False)],
+        )
+
+    def test_the_check_raises_the_request_and_runs_nothing(self):
+        self._bind(self.flat_category)
+        partner = self._partner()
+        check = self.Binding.with_user(self.requester).check_button_approval(
+            "res.partner", partner.id, "action_archive", False
+        )
+        self.assertFalse(check["approved"])
+        request = self.env["approval.request"].browse(check["request_id"])
+        self.assertEqual(request.state, "pending")
+        request.with_user(self.approver).action_approve()
+        check = self.Binding.with_user(self.requester).check_button_approval(
+            "res.partner", partner.id, "action_archive", False
+        )
+        self.assertTrue(check["approved"])
+        self.assertTrue(partner.active, "a check runs nothing")
+
+    def test_a_decision_counts_toward_its_step_and_a_later_step_may_withdraw_it(self):
+        self._bind(self.step_category)
+        partner = self._partner()
+        result = self.Binding.with_user(self.approver).action_decide_approval(
+            "res.partner", partner.id, "action_archive", False, True
+        )
+        first = result["steps"][0]
+        self.assertEqual(
+            [decision["user_id"] for decision in first["decisions"]],
+            [self.approver.id],
+        )
+        self.assertFalse(first["can_decide"], "one decision per user")
+        self.assertTrue(first["decisions"][0]["can_withdraw"])
+        self.assertFalse(
+            self._spec(partner, self.peer)["steps"][0]["decisions"][0]["can_withdraw"]
+        )
+        self.assertTrue(
+            self._spec(partner, self.later)["steps"][0]["decisions"][0]["can_withdraw"]
+        )
+        result = self.Binding.with_user(self.later).action_withdraw_decision(
+            "res.partner",
+            partner.id,
+            "action_archive",
+            False,
+            first["decisions"][0]["approver_id"],
+        )
+        self.assertEqual(result["steps"][0]["decisions"], [])
+
+    def test_a_refusal_from_the_button_is_reopened_by_the_refuser_only(self):
+        self._bind(self.flat_category)
+        partner = self._partner()
+        self.Binding.with_user(self.requester).check_button_approval(
+            "res.partner", partner.id, "action_archive", False
+        )
+        result = self.Binding.with_user(self.approver).action_decide_approval(
+            "res.partner", partner.id, "action_archive", False, False
+        )
+        self.assertEqual(result["request"]["state"], "refused")
+        self.assertTrue(result["request"]["can_reopen"])
+        step = result["steps"][0]
+        self.assertEqual((step["id"], step["minimum"]), (False, 1))
+        refusal = step["decisions"][0]
+        self.assertEqual(refusal["state"], "refused")
+        self.assertFalse(self._spec(partner, self.requester)["request"]["can_reopen"])
+        with self.assertRaises(AccessError):
+            self.Binding.with_user(self.requester).action_withdraw_decision(
+                "res.partner",
+                partner.id,
+                "action_archive",
+                False,
+                refusal["approver_id"],
+            )
+        result = self.Binding.with_user(self.approver).action_withdraw_decision(
+            "res.partner", partner.id, "action_archive", False, refusal["approver_id"]
+        )
+        self.assertEqual(result["request"]["state"], "new")
+
+    def test_a_record_the_caller_cannot_read_is_refused(self):
+        """Studio's test_07_forbidden_record."""
+        self._bind(self.flat_category)
+        elsewhere = self.env["res.company"].create({"name": "Client Elsewhere"})
+        partner = self._partner(company_id=elsewhere.id)
+        with self.assertRaises(AccessError):
+            self._spec(partner, self.requester)
+
+    def test_an_action_button_is_answered_by_its_action_binding(self):
+        action = self.env["ir.actions.server"].create(
+            {
+                "name": "Client Action",
+                "model_id": self.partner_model.id,
+                "state": "code",
+                "code": "records.write({'comment': 'ran'})",
+            }
+        )
+        self.Binding.create(
+            {
+                "model_id": self.partner_model.id,
+                "action_id": action.id,
+                "mode": "request",
+                "category_id": self.flat_category.id,
+                "run_on_approval": False,
+            }
+        )
+        partner = self._partner()
+        result = self._spec(partner, self.requester, False, str(action.id))
+        self.assertTrue(result["gated"])
+        check = self.Binding.with_user(self.requester).check_button_approval(
+            "res.partner", partner.id, False, action.id
+        )
+        self.assertFalse(check["approved"])
+        self.assertFalse(partner.comment)

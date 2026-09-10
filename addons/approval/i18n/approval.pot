@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 20:04+0000\n"
-"PO-Revision-Date: 2026-09-10 20:04+0000\n"
+"POT-Creation-Date: 2026-09-10 20:37+0000\n"
+"PO-Revision-Date: 2026-09-10 20:37+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -245,6 +245,12 @@ msgstr ""
 msgid ""
 "%(record)s came to match the reset condition of %(binding)s, so this "
 "approval no longer covers it and was reset to draft."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding_client.py:0
+msgid "%(record)s is already approved for this."
 msgstr ""
 
 #. module: approval
@@ -1641,6 +1647,11 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__is_pending_my_review
 msgid "Awaiting My Decision"
+msgstr ""
+
+#. module: approval
+#: model:ir.model,name:approval.model_base
+msgid "Base"
 msgstr ""
 
 #. module: approval
@@ -3642,6 +3653,12 @@ msgid "No approval history yet"
 msgstr ""
 
 #. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding_client.py:0
+msgid "No approval is asked for this on %(record)s."
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.actions.act_window,help:approval.action_approval_metrics
 msgid "No approval metrics available yet"
 msgstr ""
@@ -3714,6 +3731,12 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_decision_wizard_form
 msgid "Note"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding_client.py:0
+msgid "Nothing has been decided on %(record)s yet."
 msgstr ""
 
 #. module: approval

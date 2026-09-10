@@ -4,6 +4,7 @@ from . import mixin_approval_domain  # isort: skip
 from . import (
     approval_approver,
     approval_binding,
+    approval_binding_client,
     approval_binding_observation,
     approval_category,
     approval_category_approver,
@@ -25,6 +26,7 @@ from . import (
     ir_attachment,
     mail_activity,
     mail_activity_type,
+    models,
     res_groups,
     res_users,
 )
