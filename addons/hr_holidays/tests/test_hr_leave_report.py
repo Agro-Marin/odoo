@@ -26,6 +26,7 @@ class TestHrLeaveReport(TestHrHolidaysCommon):
                 "name": "Report Test Allocation",
                 "employee_id": cls.employee_emp_id,
                 "holiday_status_id": cls.leave_type.id,
+                "date_from": date(2026, 1, 1),
                 "number_of_days": 10,
             }
         )
@@ -106,6 +107,7 @@ class TestHrLeaveEmployeeTypeReport(TestHrHolidaysCommon):
                 "name": f"{state} {days}",
                 "employee_id": self.employee_emp_id,
                 "holiday_status_id": self.leave_type.id,
+                "date_from": date(2026, 1, 1),
                 "number_of_days": days,
             }
         )

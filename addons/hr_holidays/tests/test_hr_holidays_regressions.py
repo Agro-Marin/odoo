@@ -33,6 +33,7 @@ class TestLeaveWriteGuards(TestHrHolidaysCommon):
                 "name": "Strict allocation",
                 "employee_id": self.employee_emp_id,
                 "holiday_status_id": self.leave_type.id,
+                "date_from": date(2026, 1, 1),
                 "number_of_days": days,
             }
         )
@@ -120,6 +121,7 @@ class TestLeaveWriteGuards(TestHrHolidaysCommon):
                 "name": "two hours",
                 "employee_id": self.employee_emp_id,
                 "holiday_status_id": lt.id,
+                "date_from": date(2026, 1, 1),
                 "number_of_days": 0.25,
             }
         ).action_approve()
@@ -161,6 +163,7 @@ class TestLeaveWriteGuards(TestHrHolidaysCommon):
                 "name": "half a day",
                 "employee_id": self.employee_emp_id,
                 "holiday_status_id": lt.id,
+                "date_from": date(2026, 1, 1),
                 "number_of_days": 0.5,
             }
         ).action_approve()
@@ -344,6 +347,7 @@ class TestConsumedLeavesExcess(TestHrHolidaysCommon):
                 "name": "one hour",
                 "employee_id": self.employee_emp_id,
                 "holiday_status_id": leave_type.id,
+                "date_from": date(2026, 1, 1),
                 "number_of_days": 0.125,
             }
         )
