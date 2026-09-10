@@ -149,7 +149,7 @@ class TestReports(TestReportsCommon):
         )
         self.env.user.group_ids += self.env.ref("stock.group_stock_lot_print_gs1")
         report = self.env.ref("stock.label_lot_template")
-        target = b'\n\n^XA^CI28\n^FO100,50\n^A0N,44,33^FD[C4181234""154654654654]Mellohi"^FS\n^FO100,100\n^A0N,44,33^FDLN/SN:Volume-Beta"^FS\n\n^FO425,150^BY3\n^BXN,8,200\n^FD010974521379614210Volume-Beta"^FS\n^XZ\n'
+        target = b'\n\n^XA^CI28\n^FO100,50\n^A0N,44,33^FD[C4181234""154654654654]Mellohi"^FS\n^FO100,100\n^A0N,44,33^FDLN/SN:Volume-Beta"^FS\n^FO425,150^BY3\n^BXN,8,200\n^FD010974521379614210Volume-Beta"^FS\n^XZ\n'
 
         rendering, qweb_type = report._render_qweb_text(
             "stock.label_lot_template", lot1.id
