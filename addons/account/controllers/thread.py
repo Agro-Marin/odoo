@@ -31,7 +31,7 @@ class ThreadController(thread.ThreadController):
     def mail_message_update_content(self, message_id, update_data, **kwargs):
         res = super().mail_message_update_content(message_id, update_data, **kwargs)
         message = self._get_message_with_access(message_id, mode="create", **kwargs)
-        if message._filter_empty():
+        if message._filtered_empty():
             self.env["account.report.annotation"].sudo().search(
                 [("message_id", "=", message_id)]
             ).unlink()
