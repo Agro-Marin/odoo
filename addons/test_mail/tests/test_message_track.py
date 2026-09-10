@@ -119,7 +119,7 @@ class TestTracking(MailCommon):
     @users("employee")
     def test_message_track_filter_for_display(self):
         """Check that tracked fields filtered for display are not present
-        in the front-end and email formatting methods. See `_track_filter_for_display`"""
+        in the front-end and email formatting methods. See `_track_filtered_for_display`"""
         field_dname = "Responsible"
         field_type = "many2one"
         original_user = self.user_admin

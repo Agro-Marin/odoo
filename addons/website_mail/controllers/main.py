@@ -41,7 +41,7 @@ class WebsiteMail(http.Controller):
                 no_create = False
             partner_ids = (
                 record.sudo()
-                ._partner_find_from_emails_single([email], no_create=no_create)
+                ._partner_get_or_create_from_emails_single([email], no_create=no_create)
                 .ids
             )
             if not partner_ids:

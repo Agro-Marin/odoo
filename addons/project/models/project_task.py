@@ -3291,7 +3291,9 @@ class ProjectTask(models.Model):
         if custom_values is None:
             custom_values = {}
         if not msg_dict.get("author_id") and msg_dict.get("email_from"):
-            author = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
+            author = self.env[
+                "mixin.mail.thread"
+            ]._partner_get_or_create_from_emails_single(
                 [msg_dict["email_from"]], no_create=False
             )
             msg_dict["author_id"] = author.id
@@ -3327,7 +3329,7 @@ class ProjectTask(models.Model):
         task = super(ProjectTask, self.with_context(create_context)).message_new(
             msg_dict, custom_values=defaults
         )
-        partners = task._partner_find_from_emails_single(
+        partners = task._partner_get_or_create_from_emails_single(
             tools.email_split(
                 (msg_dict.get("to") or "") + "," + (msg_dict.get("cc") or "")
             ),
@@ -3343,7 +3345,7 @@ class ProjectTask(models.Model):
         update_vals: dict[str, Any] | None = None,
     ) -> bool:
         for task in self:
-            partners = task._partner_find_from_emails_single(
+            partners = task._partner_get_or_create_from_emails_single(
                 tools.email_split(
                     (msg_dict.get("to") or "") + "," + (msg_dict.get("cc") or "")
                 ),

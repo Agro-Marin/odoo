@@ -52,7 +52,7 @@ class WebsiteForm(form.WebsiteForm):
             partner = (
                 request.env["mixin.mail.thread"]
                 .sudo()
-                ._partner_find_from_emails_single(
+                ._partner_get_or_create_from_emails_single(
                     [values["email_from"]], no_create=True
                 )
             )

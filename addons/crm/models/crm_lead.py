@@ -2188,7 +2188,7 @@ class CrmLead(models.Model):
         self.check_singleton()
         partner = self.partner_id
         if not partner and (self.email_normalized or self.email_from):
-            partner = self._partner_find_from_emails_single(
+            partner = self._partner_get_or_create_from_emails_single(
                 [self.email_normalized or self.email_from],
                 no_create=True,
             )

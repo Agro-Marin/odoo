@@ -24,12 +24,12 @@ class TestBaseIdSpaces(MailCommon):
             list(draft._ids),
             "the premise: .ids resolves a new record to its origin, .id does not",
         )
-        found = draft._partner_find_from_emails(
+        found = draft._partner_get_or_create_from_emails(
             {draft: ["someone@test.example.com"]}, no_create=True
         )
         self.assertEqual(list(found), [draft.id])
         self.assertEqual(
-            draft._partner_find_from_emails_single(
+            draft._partner_get_or_create_from_emails_single(
                 ["someone@test.example.com"], no_create=True
             ),
             self.env["res.partner"],
@@ -43,7 +43,7 @@ class TestBaseIdSpaces(MailCommon):
         self.assertTrue(record.company_id)
         for name in ("Name Only Person", '"Bad Address" <not-an-email>'):
             with self.subTest(name=name):
-                partner = record._partner_find_from_emails_single(
+                partner = record._partner_get_or_create_from_emails_single(
                     [name], customer_information={name: {"phone": "+32 470 12 34 56"}}
                 )
                 self.assertTrue(partner)

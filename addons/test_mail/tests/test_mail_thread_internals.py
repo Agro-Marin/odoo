@@ -287,13 +287,13 @@ class TestAPI(ThreadRecipients):
 
     @users("employee")
     def test_mail_partner_find_from_emails(self):
-        """Test '_partner_find_from_emails'. Multi mode is mainly targeting
+        """Test '_partner_get_or_create_from_emails'. Multi mode is mainly targeting
         finding or creating partners based on record information or message
         history."""
         existing_partners = self.env["res.partner"].sudo().search([])
         tickets = self.ticket_records.with_user(self.env.user)
         self.assertEqual(len(tickets), 8)
-        res = tickets._partner_find_from_emails(
+        res = tickets._partner_get_or_create_from_emails(
             {ticket: [ticket.email_from] for ticket in tickets}, no_create=False
         )
         self.assertEqual(len(tickets), len(res))
@@ -389,7 +389,7 @@ class TestAPI(ThreadRecipients):
 
     @users("employee")
     def test_mail_partner_find_from_emails_ordering(self):
-        """Test '_partner_find_from_emails' on a single record, to test notably
+        """Test '_partner_get_or_create_from_emails' on a single record, to test notably
         ordering and filtering."""
         self.user_employee.write({"company_ids": [(4, self.company_2.id)]})
         # create a mess, mix of portal / internal users + customer, to test ordering
@@ -488,7 +488,7 @@ class TestAPI(ThreadRecipients):
                 self.ticket_record.message_subscribe(followers.ids)
 
                 ticket = self.ticket_record.with_user(self.env.user)
-                partners = ticket._partner_find_from_emails(
+                partners = ticket._partner_get_or_create_from_emails(
                     {ticket: [ticket.email_from, "test.ordering@test.example.com"]},
                     no_create=True,
                 )[ticket.id]
@@ -509,7 +509,7 @@ class TestAPI(ThreadRecipients):
         """On a given record, give several emails and check it is effectively
         based on record information."""
         ticket = self.ticket_record.with_user(self.env.user)
-        partners = ticket._partner_find_from_emails(
+        partners = ticket._partner_get_or_create_from_emails(
             {
                 ticket: [
                     "raoul@test.example.com",
@@ -540,9 +540,9 @@ class TestAPI(ThreadRecipients):
 
     @users("employee")
     def test_mail_partner_find_from_emails_tweaks(self):
-        """Misc tweaks of '_partner_find_from_emails'"""
+        """Misc tweaks of '_partner_get_or_create_from_emails'"""
         ticket = self.ticket_record.with_user(self.env.user)
-        partner = ticket._partner_find_from_emails_single(
+        partner = ticket._partner_get_or_create_from_emails_single(
             [ticket.email_from],
             additional_values={
                 "paulette@test.example.com": {
@@ -2240,7 +2240,7 @@ class TestDiscuss(MailCommon, TestRecipients):
         found = (
             (record_a + record_b)
             .sudo()
-            ._partner_find_from_emails(
+            ._partner_get_or_create_from_emails(
                 {record_a: shared, record_b: shared}, no_create=False
             )
         )
@@ -2258,7 +2258,7 @@ class TestDiscuss(MailCommon, TestRecipients):
         found = (
             (record_a + record_c)
             .sudo()
-            ._partner_find_from_emails(
+            ._partner_get_or_create_from_emails(
                 {record_a: agreed, record_c: agreed}, no_create=False
             )
         )

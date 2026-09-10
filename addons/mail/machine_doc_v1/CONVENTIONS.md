@@ -42,7 +42,7 @@ no thread message), `message_notify` (notification not stored as a thread messag
 ### 3. Suggested-recipients / partner-resolution helpers live on `base`, not `mixin.mail.thread`
 
 `_message_get_suggested_recipients_sources`, `_message_get_suggested_recipients`,
-`_mail_get_partners`, `_mail_get_customer`, `_partner_find_from_emails`, `_notify_get_reply_to`
+`_mail_get_partners`, `_mail_get_customer`, `_partner_get_or_create_from_emails`, `_notify_get_reply_to`
 and `_mail_track` are defined on the `base` inherit (`models/base.py`), so **every** Odoo
 model has them — not only mail-threaded ones. When overriding suggested recipients, override on
 your model (they resolve through the MRO); `mixin.mail.thread.cc` is a precedent

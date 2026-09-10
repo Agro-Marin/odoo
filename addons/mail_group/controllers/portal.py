@@ -344,7 +344,7 @@ class PortalMailGroup(http.Controller):
         partner = (
             request.env["mixin.mail.thread"]
             .sudo()
-            ._partner_find_from_emails_single([email], no_create=True)
+            ._partner_get_or_create_from_emails_single([email], no_create=True)
         )
         group._join_group(email, partner.id)
 

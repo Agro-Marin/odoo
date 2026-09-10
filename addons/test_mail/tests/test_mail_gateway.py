@@ -5315,7 +5315,7 @@ class TestMailGatewayRegressions(MailGatewayCommon):
         self.assertFalse(self._new_mails, "and no bounce is sent")
 
     def test_an_exactly_addressed_alias_suppresses_the_same_local_part_elsewhere(self):
-        """`_routing_filter_local_aliases` is a fork-only rule and nothing tested it.
+        """`_routing_filtered_local_aliases` is a fork-only rule and nothing tested it.
 
         `alias_incoming_local` makes an alias answer on its local part whatever
         the domain, which is deliberate. But when a mail names one alias by its

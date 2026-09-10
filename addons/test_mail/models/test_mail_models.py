@@ -180,8 +180,8 @@ class MailTestTrack(models.Model):
     track_enable_default_log = fields.Boolean(default=False)
     parent_id = fields.Many2one("mail.test.track", string="Parent")
 
-    def _track_filter_for_display(self, tracking_values):
-        values = super()._track_filter_for_display(tracking_values)
+    def _track_filtered_for_display(self, tracking_values):
+        values = super()._track_filtered_for_display(tracking_values)
         filtered_fields = set(
             self.track_fields_tofilter.split(",") if self.track_fields_tofilter else ""
         )

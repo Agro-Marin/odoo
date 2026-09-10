@@ -1779,10 +1779,10 @@ class TestMailAPIPerformance(BaseMailPerformance):
     @users("employee")
     @warmup
     def test_partner_find_from_emails(self):
-        """Test '_partner_find_from_emails', notably to check batch optimization"""
+        """Test '_partner_get_or_create_from_emails', notably to check batch optimization"""
         records = self.test_records_recipients.with_user(self.env.user)
         with self.assertQueryCount(employee=25):
-            partners = records._partner_find_from_emails(
+            partners = records._partner_get_or_create_from_emails(
                 {
                     record: [
                         record.email_from,

@@ -971,7 +971,7 @@ class MailTemplate(models.Model):
             records_emails[record] = tools.email_split(
                 emails.get("email_to", "")
             ) + tools.email_split(emails.get("email_cc", ""))
-        for res_id, partners in records._partner_find_from_emails(
+        for res_id, partners in records._partner_get_or_create_from_emails(
             records_emails
         ).items():
             contribution.setdefault(res_id, {}).setdefault("partner_ids", []).extend(

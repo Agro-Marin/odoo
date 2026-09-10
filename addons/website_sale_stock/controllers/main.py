@@ -16,7 +16,7 @@ class WebsiteSaleStock(Controller):
         partner = (
             request.env["mixin.mail.thread"]
             .sudo()
-            ._partner_find_from_emails_single([email])
+            ._partner_get_or_create_from_emails_single([email])
         )
 
         if not product._has_stock_notification(partner):

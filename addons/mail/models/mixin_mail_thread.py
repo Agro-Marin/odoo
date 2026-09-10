@@ -722,7 +722,7 @@ class MixinMailThread(models.AbstractModel):
         for id_ in self.ids:
             initial_values[id_] = None
 
-    def _track_filter_for_display(
+    def _track_filtered_for_display(
         self, tracking_values: MailTrackingValue
     ) -> MailTrackingValue:
         self.check_singleton()
@@ -997,14 +997,14 @@ class MixinMailThread(models.AbstractModel):
         return True
 
     @api.model
-    def _mail_find_partner_from_emails(
+    def _mail_get_or_create_partner_from_emails(
         self,
         emails: list[str],
         records: models.BaseModel | None = None,
         force_create: bool = False,
     ) -> list:
         if records and self._mail_is_thread(records):
-            per_record = records._partner_find_from_emails(
+            per_record = records._partner_get_or_create_from_emails(
                 dict.fromkeys(records, emails),
                 avoid_alias=True,
                 no_create=not force_create,
@@ -1020,7 +1020,7 @@ class MixinMailThread(models.AbstractModel):
         else:
             all_partners = self.env[
                 "mixin.mail.thread"
-            ]._partner_find_from_emails_single(
+            ]._partner_get_or_create_from_emails_single(
                 emails,
                 avoid_alias=True,
                 no_create=not force_create,
@@ -2219,7 +2219,7 @@ class MixinMailThread(models.AbstractModel):
     ) -> tuple:
         if author_id is None:
             if email_from:
-                author = self._partner_find_from_emails_single(
+                author = self._partner_get_or_create_from_emails_single(
                     [email_from], no_create=True
                 )
             else:
@@ -3011,7 +3011,7 @@ class MixinMailThread(models.AbstractModel):
                 )
             tracking_values = tracking_values._filtered_has_field_access(self.env)
             if tracking_values:
-                tracking_values = record_wlang._track_filter_for_display(
+                tracking_values = record_wlang._track_filtered_for_display(
                     tracking_values
                 )
             tracking = [

@@ -194,7 +194,7 @@ The canonical messaging surface. Grouped by concern.
 - `_routing_handle_bounce(...)`, `_routing_create_bounce_email(...)`, `_is_bounce(...)`, `_is_loop_sender(...)`, `_has_loop_headers(...)`
 
 **Field tracking** (see CONVENTIONS.md gotcha on tracking):
-- `_track_prepare(fields_iter)`, `_track_finalize()`, `_track_discard()`, `_track_filter_for_display(...)`
+- `_track_prepare(fields_iter)`, `_track_finalize()`, `_track_discard()`, `_track_filtered_for_display(...)`
 - `_track_subtype(initial_values)`, `_track_template(changes)`, `_track_get_fields()`, `_track_set_author(...)`, `_track_set_log_message(...)`
 - `_message_track(fields_iter, initial_values_dict)`, `_message_track_post_template(changes)`
 
@@ -206,7 +206,7 @@ The canonical messaging surface. Grouped by concern.
 > `_message_get_suggested_recipients`, `_message_get_default_recipients_sources`,
 > `_message_get_default_recipients`, `_message_add_suggested_recipients_from_replies`),
 > partner resolution (`_mail_get_partners`, `_mail_get_partner_fields`, `_mail_get_customer`,
-> `_mail_get_companies`, `_partner_find_from_emails`, `_partner_find_from_emails_single`),
+> `_mail_get_companies`, `_partner_get_or_create_from_emails`, `_partner_get_or_create_from_emails_single`),
 > reply-to (`_notify_get_reply_to`), and low-level tracking (`_mail_track`) live on the `base`
 > inherit so **every** model has them. `mixin.mail.thread.cc` overrides
 > `_message_get_suggested_recipients_sources`.
@@ -218,9 +218,9 @@ The canonical messaging surface. Grouped by concern.
 > mutates in place and returns None. **An override written against an old name is silently
 > inert**, which is the failure mode a rename has and no gate catches.
 >
-> **Note:** the gateway *user* finders `_mail_find_partner_from_emails` and
-> `_mail_find_user_for_gateway` are on **`mixin_mail_thread.py`**, not `base.py` — they are
-> gateway-specific, not needed on every model. `_partner_find_from_emails` is **not** one of
+> **Note:** the gateway *user* resolvers `_mail_get_or_create_partner_from_emails` and
+> `_mail_get_user_for_gateway` are on **`mixin_mail_thread.py`**, not `base.py` — they are
+> gateway-specific, not needed on every model. `_partner_get_or_create_from_emails` is **not** one of
 > them: it is on `base.py`, and `mixin_mail_thread.py` reaches it through the MRO.
 
 **`mixin.mail.thread` fields injected into the document**: `message_is_follower`,

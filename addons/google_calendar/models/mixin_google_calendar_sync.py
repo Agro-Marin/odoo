@@ -462,9 +462,9 @@ class MixinGoogleCalendarSync(models.AbstractModel):
         normalized_emails = [
             email_normalize(contact) for contact in emails if email_normalize(contact)
         ]
-        partners = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
-            normalized_emails
-        )
+        partners = self.env[
+            "mixin.mail.thread"
+        ]._partner_get_or_create_from_emails_single(normalized_emails)
         # partners needs to be sorted according to the emails order provided by google
         k = {value: idx for idx, value in enumerate(emails)}
         return partners.sorted(key=lambda p: k.get(p.email_normalized, -1))

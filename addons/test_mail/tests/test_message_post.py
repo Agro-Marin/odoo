@@ -924,7 +924,7 @@ class TestMessageLog(TestMessagePostCommon):
     def test_message_log_batch_author_from_email(self):
         """Giving 'email_from' without 'author_id' on more than one record used
         to raise "Expected singleton": _message_compute_author falls through to
-        _partner_find_from_emails_single, which is check_singleton()'d. The batch API
+        _partner_get_or_create_from_emails_single, which is check_singleton()'d. The batch API
         documents batch support and guards its other multi-record hazards
         explicitly, so this one was an oversight."""
         test_records = self.test_records.with_env(self.env)
@@ -2290,7 +2290,7 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
     def test_message_post_batch_with_an_email_from_and_no_author(self):
         """`_message_post_batch` resolved the default author on the whole batch;
         with an `email_from` and no `author_id` that reaches
-        `_partner_find_from_emails_single`, which refuses a non-singleton. The
+        `_partner_get_or_create_from_emails_single`, which refuses a non-singleton. The
         default author is resolved once, as `_message_log_batch` and
         `_message_notify_batch` already did."""
         records = self.env["mail.test.simple"].create([{"name": "S1"}, {"name": "S2"}])

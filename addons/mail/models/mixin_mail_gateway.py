@@ -386,7 +386,7 @@ class MixinMailGateway(models.AbstractModel):
         message_id = message_dict["message_id"]
         owner = alias._alias_get_document("owner") if not thread_id else None
         if not message_dict.get("author_id"):
-            self._routing_find_author(
+            self._routing_get_author(
                 message_dict, self._routing_link_document(record_set, owner)
             )
 
@@ -422,7 +422,7 @@ class MixinMailGateway(models.AbstractModel):
         return self.env["mixin.mail.thread"]
 
     @api.model
-    def _routing_find_author(
+    def _routing_get_author(
         self, message_dict: dict, link_doc: models.BaseModel
     ) -> ResPartner:
         email_from = message_dict.get("email_from")
@@ -431,7 +431,7 @@ class MixinMailGateway(models.AbstractModel):
         cache = message_dict.setdefault("author_lookups", {})
         key = (link_doc._name, link_doc.id)
         if key not in cache:
-            found = link_doc._partner_find_from_emails_single(
+            found = link_doc._partner_get_or_create_from_emails_single(
                 [email_from], no_create=True
             )
             cache[key] = found.id if found else False
@@ -648,7 +648,7 @@ class MixinMailGateway(models.AbstractModel):
         return False
 
     @api.model
-    def _routing_filter_local_aliases(
+    def _routing_filtered_local_aliases(
         self, aliases: MailAlias, rcpt_tos_valid_list: list[str]
     ) -> MailAlias:
         addressed = frozenset(rcpt_tos_valid_list)
@@ -763,7 +763,7 @@ class MixinMailGateway(models.AbstractModel):
         return local_parts
 
     @api.model
-    def _mail_find_referenced_message(self, message_dict: dict) -> MailMessage:
+    def _mail_get_referenced_message(self, message_dict: dict) -> MailMessage:
         MailMessage_ = self.env["mail.message"].sudo()
         if "referenced_message_id" in message_dict:
             return MailMessage_.browse(message_dict["referenced_message_id"] or ())
@@ -798,7 +798,7 @@ class MixinMailGateway(models.AbstractModel):
 
     @api.model
     def _routing_get_replied_message(self, message_dict: dict) -> MailMessage:
-        return self._mail_find_referenced_message(message_dict)
+        return self._mail_get_referenced_message(message_dict)
 
     @api.model
     def _routing_get_other_model_aliases(
@@ -821,7 +821,7 @@ class MixinMailGateway(models.AbstractModel):
         )
 
     @api.model
-    def _routing_filter_alias_recipients(
+    def _routing_get_alias_recipients(
         self, emails: list[str], aliases: MailAlias
     ) -> list[str]:
         full_names = frozenset(aliases.mapped("alias_full_name"))
@@ -912,7 +912,7 @@ class MixinMailGateway(models.AbstractModel):
         unusable = None
         for alias in dest_aliases:
             user_id = (
-                self._mail_find_user_for_gateway(email_from, alias=alias).id
+                self._mail_get_user_for_gateway(email_from, alias=alias).id
                 or self.env.uid
             )
             try:
@@ -982,7 +982,7 @@ class MixinMailGateway(models.AbstractModel):
             )
             if other_model_aliases:
                 is_a_reply, reply_model, reply_thread_id = False, False, False
-                rcpt_tos_valid = self._routing_filter_alias_recipients(
+                rcpt_tos_valid = self._routing_get_alias_recipients(
                     rcpt_tos_valid, other_model_aliases
                 )
 
@@ -1011,7 +1011,7 @@ class MixinMailGateway(models.AbstractModel):
             recipients.rcpt_tos_localparts,
         )
         user_id = (
-            self._mail_find_user_for_gateway(email_from, alias=dest_aliases).id
+            self._mail_get_user_for_gateway(email_from, alias=dest_aliases).id
             or self.env.uid
         )
         route = self._routing_check_route(
@@ -1064,7 +1064,7 @@ class MixinMailGateway(models.AbstractModel):
             ],
             order="id",
         )
-        dest_aliases = self._routing_filter_local_aliases(
+        dest_aliases = self._routing_filtered_local_aliases(
             dest_aliases, recipients.rcpt_tos_valid
         )
         if dest_aliases:
@@ -1084,7 +1084,7 @@ class MixinMailGateway(models.AbstractModel):
         email_from: str,
     ) -> list[Route] | None:
         message_dict.pop("parent_id", None)
-        user_id = self._mail_find_user_for_gateway(email_from).id or self.env.uid
+        user_id = self._mail_get_user_for_gateway(email_from).id or self.env.uid
         route = self._routing_dispatch_check_route(
             message,
             message_dict,
@@ -1667,13 +1667,15 @@ class MixinMailGateway(models.AbstractModel):
                 None if record_set or not alias else alias._alias_get_document("owner"),
             )
             if not values.get("author_id"):
-                author = self._routing_find_author(message_dict, link_doc)
+                author = self._routing_get_author(message_dict, link_doc)
                 if author:
                     values["author_id"] = author.id
             if not values.get("partner_ids") and message_dict["recipients"]:
-                values["partner_ids"] = link_doc._partner_find_from_emails_single(
-                    email_split(message_dict["recipients"]), no_create=True
-                ).ids
+                values["partner_ids"] = (
+                    link_doc._partner_get_or_create_from_emails_single(
+                        email_split(message_dict["recipients"]), no_create=True
+                    ).ids
+                )
         return values
 
     def _get_bounced_message_data(
@@ -1712,9 +1714,9 @@ class MixinMailGateway(models.AbstractModel):
         return self.env["mail.message"], reference_ids
 
     def _get_parent_message(self, msg_dict: dict) -> MailMessage | None:
-        return self._mail_find_referenced_message(msg_dict) or None
+        return self._mail_get_referenced_message(msg_dict) or None
 
-    def _mail_find_user_for_gateway(
+    def _mail_get_user_for_gateway(
         self, email_value: str, alias: MailAlias | None = None
     ) -> ResUsers:
         normalized_email = email_normalize(email_value)
@@ -1728,7 +1730,7 @@ class MixinMailGateway(models.AbstractModel):
             else self.env["mixin.mail.thread"].sudo()
         )
 
-        partner = record_su._partner_find_from_emails_single(
+        partner = record_su._partner_get_or_create_from_emails_single(
             [email_value], filter_found=lambda p: p.user_ids, no_create=True
         )
         return partner.main_user_id

@@ -208,7 +208,7 @@ class ThreadController(http.Controller):
         thread = model._get_thread_with_access(record_id, mode="read")
         if record_id and not thread:
             raise NotFound
-        partners = (thread or model)._partner_find_from_emails_single(
+        partners = (thread or model)._partner_get_or_create_from_emails_single(
             emails,
             no_create=not request.env.user.has_group("base.group_partner_manager"),
         )
@@ -318,7 +318,7 @@ class ThreadController(http.Controller):
                 raise NotFound
             if len(partner_emails) > MAX_EMAILS_PER_REQUEST:
                 raise NotFound
-            partners |= thread._partner_find_from_emails_single(
+            partners |= thread._partner_get_or_create_from_emails_single(
                 partner_emails,
                 no_create=not request.env.user.has_group("base.group_partner_manager"),
             )

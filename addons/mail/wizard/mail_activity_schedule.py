@@ -441,7 +441,7 @@ class MailActivitySchedule(models.TransientModel):
         if not self.res_model:
             raise UserError(_("Plan-based scheduling is available only on documents."))
         applied_on = self._get_applied_on_records()
-        templates = self._plan_filter_activity_templates_to_schedule()
+        templates = self._plan_filtered_activity_templates_to_schedule()
 
         descriptions = defaultdict(list)
         record_ids_by_group = defaultdict(list)
@@ -578,7 +578,7 @@ class MailActivitySchedule(models.TransientModel):
             ]
         )
 
-    def _plan_filter_activity_templates_to_schedule(self) -> MailActivityPlanTemplate:
+    def _plan_filtered_activity_templates_to_schedule(self) -> MailActivityPlanTemplate:
         return self.plan_id.template_ids
 
     @api.onchange("activity_user_id", "activity_type_id")

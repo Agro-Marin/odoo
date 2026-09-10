@@ -373,10 +373,12 @@ class HrApplicant(models.Model):
                     raise UserError(
                         _("You must define a Contact Name for this applicant.")
                     )
-                applicant.partner_id = applicant._partner_find_from_emails_single(
-                    [applicant.email_from],
-                    no_create=False,
-                    additional_values={email_normalized: {"lang": self.env.lang}},
+                applicant.partner_id = (
+                    applicant._partner_get_or_create_from_emails_single(
+                        [applicant.email_from],
+                        no_create=False,
+                        additional_values={email_normalized: {"lang": self.env.lang}},
+                    )
                 )
             if (
                 applicant.partner_name

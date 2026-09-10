@@ -535,10 +535,10 @@ assert_eq "ir_binary not imported in models/discuss/__init__.py" \
     "$(grep -c 'ir_binary' "$MAIL/models/discuss/__init__.py")" "0"
 
 # Gateway partner/user finders are on mail_thread.py, not base.py.
-assert_eq "_mail_find_user_for_gateway is on mixin_mail_gateway.py" \
-    "$(grep -c 'def _mail_find_user_for_gateway' "$MAIL/models/mixin_mail_gateway.py")" "1"
-assert_eq "_mail_find_user_for_gateway is NOT on base.py" \
-    "$(grep -c 'def _mail_find_user_for_gateway' "$MAIL/models/base.py")" "0"
+assert_eq "_mail_get_user_for_gateway is on mixin_mail_gateway.py" \
+    "$(grep -c 'def _mail_get_user_for_gateway' "$MAIL/models/mixin_mail_gateway.py")" "1"
+assert_eq "_mail_get_user_for_gateway is NOT on base.py" \
+    "$(grep -c 'def _mail_get_user_for_gateway' "$MAIL/models/base.py")" "0"
 
 # mail.thread class-level knob defaults.
 assert_eq "_mail_flat_thread default is True" \
@@ -719,15 +719,15 @@ assert_eq "mixin.mail.thread.cc overrides the _sources hook, not the _add_ one" 
 assert_eq "no doc names _message_add_suggested_recipients as the hook" \
     "$(grep -c 'overrides `_message_add_suggested_recipients`' "$DOC"/*.md | grep -vc ':0')" "0"
 
-# _partner_find_from_emails is on base.py. MODEL_MAP.md asserted the opposite in prose --
+# _partner_get_or_create_from_emails is on base.py. MODEL_MAP.md asserted the opposite in prose --
 # "on mail_thread.py, not base.py" -- while CONVENTIONS.md had it right, so the two docs
 # contradicted each other and nothing caught it. Pin the location and both docs.
-assert_eq "_partner_find_from_emails is on base.py" \
-    "$(grep -cE 'def _partner_find_from_emails\(' "$MAIL/models/base.py")" "1"
-assert_eq "_partner_find_from_emails is NOT on mixin_mail_thread.py" \
-    "$(grep -cE 'def _partner_find_from_emails\(' "$MAIL/models/mixin_mail_thread.py")" "0"
-assert_eq "no doc claims _partner_find_from_emails lives on the thread mixin" \
-    "$(grep -c 'finders `_partner_find_from_emails`' "$DOC"/*.md | grep -vc ':0')" "0"
+assert_eq "_partner_get_or_create_from_emails is on base.py" \
+    "$(grep -cE 'def _partner_get_or_create_from_emails\(' "$MAIL/models/base.py")" "1"
+assert_eq "_partner_get_or_create_from_emails is NOT on mixin_mail_thread.py" \
+    "$(grep -cE 'def _partner_get_or_create_from_emails\(' "$MAIL/models/mixin_mail_thread.py")" "0"
+assert_eq "no doc claims _partner_get_or_create_from_emails lives on the thread mixin" \
+    "$(grep -c 'finders `_partner_get_or_create_from_emails`' "$DOC"/*.md | grep -vc ':0')" "0"
 
 # mail.followers: _insert_followers -> _add_followers, and the OLD _add_followers (which
 # returned payloads) -> _prepare_followers_vals. The name _add_followers therefore exists on

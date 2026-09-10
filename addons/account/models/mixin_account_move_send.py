@@ -261,7 +261,7 @@ class MixinAccountMoveSend(models.AbstractModel):
             else:
                 email_to = ""
 
-        partners |= move._partner_find_from_emails_single(
+        partners |= move._partner_get_or_create_from_emails_single(
             tools.email_split(email_cc or "") + tools.email_split(email_to or ""),
             no_create=False,
         )

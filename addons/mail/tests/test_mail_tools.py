@@ -85,10 +85,10 @@ class TestMailTools(MailCommon):
         ]
         for source, expected_partner in zip(sources, expected_partners, strict=False):
             with self.subTest(source=source):
-                found = Partner._mail_find_partner_from_emails([source])
+                found = Partner._mail_get_or_create_partner_from_emails([source])
                 self.assertEqual(found, [expected_partner])
 
-        found = Partner._mail_find_partner_from_emails(
+        found = Partner._mail_get_or_create_partner_from_emails(
             ["alfred_astaire@test.example.com"]
         )
         self.assertEqual(found, [self.env["res.partner"]])
@@ -107,10 +107,10 @@ class TestMailTools(MailCommon):
         ]
         for source, expected_partner in zip(sources, expected_partners, strict=False):
             with self.subTest(source=source):
-                found = Partner._mail_find_partner_from_emails([source])
+                found = Partner._mail_get_or_create_partner_from_emails([source])
                 self.assertEqual(found, [expected_partner])
 
-        found = Partner._mail_find_partner_from_emails(
+        found = Partner._mail_get_or_create_partner_from_emails(
             ["alfred_astaire@test.example.com"]
         )
         self.assertEqual(found, [self.env["res.partner"]])
@@ -125,18 +125,20 @@ class TestMailTools(MailCommon):
         record.message_subscribe(partner_ids=self.test_partner.ids)
 
         self.assertEqual(
-            record._partner_find_from_emails_single([self._test_email], no_create=True),
+            record._partner_get_or_create_from_emails_single(
+                [self._test_email], no_create=True
+            ),
             Partner,
             "an archived sender is not recognised when nothing may be created",
         )
         with RecordCapturer(Partner, []) as capture:
-            found = record._partner_find_from_emails_single([self._test_email])
+            found = record._partner_get_or_create_from_emails_single([self._test_email])
         self.assertEqual(found, self.test_partner, "returned rather than duplicated")
         self.assertFalse(capture.records)
 
         active = Partner.create({"name": "Active Twin", "email": self._test_email})
         self.assertEqual(
-            record._partner_find_from_emails_single([self._test_email]),
+            record._partner_get_or_create_from_emails_single([self._test_email]),
             active,
             "an active partner beats an archived one even when that one follows",
         )
@@ -153,7 +155,7 @@ class TestMailTools(MailCommon):
             ]
         )
 
-        found = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
+        found = self.env["mixin.mail.thread"]._partner_get_or_create_from_emails_single(
             ["test_localpart@gmail.com"], no_create=False
         )
         self.assertFalse(
@@ -182,7 +184,9 @@ class TestMailTools(MailCommon):
             ),
         ]:
             with self.subTest(check="Allowed domain support", test_email=test_email):
-                found = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
+                found = self.env[
+                    "mixin.mail.thread"
+                ]._partner_get_or_create_from_emails_single(
                     [test_email], no_create=False
                 )
                 if not done:
@@ -195,7 +199,7 @@ class TestMailTools(MailCommon):
                     self.assertEqual(found.email_normalized, email_normalized)
                     self.assertEqual(found.name, "Customer")
 
-        found = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
+        found = self.env["mixin.mail.thread"]._partner_get_or_create_from_emails_single(
             ['"Customer" <test_no_localpart@gmail.com>'], no_create=False
         )
         self.assertTrue(found, "Should have created a partner")
@@ -209,7 +213,7 @@ class TestMailTools(MailCommon):
             '"Customer" <test_localpart@brutijus.fr.com>',
         ]
 
-        found = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
+        found = self.env["mixin.mail.thread"]._partner_get_or_create_from_emails_single(
             test_list, no_create=False
         )
         self.assertEqual(
@@ -245,7 +249,9 @@ class TestMailTools(MailCommon):
         for source, follower_check in cases:
             expected_partner = follower_partner if follower_check else test_partner
             with self.subTest(source=source, follower_check=follower_check):
-                partner = self.env["res.partner"]._mail_find_partner_from_emails(
+                partner = self.env[
+                    "res.partner"
+                ]._mail_get_or_create_partner_from_emails(
                     [source], records=linked_record if follower_check else None
                 )[0]
                 self.assertEqual(partner, expected_partner)
@@ -268,7 +274,9 @@ class TestMailTools(MailCommon):
         for source, follower_check in cases:
             expected_partner = follower_partner if follower_check else test_partner
             with self.subTest(source=source, follower_check=follower_check):
-                partner = self.env["res.partner"]._mail_find_partner_from_emails(
+                partner = self.env[
+                    "res.partner"
+                ]._mail_get_or_create_partner_from_emails(
                     [source], records=linked_record if follower_check else None
                 )[0]
                 self.assertEqual(
@@ -309,7 +317,9 @@ class TestMailTools(MailCommon):
         ]
         for source, follower_check, expected_partner in cases:
             with self.subTest(source=source, follower_check=follower_check):
-                partner = self.env["res.partner"]._mail_find_partner_from_emails(
+                partner = self.env[
+                    "res.partner"
+                ]._mail_get_or_create_partner_from_emails(
                     [source], records=linked_record if follower_check else None
                 )[0]
                 self.assertEqual(
@@ -324,7 +334,7 @@ class TestMailTools(MailCommon):
                 % self.env.user.partner_id.email_normalized
             }
         )
-        found = self.env["res.partner"]._mail_find_partner_from_emails(
+        found = self.env["res.partner"]._mail_get_or_create_partner_from_emails(
             [self.env.user.partner_id.email_formatted]
         )
         self.assertEqual(found, [self.env.user.partner_id])
@@ -365,7 +375,7 @@ class TestMailTools(MailCommon):
         ]
         for record, (expected, msg) in zip(records, expected_partners, strict=False):
             with self.subTest(record=record.name if record else "NoRecord"):
-                found = Partner._mail_find_partner_from_emails(
+                found = Partner._mail_get_or_create_partner_from_emails(
                     [self._test_email], records=record
                 )
                 self.assertEqual(

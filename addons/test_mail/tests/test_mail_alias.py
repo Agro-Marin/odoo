@@ -2017,7 +2017,7 @@ class TestMailAliasDanglingDocument(TestMailAliasCommon):
         *stored* field with `MissingError`. That is the whole difference between the
         three call sites that broke -- all of which read `display_name` or a stored
         `company_id` off the browsed document -- and the gateway's, which happen to
-        read `message_partner_ids` and go through `_partner_find_from_emails_single`.
+        read `message_partner_ids` and go through `_partner_get_or_create_from_emails_single`.
         The gateway is safe by accident, not by design, so pin the boundary: if this
         stops holding, `mixin_mail_thread`'s three bare browses become the next bug.
         """
@@ -2025,7 +2025,7 @@ class TestMailAliasDanglingDocument(TestMailAliasCommon):
         self.assertTrue(gone, "a browse of a missing id is still truthy")
         self.assertFalse(gone.message_partner_ids)
         self.assertFalse(
-            gone._partner_find_from_emails_single(["x@y.com"], no_create=True)
+            gone._partner_get_or_create_from_emails_single(["x@y.com"], no_create=True)
         )
         with self.assertRaises(exceptions.MissingError):
             gone.name  # reading a *stored* field is what raises

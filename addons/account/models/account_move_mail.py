@@ -80,7 +80,7 @@ class AccountMove(models.Model):
             )
 
         from_mail_addresses = email_split(msg_dict.get("from", ""))
-        partners = self._partner_find_from_emails_single(
+        partners = self._partner_get_or_create_from_emails_single(
             from_mail_addresses, filter_found=filter_found, no_create=True
         )
         if (
@@ -90,7 +90,7 @@ class AccountMove(models.Model):
                 body_mail_addresses := set(email_re.findall(msg_dict.get("body") or ""))
             )
         ):
-            partners = self._partner_find_from_emails_single(
+            partners = self._partner_get_or_create_from_emails_single(
                 body_mail_addresses, filter_found=filter_found, no_create=True
             )
 

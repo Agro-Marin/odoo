@@ -646,7 +646,7 @@ class Base(models.AbstractModel):
             suggested, followers_by_record, partner_ids, email_keys
         )
         ban_emails = self._mail_get_banned_emails(all_emails)
-        records_partners = self._partner_find_from_emails(
+        records_partners = self._partner_get_or_create_from_emails(
             records_emails,
             avoid_alias=False,
             ban_emails=list(ban_emails),
@@ -799,7 +799,7 @@ class Base(models.AbstractModel):
             )
         return keys
 
-    def _partner_find_from_emails_single(
+    def _partner_get_or_create_from_emails_single(
         self,
         emails: list[str],
         avoid_alias: bool = True,
@@ -811,7 +811,7 @@ class Base(models.AbstractModel):
     ) -> ResPartner:
         if self:
             self.check_singleton()
-        return self._partner_find_from_emails(
+        return self._partner_get_or_create_from_emails(
             {self: emails},
             avoid_alias=avoid_alias,
             ban_emails=ban_emails,
@@ -821,25 +821,25 @@ class Base(models.AbstractModel):
             no_create=no_create,
         )[self.id]
 
-    def _partner_find_from_emails_records(
+    def _partner_get_or_create_from_emails_records(
         self, records_emails: dict[models.BaseModel, list[str]]
     ) -> models.BaseModel:
         keys = list(records_emails)
         record_models = {record._name for record in keys}
         if len(record_models) > 1:
             raise ValueError(
-                f"_partner_find_from_emails takes records of a single model, "
+                f"_partner_get_or_create_from_emails takes records of a single model, "
                 f"got {sorted(record_models)}"
             )
         records = keys[0].union(*keys[1:]) if keys else self.browse()
         if self and set(self._ids) != set(records._ids):
             raise ValueError(
-                f"_partner_find_from_emails: self must be empty or exactly the "
+                f"_partner_get_or_create_from_emails: self must be empty or exactly the "
                 f"records of records_emails, got {self} against {records}"
             )
         return records
 
-    def _partner_find_from_emails_values(
+    def _partner_get_or_create_from_emails_values(
         self,
         additional_values: dict[str, dict] | None = None,
         customer_information: dict[str, dict] | None = None,
@@ -856,7 +856,7 @@ class Base(models.AbstractModel):
             values.setdefault(email_comparison_key(key), {}).update(update)
         return values
 
-    def _partner_find_from_emails_sort_key(
+    def _partner_get_or_create_from_emails_sort_key(
         self, emails_key_company_id: dict[str, int | Literal[False]]
     ) -> Callable[[ResPartner], tuple[bool, ...]]:
         follower_ids = {
@@ -879,7 +879,7 @@ class Base(models.AbstractModel):
 
         return sort_key
 
-    def _partner_find_from_emails(
+    def _partner_get_or_create_from_emails(
         self,
         records_emails: dict[models.BaseModel, list[str]],
         avoid_alias: bool = True,
@@ -889,7 +889,7 @@ class Base(models.AbstractModel):
         customer_information: dict[str, dict] | None = None,
         no_create: bool = False,
     ) -> dict[int | Literal[False], ResPartner]:
-        records = self._partner_find_from_emails_records(records_emails)
+        records = self._partner_get_or_create_from_emails_records(records_emails)
         res_ids = list(records._ids) or [record.id for record in records_emails]
         found_results = dict.fromkeys(res_ids, self.env["res.partner"])
         emails_all = []
@@ -898,7 +898,7 @@ class Base(models.AbstractModel):
         emails_key_res_ids = defaultdict(list)
 
         records_company = records.sudo()._mail_get_companies()
-        emails_normalized_info = records._partner_find_from_emails_values(
+        emails_normalized_info = records._partner_get_or_create_from_emails_values(
             additional_values=additional_values,
             customer_information=customer_information,
         )
@@ -928,7 +928,9 @@ class Base(models.AbstractModel):
             else []
         )
         ban_emails = (ban_emails or []) + alias_emails
-        sort_key = records._partner_find_from_emails_sort_key(emails_key_company_id)
+        sort_key = records._partner_get_or_create_from_emails_sort_key(
+            emails_key_company_id
+        )
 
         Partner = self.env["res.partner"]
         partners = Partner._get_or_create_from_emails(

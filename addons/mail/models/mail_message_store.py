@@ -269,7 +269,7 @@ class MailMessage(models.Model):
                 self.sudo().tracking_value_ids._filtered_has_field_access(self.env)
             )
             if record and isinstance(record, self.pool["mixin.mail.thread"]):
-                displayed_tracking_ids = record._track_filter_for_display(
+                displayed_tracking_ids = record._track_filtered_for_display(
                     displayed_tracking_ids
                 )
             data["trackingValues"] = displayed_tracking_ids._tracking_value_format()

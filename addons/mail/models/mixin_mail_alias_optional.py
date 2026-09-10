@@ -64,7 +64,7 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
                     .with_prefetch(company_prefetch_ids)
                     .browse(company_id)
                 )
-                alias_vals, record_vals = self._alias_filter_fields(vals)
+                alias_vals, record_vals = self._alias_split_values(vals)
                 creation_vals = (
                     self.env[self._name]
                     .with_context(
@@ -128,7 +128,7 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
                 ):
                     record.alias_id = alias.id
 
-        alias_vals, record_vals = self._alias_filter_fields(
+        alias_vals, record_vals = self._alias_split_values(
             vals, filters=self.ALIAS_WRITEABLE_FIELDS
         )
         if record_vals:
@@ -195,7 +195,7 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
             values["alias_domain_id"] = self.env.context["default_alias_domain_id"]
         return values
 
-    def _alias_filter_fields(
+    def _alias_split_values(
         self, values: dict, filters: Collection[str] | Literal[False] = False
     ) -> tuple:
         if not filters:
