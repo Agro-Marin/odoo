@@ -1,4 +1,4 @@
-import { expect, test } from "@odoo/hoot";
+import { beforeEach, expect, test } from "@odoo/hoot";
 import { addGlobalFilter } from "@spreadsheet/../tests/helpers/commands";
 import { defineSpreadsheetModels } from "@spreadsheet/../tests/helpers/data";
 import { THIS_YEAR_GLOBAL_FILTER } from "@spreadsheet/../tests/helpers/global_filter";
@@ -10,12 +10,16 @@ import { contains, mockService } from "@web/../tests/web_test_helpers";
 defineSpreadsheetModels();
 
 let data;
-mockService("http", {
-    get: (route, params) => {
-        if (route === "dashboardDataUrl") {
-            return data;
-        }
-    },
+// Inside the hook, not at module scope: a module-scope mock is the last
+// imported file's for every suite in the bundle.
+beforeEach(() => {
+    mockService("http", {
+        get: (route, params) => {
+            if (route === "dashboardDataUrl") {
+                return data;
+            }
+        },
+    });
 });
 
 test("show spreadsheet in readonly mode", async function () {

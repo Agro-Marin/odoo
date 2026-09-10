@@ -32,6 +32,33 @@ class TestReported:
         assert [f.binding for f in found] == ["PosConfig"]
         assert found[0].shape == "_records at module scope"
 
+    def test_a_service_mocked_at_module_scope_is_every_suites(self, tmp_path):
+        # No foreign import needed: the mock is not bound to a model, it is
+        # bound to the bundle. sign's fifteen reds were five of these.
+        write(
+            tmp_path,
+            "sign",
+            "refusal.test.js",
+            'import { mockService } from "@web/../tests/web_test_helpers";\n'
+            'mockService("signInfo", { get: () => 23 });\n',
+        )
+        found = gate.measure([tmp_path])
+        assert [(f.binding, f.shape) for f in found] == [
+            ("signInfo", "mockService() at module scope")
+        ]
+
+    def test_a_service_mocked_inside_a_hook_is_that_suites_alone(self, tmp_path):
+        write(
+            tmp_path,
+            "sign",
+            "refusal.test.js",
+            'import { mockService } from "@web/../tests/web_test_helpers";\n'
+            "beforeEach(() => {\n"
+            '    mockService("signInfo", { get: () => 23 });\n'
+            "});\n",
+        )
+        assert gate.measure([tmp_path]) == []
+
     def test_push_and_splice_are_the_same_mutation(self, tmp_path):
         write(
             tmp_path,

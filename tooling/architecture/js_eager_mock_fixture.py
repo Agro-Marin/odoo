@@ -20,6 +20,12 @@ RECORDS_MUTATION = re.compile(
     r"^(?P<name>[A-Za-z_$][\w$]*)\._records\s*(?:=[^=]|\.push\b|\.splice\b)",
     re.MULTILINE,
 )
+# A service mocked at module scope is not bound to an import: hoot imports
+# every test file at collection, so the last file's mock is every suite's.
+# sign's fifteen reds were this shape, over one service, across five files.
+MODULE_SCOPE_MOCK_SERVICE = re.compile(
+    r"""^mockService\(\s*["'](?P<name>[^"']+)["']""", re.MULTILINE
+)
 PATCH_BINDING = re.compile(
     r"^patch\(\s*(?P<name>[A-Za-z_$][\w$]*)\s*,\s*\[", re.MULTILINE
 )
@@ -72,14 +78,21 @@ def measure(roots: list[Path]) -> list[Finding]:
                 continue
             scanned += 1
             text = path.read_text(encoding="utf-8", errors="replace")
-            foreign = foreign_bindings(text, addon)
-            if not foreign:
-                continue
             rel = (
                 path.relative_to(ROOT).as_posix()
                 if path.is_relative_to(ROOT)
                 else path.as_posix()
             )
+            for match in MODULE_SCOPE_MOCK_SERVICE.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                found.append(
+                    Finding(
+                        rel, line, match.group("name"), "mockService() at module scope"
+                    )
+                )
+            foreign = foreign_bindings(text, addon)
+            if not foreign:
+                continue
             for regex, shape in (
                 (RECORDS_MUTATION, "_records at module scope"),
                 (PATCH_BINDING, "patch() of the imported binding itself"),
