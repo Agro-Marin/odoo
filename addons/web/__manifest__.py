@@ -530,6 +530,9 @@ This module provides the core of the Odoo Web Client.
             "web.assets_clickbot",
             "web.assets_emoji",
         ],
+        "exports": [
+            "@web/webclient/clickbot/clickbot_loader",
+        ],
         "dynamic_children": {
             "web.assets_web": [
                 "web.assets_clickbot",

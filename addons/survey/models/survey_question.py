@@ -752,9 +752,16 @@ class SurveyQuestion(models.Model):
         if self.question_type in self._MAPPING_ANSWER_TYPES:
             return isinstance(answer, dict)
         if self.question_type in ("simple_choice", "dropdown", "multiple_choice"):
+            # The form submits a comment as one `{"comment": text}` item among
+            # the chosen answer ids; the controller lifts it out afterwards.
             candidates = answer if isinstance(answer, list) else [answer]
             return all(
-                isinstance(item, str | int) and not isinstance(item, bool)
+                (isinstance(item, str | int) and not isinstance(item, bool))
+                or (
+                    isinstance(item, dict)
+                    and set(item) == {"comment"}
+                    and isinstance(item["comment"], str)
+                )
                 for item in candidates
             )
         return True

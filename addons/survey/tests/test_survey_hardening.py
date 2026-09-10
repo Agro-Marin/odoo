@@ -477,6 +477,52 @@ class TestAnswerPayloadShapes(common.TestSurveyCommon):
                         question._check_answer(extracted, comment), dict
                     )
 
+    def test_a_choice_with_a_comment_is_the_forms_own_shape(self):
+        # survey_form.js submits `[answer_id, {"comment": text}]` for a choice
+        # question that allows comments; refusing the dict refused the form
+        # itself, and the feedback tour died on its last page.
+        from odoo.addons.survey.controllers.main import Survey
+
+        controller = Survey()
+        survey = self.env["survey.survey"].create(
+            {
+                "title": "Choice with comment",
+                "access_mode": "public",
+                "questions_layout": "one_page",
+                "question_and_page_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "title": "Q",
+                            "question_type": "multiple_choice",
+                            "comments_allowed": True,
+                            "suggested_answer_ids": [
+                                (0, 0, {"value": "A"}),
+                                (0, 0, {"value": "B"}),
+                            ],
+                        },
+                    )
+                ],
+            }
+        )
+        question = survey.question_ids[0]
+        ids = question.suggested_answer_ids.ids
+        payload = [str(ids[0]), str(ids[1]), {"comment": " why not "}]
+        self.assertTrue(question._is_well_shaped_answer(payload))
+        extracted, comment = controller._extract_comment_from_answers(question, payload)
+        self.assertEqual(extracted, [str(ids[0]), str(ids[1])])
+        self.assertEqual(comment, "why not")
+        self.assertEqual(question._check_answer(extracted, comment), {})
+        self.assertFalse(
+            question._is_well_shaped_answer([str(ids[0]), {"comment": 1}]),
+            "a comment is text",
+        )
+        self.assertFalse(
+            question._is_well_shaped_answer([str(ids[0]), {"other": "x"}]),
+            "only the comment key travels this way",
+        )
+
     def test_a_wrong_shape_is_refused_rather_than_accepted(self):
         survey = self.env["survey.survey"].create(
             {

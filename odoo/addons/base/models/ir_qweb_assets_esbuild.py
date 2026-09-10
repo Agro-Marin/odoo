@@ -245,24 +245,34 @@ class IrQweb(models.AbstractModel):
                 )
             )
 
+        # A consumer is declared under a bundle NAME, and the name it is
+        # declared under need not be the bundle that serves the page:
+        # `web.assets_frontend` is a logical parent that pages load as
+        # `web.assets_frontend_minimal` plus `web.assets_frontend_lazy`, and
+        # survey declares its secondary bundles under the logical one. So a
+        # consumer of any bundle whose modules this bundle carries is a
+        # consumer of this bundle -- otherwise `@web/core/browser/cookie`, a
+        # member of the minimal bundle alone, was registered by nobody and the
+        # survey form's bridge read `undefined` for it.
+        member_paths = {asset.module_path for asset in asset_bundle.native_modules}
         for mapping in (
             registry.secondary_import_map_includes,
             registry.import_map_includes,
+            registry.dynamic_children,
         ):
-            for name in mapping.get(bundle, ()):
-                add_consumer(name)
-        member_paths = {asset.module_path for asset in asset_bundle.native_modules}
-        for parent, children in registry.dynamic_children.items():
-            if parent == bundle or parent.partition(".")[0] not in installed:
-                continue
-            if not any(c.partition(".")[0] in installed for c in children):
-                continue
-            parent_specs = set(
-                self._get_native_module_data_cached(
-                    parent, assets_params=assets_params
-                )["import_map"]
-            )
-            if member_paths <= parent_specs:
+            for parent, children in mapping.items():
+                if parent.partition(".")[0] not in installed:
+                    continue
+                if not any(c.partition(".")[0] in installed for c in children):
+                    continue
+                if parent != bundle:
+                    parent_specs = set(
+                        self._get_native_module_data_cached(
+                            parent, assets_params=assets_params
+                        )["import_map"]
+                    )
+                    if not member_paths <= parent_specs:
+                        continue
                 for name in children:
                     add_consumer(name)
         return consumers
@@ -283,6 +293,7 @@ class IrQweb(models.AbstractModel):
             bundle, asset_bundle, assets_params, child_bundles
         )
         exported = {"@web/core/templates", "@web/core/assets"} & members
+        exported.update(esm_registry().exports & members)
         exported.update(_get_specs_imported_by_consumers(consumers, members))
         for source in (
             *asset_bundle.native_modules,

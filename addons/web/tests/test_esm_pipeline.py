@@ -3194,6 +3194,14 @@ class TestPageBundleExportSurface(TransactionCase):
                 f"{child_name} imports a parent module the parent does not register",
             )
 
+    def test_a_declared_export_is_registered_without_a_source_naming_it(self):
+        # test_click_everywhere asks the loader for the clickbot loader by
+        # name from Python; no JavaScript source spells that literal, so the
+        # scan cannot find it and the manifest declares it.
+        _bundle, exported = self._exported()
+        self.assertIn("@web/webclient/clickbot/clickbot_loader", esm_registry().exports)
+        self.assertIn("@web/webclient/clickbot/clickbot_loader", exported)
+
     def test_the_compiled_bundle_registers_exactly_the_surface(self):
         bundle, exported = self._exported()
         code = bundle.esbuild_native_bundle(exported_specs=exported).code
@@ -3205,6 +3213,50 @@ class TestPageBundleExportSurface(TransactionCase):
             if a.module_path not in exported
         )
         self.assertNotIn(f'"{silent}":', code)
+
+
+@tagged("-at_install", "post_install", "web_assets")
+class TestLogicalParentExportSurface(TransactionCase):
+    """`web.assets_frontend` is a logical parent: pages load its members as
+    `web.assets_frontend_minimal` plus `web.assets_frontend_lazy`, while
+    consumers (survey's secondary bundles, web.assets_tests) are declared under
+    the logical name. What a consumer imports from the physical bundle must be
+    registered by that physical bundle."""
+
+    PARENT = "web.assets_frontend"
+    PHYSICAL = ("web.assets_frontend_minimal", "web.assets_frontend_lazy")
+
+    def test_a_consumer_of_the_logical_parent_is_served_by_its_physical_bundles(self):
+        IrQweb = self.env["ir.qweb"]
+        params = self.env["ir.asset"]._prepare_assets_params()
+        installed = self.env["ir.asset"]._get_addons_installed()
+        consumers = [
+            name
+            for name in esm_registry().secondary_import_map_includes.get(
+                self.PARENT, ()
+            )
+            if name.partition(".")[0] in installed
+        ]
+        self.assertTrue(consumers, "fixture: web.assets_tests is declared under it")
+        for physical in self.PHYSICAL:
+            bundle = IrQweb._get_asset_bundle(physical, css=False, js=True)
+            members = {a.module_path for a in bundle.native_modules}
+            children = IrQweb._get_dynamic_child_bundles(
+                physical, params, debug_assets=False
+            )
+            exported = IrQweb._get_exported_specs(physical, bundle, params, children)
+            for name in consumers:
+                consumer = IrQweb._get_asset_bundle(
+                    name, css=False, js=True, debug_assets=True
+                )
+                own = {a.module_path for a in consumer.native_modules}
+                discovered, _ext = consumer._bridges._discover_bridge_specifiers(
+                    own, set(external_libs())
+                )
+                self.assertFalse(
+                    (set(discovered) & members) - exported,
+                    f"{name} imports from {physical} a module it does not register",
+                )
 
 
 @tagged("-at_install", "post_install", "web_assets")

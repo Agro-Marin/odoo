@@ -23,6 +23,7 @@ _ESM_MANIFEST_KEYS = frozenset(
     {
         "bundles",
         "dynamic_children",
+        "exports",
         "external_libs",
         "import_map_includes",
         "runtime_bundles",
@@ -44,6 +45,7 @@ class EsmRegistry(NamedTuple):
     standalone_bundles: frozenset = frozenset()
     external_libs: Mapping = MappingProxyType({})
     runtime_bundle_names: frozenset = frozenset()
+    exports: frozenset = frozenset()
 
 
 _lock = threading.Lock()
@@ -161,6 +163,7 @@ def _freeze_registry(
     standalone_bundles: set,
     runtime_bundles: set,
     external_libs: dict,
+    exports: set | None = None,
 ) -> EsmRegistry:
     return EsmRegistry(
         bundles=frozenset(bundles),
@@ -200,6 +203,7 @@ def _freeze_registry(
         | frozenset(
             child for children in dynamic_children.values() for child in children
         ),
+        exports=frozenset(exports or ()),
     )
 
 
@@ -213,6 +217,10 @@ def _prepare_esm_registry() -> EsmRegistry:
     standalone_bundles: set = set()
     runtime_bundles: set = set()
     external_libs: dict = {}
+    # Modules reached by NAME from outside the bundle graph -- a test's
+    # browser_js code, a tour started from Python -- which no scan of JavaScript
+    # sources can discover. Declared by the module that owns them.
+    exports: set = set()
     external_lib_owner: dict = {}
     declaring_modules = 0
     for manifest in Manifest.all_addon_manifests():
@@ -225,6 +233,13 @@ def _prepare_esm_registry() -> EsmRegistry:
             _bundle_name_list(esm, "standalone_bundles", manifest.name)
         )
         runtime_bundles.update(_bundle_name_list(esm, "runtime_bundles", manifest.name))
+        for spec in _bundle_name_list(esm, "exports", manifest.name):
+            if not isinstance(spec, str) or not spec.startswith("@"):
+                raise ValueError(
+                    f"Module {manifest.name!r}: 'esm.exports' names module "
+                    f"specifiers such as '@web/core/registry', got {spec!r}"
+                )
+            exports.add(spec)
         if "external_libs" in esm:
             _merge_external_libs(
                 external_libs,
@@ -256,6 +271,7 @@ def _prepare_esm_registry() -> EsmRegistry:
         standalone_bundles,
         runtime_bundles,
         external_libs,
+        exports,
     )
     log_event(
         _registry_log,
