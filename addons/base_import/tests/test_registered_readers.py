@@ -1,6 +1,6 @@
 import io
 
-from odoo.libs.documents import ROWS, Document, get_readers, known_readers
+from odoo.libs.documents import ROWS, Document, get_readers, get_known_reader_names
 from odoo.tests import TransactionCase, tagged
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -25,7 +25,7 @@ def _workbook():
 class TestRegisteredSpreadsheetReaders(TransactionCase):
     def test_the_three_are_registered(self):
         for name in ("xlsx", "xls", "ods"):
-            self.assertIn(name, known_readers())
+            self.assertIn(name, get_known_reader_names())
 
     def test_a_workbook_yields_rows_to_any_consumer_of_the_layer(self):
         document = Document(_workbook(), name="book.xlsx")

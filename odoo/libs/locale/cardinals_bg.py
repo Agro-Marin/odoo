@@ -113,7 +113,7 @@ SCALES: Final[dict[int, str]] = {
 BEYOND_NAMING: Final = 10 ** (max(SCALES) + 3)
 
 
-def _teen(unit: int) -> str:
+def _spell_teen(unit: int) -> str:
     if unit == 0:
         return TENS[1]
     if unit == 1:
@@ -129,7 +129,7 @@ def _spell_group(value: int, gender: int, is_final: bool) -> list[str]:
     if hundreds:
         words.append(HUNDREDS[hundreds])
     if tens == 1:
-        words.append(_teen(units))
+        words.append(_spell_teen(units))
     else:
         if tens:
             words.append(TENS[tens])
@@ -144,7 +144,7 @@ def _spell_group(value: int, gender: int, is_final: bool) -> list[str]:
     return words
 
 
-def _scale_words(power: int, count: int) -> list[str]:
+def _spell_scale(power: int, count: int) -> list[str]:
     if power == 3:
         return [THOUSAND] if count == 1 else [THOUSANDS]
     return [SCALES[power] + SCALE_PLURAL] if count > 1 else [SCALES[power]]
@@ -214,15 +214,15 @@ class BulgarianNumerals:
             is_final = index > 0 and not any(groups[index + 1 :])
 
             if power == 3 and group == 1:
-                words.extend(_scale_words(power, group))
+                words.extend(_spell_scale(power, group))
                 continue
             if power >= 6 and group == 1:
                 words.append(UNITS[MASCULINE][1])
-                words.extend(_scale_words(power, group))
+                words.extend(_spell_scale(power, group))
                 continue
 
             words.extend(_spell_group(group, _get_gender_for_power(power), is_final))
             if power:
-                words.extend(_scale_words(power, group))
+                words.extend(_spell_scale(power, group))
 
         return " ".join(words)

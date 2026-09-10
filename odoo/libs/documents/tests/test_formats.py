@@ -7,7 +7,7 @@ from odoo.libs.documents.formats import (
     extension_for,
     get_format,
     get_format_of_extension,
-    known_formats,
+    get_known_formats,
     mimetype_for,
     mimetypes_for,
     register_extension,
@@ -26,7 +26,7 @@ class TestLookup(unittest.TestCase):
         self.assertEqual(extension_for("application/json"), "json")
 
     def test_they_round_trip(self):
-        for fmt in known_formats():
+        for fmt in get_known_formats():
             self.assertEqual(mimetype_for(fmt.extension), fmt.mimetype)
             self.assertEqual(extension_for(fmt.mimetype), fmt.extension)
 

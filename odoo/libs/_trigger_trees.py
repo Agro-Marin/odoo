@@ -9,7 +9,7 @@ Meta = tuple[bool, bool, int, int, int, int]
 Node = tuple[list[int], list[tuple[int, "Node"]]]
 
 
-def _cancels(meta: Sequence[Meta], f1: int, f2: int) -> bool:
+def _is_inverse_pair(meta: Sequence[Meta], f1: int, f2: int) -> bool:
     a_m2o, _, a_name, _, a_model, a_comodel = meta[f1]
     _, b_o2m, _, b_inverse, b_model, b_comodel = meta[f2]
     return (
@@ -25,7 +25,7 @@ def _concat_paths(
     meta: Sequence[Meta], prefix: tuple[int, ...], path: Sequence[int]
 ) -> tuple[int, ...]:
     left, right = prefix, tuple(path)
-    while left and right and _cancels(meta, left[-1], right[0]):
+    while left and right and _is_inverse_pair(meta, left[-1], right[0]):
         left, right = left[:-1], right[1:]
     return left + right
 

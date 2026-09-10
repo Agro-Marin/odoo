@@ -7,7 +7,7 @@ from typing import Any
 from odoo.libs.filesystem import guess_mimetype
 
 from .formats import mimetype_for
-from .guess import decode, looks_like_text
+from .guess import decode, is_text_like
 from .readers import (
     BARCODES,
     CHEAP,
@@ -21,13 +21,13 @@ from .readers import (
     TREE,
     get_readers,
 )
-from .writers import get_writers, known_writers
+from .writers import get_known_writer_names, get_writers
 
 __all__ = [
     "DEFAULT_READ_UP_TO",
     "TEXT_MAX_CHARS",
     "Document",
-    "essential_mimetype",
+    "get_essential_mimetype",
 ]
 
 _logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ _DEFAULT_MIMETYPES = {
 }
 
 
-def essential_mimetype(mimetype: str) -> str:
+def get_essential_mimetype(mimetype: str) -> str:
     return mimetype.split(";", 1)[0].strip().lower()
 
 
@@ -74,7 +74,9 @@ class Document:
             raise ValueError("A document needs data.")
         self.data: bytes = data
         self.name: str = name
-        self.mimetype: str = essential_mimetype(guess_mimetype(data, declared=mimetype))
+        self.mimetype: str = get_essential_mimetype(
+            guess_mimetype(data, declared=mimetype)
+        )
         self.options: dict[str, Any] = options
         self._derived: dict[str, Any] = {}
         self._derived_at: dict[str, int] = {}
@@ -124,12 +126,14 @@ class Document:
             )
         representation = named[0]
         value = given[representation]
-        mimetype = essential_mimetype(mimetype or _DEFAULT_MIMETYPES[representation])
+        mimetype = get_essential_mimetype(
+            mimetype or _DEFAULT_MIMETYPES[representation]
+        )
         writers = get_writers(mimetype, representation)
         if not writers:
             raise ValueError(
                 f"Nothing writes {representation} as {mimetype!r}; "
-                f"registered: {', '.join(known_writers()) or 'none'}"
+                f"registered: {', '.join(get_known_writer_names()) or 'none'}"
             )
         written = writers[0].write(value, **options)
         document = cls(written, mimetype, name, **options)
@@ -150,7 +154,7 @@ class Document:
                 except UnicodeDecodeError as e:
                     _logger.info("Could not decode %r: %s", self.name, e)
                     decoded = ""
-                derived = decoded if looks_like_text(decoded) else ""
+                derived = decoded if is_text_like(decoded) else ""
                 self._derived[TEXT] = _clamp(derived, self.name, self.text_max_chars)
         return self._derived.get(TEXT) or ""
 

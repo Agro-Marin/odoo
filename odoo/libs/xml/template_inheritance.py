@@ -208,7 +208,7 @@ def _replace_inner(
             break
 
 
-def _python_attribute_value(
+def _prepare_python_attribute_value(
     attribute: str, value: str, add: str, remove: str, separator: str | None
 ) -> str:
     separator = (separator or "").strip()
@@ -236,7 +236,7 @@ def _python_attribute_value(
     return value
 
 
-def _list_attribute_value(
+def _prepare_list_attribute_value(
     value: str, add: str, remove: str, separator: str | None
 ) -> str:
     if separator is None:
@@ -278,11 +278,11 @@ def _apply_attributes(spec: etree._Element, node: etree._Element) -> None:
             current = node.get(attribute, "")
             separator = child.get("separator")
             if attribute in PYTHON_ATTRIBUTES or attribute.startswith("decoration-"):
-                value = _python_attribute_value(
+                value = _prepare_python_attribute_value(
                     attribute, current, add, remove, separator
                 )
             else:
-                value = _list_attribute_value(current, add, remove, separator)
+                value = _prepare_list_attribute_value(current, add, remove, separator)
         else:
             value = child.text or ""
 

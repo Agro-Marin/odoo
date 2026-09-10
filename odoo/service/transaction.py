@@ -166,7 +166,7 @@ def retrying[T](
 
                 if participant is not None:
                     participant.on_retry(exc)
-                wait_time = backoff.delay(
+                wait_time = backoff.get_delay(
                     tryno,
                     base=BASE_CONCURRENCY_BACKOFF_SECONDS,
                     cap=MAX_CONCURRENCY_BACKOFF_SECONDS,

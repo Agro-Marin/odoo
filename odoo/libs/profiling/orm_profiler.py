@@ -40,7 +40,7 @@ class _OrmProfile:
             self._final = final
             self._marks[final] = time.perf_counter()
 
-    def ms(self, start: str, end: str) -> float:
+    def get_elapsed_ms(self, start: str, end: str) -> float:
         return (self._marks[end] - self._marks[start]) * 1000.0
 
     @property

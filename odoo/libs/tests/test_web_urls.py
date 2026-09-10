@@ -1,6 +1,6 @@
 import pytest
 
-from odoo.libs.web.urls import _segment_core, urljoin
+from odoo.libs.web.urls import _get_segment_core, urljoin
 
 BASE = "https://api.example.com/v1/"
 
@@ -115,4 +115,4 @@ class TestSegmentCore:
         ],
     )
     def test_core(self, segment, core):
-        assert _segment_core(segment) == core
+        assert _get_segment_core(segment) == core

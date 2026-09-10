@@ -9,8 +9,8 @@ __all__ = [
     "cues_as_text",
     "parse_srt",
     "parse_vtt",
-    "write_srt",
-    "write_vtt",
+    "render_srt",
+    "render_vtt",
 ]
 
 _STAMP = r"(?:(\d+):)?([0-5]?\d):([0-5]\d)[.,](\d{1,3})"
@@ -39,7 +39,9 @@ class Cue:
     speaker: str = ""
 
 
-def _seconds(hours: str | None, minutes: str, secs: str, fraction: str) -> float:
+def _timestamp_to_seconds(
+    hours: str | None, minutes: str, secs: str, fraction: str
+) -> float:
     return (
         int(hours or 0) * 3600
         + int(minutes) * 60
@@ -48,7 +50,7 @@ def _seconds(hours: str | None, minutes: str, secs: str, fraction: str) -> float
     )
 
 
-def _stamp(value: float, separator: str) -> str:
+def _seconds_to_timestamp(value: float, separator: str) -> str:
     value = max(value, 0.0)
     milliseconds = round(value * 1000)
     hours, milliseconds = divmod(milliseconds, 3_600_000)
@@ -57,7 +59,7 @@ def _stamp(value: float, separator: str) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}{separator}{milliseconds:03d}"
 
 
-def _blocks(text: str) -> Iterator[list[str]]:
+def _iter_blocks(text: str) -> Iterator[list[str]]:
     block: list[str] = []
     for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
         if line.strip():
@@ -69,14 +71,14 @@ def _blocks(text: str) -> Iterator[list[str]]:
         yield block
 
 
-def _speaker_of(text: str) -> tuple[str, str]:
+def _split_speaker(text: str) -> tuple[str, str]:
     match = _VOICE.match(text)
     if not match:
         return "", text
     return match.group(1).strip(), match.group(2)
 
 
-def _dereference(text: str) -> str:
+def _decode_references(text: str) -> str:
     for reference, character in _REFERENCES.items():
         text = text.replace(reference, character)
     return _NUMERIC.sub(
@@ -87,40 +89,40 @@ def _dereference(text: str) -> str:
     )
 
 
-def _plain(text: str, references: bool) -> str:
+def _strip_tags(text: str, references: bool) -> str:
     stripped = _TAG.sub("", text).strip()
-    return _dereference(stripped) if references else stripped
+    return _decode_references(stripped) if references else stripped
 
 
 def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _one_paragraph(text: str) -> str:
+def _collapse_blank_lines(text: str) -> str:
     return _BLANK.sub("\n", text)
 
 
 def _parse(text: str, references: bool) -> list[Cue]:
     cues: list[Cue] = []
-    for block in _blocks(text):
+    for block in _iter_blocks(text):
         if _NOTE.match(block[0]):
             continue
         for index, line in enumerate(block):
             match = _ARROW.match(line)
             if not match:
                 continue
-            start = _seconds(*match.group(1, 2, 3, 4))
-            end = _seconds(*match.group(5, 6, 7, 8))
+            start = _timestamp_to_seconds(*match.group(1, 2, 3, 4))
+            end = _timestamp_to_seconds(*match.group(5, 6, 7, 8))
             body = "\n".join(block[index + 1 :])
-            speaker, spoken = _speaker_of(body)
-            spoken = _plain(spoken, references)
+            speaker, spoken = _split_speaker(body)
+            spoken = _strip_tags(spoken, references)
             if spoken:
                 cues.append(
                     Cue(
                         start,
                         end,
                         spoken,
-                        _dereference(speaker) if references else speaker,
+                        _decode_references(speaker) if references else speaker,
                     )
                 )
             break
@@ -135,29 +137,29 @@ def parse_srt(text: str) -> list[Cue]:
     return _parse(text, references=False)
 
 
-def _voiced(cue: Cue) -> str:
-    text = _one_paragraph(_escape(cue.text))
+def _render_vtt_cue_text(cue: Cue) -> str:
+    text = _collapse_blank_lines(_escape(cue.text))
     if not cue.speaker:
         return text
     return f"<v {_escape(cue.speaker)}>{text}"
 
 
-def _named(cue: Cue) -> str:
-    text = _one_paragraph(cue.text)
+def _render_srt_cue_text(cue: Cue) -> str:
+    text = _collapse_blank_lines(cue.text)
     return f"{cue.speaker}: {text}" if cue.speaker else text
 
 
-def write_vtt(cues: Iterable[Cue]) -> str:
+def render_vtt(cues: Iterable[Cue]) -> str:
     blocks = [
-        f"{_stamp(cue.start, '.')} --> {_stamp(cue.end, '.')}\n{_voiced(cue)}"
+        f"{_seconds_to_timestamp(cue.start, '.')} --> {_seconds_to_timestamp(cue.end, '.')}\n{_render_vtt_cue_text(cue)}"
         for cue in cues
     ]
     return "WEBVTT\n\n" + "\n\n".join(blocks) + "\n"
 
 
-def write_srt(cues: Iterable[Cue]) -> str:
+def render_srt(cues: Iterable[Cue]) -> str:
     blocks = [
-        f"{number}\n{_stamp(cue.start, ',')} --> {_stamp(cue.end, ',')}\n{_named(cue)}"
+        f"{number}\n{_seconds_to_timestamp(cue.start, ',')} --> {_seconds_to_timestamp(cue.end, ',')}\n{_render_srt_cue_text(cue)}"
         for number, cue in enumerate(cues, start=1)
     ]
     return "\n\n".join(blocks) + "\n"

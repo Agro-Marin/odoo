@@ -1,7 +1,7 @@
 import contextlib
 from unittest.mock import patch
 
-from odoo.libs.documents import EXPENSIVE, Document, known_readers
+from odoo.libs.documents import EXPENSIVE, Document, get_known_reader_names
 from odoo.tests.common import BaseCase, tagged
 
 from odoo.addons.extract_ocr.models import rapid_reader
@@ -29,7 +29,7 @@ class TestRapidReader(BaseCase):
             yield
 
     def test_the_reader_is_offered_to_the_framework(self):
-        self.assertIn("rapidocr_text", known_readers())
+        self.assertIn("rapidocr_text", get_known_reader_names())
 
     def test_it_costs_more_than_every_reader_that_only_parses(self):
         self.assertEqual(rapid_reader.OcrText.cost, EXPENSIVE)

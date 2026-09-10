@@ -49,7 +49,7 @@ class TestBlake3Path(unittest.TestCase):
     def test_multithreaded_matches_single(self):
         big = b"z" * (2 * hashing._MT_MIN_BYTES)
         self.assertGreater(len(big), hashing._MT_MIN_BYTES)
-        hasher = hashing.content_hasher()
+        hasher = hashing.prepare_content_hasher()
         hasher.update(big)
         self.assertEqual(hashing.content_hash(big), hasher.hexdigest())
 
@@ -72,8 +72,8 @@ class TestFallbackPath(unittest.TestCase):
         self.assertEqual(hashing.cache_hash(data), hashlib.sha256(data).hexdigest())
 
     def test_hashers_fall_back_too(self):
-        self.assertEqual(hashing.content_hasher().name, "sha1")
-        self.assertEqual(hashing.cache_hasher().name, "sha256")
+        self.assertEqual(hashing.prepare_content_hasher().name, "sha1")
+        self.assertEqual(hashing.prepare_cache_hasher().name, "sha256")
 
     def test_empty_content_has_a_digest(self):
         self.assertEqual(
@@ -85,14 +85,14 @@ class TestFallbackPath(unittest.TestCase):
 class TestIncrementalEquivalence(unittest.TestCase):
     def _all_forms(self, data):
         one_shot = hashing.content_hash(data)
-        hasher = hashing.content_hasher()
+        hasher = hashing.prepare_content_hasher()
         for i in range(0, len(data), 7):
             hasher.update(data[i : i + 7])
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "payload"
             path.write_bytes(data)
             from_file = hashing.content_hash_file(path)
-            fed = hashing.content_hasher()
+            fed = hashing.prepare_content_hasher()
             hashing.update_from_file(fed, path)
         return one_shot, hasher.hexdigest(), from_file, fed.hexdigest()
 
@@ -119,7 +119,7 @@ class TestIncrementalEquivalence(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "part"
             path.write_bytes(b"middle")
-            mixed = hashing.cache_hasher()
+            mixed = hashing.prepare_cache_hasher()
             mixed.update(b"before")
             hashing.update_from_file(mixed, path)
             mixed.update(b"after")

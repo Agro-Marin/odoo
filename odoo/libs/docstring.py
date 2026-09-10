@@ -87,7 +87,7 @@ def _prepare_settings(writer_name: str, overrides: dict[str, typing.Any]) -> typ
 
 
 @functools.cache
-def _tree_settings() -> typing.Any:
+def _prepare_tree_settings() -> typing.Any:
     return _prepare_settings("pseudoxml", dict(SAFE_SETTINGS))
 
 
@@ -97,20 +97,22 @@ def _html_settings() -> typing.Any:
 
 
 @functools.cache
-def _empty_root() -> Callable[[], nodes.document]:
+def _get_empty_root_factory() -> Callable[[], nodes.document]:
     return docutils.core.publish_doctree("").copy
 
 
 def to_doctree(docstring: str) -> nodes.document:
     with contextlib.redirect_stderr(io.StringIO()) as stderr:
-        doctree = docutils.core.publish_doctree(docstring, settings=_tree_settings())
+        doctree = docutils.core.publish_doctree(
+            docstring, settings=_prepare_tree_settings()
+        )
         if stderr.tell():
             _logger.warning(PARSE_ERROR.format(docstring, stderr.getvalue()))
         return doctree
 
 
 def render_doctree_html(tree: nodes.Node) -> str:
-    root = _empty_root()()
+    root = _get_empty_root_factory()()
     root.append(tree)
     html = docutils.core.publish_from_doctree(
         root, writer=HtmlWriter(), settings=_html_settings()

@@ -64,7 +64,7 @@ def _get_c14n_params_from_transforms(
     return True, prefix_list
 
 
-def _enveloping_signatures(
+def _get_enveloping_signatures(
     reference: etree._Element, copied_root: etree._Element
 ) -> list[etree._Element]:
     tag = f"{{{DS_NS}}}Signature"
@@ -90,7 +90,7 @@ def resolve_reference(uri: str, reference: etree._Element, base_uri: str = "") -
     node = deepcopy(reference.getroottree().getroot())
 
     if uri == base_uri:
-        for signature in _enveloping_signatures(reference, node):
+        for signature in _get_enveloping_signatures(reference, node):
             if signature.tail:
                 if (previous := signature.getprevious()) is not None:
                     previous.tail = (previous.tail or "") + signature.tail

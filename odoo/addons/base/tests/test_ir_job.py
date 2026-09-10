@@ -330,7 +330,7 @@ class TestIrJob(TransactionCase):
     def test_the_retry_ladder_is_the_shared_jittered_backoff(self):
         for retry, expected in enumerate((10, 20, 40, 80, 160)):
             self.assertEqual(
-                backoff.bound(
+                backoff.get_bound(
                     retry + 1,
                     base=ir_job.RETRY_BACKOFF_BASE_S,
                     cap=ir_job.RETRY_BACKOFF_MAX_S,
@@ -339,7 +339,7 @@ class TestIrJob(TransactionCase):
             )
         record = self.partner.delayed(max_retries=3)._ir_job_test_boom()
         job = self._claim()
-        with patch.object(ir_job.backoff, "delay", return_value=42.0) as delay:
+        with patch.object(ir_job.backoff, "get_delay", return_value=42.0) as delay:
             IrJob._record_failure(self.env.cr, job, ValueError("boom"))
         delay.assert_called_once_with(
             1, base=ir_job.RETRY_BACKOFF_BASE_S, cap=ir_job.RETRY_BACKOFF_MAX_S

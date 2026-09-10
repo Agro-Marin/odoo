@@ -19,7 +19,7 @@ def _to_ms(ns: float) -> float:
     return round(ns / 1_000_000, 2)
 
 
-def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
+def _record_gc_timing(event: str, info: dict[str, Any]) -> None:
     global _gc_start  # noqa: PLW0603  gc callbacks run on the collecting thread and own this state
     gen = info["generation"]
     if event == "start":
@@ -35,15 +35,15 @@ def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
 
 
 def gc_set_timing(*, enable: bool) -> None:
-    if _timing_gc_callback in gc.callbacks:
+    if _record_gc_timing in gc.callbacks:
         if enable:
             return
-        gc.callbacks.remove(_timing_gc_callback)
+        gc.callbacks.remove(_record_gc_timing)
     elif enable:
         global _gc_init_stats, _gc_timings  # noqa: PLW0603  gc callback state, as above
         _gc_init_stats = gc.get_stats()
         _gc_timings = [0, 0, 0]
-        gc.callbacks.append(_timing_gc_callback)
+        gc.callbacks.append(_record_gc_timing)
 
 
 def gc_info() -> dict[str, Any]:
@@ -61,7 +61,7 @@ def gc_info() -> dict[str, Any]:
         )
     return {
         "cumulative_time": _to_ms(cumulative_time),
-        "time": times if _timing_gc_callback in gc.callbacks else (),
+        "time": times if _record_gc_timing in gc.callbacks else (),
         "count": stats,
         "thresholds": (gc.get_count(), gc.get_threshold()),
     }

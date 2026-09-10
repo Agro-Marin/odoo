@@ -7,7 +7,7 @@ __all__ = ["contains_dot_segments", "urljoin"]
 _MAX_UNQUOTE_PASSES = 4
 
 
-def _segment_core(segment: str) -> str:
+def _get_segment_core(segment: str) -> str:
     segment = segment.split(";", 1)[0]
     for i, ch in enumerate(segment):
         if ch < "\x20" or ch == "\x7f":
@@ -19,7 +19,7 @@ def contains_dot_segments(path: str) -> bool:
     current = path
     for _ in range(_MAX_UNQUOTE_PASSES):
         if any(
-            _segment_core(seg) in (".", "..")
+            _get_segment_core(seg) in (".", "..")
             for seg in current.replace("\\", "/").split("/")
         ):
             return True

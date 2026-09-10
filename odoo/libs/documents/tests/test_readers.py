@@ -17,8 +17,8 @@ from odoo.libs.documents.readers import (
     TEXT,
     TREE,
     BaseReader,
+    get_known_reader_names,
     get_readers,
-    known_readers,
     register_reader,
     registered_readers,
 )
@@ -81,7 +81,7 @@ class TestRegistry(unittest.TestCase):
 
     def test_the_shipped_readers_are_registered(self):
         for name in ("csv", "json", "xml"):
-            self.assertIn(name, known_readers())
+            self.assertIn(name, get_known_reader_names())
 
     def test_a_named_mimetype_is_tried_before_a_fallback(self):
         named = _Stub("named", {"a/b"}, (TEXT,), "named")

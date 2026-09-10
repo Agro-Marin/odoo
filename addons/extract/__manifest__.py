@@ -32,7 +32,7 @@ Holds the bytes and derives a representation on first access, each at most once
 per ceiling -- one that came back empty is read again if the ceiling rises, one
 that came back full never is. **Neither the representations nor the formats are
 listed here.** ``REPRESENTATIONS`` in ``odoo.libs.documents.readers`` is the first
-list and ``known_readers()`` the second, and prose restating either goes stale the
+list and ``get_known_reader_names()`` the second, and prose restating either goes stale the
 first time a module registers something -- which is what happened to the version
 of this paragraph that enumerated six representations and eight formats. A
 format is added by registering one reader, and every strategy gains it.

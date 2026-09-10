@@ -57,7 +57,7 @@ def decode(data: bytes, encoding: str = "") -> str:
     return data.decode(name)
 
 
-def looks_like_text(text: str) -> bool:
+def is_text_like(text: str) -> bool:
     if not text:
         return False
     if "\x00" in text:

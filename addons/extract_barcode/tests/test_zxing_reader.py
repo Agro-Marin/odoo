@@ -2,7 +2,7 @@ import base64
 import contextlib
 from unittest.mock import patch
 
-from odoo.libs.documents import CHEAP, Document, known_readers
+from odoo.libs.documents import CHEAP, Document, get_known_reader_names
 from odoo.tests.common import BaseCase, tagged
 
 from odoo.addons.extract_barcode.models import zxing_reader
@@ -45,7 +45,7 @@ class TestZxingReader(BaseCase):
             yield
 
     def test_the_reader_is_offered_to_the_framework(self):
-        self.assertIn("zxing_barcodes", known_readers())
+        self.assertIn("zxing_barcodes", get_known_reader_names())
 
     def test_decoding_a_page_needs_no_permission_to_spend(self):
         """Rendering is what a page costs, and `images` is already paid for by

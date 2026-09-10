@@ -60,7 +60,7 @@ POSIX_TO_LDML = {
 }
 
 
-def _ldml_literal(text: str) -> str:
+def _quote_ldml_literal(text: str) -> str:
     escaped = text.replace("'", "''")
     return escaped if text and not text.strip("'") else f"'{escaped}'"
 
@@ -76,7 +76,7 @@ def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
             quoted.append(c)
             continue
         if quoted:
-            buf.append(_ldml_literal("".join(quoted)))
+            buf.append(_quote_ldml_literal("".join(quoted)))
             quoted = []
 
         if pc:
@@ -104,7 +104,7 @@ def posix_to_ldml(fmt: str, locale: babel.Locale) -> str:
             buf.append(c)
 
     if quoted:
-        buf.append(_ldml_literal("".join(quoted)))
+        buf.append(_quote_ldml_literal("".join(quoted)))
 
     if pc:
         buf.append("%")

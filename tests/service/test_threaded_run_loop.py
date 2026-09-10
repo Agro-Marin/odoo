@@ -38,7 +38,7 @@ def listen(server):
                 _cron,
                 "backoff",
                 SimpleNamespace(
-                    bound=lambda attempt, **kw: backoffs.append(attempt) or 0
+                    get_bound=lambda attempt, **kw: backoffs.append(attempt) or 0
                 ),
             ),
             server_settings.override(limit_time_worker_cron=max_age),

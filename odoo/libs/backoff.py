@@ -7,10 +7,10 @@ import typing
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
-__all__ = ["bound", "bounds", "delay"]
+__all__ = ["get_bound", "get_delay", "iter_bounds"]
 
 
-def bound(attempt: int, *, base: float, cap: float) -> float:
+def get_bound(attempt: int, *, base: float, cap: float) -> float:
     if attempt < 1:
         raise ValueError(f"attempt is 1-based, got {attempt}")
     if base <= 0.0:
@@ -26,17 +26,17 @@ def bound(attempt: int, *, base: float, cap: float) -> float:
     return min(base * 2.0**doublings, cap)
 
 
-def bounds(attempts: int, *, base: float, cap: float) -> Iterator[float]:
+def iter_bounds(attempts: int, *, base: float, cap: float) -> Iterator[float]:
     for attempt in range(1, attempts + 1):
-        yield bound(attempt, base=base, cap=cap)
+        yield get_bound(attempt, base=base, cap=cap)
 
 
-def delay(
+def get_delay(
     attempt: int,
     *,
     base: float,
     cap: float,
     rng: random.Random | None = None,
 ) -> float:
-    ceiling = bound(attempt, base=base, cap=cap)
+    ceiling = get_bound(attempt, base=base, cap=cap)
     return (rng or random).uniform(0.0, ceiling)

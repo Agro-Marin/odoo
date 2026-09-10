@@ -13,7 +13,7 @@ _registry_lock = threading.Lock()
 _logger_locks: dict[str, threading.RLock] = {}
 
 
-def _lock_for(logger_name: str) -> threading.RLock:
+def _get_or_create_lock(logger_name: str) -> threading.RLock:
     with _registry_lock:
         lock = _logger_locks.get(logger_name)
         if lock is None:
@@ -36,7 +36,7 @@ class mute_logger(logging.Handler):
         self._locks: list[list[threading.RLock]] = []
 
     def __enter__(self) -> None:
-        locks = [_lock_for(name) for name in sorted(set(self.loggers))]
+        locks = [_get_or_create_lock(name) for name in sorted(set(self.loggers))]
         for lock in locks:
             lock.acquire()
         self._locks.append(locks)
@@ -91,7 +91,7 @@ class lower_logging(logging.Handler):
 
     def __enter__(self) -> Self:
         logger = logging.getLogger()
-        lock = _lock_for(logger.name)
+        lock = _get_or_create_lock(logger.name)
         lock.acquire()
         self._lock = lock
         if not self._saved:

@@ -39,8 +39,8 @@ __all__ = [
     "TEXT",
     "TREE",
     "BaseReader",
+    "get_known_reader_names",
     "get_readers",
-    "known_readers",
     "register_reader",
     "registered_readers",
     "unregister_reader",
@@ -129,7 +129,7 @@ def registered_readers() -> tuple[BaseReader, ...]:
     return tuple(seen.values())
 
 
-def known_readers() -> tuple[str, ...]:
+def get_known_reader_names() -> tuple[str, ...]:
     seen: dict[str, None] = {}
     for readers in _READERS.values():
         for reader in readers:
@@ -137,7 +137,7 @@ def known_readers() -> tuple[str, ...]:
     return tuple(sorted(seen))
 
 
-def _reader(
+def _prepare_reader(
     name: str,
     mimetypes: frozenset[str],
     yields: tuple[str, ...],
@@ -208,11 +208,11 @@ def _read_cued_text(document: Any) -> str:
     return cues_as_text(document.cues)
 
 
-register_reader(_reader("xml", mimetypes_for("xml"), (TREE,), _read_tree))
-register_reader(_reader("json", mimetypes_for("json"), (DATA,), _read_data))
-register_reader(_reader("csv", mimetypes_for("csv"), (ROWS,), _read_csv_rows))
-register_reader(_reader("vtt", mimetypes_for("vtt"), (CUES,), _read_vtt_cues))
-register_reader(_reader("srt", mimetypes_for("srt"), (CUES,), _read_srt_cues))
+register_reader(_prepare_reader("xml", mimetypes_for("xml"), (TREE,), _read_tree))
+register_reader(_prepare_reader("json", mimetypes_for("json"), (DATA,), _read_data))
+register_reader(_prepare_reader("csv", mimetypes_for("csv"), (ROWS,), _read_csv_rows))
+register_reader(_prepare_reader("vtt", mimetypes_for("vtt"), (CUES,), _read_vtt_cues))
+register_reader(_prepare_reader("srt", mimetypes_for("srt"), (CUES,), _read_srt_cues))
 register_reader(
-    _reader("cued_text", mimetypes_for("vtt", "srt"), (TEXT,), _read_cued_text)
+    _prepare_reader("cued_text", mimetypes_for("vtt", "srt"), (TEXT,), _read_cued_text)
 )

@@ -7,15 +7,17 @@ from odoo.libs.documents.readers import ANY, DATA, ROWS, TEXT, TREE
 from odoo.libs.documents.writers import (
     _WRITERS,
     BaseWriter,
+    get_known_writer_names,
     get_writers,
-    known_writers,
     register_writer,
 )
 
 
 class TestRegistry(unittest.TestCase):
     def test_the_built_in_writers_are_registered(self):
-        self.assertEqual(known_writers(), ("csv", "json", "srt", "text", "vtt", "xml"))
+        self.assertEqual(
+            get_known_writer_names(), ("csv", "json", "srt", "text", "vtt", "xml")
+        )
 
     def test_a_writer_is_found_by_mimetype_and_representation(self):
         writers = get_writers("text/csv", ROWS)

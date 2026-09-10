@@ -78,7 +78,7 @@ _CONVERSION_RE = re.compile(
 )
 
 
-def _conversion_span(spec: str) -> re.Match[str] | None:
+def _get_conversion_match(spec: str) -> re.Match[str] | None:
     return next(
         (match for match in _CONVERSION_RE.finditer(spec) if match[1] is not None),
         None,
@@ -97,7 +97,7 @@ def format_number(
         )
 
     formatted = spec % value
-    match = _conversion_span(spec)
+    match = _get_conversion_match(spec)
     if match is None:
         return formatted
     conversion = match[1]

@@ -191,7 +191,7 @@ class ReconnectBackoff:
         sleep: typing.Callable[[float], None] | None = None,
     ) -> None:
         self.attempts += 1
-        delay = backoff.bound(self.attempts, base=BACKOFF_BASE_S, cap=self._ceiling)
+        delay = backoff.get_bound(self.attempts, base=BACKOFF_BASE_S, cap=self._ceiling)
         self._logger.warning(
             "%s failed (attempt %d): %s; retrying in %ds",
             what,

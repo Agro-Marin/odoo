@@ -10,7 +10,7 @@ empty string, so nothing built on the document layer could read one.
 import io
 import zipfile
 
-from odoo.libs.documents import TEXT, Document, get_readers, known_readers
+from odoo.libs.documents import TEXT, Document, get_readers, get_known_reader_names
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.attachment_indexation.tools.readers import (
@@ -78,7 +78,7 @@ def _xlsx(rows):
 class TestOfficeReaders(TransactionCase):
     def test_the_four_readers_are_registered(self):
         for name in ("docx_text", "pptx_text", "xlsx_text", "opendocument_text"):
-            self.assertIn(name, known_readers())
+            self.assertIn(name, get_known_reader_names())
 
     def test_a_word_document_yields_its_text(self):
         document = Document(_docx(["TOTAL 139.86", "CFE"]), name="bill.docx")

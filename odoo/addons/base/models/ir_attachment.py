@@ -34,7 +34,7 @@ from odoo.libs.hashing import (
     CONTENT_DIGEST_LEN,
     CONTENT_DIGEST_MAX_LEN,
     content_hash,
-    content_hasher,
+    prepare_content_hasher,
 )
 from odoo.models import PREFETCH_MAX
 from odoo.tools import (
@@ -532,7 +532,7 @@ class IrAttachment(models.Model):
         self, fileobj: Any, *, chunk_size: int | None = None
     ) -> tuple[str, int, str]:
         chunk_size = chunk_size or self._STREAM_CHUNK_SIZE
-        digest = content_hasher()
+        digest = prepare_content_hasher()
         size = 0
         with self._stage_temp_file("stream") as tmp_path:
             with tmp_path.open("wb") as out:

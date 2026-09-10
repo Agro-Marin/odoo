@@ -800,7 +800,7 @@ class IrJob(models.Model):
                         CONCURRENCY_MAX_ATTEMPTS,
                     )
                     return exc
-                wait = backoff.delay(
+                wait = backoff.get_delay(
                     attempt,
                     base=CONCURRENCY_BACKOFF_BASE_S,
                     cap=CONCURRENCY_BACKOFF_MAX_S,
@@ -926,7 +926,7 @@ class IrJob(models.Model):
                 cr.rollback()
                 if attempt < CLAIM_MAX_ATTEMPTS:
                     time.sleep(
-                        backoff.delay(
+                        backoff.get_delay(
                             attempt,
                             base=CLAIM_BACKOFF_BASE_S,
                             cap=CLAIM_BACKOFF_MAX_S,
@@ -1104,7 +1104,7 @@ class IrJob(models.Model):
             delay = (
                 seconds
                 if seconds is not None
-                else backoff.delay(
+                else backoff.get_delay(
                     retry + 1, base=RETRY_BACKOFF_BASE_S, cap=RETRY_BACKOFF_MAX_S
                 )
             )

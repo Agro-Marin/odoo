@@ -10,7 +10,7 @@ __all__ = [
     "extension_for",
     "get_format",
     "get_format_of_extension",
-    "known_formats",
+    "get_known_formats",
     "mimetype_for",
     "mimetypes_for",
     "register_extension",
@@ -101,16 +101,16 @@ def extension_for(mimetype: str) -> str:
 
 def mimetypes_for(*extensions: str) -> frozenset[str]:
     claimed: set[str] = set()
-    for fmt in _formats_of(extensions):
+    for fmt in _get_formats_of_extensions(extensions):
         claimed |= fmt.mimetypes
     return frozenset(claimed)
 
 
 def canonical_mimetypes(*extensions: str) -> frozenset[str]:
-    return frozenset(fmt.mimetype for fmt in _formats_of(extensions))
+    return frozenset(fmt.mimetype for fmt in _get_formats_of_extensions(extensions))
 
 
-def _formats_of(extensions: tuple[str, ...]) -> tuple[Format, ...]:
+def _get_formats_of_extensions(extensions: tuple[str, ...]) -> tuple[Format, ...]:
     found = []
     for extension in extensions:
         fmt = get_format_of_extension(extension)
@@ -120,7 +120,7 @@ def _formats_of(extensions: tuple[str, ...]) -> tuple[Format, ...]:
     return tuple(found)
 
 
-def known_formats() -> tuple[Format, ...]:
+def get_known_formats() -> tuple[Format, ...]:
     return tuple(_FORMATS)
 
 

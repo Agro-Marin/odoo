@@ -5,8 +5,8 @@ from odoo.libs.documents.cues import (
     cues_as_text,
     parse_srt,
     parse_vtt,
-    write_srt,
-    write_vtt,
+    render_srt,
+    render_vtt,
 )
 from odoo.libs.documents.document import Document
 from odoo.libs.documents.formats import extension_for, get_format, mimetype_for
@@ -89,31 +89,31 @@ class TestParsing(unittest.TestCase):
 class TestWriting(unittest.TestCase):
     def test_vtt_round_trips(self):
         cues = parse_vtt(VTT)
-        self.assertEqual(parse_vtt(write_vtt(cues)), cues)
+        self.assertEqual(parse_vtt(render_vtt(cues)), cues)
 
     def test_srt_round_trips(self):
         cues = parse_srt(SRT)
-        self.assertEqual(parse_srt(write_srt(cues)), cues)
+        self.assertEqual(parse_srt(render_srt(cues)), cues)
 
     def test_a_blank_line_inside_a_cue_survives_the_round_trip(self):
         cues = [Cue(0.0, 1.0, "para one\n\npara two")]
-        self.assertEqual(parse_vtt(write_vtt(cues))[0].text.count("para"), 2)
+        self.assertEqual(parse_vtt(render_vtt(cues))[0].text.count("para"), 2)
 
     def test_vtt_states_its_header(self):
-        self.assertTrue(write_vtt([Cue(0.0, 1.0, "hi")]).startswith("WEBVTT\n\n"))
+        self.assertTrue(render_vtt([Cue(0.0, 1.0, "hi")]).startswith("WEBVTT\n\n"))
 
     def test_srt_numbers_its_blocks_from_one(self):
-        written = write_srt([Cue(0.0, 1.0, "a"), Cue(1.0, 2.0, "b")])
+        written = render_srt([Cue(0.0, 1.0, "a"), Cue(1.0, 2.0, "b")])
         self.assertEqual(written.splitlines()[0], "1")
         self.assertIn("2\n00:00:01,000 --> 00:00:02,000", written)
 
     def test_a_speaker_is_a_voice_tag_in_vtt_and_a_prefix_in_srt(self):
         cue = Cue(0.0, 1.0, "hello", "Alice")
-        self.assertIn("<v Alice>hello", write_vtt([cue]))
-        self.assertIn("Alice: hello", write_srt([cue]))
+        self.assertIn("<v Alice>hello", render_vtt([cue]))
+        self.assertIn("Alice: hello", render_srt([cue]))
 
     def test_a_stamp_past_an_hour_keeps_its_hours(self):
-        self.assertIn("01:00:00.000", write_vtt([Cue(3600.0, 3601.0, "x")]))
+        self.assertIn("01:00:00.000", render_vtt([Cue(3600.0, 3601.0, "x")]))
 
     def test_cues_as_text_is_the_words_alone(self):
         self.assertEqual(

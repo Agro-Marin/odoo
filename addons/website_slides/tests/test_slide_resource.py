@@ -77,7 +77,7 @@ class TestResources(common.SlidesCase, HttpCase):
                 "name": resource_name,
                 "file_name": "test.png",
                 "resource_type": "file",
-                # A file for which _odoo_guess_mimetype and python_magic can detect the mime type: a png file
+                # A file for which _guess_mimetype_by_signature and python_magic can detect the mime type: a png file
                 "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAC4jAA"
                 "AuIwF4pT92AAAAD0lEQVQIHQEEAPv/AIdaewLIAV0IjhGPAAAAAElFTkSuQmCC",
                 "slide_id": self.slide.id,

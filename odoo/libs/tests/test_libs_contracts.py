@@ -26,10 +26,10 @@ from odoo.libs.hashing import (
     _MT_MIN_BYTES,
     CONTENT_DIGEST_LEN,
     cache_hash,
-    cache_hasher,
     content_hash,
     content_hash_file,
-    content_hasher,
+    prepare_cache_hasher,
+    prepare_content_hasher,
     update_from_file,
 )
 from odoo.libs.image.utils import (
@@ -1017,9 +1017,9 @@ class TestHashingOneShotAgreesWithIncremental:
         path = tmp_path / "blob"
         path.write_bytes(data)
 
-        incremental = content_hasher()
+        incremental = prepare_content_hasher()
         incremental.update(data)
-        from_file = content_hasher()
+        from_file = prepare_content_hasher()
         update_from_file(from_file, path)
 
         digests = {
@@ -1034,7 +1034,7 @@ class TestHashingOneShotAgreesWithIncremental:
     @pytest.mark.parametrize("size", SIZES)
     def test_the_cache_digest_agrees_with_its_own_hasher(self, size):
         data = b"\xa5" * size
-        incremental = cache_hasher()
+        incremental = prepare_cache_hasher()
         incremental.update(data)
         assert cache_hash(data) == incremental.hexdigest()
 

@@ -16,11 +16,11 @@ if TYPE_CHECKING:
         def __ge__(self, other: Any, /) -> bool: ...
 
 
-def _endpoints(item: tuple[Any, Any, Any]) -> tuple[Any, Any]:
+def _get_endpoints(item: tuple[Any, Any, Any]) -> tuple[Any, Any]:
     return (item[0], item[1])
 
 
-def _boundaries[T: SupportsOrdering](
+def _iter_boundaries[T: SupportsOrdering](
     intervals: Intervals[T] | Iterable[tuple[T, T, SupportsUnion]],
     opening: str,
     closing: str,
@@ -31,7 +31,7 @@ def _boundaries[T: SupportsOrdering](
             yield (stop, closing, recs)
 
 
-boundaries = _boundaries
+boundaries = _iter_boundaries
 
 
 class Intervals[T: SupportsOrdering]:
@@ -49,12 +49,14 @@ class Intervals[T: SupportsOrdering]:
             items: SupportsUnion | None = None
             if self._keep_distinct:
                 boundaries = sorted(
-                    _boundaries(sorted(intervals, key=_endpoints), "start", "stop"),
+                    _iter_boundaries(
+                        sorted(intervals, key=_get_endpoints), "start", "stop"
+                    ),
                     key=lambda i: i[0],
                 )
             else:
                 boundaries = sorted(
-                    _boundaries(intervals, "start", "stop"), key=_endpoints
+                    _iter_boundaries(intervals, "start", "stop"), key=_get_endpoints
                 )
             for value, flag, value_items in boundaries:
                 if flag == "start":
@@ -106,8 +108,8 @@ class Intervals[T: SupportsOrdering]:
         result: Intervals[T] = Intervals(keep_distinct=self._keep_distinct)
         append = result._items.append
 
-        bounds1 = _boundaries(self, "start", "stop")
-        bounds2 = _boundaries(
+        bounds1 = _iter_boundaries(self, "start", "stop")
+        bounds2 = _iter_boundaries(
             Intervals(other, keep_distinct=self._keep_distinct),
             "switch",
             "switch",
@@ -119,7 +121,7 @@ class Intervals[T: SupportsOrdering]:
         if self._keep_distinct:
             bounds = sorted(itertools.chain(bounds1, bounds2), key=lambda i: i[0])
         else:
-            bounds = sorted(itertools.chain(bounds1, bounds2), key=_endpoints)
+            bounds = sorted(itertools.chain(bounds1, bounds2), key=_get_endpoints)
         for value, flag, recs in bounds:
             if flag == "start":
                 start = value

@@ -175,7 +175,9 @@ _mime_mappings = (
 )
 
 
-def _odoo_guess_mimetype(bin_data: bytes, default: str = UNKNOWN_MIMETYPE) -> str:
+def _guess_mimetype_by_signature(
+    bin_data: bytes, default: str = UNKNOWN_MIMETYPE
+) -> str:
     for entry in _mime_mappings:
         for signature in entry.signatures:
             if bin_data.startswith(signature):
@@ -233,7 +235,7 @@ def _parses_as_json(data: bytes) -> bool:
     return True
 
 
-def _place_structured_text(data: bytes) -> str | None:
+def _resolve_structured_text_mimetype(data: bytes) -> str | None:
     head = data.lstrip()[:1]
     if head == b"<" and _parses_as_xml(data):
         return "application/xml"
@@ -259,7 +261,7 @@ def guess_mimetype(
     mimetype = _probe_mimetype(bin_data, default)
     if mimetype.lower() not in _UNPLACED:
         return mimetype
-    return _place_structured_text(bin_data) or mimetype or UNKNOWN_MIMETYPE
+    return _resolve_structured_text_mimetype(bin_data) or mimetype or UNKNOWN_MIMETYPE
 
 
 def _probe_mimetype(bin_data: bytes, default: str) -> str:
@@ -268,7 +270,7 @@ def _probe_mimetype(bin_data: bytes, default: str) -> str:
     else:
         mimetype = UNKNOWN_MIMETYPE
     if mimetype == UNKNOWN_MIMETYPE:
-        mimetype = _odoo_guess_mimetype(bin_data, default)
+        mimetype = _guess_mimetype_by_signature(bin_data, default)
     if mimetype in _olecf_mimetypes:
         try:
             if msoffice_mimetype := _get_olecf_mimetype(bin_data):

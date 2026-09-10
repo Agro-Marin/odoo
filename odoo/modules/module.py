@@ -17,7 +17,7 @@ from pathlib import Path
 
 import odoo.upgrade
 from odoo import release, tools
-from odoo.libs.hashing import ALGO_TAG, cache_hasher, update_from_file
+from odoo.libs.hashing import ALGO_TAG, prepare_cache_hasher, update_from_file
 
 import odoo.addons
 
@@ -407,7 +407,7 @@ def get_module_content_checksum(module: str) -> str | None:
     path = get_module_path(module, display_warning=False)
     if not path:
         return None
-    digest = cache_hasher()
+    digest = prepare_cache_hasher()
     root = Path(path)
     files = sorted(
         p

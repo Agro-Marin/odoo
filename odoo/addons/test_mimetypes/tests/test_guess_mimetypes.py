@@ -3,7 +3,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from odoo.libs.filesystem import guess_mimetype
-from odoo.libs.filesystem.mimetypes import _odoo_guess_mimetype
+from odoo.libs.filesystem.mimetypes import _guess_mimetype_by_signature
 from odoo.libs.filesystem.mimetypes import magic as _magic
 from odoo.tests import BaseCase
 from odoo.tools.misc import file_open
@@ -95,7 +95,7 @@ class MimeGuessingCases:
 
 
 class TestMimeGuessingOdoo(BaseCase, MimeGuessingCases):
-    guess_mimetype = staticmethod(_odoo_guess_mimetype)
+    guess_mimetype = staticmethod(_guess_mimetype_by_signature)
 
     def test_csv(self):
         self.assertEqual(

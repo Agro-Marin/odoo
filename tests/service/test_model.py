@@ -470,7 +470,7 @@ class TestRetrying:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
@@ -494,7 +494,7 @@ class TestRetrying:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
@@ -518,7 +518,7 @@ class TestRetrying:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             result = mod.retrying(func, mock_env)
 
         assert result == "ok"
@@ -537,7 +537,7 @@ class TestRetrying:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
 
@@ -555,7 +555,7 @@ class TestRetrying:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             with suppress(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
 
@@ -644,7 +644,7 @@ class TestRetrying:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             assert mod.retrying(func, mock_env) == "ok"
         assert calls == 2
 
@@ -676,7 +676,7 @@ class TestRetrying:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             assert mod.retrying(func, mock_env) == "ok"
         assert calls == 2
 
@@ -717,7 +717,7 @@ class TestRetrying:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure) as caught:
                 mod.retrying(func, mock_env)
 
@@ -880,7 +880,7 @@ class TestConcurrencyBackoffSchedule:
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
             mock_http.request = None
-            mock_backoff.delay.side_effect = lambda attempt, *, base, cap: (
+            mock_backoff.get_delay.side_effect = lambda attempt, *, base, cap: (
                 bounds.append((0.0, min(base * 2.0 ** (attempt - 1), cap))) or 0.0
             )
             with suppress(psycopg.errors.SerializationFailure):
@@ -977,7 +977,7 @@ class TestRetryParticipantHooks:
             patch("odoo.service.transaction.time"),
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             assert mod.retrying(func, mock_env, participant=participant) == "ok"
 
         assert participant.rollbacks == [exc]
@@ -1033,7 +1033,7 @@ class TestRetryParticipantHooks:
             patch("odoo.service.transaction.time"),
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env, participant=participant)
 
@@ -1057,7 +1057,7 @@ class TestRetryParticipantHooks:
             patch("odoo.service.transaction.time"),
             patch("odoo.service.transaction.backoff") as mock_backoff,
         ):
-            mock_backoff.delay.return_value = 0.0
+            mock_backoff.get_delay.return_value = 0.0
             assert mod.retrying(func, mock_env) == "ok"
 
 

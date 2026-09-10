@@ -12,8 +12,8 @@ from .representations import ANY, CUES, DATA, REPRESENTATIONS, ROWS, TEXT, TREE
 
 __all__ = [
     "BaseWriter",
+    "get_known_writer_names",
     "get_writers",
-    "known_writers",
     "register_writer",
     "registered_writers",
     "unregister_writer",
@@ -91,7 +91,7 @@ def registered_writers() -> tuple[BaseWriter, ...]:
     return tuple(seen.values())
 
 
-def known_writers() -> tuple[str, ...]:
+def get_known_writer_names() -> tuple[str, ...]:
     seen: dict[str, None] = {}
     for writers in _WRITERS.values():
         for writer in writers:
@@ -99,7 +99,7 @@ def known_writers() -> tuple[str, ...]:
     return tuple(sorted(seen))
 
 
-def _writer(
+def _prepare_writer(
     name: str,
     mimetype: str,
     consumes: str,
@@ -157,20 +157,20 @@ def _write_text(value: Any, **options: Any) -> bytes:
 
 
 def _write_vtt(value: Any, **options: Any) -> bytes:
-    from .cues import write_vtt
+    from .cues import render_vtt
 
-    return write_vtt(value).encode(options.get("encoding") or "utf-8")
+    return render_vtt(value).encode(options.get("encoding") or "utf-8")
 
 
 def _write_srt(value: Any, **options: Any) -> bytes:
-    from .cues import write_srt
+    from .cues import render_srt
 
-    return write_srt(value).encode(options.get("encoding") or "utf-8")
+    return render_srt(value).encode(options.get("encoding") or "utf-8")
 
 
-register_writer(_writer("csv", mimetype_for("csv"), ROWS, _write_csv))
-register_writer(_writer("json", mimetype_for("json"), DATA, _write_json))
-register_writer(_writer("xml", mimetype_for("xml"), TREE, _write_tree))
-register_writer(_writer("text", ANY, TEXT, _write_text))
-register_writer(_writer("vtt", mimetype_for("vtt"), CUES, _write_vtt))
-register_writer(_writer("srt", mimetype_for("srt"), CUES, _write_srt))
+register_writer(_prepare_writer("csv", mimetype_for("csv"), ROWS, _write_csv))
+register_writer(_prepare_writer("json", mimetype_for("json"), DATA, _write_json))
+register_writer(_prepare_writer("xml", mimetype_for("xml"), TREE, _write_tree))
+register_writer(_prepare_writer("text", ANY, TEXT, _write_text))
+register_writer(_prepare_writer("vtt", mimetype_for("vtt"), CUES, _write_vtt))
+register_writer(_prepare_writer("srt", mimetype_for("srt"), CUES, _write_srt))

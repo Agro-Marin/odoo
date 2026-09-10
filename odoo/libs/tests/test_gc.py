@@ -1,7 +1,7 @@
 import gc
 import unittest
 
-from odoo.libs.gc import _timing_gc_callback, disabling_gc, gc_info, gc_set_timing
+from odoo.libs.gc import _record_gc_timing, disabling_gc, gc_info, gc_set_timing
 
 
 class TestDisablingGc(unittest.TestCase):
@@ -38,20 +38,20 @@ class TestGcSetTiming(unittest.TestCase):
         gc_set_timing(enable=False)
 
     def test_enable_registers_callback_once(self):
-        self.assertNotIn(_timing_gc_callback, gc.callbacks)
+        self.assertNotIn(_record_gc_timing, gc.callbacks)
         gc_set_timing(enable=True)
-        self.assertIn(_timing_gc_callback, gc.callbacks)
+        self.assertIn(_record_gc_timing, gc.callbacks)
         gc_set_timing(enable=True)
-        self.assertEqual(gc.callbacks.count(_timing_gc_callback), 1)
+        self.assertEqual(gc.callbacks.count(_record_gc_timing), 1)
 
     def test_disable_unregisters_callback(self):
         gc_set_timing(enable=True)
         gc_set_timing(enable=False)
-        self.assertNotIn(_timing_gc_callback, gc.callbacks)
+        self.assertNotIn(_record_gc_timing, gc.callbacks)
 
     def test_disable_when_not_registered_is_a_noop(self):
         gc_set_timing(enable=False)
-        self.assertNotIn(_timing_gc_callback, gc.callbacks)
+        self.assertNotIn(_record_gc_timing, gc.callbacks)
 
 
 class TestGcInfo(unittest.TestCase):
