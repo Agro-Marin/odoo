@@ -303,10 +303,10 @@ class ResCountryState(models.Model):
         domain = super()._search_display_name(operator, value)
         if value and operator not in Domain.NEGATIVE_OPERATORS:
             if operator in ("ilike", "=") and isinstance(value, str):
-                domain |= self._get_name_search_domain(value, operator)
+                domain |= self._get_domain_name_search(value, operator)
             elif operator == "in":
                 domain |= Domain.OR(
-                    self._get_name_search_domain(name, "=")
+                    self._get_domain_name_search(name, "=")
                     for name in value
                     if isinstance(name, str)
                 )
@@ -314,7 +314,7 @@ class ResCountryState(models.Model):
             domain &= Domain("country_id", "=", country_id)
         return domain
 
-    def _get_name_search_domain(self, name: str, operator: str) -> Domain:
+    def _get_domain_name_search(self, name: str, operator: str) -> Domain:
         if m := re.fullmatch(r"(?P<name>.+)\((?P<country>.+)\)", name):
             return Domain(
                 [

@@ -41,7 +41,7 @@ class IrConfig_Parameter(models.Model):
         group_user = self.env.ref("base.group_user")
         group_mail_template_editor = self.env.ref("mail.group_mail_template_editor")
         if not restrict and group_mail_template_editor not in group_user.implied_ids:
-            group_user._apply_group(group_mail_template_editor)
+            group_user._add_implied_group(group_mail_template_editor)
         elif restrict and group_mail_template_editor in group_user.implied_ids:
             group_user._remove_group(group_mail_template_editor)
 

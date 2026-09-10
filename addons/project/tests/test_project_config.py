@@ -19,7 +19,7 @@ class TestProjectConfig(TestProjectCommon):
             self.env.ref("project.menu_projects").id,
             self.env.ref("project.menu_projects_config").id,
         }
-        menu_loaded = set(self.env["ir.ui.menu"]._load_menus_blacklist())
+        menu_loaded = set(self.env["ir.ui.menu"]._get_blacklisted_menu_ids())
         self.assertTrue(
             menu_ids.issubset(menu_loaded),
             "The menu project and menu projects config should be loaded",

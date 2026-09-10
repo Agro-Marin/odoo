@@ -3303,7 +3303,7 @@ class AccountReturn(models.Model):
 
     def _generic_vies_vat_check(self, check_codes_to_ignore, checks):
         is_account_vat_installed = (
-            "account_vat" in self.env["ir.module.module"]._installed()
+            "account_vat" in self.env["ir.module.module"]._get_installed_module_ids()
         )
         use_vies = is_account_vat_installed and self.company_id.vat_check_vies
         if "check_partner_vies" not in check_codes_to_ignore and use_vies:

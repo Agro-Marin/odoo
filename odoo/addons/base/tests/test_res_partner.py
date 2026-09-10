@@ -825,7 +825,7 @@ class TestPartnerCompanyDependentSync(TransactionCase):
                 contact = self._tree_with_barcode_as_a_commercial_field(extra)
                 self.env.invalidate_all()
                 before = self.cr.sql_statement_count
-                contact.sudo()._company_dependent_commercial_sync()
+                contact.sudo()._sync_company_dependent_commercial_fields()
                 self.env.flush_all()
                 costs.append(self.cr.sql_statement_count - before)
             self.assertEqual(
@@ -2351,7 +2351,7 @@ class TestPartnerAddressCompany(TransactionCase):
         )
         with patch.object(
             type(company),
-            "_commercial_sync_to_descendants",
+            "_sync_commercial_fields_to_descendants",
             autospec=True,
         ) as sync_mock:
             company.write({"ref": "123456"})
@@ -2362,7 +2362,7 @@ class TestPartnerAddressCompany(TransactionCase):
 
         with patch.object(
             type(company),
-            "_commercial_sync_to_descendants",
+            "_sync_commercial_fields_to_descendants",
             autospec=True,
         ) as sync_mock:
             company.write({"vat": "BE9876543210"})

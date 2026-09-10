@@ -225,7 +225,7 @@ class AccountReportExport(models.Model):
                 )
 
             bodies_list = [
-                action_report._add_html_header_footer(body, footer=footer)
+                action_report._get_html_with_header_footer(body, footer=footer)
                 if footer
                 else body
                 for body in bodies

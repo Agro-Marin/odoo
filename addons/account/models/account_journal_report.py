@@ -366,7 +366,7 @@ class AccountJournalReportHandler(models.AbstractModel):
         print_options = self._get_print_options(options, report, export_type="pdf")
         action_report = self.env["ir.actions.report"]
         body_with_footer = (
-            action_report._add_html_header_footer(body, footer=footer)
+            action_report._get_html_with_header_footer(body, footer=footer)
             if footer
             else body
         )

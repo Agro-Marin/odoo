@@ -160,7 +160,7 @@ Web-specific user behavior.
 **Key Methods:**
 - `name_search(name, ...)` — Override: bubbles current user to top of search results.
 - `_on_webclient_bootstrap()` — Hook for webclient-specific initialization (override point).
-- `_should_captcha_login(credential)` — Check if CAPTCHA should block this credential (inspects `credential['type']`).
+- `_is_captcha_login_required(credential)` — Check if CAPTCHA should block this credential (inspects `credential['type']`).
 - `web_create_users(emails)` — Batch-create internal users from a list of email addresses (used by invite-user UI).
 
 ### models/res_users_settings.py — ResUsersSettings (`_inherit = 'res.users.settings'`)

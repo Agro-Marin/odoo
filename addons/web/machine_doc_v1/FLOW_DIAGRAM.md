@@ -142,7 +142,7 @@ Browser                          Server (Python)                    Database
   │                                │  home.py:web_login()             │
   │                                │  ├─ Build credential:            │
   │                                │  │  {login, password, type="password"}
-  │                                │  ├─ _should_captcha_login()      │
+  │                                │  ├─ _is_captcha_login_required()      │
   │                                │  │  └─ Check failed attempt count├──▶ SELECT
   │                                │  │     └─ Threshold exceeded?    │
   │                                │  │        └─ Yes → verify reCAPTCHA token

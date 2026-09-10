@@ -162,7 +162,7 @@ def unique_indexed_columns(model: Model) -> frozenset[str]:
     return frozenset(row[0] for row in model.env.execute_query(query))
 
 
-def field_needs_variation(
+def is_field_variation_required(
     model: Model, field: Field, unique_columns: frozenset[str] | None = None
 ) -> bool:
     in_names_search = model._rec_names_search and field.name in model._rec_names_search
@@ -223,7 +223,7 @@ def populate_field(
         return SQL.identifier(field_.name)
 
     def copy(field_):
-        if field_needs_variation(model, field_, unique_columns):
+        if is_field_variation_required(model, field_, unique_columns):
             return get_field_variation(model, field_, factors[model], series_alias)
         else:
             return copy_raw(field_)
@@ -297,7 +297,9 @@ def populate_model(
     unique_columns = unique_indexed_columns(model)
     for _, field in sorted(model._fields.items(), key=lambda pair: pair[0] != "id"):
         if has_column(field):
-            if field_needs_variation(model, field, unique_columns) and field.type in (
+            if is_field_variation_required(
+                model, field, unique_columns
+            ) and field.type in (
                 "char",
                 "text",
             ):

@@ -1,7 +1,7 @@
 """Text out of the four office containers, for anything holding one.
 
 These parsers were methods on `ir.attachment` and reachable only through
-`_index()`, so a document layer that had every other format could not read a
+`_get_index_content()`, so a document layer that had every other format could not read a
 Word document. They are plain functions here, registered as readers of the
 shared registry, and `ir.attachment` calls the same functions with its own
 zip-entry bound.

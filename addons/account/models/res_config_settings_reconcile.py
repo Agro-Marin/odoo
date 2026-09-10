@@ -104,7 +104,9 @@ class ResConfigSettings(models.TransientModel):
 
     @api.depends("sign_invoice")
     def _compute_module_sign(self):
-        sign_installed = "sign" in self.env["ir.module.module"]._installed()
+        sign_installed = (
+            "sign" in self.env["ir.module.module"]._get_installed_module_ids()
+        )
         for settings in self:
             settings.module_sign = sign_installed or settings.company_id.sign_invoice
 

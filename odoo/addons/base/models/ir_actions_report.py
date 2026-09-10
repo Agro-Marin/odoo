@@ -1699,7 +1699,7 @@ class IrActionsReport(models.Model):
         return buf.getvalue()
 
     @staticmethod
-    def _add_html_header_footer(
+    def _get_html_with_header_footer(
         body: str, header: str | None = None, footer: str | None = None
     ) -> str:
         body = str(body)

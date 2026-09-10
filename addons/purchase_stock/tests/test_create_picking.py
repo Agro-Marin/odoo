@@ -1040,7 +1040,8 @@ class TestCreatePicking(ProductVariantsCommon):
 
     def test_move_description(self):
         product_matrix_installed = (
-            "purchase_product_matrix" in self.env["ir.module.module"]._installed()
+            "purchase_product_matrix"
+            in self.env["ir.module.module"]._get_installed_module_ids()
         )
         attribute_vals = [
             {

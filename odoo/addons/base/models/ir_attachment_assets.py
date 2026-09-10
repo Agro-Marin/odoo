@@ -63,7 +63,7 @@ class IrAttachment(models.Model):
         )
 
     @api.model
-    def _esm_bridge_gc_grace_days(self) -> int:
+    def _get_esm_bridge_gc_grace_days(self) -> int:
         configured = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -74,7 +74,7 @@ class IrAttachment(models.Model):
         return max(int(2 * ESM_BRIDGE_REFRESH_DAYS) + 1, configured)
 
     @api.model
-    def _esm_gc_grace_days(self) -> int:
+    def _get_esm_gc_grace_days(self) -> int:
         return max(
             1,
             self.env["ir.config_parameter"]
@@ -84,10 +84,10 @@ class IrAttachment(models.Model):
 
     @api.autovacuum
     def _gc_esm_assets(self) -> tuple[int, int]:
-        grace_days = self._esm_gc_grace_days()
+        grace_days = self._get_esm_gc_grace_days()
         cutoff = fields.Datetime.now() - timedelta(days=grace_days)
         bridge_cutoff = fields.Datetime.now() - timedelta(
-            days=self._esm_bridge_gc_grace_days()
+            days=self._get_esm_bridge_gc_grace_days()
         )
         is_bridge = Domain("url", "=like", f"{ESM_BRIDGES_URL_PREFIX}%")
         aged = self._get_domain_esm_generated_assets() & Domain.OR(
@@ -108,7 +108,7 @@ class IrAttachment(models.Model):
             )
             if not candidates:
                 break
-            stale_artifacts, bridges = self._esm_gc_collectable(candidates)
+            stale_artifacts, bridges = self._get_esm_gc_collectable(candidates)
             to_gc = stale_artifacts | bridges
             offset += len(candidates) - len(to_gc)
             if not to_gc:
@@ -128,7 +128,7 @@ class IrAttachment(models.Model):
         )
         return deleted_artifacts + deleted_bridges, int(more)
 
-    def _esm_gc_collectable(self, candidates):
+    def _get_esm_gc_collectable(self, candidates):
         bridges = candidates.filtered(
             lambda a: a.url.startswith(ESM_BRIDGES_URL_PREFIX)
         )

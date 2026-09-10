@@ -841,7 +841,7 @@ class HrEmployee(models.Model):
         employees.version_id._check_fields(["employee_id"])
         if self.env.context.get("salary_simulation"):
             return employees
-        employees.sudo()._generate_missing_avatars()
+        employees.sudo()._update_missing_avatars()
         employee_departments = employees.department_id
         if employee_departments:
             self.env["discuss.channel"].sudo().search(
@@ -2637,7 +2637,7 @@ class HrEmployee(models.Model):
         for employee, partner in zip(squatters, fresh, strict=True):
             employee.partner_id = partner
 
-    def _generate_missing_avatars(self):
+    def _update_missing_avatars(self):
         if not self.env["ir.ui.view"].sudo(False).has_access("write"):
             return
         for partner in self.partner_id:

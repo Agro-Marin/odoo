@@ -54,8 +54,8 @@ class TestPartnerAgeRange(TransactionCase):
         high = self.AgeRange.create(
             {"min_value": 1860, "max_value": 1870, "name": "edge high"}
         )
-        self.assertFalse(low._covers(1860), "the upper bound is exclusive")
-        self.assertTrue(high._covers(1860), "the lower bound is inclusive")
+        self.assertFalse(low._is_covering(1860), "the upper bound is exclusive")
+        self.assertTrue(high._is_covering(1860), "the lower bound is inclusive")
 
     def test_04_the_cohort_follows_birth_year_not_current_age(self):
         cohort = self.AgeRange.create(

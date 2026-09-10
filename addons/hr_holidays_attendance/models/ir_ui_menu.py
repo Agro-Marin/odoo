@@ -4,8 +4,8 @@ from odoo import models
 class IrUiMenu(models.Model):
     _inherit = "ir.ui.menu"
 
-    def _load_menus_blacklist(self):
-        res = super()._load_menus_blacklist()
+    def _get_blacklisted_menu_ids(self):
+        res = super()._get_blacklisted_menu_ids()
         if not (
             self.env.user.has_group("hr_attendance.group_hr_attendance_manager")
             and self.env.user.has_group("hr_holidays.group_hr_holidays_user")

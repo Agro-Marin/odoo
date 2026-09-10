@@ -244,7 +244,7 @@ class IrUiMenu(models.Model):
     def get_user_roots(self) -> Self:
         return self.search([("parent_id", "=", False)])._filter_visible_menus()
 
-    def _load_menus_blacklist(self) -> list[int]:
+    def _get_blacklisted_menu_ids(self) -> list[int]:
         return []
 
     def _get_session_debug(self) -> str | bool:
@@ -274,7 +274,7 @@ class IrUiMenu(models.Model):
     @api.model
     @tools.ormcache("self.env.uid", "debug", "self.env.lang")
     def load_menus(self, debug: bool) -> dict[str | int, Any]:
-        blacklisted_menu_ids = self._load_menus_blacklist()
+        blacklisted_menu_ids = self._get_blacklisted_menu_ids()
         visible_menus = self.search_fetch(
             [("id", "not in", blacklisted_menu_ids)],
             ["name", "parent_id", "action", "web_icon", "web_keywords"],

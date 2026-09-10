@@ -65,13 +65,13 @@ class TestProfileScale(TransactionCase):
     def test_a_perfect_score_classifies_with_an_open_top_band(self):
         self._band("Low", 0.0, 50.0, self.company_a)
         top = self._band("High open", 50.0, 0.0, self.company_a)
-        self.assertTrue(top._covers(100.0))
+        self.assertTrue(top._is_covering(100.0))
 
     def test_a_scale_may_be_built_top_band_first(self):
         top = self._band("High", 50.0, 0.0, self.company_a)
         bottom = self._band("Low", 0.0, 50.0, self.company_a)
-        self.assertTrue(bottom._covers(0.0))
-        self.assertTrue(top._covers(100.0))
+        self.assertTrue(bottom._is_covering(0.0))
+        self.assertTrue(top._is_covering(100.0))
 
     def test_a_company_less_partner_ignores_every_company_band(self):
         """The stored classification must not follow the acting user."""

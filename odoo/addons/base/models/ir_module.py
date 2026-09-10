@@ -1251,7 +1251,7 @@ class IrModuleModule(models.Model):
 
     @api.model
     @tools.ormcache(cache="stable")
-    def _installed(self) -> dict[str, int]:
+    def _get_installed_module_ids(self) -> dict[str, int]:
         return {
             module.name: module.id
             for module in self.sudo().search([("state", "=", "installed")])

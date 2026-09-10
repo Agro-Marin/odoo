@@ -3501,7 +3501,7 @@ class TestQWebHelpers(TransactionCase):
     def test_error_surrounding(self):
         qweb = self.env["ir.qweb"]
         code_lines = [f"line{n}" for n in range(1, 11)]
-        out = qweb._error_surrounding(code_lines, 5, None)
+        out = qweb._get_error_surrounding_code(code_lines, 5, None)
         self.assertIn("Line triggering the error", out)
         self.assertIn("line5", out)
         self.assertIn("line4", out)

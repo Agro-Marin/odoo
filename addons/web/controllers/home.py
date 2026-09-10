@@ -184,7 +184,7 @@ class Home(http.Controller):
                     if key in CREDENTIAL_PARAMS and value
                 }
                 credential.setdefault("type", "password")
-                if request.env["res.users"]._should_captcha_login(credential):
+                if request.env["res.users"]._is_captcha_login_required(credential):
                     request.env["ir.http"]._check_request_recaptcha_token("login")
                 auth_info = request.session.authenticate(request.env, credential)
                 request.params["login_success"] = True

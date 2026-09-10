@@ -99,7 +99,10 @@ class TestAddressParamInjection(HttpCase):
                 )
 
     def test_order_sudo_is_never_client_supplied(self):
-        if "website_sale" not in self.env["ir.module.module"]._installed():
+        if (
+            "website_sale"
+            not in self.env["ir.module.module"]._get_installed_module_ids()
+        ):
             self.skipTest("website_sale not installed")
         res = self.url_open(
             "/my/address/submit", data=self._valid_payload(order_sudo="pwned")

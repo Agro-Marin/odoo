@@ -105,7 +105,7 @@ def to_pdf_stream(attachment) -> io.BytesIO | None:
     if attachment_raw := attachment._get_pdf_raw():
         return io.BytesIO(attachment_raw)
 
-    raw = attachment._without_bin_size().raw
+    raw = attachment._with_bin_size_disabled().raw
     if not raw:
         _logger.warning("%s has no raw data.", attachment)
         return None

@@ -93,7 +93,7 @@ class IrAttachment(models.Model):
             return ""
 
     @api.model
-    def _index(self, bin_data, mimetype, checksum=None):
+    def _get_index_content(self, bin_data, mimetype, checksum=None):
         if checksum:
             cached_content = index_content_cache.get(checksum)
             if cached_content:
@@ -103,7 +103,7 @@ class IrAttachment(models.Model):
             # empty bytes rather than pretending to hold a document. Every
             # `_index_*` used to answer "" here, so this branch is what the walk
             # did rather than a new tolerance.
-            return super()._index(bin_data, mimetype, checksum=checksum)
+            return super()._get_index_content(bin_data, mimetype, checksum=checksum)
 
         document = Document(
             bin_data,
@@ -135,7 +135,7 @@ class IrAttachment(models.Model):
             res = document.text
         res = res.replace("\x00", "") if res else False
 
-        res = res or super()._index(bin_data, mimetype, checksum=checksum)
+        res = res or super()._get_index_content(bin_data, mimetype, checksum=checksum)
         if checksum:
             index_content_cache[checksum] = res
         return res
@@ -145,7 +145,7 @@ class IrAttachment(models.Model):
     # in full instead of the text-only prefix the base hook returns, otherwise a
     # streamed document larger than _INDEX_MAX_BYTES is parsed from a truncated
     # prefix and silently loses its index. This matches the buffered create
-    # path, which already hands _index the full content.
+    # path, which already hands _get_index_content the full content.
     _INDEXED_DOC_MIMETYPES = canonical_mimetypes(
         "pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "odg"
     )
@@ -156,7 +156,7 @@ class IrAttachment(models.Model):
         # for an unlabelled or generic mimetype (empty, or the browser
         # fallback `application/octet-stream`) rather than deferring to
         # base's default of skipping: this method only sees the mimetype the
-        # caller declared, so it cannot byte-sniff itself, but `_index`'s
+        # caller declared, so it cannot byte-sniff itself, but `_get_index_content`'s
         # Document can once it gets the full bytes -- a generic mimetype is
         # exactly the case where the declared string carries no information
         # either way. Media that genuinely can't be indexed (images, audio,

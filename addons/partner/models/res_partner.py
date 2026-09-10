@@ -87,7 +87,7 @@ class ResPartner(models.Model):
         for partner in self:
             if partner.birthdate:
                 age_range = age_ranges.filtered(
-                    lambda age_range, partner=partner: age_range._covers(
+                    lambda age_range, partner=partner: age_range._is_covering(
                         partner.birthdate.year
                     )
                 )[:1]

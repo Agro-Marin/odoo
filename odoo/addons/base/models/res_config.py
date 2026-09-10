@@ -249,7 +249,7 @@ class ResConfigSettings(models.TransientModel):
             if self[name] == current_settings[name]:
                 continue
             if self[name] and int(self[name]):
-                groups._apply_group(implied_group)
+                groups._add_implied_group(implied_group)
             else:
                 groups._remove_group(implied_group)
 

@@ -243,7 +243,7 @@ class TestEdiZatca(TestSaEdiCommon):
 
     def testInvoiceWithDownpayment(self):
         """Test invoice generation with downpayment scenarios."""
-        if "sale" not in self.env["ir.module.module"]._installed():
+        if "sale" not in self.env["ir.module.module"]._get_installed_module_ids():
             self.skipTest("Sale module is not installed")
         self.env.user.group_ids += self.env.ref("sales_team.group_sale_salesman")
 

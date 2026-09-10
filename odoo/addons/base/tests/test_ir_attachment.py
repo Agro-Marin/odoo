@@ -1145,14 +1145,14 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_index_preserves_non_ascii_text(self):
         Att = self.env["ir.attachment"]
         spanish = "Configuración del módulo árbol genealógico".encode()
-        indexed = Att._index(spanish, "text/plain")
+        indexed = Att._get_index_content(spanish, "text/plain")
         self.assertIn("Configuración", indexed)
         self.assertIn("módulo", indexed)
         self.assertIn("genealógico", indexed)
-        self.assertIsNone(Att._index(b"\x89PNG\r\n", "image/png"))
+        self.assertIsNone(Att._get_index_content(b"\x89PNG\r\n", "image/png"))
         ascii_data = b"hello world\nshort\na\nplain ascii text here"
         self.assertEqual(
-            Att._index(ascii_data, "text/plain"),
+            Att._get_index_content(ascii_data, "text/plain"),
             "hello world\nshort\nplain ascii text here",
         )
 
@@ -1168,9 +1168,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             patch.object(IrAttachmentCls, "_read_file", return_value=b""),
             patch.object(
                 IrAttachmentCls,
-                "_index",
+                "_get_index_content",
                 autospec=True,
-                side_effect=IrAttachmentCls._index,
+                side_effect=IrAttachmentCls._get_index_content,
             ) as index_spy,
             self.assertLogs("odoo.addons.base.models.ir_attachment", "WARNING") as log,
         ):
@@ -1205,9 +1205,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         datas = base64.b64encode(payload)
         with patch.object(
             IrAttachmentCls,
-            "_index",
+            "_get_index_content",
             autospec=True,
-            side_effect=IrAttachmentCls._index,
+            side_effect=IrAttachmentCls._get_index_content,
         ) as index_spy:
             atts = self.Attachment.create(
                 [
@@ -1224,9 +1224,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         rewritten = b"rewritten text payload shared by the whole batch"
         with patch.object(
             IrAttachmentCls,
-            "_index",
+            "_get_index_content",
             autospec=True,
-            side_effect=IrAttachmentCls._index,
+            side_effect=IrAttachmentCls._get_index_content,
         ) as index_spy:
             atts.write({"raw": rewritten})
         self.assertEqual(index_spy.call_count, 1, "write must derive the batch once")
@@ -1412,7 +1412,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "ir_attachment.index_max_chars", "500"
         )
         blob = (b"the quick brown fox jumps over the lazy dog " * 4000)[: 128 * 1024]
-        indexed = self.Attachment._index(blob, "text/plain")
+        indexed = self.Attachment._get_index_content(blob, "text/plain")
         self.assertLessEqual(
             len(indexed),
             600,
@@ -1428,7 +1428,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_index_honours_a_disabled_limit(self):
         self.env["ir.config_parameter"].set_param("ir_attachment.index_max_chars", "0")
         blob = b"alpha bravo charlie delta " * 500
-        indexed = self.Attachment._index(blob, "text/plain")
+        indexed = self.Attachment._get_index_content(blob, "text/plain")
         self.assertGreater(len(indexed), 10_000, "limit <= 0 means no bound")
 
     def test_a_digest_twin_in_one_batch_never_borrows_the_first_payload(self):
@@ -1489,9 +1489,9 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         IrAttachmentCls = self.registry["ir.attachment"]
         with patch.object(
             IrAttachmentCls,
-            "_index",
+            "_get_index_content",
             autospec=True,
-            side_effect=IrAttachmentCls._index,
+            side_effect=IrAttachmentCls._get_index_content,
         ) as index_spy:
             atts = self.Attachment.create(
                 [
@@ -3123,7 +3123,7 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         scoped = attachment.with_context(bin_size_raw=True, bin_size_db_datas=True)
         self.assertEqual(scoped._get_stored_content(), self.payload)
         self.assertEqual(scoped._get_content_prefix(), self.payload)
-        self.assertEqual(scoped._without_bin_size().raw, self.payload)
+        self.assertEqual(scoped._with_bin_size_disabled().raw, self.payload)
 
         scoped.write({"raw": b"replacement-payload"})
         self.assertEqual(self._reread(attachment).raw, b"replacement-payload")
@@ -3199,9 +3199,9 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
 
     def test_unsized_is_a_no_op_without_bin_size(self):
         attachment = self.Attachment.create({"name": "n.bin", "raw": b"x"})
-        self.assertIs(attachment._without_bin_size(), attachment)
+        self.assertIs(attachment._with_bin_size_disabled(), attachment)
         self.assertIsNot(
-            self._sized(attachment)._without_bin_size(), self._sized(attachment)
+            self._sized(attachment)._with_bin_size_disabled(), self._sized(attachment)
         )
 
 

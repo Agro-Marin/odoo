@@ -787,6 +787,6 @@ class IrModuleStableCacheCase(TransactionCase):
     def test_installed_sees_a_state_flip(self):
         Module = self.env["ir.module.module"]
         module = Module.search([("state", "=", "uninstalled")], limit=1)
-        self.assertNotIn(module.name, Module._installed())
+        self.assertNotIn(module.name, Module._get_installed_module_ids())
         module.write({"state": "installed"})
-        self.assertIn(module.name, Module._installed())
+        self.assertIn(module.name, Module._get_installed_module_ids())

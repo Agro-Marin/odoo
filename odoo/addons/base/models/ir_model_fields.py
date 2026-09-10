@@ -1305,7 +1305,7 @@ class IrModelFields(models.Model):
                     "enforced against those only" if known else "hidden from everyone",
                 )
         if field_data["ttype"] in ("char", "text", "html"):
-            self._apply_textual_field_attrs(field_data, attrs)
+            self._update_textual_field_attrs(field_data, attrs)
         elif field_data["ttype"] in ("selection", "reference"):
             attrs["selection"] = self.env[
                 "ir.model.fields.selection"
@@ -1352,7 +1352,7 @@ class IrModelFields(models.Model):
         return attrs
 
     @staticmethod
-    def _apply_textual_field_attrs(
+    def _update_textual_field_attrs(
         field_data: dict[str, Any], attrs: dict[str, Any]
     ) -> None:
         attrs["translate"] = FIELD_TRANSLATE.get(field_data["translate"], True)

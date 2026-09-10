@@ -333,7 +333,7 @@ class IrAttachment(models.Model):
         vals_list = super().copy_data(default=default)
         if not default.keys() & {"datas", "db_datas", "raw"}:
             for attachment, vals in zip(
-                self._without_bin_size(), vals_list, strict=True
+                self._with_bin_size_disabled(), vals_list, strict=True
             ):
                 if attachment.store_fname:
                     vals.pop("db_datas", None)
@@ -392,7 +392,7 @@ class IrAttachment(models.Model):
     @api.depends("store_fname", "db_datas", "file_size")
     def _compute_datas(self) -> None:
         for attach in self:
-            attach.datas = base64.b64encode(attach._without_bin_size().raw or b"")
+            attach.datas = base64.b64encode(attach._with_bin_size_disabled().raw or b"")
 
     @api.depends("store_fname", "db_datas", "file_size")
     def _compute_raw(self) -> None:
@@ -632,7 +632,7 @@ class IrAttachment(models.Model):
             "application/pdf"
         ):
             return None
-        return self._without_bin_size().raw or None
+        return self._with_bin_size_disabled().raw or None
 
     def _get_content_vals_memoized(
         self,
@@ -691,7 +691,7 @@ class IrAttachment(models.Model):
         return ["base.group_system"]
 
     def _get_content_for_rewrite(self, attach: Self, operation: str) -> bytes | None:
-        raw = attach._without_bin_size().raw
+        raw = attach._with_bin_size_disabled().raw
         if self._is_content_unreadable(
             raw,
             attach.file_size,
@@ -763,7 +763,7 @@ class IrAttachment(models.Model):
     def _with_field_rows(self) -> Self:
         return self.with_context(skip_res_field_check=True)
 
-    def _without_bin_size(self) -> Self:
+    def _with_bin_size_disabled(self) -> Self:
         if not any(self.env.context.get(key) for key in BIN_SIZE_KEYS):
             return self
         return self.with_context(**BIN_SIZE_KEYS)
@@ -782,7 +782,7 @@ class IrAttachment(models.Model):
                 action="serving empty bytes",
             )
             return data
-        if db_datas := self._without_bin_size().db_datas:
+        if db_datas := self._with_bin_size_disabled().db_datas:
             return db_datas if size is None else db_datas[:size]
         return None
 
@@ -858,7 +858,7 @@ class IrAttachment(models.Model):
         verify_collision = self._is_content_collision_check_enabled()
         memo: dict[tuple[str, str], tuple[bytes, dict[str, Any]]] = {}
 
-        for attach in self._without_bin_size():
+        for attach in self._with_bin_size_disabled():
             bin_data = asbytes(attach)
             vals = self._get_content_vals_memoized(
                 memo,
@@ -957,7 +957,7 @@ class IrAttachment(models.Model):
         )
 
     @api.model
-    def _index(
+    def _get_index_content(
         self, bin_data: bytes, file_type: str, checksum: str | None = None
     ) -> str | None:
         if not (file_type and file_type.startswith("text/")):
@@ -979,7 +979,7 @@ class IrAttachment(models.Model):
     def _extract_index_content(
         self, bin_data: bytes, mimetype: str, checksum: str | None = None
     ) -> str | None:
-        index_content = self._index(bin_data, mimetype, checksum=checksum)
+        index_content = self._get_index_content(bin_data, mimetype, checksum=checksum)
         if not index_content:
             return index_content
         limit = self._get_index_max_chars()
@@ -1359,7 +1359,7 @@ class IrAttachment(models.Model):
                 self, stream
             )
 
-        inline = self._without_bin_size().db_datas
+        inline = self._with_bin_size_disabled().db_datas
         if inline:
             stream.type = "data"
             stream.data = inline

@@ -433,7 +433,10 @@ class TestIrSequenceDateRangeUnlinkDropsPgSequences(TransactionCase):
         self.env.flush_all()
         ranges = seq.date_range_ids
         self.assertTrue(ranges, "precondition: a date range was materialized")
-        names = [seq._pg_sequence_name(), *(r._pg_sequence_name() for r in ranges)]
+        names = [
+            seq._get_pg_sequence_name(),
+            *(r._get_pg_sequence_name() for r in ranges),
+        ]
         self.assertEqual(self._pg_sequences(names), set(names))
 
         seq.unlink()

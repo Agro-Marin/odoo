@@ -208,7 +208,8 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
         super().setUpClass()
         cls.env.company.restrictive_audit_trail = True
         cls.document_installed = (
-            "documents_account" in cls.env["ir.module.module"]._installed()
+            "documents_account"
+            in cls.env["ir.module.module"]._get_installed_module_ids()
         )
         if cls.document_installed:
             folder_test = cls.env["document.document"].create(

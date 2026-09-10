@@ -32,7 +32,7 @@ class TestCaseIndexation(TransactionCase):
     def test_attachment_pdf_indexation(self):
         with file_open(str(directory / "files" / "test_content.pdf"), "rb") as file:
             pdf = file.read()
-            text = self.env["ir.attachment"]._index(pdf, "application/pdf")
+            text = self.env["ir.attachment"]._get_index_content(pdf, "application/pdf")
             self.assertEqual(
                 text, "TestContent!!", "the index content should be correct"
             )
@@ -94,7 +94,7 @@ class TestCaseIndexation(TransactionCase):
         """An unlabelled or generic mimetype (empty, or the browser's
         'application/octet-stream' fallback) must still read the whole file
         rather than skip: this method only sees the caller's declared
-        string, so only `_index`'s Document, once given the full bytes, can
+        string, so only `_get_index_content`'s Document, once given the full bytes, can
         recognise a real document the declared string could not. Genuinely
         unindexable media is always declared with its own specific
         mimetype, never a generic one, so it still skips (asserted above)."""

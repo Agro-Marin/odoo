@@ -4,8 +4,8 @@ from odoo import models
 class IrUiMenu(models.Model):
     _inherit = "ir.ui.menu"
 
-    def _load_menus_blacklist(self) -> list:
-        res = super()._load_menus_blacklist()
+    def _get_blacklisted_menu_ids(self) -> list:
+        res = super()._get_blacklisted_menu_ids()
         if not self.env.user.has_group("project.group_project_manager") and (
             menu := self.env.ref(
                 "project.menu_project_customer_ratings", raise_if_not_found=False

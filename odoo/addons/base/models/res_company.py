@@ -616,7 +616,7 @@ class ResCompany(models.Model):
         }
 
     @ormcache("tuple(self.env.companies.ids)", "self.id", "self.env.uid")
-    def __accessible_branches(self) -> list[int]:
+    def __get_accessible_branch_ids(self) -> list[int]:
         self.check_singleton()
 
         accessible_branch_ids = []
@@ -637,7 +637,7 @@ class ResCompany(models.Model):
         return accessible_branch_ids
 
     def _get_accessible_branches(self) -> Self:
-        return self.browse(self.__accessible_branches())
+        return self.browse(self.__get_accessible_branch_ids())
 
     def _get_field_names_delegated_to_root(self) -> list[str]:
         return ["currency_id"]

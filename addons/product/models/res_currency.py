@@ -18,5 +18,7 @@ class ResCurrency(models.Model):
         super()._activate_group_multi_currency()
         if not self.env.user.has_group("product.group_product_pricelist"):
             group_user = self.env.ref("base.group_user").sudo()
-            group_user._apply_group(self.env.ref("product.group_product_pricelist"))
+            group_user._add_implied_group(
+                self.env.ref("product.group_product_pricelist")
+            )
             self.env["res.company"]._activate_or_create_pricelists()

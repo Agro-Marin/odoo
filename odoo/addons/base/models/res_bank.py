@@ -172,7 +172,7 @@ class ResPartnerBank(models.Model):
             value = sanitize_account_number(value)
         return [("sanitized_acc_number", operator, value)]
 
-    def _user_can_trust(self):
+    def _can_user_trust(self):
         self.check_singleton()
         return True
 

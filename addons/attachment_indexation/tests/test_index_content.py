@@ -53,9 +53,9 @@ class TestIndexContent(TransactionCase):
         self.assertEqual(self.Attachment._index_docx(b"not a zip file"), "")
 
     def test_index_dispatch_prefers_docx_extractor(self):
-        """_index routes a docx payload through the docx extractor."""
+        """_get_index_content routes a docx payload through the docx extractor."""
         data = _make_docx(["Indexed body"])
-        result = self.Attachment._index(data, DOCX_MIME)
+        result = self.Attachment._get_index_content(data, DOCX_MIME)
         self.assertIn("Indexed body", result)
 
     def test_index_read_size_full_for_office_docs(self):

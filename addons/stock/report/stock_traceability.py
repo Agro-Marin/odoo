@@ -331,7 +331,7 @@ class StockTraceabilityReport(models.TransientModel):
         )
 
         IrReport = self.env["ir.actions.report"]
-        body_with_header = IrReport._add_html_header_footer(
+        body_with_header = IrReport._get_html_with_header_footer(
             body, header=header.decode()
         )
         return IrReport._render_html_to_pdf(

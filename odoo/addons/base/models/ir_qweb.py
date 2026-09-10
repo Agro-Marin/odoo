@@ -619,7 +619,7 @@ class IrQweb(models.AbstractModel):
             error, stack, frame, ETREE_REF
         )
 
-        line_nb = self._error_line_number(ref)
+        line_nb = self._get_error_line_number(ref)
 
         source = [info.params.path_xml for info in stack if info.params.path_xml]
         code_lines = (code or "").split("\n")
@@ -633,7 +633,7 @@ class IrQweb(models.AbstractModel):
 
         surrounding = None
         if self.env.context.get("dev_mode") and line_nb:
-            surrounding = self._error_surrounding(code_lines, line_nb, html)
+            surrounding = self._get_error_surrounding_code(code_lines, line_nb, html)
 
         return QWebErrorInfo(
             f"{error.__class__.__name__}: {error}",
@@ -684,7 +684,7 @@ class IrQweb(models.AbstractModel):
                 html = frame.params.path_xml[2]
         return ref, ref_name, code, path, html
 
-    def _error_line_number(self, ref: Any) -> int:
+    def _get_error_line_number(self, ref: Any) -> int:
         trace = traceback.format_exc()
         for error_line in reversed(trace.split("\n")):
             if f'File "<{ref}>"' in error_line or (
@@ -724,7 +724,7 @@ class IrQweb(models.AbstractModel):
                 html = marker_xml
         return path, html
 
-    def _error_surrounding(
+    def _get_error_surrounding_code(
         self, code_lines: list[str], line_nb: int, html: str | None
     ) -> str:
         previous_lines = "\n".join(code_lines[max(line_nb - 25, 0) : line_nb - 1])

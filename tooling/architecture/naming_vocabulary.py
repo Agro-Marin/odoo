@@ -136,6 +136,18 @@ ABOLISHED: dict[str, tuple[str, bool]] = {
     "sum": ("_get_", False),
     "synchronize": ("_sync_", True),
     "synchronise": ("_sync_", True),
+    # §2.4.8: the predicate prefixes are three, and a necessity modal is not one
+    # of them. `_should_`, `_need_`, `_must_` and `_want_` put the modality where
+    # the question should be; the repair asks the question and moves the modality
+    # into the tail (`_should_start_timer` -> `_is_timer_start_required`). mrp
+    # drained its eight by hand while the gate read the addon as clean, which is
+    # the shape this table exists to close.
+    "should": ("_is_", False),
+    "need": ("_is_", False),
+    "needs": ("_is_", False),
+    "must": ("_is_", False),
+    "wants": ("_is_", False),
+    "want": ("_is_", False),
 }
 
 RESERVED = {
@@ -285,7 +297,7 @@ def classify(name: str) -> tuple[str, str] | None:
     return verb, canonical
 
 
-PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
+PREDICATE_PREFIXES = frozenset({"is", "has", "can"})
 
 # §2.4's table spells a free-standing domain `_get_domain_<what>`, and the
 # `_domain` tail already routes every abolished verb there. `prepare` is a
@@ -293,8 +305,50 @@ PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
 # to `create()`, so `_prepare_po_get_domain` claimed a payload it never was.
 # Measured when this landed: 4 in addons, 5 in enterprise, 1 in agromarin, all
 # renamed first so no floor moved.
+# `get` is NOT in `DOMAIN_TAIL_VERBS`, and the rule for it lives in
+# `domain_tail_under_get` below rather than in `classify`, on purpose:
+# `naming_core_vocabulary.classify_name` reads `classify` as its `leading`
+# kind and pins `_get_x_domain` as accepted there -- its question is whether
+# `domain` is a trailing VERB, and it is not. Widening the shared name test
+# would have moved every one of that gate's hard zeros (twenty in `stock`
+# alone) through a file this rule does not own. So the name test stays as
+# it was and the addon gate asks the fuller question in `measure()`.
 DOMAIN_TAIL_VERBS = frozenset({"prepare"})
 DOMAIN_CANONICAL = "_get_domain_"
+
+# §2.4.1: a free-standing domain is `_get_domain_<what>`, and the tail-marked
+# `_get_<what>_domain` is the spelling it retired. `base` was read by hand and
+# `_get_eval_domain`, `_get_action_domain`, `_get_inheriting_views_domain` and
+# `_get_name_search_domain` all returned a `Domain` under it, while the
+# fieldhooks gate's `unmarked` kind sees only a body whose every return is a
+# literal -- a domain assembled in a variable, or through `Domain.AND`, escaped
+# both. The name is the claim: a `_domain` tail promises a `Domain`, and
+# §2.4.1's converse says a method that does not return one must not wear the
+# word either way. Two honest exceptions share one test: a hostname
+# (`website`'s `_get_http_domain -> str`) and a record of a model whose own
+# noun is *domain* (`mail.alias.domain`'s `_get_default_domain -> Self`). Both
+# are read off the RETURN ANNOTATION, not the name, because the name cannot
+# say which `domain` it means -- an annotation naming a type that is not a
+# domain exempts, and an unannotated body is held to its name.
+_DOMAIN_LIKE_ANNOTATION = re.compile(r"\b(?:Domain|list|tuple|Sequence|Iterable|Any)\b")
+
+
+def returns_something_other_than_a_domain(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> bool:
+    return node.returns is not None and not _DOMAIN_LIKE_ANNOTATION.search(
+        ast.unparse(node.returns)
+    )
+
+
+def domain_tail_under_get(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
+    stem = node.name.lstrip("_")
+    verb, _, rest = stem.partition("_")
+    if verb != "get" or not rest or not node.name.endswith("_domain"):
+        return None
+    if returns_something_other_than_a_domain(node):
+        return None
+    return DOMAIN_CANONICAL
 
 
 def infix_abolished_verb(name: str) -> str | None:
@@ -1067,8 +1121,12 @@ def governed_definitions(
     return found
 
 
-_PRODUCER_VERBS = frozenset({"get", "resolve", "prepare"})
+# `generate` is §2.4.7's largest payload verb and claims a product like the
+# other three; a `_generate_missing_avatars` that writes `image_1920` on the
+# receiver and returns nothing did the Mutation row's work under it.
+_PRODUCER_VERBS = frozenset({"get", "resolve", "prepare", "generate"})
 _TRIVIAL_CALLS = frozenset({"check_singleton", "ensure_one"})
+_ORM_CREATE_CALL = "create"
 
 
 def _own_scope(node: ast.AST):
@@ -1173,7 +1231,67 @@ def producer_without_product(
         return None
     if _is_hook_bound(node.name, tree):
         return None
+    # A body whose only ORM write is `create()` took the domain operation's
+    # name, not the Mutation row's: §2.4.7 renamed `_generate_consume_moves` to
+    # `_create_consume_moves` on exactly that reading. Any `write()` or
+    # `unlink()` beside it makes the body a mutation again.
+    writes = {
+        n.func.attr
+        for n in ast.walk(node)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr in _ORM_WRITE_CALLS
+    }
+    if writes == {_ORM_CREATE_CALL} and not _stores_into_something(node):
+        return "_create_"
     return "_update_"
+
+
+# §2.4.22: a body that is one ORM shaping call hands back the receiver
+# reshaped -- a subset of it, or the same rows in another envelope -- and a
+# producer prefix on it promises a value the caller never gets. The rule is
+# for a body that is ONE such call and nothing else; a method that searches
+# and then filters returns rows the caller never held and is a read.
+_SHAPING_CALLS = {
+    "filtered": "_filtered_",
+    "filtered_domain": "_filtered_",
+    "sorted": "_sorted_",
+    "grouped": "_grouped_",
+}
+_ENVELOPE_CANONICAL = "_with_"
+_RESHAPED_PREFIXES = frozenset({"get", "check", "set", "prepare", "resolve"})
+
+
+def reshaped_receiver(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
+    stem = node.name.lstrip("_")
+    verb, _, rest = stem.partition("_")
+    if verb not in _RESHAPED_PREFIXES or not rest:
+        return None
+    body = [
+        stmt
+        for stmt in node.body
+        if not (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Constant)
+            and isinstance(stmt.value.value, str)
+        )
+    ]
+    if len(body) != 1 or not isinstance(body[0], ast.Return):
+        return None
+    value = body[0].value
+    if not (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Attribute)
+        and isinstance(value.func.value, ast.Name)
+        and value.func.value.id == "self"
+    ):
+        return None
+    attr = value.func.attr
+    if attr in _SHAPING_CALLS:
+        return _SHAPING_CALLS[attr]
+    if attr == "sudo" or attr.startswith("with_"):
+        return _ENVELOPE_CANONICAL
+    return None
 
 
 def measure(roots: list[Path] | None = None) -> list[Violation]:
@@ -1194,8 +1312,11 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
                 continue
             hit = classify(item.name)
             if hit is None:
-                canonical = reserved_misuse(item) or producer_without_product(
-                    item, tree
+                canonical = (
+                    reserved_misuse(item)
+                    or domain_tail_under_get(item)
+                    or producer_without_product(item, tree)
+                    or reshaped_receiver(item)
                 )
                 if canonical is None:
                     continue

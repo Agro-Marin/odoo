@@ -219,7 +219,7 @@ The server compiles every child declared under that page **together**
    `/web/assets/esm/<group hash>/` (`_save_esm_group`: immutable, one year, the
    404 self-heal applies) with the esbuild metafile as a sidecar named group.meta.json. The
    garbage collector keeps a directory alive while any entry in it is the
-   newest of its name (`_esm_gc_collectable`), because a chunk's hashed name is
+   newest of its name (`_get_esm_gc_collectable`), because a chunk's hashed name is
    reused by nothing.
 
 A page stamps the bundle it rendered first, which may be one member of the

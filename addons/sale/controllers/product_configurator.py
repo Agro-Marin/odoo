@@ -78,7 +78,7 @@ class SaleProductConfiguratorController(Controller):
                         parent_product_tmpl_id=product_template.id,
                     )
                     for optional_product_template in product_template.optional_product_ids
-                    if self._should_show_product(optional_product_template, combination)
+                    if self._is_product_shown(optional_product_template, combination)
                 ]
                 if not only_main_product
                 else []
@@ -184,7 +184,7 @@ class SaleProductConfiguratorController(Controller):
                 parent_product_tmpl_id=product_template.id,
             )
             for optional_product_template in product_template.optional_product_ids
-            if self._should_show_product(optional_product_template, parent_combination)
+            if self._is_product_shown(optional_product_template, parent_combination)
         ]
 
     def _get_product_template(self, product_template_id):
@@ -325,5 +325,5 @@ class SaleProductConfiguratorController(Controller):
             date.date(),
         )
 
-    def _should_show_product(self, product_template, parent_combination):
+    def _is_product_shown(self, product_template, parent_combination):
         return True

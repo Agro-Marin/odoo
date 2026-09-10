@@ -1215,14 +1215,14 @@ class ResPartner(models.Model):
             if self._fields[fname].company_dependent
         ]
 
-    def _commercial_sync_from_company(self) -> None:
+    def _sync_commercial_fields_from_company(self) -> None:
         commercial_partner = self.commercial_partner_id
         if commercial_partner != self:
             sync_vals = commercial_partner._prepare_commercial_vals()
             if sync_vals:
                 self.write(sync_vals)
-                self._commercial_sync_to_descendants(list(sync_vals))
-            self._company_dependent_commercial_sync()
+                self._sync_commercial_fields_to_descendants(list(sync_vals))
+            self._sync_company_dependent_commercial_fields()
 
     def _get_stored_company_ids(self, field_names: list[str]) -> set[int]:
         record_ids = list({*self.ids, *self.commercial_partner_id.ids})
@@ -1246,7 +1246,7 @@ class ResPartner(models.Model):
             for company_key in value
         }
 
-    def _company_dependent_commercial_sync(self) -> None:
+    def _sync_company_dependent_commercial_fields(self) -> None:
         if not (fields_to_sync := self._company_dependent_commercial_fields()):
             return
 
@@ -1272,7 +1272,7 @@ class ResPartner(models.Model):
                     commercial_in_company._convert_fields_to_values(stale_fields)
                 )
 
-    def _commercial_sync_to_descendants(
+    def _sync_commercial_fields_to_descendants(
         self, fields_to_sync: list[str] | None = None
     ) -> None:
         self.check_singleton()
@@ -1300,13 +1300,13 @@ class ResPartner(models.Model):
     def _fields_sync(self, values: dict[str, Any]) -> None:
         self._sync_from_parent(values)
         self._sync_to_parent(values)
-        self._children_sync(values)
+        self._sync_children(values)
 
     def _sync_from_parent(self, values: dict[str, Any]) -> None:
         if not (values.get("parent_id") or values.get("type") == "contact"):
             return
         if values.get("parent_id"):
-            self.sudo()._commercial_sync_from_company()
+            self.sudo()._sync_commercial_fields_from_company()
         if self.parent_id and self.type == "contact":
             if address_values := self.parent_id._prepare_address_vals():
                 self._update_address(address_values)
@@ -1331,11 +1331,11 @@ class ResPartner(models.Model):
         ):
             self.parent_id.write(synced_vals)
 
-    def _children_sync(self, values: dict[str, Any]) -> None:
+    def _sync_children(self, values: dict[str, Any]) -> None:
         if self.commercial_partner_id == self:
             fields_to_sync = values.keys() & self._commercial_fields()
             if fields_to_sync:
-                self.sudo()._commercial_sync_to_descendants(fields_to_sync)
+                self.sudo()._sync_commercial_fields_to_descendants(fields_to_sync)
         address_fields = self._address_fields()
         if any(field in values for field in address_fields):
             contacts = self.child_ids.filtered(lambda c: c.type == "contact")
@@ -1558,7 +1558,7 @@ class ResPartner(models.Model):
                 self.sudo().browse(children).write(to_write)
 
         for partner, vals in zip(partners, vals_list, strict=True):
-            partner._children_sync(vals)
+            partner._sync_children(vals)
             partner._update_parent_address()
         return partners
 

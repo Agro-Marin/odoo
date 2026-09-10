@@ -223,7 +223,8 @@ class ResCompany(models.Model):
             return super()._check_tax_return_configuration()
 
         is_l10n_in_reports_installed = (
-            "l10n_in_reports" in self.env["ir.module.module"]._installed()
+            "l10n_in_reports"
+            in self.env["ir.module.module"]._get_installed_module_ids()
         )
         if not is_l10n_in_reports_installed:
             msg = _(

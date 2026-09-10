@@ -78,7 +78,7 @@ class ResPartnerBank(models.Model):
 
     def _check_allow_out_payment(self):
         for bank in self:
-            if bank.allow_out_payment and not bank._user_can_trust():
+            if bank.allow_out_payment and not bank._can_user_trust():
                 raise ValidationError(
                     self.env._(
                         "You do not have the right to trust or un-trust a bank account."
@@ -158,7 +158,7 @@ class ResPartnerBank(models.Model):
     @api.depends_context("uid")
     def _compute_user_has_group_validate_bank_account(self):
         for bank in self:
-            bank.user_has_group_validate_bank_account = bank._user_can_trust()
+            bank.user_has_group_validate_bank_account = bank._can_user_trust()
 
     @api.depends("allow_out_payment")
     def _compute_lock_trust_fields(self):
@@ -364,9 +364,9 @@ class ResPartnerBank(models.Model):
     ):
         return
 
-    def _user_can_trust(self):
+    def _can_user_trust(self):
         return (
-            super()._user_can_trust()
+            super()._can_user_trust()
             and (
                 self.env.su
                 or self.env.user.has_group("account.group_validate_bank_account")
@@ -393,7 +393,7 @@ class ResPartnerBank(models.Model):
 
         accounts = super().create(vals_list)
         for account, trust in zip(accounts, to_trust, strict=True):
-            if trust and account._user_can_trust():
+            if trust and account._can_user_trust():
                 account.allow_out_payment = True
             msg = self.env._(
                 "Bank Account %s created",
@@ -474,7 +474,7 @@ class ResPartnerBank(models.Model):
             )
 
         if "allow_out_payment" in vals and any(
-            not bank._user_can_trust() for bank in self
+            not bank._can_user_trust() for bank in self
         ):
             raise UserError(
                 self.env._("You do not have the rights to trust or un-trust accounts.")

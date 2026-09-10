@@ -629,7 +629,7 @@ class IrModuleModule(models.Model):
 
         configurator_snippets = dict(manifest.get("configurator_snippets", {}))
         addons = manifest.get("configurator_snippets_addons", {})
-        installed_modules = self.env["ir.module.module"]._installed()
+        installed_modules = self.env["ir.module.module"]._get_installed_module_ids()
 
         for module_name, pages in addons.items():
             if module_name not in installed_modules and module_name != self.name:

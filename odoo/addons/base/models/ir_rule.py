@@ -289,7 +289,7 @@ class IrRule(models.Model):
 
         context = None
         if company_related:
-            resolution_info, context = self._add_company_resolution(
+            resolution_info, context = self._get_company_resolution_info(
                 display_records, resolution_info
             )
 
@@ -313,7 +313,7 @@ class IrRule(models.Model):
             exception.context = context
         return exception
 
-    def _add_company_resolution(
+    def _get_company_resolution_info(
         self, display_records: Any, resolution_info: str
     ) -> tuple[str, dict | None]:
         context = None

@@ -7920,12 +7920,12 @@ class TestInheritingViewsQuery(ViewCase):
         view = self.env.ref("base.view_res_partner_filter")
         with patch.object(
             type(self.View),
-            "_get_inheriting_views_domain",
+            "_get_domain_inheriting_views",
             return_value=Domain("inherit_id.name", "!=", "zzz"),
         ):
             with self.assertRaises(ValueError) as catcher:
                 view._get_views_inheriting()
-        self.assertIn("_get_inheriting_views_domain", str(catcher.exception))
+        self.assertIn("_get_domain_inheriting_views", str(catcher.exception))
 
 
 class TestViewArchFileResolution(common.TransactionCase):

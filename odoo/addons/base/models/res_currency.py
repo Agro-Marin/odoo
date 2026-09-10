@@ -24,7 +24,7 @@ RATE_HISTORY_CACHE_KEY = "res_currency_rate_history"
 class ResCurrency(models.Model):
     _name = "res.currency"
     _description = "Currency"
-    _rec_names_search = ["name", "full_name"]
+    _rec_names_search = ["name", "get_full_name"]
     _order = "active desc, name"
 
     name = fields.Char(
@@ -124,7 +124,7 @@ class ResCurrency(models.Model):
         group_user = self.env.ref("base.group_user", raise_if_not_found=False)
         group_mc = self.env.ref("base.group_multi_currency", raise_if_not_found=False)
         if group_user and group_mc:
-            group_user.sudo()._apply_group(group_mc)
+            group_user.sudo()._add_implied_group(group_mc)
 
     @api.model
     def _deactivate_group_multi_currency(self) -> None:
@@ -207,7 +207,7 @@ class ResCurrency(models.Model):
             )
         )
 
-    def _rate_history_scope(self) -> tuple:
+    def _get_rate_history_scope(self) -> tuple:
         return (self.env.su, self.env.uid, tuple(sorted(self.env.companies.ids)))
 
     def _get_rates_from_memo(self, company: Self, date: Any) -> dict[int, float] | None:
@@ -218,7 +218,7 @@ class ResCurrency(models.Model):
         if not date:
             return None
         root_id = company.root_id.id
-        scope = self._rate_history_scope()
+        scope = self._get_rate_history_scope()
         memo = self.env.cr.cache.setdefault(RATE_HISTORY_CACHE_KEY, {})
         missing = {
             currency_id

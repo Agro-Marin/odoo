@@ -50,7 +50,7 @@ class IrDefault(models.Model):
     )
 
     @staticmethod
-    def _fits_column(field, parsed: Any) -> bool:
+    def _is_value_fitting_column(field, parsed: Any) -> bool:
         if field.type == "integer":
             return INT4_MIN <= parsed <= INT4_MAX
         return True
@@ -87,7 +87,7 @@ class IrDefault(models.Model):
                         field_name=field_rec.name,
                     )
                 ) from None
-            if not self._fits_column(field, parsed):
+            if not self._is_value_fitting_column(field, parsed):
                 raise ValidationError(
                     self.env._(
                         "Invalid value in Default Value field. %(value)s is out of bounds for '%(model_name)s.%(field_name)s' (integers should be between -2,147,483,648 and 2,147,483,647).",
@@ -196,7 +196,7 @@ class IrDefault(models.Model):
                     value=value,
                 )
             ) from None
-        if not self._fits_column(orm_field, parsed):
+        if not self._is_value_fitting_column(orm_field, parsed):
             raise ValidationError(
                 self.env._(
                     "Invalid value for %(model)s.%(field)s: %(value)s is out of bounds (integers should be between -2,147,483,648 and 2,147,483,647)",

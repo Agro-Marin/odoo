@@ -13,12 +13,15 @@ from naming_vocabulary import (
     _python_files,
     classify,
     collection_head_order,
+    domain_tail_under_get,
     governed_definitions,
     governs_module_helpers,
     is_model_class,
     measure,
     producer_without_product,
     reserved_misuse,
+    reshaped_receiver,
+    returns_something_other_than_a_domain,
 )
 
 
@@ -753,6 +756,134 @@ def test_the_domain_row_itself_and_the_payload_row_stay_quiet(name):
 
 
 @pytest.mark.parametrize(
+    "name", ["_get_eval_domain", "_get_inheriting_views_domain", "get_base_domain"]
+)
+def test_a_get_with_a_domain_tail_is_the_domain_row_in_measure_not_in_classify(
+    name,
+):
+    # `classify` stays a pure name test the core gate pins the other way
+    assert classify(name) is None
+    assert domain_tail_under_get(_fn(f"def {name}(self):\n    return []")) == (
+        "_get_domain_"
+    )
+    assert domain_tail_under_get(_fn(f"def {name}(self) -> str:\n    return ''")) is (
+        None
+    )
+
+
+@pytest.mark.parametrize(
+    ("src", "exempt"),
+    [
+        # a hostname, read off the annotation and not the name
+        ("def _get_http_domain(self) -> str:\n    return self.domain", True),
+        # a record of a model whose own noun is *domain*
+        ("def _get_default_domain(self) -> Self:\n    return self.browse()", True),
+        # an annotation that names a domain type is held to it
+        ("def _get_eval_domain(self) -> list:\n    return []", False),
+        ("def _get_x_domain(self) -> Domain:\n    return Domain.TRUE", False),
+        ("def _get_x_domain(self) -> Domain | None:\n    return None", False),
+        # an unannotated body is held to its name
+        ("def _get_x_domain(self):\n    return self.domain", False),
+    ],
+)
+def test_only_an_annotation_naming_a_non_domain_type_exempts_the_tail(src, exempt):
+    assert returns_something_other_than_a_domain(_fn(src)) is exempt
+
+
+def test_the_domain_tail_exemption_reaches_measure(tmp_path):
+    addon = tmp_path / "addon"
+    addon.mkdir()
+    (addon / "__manifest__.py").write_text("{}")
+    (addon / "models.py").write_text(
+        textwrap.dedent("""
+            class Site(models.Model):
+                _name = "site"
+
+                def _get_http_domain(self) -> str:
+                    return self.domain
+
+                def _get_default_domain(self) -> Self:
+                    return self.browse()
+
+                def _get_active_domain(self):
+                    return [("active", "=", True)]
+        """)
+    )
+    assert [(v.name, v.canonical) for v in measure([tmp_path])] == [
+        ("_get_active_domain", "_get_domain_")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("name", "canonical"),
+    [
+        ("_should_start_timer", "_is_"),
+        ("_need_video_call", "_is_"),
+        ("_needs_address", "_is_"),
+        ("_must_check_identity", "_is_"),
+        ("_wants_unfollow_link", "_is_"),
+    ],
+)
+def test_a_necessity_modal_is_not_a_predicate_prefix(name, canonical):
+    assert classify(name) == (name.lstrip("_").partition("_")[0], canonical)
+
+
+@pytest.mark.parametrize(
+    ("src", "canonical"),
+    [
+        (
+            "def _get_discount_lines(self):\n    return self.filtered('is_discount')",
+            "_filtered_",
+        ),
+        (
+            "def _get_lines(self):\n    return self.filtered_domain([('a', '=', 1)])",
+            "_filtered_",
+        ),
+        (
+            "def _check_line_unlink(self):\n    return self.filtered(lambda l: l.qty)",
+            "_filtered_",
+        ),
+        ("def _get_ordered(self):\n    return self.sorted('date')", "_sorted_"),
+        (
+            "def _get_by_partner(self):\n    return self.grouped('partner_id')",
+            "_grouped_",
+        ),
+        (
+            "def _set_view_context(self):\n    return self.with_context(view=True)",
+            "_with_",
+        ),
+        ("def _get_privileged(self):\n    return self.sudo()", "_with_"),
+        # a docstring does not make the body two statements
+        (
+            'def _get_late(self):\n    """The late ones."""\n    return self.filtered("late")',
+            "_filtered_",
+        ),
+    ],
+)
+def test_a_producer_prefix_on_one_shaping_call_is_the_reshaped_receiver(src, canonical):
+    assert reshaped_receiver(_fn(src)) == canonical
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        # searches, then filters: rows the caller never held (§2.4.22)
+        "def _get_late(self):\n    late = self.search([])\n    return late.filtered('x')",
+        # a shaping call on something other than the receiver
+        "def _get_late(self, lines):\n    return lines.filtered('late')",
+        # already spelled for the operation
+        "def _filtered_late(self):\n    return self.filtered('late')",
+        # a bare verb
+        "def _get(self):\n    return self.filtered('late')",
+        # a prefix that claims nothing about a product
+        "def _add_late(self):\n    return self.filtered('late')",
+    ],
+)
+def test_a_body_that_is_not_one_shaping_call_on_self_is_quiet(src):
+    assert reshaped_receiver(_fn(src)) is None
+
+
+@pytest.mark.parametrize(
     ("src", "canonical"),
     [
         # fills a dict the caller owns
@@ -779,7 +910,23 @@ def test_the_domain_row_itself_and_the_payload_row_stay_quiet(name):
         ),
         # an ORM write with no store is still the Mutation row
         (
+            "def _get_or_create_channel(self):\n    if not self.line:\n        self.env['channel'].write({'a': 1})",
+            "_update_",
+        ),
+        # a body whose only ORM write is create() took the domain operation's
+        # name (§2.4.7: _generate_consume_moves -> _create_consume_moves)
+        (
             "def _get_or_create_channel(self):\n    if not self.line:\n        self.env['channel'].create({'a': 1})",
+            "_create_",
+        ),
+        # create() beside a write() is a mutation again
+        (
+            "def _generate_lines(self):\n    self.env['l'].create({'a': 1})\n    self.write({'done': True})",
+            "_update_",
+        ),
+        # §2.4.7's largest payload verb claims a product like the other three
+        (
+            "def _generate_missing_avatars(self):\n    for user in self:\n        user.image_1920 = user._prepare_avatar_svg()",
             "_update_",
         ),
     ],

@@ -152,7 +152,7 @@ class ResPartner(models.Model):
                 (
                     profile
                     for profile in scales[company.id]
-                    if profile._covers(partner.score_pct)
+                    if profile._is_covering(partner.score_pct)
                 ),
                 profile_model,
             )

@@ -12,7 +12,7 @@ from odoo.addons.base.models.mixin_catalog import name_uniq_index
 class ResGroups(models.Model):
     _name = "res.groups"
     _description = "Access Groups"
-    _rec_name = "full_name"
+    _rec_name = "get_full_name"
     _allow_sudo_commands = False
     _order = "privilege_id, sequence, name, id"
 
@@ -236,10 +236,10 @@ class ResGroups(models.Model):
         order: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        if order and order.startswith("full_name"):
+        if order and order.startswith("get_full_name"):
             groups = super().search(domain)
             groups = groups.sorted(
-                "full_name", reverse=order.strip().upper().endswith("DESC")
+                "get_full_name", reverse=order.strip().upper().endswith("DESC")
             )
             groups = groups[offset : offset + limit] if limit else groups[offset:]
             return groups._as_query(order)
@@ -394,7 +394,7 @@ class ResGroups(models.Model):
         self.env.registry.clear_cache("groups")
         return res
 
-    def _apply_group(self, implied_group: Self) -> None:
+    def _add_implied_group(self, implied_group: Self) -> None:
         groups = self.filtered(lambda g: implied_group not in g.all_implied_ids)
         groups.write({"implied_ids": [Command.link(implied_group.id)]})
 

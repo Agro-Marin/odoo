@@ -155,7 +155,7 @@ class WebsiteSnippetFilter(models.Model):
                 context = {}
                 order = None
             else:
-                domain = Domain(filter_sudo._get_eval_domain())
+                domain = Domain(filter_sudo._get_domain_evaluated())
                 context = self.env["ir.actions.actions"]._eval_action_context(
                     filter_sudo.context
                 )

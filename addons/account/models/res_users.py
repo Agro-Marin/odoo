@@ -18,4 +18,4 @@ class ResGroups(models.Model):
         for group_name in groups_with_access:
             group = self.env.ref(group_name, raise_if_not_found=False)
             if group:
-                group.sudo()._apply_group(group_account_secured)
+                group.sudo()._add_implied_group(group_account_secured)

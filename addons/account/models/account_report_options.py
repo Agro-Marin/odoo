@@ -340,7 +340,8 @@ class AccountReportOptions(models.Model):
 
         selected_ir_filters = self.env["ir.filters"].browse(selected_filters_ids)
         return Domain.OR(
-            filter_record._get_eval_domain() for filter_record in selected_ir_filters
+            filter_record._get_domain_evaluated()
+            for filter_record in selected_ir_filters
         )
 
     def _init_options_date(self, options, previous_options):

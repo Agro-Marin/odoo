@@ -56,7 +56,7 @@ class ResUsers(models.Model):
     def _on_webclient_bootstrap(self) -> None:
         self.check_singleton()
 
-    def _should_captcha_login(self, credential: dict[str, Any]) -> bool:
+    def _is_captcha_login_required(self, credential: dict[str, Any]) -> bool:
         if (
             request
             and request.env.context.get("skip_captcha_login") is SKIP_CAPTCHA_LOGIN

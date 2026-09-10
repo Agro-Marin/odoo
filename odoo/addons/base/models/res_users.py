@@ -918,14 +918,14 @@ class ResUsers(models.Model):
         inactive = users.filtered(lambda u: not u.active)
         (users - inactive).partner_id.active = True
         inactive.partner_id.active = False
-        users._generate_missing_avatars()
+        users._update_missing_avatars()
         users.filtered(lambda user: user._is_internal())._add_missing_settings_records()
         for user, settings in zip(users, deferred, strict=True):
             if settings:
                 user.write(settings)
         return users
 
-    def _generate_missing_avatars(self) -> None:
+    def _update_missing_avatars(self) -> None:
         for user in self:
             if user.image_1920 or user.share or not (user.name or "").strip():
                 continue
@@ -1651,7 +1651,7 @@ ResUsersPatchedInTest = ResUsers
 class UsersMultiCompany(models.Model):
     _inherit = "res.users"
 
-    def _wants_multi_company_group(self, group_id: int) -> bool | None:
+    def _resolve_multi_company_group_membership(self, group_id: int) -> bool | None:
         self.check_singleton()
         user = self.sudo()
         is_member = group_id in user.group_ids.ids
@@ -1664,7 +1664,7 @@ class UsersMultiCompany(models.Model):
             return
         to_add = to_remove = self.browse()
         for user in self:
-            wanted = user._wants_multi_company_group(group_id)
+            wanted = user._resolve_multi_company_group_membership(group_id)
             if wanted is True:
                 to_add |= user
             elif wanted is False:
@@ -1698,7 +1698,7 @@ class UsersMultiCompany(models.Model):
         user = super().new(values=values, origin=origin, ref=ref)
         group_id = self._group_id("base.group_multi_company")
         if group_id:
-            wanted = user._wants_multi_company_group(group_id)
+            wanted = user._resolve_multi_company_group_membership(group_id)
             if wanted is not None:
                 command = Command.link(group_id) if wanted else Command.unlink(group_id)
                 user.update({"group_ids": [command]})

@@ -329,8 +329,8 @@ class IrUiView(models.Model):
         return extensions._filtered_most_specific()
 
     @api.model
-    def _get_inheriting_views_domain(self):
-        domain = super()._get_inheriting_views_domain()
+    def _get_domain_inheriting_views(self):
+        domain = super()._get_domain_inheriting_views()
         current_website = self.env["website"].browse(self.env.context.get("website_id"))
         website_views_domain = current_website.website_domain()
         if current_website:

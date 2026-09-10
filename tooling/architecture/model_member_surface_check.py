@@ -97,7 +97,7 @@ PROTOCOLS: dict[str, tuple[str, str]] = {
 KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
     "decimal.precision": frozenset({"get_precision"}),
     "ir.attachment": frozenset(
-        {"_get_content_checksum", "_get_filestore", "_without_bin_size"}
+        {"_get_content_checksum", "_get_filestore", "_with_bin_size_disabled"}
     ),
     "ir.config_parameter": frozenset({"get_param"}),
     "ir.default": frozenset(

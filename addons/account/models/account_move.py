@@ -3120,7 +3120,8 @@ class AccountMove(models.Model):
 
     def _compute_is_sale_installed(self):
         self.is_sale_installed = (
-            "sale_management" in self.env["ir.module.module"]._installed()
+            "sale_management"
+            in self.env["ir.module.module"]._get_installed_module_ids()
         )
 
     @api.depends(
@@ -5264,7 +5265,7 @@ class AccountMove(models.Model):
                 "base.group_public,base.group_portal"
             ):
                 invoice.partner_bank_id = False
-            elif invoice.partner_bank_id._user_can_trust():
+            elif invoice.partner_bank_id._can_user_trust():
                 raise RedirectWarning(
                     _(
                         "The company bank account (%(account_number)s) linked to this invoice is not trusted. "

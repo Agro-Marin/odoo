@@ -1052,7 +1052,7 @@ class IrUiView(models.Model):
         )
 
     @api.model
-    def _get_inheriting_views_domain(self) -> Domain:
+    def _get_domain_inheriting_views(self) -> Domain:
         tree_cut_off_view = self.env.context.get("ir_ui_view_tree_cut_off_view")
         domain = Domain("active", "=", True)
         if tree_cut_off_view:
@@ -1079,12 +1079,12 @@ class IrUiView(models.Model):
     def _get_views_inheriting(self) -> Self:
         if not self.ids:
             return self.browse()
-        domain = self._get_inheriting_views_domain()
+        domain = self._get_domain_inheriting_views()
         query = self._search(domain)
         where_clause = query.where_clause
         if query.from_clause != SQL.identifier("ir_ui_view"):
             raise ValueError(
-                "_get_inheriting_views_domain() must resolve against ir_ui_view alone: "
+                "_get_domain_inheriting_views() must resolve against ir_ui_view alone: "
                 "the recursive CTE below inlines its WHERE clause and cannot carry a "
                 f"join. Got: {query.from_clause}"
             )

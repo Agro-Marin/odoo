@@ -1609,7 +1609,7 @@ class AccountJournal(models.Model):
             return
         if acc_number and not self.bank_account_id:
             self.set_bank_account(acc_number, bank_id)
-        if self.bank_account_id and self.bank_account_id._user_can_trust():
+        if self.bank_account_id and self.bank_account_id._can_user_trust():
             self.bank_account_id.allow_out_payment = True
 
     def set_bank_account(self, acc_number, bank_id=None):

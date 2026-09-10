@@ -171,7 +171,7 @@ class Website(models.Model):
         if not configurator_snippets_addons:
             return configurator_snippets
 
-        installed_modules = self.env["ir.module.module"]._installed()
+        installed_modules = self.env["ir.module.module"]._get_installed_module_ids()
 
         for module_name, module_addon in configurator_snippets_addons.items():
             if module_name not in installed_modules:

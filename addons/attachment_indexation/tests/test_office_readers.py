@@ -1,7 +1,7 @@
 """The four office containers, read through the document layer.
 
 `test_index_content` and `test_index_extra_formats` cover the same parsers
-through `ir.attachment._index`. What is pinned here is that they are reachable
+through `ir.attachment._get_index_content`. What is pinned here is that they are reachable
 at all without going through the indexer: before this module registered them,
 a `Document` holding a Word file had no reader for it and answered with the
 empty string, so nothing built on the document layer could read one.
@@ -168,10 +168,12 @@ class TestIndexingEdges(TransactionCase):
 
         Every `_index_*` returned "" for empty content before the indexer read
         through the layer, so nothing here ever built a document out of nothing.
-        `_prepare_content_vals` reaches `_index` for any create, empty raw
+        `_prepare_content_vals` reaches `_get_index_content` for any create, empty raw
         included.
         """
-        self.assertFalse(self.env["ir.attachment"]._index(b"", "application/pdf"))
+        self.assertFalse(
+            self.env["ir.attachment"]._get_index_content(b"", "application/pdf")
+        )
 
         attachment = self.env["ir.attachment"].create(
             {"name": "empty.pdf", "raw": b"", "mimetype": "application/pdf"}
@@ -186,7 +188,7 @@ class TestIndexingEdges(TransactionCase):
         a text field and PostgreSQL rejects a NUL in one."""
         for content in (b"\x00", b"\x00\x00\x00", b"\xff\xd8\xff\xe0"):
             with self.subTest(content=content):
-                indexed = self.env["ir.attachment"]._index(content, "")
+                indexed = self.env["ir.attachment"]._get_index_content(content, "")
                 self.assertNotIn("\x00", indexed or "")
 
         attachment = self.env["ir.attachment"].create(

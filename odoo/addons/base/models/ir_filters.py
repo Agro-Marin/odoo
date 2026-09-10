@@ -104,14 +104,14 @@ class IrFilters(models.Model):
             for ir_filter, vals in zip(self, vals_list, strict=True)
         ]
 
-    def _get_eval_domain(self) -> list:
+    def _get_domain_evaluated(self) -> list:
         try:
             return ast.literal_eval(self.domain)
         except (ValueError, SyntaxError) as e:
             raise ValueError(f"Invalid domain: {self.domain}") from e
 
     @api.model
-    def _get_action_domain(
+    def _get_domain_for_action(
         self,
         action_id: int | None = None,
         embedded_action_id: int | None = None,
@@ -148,7 +148,7 @@ class IrFilters(models.Model):
         embedded_parent_res_id: int | None = None,
     ) -> list[ValuesType]:
         user_context = self.env["res.users"].context_get()
-        action_domain = self._get_action_domain(
+        action_domain = self._get_domain_for_action(
             action_id, embedded_action_id, embedded_parent_res_id
         )
         return self.with_context(user_context).search_read(

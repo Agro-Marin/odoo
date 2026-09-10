@@ -1471,7 +1471,7 @@ Security groups with implication chains and disjoint constraints.
 
 **Key Methods:**
 - `_check_disjoint_groups()` — Prevent users having exclusive groups
-- `_apply_group(implied_group)` — Add group to implications
+- `_add_implied_group(implied_group)` — Add group to implications
 - `_remove_group(implied_group)` — Remove group from implications
 - `_get_user_type_groups()` — Return employee/portal/public disjoint groups
 - `_get_group_definitions()` — Return SetDefinitions for closure computation
@@ -1760,7 +1760,7 @@ of zero means open-ended.
 **Key Methods:**
 - `_is_band(record)` — Whether the record participates in banding
 - `_get_domain_band_scope()` — Domain selecting the bands this one must not overlap
-- `_ranges_overlap(a, b)`, `_covers(value)` — Interval arithmetic
+- `_is_range_overlapping(a, b)`, `_is_covering(value)` — Interval arithmetic
 - `_check_band()` — Constraint: non-negative lower bound, ordered bounds, no overlap
 
 ### models/mixin_favorite.py

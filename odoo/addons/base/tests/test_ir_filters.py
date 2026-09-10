@@ -233,7 +233,7 @@ class TestAllFilters(TransactionCase):
                 self.check_filter(
                     name=filter_.name,
                     model=filter_.model_id,
-                    domain=filter_._get_eval_domain(),
+                    domain=filter_._get_domain_evaluated(),
                     aggregates=["__count"],
                     groupby=groupby,
                     order=",".join(ast.literal_eval(filter_.sort)),
@@ -458,7 +458,7 @@ class TestCreateFilterValidation(FiltersCase):
             }
         )
         self.assertTrue(ir_filter)
-        self.assertEqual(ir_filter._get_eval_domain(), [("is_company", "=", True)])
+        self.assertEqual(ir_filter._get_domain_evaluated(), [("is_company", "=", True)])
 
 
 @tagged("post_install", "-at_install")
@@ -596,7 +596,7 @@ class TestDynamicDomainValidation(FiltersCase):
 
     def test_static_domain_still_accepted(self):
         ir_filter = self._create_dynamic("[('is_company', '=', True)]")
-        self.assertEqual(ir_filter._get_eval_domain(), [("is_company", "=", True)])
+        self.assertEqual(ir_filter._get_domain_evaluated(), [("is_company", "=", True)])
 
 
 @tagged("post_install", "-at_install")

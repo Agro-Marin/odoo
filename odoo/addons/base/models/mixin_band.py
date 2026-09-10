@@ -30,12 +30,12 @@ class MixinBand(models.AbstractModel):
         return []
 
     @staticmethod
-    def _ranges_overlap(band_a, band_b):
+    def _is_range_overlapping(band_a, band_b):
         max_a = band_a.max_value or float("inf")
         max_b = band_b.max_value or float("inf")
         return band_a.min_value < max_b and band_b.min_value < max_a
 
-    def _covers(self, value):
+    def _is_covering(self, value):
         self.check_singleton()
         upper = self.max_value or float("inf")
         return self.min_value <= value < upper
@@ -81,7 +81,7 @@ class MixinBand(models.AbstractModel):
                 for other in candidates:
                     if other == record or not other._is_band():
                         continue
-                    if record._ranges_overlap(record, other):
+                    if record._is_range_overlapping(record, other):
                         raise ValidationError(
                             self.env._(
                                 "%(a)s overlaps with %(b)s.",

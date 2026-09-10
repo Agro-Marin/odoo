@@ -36,7 +36,7 @@ class WebsiteSaleProductConfiguratorController(
         # `combination` into account.
         has_optional_products = bool(
             product_template.optional_product_ids.filtered(
-                lambda op: self._should_show_product(op, combination)
+                lambda op: self._is_product_shown(op, combination)
             )
         )
         return has_optional_products or not (
@@ -251,7 +251,7 @@ class WebsiteSaleProductConfiguratorController(
                 return compare_list_price
         return None
 
-    def _should_show_product(self, product_template, parent_combination):
+    def _is_product_shown(self, product_template, parent_combination):
         """Override of `sale` to only show products that can be added to the cart.
 
         :param product.template product_template: The product being checked.
@@ -260,7 +260,7 @@ class WebsiteSaleProductConfiguratorController(
         :rtype: bool
         :return: Whether the product should be shown in the configurator.
         """
-        should_show_product = super()._should_show_product(
+        should_show_product = super()._is_product_shown(
             product_template, parent_combination
         )
         if request.is_frontend:
