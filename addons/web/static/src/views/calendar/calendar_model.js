@@ -799,6 +799,7 @@ export class CalendarModel extends Model {
             fieldName,
             filterInfo,
         );
+        const colorById = new Map(rawColors.map((raw) => [raw.id, raw]));
 
         const previousDynamicFilters = new Map();
         for (const filter of previousFilters) {
@@ -812,7 +813,7 @@ export class CalendarModel extends Model {
                 previousDynamicFilters.get(rawFilter.id),
                 fieldName,
                 rawFilter,
-                rawColors,
+                colorById,
             ),
         );
 
@@ -936,8 +937,8 @@ export class CalendarModel extends Model {
         if (hasFilterColorAttr || sameRelatedModel) {
             colorIndex = rawFilter.colorIndex;
         }
-        if (rawColors.length) {
-            const rawColor = rawColors.find(({ id }) => id === value);
+        if (rawColors.size) {
+            const rawColor = rawColors.get(value);
             colorIndex = rawColor ? rawColor[colorFieldName] : 0;
         }
 

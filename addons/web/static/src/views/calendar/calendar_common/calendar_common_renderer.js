@@ -365,7 +365,6 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
         if (
             !this.env.isSmall ||
             this.customOptions.weekNumbersWithinDays ||
-            !this.options.weekNumbers ||
             !info.el?.parentElement ||
             !info.date
         ) {
