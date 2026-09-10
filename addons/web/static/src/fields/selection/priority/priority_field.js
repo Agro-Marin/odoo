@@ -107,6 +107,14 @@ export const priorityField = {
     interactiveOutsideEdition: true,
     supportedOptions: [autosaveOption()],
     supportedTypes: ["selection"],
+    listViewWidth: ({ hasLabel, fieldDefinition }) => {
+        const starCount = (fieldDefinition?.selection?.length || 0) - 1;
+        if (starCount < 1) {
+            return false;
+        }
+        const width = starCount * 25;
+        return hasLabel ? [Math.max(80, width)] : width;
+    },
     extractProps({ options, viewType }, dynamicInfo) {
         return {
             withCommand: viewType === "form",

@@ -1,10 +1,11 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { after, describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { RpcEvent } from "@web/core/events";
 import { RESULT_SET_REMOVING_METHODS } from "@web/core/network/result_set_cache_invalidator_service";
-import { ConnectionLostError, rpcBus, RPCError } from "@web/core/network/rpc";
+import { ConnectionLostError, rpc, rpcBus, RPCError } from "@web/core/network/rpc";
+import { RPCCache } from "@web/core/network/rpc_cache";
 
 describe.current.tags("headless");
 
@@ -98,6 +99,19 @@ test("read-class methods do NOT emit", async () => {
     stop();
 });
 
+test("language installation clears every cache only for its own model", async () => {
+    await makeMockEnv();
+    const { captured, stop } = captureClearCaches();
+
+    fireResponse("action_install_lang", "res.partner");
+    fireResponse("write", "base.language.install");
+    expect(captured).toHaveLength(0);
+
+    fireResponse("action_install_lang", "base.language.install");
+    expect(captured).toEqual([null]);
+    stop();
+});
+
 test("malformed payloads do not throw", async () => {
     await makeMockEnv();
     const { captured, stop } = captureClearCaches();
@@ -134,6 +148,61 @@ function fireFailedResponse(method, error, model = "res.partner") {
         }),
     );
 }
+
+test("a rejected language installation preserves caches", async () => {
+    await makeMockEnv();
+    const { captured, stop } = captureClearCaches();
+
+    fireFailedResponse(
+        "action_install_lang",
+        new RPCError("denied"),
+        "base.language.install",
+    );
+    expect(captured).toHaveLength(0);
+    stop();
+});
+
+test("a lost language installation response clears every cache", async () => {
+    await makeMockEnv();
+    const { captured, stop } = captureClearCaches();
+
+    fireFailedResponse(
+        "action_install_lang",
+        new ConnectionLostError("/web/dataset/call_kw"),
+        "base.language.install",
+    );
+    expect(captured).toEqual([null]);
+    stop();
+});
+
+test("language installation evicts cached results across tables and models", async () => {
+    await makeMockEnv();
+    const cache = new RPCCache("language-install-audit", 1);
+    rpc.setCache(cache);
+    after(() => rpc.setCache(undefined));
+    const entries = [
+        ["web_read", "res.partner"],
+        ["web_search_read", "product.product"],
+        ["translations", "ir.ui.view"],
+    ];
+    let version = "before";
+    const readEntries = () =>
+        Promise.all(
+            entries.map(([table, model]) =>
+                cache.read(table, model, () => Promise.resolve(version), { model }),
+            ),
+        );
+    expect(await readEntries()).toEqual(["before", "before", "before"]);
+    version = "after";
+    fireFailedResponse(
+        "action_install_lang",
+        new RPCError("denied"),
+        "base.language.install",
+    );
+    expect(await readEntries()).toEqual(["before", "before", "before"]);
+    fireResponse("action_install_lang", "base.language.install");
+    expect(await readEntries()).toEqual(["after", "after", "after"]);
+});
 
 test("a server-rejected unlink does NOT emit", async () => {
     await makeMockEnv();

@@ -1,7 +1,15 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, hover, leave, press, queryAll, queryAllTexts } from "@odoo/hoot-dom";
+import {
+    click,
+    hover,
+    leave,
+    press,
+    queryAll,
+    queryAllTexts,
+    queryOne,
+} from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     defineModels,
@@ -50,6 +58,60 @@ class User extends models.Model {
     }
 }
 defineModels([Partner, User]);
+
+for (const { stars, attrs, width, empty } of [
+    { stars: 1, attrs: 'nolabel="1"', width: 25 },
+    { stars: 2, attrs: 'nolabel="1"', width: 50 },
+    { stars: 3, attrs: 'nolabel="1"', width: 75 },
+    { stars: 5, attrs: 'nolabel="1"', width: 125 },
+    { stars: 1, attrs: 'nolabel="1"', width: 25, empty: true },
+    { stars: 1, attrs: 'nolabel="1" width="95px"', width: 95 },
+    { stars: 1, attrs: "", width: null },
+]) {
+    test(`priority column width: ${stars} stars, ${attrs}, empty=${!!empty}`, async () => {
+        Partner._fields.selection = fields.Selection({
+            string: "Priority heading",
+            selection: Array.from({ length: stars + 1 }, (_, index) => [
+                String(index),
+                String(index),
+            ]),
+        });
+        Partner._records = empty ? [] : [{ id: 1, foo: "Transfer", selection: "0" }];
+        await mountView({
+            type: "list",
+            resModel: "partner",
+            arch: `<list><field name="selection" widget="priority" ${attrs}/><field name="foo"/></list>`,
+        });
+        const header = queryOne('th[data-name="selection"]');
+        const style = getComputedStyle(header);
+        const contentWidth =
+            header.getBoundingClientRect().width -
+            parseFloat(style.paddingLeft) -
+            parseFloat(style.paddingRight);
+        if (width === null) {
+            expect(contentWidth).toBeGreaterThan(79);
+        } else {
+            // Column widths are floored after adding fractional cell padding.
+            expect(Math.abs(contentWidth - width)).toBeLessThan(1.1);
+        }
+        expect(".o_priority_star").toHaveCount(empty ? 0 : stars);
+        if (!empty) {
+            const cell = queryOne('.o_data_cell[name="selection"]');
+            const cellStyle = getComputedStyle(cell);
+            const available =
+                cell.clientWidth -
+                parseFloat(cellStyle.paddingLeft) -
+                parseFloat(cellStyle.paddingRight);
+            const starRects = queryAll(".o_priority_star").map((star) =>
+                star.getBoundingClientRect(),
+            );
+            const starsWidth =
+                Math.max(...starRects.map((rect) => rect.right)) -
+                Math.min(...starRects.map((rect) => rect.left));
+            expect(starsWidth).toBeLessThan(available + 1);
+        }
+    });
+}
 
 test("PriorityField when not set", async () => {
     await mountView({
@@ -171,7 +233,7 @@ test("PriorityField hover a star in form view", async () => {
             "should temporary have no empty star since we are hovering the third value",
     });
 
-    await leave(star);
+    await leave();
     await animationFrame();
 
     expect(".o_field_widget .o_priority a.o_priority_star").toHaveCount(2);
@@ -188,7 +250,7 @@ test("PriorityField can write after adding a record -- kanban", async () => {
         ],
     });
     Partner._records[0].selection = "0";
-    Partner._views[["form", "myquickview"]] = `<form/>`;
+    Partner._views["form,myquickview"] = `<form/>`;
     onRpc("web_save", ({ args }) => expect.step(`web_save ${JSON.stringify(args)}`));
     await mountView({
         type: "kanban",
@@ -399,7 +461,7 @@ test("PriorityField hover in editable list view", async () => {
             "should temporary have no empty star since we are hovering the third value",
     });
 
-    await leave(star);
+    await leave();
     await animationFrame();
 
     expect(".o_data_row:first-child .o_priority a.o_priority_star").toHaveCount(2);

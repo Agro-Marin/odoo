@@ -572,7 +572,7 @@ assert_eq "CONVENTIONS gotcha #12: stale '5 \`true\` call sites' wording removed
 assert_eq "CONVENTIONS gotcha #12: mentions FormSaveCoordinator" \
     "$(grep -c 'FormSaveCoordinator' "$WEB/machine_doc_v1/CONVENTIONS.md")" "2"
 # Cite-fingerprint: the doc cites form_save_coordinator.js; verify the file
-# exists and exports a FormSaveCoordinator class extending SignalStore.
+# exists and exports a FormSaveCoordinator class extending StateMachine.
 assert_eq "form_save_coordinator.js exports FormSaveCoordinator class" \
     "$(grep -c 'export class FormSaveCoordinator extends StateMachine' "$WEB/static/src/views/form/form_save_coordinator.js")" "1"
 # Target the canonical typedef line: counting raw occurrences of the mode
@@ -1163,8 +1163,12 @@ assert_eq "record.js defines discard()" \
 # CLEAR-CACHES emission/listener inventory (STATE_MANAGEMENT "emission sites").
 assert_eq "invalidator service emits CLEAR_CACHES" \
     "$(grep -c 'CLEAR_CACHES' "$WEB/static/src/core/network/result_set_cache_invalidator_service.js")" "2"
-assert_eq "invalidator service handles lang_install full clear" \
-    "$(grep -c 'lang_install' "$WEB/static/src/core/network/result_set_cache_invalidator_service.js")" "1"
+assert_eq "invalidator service subscribes to base.language.install" \
+    "$(grep -cF '["base.language.install"]' "$WEB/static/src/core/network/result_set_cache_invalidator_service.js")" "1"
+assert_eq "invalidator service handles action_install_lang full clear" \
+    "$(grep -cF 'methods: ["action_install_lang"]' "$WEB/static/src/core/network/result_set_cache_invalidator_service.js")" "1"
+assert_eq "base.language.install defines action_install_lang" \
+    "$(grep -cE '^    def action_install_lang\(' "$REPO/odoo/addons/base/wizard/base_language_install.py")" "1"
 assert_eq "action_cache_invalidation.js emits CLEAR_CACHES" \
     "$(grep -c 'CLEAR_CACHES' "$WEB/static/src/webclient/actions/action_cache_invalidation.js")" "1"
 assert_eq "service_worker_service.js emits CLEAR_CACHES on SW hard refresh" \

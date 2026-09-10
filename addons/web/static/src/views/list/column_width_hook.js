@@ -22,6 +22,12 @@ const DELETE_BUTTON_WIDTH = 12;
 /**
  * @param {HTMLTableElement} table
  * @param {{
+ * columns: any[],
+ * isEmpty: boolean,
+ * hasSelectors: boolean,
+ * hasOpenFormViewColumn: boolean,
+ * hasActionsColumn: boolean,
+ * }} state
  * @param {number} allowedWidth
  * @param {number[] | null} [startingWidths]
  * @returns {Number[]}
@@ -209,6 +215,7 @@ function getWidthSpecs(columns, allowedWidth) {
                     if (typeof width === "function") {
                         width = width({
                             type: column.fieldType,
+                            fieldDefinition: column.fieldDefinition,
                             hasLabel: column.hasLabel,
                             options: column.options,
                         });

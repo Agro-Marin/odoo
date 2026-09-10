@@ -7,7 +7,18 @@ import { InvalidTransitionError, StateMachine } from "@web/core/utils/state_mach
  * @typedef {"clean" | "dirty" | "saving" | "error"} FormSaveStatus
  * @typedef {"begin" | "ok" | "recoverable" | "failed" | "discard"} FormSaveEvent
  * @typedef {{
+ * onSaveError: (error: any, callbacks: { discard: () => any, retry: () => any }) => any,
+ * onUrgentSaveFailed?: () => void,
+ * recoverFromSaveError?: (error: any, model: any) => boolean,
+ * }} FormSaveHooks
  * @typedef {{
+ * checkDirty?: boolean,
+ * reload?: boolean,
+ * nextId?: number,
+ * errorMode?: "dialog" | "rethrow" | "silent",
+ * saveOverride?: (record: any, params: any) => Promise<any>,
+ * params?: Record<string, any>,
+ * }} RequestSaveOptions
  */
 
 /** @type {Record<FormSaveStatus, Partial<Record<FormSaveEvent, FormSaveStatus>>>} */

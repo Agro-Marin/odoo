@@ -224,7 +224,7 @@
 | `views/settings/settings/` | pages | 5 | Settings page structure: app, page, block, header, searchable setting |
 | `views/settings/widgets/` | pages | 5 | Settings dashboard widgets: dev tool, edition, invite users, plus the `demo_data` and `user_invite` services |
 | `views/view_button/` | widgets | 3 | `ViewButton`, its multi-record variant, and the execution hook |
-| `views/view_components/` | widgets | 7 | Cross-view components: selection box, multi-selection buttons, scale selector, group config menu, multi-create and multi-currency popovers, report measures |
+| `views/view_components/` | widgets | 8 | Cross-view components: selection box, multi-selection buttons, scale selector, group config menu, multi-create and multi-currency popovers, report measures |
 | `views/view_dialogs/` | widgets | 3 | Cross-view dialogs: export configuration, form-view dialog, select-or-create dialog |
 | `views/widgets/` | widgets | 2 | View-widget infrastructure: the `Widget` component and standard widget props |
 | `views/widgets/attach_document/` | widgets | 1 | Button uploading files as `ir.attachment` records and optionally calling a method |

@@ -119,19 +119,20 @@ declare module "registries" {
         fieldDependencies?:
             FieldDependency[] | ((baseInfo: StaticFieldInfo) => FieldDependency[]);
         /**
-         * `column_width_hook` is the only caller and hands it all three keys;
+         * `column_width_hook` is the only caller and supplies the field metadata;
          * an implementation destructures the ones it reads. The return may be
          * undefined as well as false: the caller treats any falsy width as
-         * "use the default for this type".
+         * "use the default minimum column width".
          */
         listViewWidth?:
             | number
             | number[]
             | ((param: {
                   type: string;
+                  fieldDefinition?: FieldDefinition;
                   hasLabel: boolean;
                   options: Record<string, any>;
-              }) => number | false | undefined);
+              }) => number | number[] | false | undefined);
         relatedFields?:
             | Partial<StaticFieldInfo>[]
             | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);
