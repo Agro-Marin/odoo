@@ -36,7 +36,9 @@ class AccountFiscalPosition(models.Model):
         string="Account Mapping",
         copy=True,
     )
-    account_map = fields.Binary(compute="_compute_account_map")
+    account_map = fields.Binary(
+        compute="_compute_account_map",
+    )
     tax_ids = fields.Many2many(
         comodel_name="account.tax",
         relation="account_fiscal_position_account_tax_rel",
@@ -44,7 +46,9 @@ class AccountFiscalPosition(models.Model):
         column2="account_tax_id",
         string="Taxes",
     )
-    tax_map = fields.Binary(compute="_compute_tax_map")
+    tax_map = fields.Binary(
+        compute="_compute_tax_map",
+    )
     note = fields.Html(
         "Notes",
         translate=True,
@@ -442,41 +446,3 @@ class AccountFiscalPosition(models.Model):
         created_records.get(
             "account.tax", self.env["account.tax"]
         ).fiscal_position_ids += self
-
-
-class AccountFiscalPositionAccount(models.Model):
-    _name = "account.fiscal.position.account"
-    _description = "Accounts Mapping of Fiscal Position"
-    _rec_name = "position_id"
-    _check_company_auto = True
-    _check_company_domain = models.check_company_domain_parent_of
-
-    position_id = fields.Many2one(
-        "account.fiscal.position",
-        string="Fiscal Position",
-        required=True,
-        ondelete="cascade",
-    )
-    company_id = fields.Many2one(
-        "res.company",
-        string="Company",
-        related="position_id.company_id",
-        store=True,
-    )
-    account_src_id = fields.Many2one(
-        "account.account",
-        string="Account on Product",
-        check_company=True,
-        required=True,
-    )
-    account_dest_id = fields.Many2one(
-        "account.account",
-        string="Account to Use Instead",
-        check_company=True,
-        required=True,
-    )
-
-    _account_src_dest_uniq = models.Constraint(
-        "unique (position_id,account_src_id,account_dest_id)",
-        "An account fiscal position could be defined only one time on same accounts.",
-    )
