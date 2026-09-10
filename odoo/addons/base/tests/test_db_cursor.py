@@ -389,6 +389,16 @@ class TestTestCursor(common.TransactionCase):
         self.cr.rollback()
         self.check(self.record, "A")
 
+    def test_an_outer_cursor_first_used_inside_a_nested_one_keeps_its_savepoint(self):
+        outer = self.registry.cursor()
+        inner = self.registry.cursor()
+        inner.execute("SELECT 1")
+        outer.execute("SELECT 1")
+        inner.close()
+        outer.commit()
+        outer.close()
+        self.assertNotIn(outer, TestCursor._cursors_stack)
+
     def test_interleaving(self):
         a = self.registry.cursor()
         b = self.registry.cursor()

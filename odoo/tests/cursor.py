@@ -39,6 +39,7 @@ class TestCursor(BaseCursor):
         try:
             current_test.assertCanOpenTestCursor()
             self._check_cursor_readonly()
+            self._check_outer_savepoints()
         except Exception:
             self._lock.release()
             raise
@@ -50,6 +51,15 @@ class TestCursor(BaseCursor):
             return
         if any(cursor.readonly and cursor._savepoint for cursor in self._cursors_stack):
             raise Exception("Opening a read/write test cursor from a readonly one")
+
+    def _check_outer_savepoints(self) -> None:
+        # Every test cursor shares one connection, and a cursor takes its savepoint on
+        # its first statement. An outer cursor whose first statement runs while this one
+        # is open would nest its savepoint inside ours, and our rollback would destroy it.
+        # Read-only cursors stay lazy: their savepoint sets the transaction read-only.
+        for cursor in self._cursors_stack:
+            if not cursor.readonly:
+                cursor._check_savepoint()
 
     def _check_savepoint(self) -> None:
         if not self._savepoint:
