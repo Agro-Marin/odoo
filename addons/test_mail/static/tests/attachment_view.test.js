@@ -49,12 +49,16 @@ beforeEach(() => {
     };
 });
 
-patchWithCleanup(browser, {
-    open: () => {
-        popoutWindow.closed = false;
-        queryOne(".o_popout_holder").append(popoutIframe);
-        return popoutWindow;
-    },
+// Inside the hook, not at module scope: a patch applied at import stays on
+// for every suite in the bundle, not only this file's.
+beforeEach(() => {
+    patchWithCleanup(browser, {
+        open: () => {
+            popoutWindow.closed = false;
+            queryOne(".o_popout_holder").append(popoutIframe);
+            return popoutWindow;
+        },
+    });
 });
 
 function popoutAttachmentViewBody() {

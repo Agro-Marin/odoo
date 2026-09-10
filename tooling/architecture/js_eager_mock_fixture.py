@@ -26,6 +26,11 @@ RECORDS_MUTATION = re.compile(
 MODULE_SCOPE_MOCK_SERVICE = re.compile(
     r"""^mockService\(\s*["'](?P<name>[^"']+)["']""", re.MULTILINE
 )
+# patchWithCleanup patches at call time and unpatches in `after`; at module
+# scope the patch is on from import until the bundle's own teardown.
+MODULE_SCOPE_PATCH = re.compile(
+    r"^patchWithCleanup\(\s*(?P<name>[A-Za-z_$][\w$.]*)", re.MULTILINE
+)
 PATCH_BINDING = re.compile(
     r"^patch\(\s*(?P<name>[A-Za-z_$][\w$]*)\s*,\s*\[", re.MULTILINE
 )
@@ -83,13 +88,13 @@ def measure(roots: list[Path]) -> list[Finding]:
                 if path.is_relative_to(ROOT)
                 else path.as_posix()
             )
-            for match in MODULE_SCOPE_MOCK_SERVICE.finditer(text):
-                line = text.count("\n", 0, match.start()) + 1
-                found.append(
-                    Finding(
-                        rel, line, match.group("name"), "mockService() at module scope"
-                    )
-                )
+            for regex, shape in (
+                (MODULE_SCOPE_MOCK_SERVICE, "mockService() at module scope"),
+                (MODULE_SCOPE_PATCH, "patchWithCleanup() at module scope"),
+            ):
+                for match in regex.finditer(text):
+                    line = text.count("\n", 0, match.start()) + 1
+                    found.append(Finding(rel, line, match.group("name"), shape))
             foreign = foreign_bindings(text, addon)
             if not foreign:
                 continue

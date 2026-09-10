@@ -47,6 +47,19 @@ class TestReported:
             ("signInfo", "mockService() at module scope")
         ]
 
+    def test_a_patch_at_module_scope_is_on_for_the_whole_bundle(self, tmp_path):
+        write(
+            tmp_path,
+            "test_mail",
+            "attachment.test.js",
+            'import { patchWithCleanup } from "@web/../tests/web_test_helpers";\n'
+            "patchWithCleanup(browser, { open: () => {} });\n",
+        )
+        found = gate.measure([tmp_path])
+        assert [(f.binding, f.shape) for f in found] == [
+            ("browser", "patchWithCleanup() at module scope")
+        ]
+
     def test_a_service_mocked_inside_a_hook_is_that_suites_alone(self, tmp_path):
         write(
             tmp_path,
