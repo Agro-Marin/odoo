@@ -317,8 +317,8 @@ class StockRule(models.Model):
             ],
         }
 
-    def _push_prepare_move_copy_values(self, move_to_copy, new_date):
-        res = super()._push_prepare_move_copy_values(
+    def _prepare_push_move_copy_values(self, move_to_copy, new_date):
+        res = super()._prepare_push_move_copy_values(
             move_to_copy,
             new_date,
         )

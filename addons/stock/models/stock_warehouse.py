@@ -339,12 +339,12 @@ class StockWarehouse(models.Model):
             )
             vals.setdefault("company_id", company.id)
             if "name" not in vals:
-                vals["name"] = self._generate_default_name(
+                vals["name"] = self._get_free_name(
                     company,
                     self._get_taken_warehouse_values(taken, "name", company, chosen),
                 )
             if "code" not in vals:
-                vals["code"] = self._generate_default_code(
+                vals["code"] = self._get_free_code(
                     company,
                     self._get_taken_warehouse_values(taken, "code", company, chosen),
                 )
@@ -370,7 +370,7 @@ class StockWarehouse(models.Model):
                 .items()
                 if not vals.get(field)
             }
-            self._resolve_barcodes(
+            self._remove_taken_barcodes(
                 "stock.location", list(sub_locations.values()), company.id
             )
             for values in sub_locations.values():
@@ -494,7 +494,7 @@ class StockWarehouse(models.Model):
                 warehouse._create_or_update_global_routes_rules()
 
             if warehouse in before.toggling:
-                warehouse._toggle_active(vals["active"], triggers)
+                warehouse._update_active(vals["active"], triggers)
 
         if "name" in changed or "code" in changed:
             self.env["stock.picking.type"].with_context(active_test=False).search(
@@ -634,7 +634,7 @@ class StockWarehouse(models.Model):
                     self._get_taken_warehouse_values(taken, "name", company, chosen),
                 )
             if "code" not in default:
-                vals["code"] = self._generate_default_code(
+                vals["code"] = self._get_free_code(
                     company,
                     self._get_taken_warehouse_values(taken, "code", company, chosen),
                 )
@@ -645,7 +645,7 @@ class StockWarehouse(models.Model):
         return vals_list
 
     def _default_name(self):
-        return self._generate_default_name(self.env.company)
+        return self._get_free_name(self.env.company)
 
     @api.onchange("company_id")
     def _onchange_company_id(self):
@@ -675,7 +675,7 @@ class StockWarehouse(models.Model):
             fields=["id", "name", "code"],
         )
 
-    def _toggle_active(self, active, reactivate_depends):
+    def _update_active(self, active, reactivate_depends):
         self.check_singleton()
         PickingType = self.env["stock.picking.type"]
         picking_types = PickingType.with_context(active_test=False).search(
@@ -835,7 +835,7 @@ class StockWarehouse(models.Model):
             .mapped(field_name)
         )
 
-    def _generate_default_name(self, company, existing=None):
+    def _get_free_name(self, company, existing=None):
         if existing is None:
             existing = self._get_existing_warehouse_values("name", company)
         if not existing:
@@ -851,7 +851,7 @@ class StockWarehouse(models.Model):
                 return candidate
             counter += 1
 
-    def _generate_default_code(self, company, existing=None):
+    def _get_free_code(self, company, existing=None):
         if existing is None:
             existing = self._get_existing_warehouse_values("code", company)
         size = self._fields["code"].size

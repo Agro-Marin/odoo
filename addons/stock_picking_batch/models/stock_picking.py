@@ -59,14 +59,14 @@ class StockPicking(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         pickings = super().create(vals_list)
-        pickings.batch_id._set_picking_type_from_pickings()
+        pickings.batch_id._update_picking_type_from_pickings()
         pickings.batch_id._check_pickings_are_allowed()
         return pickings
 
     def write(self, vals):
         res = super().write(vals)
         if vals.get("batch_id"):
-            self.batch_id._set_picking_type_from_pickings()
+            self.batch_id._update_picking_type_from_pickings()
             self.batch_id._check_pickings_are_allowed()
             if self.batch_id.user_id:
                 self.batch_id.picking_ids.update_batch_user(self.batch_id.user_id.id)

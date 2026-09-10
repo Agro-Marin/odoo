@@ -100,8 +100,8 @@ class StockPickingType(models.Model):
                 picking_type.warehouse_id = False
 
     @api.model
-    def _transfer_codes(self):
-        return super()._transfer_codes() | {"dropship"}
+    def _get_transfer_codes(self):
+        return super()._get_transfer_codes() | {"dropship"}
 
 
 class StockLot(models.Model):

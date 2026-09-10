@@ -26,8 +26,8 @@ class StockMove(models.Model):
                     move.packaging_uom_id = line.product_uom_id
                     break
 
-    def _clean_merged(self):
-        super()._clean_merged()
+    def _update_merged_moves(self):
+        super()._update_merged_moves()
         cleared = {
             created: [Command.clear()]
             for _link, created in self._get_fields_linking_order_lines()

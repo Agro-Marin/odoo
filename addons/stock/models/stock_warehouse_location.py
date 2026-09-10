@@ -80,7 +80,9 @@ class StockWarehouseLocation(models.Model):
         }
 
     @api.model
-    def _resolve_barcodes(self, model_name, values_list, company_id, ignore_ids=()):
+    def _remove_taken_barcodes(
+        self, model_name, values_list, company_id, ignore_ids=()
+    ):
         wanted = {values["barcode"] for values in values_list if values.get("barcode")}
         if not wanted:
             return
@@ -132,7 +134,7 @@ class StockWarehouseLocation(models.Model):
                     "view_location_id", warehouse.view_location_id.id
                 )
                 values["company_id"] = company_id
-            warehouse._resolve_barcodes(
+            warehouse._remove_taken_barcodes(
                 "stock.location", list(missing.values()), company_id
             )
             locations = self.env["stock.location"].create(list(missing.values()))
@@ -151,7 +153,7 @@ class StockWarehouseLocation(models.Model):
                 wanted.append((location, {"barcode": location_values["barcode"]}))
             if not wanted:
                 continue
-            warehouse._resolve_barcodes(
+            warehouse._remove_taken_barcodes(
                 "stock.location",
                 [values for _location, values in wanted],
                 warehouse.company_id.id,

@@ -2407,7 +2407,7 @@ class TestWarehouse(TestStockCommon):
     def test_two_records_claiming_one_barcode_do_not_reach_the_database(self):
         Warehouse = self.env["stock.warehouse"]
         values_list = [{"barcode": "TWINBC"}, {"barcode": "TWINBC"}]
-        Warehouse._resolve_barcodes(
+        Warehouse._remove_taken_barcodes(
             "stock.picking.type", values_list, self.env.company.id
         )
         self.assertEqual(

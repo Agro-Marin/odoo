@@ -471,7 +471,7 @@ class StockMove(models.Model):
         old_qties = old_qties or {}
         to_assign_ids = OrderedSet()
         proc_move = OrderedSet()
-        self._adjust_procure_method()
+        self._update_procure_method()
         for move in self:
             if (
                 move.product_uom_id.compare(
@@ -634,7 +634,7 @@ class StockMove(models.Model):
 
         if phantom_moves_vals_list:
             phantom_moves = self.env["stock.move"].create(phantom_moves_vals_list)
-            phantom_moves._adjust_procure_method()
+            phantom_moves._update_procure_method()
             moves_ids_to_return |= phantom_moves.action_explode().ids
         move_to_unlink = self.env["stock.move"].browse(moves_ids_to_unlink).sudo()
         move_to_unlink.quantity = 0

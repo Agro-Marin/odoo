@@ -66,7 +66,7 @@ class StockMoveProcurement(models.Model):
             merge_into=neg_push_moves.move_orig_ids.move_dest_ids,
         )
 
-    def _adjust_procure_method(self, picking_type_code=False):
+    def _update_procure_method(self, picking_type_code=False):
         rule_cache = {}
         for move in self:
             product_id = move.product_id

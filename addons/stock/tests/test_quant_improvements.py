@@ -824,7 +824,7 @@ class TestStockQuantImprovements(TestStockCommon):
             "gathered_quants",
             avail_params,
             "_get_available_quantity must not take gathered_quants; reuse a pre-gathered "
-            "recordset through _sum_available_quantity instead.",
+            "recordset through _get_available_quantity_from_quants instead.",
         )
 
     def _count_gather_calls(self, fn):
@@ -1122,7 +1122,7 @@ class TestStockQuantImprovements(TestStockCommon):
             5.0,
             "a scoped clean-up must not touch quants outside its locations",
         )
-        self.Quant._clean_reservations()
+        self.Quant._sync_reserved_quantities()
         self.assertEqual(
             phantom.reserved_quantity,
             0.0,

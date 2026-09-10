@@ -21,7 +21,7 @@ class StockScheduler(models.AbstractModel):
 
     @api.model
     def _get_tasks(self):
-        return ["_reset_orderpoint_values", "_replenish", "_run_quant_tasks"]
+        return ["_update_orderpoint_values", "_replenish", "_run_quant_tasks"]
 
     @api.model
     def _get_tasks_to_do(self):
@@ -41,10 +41,10 @@ class StockScheduler(models.AbstractModel):
                 Cron._commit_progress(1)
 
     @api.model
-    def _reset_orderpoint_values(self, use_new_cursor=False, company_id=False):
+    def _update_orderpoint_values(self, use_new_cursor=False, company_id=False):
         self.env["stock.warehouse.orderpoint"].search(
             self._get_orderpoint_domain(company_id=company_id, only_automatic=False),
-        ).sudo()._reset_stored_values()
+        ).sudo()._update_stored_values()
 
     @api.model
     def _replenish(self, use_new_cursor=False, company_id=False):

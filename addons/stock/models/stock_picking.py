@@ -870,8 +870,8 @@ class StockPicking(models.Model):
         for quantity, moves in moves_by_quantity.items():
             moves.write({"quantity": quantity})
 
-        if not self.env.context.get("skip_sanity_check", False):
-            self._sanity_check()
+        if not self.env.context.get("skip_validation_check", False):
+            self._check_before_validation()
 
         requested_ids = self.env.context.get("button_validate_picking_ids")
         validating = self.browse(requested_ids) & self if requested_ids else self
@@ -1030,7 +1030,7 @@ class StockPicking(models.Model):
             ),
         ).is_cancelled = False
 
-    def _get_lot_move_lines_for_sanity_check(self):
+    def _get_lot_move_lines_to_check(self):
         autopicked = self._get_pickings_to_autopick()
         return self.move_line_ids.filtered(
             lambda ml: (
@@ -1070,7 +1070,7 @@ class StockPicking(models.Model):
         self.check_singleton()
         return self.picking_type_code == "outgoing"
 
-    def _sanity_check(self):
+    def _check_before_validation(self):
         pickings_without_lots = self.browse()
         products_without_lots = self.env["product.product"]
         pickings_without_moves = self.filtered(
@@ -1099,7 +1099,7 @@ class StockPicking(models.Model):
             ),
         )
         if pickings_using_lots:
-            lines_to_check = pickings_using_lots._get_lot_move_lines_for_sanity_check()
+            lines_to_check = pickings_using_lots._get_lot_move_lines_to_check()
             for line in lines_to_check:
                 if not line.lot_name and not line.lot_id:
                     pickings_without_lots |= line.picking_id

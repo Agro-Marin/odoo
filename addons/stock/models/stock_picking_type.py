@@ -435,12 +435,12 @@ class StockPickingType(models.Model):
             picking_type.hide_reservation_method = picking_type.code == "incoming"
 
     @api.model
-    def _transfer_codes(self):
+    def _get_transfer_codes(self):
         return {"incoming", "outgoing", "internal"}
 
     @api.depends("code")
     def _compute_show_picking_type(self):
-        transfer_codes = self._transfer_codes()
+        transfer_codes = self._get_transfer_codes()
         for picking_type in self:
             picking_type.show_picking_type = picking_type.code in transfer_codes
 

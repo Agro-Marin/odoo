@@ -97,7 +97,7 @@ class TestStockMoveAudit202608(TransactionCase):
         move._action_assign()
         move.move_line_ids.unlink()
 
-        move._generate_serial_numbers("SN-0001", move.next_serial_count)
+        move._update_move_lines_for_serials("SN-0001", move.next_serial_count)
         self.assertEqual(len(move.move_line_ids), 24)
 
     def test_an_explicit_serial_count_survives_reservation(self):
@@ -148,7 +148,7 @@ class TestStockMoveAudit202608(TransactionCase):
         move._action_confirm()
         move.move_line_ids.unlink()
 
-        move._generate_serial_numbers("CTL-0001", 6)
+        move._update_move_lines_for_serials("CTL-0001", 6)
         placed = Counter(move.move_line_ids.mapped("location_dest_id").ids)
         self.assertEqual(len(placed), 3, f"control path placed {placed}")
 

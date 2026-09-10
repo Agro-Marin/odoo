@@ -8,7 +8,7 @@ class MixinStockActivity(models.AbstractModel):
     _name = "mixin.stock.activity"
     _description = "Chained Document Activity Logging"
 
-    def _log_activity_get_documents(
+    def _get_log_activity_documents(
         self,
         orig_obj_changes,
         stream_field,

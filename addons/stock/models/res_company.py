@@ -191,8 +191,8 @@ class ResCompany(models.Model):
         taken_names = defaultdict(set)
         taken_codes = defaultdict(set)
         for company in companies_without:
-            name = Warehouse._generate_default_name(company, taken_names[company.id])
-            code = Warehouse._generate_default_code(company, taken_codes[company.id])
+            name = Warehouse._get_free_name(company, taken_names[company.id])
+            code = Warehouse._get_free_code(company, taken_codes[company.id])
             taken_names[company.id].add(name)
             taken_codes[company.id].add(code)
             vals_list.append(

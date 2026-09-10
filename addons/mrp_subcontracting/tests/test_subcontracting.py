@@ -1784,7 +1784,9 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
                 )
                 or "sn#1"
             )
-            picking_receipt.move_ids[0]._generate_serial_numbers(lot_name, quantity)
+            picking_receipt.move_ids[0]._update_move_lines_for_serials(
+                lot_name, quantity
+            )
             picking_receipt.move_ids.picked = True
             wizard_data = picking_receipt.button_validate()
             if wizard_data is not True:
@@ -1823,7 +1825,7 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
             )
             or "sn#1"
         )
-        picking_receipt.move_ids[0]._generate_serial_numbers(lot_name, quantity)
+        picking_receipt.move_ids[0]._update_move_lines_for_serials(lot_name, quantity)
         picking_receipt.move_ids.picked = True
         picking_receipt.button_validate()
         self.assertEqual(picking_receipt.state, "done")

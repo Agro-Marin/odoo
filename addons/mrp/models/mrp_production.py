@@ -2477,7 +2477,7 @@ class MrpProduction(models.Model):
             additional_moves = production.move_raw_ids.filtered(
                 lambda move: move.state == "draft"
             )
-            additional_moves._adjust_procure_method()
+            additional_moves._update_procure_method()
             moves_to_confirm |= additional_moves
             additional_byproducts = production.move_finished_ids.filtered(
                 lambda move: move.state == "draft"
@@ -2649,7 +2649,7 @@ class MrpProduction(models.Model):
         )
 
         ignored_mo_ids = self.env.context.get("ignore_mo_ids", [])
-        move_raws_to_adjust._adjust_procure_method()
+        move_raws_to_adjust._update_procure_method()
         moves_to_confirm._action_confirm(merge=False)
         workorder_to_confirm._action_confirm()
         workorder_to_confirm._update_cost_mode()
@@ -2902,7 +2902,7 @@ class MrpProduction(models.Model):
             ):
                 iterate_key = self._get_document_iterate_key(move_raw_id)
                 if iterate_key:
-                    document = activity_mixin._log_activity_get_documents(
+                    document = activity_mixin._get_log_activity_documents(
                         {move_raw_id: (move_raw_id.product_uom_qty, 0)},
                         iterate_key,
                         "UP",
@@ -3711,7 +3711,7 @@ class MrpProduction(models.Model):
             }
             return self.env["ir.qweb"]._render("mrp.exception_on_mo", values)
 
-        documents = self.env["mixin.stock.activity"]._log_activity_get_documents(
+        documents = self.env["mixin.stock.activity"]._get_log_activity_documents(
             moves_modification, "move_dest_ids", "DOWN", get_groupby_key
         )
         documents = self.env[
@@ -3857,7 +3857,7 @@ class MrpProduction(models.Model):
         self.move_dest_ids.created_production_id = production.id
 
         if "confirmed" in self.mapped("state"):
-            production.move_raw_ids._adjust_procure_method()
+            production.move_raw_ids._update_procure_method()
             (production.move_raw_ids | production.move_finished_ids).write(
                 {"state": "confirmed"}
             )

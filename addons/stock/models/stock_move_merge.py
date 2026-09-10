@@ -109,7 +109,7 @@ class StockMoveMerge(models.Model):
         merged_moves |= absorbed_moves
         moves_to_unlink |= neg_to_unlink
 
-        (moves_to_unlink | moves_to_cancel)._clean_merged()
+        (moves_to_unlink | moves_to_cancel)._update_merged_moves()
 
         if moves_to_unlink:
             moves_to_unlink._action_cancel()
@@ -249,7 +249,7 @@ class StockMoveMerge(models.Model):
     def _prepare_merge_negative_moves_excluded_distinct_fields(self):
         return ["description_picking"]
 
-    def _clean_merged(self):
+    def _update_merged_moves(self):
         self.write({"propagate_cancel": False})
 
     def _split(self, qty, restrict_partner_id=False):

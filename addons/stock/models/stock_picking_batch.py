@@ -404,7 +404,7 @@ class StockPickingBatch(models.Model):
                     picking_type, sequence_code, batch.company_id
                 )
         if vals.get("picking_ids"):
-            self._set_picking_type_from_pickings()
+            self._update_picking_type_from_pickings()
         if "user_id" in vals:
             self.picking_ids.update_batch_user(vals["user_id"])
         if vals.get("date_planned"):
@@ -466,9 +466,9 @@ class StockPickingBatch(models.Model):
 
         empty_pickings = pickings.filtered(has_no_quantity)
 
-        pickings._sanity_check()
+        pickings._check_before_validation()
         context = {
-            "skip_sanity_check": True,
+            "skip_validation_check": True,
             "pickings_to_detach": empty_waiting_pickings.ids,
             "batches_to_validate": self.ids,
         }
@@ -593,7 +593,7 @@ class StockPickingBatch(models.Model):
     def _get_consignment_pickings(self):
         return self.picking_ids
 
-    def _set_picking_type_from_pickings(self):
+    def _update_picking_type_from_pickings(self):
         for batch in self.filtered(
             lambda batch: not batch.picking_type_id and batch.picking_ids
         ):

@@ -399,7 +399,7 @@ class TestPickingAuditFixes(TestStockCommon):
         picking.move_ids.quantity = 4
         self.env.flush_all()
         self.assertFalse(picking.move_ids.picked)
-        self.assertTrue(picking._get_lot_move_lines_for_sanity_check())
+        self.assertTrue(picking._get_lot_move_lines_to_check())
 
     def test_multi_picking_lot_error_names_the_transfers(self):
         vals = {"use_create_lots": True, "use_existing_lots": False}
@@ -523,7 +523,7 @@ class TestPickingAuditFixes(TestStockCommon):
 
     def test_log_activity_get_documents_tolerates_no_changes(self):
         self.assertEqual(
-            self.env["stock.picking"]._log_activity_get_documents(
+            self.env["stock.picking"]._get_log_activity_documents(
                 {},
                 "move_dest_ids",
                 "UP",

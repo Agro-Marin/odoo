@@ -138,7 +138,7 @@ class StockWarehousePickingType(models.Model):
             .with_context(active_test=False)
             .search([("warehouse_id", "=", self.id)])
         )
-        self._resolve_barcodes(
+        self._remove_taken_barcodes(
             "stock.picking.type", wanted, self.company_id.id, ignore_ids=owned.ids
         )
         for field, values in zip(fields_order, wanted, strict=True):

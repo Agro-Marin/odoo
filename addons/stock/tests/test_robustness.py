@@ -408,14 +408,14 @@ class TestRobustness(TransactionCase):
             product_reservation_too_high, self.stock_location, 2
         )
         self.assertEqual(quant.reserved_quantity, 7)
-        self.env["stock.quant"]._clean_reservations()
+        self.env["stock.quant"]._sync_reserved_quantities()
         self.assertEqual(quant.reserved_quantity, 5)
 
         self.env["stock.quant"]._update_reserved_quantity(
             product_reservation_too_high, self.stock_location, -2
         )
         self.assertEqual(quant.reserved_quantity, 3)
-        self.env["stock.quant"]._clean_reservations()
+        self.env["stock.quant"]._sync_reserved_quantities()
         self.assertEqual(quant.reserved_quantity, 5)
 
         self.env["stock.quant"]._update_reserved_quantity(
@@ -443,7 +443,7 @@ class TestRobustness(TransactionCase):
         )
 
         self.assertEqual(quant.reserved_quantity, 2)
-        self.env["stock.quant"]._clean_reservations()
+        self.env["stock.quant"]._sync_reserved_quantities()
         self.assertEqual(quant.reserved_quantity, 0)
 
     def test_clean_quants_synch_with_different_uom(self):
@@ -476,7 +476,7 @@ class TestRobustness(TransactionCase):
             product_reservation_too_high, self.stock_location, 0.2
         )
         self.assertAlmostEqual(quant.reserved_quantity, 0.3)
-        self.env["stock.quant"]._clean_reservations()
+        self.env["stock.quant"]._sync_reserved_quantities()
         self.assertEqual(quant.reserved_quantity, 0.1)
 
     def test_clean_quants_synch_in_non_company_specific_locations(self):

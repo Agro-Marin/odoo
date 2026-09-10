@@ -3809,7 +3809,7 @@ class TestRoutes(TestStockCommon):
         self.assertEqual(
             move_B.procure_method, "make_to_stock", 'Move B should be "make_to_stock"'
         )
-        moves._adjust_procure_method()
+        moves._update_procure_method()
         self.assertEqual(
             move_A.procure_method, "make_to_stock", 'Move A should be "make_to_stock"'
         )

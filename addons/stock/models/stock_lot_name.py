@@ -85,10 +85,10 @@ class StockLotName(models.Model):
         return match.groupdict() if match else None
 
     @api.model
-    def generate_lot_names(self, first_lot, count) -> list[str]:
+    def prepare_lot_names(self, first_lot, count) -> list[str]:
         caught_initial_number = re.findall(r"\d+", first_lot)
         if not caught_initial_number:
-            return self.generate_lot_names(first_lot + "0", count)
+            return self.prepare_lot_names(first_lot + "0", count)
         initial_number = caught_initial_number[-1]
         padding = len(initial_number)
         splitted = re.split(initial_number, first_lot)
@@ -115,7 +115,7 @@ class StockLotName(models.Model):
             for candidate in candidates:
                 if candidate not in taken:
                     return candidate
-            following = self.generate_lot_names(candidates[-1], batch + 1)
+            following = self.prepare_lot_names(candidates[-1], batch + 1)
             candidates = following[1:] if following[0] == candidates[-1] else following
 
     @api.model

@@ -322,10 +322,10 @@ class ProductTemplate(models.Model):
             products = templates_to_reset.with_context(
                 active_test=False
             ).product_variant_ids
-            Quant._clean_reservations(products=products)
+            Quant._sync_reserved_quantities(products=products)
             templates_to_reset._reset_inventory()
         if templates_losing_storage:
-            Quant._clean_reservations(
+            Quant._sync_reserved_quantities(
                 products=templates_losing_storage.with_context(
                     active_test=False
                 ).product_variant_ids,

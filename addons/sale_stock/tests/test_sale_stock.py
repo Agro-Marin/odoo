@@ -3775,7 +3775,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         documents = (
             self.env["mixin.stock.activity"]
             .sudo()
-            ._log_activity_get_documents({sol: (10.0, 12.0)}, "move_ids", "UP")
+            ._get_log_activity_documents({sol: (10.0, 12.0)}, "move_ids", "UP")
         )
         self.assertEqual(
             sum(len(rendering_context[0]) for rendering_context in documents.values()),

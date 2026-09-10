@@ -231,7 +231,7 @@ class SaleOrder(models.Model):
                 documents = (
                     self.env["mixin.stock.activity"]
                     .sudo()
-                    ._log_activity_get_documents(
+                    ._get_log_activity_documents(
                         to_log,
                         "move_ids",
                         "UP",
@@ -346,7 +346,7 @@ class SaleOrder(models.Model):
         documents = (
             self.env["mixin.stock.activity"]
             .with_context(include_draft_documents=True)
-            ._log_activity_get_documents(
+            ._get_log_activity_documents(
                 lines_quantities,
                 "move_ids",
                 "UP",

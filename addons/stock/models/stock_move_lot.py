@@ -53,7 +53,7 @@ class StockMoveLot(models.Model):
 
         new_lot_names = OrderedSet(lot.name for lot in self.lot_ids if lot.name)
         assigned_quantity, assignable_quantity, nb_of_assignable_sml = (
-            self._survey_lot_lines(new_lot_names)
+            self._get_lot_line_quantities(new_lot_names)
         )
         old_lot_names = (
             OrderedSet(lot.name for lot in self._origin.lot_ids if lot.name)
@@ -88,7 +88,7 @@ class StockMoveLot(models.Model):
         self.update({"quantity": quantity})
         return self._get_misplaced_serial_warning(quant_domain, base_location)
 
-    def _survey_lot_lines(self, new_lot_names):
+    def _get_lot_line_quantities(self, new_lot_names):
         assigned_quantity = 0
         assignable_quantity = 0
         nb_of_assignable_sml = 0
@@ -290,7 +290,7 @@ class StockMoveLot(models.Model):
         if mode == "generate":
             lot_names = [
                 {"lot_name": name}
-                for name in self.env["stock.lot"].generate_lot_names(
+                for name in self.env["stock.lot"].prepare_lot_names(
                     self._coerce_lot_text(
                         first_lot, _("The first Serial/Lot must be text.")
                     ),
@@ -556,13 +556,13 @@ class StockMoveLot(models.Model):
             vals["lot_id"] = lot_id_by_name[lot_name]
             vals["lot_name"] = False
 
-    def _convert_string_into_field_data(self, string, options):
+    def _str_to_field_data(self, string, options):
         string = string.replace(",", ".")
         if regex_fullmatch(r"[0-9]+\.?[0-9]*|\.[0-9]+", string):
             return {"quantity": float(string)}
         return False
 
-    def _generate_serial_numbers(
+    def _update_move_lines_for_serials(
         self,
         next_serial,
         next_serial_count=False,
@@ -576,7 +576,7 @@ class StockMoveLot(models.Model):
                     "The number of Serial Numbers to generate must be greater than zero.",
                 ),
             )
-        lot_names = self.env["stock.lot"].generate_lot_names(next_serial, count)
+        lot_names = self.env["stock.lot"].prepare_lot_names(next_serial, count)
         field_data = [{"lot_name": lot_name, "quantity": 1} for lot_name in lot_names]
         if self._should_materialize_lots():
             self._create_lot_ids_from_move_line_vals(
@@ -584,14 +584,14 @@ class StockMoveLot(models.Model):
                 self.product_id.id,
                 self.company_id.id,
             )
-        move_lines_commands = self._generate_serial_move_line_commands(
+        move_lines_commands = self._prepare_serial_move_line_commands(
             field_data,
             location_dest_id=location_id,
         )
         self.move_line_ids = move_lines_commands
         return True
 
-    def _generate_serial_move_line_commands(
+    def _prepare_serial_move_line_commands(
         self,
         field_data,
         location_dest_id=False,
@@ -780,7 +780,7 @@ class StockMoveLot(models.Model):
                 "quantity": 1,
             }
             for extra_string in lot_text_parts[1:]:
-                field_data = self._convert_string_into_field_data(extra_string, options)
+                field_data = self._str_to_field_data(extra_string, options)
                 if field_data:
                     lot_text = lot_text_parts[0]
                     if field_data == FIELD_DATA_IGNORED:

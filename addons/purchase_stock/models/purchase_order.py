@@ -504,7 +504,7 @@ class PurchaseOrder(models.Model):
             }
             return self.env["ir.qweb"]._render("purchase_stock.exception_on_po", values)
 
-        documents = self.env["mixin.stock.activity"]._log_activity_get_documents(
+        documents = self.env["mixin.stock.activity"]._get_log_activity_documents(
             purchase_order_lines_quantities,
             "move_ids",
             "DOWN",

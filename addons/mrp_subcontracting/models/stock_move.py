@@ -399,14 +399,16 @@ class StockMove(models.Model):
 
                 mos_to_assign.sudo().action_assign()
 
-    def _generate_serial_numbers(
+    def _update_move_lines_for_serials(
         self, next_serial, next_serial_count=False, location_id=False
     ):
         if self.is_subcontract:
             return super(
                 StockMove, self.with_context(force_lot_m2o=True)
-            )._generate_serial_numbers(next_serial, next_serial_count, location_id)
-        return super()._generate_serial_numbers(
+            )._update_move_lines_for_serials(
+                next_serial, next_serial_count, location_id
+            )
+        return super()._update_move_lines_for_serials(
             next_serial, next_serial_count, location_id
         )
 

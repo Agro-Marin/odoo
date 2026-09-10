@@ -25,7 +25,7 @@ class TestStockLot(StockGenerateCommon):
     def _import_lots(self, lots, move):
         location_id = move.location_id
         move_lines_vals = move.split_lots(lots)
-        move_lines_commands = move._generate_serial_move_line_commands(
+        move_lines_commands = move._prepare_serial_move_line_commands(
             move_lines_vals, location_dest_id=location_id
         )
         move.update({"move_line_ids": move_lines_commands})

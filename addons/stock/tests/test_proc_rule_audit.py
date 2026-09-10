@@ -268,7 +268,7 @@ class TestRuleResolution(ProcRuleAuditCommon):
                 "picking_type_id": self.warehouse.int_type_id.id,
             },
         )
-        move._adjust_procure_method()
+        move._update_procure_method()
         procurement_choice = (
             self.env["stock.rule"]
             .sudo()

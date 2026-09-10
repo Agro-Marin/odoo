@@ -696,12 +696,12 @@ class TestPickingRefactor(TestStockCommon):
         ok_picking.move_ids.quantity = 5
 
         with self.assertRaises(UserError) as error_catcher:
-            (zero_picking | ok_picking)._sanity_check()
+            (zero_picking | ok_picking)._check_before_validation()
         self.assertIn(zero_picking.name, str(error_catcher.exception))
 
         draft_picking = create_delivery_picking(confirm=False)
         self.assertEqual(draft_picking.state, "draft")
-        (draft_picking | ok_picking)._sanity_check()
+        (draft_picking | ok_picking)._check_before_validation()
 
     def test_date_category_ignores_unknown_values(self):
         picking = self._new_picking(self.picking_type_out)

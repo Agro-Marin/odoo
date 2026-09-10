@@ -293,7 +293,7 @@ class TestLotHookContracts(TransactionCase):
         )
 
     def test_generate_lot_names_returns_names(self):
-        names = self.env["stock.lot"].generate_lot_names("SN0009", 3)
+        names = self.env["stock.lot"].prepare_lot_names("SN0009", 3)
         self.assertEqual(names, ["SN0009", "SN0010", "SN0011"])
 
     def test_the_permission_hook_takes_its_products_as_an_argument(self):

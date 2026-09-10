@@ -5,7 +5,7 @@ from odoo.tests import TransactionCase, new_test_user
 
 class TestGenerateLotNames(TransactionCase):
     def _names(self, base, count):
-        return self.env["stock.lot"].generate_lot_names(base, count)
+        return self.env["stock.lot"].prepare_lot_names(base, count)
 
     def test_basic_increment(self):
         self.assertEqual(self._names("sn1", 3), ["sn1", "sn2", "sn3"])
@@ -110,7 +110,7 @@ class StockGenerateCommon(TransactionCase):
         nbre_of_lines = 5
         move = self.get_new_move(nbre_of_lines)
         move._unreserve()
-        move._generate_serial_numbers("001", nbre_of_lines)
+        move._update_move_lines_for_serials("001", nbre_of_lines)
 
         generated_numbers = ["001", "002", "003", "004", "005"]
         self.assertEqual(len(move.move_line_ids), len(generated_numbers))
@@ -122,7 +122,7 @@ class StockGenerateCommon(TransactionCase):
         nbre_of_lines = 10
         move = self.get_new_move(nbre_of_lines)
         move._unreserve()
-        move._generate_serial_numbers("bilou-87", nbre_of_lines)
+        move._update_move_lines_for_serials("bilou-87", nbre_of_lines)
         generated_numbers = [
             "bilou-87",
             "bilou-88",
@@ -141,7 +141,7 @@ class StockGenerateCommon(TransactionCase):
 
         move = self.get_new_move(nbre_of_lines)
         move._unreserve()
-        move._generate_serial_numbers("005-ccc", nbre_of_lines)
+        move._update_move_lines_for_serials("005-ccc", nbre_of_lines)
         generated_numbers = [
             "005-ccc",
             "006-ccc",
@@ -159,7 +159,7 @@ class StockGenerateCommon(TransactionCase):
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
         move = self.get_new_move(nbre_of_lines)
-        move._generate_serial_numbers("alpha-012-345-beta", nbre_of_lines)
+        move._update_move_lines_for_serials("alpha-012-345-beta", nbre_of_lines)
         generated_numbers = [
             "alpha-012-345-beta",
             "alpha-012-346-beta",
@@ -177,7 +177,7 @@ class StockGenerateCommon(TransactionCase):
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
         move = self.get_new_move(nbre_of_lines)
-        move._generate_serial_numbers("BAV023B00001S00001", nbre_of_lines)
+        move._update_move_lines_for_serials("BAV023B00001S00001", nbre_of_lines)
         generated_numbers = [
             "BAV023B00001S00001",
             "BAV023B00001S00002",
@@ -197,9 +197,9 @@ class StockGenerateCommon(TransactionCase):
     def test_generate_03_raise_exception(self):
         move = self.get_new_move(3)
         with self.assertRaises(ValidationError):
-            move._generate_serial_numbers("code-xxx", 0)
+            move._update_move_lines_for_serials("code-xxx", 0)
 
-        move._generate_serial_numbers("code-xxx", 3)
+        move._update_move_lines_for_serials("code-xxx", 3)
         self.assertEqual(
             move.move_line_ids.mapped("lot_name"),
             ["code-xxx0", "code-xxx1", "code-xxx2"],
@@ -209,9 +209,9 @@ class StockGenerateCommon(TransactionCase):
         nbre_of_lines = 10
         move = self.get_new_move(nbre_of_lines)
         move._unreserve()
-        move._generate_serial_numbers("001", 3)
-        move._generate_serial_numbers("bilou-64", 2)
-        move._generate_serial_numbers("ro-1337-bot", 4)
+        move._update_move_lines_for_serials("001", 3)
+        move._update_move_lines_for_serials("bilou-64", 2)
+        move._update_move_lines_for_serials("ro-1337-bot", 4)
 
         generated_numbers = [
             "001",
@@ -243,7 +243,7 @@ class StockGenerateCommon(TransactionCase):
         )
 
         move = self.get_new_move(nbre_of_lines)
-        move._generate_serial_numbers("001", nbre_of_lines)
+        move._update_move_lines_for_serials("001", nbre_of_lines)
 
         for move_line in move.move_line_ids:
             self.assertEqual(move_line.quantity, 1)
@@ -261,7 +261,7 @@ class StockGenerateCommon(TransactionCase):
 
         move = self.get_new_move(nbre_of_lines)
         move._unreserve()
-        move._generate_serial_numbers("001", nbre_of_lines)
+        move._update_move_lines_for_serials("001", nbre_of_lines)
 
         for move_line in move.move_line_ids:
             self.assertEqual(move_line.quantity, 1)
@@ -336,7 +336,7 @@ class StockGenerateCommon(TransactionCase):
         self.assertEqual(move.move_line_ids[0].location_dest_id, sub_loc_01)
         self.assertEqual(move.move_line_ids[1].location_dest_id, sub_loc_02)
 
-        move._generate_serial_numbers("001", 4)
+        move._update_move_lines_for_serials("001", 4)
 
         self.assertRecordValues(
             move.move_line_ids,
@@ -483,7 +483,7 @@ class StockGenerateCommon(TransactionCase):
             ],
         )
 
-        move._generate_serial_numbers("sn-t2-01", 5)
+        move._update_move_lines_for_serials("sn-t2-01", 5)
         sn_t2_01, sn_t2_02, sn_t2_03, sn_t2_04, sn_t2_05 = self.env["stock.lot"].search(
             [
                 (

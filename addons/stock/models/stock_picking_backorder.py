@@ -143,7 +143,7 @@ class StockPickingBackorder(models.Model):
             }
             return self.env["ir.qweb"]._render("stock.exception_on_picking", values)
 
-        documents = self._log_activity_get_documents(
+        documents = self._get_log_activity_documents(
             moves,
             "move_dest_ids",
             "DOWN",

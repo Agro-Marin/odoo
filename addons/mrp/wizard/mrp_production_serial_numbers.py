@@ -57,7 +57,7 @@ class MrpProductionSerials(models.TransientModel):
     def action_generate_serial_numbers(self):
         self.check_singleton()
         if self.lot_name and self.lot_quantity:
-            lots = self.env["stock.lot"].generate_lot_names(
+            lots = self.env["stock.lot"].prepare_lot_names(
                 self.lot_name, self.lot_quantity
             )
             self.serial_numbers = "\n".join(lots)

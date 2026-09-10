@@ -365,7 +365,7 @@ class StockQuantReservation(models.Model):
                 strict=strict,
             )
         )
-        return self._sum_available_quantity(
+        return self._get_available_quantity_from_quants(
             quants,
             product_id,
             lot_id=lot_id,
@@ -373,7 +373,7 @@ class StockQuantReservation(models.Model):
             allow_negative=allow_negative,
         )
 
-    def _sum_available_quantity(
+    def _get_available_quantity_from_quants(
         self, quants, product_id, lot_id=None, strict=False, allow_negative=False
     ):
         quants = quants.sudo()
@@ -484,7 +484,7 @@ class StockQuantReservation(models.Model):
                 strict=strict,
             )
         else:
-            available_quantity = self._sum_available_quantity(
+            available_quantity = self._get_available_quantity_from_quants(
                 quants, product_id, lot_id=lot_id, strict=strict, allow_negative=False
             )
 
@@ -617,7 +617,7 @@ class StockQuantReservation(models.Model):
             new_quant = self.create(vals)
         avail_quants = gathered | new_quant._filtered_not_expired()
         return (
-            self._sum_available_quantity(
+            self._get_available_quantity_from_quants(
                 avail_quants,
                 product_id,
                 lot_id=lot_id,
@@ -659,7 +659,7 @@ class StockQuantReservation(models.Model):
 
     def _run_maintenance_tasks(self):
         self._merge_quants()
-        self._clean_reservations()
+        self._sync_reserved_quantities()
         self._unlink_zero_quants()
 
     @api.model
@@ -720,7 +720,7 @@ class StockQuantReservation(models.Model):
             )
 
     @api.model
-    def _clean_reservations(self, products=None, locations=None):
+    def _sync_reserved_quantities(self, products=None, locations=None):
         quant_domain = Domain("reserved_quantity", "!=", 0)
         move_line_domain = Domain(
             [

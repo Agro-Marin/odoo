@@ -73,7 +73,7 @@ class ChangeProductionQty(models.TransientModel):
             for move, old_qty, new_qty in update_info:
                 iterate_key = production._get_document_iterate_key(move)
                 if iterate_key:
-                    document = activity_mixin._log_activity_get_documents(
+                    document = activity_mixin._get_log_activity_documents(
                         {move: (new_qty, old_qty)}, iterate_key, "UP"
                     )
                     for key, value in document.items():

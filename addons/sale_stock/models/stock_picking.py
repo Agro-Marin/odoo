@@ -92,7 +92,7 @@ class StockPicking(models.Model):
                 "sale_stock.exception_on_picking", values
             )
 
-        documents = self.sudo()._log_activity_get_documents(
+        documents = self.sudo()._get_log_activity_documents(
             moves, "sale_line_id", "DOWN", _keys_in_groupby
         )
         self._log_activity(_render_note_exception_quantity, documents)

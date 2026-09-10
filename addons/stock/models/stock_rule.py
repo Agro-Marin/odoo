@@ -332,7 +332,7 @@ class StockRule(models.Model):
         vals_list = []
         for move in moves:
             vals = move.sudo().copy_data(
-                self._push_prepare_move_copy_values(
+                self._prepare_push_move_copy_values(
                     move,
                     self._get_push_new_date(move),
                 ),
@@ -356,7 +356,7 @@ class StockRule(models.Model):
         if unreserved:
             unreserved.procure_method = "make_to_stock"
 
-    def _push_prepare_move_copy_values(self, move_to_copy, new_date):
+    def _prepare_push_move_copy_values(self, move_to_copy, new_date):
         company_id = self.company_id.id
         copied_quantity = move_to_copy.quantity
         final_location_id = False

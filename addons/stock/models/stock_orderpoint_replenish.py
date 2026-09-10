@@ -267,14 +267,14 @@ class StockWarehouseOrderpointReplenish(models.Model):
             .search([])
         )
         if self.env.context.get("force_orderpoint_recompute", False):
-            orderpoints._reset_stored_values()
+            orderpoints._update_stored_values()
         orderpoints -= orderpoints._unlink_processed_orderpoints()
         self.env["stock.replenishment.report"]._create_missing_orderpoints(
             orderpoints,
         )
         return action
 
-    def _reset_stored_values(self):
+    def _update_stored_values(self):
         stored = ("qty_to_order_computed", "deadline_date", "actual_lead_time_avg")
         for field_name in stored:
             self.env.add_to_compute(self._fields[field_name], self)

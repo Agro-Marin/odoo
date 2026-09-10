@@ -799,7 +799,7 @@ class TestPickingTypeCounts(TestStockCommon):
 class TestPickingTypeTransferCodes(TestStockCommon):
     def test_the_card_follows_the_declared_transfer_codes(self):
         model = self.env["stock.picking.type"]
-        transfer_codes = model._transfer_codes()
+        transfer_codes = model._get_transfer_codes()
         self.assertEqual(
             transfer_codes & {"incoming", "outgoing", "internal"},
             {
@@ -812,7 +812,7 @@ class TestPickingTypeTransferCodes(TestStockCommon):
             self.assertEqual(
                 picking_type.show_picking_type,
                 picking_type.code in transfer_codes,
-                f"{picking_type.display_name} disagrees with _transfer_codes()",
+                f"{picking_type.display_name} disagrees with _get_transfer_codes()",
             )
 
     def test_a_code_outside_the_set_stays_off_the_overview(self):
@@ -820,7 +820,7 @@ class TestPickingTypeTransferCodes(TestStockCommon):
         outsiders = [
             code
             for code, _label in model._fields["code"].selection
-            if code not in model._transfer_codes()
+            if code not in model._get_transfer_codes()
         ]
         for code in outsiders:
             with self.subTest(code=code):

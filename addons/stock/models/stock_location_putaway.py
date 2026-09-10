@@ -33,7 +33,7 @@ class PutawayScan:
         self.placed[location.id] += quantity
         self.staged[location.id] += quantity
 
-    def staged_weight(self, location_id):
+    def get_staged_weight(self, location_id):
         return self.staged.get(location_id, 0.0) * self.product.weight
 
 
@@ -261,7 +261,7 @@ class StockLocationPutaway(models.Model):
         return stored._replace(
             forecast_weight={
                 location_id: stored.forecast_weight.get(location_id, 0.0)
-                + scan.staged_weight(location_id)
+                + scan.get_staged_weight(location_id)
                 for location_id in self.ids
             },
         )

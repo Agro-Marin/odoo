@@ -170,10 +170,10 @@ class TestPutawayBatchHonoursItsOwnPlacements(LocationHardeningCase):
         product = self._create_product("Seeded", weight=2.0)
         scan = PutawayScan(product, {7: 100.0})
         self.assertEqual(scan.placed[7], 100.0)
-        self.assertEqual(scan.staged_weight(7), 0.0)
+        self.assertEqual(scan.get_staged_weight(7), 0.0)
         scan.place(self.stock_location.browse(7), 3.0)
         self.assertEqual(scan.placed[7], 103.0)
-        self.assertEqual(scan.staged_weight(7), 6.0)
+        self.assertEqual(scan.get_staged_weight(7), 6.0)
 
 
 @tagged("post_install", "-at_install")

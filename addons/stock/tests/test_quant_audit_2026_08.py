@@ -347,7 +347,7 @@ class TestQuantSweepShape(TestStockCommon):
 
     def _clean_cost(self, products):
         before = self.env.cr.sql_statement_count
-        self.Quant._clean_reservations(products=products, locations=self.loc)
+        self.Quant._sync_reserved_quantities(products=products, locations=self.loc)
         self.env.flush_all()
         return self.env.cr.sql_statement_count - before
 
@@ -364,7 +364,7 @@ class TestQuantSweepShape(TestStockCommon):
 
     def test_clean_reservations_still_corrects_the_drift(self):
         products = self._drift(3, "correct")
-        self.Quant._clean_reservations(products=products, locations=self.loc)
+        self.Quant._sync_reserved_quantities(products=products, locations=self.loc)
         self.env.flush_all()
         self.env.invalidate_all()
         quants = self.Quant.search(
@@ -397,7 +397,7 @@ class TestQuantSweepShape(TestStockCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        self.Quant._clean_reservations(products=product, locations=self.loc)
+        self.Quant._sync_reserved_quantities(products=product, locations=self.loc)
         self.env.flush_all()
         self.env.invalidate_all()
 
