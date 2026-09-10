@@ -57,7 +57,7 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             js_component_face js_component_data_access js_shadow_root \
             js_patch_blind_facade js_public_surface js_extension_surface \
             js_env_config_surface js_arch_info_surface js_field_record_surface \
-            qweb_inherit_surface \
+            qweb_inherit_surface js_view_descriptor \
             js_action_surface js_template_binding \
             xml_reference_coherence js_mixin_coupling edi_vocabulary \
             payment_vocabulary exchange_vocabulary credential_storage \
@@ -207,6 +207,7 @@ own:
 | `js_view_chassis.py` | every *base* view type mounting `ViewLayout` in its controller template — nine view types outside `web` hand-rolled the same `Layout` and five slots, and each copy lost a different piece: a search bar that could not be collapsed, a no-content helper that was never rendered, a toggler button that did not exist. None of it was visible from the JS, because an import and a `static components` entry look the same whether or not the template renders what they name |
 | `js_patch_blind_facade.py` | a service's own callers going through its facade |
 | `qweb_inherit_surface.py` | every `t-inherit` of a template under `web/static/src/views/`, pinned by inheriting file and shrink-only — a view controller's template is a fourth extension surface beside overrides, `patch()` and import specifiers, and the only one written in QWeb. Eleven inheritors xpath `//Layout` inside three controller templates, which is what blocked the `list`, `kanban` and `calendar` chassis conversions; nothing had counted them, because the three JS gates read JavaScript |
+| `js_view_descriptor.py` | two halves of the view-type contribution contract, resolved through the class chain across every repository: every base view type's `ArchParser` extends `ViewArchParser` (zero of nine extension parsers did until 2026-09-09, because the base sat on no public-surface row), and a controller asking for sample data has a model that overrides `hasData()` -- `Model.hasData()` answers true unconditionally, so without the override `sample="1"` is inert and the hook warns once per mount instead of once per tree |
 | `js_function_length.py` | the web addon's JS function-length budget |
 | `js_duplication.py` | the web addon's duplicated JS, as byte-exact runs of 9+ significant lines — the one property the other JS gates cannot see, because a copied block is structurally identical to a block that belongs where it is |
 | `js_vacuous_assertions.py` | a zero-count HOOT assertion naming a class no non-test file declares — the one assertion shape a wrong selector cannot be told from a passing test |

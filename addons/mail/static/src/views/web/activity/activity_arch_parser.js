@@ -1,7 +1,9 @@
 /** @odoo-module native */
 import { visitXML } from "@web/core/utils/dom/xml";
 import { parseFieldNode } from "@web/views/field_arch";
-export class ActivityArchParser {
+import { ViewArchParser } from "@web/views/view_arch_parser";
+
+export class ActivityArchParser extends ViewArchParser {
     /**
      * @param {Element} xmlDoc
      * @param {Object<string, Object>} models
