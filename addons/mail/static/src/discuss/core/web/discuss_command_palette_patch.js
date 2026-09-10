@@ -13,7 +13,7 @@ commandCategoryRegistry
     .add(DISCUSS_RECENT, { namespace: "@", name: _t("Recent") }, { sequence: 20 });
 
 patch(DiscussCommandPalette.prototype, {
-    getResults() {
+    addCommands() {
         const importantChannels = this.store.getSelfImportantChannels();
         const recentChannels = this.store.getSelfRecentChannels();
         const mentionedSet = new Set();
@@ -49,6 +49,6 @@ patch(DiscussCommandPalette.prototype, {
                 }
             }
         }
-        super.getResults(new Set([...mentionedSet, ...recentSet]));
+        super.addCommands(new Set([...mentionedSet, ...recentSet]));
     },
 });
