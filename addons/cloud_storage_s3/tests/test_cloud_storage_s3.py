@@ -275,6 +275,19 @@ class TestCloudStorageS3Hybrid(TestCloudStorageS3Common):
         self.assertEqual(attachment.type, "binary")
         self.assertTrue(attachment.s3_mirror_pending)
 
+    def test_create_does_not_upload_in_the_request_transaction(self):
+        attachment = self._make_attachment()
+        self.assertTrue(attachment.s3_mirror_pending)
+        self.assertEqual(
+            len(self.env.cr.postcommit),
+            0,
+            "the mirror must not be queued on the request cursor: running it "
+            "there uploads to S3 while the main transaction sits idle",
+        )
+        self.env.cr.postcommit.run()
+        self.mock_s3_client.put_object.assert_not_called()
+        self.assertTrue(attachment.s3_mirror_pending)
+
     def test_create_skips_system_assets(self):
         attachment = self.env["ir.attachment"].create(
             [{"name": "bundle.js", "raw": b"console.log(1)"}]
