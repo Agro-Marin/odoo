@@ -111,11 +111,11 @@ export class HotkeyService {
             return;
         }
 
+        const target = /** @type {any} */ (event.target);
         const targetIsEditable =
-            event.target instanceof HTMLElement &&
-            (/input|textarea/i.test(event.target.tagName) ||
-                event.target.isContentEditable) &&
-            !event.target.matches("input[type=checkbox], input[type=radio]");
+            target?.nodeType === Node.ELEMENT_NODE &&
+            (/input|textarea/i.test(target.tagName) || target.isContentEditable) &&
+            !target.matches("input[type=checkbox], input[type=radio]");
         const shouldProtectEditable =
             targetIsEditable &&
             !(/** @type {HTMLElement} */ (event.target).dataset.allowHotkeys) &&

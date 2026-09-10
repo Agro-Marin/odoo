@@ -500,7 +500,9 @@ export class RPCCache {
                         fromCache.resolve();
                     },
                     () => {
-                        this.ramCache.delete(table, key);
+                        if (this.ramCache.read(table, key) === ramValue) {
+                            this.ramCache.delete(table, key);
+                        }
                         fromCache.resolve();
                     },
                 );

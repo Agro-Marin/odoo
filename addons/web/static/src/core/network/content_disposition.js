@@ -72,6 +72,8 @@ export function parse(string) {
     const names = [];
     /** @type {Record<string, string>} */
     const params = {};
+    /** @type {Record<string, Error>} */
+    const undecodable = {};
     let value;
 
     index = PARAM_REGEXP.lastIndex = match[0].at(-1) === ";" ? index - 1 : index;
@@ -93,9 +95,13 @@ export function parse(string) {
 
         if (key.indexOf("*") + 1 === key.length) {
             key = key.slice(0, -1);
-            value = decodefield(value);
-
-            params[key] = value;
+            try {
+                params[key] = decodefield(value);
+            } catch (error) {
+                // RFC 6266 4.3: an undecodable ext-value is ignored when the
+                // plain parameter names the file; alone, it is still an error
+                undecodable[key] = /** @type {Error} */ (error);
+            }
             continue;
         }
 
@@ -112,6 +118,11 @@ export function parse(string) {
 
     if (index !== -1 && index !== string.length) {
         throw new TypeError("invalid parameter format");
+    }
+    for (const [key, error] of Object.entries(undecodable)) {
+        if (!(key in params)) {
+            throw error;
+        }
     }
 
     return new ContentDisposition(type, params);

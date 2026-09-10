@@ -4,7 +4,7 @@
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
-import { getKey } from "@web/core/network/rpc_dedup";
+import { getKey, stableStringify } from "@web/core/network/rpc_dedup";
 import { rpcLog } from "@web/core/utils/asset_log";
 import { isObject, omit } from "@web/core/utils/collections/objects";
 import { globalSingleton } from "@web/core/utils/global_singleton";
@@ -74,13 +74,16 @@ function attachCallerSignal(promise, signal) {
     if (!signal) {
         return promise;
     }
-    const abort = () => /** @type {any} */ (promise).abort?.(true);
+    const abort = () => {
+        release();
+        /** @type {any} */ (promise).abort?.(true);
+    };
+    const release = () => signal.removeEventListener("abort", abort);
     if (signal.aborted) {
         abort();
         return promise;
     }
     signal.addEventListener("abort", abort, { once: true });
-    const release = () => signal.removeEventListener("abort", abort);
     promise.then(release, release);
     return promise;
 }
@@ -394,7 +397,7 @@ function dedupSettingsFingerprint(settings) {
         if (key === "headers") {
             value = [...new Headers(/** @type {any} */ (value)).entries()].sort();
         }
-        parts.push(`${key}=${JSON.stringify(value)}`);
+        parts.push(`${key}=${stableStringify(value)}`);
     }
     const cache = settings.cache;
     if (cache && typeof cache === "object" && typeof cache.callback === "function") {

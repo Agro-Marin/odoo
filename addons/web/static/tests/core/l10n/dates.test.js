@@ -19,6 +19,7 @@ import {
     serializeDate,
     serializeDateTime,
     strftimeToLuxonFormat,
+    toLocaleDateTimeString,
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
@@ -765,4 +766,18 @@ test("parseDateTime: arab locale, latin numbering system as input", async () => 
     expect(parseDateTime("2023-01-22").toISO().split(".")[0]).toBe(
         "2023-01-22T00:00:00",
     );
+});
+
+test("strftimeToLuxonFormat: the no-padding flag is a flag, not a literal", () => {
+    expect(strftimeToLuxonFormat("%-d/%m/%Y")).toBe("d/MM/yyyy");
+    expect(strftimeToLuxonFormat("%-I:%M")).toBe("h:mm");
+});
+
+test("toLocaleDateTimeString omits the year of the date it shows, not of the value's zone", () => {
+    mockTimeZone(+2);
+    mockDate("2027-01-01 12:00:00");
+    const lastYearInUtc = DateTime.fromISO("2026-12-31T23:30:00", { zone: "utc" });
+    // shown in the default zone this is 2027-01-01 01:30, the current year
+    expect(toLocaleDateTimeString(lastYearInUtc)).not.toInclude("2026");
+    expect(toLocaleDateTimeString(lastYearInUtc, { tz: "utc" })).toInclude("2026");
 });

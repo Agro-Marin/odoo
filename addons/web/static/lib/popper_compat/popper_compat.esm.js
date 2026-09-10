@@ -143,22 +143,22 @@ function scorePlacement(d, v, m) {
     result.top -= directionOverflow;
   } else if (m.shrink && malus) {
     const minTop = Math.floor(
-      !vertical && v === "s" ? m.targetBox.top : m.contBox.top
+      !vertical && v === "s" ? m.targetBoxAbs.top : m.contBoxAbs.top
     );
     result.top = Math.max(minTop, result.top);
     let height;
     if (vertical) {
       height = Math.abs(
-        m.targetBox[
+        m.targetBoxAbs[
           /** @type {"top" | "bottom" | "left" | "right"} */
           direction
         ] - (d === "t" ? directionMin : directionMax)
       );
     } else {
       height = {
-        s: variantMax - m.targetBox.top,
+        s: variantMax - m.targetBoxAbs.top,
         m: variantMax - variantMin,
-        e: m.targetBox.bottom - variantMin
+        e: m.targetBoxAbs.bottom - variantMin
       }[
         /** @type {"s" | "m" | "e"} */
         v
@@ -182,14 +182,24 @@ function measurePlacement(popper, target, cont, margin, shrink) {
   const popBox = popper.getBoundingClientRect();
   const targetBox = target.getBoundingClientRect();
   const iframeBox = iframe?.getBoundingClientRect() ?? { top: 0, left: 0 };
+  const contBox = cont.getBoundingClientRect();
+  const containerIsInIframe = shouldAccountForIFrame && target.ownerDocument === cont.ownerDocument;
+  const toPopperSpace = (box) => ({
+    top: iframeBox.top + box.top,
+    bottom: iframeBox.top + box.bottom,
+    left: iframeBox.left + box.left,
+    right: iframeBox.left + box.right
+  });
   return {
     popBox,
     targetBox,
-    contBox: cont.getBoundingClientRect(),
+    targetBoxAbs: toPopperSpace(targetBox),
+    contBoxAbs: containerIsInIframe ? toPopperSpace(contBox) : contBox,
+    contBox,
     iframeBox,
     cont,
     containerIsHTMLNode: cont === cont.ownerDocument.firstElementChild,
-    containerIsInIframe: shouldAccountForIFrame && target.ownerDocument === cont.ownerDocument,
+    containerIsInIframe,
     shrink,
     directionsData: {
       t: iframeBox.top + targetBox.top - popMargins.bottom - margin - popBox.height,

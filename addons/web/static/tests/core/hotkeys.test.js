@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { mockUserAgent } from "@odoo/hoot-mock";
 import {
     getService,
     makeMockEnv,
@@ -112,5 +113,38 @@ describe("includesOverlayModifier matches whole tokens, not substrings", () => {
         expect(hotkey.includesOverlayModifier("control+alt+a")).toBe(true);
         expect(hotkey.includesOverlayModifier("alt+a")).toBe(false);
         expect(hotkey.includesOverlayModifier("control+a")).toBe(false);
+    });
+});
+
+describe("getActiveHotkey and composed characters", () => {
+    test("an Option chord on macOS is not the bare letter", () => {
+        mockUserAgent("mac");
+        expect(
+            getActiveHotkey(
+                /** @type {any} */ ({ key: "å", code: "KeyA", altKey: true }),
+            ),
+        ).toBe("å");
+        expect(
+            getActiveHotkey(
+                /** @type {any} */ ({ key: "™", code: "Digit2", altKey: true }),
+            ),
+        ).toBe("™");
+        expect(getActiveHotkey(/** @type {any} */ ({ key: "a", code: "KeyA" }))).toBe(
+            "a",
+        );
+    });
+
+    test("an AltGr chord elsewhere is not the bare letter either", () => {
+        mockUserAgent("linux");
+        expect(
+            getActiveHotkey(
+                /** @type {any} */ ({
+                    key: "€",
+                    code: "KeyE",
+                    altKey: true,
+                    ctrlKey: true,
+                }),
+            ),
+        ).toBe("alt+control+€");
     });
 });

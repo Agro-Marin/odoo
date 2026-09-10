@@ -5,7 +5,7 @@
  * @param {any} value
  * @returns {string | undefined}
  */
-function stableStringify(value, seen = new Set()) {
+export function stableStringify(value, seen = new Set()) {
     if (value && typeof value.toJSON === "function") {
         value = value.toJSON();
     }

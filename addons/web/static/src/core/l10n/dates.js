@@ -198,21 +198,32 @@ const stripAlphaDupes = memoize(function stripAlphaDupes(str) {
 export const strftimeToLuxonFormat = memoize(function strftimeToLuxonFormat(format) {
     const output = [];
     let inToken = false;
+    let noPadding = false;
     for (let index = 0; index < format.length; ++index) {
         let character = format[index];
         if (character === "%" && !inToken) {
             inToken = true;
+            noPadding = false;
+            continue;
+        }
+        if (inToken && character === "-") {
+            // %-d: the no-padding flag; luxon spells it with the single letter
+            noPadding = true;
             continue;
         }
         if (alphaCharRegex.test(character)) {
             if (inToken && normalizeFormatTable[character] !== undefined) {
                 character = normalizeFormatTable[character];
+                if (noPadding && /^(.)\1$/.test(character)) {
+                    character = character[0];
+                }
             } else {
                 character = `'${character}'`;
             }
         }
         output.push(character);
         inToken = false;
+        noPadding = false;
     }
     return output.join("");
 });
@@ -294,10 +305,11 @@ export function toLocaleDateTimeString(
         delete format.hour;
         delete format.minute;
     }
-    if (getCurrentYear() === value.year) {
+    const shown = value.setZone(options.tz || "default");
+    if (getCurrentYear() === shown.year) {
         delete format.year;
     }
-    return value.setZone(options.tz || "default").toLocaleString(format);
+    return shown.toLocaleString(format);
 }
 
 /**
@@ -305,6 +317,9 @@ export function toLocaleDateTimeString(
  * @param {boolean} showFullDuration
  * @returns {string}
  */
+/** @type {Map<string, Intl.NumberFormat>} */
+const durationFormatters = new Map();
+
 export function formatDuration(seconds, showFullDuration) {
     const displayStyle = showFullDuration ? "long" : "narrow";
     const numberOfValuesToDisplay = showFullDuration ? 2 : 1;
@@ -333,11 +348,17 @@ export function formatDuration(seconds, showFullDuration) {
      * @returns {string}
      */
     const formatUnit = (value, key) => {
-        let formatted = new Intl.NumberFormat(locale, {
-            style: "unit",
-            unit: intlUnitByKey[key],
-            unitDisplay: displayStyle,
-        }).format(value);
+        const cacheKey = `${locale}|${key}|${displayStyle}`;
+        let formatter = durationFormatters.get(cacheKey);
+        if (!formatter) {
+            formatter = new Intl.NumberFormat(locale, {
+                style: "unit",
+                unit: intlUnitByKey[key],
+                unitDisplay: displayStyle,
+            });
+            durationFormatters.set(cacheKey, formatter);
+        }
+        let formatted = formatter.format(value);
         if (!showFullDuration && key === "months" && (locale || "").includes("en")) {
             formatted = formatted.replace(/m(?=\W*$)/, "M");
         }

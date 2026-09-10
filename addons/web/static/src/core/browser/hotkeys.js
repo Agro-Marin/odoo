@@ -76,7 +76,8 @@ export function getActiveHotkey(ev) {
         key = "space";
     }
 
-    if (!AUTHORIZED_KEY_SET.has(key)) {
+    const composing = isMacOS() ? ev.altKey : ev.altKey && ev.ctrlKey;
+    if (!AUTHORIZED_KEY_SET.has(key) && !composing) {
         if (ev.code?.startsWith("Digit")) {
             key = ev.code.slice(-1);
         } else if (ev.code?.startsWith("Key")) {

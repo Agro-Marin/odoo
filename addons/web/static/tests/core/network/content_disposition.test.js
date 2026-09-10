@@ -112,3 +112,10 @@ describe("malformed headers are rejected, not guessed at", () => {
         );
     });
 });
+
+describe("an undecodable filename*", () => {
+    test("is ignored and the plain filename still names the file", () => {
+        const header = "attachment; filename=\"plain.pdf\"; filename*=UTF-8''%ff%fe";
+        expect(parse(header).parameters.filename).toBe("plain.pdf");
+    });
+});

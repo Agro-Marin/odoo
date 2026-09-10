@@ -857,6 +857,13 @@ const LITERAL_AST_TYPES = new Set([
  * @returns {boolean}
  */
 function isLiteralAST(ast) {
+    if (
+        ast.type === ASTType.UnaryOperator &&
+        (ast.op === "-" || ast.op === "+") &&
+        /** @type {any} */ (ast).right.type === ASTType.Number
+    ) {
+        return true;
+    }
     if (!LITERAL_AST_TYPES.has(ast.type)) {
         return false;
     }
