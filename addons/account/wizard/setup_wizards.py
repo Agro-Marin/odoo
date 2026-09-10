@@ -120,14 +120,14 @@ class AccountSetupBankManualConfig(models.TransientModel):
     )
     new_journal_name = fields.Char(
         default=lambda self: self.linked_journal_id.name,
-        inverse="set_linked_journal_id",
+        inverse="_inverse_linked_journal",
         required=True,
         help="Will be used to name the Journal related to this bank account",
     )
     linked_journal_id = fields.Many2one(
         string="Journal",
         comodel_name="account.journal",
-        inverse="set_linked_journal_id",
+        inverse="_inverse_linked_journal",
         compute="_compute_linked_journal_id",
         check_company=True,
     )
@@ -215,7 +215,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
             (j.id for j in candidates if j.id not in journals_with_moves), False
         )
 
-    def set_linked_journal_id(self):
+    def _inverse_linked_journal(self):
         journal_type = self.env.context.get("journal_type", "bank")
         for record in self:
             selected_journal = record.linked_journal_id

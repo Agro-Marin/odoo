@@ -8,7 +8,7 @@ from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.intervals import Intervals
 from odoo.tools import SQL
-from odoo.tools.date_utils import localized, sum_intervals
+from odoo.tools.date_utils import localized, get_intervals_hours
 
 _logger = logging.getLogger(__name__)
 
@@ -317,7 +317,7 @@ class ResourceReservation(models.Model):
                     ]
                 )
                 record.allocated_hours = record._scale_allocation(
-                    sum_intervals(clipped)
+                    get_intervals_hours(clipped)
                 )
 
     def _scale_allocation(self, work_hours):

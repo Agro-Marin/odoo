@@ -38,7 +38,7 @@ class ChangeProductionQty(models.TransientModel):
                 continue
             qty = (new_qty - old_qty) * move.unit_factor
             modification[move] = (move.product_uom_qty + qty, move.product_uom_qty)
-            if self._need_quantity_propagation(move, qty):
+            if self._is_quantity_propagation_required(move, qty):
                 push_moves |= move.copy({"product_uom_qty": qty})
             else:
                 move.write({"product_uom_qty": move.product_uom_qty + qty})
@@ -50,7 +50,7 @@ class ChangeProductionQty(models.TransientModel):
         return modification
 
     @api.model
-    def _need_quantity_propagation(self, move, qty):
+    def _is_quantity_propagation_required(self, move, qty):
         return move.move_dest_ids and not move.product_uom_id.is_zero(qty)
 
     def change_prod_qty(self):

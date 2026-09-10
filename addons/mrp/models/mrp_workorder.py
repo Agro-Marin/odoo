@@ -9,7 +9,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.intervals import Intervals
 from odoo.tools import float_round, format_datetime
-from odoo.tools.date_utils import sum_intervals
+from odoo.tools.date_utils import get_intervals_hours
 
 
 class MrpWorkorder(models.Model):
@@ -809,11 +809,9 @@ class MrpWorkorder(models.Model):
     @api.onchange("finished_lot_ids")
     def _onchange_finished_lot_ids(self):
         if self.production_id:
-            res = self.production_id._can_produce_serial_numbers(
+            return self.production_id._get_serial_numbers_warning(
                 sns=self.finished_lot_ids
             )
-            if res is not True:
-                return res
         return None
 
     def write(self, vals):
@@ -1077,7 +1075,7 @@ class MrpWorkorder(models.Model):
     def _get_cost(self, date=False):
         total = 0
         for workorder in self:
-            if workorder._should_estimate_cost():
+            if workorder._is_cost_estimate_required():
                 duration = workorder.duration_expected / 60
             else:
                 intervals = Intervals(
@@ -1087,7 +1085,7 @@ class MrpWorkorder(models.Model):
                         if t.date_end and (not date or t.date_end <= date)
                     ]
                 )
-                duration = sum_intervals(intervals)
+                duration = get_intervals_hours(intervals)
             total += duration * workorder._get_costs_hour()
         return total
 
@@ -1114,7 +1112,7 @@ class MrpWorkorder(models.Model):
             if wo.qty_producing == 0:
                 wo.qty_producing = wo.qty_remaining
 
-            if wo._should_start_timer():
+            if wo._is_timer_start_required():
                 self.env["mrp.workcenter.productivity"].create(
                     wo._prepare_timeline_vals(wo.duration, fields.Datetime.now())
                 )
@@ -1371,7 +1369,7 @@ class MrpWorkorder(models.Model):
             res[wo1].append(wo2)
         return res
 
-    def _get_operation_values(self):
+    def _prepare_operation_vals(self):
         self.check_singleton()
         ratio = 1 / self.qty_production
         if self.operation_id.bom_id:
@@ -1405,10 +1403,10 @@ class MrpWorkorder(models.Model):
             "company_id": self.company_id.id,
         }
 
-    def _should_start_timer(self):
+    def _is_timer_start_required(self):
         return True
 
-    def _should_estimate_cost(self):
+    def _is_cost_estimate_required(self):
         self.check_singleton()
         return bool(
             self.state in ("progress", "done")

@@ -5,7 +5,7 @@ from odoo.exceptions import ValidationError
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_compare
-from odoo.tools.date_utils import sum_intervals
+from odoo.tools.date_utils import get_intervals_hours
 
 
 class HrLeave(models.Model):
@@ -89,8 +89,8 @@ class HrLeave(models.Model):
                 ]
             )
             common_intervals = leave_intervals & optional_holidays_intervals
-            if round(sum_intervals(common_intervals), 2) != round(
-                sum_intervals(leave_intervals), 2
+            if round(get_intervals_hours(common_intervals), 2) != round(
+                get_intervals_hours(leave_intervals), 2
             ):
                 invalid_leaves.append(leave.display_name)
         if invalid_leaves:

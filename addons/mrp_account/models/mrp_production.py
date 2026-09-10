@@ -54,8 +54,8 @@ class MrpProduction(models.Model):
             )
         return action
 
-    def _cal_price(self, consumed_moves):
-        super()._cal_price(consumed_moves)
+    def _update_finished_moves_price_unit(self, consumed_moves):
+        super()._update_finished_moves_price_unit(consumed_moves)
 
         finished_move = self.move_finished_ids.filtered(
             lambda x: (
@@ -105,8 +105,8 @@ class MrpProduction(models.Model):
         finished_move.price_unit = shared_value / quantity
         return True
 
-    def _get_backorder_mo_vals(self):
-        res = super()._get_backorder_mo_vals()
+    def _prepare_backorder_mo_vals(self):
+        res = super()._prepare_backorder_mo_vals()
         res["extra_cost"] = self.extra_cost
         return res
 

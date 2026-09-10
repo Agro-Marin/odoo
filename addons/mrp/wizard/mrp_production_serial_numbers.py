@@ -91,7 +91,7 @@ class MrpProductionSerials(models.TransientModel):
 
     def _prepare_action_closing(self, mos=False):
         mos = mos or self.production_id
-        print_actions = mos._autoprint_mass_generated_lots()
+        print_actions = mos._prepare_actions_autoprint_generated_lots()
         if print_actions:
             return {
                 "type": "ir.actions.client",

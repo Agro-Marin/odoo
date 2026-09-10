@@ -4,7 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, models
 from odoo.libs.intervals import Intervals
-from odoo.tools.date_utils import localized, sum_intervals
+from odoo.tools.date_utils import localized, get_intervals_hours
 
 
 class CalendarEvent(models.Model):
@@ -111,6 +111,8 @@ class CalendarEvent(models.Model):
         unavailable_partners = self.env["res.partner"]
         for partner, schedule in schedule_by_partner.items():
             common_interval = schedule & event_interval
-            if sum_intervals(common_interval) != sum_intervals(event_interval):
+            if get_intervals_hours(common_interval) != get_intervals_hours(
+                event_interval
+            ):
                 unavailable_partners |= partner
         return unavailable_partners

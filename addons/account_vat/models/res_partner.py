@@ -684,7 +684,7 @@ class ResPartner(models.Model):
                 return number[2:]
             return number
 
-        def calc_check_digit(number):
+        def get_check_digit(number):
             """Calculate the check digit."""
             weights = (4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2)
             # `number` is the full 12-digit VAT (including the trailing check
@@ -702,7 +702,7 @@ class ResPartner(models.Model):
             and "01" <= vat[:2] <= "22"  # InvalidComponent
             and vat[2:8] != "000000"
             and vat[8:11] == "001"
-            and vat[-1] == calc_check_digit(vat)  # Invalid Check Digit
+            and vat[-1] == get_check_digit(vat)  # Invalid Check Digit
         )
 
     def check_vat_uz(self, vat):

@@ -14,7 +14,7 @@ from odoo.libs.intervals import Intervals
 from odoo.models import ValuesType
 from odoo.tools.date_utils import (
     localized,
-    sum_intervals,
+    get_intervals_hours,
     to_timezone,
 )
 
@@ -717,7 +717,7 @@ class ResourceResource(models.Model):
             raise ValueError("resource must be flexible")
 
         if self._is_fully_flexible():
-            return round(sum_intervals(intervals), 2)
+            return round(get_intervals_hours(intervals), 2)
 
         duration_per_day = dict(flexible_resources_hours_per_day)
         duration_per_week = dict(flexible_resources_hours_per_week)

@@ -117,7 +117,7 @@ class MrpAccountWipAccounting(models.TransientModel):
             .replace(tzinfo=None)
         )
 
-    def _get_line_vals(self, productions=False, date=False):
+    def _prepare_wip_line_vals(self, productions=False, date=False):
         if not productions:
             productions = self.env["mrp.production"]
         if not date:
@@ -176,7 +176,7 @@ class MrpAccountWipAccounting(models.TransientModel):
     def _compute_line_ids(self):
         for wizard in self:
             if not wizard.line_ids or wizard.mo_ids:
-                wizard.line_ids = [Command.clear()] + wizard._get_line_vals(
+                wizard.line_ids = [Command.clear()] + wizard._prepare_wip_line_vals(
                     wizard.mo_ids, wizard._end_of_day_utc(wizard.date)
                 )
 

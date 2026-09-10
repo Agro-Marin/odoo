@@ -9,7 +9,7 @@ class MixinCatalogChildLines(models.AbstractModel):
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
         raise NotImplementedError
 
-    def _get_new_catalog_line_values(self, product_id, quantity, **kwargs):
+    def _prepare_new_catalog_line_vals(self, product_id, quantity, **kwargs):
         raise NotImplementedError
 
     @api.model
@@ -45,7 +45,7 @@ class MixinCatalogChildLines(models.AbstractModel):
                 {
                     child_field: [
                         Command.create(
-                            self._get_new_catalog_line_values(
+                            self._prepare_new_catalog_line_vals(
                                 product_id, quantity, **kwargs
                             )
                         )

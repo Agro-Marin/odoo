@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from odoo.fields import Domain
 from odoo.libs.intervals import Intervals
-from odoo.tools.date_utils import sum_intervals
+from odoo.tools.date_utils import get_intervals_hours
 
 if TYPE_CHECKING:
     from .resource_resource import ResourceResource
@@ -81,7 +81,7 @@ class ResourceSchedule:
                 self.hours_per_week[resource.id],
                 work_hours_per_day,
             )
-        hours = sum_intervals(intervals)
+        hours = get_intervals_hours(intervals)
         if work_hours_per_day is not None:
             for start, stop, _meta in intervals:
                 work_hours_per_day[start.date()] += (

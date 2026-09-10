@@ -711,6 +711,12 @@ _CENSUS_ROWS: tuple[Row, ...] = (
         lambda: _census().infix_abolished,
     ),
     Row(
+        "fused_modality",
+        "§2.4.4",
+        "Model methods opening with ``auto`` fused to a verb",
+        lambda: _census().fused_modality,
+    ),
+    Row(
         "fields_family_head_first",
         "§2.4.4",
         "``fields`` family: definitions spelled head-first",

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from odoo.libs.intervals import Intervals
-from odoo.tools.date_utils import sum_intervals
+from odoo.tools.date_utils import get_intervals_hours
 
 from odoo.addons.test_resource.tests.common import TestResourceCommon
 
@@ -107,7 +107,9 @@ class TestResource(TestResourceCommon):
         start = datetime(2021, 7, 7, 12, 0, 0).replace(tzinfo=UTC)
         end = datetime(2021, 7, 16, 23, 59, 59).replace(tzinfo=UTC)
         work_intervals, _ = self.jean.resource_id._get_valid_work_intervals(start, end)
-        sum_work_intervals = sum_intervals(work_intervals[self.jean.resource_id.id])
+        sum_work_intervals = get_intervals_hours(
+            work_intervals[self.jean.resource_id.id]
+        )
         self.assertEqual(
             58,
             sum_work_intervals,
@@ -126,7 +128,7 @@ class TestResource(TestResourceCommon):
         _, calendars_intervals = self.env[
             "resource.resource"
         ]._get_valid_work_intervals(start, end, calendars)
-        sum_work_intervals_jean = sum_intervals(
+        sum_work_intervals_jean = get_intervals_hours(
             calendars_intervals[self.calendar_jean.id]
         )
         self.assertEqual(
@@ -134,7 +136,7 @@ class TestResource(TestResourceCommon):
             sum_work_intervals_jean,
             "Sum of the work intervals for the calendar of jean should be 40h+18h = 58h",
         )
-        sum_work_intervals_john = sum_intervals(
+        sum_work_intervals_john = get_intervals_hours(
             calendars_intervals[self.calendar_john.id]
         )
         self.assertEqual(
@@ -142,7 +144,7 @@ class TestResource(TestResourceCommon):
             sum_work_intervals_john,
             "Sum of the work intervals for the calendar of john should be 20h+6h-1s = 25h59m59s",
         )
-        sum_work_intervals_jules = sum_intervals(
+        sum_work_intervals_jules = get_intervals_hours(
             calendars_intervals[self.calendar_jules.id]
         )
         self.assertEqual(
@@ -150,7 +152,7 @@ class TestResource(TestResourceCommon):
             sum_work_intervals_jules,
             "Sum of the work intervals for the calendar of jules should be Wodd:15h+Wpair:16h = 31h",
         )
-        sum_work_intervals_patel = sum_intervals(
+        sum_work_intervals_patel = get_intervals_hours(
             calendars_intervals[self.calendar_patel.id]
         )
         self.assertEqual(

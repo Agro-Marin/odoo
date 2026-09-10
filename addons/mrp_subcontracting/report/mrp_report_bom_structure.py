@@ -92,14 +92,14 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return lines
 
     @api.model
-    def _need_special_rules(self, product_info, parent_bom=False, parent_product=False):
+    def _has_special_rules(self, product_info, parent_bom=False, parent_product=False):
         if parent_bom and parent_product:
             parent_info = product_info.get(parent_product.id, {}).get(parent_bom.id, {})
             return parent_info and parent_info.get("route_type") == "subcontract"
-        return super()._need_special_rules(product_info, parent_bom, parent_product)
+        return super()._has_special_rules(product_info, parent_bom, parent_product)
 
     @api.model
-    def _find_special_rules(
+    def _get_special_rules(
         self,
         product,
         product_info,
@@ -107,7 +107,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         parent_bom=False,
         parent_product=False,
     ):
-        res = super()._find_special_rules(
+        res = super()._get_special_rules(
             product, product_info, current_bom, parent_bom, parent_product
         )
         if not parent_bom or not parent_product:

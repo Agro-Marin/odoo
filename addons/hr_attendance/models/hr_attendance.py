@@ -14,7 +14,7 @@ from odoo.http import request
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.tools import convert, format_datetime, format_duration, format_time
-from odoo.tools.date_utils import sum_intervals
+from odoo.tools.date_utils import get_intervals_hours
 
 
 def get_google_maps_url(latitude, longitude):
@@ -319,7 +319,7 @@ class HrAttendance(models.Model):
         attendance_intervals = (
             Intervals([(start_dt_tz, end_dt_tz, self)]) - lunch_intervals
         )
-        return sum_intervals(attendance_intervals)
+        return get_intervals_hours(attendance_intervals)
 
     @api.constrains("check_in", "check_out")
     def _check_validity_check_in_check_out(self):

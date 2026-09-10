@@ -14,7 +14,7 @@ from odoo.tools import float_is_zero, ormcache
 CRON_BATCH_SIZE = 100
 
 
-def _today_midnight(model):
+def _default_date_generated(model):
     return datetime.combine(fields.Date.today(), time.min)
 
 
@@ -26,7 +26,7 @@ class HrVersion(models.Model):
         readonly=True,
         required=True,
         copy=False,
-        default=_today_midnight,
+        default=_default_date_generated,
         groups="hr.group_hr_user",
         tracking=True,
     )
@@ -35,7 +35,7 @@ class HrVersion(models.Model):
         readonly=True,
         required=True,
         copy=False,
-        default=_today_midnight,
+        default=_default_date_generated,
         groups="hr.group_hr_user",
         tracking=True,
     )

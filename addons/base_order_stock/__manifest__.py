@@ -1,6 +1,6 @@
 {
     "name": "Base Order Stock Integration",
-    "version": "19.0.1.3.0",
+    "version": "19.0.1.4.0",
     "category": "Hidden",
     "summary": "Stock/delivery tracking mixins for order types",
     "description": """

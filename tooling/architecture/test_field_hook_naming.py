@@ -511,3 +511,37 @@ class Thing(models.Model):
         )
         == []
     )
+
+
+def test_a_hook_serving_several_fields_with_no_prefix_at_all_is_reported(tmp_path):
+    found = _measure(
+        tmp_path,
+        """
+class Thing(models.Model):
+    _name = "thing"
+
+    label = fields.Char(compute="_get_labels")
+    display = fields.Char(compute="_get_labels")
+""",
+    )
+    assert _kinds(found) == [("unprefixed", "_get_labels")]
+    assert "_compute_<what they have in common>" in str(found[0])
+
+
+def test_a_multi_field_domain_may_take_the_free_standing_form(tmp_path):
+    assert (
+        _measure(
+            tmp_path,
+            """
+class Thing(models.Model):
+    _name = "thing"
+
+    def _get_domain_partners(self):
+        return Domain("is_company", "=", True)
+
+    seller_id = fields.Many2one("res.partner", domain=lambda self: self._get_domain_partners())
+    buyer_id = fields.Many2one("res.partner", domain=lambda self: self._get_domain_partners())
+""",
+        )
+        == []
+    )

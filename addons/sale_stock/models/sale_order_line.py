@@ -481,8 +481,8 @@ class SaleOrderLine(models.Model):
         moves = self._get_transferable_moves()
         delivered, returned = self._get_stock_moves_outgoing_incoming()
         return (
-            self._sum_moves_qty(delivered)
-            - self._sum_moves_qty(returned)
+            self._get_moves_qty_sum(delivered)
+            - self._get_moves_qty_sum(returned)
             + self._get_pipeline_qty(moves - returned)
         )
 

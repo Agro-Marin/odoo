@@ -45,7 +45,7 @@ class StockRule(models.Model):
             codes = [*codes, "mrp_operation"]
         return codes
 
-    def _should_auto_confirm_procurement_mo(self, p):
+    def _is_mo_auto_confirm_required(self, p):
         if not p.move_raw_ids:
             return not p.workorder_ids and (
                 p.orderpoint_id
@@ -131,7 +131,7 @@ class StockRule(models.Model):
 
             mo = self.env["mrp.production"]
             if procurement.origin != "MPS":
-                domain = rule._prepare_mo_search_domain(procurement, bom)
+                domain = rule._get_domain_mo_for_procurement(procurement, bom)
                 mo = self.env["mrp.production"].sudo().search(domain, limit=1)
             is_batch_size = bom and bom.enable_batch_size
             if not mo or is_batch_size:
@@ -212,7 +212,7 @@ class StockRule(models.Model):
                 .create(productions_vals_list)
             )
             for mo in productions:
-                if self._should_auto_confirm_procurement_mo(mo):
+                if self._is_mo_auto_confirm_required(mo):
                     mo.action_confirm()
             productions._post_run_manufacture(
                 new_productions_values_by_company[company_id]["procurements"]
@@ -246,7 +246,7 @@ class StockRule(models.Model):
             product_id, picking_type=False, bom_type="normal", company_id=company_id.id
         )[product_id]
 
-    def _prepare_mo_search_domain(self, procurement, bom):
+    def _get_domain_mo_for_procurement(self, procurement, bom):
         domain = (
             ("bom_id", "=", bom.id),
             ("product_id", "=", procurement.product_id.id),

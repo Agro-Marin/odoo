@@ -1226,6 +1226,7 @@ Section  Population                                                  Count
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            141
+§2.4.4   Model methods opening with ``auto`` fused to a verb            13
 §2.4.4   ``fields`` family: definitions spelled head-first             220
 §2.4.4   ``fields`` family: distinct names spelled head-first           99
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
@@ -1571,6 +1572,17 @@ begun.**
   condition: ``_maybe_reap_idle_pools`` reaps only when the reaper's interval
   has elapsed, and is ``_reap_idle_pools_if_due`` -- **write the condition, not
   the hedge**, because *maybe* is true of any method with an early return.
+  **``auto`` is the same word fused to the verb**, and the fusion is what hides
+  it: ``classify`` reads ``autoprint`` as a verb carrying no rule, where a
+  ``_safe_`` at least stands alone for a reader to see. ``mrp``'s
+  ``_autoprint_generated_lot`` returned a report action, so it takes the row its
+  return earns -- ``_prepare_action_autoprint_generated_lot``, on the spelling
+  ``stock``'s ``_prepare_actions_autoprint`` had already chosen -- and
+  ``_autoconfirm_production`` confirmed the draft moves and workorders of an
+  order, which is what its name now says. The census counts the population
+  ``[gate doc_restated_counts]``; it is a candidate list rather than a rule,
+  because ``autovacuum`` and ``autocomplete`` are terms of art that fuse the
+  same way.
 
 **The signature can prove the public spelling was an accident** ``[review]``. A
 return of recordsets, callables or exceptions -- anything that does not survive
@@ -2103,9 +2115,13 @@ new ones this way; do not rename the bound ones.
 table** ``[review]``. The four verbs the Payload row abolishes are a small family
 between them; ``_generate_`` alone is far larger (census table). It carries two
 meanings -- ``_generate_access_token`` builds a value and takes the payload
-canonical, while ``_generate_consume_moves`` **creates records** and takes the
-domain operation's name -- so wiring it into ``ABOLISHED`` would turn a gate held
-at a hard zero red across the whole family, and is owed its own record.
+canonical, while ``mrp.unbuild``'s ``_generate_consume_moves`` **created records**
+and took the domain operation's name -- it and its three siblings are
+``_create_consume_moves``, ``_create_produce_moves``,
+``_create_move_from_bom_line`` and ``_create_move_from_existing_move``, each a
+body that is one ``create()`` -- so wiring the verb into ``ABOLISHED`` would turn
+a gate held at a hard zero red across the whole family, and is owed its own
+record. The rename does not wait for the record; the rule does.
 
 **The payload suffix chooses an assemble verb's canonical, not its reach**
 ``[review]``. ``naming_vocabulary.py`` used to report one only when the name also

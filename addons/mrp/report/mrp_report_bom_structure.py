@@ -1009,8 +1009,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         parent_product=False,
     ):
         found_rules = []
-        if self._need_special_rules(product_info, parent_bom, parent_product):
-            found_rules = self._find_special_rules(
+        if self._has_special_rules(product_info, parent_bom, parent_product):
+            found_rules = self._get_special_rules(
                 product, product_info, bom, parent_bom, parent_product
             )
         if not found_rules and warehouse:
@@ -1027,11 +1027,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return bom and any(rule.action == "manufacture" for rule in rules)
 
     @api.model
-    def _need_special_rules(self, product_info, parent_bom=False, parent_product=False):
+    def _has_special_rules(self, product_info, parent_bom=False, parent_product=False):
         return False
 
     @api.model
-    def _find_special_rules(
+    def _get_special_rules(
         self,
         product,
         product_info,

@@ -52,7 +52,7 @@ class MrpWorkorder(models.Model):
         for wo in self.sudo():
             if not wo.id:
                 continue
-            if wo._should_estimate_cost():
+            if wo._is_cost_estimate_required():
                 hours = wo.duration_expected / 60.0
             else:
                 hours = wo.duration / 60.0

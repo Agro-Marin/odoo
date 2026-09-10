@@ -67,6 +67,12 @@ class Violation:
                 f"{self.path}:{self.line}  {self.method}  is a selection= hook "
                 f"and is not named for its values -- name it _selection_<values>"
             )
+        if self.kind == "unprefixed":
+            return (
+                f"{self.path}:{self.line}  {self.method}  serves several "
+                f"{self.attr}= fields and wears no _{self.attr}_ prefix -- name it "
+                f"_{self.attr}_<what they have in common>"
+            )
         return f"{self.path}:{self.line}  {self.method}  ->  _{self.attr}_{self.field}"
 
 
@@ -342,7 +348,20 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
             if method != f"_{attr}_{field}":
                 out.append(Violation(path, line, attr, method, field, "misnamed"))
             continue
-        stem = method[len(attr) + 2 :] if method.startswith(f"_{attr}_") else None
+        # §2.4.1's multi-field rule has two halves and this used to check one:
+        # a hook named for ONE of its fields was `misleading`, while a hook
+        # named for NONE of them and wearing no prefix at all -- `_get_mo_count`
+        # serving five `compute=` fields -- passed, because the only test on a
+        # multi-field hook was the stem's membership. A multi-field `domain=`
+        # may take §2.4.1's free-standing form, which `_HEAD_FIRST_DOMAIN`
+        # already spells.
+        if not method.startswith(f"_{attr}_") and not (
+            attr == "domain" and _HEAD_FIRST_DOMAIN.fullmatch(method)
+        ):
+            path, line = min(fields.values(), key=lambda at: at[1])
+            out.append(Violation(path, line, attr, method, "", "unprefixed"))
+            continue
+        stem = method[len(attr) + 2 :]
         if stem in fields:
             path, line = fields[stem]
             out.append(Violation(path, line, attr, method, stem, "misleading"))
@@ -448,7 +467,8 @@ def main(argv: list[str] | None = None) -> int:
         "--attr", choices=REPORTED_ATTRS, help="restrict to one attribute"
     )
     parser.add_argument(
-        "--kind", choices=("misnamed", "misleading", "unmarked", "unvalued")
+        "--kind",
+        choices=("misnamed", "misleading", "unmarked", "unvalued", "unprefixed"),
     )
     parser.add_argument("--roots", nargs="+", help="scan these paths instead")
     parser.add_argument(

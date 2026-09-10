@@ -517,7 +517,7 @@ class TestAnalyticLineRename(TestBomPriceCommon):
         workorder.button_finish()
         workorder.invalidate_recordset()
 
-        self.assertTrue(workorder._should_estimate_cost())
+        self.assertTrue(workorder._is_cost_estimate_required())
         self.assertEqual(
             sum(workorder.wc_analytic_account_line_ids.mapped("amount")),
             -workorder._get_cost(),

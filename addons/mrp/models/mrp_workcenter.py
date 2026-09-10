@@ -973,7 +973,7 @@ class MrpWorkcenterProductivity(models.Model):
             blocktime.duration = duration
 
     @api.model
-    def _open_timer_groupby(self):
+    def _get_open_timer_groupby(self):
         return ["workorder_id", "user_id"]
 
     @api.constrains("workorder_id", "date_end", "user_id")
@@ -983,7 +983,7 @@ class MrpWorkcenterProductivity(models.Model):
             return
         duplicated = self._read_group(
             [("workorder_id", "in", workorders.ids), ("date_end", "=", False)],
-            self._open_timer_groupby(),
+            self._get_open_timer_groupby(),
             having=[("__count", ">", 1)],
         )
         if duplicated:

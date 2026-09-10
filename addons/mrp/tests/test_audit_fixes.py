@@ -517,7 +517,7 @@ class TestMrpAuditFixes(TestMrpCommon):
                 "generated_mrp_lot_label_to_print": False,
             }
         )
-        self.assertEqual(productions._autoprint_mass_generated_lots(), [])
+        self.assertEqual(productions._prepare_actions_autoprint_generated_lots(), [])
 
     def test_bom_overview_attachment_lookup(self):
         report = self.env["report.mrp.report_bom_structure"]
@@ -1725,7 +1725,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(raw_move.location_dest_id, expected)
         self.assertEqual(production.move_finished_ids.location_id, expected)
         self.assertEqual(
-            production._get_move_raw_values(
+            production._prepare_move_raw_vals(
                 component, 1.0, unit, bom_line=bom.bom_line_ids[0]
             )["location_dest_id"],
             expected.id,
@@ -2000,7 +2000,7 @@ class TestMrpAuditFixes(TestMrpCommon):
             "a byproduct used to pay for that walk and then discard it",
         )
         self.assertEqual(
-            production._get_move_finished_values(
+            production._prepare_move_finished_vals(
                 byproduct.id, 1.0, unit.id, byproduct_id=bom.byproduct_ids[0].id
             )["move_dest_ids"],
             [],

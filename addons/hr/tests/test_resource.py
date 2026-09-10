@@ -4,7 +4,7 @@ from odoo import Command
 from odoo.fields import Date
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
-from odoo.tools.date_utils import sum_intervals
+from odoo.tools.date_utils import get_intervals_hours
 
 from .common import TestHrCommon
 
@@ -442,7 +442,9 @@ class TestResource(TestHrCommon):
         work_intervals, _ = self.employee.resource_id._get_valid_work_intervals(
             start, end
         )
-        sum_work_intervals = sum_intervals(work_intervals[self.employee.resource_id.id])
+        sum_work_intervals = get_intervals_hours(
+            work_intervals[self.employee.resource_id.id]
+        )
         self.assertEqual(
             75,
             sum_work_intervals,

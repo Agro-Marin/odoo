@@ -25,7 +25,7 @@ from odoo.tools import (
     html_sanitize,
     topological_sort,
 )
-from odoo.tools.date_utils import localized, sum_intervals, weekend, weekstart
+from odoo.tools.date_utils import localized, get_intervals_hours, weekend, weekstart
 
 from odoo.addons.html_editor.tools import handle_history_divergence
 from odoo.addons.mail.tools.discuss import Store
@@ -4210,7 +4210,7 @@ class ProjectTask(models.Model):
                         flex_user_work_hours_per_week[resource.id],
                     )
                 else:
-                    work_hours = sum_intervals(work_intervals)
+                    work_hours = get_intervals_hours(work_intervals)
 
                 if task_mapping["sum_allocated_hours"] > work_hours:
                     overlap_messages.append(
@@ -4832,7 +4832,7 @@ class ProjectTask(models.Model):
                     interval_task_intersection = interval_as_Interval & Intervals(
                         [(task.date_start, task.date_end, set())]
                     )
-                    interval_duration = sum_intervals(interval_task_intersection)
+                    interval_duration = get_intervals_hours(interval_task_intersection)
                     task_total_duration = (
                         task.date_end - task.date_start
                     ).total_seconds() / 3600

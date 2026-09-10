@@ -249,9 +249,9 @@ class MrpUnbuild(models.Model):
                 )
             )
 
-        consume_moves = self._generate_consume_moves()
+        consume_moves = self._create_consume_moves()
         consume_moves._action_confirm()
-        produce_moves = self._generate_produce_moves()
+        produce_moves = self._create_produce_moves()
         produce_moves._action_confirm()
         produce_moves.quantity = 0
 
@@ -395,7 +395,7 @@ class MrpUnbuild(models.Model):
             / self.bom_id.product_qty
         )
 
-    def _generate_consume_moves(self):
+    def _create_consume_moves(self):
         moves = self.env["stock.move"]
         for unbuild in self:
             factor = unbuild._get_unbuild_factor()
@@ -404,21 +404,21 @@ class MrpUnbuild(models.Model):
                     lambda move: move.state == "done"
                 )
                 for finished_move in finished_moves:
-                    moves += unbuild._generate_move_from_existing_move(
+                    moves += unbuild._create_move_from_existing_move(
                         finished_move,
                         factor,
                         unbuild.location_id,
                         finished_move.location_id,
                     )
             else:
-                moves += unbuild._generate_move_from_bom_line(
+                moves += unbuild._create_move_from_bom_line(
                     unbuild.product_id, unbuild.product_uom_id, unbuild.product_qty
                 )
                 for byproduct in unbuild.bom_id.byproduct_ids:
                     if byproduct._is_bom_line_skipped(unbuild.product_id):
                         continue
                     quantity = byproduct.product_qty * factor
-                    moves += unbuild._generate_move_from_bom_line(
+                    moves += unbuild._create_move_from_bom_line(
                         byproduct.product_id,
                         byproduct.product_uom_id,
                         quantity,
@@ -426,7 +426,7 @@ class MrpUnbuild(models.Model):
                     )
         return moves
 
-    def _generate_produce_moves(self):
+    def _create_produce_moves(self):
         moves = self.env["stock.move"]
         for unbuild in self:
             factor = unbuild._get_unbuild_factor()
@@ -435,7 +435,7 @@ class MrpUnbuild(models.Model):
                     lambda move: move.state == "done"
                 )
                 for raw_move in raw_moves:
-                    moves += unbuild._generate_move_from_existing_move(
+                    moves += unbuild._create_move_from_existing_move(
                         raw_move,
                         factor,
                         raw_move.location_dest_id,
@@ -448,7 +448,7 @@ class MrpUnbuild(models.Model):
                     picking_type=unbuild.bom_id.picking_type_id,
                 )
                 for line, line_data in lines:
-                    moves += unbuild._generate_move_from_bom_line(
+                    moves += unbuild._create_move_from_bom_line(
                         line.product_id,
                         line.product_uom_id,
                         line_data["qty"],
@@ -456,7 +456,7 @@ class MrpUnbuild(models.Model):
                     )
         return moves
 
-    def _generate_move_from_existing_move(
+    def _create_move_from_existing_move(
         self, move, factor, location_id, location_dest_id
     ):
         return self.env["stock.move"].create(
@@ -475,7 +475,7 @@ class MrpUnbuild(models.Model):
             }
         )
 
-    def _generate_move_from_bom_line(
+    def _create_move_from_bom_line(
         self, product, product_uom_id, quantity, bom_line_id=False, byproduct_id=False
     ):
         product_prod_location = product.with_company(

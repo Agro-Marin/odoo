@@ -55,7 +55,7 @@ class MrpProduction(models.Model):
     def _get_sale_orders(self):
         return self.reference_ids.sale_ids | self.sale_line_id.order_id
 
-    def _get_backorder_mo_vals(self):
-        res = super()._get_backorder_mo_vals()
+    def _prepare_backorder_mo_vals(self):
+        res = super()._prepare_backorder_mo_vals()
         res["sale_line_id"] = self.sale_line_id.id
         return res

@@ -18,19 +18,20 @@ class StockPickingType(models.Model):
         },
     )
     count_mo_todo = fields.Integer(
-        string="Number of Manufacturing Orders to Process", compute="_get_mo_count"
+        string="Number of Manufacturing Orders to Process", compute="_compute_mo_counts"
     )
     count_mo_waiting = fields.Integer(
-        string="Number of Manufacturing Orders Waiting", compute="_get_mo_count"
+        string="Number of Manufacturing Orders Waiting", compute="_compute_mo_counts"
     )
     count_mo_late = fields.Integer(
-        string="Number of Manufacturing Orders Late", compute="_get_mo_count"
+        string="Number of Manufacturing Orders Late", compute="_compute_mo_counts"
     )
     count_mo_in_progress = fields.Integer(
-        string="Number of Manufacturing Orders In Progress", compute="_get_mo_count"
+        string="Number of Manufacturing Orders In Progress",
+        compute="_compute_mo_counts",
     )
     count_mo_to_close = fields.Integer(
-        string="Number of Manufacturing Orders To Close", compute="_get_mo_count"
+        string="Number of Manufacturing Orders To Close", compute="_compute_mo_counts"
     )
     use_create_components_lots = fields.Boolean(
         string="Create New Lots/Serial Numbers for Components",
@@ -101,7 +102,7 @@ class StockPickingType(models.Model):
                     )
                 )
 
-    def _get_mo_count(self):
+    def _compute_mo_counts(self):
         mrp_picking_types = self.filtered(
             lambda picking: picking.code == "mrp_operation"
         )

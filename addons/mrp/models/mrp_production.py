@@ -966,7 +966,7 @@ class MrpProduction(models.Model):
                         }
                         for late_document in production.move_raw_ids.filtered(
                             lambda m: m.date_delay_alert
-                        ).move_orig_ids._delay_alert_get_documents()
+                        ).move_orig_ids._get_delay_alert_documents()
                     ],
                 }
             )
@@ -1438,7 +1438,7 @@ class MrpProduction(models.Model):
                 continue
             days_delay = production.bom_id.produce_delay
             date_end = production.date_start + relativedelta(days=days_delay)
-            if production._should_postpone_date_end(date_end):
+            if production._is_date_end_postponement_required(date_end):
                 date_end = production._get_date_end_expected(date_end) or (
                     date_end
                     + relativedelta(
@@ -1508,7 +1508,7 @@ class MrpProduction(models.Model):
                 and production.product_id
                 and production.product_qty > 0
             ):
-                moves_raw_values = production._get_moves_raw_values()
+                moves_raw_values = production._prepare_moves_raw_vals()
                 move_raw_dict = {
                     move.bom_line_id.id: move
                     for move in production.move_raw_ids.filtered(
@@ -1692,12 +1692,10 @@ class MrpProduction(models.Model):
     @api.onchange("lot_producing_ids")
     def _onchange_lot_producing(self):
         if self._update_qty_producing():
-            res = self._can_produce_serial_numbers()
-            if res is not True:
-                return res
+            return self._get_serial_numbers_warning()
         return None
 
-    def _can_produce_serial_numbers(self, sns=None):
+    def _get_serial_numbers_warning(self, sns=None):
         self.check_singleton()
         sns = sns or self.lot_producing_ids
         if self.product_id.tracking == "serial" and sns:
@@ -1714,7 +1712,7 @@ class MrpProduction(models.Model):
                 return {
                     "warning": {"title": _("Warning"), "message": ",".join(messages)}
                 }
-        return True
+        return None
 
     @api.constrains("move_finished_ids")
     def _check_byproducts(self):
@@ -1891,7 +1889,9 @@ class MrpProduction(models.Model):
         ):
             open_orders = self.filtered(lambda p: p.state != "draft")
             if open_orders:
-                open_orders.with_context(no_procurement=True)._autoconfirm_production()
+                open_orders.with_context(
+                    no_procurement=True
+                )._confirm_draft_moves_and_workorders()
                 for production in open_orders & production_to_replan:
                     production._plan_workorders()
         for production in self:
@@ -2006,7 +2006,7 @@ class MrpProduction(models.Model):
         return super().unlink()
 
     @api.ondelete(at_uninstall=True)
-    def _unlink_if_not_done(self):
+    def _unlink_except_done_at_uninstall(self):
         if any(mo.state == "done" for mo in self):
             raise UserError(
                 _("You cannot delete a manufacturing order that is already done.")
@@ -2042,7 +2042,7 @@ class MrpProduction(models.Model):
         action["view_mode"] = "form"
         action["views"] = [(False, "form")]
 
-        bom_lines_vals, byproduct_vals, operations_vals = self._get_bom_values()
+        bom_lines_vals, byproduct_vals, operations_vals = self._prepare_bom_commands()
         action["context"] = {
             "default_bom_line_ids": bom_lines_vals,
             "default_byproduct_ids": byproduct_vals,
@@ -2102,7 +2102,7 @@ class MrpProduction(models.Model):
                 production._link_bom(production.bom_id)
         self.is_outdated_bom = False
 
-    def _get_bom_values(self, ratio=1):
+    def _prepare_bom_commands(self, ratio=1):
         self.check_singleton()
 
         def get_uom_and_quantity(move):
@@ -2133,7 +2133,7 @@ class MrpProduction(models.Model):
             }
             byproduct_values.append(Command.create(bom_byproduct_vals))
         operations_values = [
-            Command.create(wo._get_operation_values()) for wo in self.workorder_ids
+            Command.create(wo._prepare_operation_vals()) for wo in self.workorder_ids
         ]
         return (bom_lines_values, byproduct_values, operations_values)
 
@@ -2151,7 +2151,7 @@ class MrpProduction(models.Model):
             .id
         )
 
-    def _get_move_finished_values(
+    def _prepare_move_finished_vals(
         self,
         product_id,
         product_uom_qty,
@@ -2205,7 +2205,7 @@ class MrpProduction(models.Model):
             lambda move: move.product_id == self.product_id
         ).move_dest_ids
 
-    def _get_moves_finished_values(self):
+    def _prepare_moves_finished_vals(self):
         moves = []
         for production in self:
             if production.product_id in production.bom_id.byproduct_ids.mapped(
@@ -2217,7 +2217,7 @@ class MrpProduction(models.Model):
                         production.product_id.name,
                     )
                 )
-            finished_move_values = production._get_move_finished_values(
+            finished_move_values = production._prepare_move_finished_vals(
                 production.product_id.id,
                 production.product_qty,
                 production.product_uom_id.id,
@@ -2237,7 +2237,7 @@ class MrpProduction(models.Model):
                     product_uom_factor / production.bom_id.product_qty
                 )
                 moves.append(
-                    production._get_move_finished_values(
+                    production._prepare_move_finished_vals(
                         byproduct.product_id.id,
                         qty,
                         byproduct.product_uom_id.id,
@@ -2250,7 +2250,7 @@ class MrpProduction(models.Model):
 
     def _create_update_move_finished(self):
         list_move_finished = []
-        moves_finished_values = self._get_moves_finished_values()
+        moves_finished_values = self._prepare_moves_finished_vals()
         moves_byproduct_dict = {
             move.byproduct_id.id: move
             for move in self.move_finished_ids.filtered(lambda m: m.byproduct_id)
@@ -2277,7 +2277,7 @@ class MrpProduction(models.Model):
                 list_move_finished += [Command.create(move_finished_values)]
         self.move_finished_ids = list_move_finished
 
-    def _get_moves_raw_values(self):
+    def _prepare_moves_raw_vals(self):
         moves = []
         batch = self.with_context(
             bom_cost_share_cache=self.env["mrp.bom"]._get_explosion_scratch()
@@ -2309,7 +2309,7 @@ class MrpProduction(models.Model):
                     and line_data["parent_line"].operation_id.id
                 )
                 moves.append(
-                    production._get_move_raw_values(
+                    production._prepare_move_raw_vals(
                         bom_line.product_id,
                         line_data["qty"],
                         bom_line.product_uom_id,
@@ -2319,7 +2319,7 @@ class MrpProduction(models.Model):
                 )
         return moves
 
-    def _get_move_raw_values(
+    def _prepare_move_raw_vals(
         self,
         product,
         product_uom_qty,
@@ -2391,7 +2391,7 @@ class MrpProduction(models.Model):
             if move.picked and (is_byproduct or move.manual_consumption):
                 continue
 
-            if move.sudo()._should_bypass_set_qty_producing():
+            if move.sudo()._is_qty_producing_bypass_required():
                 continue
 
             new_qty = move._get_qty_to_process()
@@ -2416,7 +2416,7 @@ class MrpProduction(models.Model):
             ):
                 move.picked = True
 
-    def _should_postpone_date_end(self, date_end):
+    def _is_date_end_postponement_required(self, date_end):
         self.check_singleton()
         return date_end == self.date_start
 
@@ -2469,7 +2469,7 @@ class MrpProduction(models.Model):
             return "assigned"
         return "confirmed"
 
-    def _autoconfirm_production(self):
+    def _confirm_draft_moves_and_workorders(self):
         moves_to_confirm = self.env["stock.move"]
         for production in self:
             if production.state in ("done", "cancel"):
@@ -2575,7 +2575,9 @@ class MrpProduction(models.Model):
                 raise UserError(_("You cannot set more than 1 lot per product"))
             self.lot_producing_ids = [Command.create(self._prepare_stock_lot_values())]
             if self.picking_type_id.auto_print_generated_mrp_lot:
-                return self._autoprint_generated_lot(self.lot_producing_ids[-1])
+                return self._prepare_action_autoprint_generated_lot(
+                    self.lot_producing_ids[-1]
+                )
         elif self.product_tracking == "serial":
             if self.product_qty == 1 and not self.lot_producing_ids:
                 self.lot_producing_ids = [
@@ -2584,7 +2586,9 @@ class MrpProduction(models.Model):
                 self.qty_producing = 1
                 (workorder or self).set_qty_producing()
                 if self.picking_type_id.auto_print_generated_mrp_lot:
-                    return self._autoprint_generated_lot(self.lot_producing_ids[-1])
+                    return self._prepare_action_autoprint_generated_lot(
+                        self.lot_producing_ids[-1]
+                    )
                 return None
             action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "mrp.action_assign_serial_numbers"
@@ -2789,7 +2793,7 @@ class MrpProduction(models.Model):
                 or not order.bom_id.bom_line_ids
             ):
                 continue
-            expected_move_values = order._get_moves_raw_values()
+            expected_move_values = order._prepare_moves_raw_vals()
             expected_qty_by_product = defaultdict(float)
             for move_values in expected_move_values:
                 move_product = self.env["product.product"].browse(
@@ -2961,7 +2965,7 @@ class MrpProduction(models.Model):
     def _get_document_iterate_key(self, move_raw_id):
         return (move_raw_id.move_orig_ids and "move_orig_ids") or False
 
-    def _cal_price(self, consumed_moves):
+    def _update_finished_moves_price_unit(self, consumed_moves):
         self.check_singleton()
         return True
 
@@ -3019,7 +3023,7 @@ class MrpProduction(models.Model):
                     workorder.duration_unit = round(
                         workorder.duration / max(workorder.qty_produced, 1), 2
                     )
-            order.with_company(order.company_id)._cal_price(
+            order.with_company(order.company_id)._update_finished_moves_price_unit(
                 moves_to_do_by_order[order.id]
             )
         moves_to_finish = self.move_finished_ids.filtered(
@@ -3056,7 +3060,7 @@ class MrpProduction(models.Model):
             return regex.sub(seq_back, name)
         return name + seq_back
 
-    def _get_backorder_mo_vals(self):
+    def _prepare_backorder_mo_vals(self):
         self.check_singleton()
         return {
             "reference_ids": self.reference_ids.ids,
@@ -3138,7 +3142,7 @@ class MrpProduction(models.Model):
                 production.move_raw_ids | production.move_finished_ids
             ).origin = production._get_origin()
             backorder_vals = production.copy_data(
-                default=production._get_backorder_mo_vals()
+                default=production._prepare_backorder_mo_vals()
             )[0]
             backorder_qtys = amounts[production][1:]
             production.with_context(
@@ -3200,7 +3204,9 @@ class MrpProduction(models.Model):
                 unit_factor = (
                     move.product_uom_qty / initial_qty_by_production[production]
                 )
-                initial_move_vals = move.copy_data(move._get_backorder_move_vals())[0]
+                initial_move_vals = move.copy_data(move._prepare_backorder_move_vals())[
+                    0
+                ]
                 move.with_context(
                     do_not_unreserve=True, no_procurement=True
                 ).product_uom_qty = production.product_qty * unit_factor
@@ -3465,7 +3471,7 @@ class MrpProduction(models.Model):
         return self._prepare_action_mark_done(backorders)
 
     def _prepare_action_mark_done(self, backorders):
-        report_actions = self._get_autoprint_done_report_actions()
+        report_actions = self._prepare_actions_autoprint_done()
         if self.env.context.get("skip_redirection"):
             if report_actions:
                 return {
@@ -3607,7 +3613,7 @@ class MrpProduction(models.Model):
                         res.get("context", {}),
                         marked_as_done=all(mo.state == "done" for mo in self),
                     )
-                return res if self._should_return_records() else True
+                return res if self._is_result_return_required() else True
         return True
 
     def _check_ready_to_mark_done(self):
@@ -3630,7 +3636,7 @@ class MrpProduction(models.Model):
             )
         )
 
-    def _should_return_records(self):
+    def _is_result_return_required(self):
         return True
 
     def action_unreserve(self):
@@ -3716,7 +3722,7 @@ class MrpProduction(models.Model):
         )
         documents = self.env[
             "stock.picking"
-        ]._less_quantities_than_expected_add_documents(moves_modification, documents)
+        ]._add_less_quantities_than_expected_documents(moves_modification, documents)
         self.env["mixin.stock.activity"]._log_activity(
             _render_note_exception_quantity_mo, documents
         )
@@ -4055,7 +4061,7 @@ class MrpProduction(models.Model):
             )
         self.env["stock.move"].create(
             [
-                self._get_move_raw_values(
+                self._prepare_move_raw_vals(
                     bom_line.product_id,
                     bom_qty / ratio,
                     bom_line.product_uom_id,
@@ -4096,7 +4102,7 @@ class MrpProduction(models.Model):
             move_byproduct.product_uom_id = bom_byproduct.product_uom_id
         self.move_finished_ids += self.env["stock.move"].create(
             [
-                self._get_move_finished_values(
+                self._prepare_move_finished_vals(
                     bom_byproduct.product_id.id,
                     bom_byproduct.product_qty / ratio,
                     bom_byproduct.product_uom_id.id,
@@ -4400,7 +4406,7 @@ class MrpProduction(models.Model):
         "zpl": "mrp.label_manufacture_template",
     }
 
-    def _autoprint_labels_by_format(
+    def _add_actions_autoprint_by_format(
         self, report_actions, productions, format_field, reports, docids_of
     ):
         by_format = productions.grouped(lambda p: p.picking_type_id[format_field])
@@ -4412,7 +4418,7 @@ class MrpProduction(models.Model):
                 report_actions, report_xmlid, docids_of(grouped_productions)
             )
 
-    def _get_autoprint_done_report_actions(self):
+    def _prepare_actions_autoprint_done(self):
         report_actions = []
         productions_to_print = self.filtered(
             lambda p: p.picking_type_id.auto_print_done_production_order
@@ -4423,7 +4429,7 @@ class MrpProduction(models.Model):
                 "mrp.action_report_production_order",
                 productions_to_print.ids,
             )
-        self._autoprint_labels_by_format(
+        self._add_actions_autoprint_by_format(
             report_actions,
             self.filtered(
                 lambda p: p.picking_type_id.auto_print_done_mrp_product_labels
@@ -4477,7 +4483,7 @@ class MrpProduction(models.Model):
                         },
                     )
         if self.env.user.has_group("stock.group_production_lot"):
-            self._autoprint_labels_by_format(
+            self._add_actions_autoprint_by_format(
                 report_actions,
                 self.filtered(
                     lambda p: (
@@ -4493,7 +4499,7 @@ class MrpProduction(models.Model):
             )
         return report_actions
 
-    def _autoprint_generated_lot(self, lot_id):
+    def _prepare_action_autoprint_generated_lot(self, lot_id):
         self.check_singleton()
         report_xmlid = self._LOT_LABEL_REPORTS.get(
             self.picking_type_id.generated_mrp_lot_label_to_print
@@ -4502,9 +4508,9 @@ class MrpProduction(models.Model):
             return None
         return self._add_report_action([], report_xmlid, lot_id.id)
 
-    def _autoprint_mass_generated_lots(self):
+    def _prepare_actions_autoprint_generated_lots(self):
         actions = []
-        self._autoprint_labels_by_format(
+        self._add_actions_autoprint_by_format(
             actions,
             self.filtered(lambda p: p.picking_type_id.auto_print_generated_mrp_lot),
             "generated_mrp_lot_label_to_print",
@@ -4608,7 +4614,7 @@ class MrpProduction(models.Model):
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
         line.product_uom_qty = quantity
 
-    def _get_new_catalog_line_values(self, product_id, quantity, **kwargs):
+    def _prepare_new_catalog_line_vals(self, product_id, quantity, **kwargs):
         return {"product_id": product_id, "product_uom_qty": quantity}
 
     def _is_display_stock_in_catalog(self):

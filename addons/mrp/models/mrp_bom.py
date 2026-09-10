@@ -898,7 +898,7 @@ class MrpBom(models.Model):
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
         line.product_qty = quantity
 
-    def _get_new_catalog_line_values(self, product_id, quantity, **kwargs):
+    def _prepare_new_catalog_line_vals(self, product_id, quantity, **kwargs):
         return {"product_id": product_id, "product_qty": quantity}
 
     def _get_mail_thread_data_attachments(self):

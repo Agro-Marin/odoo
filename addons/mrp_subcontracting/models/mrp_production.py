@@ -57,7 +57,7 @@ class MrpProduction(models.Model):
                     )
                     for line in lines
                 )
-                move = production._get_move_raw_values(
+                move = production._prepare_move_raw_vals(
                     product_id, qty, product_id.uom_id
                 )
                 move["additional"] = True
@@ -145,9 +145,9 @@ class MrpProduction(models.Model):
             ).pre_button_mark_done()
         return super().pre_button_mark_done()
 
-    def _should_postpone_date_finished(self, date_end):
+    def _is_date_end_postponement_required(self, date_end):
         return (
-            super()._should_postpone_date_finished(date_end)
+            super()._is_date_end_postponement_required(date_end)
             and not self._get_subcontract_move()
         )
 

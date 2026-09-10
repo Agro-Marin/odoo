@@ -82,8 +82,8 @@ class TestWorkorderAudit(TransactionCase):
         self.env.flush_all()
         self.assertEqual(
             bool(wo.time_ids.filtered(lambda time: not time.date_end)),
-            wo._should_start_timer(),
-            "button_start and _should_start_timer disagreed on whether this "
+            wo._is_timer_start_required(),
+            "button_start and _is_timer_start_required disagreed on whether this "
             "work order is being timed for the acting user",
         )
 

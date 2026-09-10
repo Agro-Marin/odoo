@@ -777,7 +777,7 @@ class StockMove(models.Model):
     def _is_consuming(self):
         return super()._is_consuming() or self.picking_type_id.code == "mrp_operation"
 
-    def _get_backorder_move_vals(self):
+    def _prepare_backorder_move_vals(self):
         self.check_singleton()
         return {
             "state": "draft" if self.state == "draft" else "confirmed",
@@ -814,7 +814,7 @@ class StockMove(models.Model):
         res = super()._should_be_assigned()
         return bool(res and not self._get_production())
 
-    def _should_bypass_set_qty_producing(self):
+    def _is_qty_producing_bypass_required(self):
         if self.state in ("done", "cancel"):
             return True
         return self.product_uom_id.is_zero(self.product_uom_qty)

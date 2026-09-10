@@ -6,6 +6,7 @@ __all__ = [
     "end_of",
     "float_to_time",
     "get_fiscal_year",
+    "get_intervals_hours",
     "get_month",
     "get_quarter",
     "get_quarter_number",
@@ -17,7 +18,6 @@ __all__ = [
     "real_time",
     "start_of",
     "subtract",
-    "sum_intervals",
     "time_to_float",
     "to_timezone",
     "weekend",
@@ -305,7 +305,7 @@ def date_range[D: (date, datetime)](
         start += step
 
 
-def sum_intervals(intervals: Iterable[tuple[datetime, datetime, Any]]) -> float:
+def get_intervals_hours(intervals: Iterable[tuple[datetime, datetime, Any]]) -> float:
     return sum(
         (interval[1] - interval[0]).total_seconds() / 3600 for interval in intervals
     )

@@ -373,7 +373,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             if product.is_storable
             else False,
             "quantity_reserved": 0.0,
-            "receipt": self._check_planned_start(
+            "receipt": self._update_receipt_decorator(
                 production.date_deadline,
                 self._get_replenishment_receipt(production, components),
             ),
@@ -488,7 +488,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         total_expected_cost = 0.0
         total_real_cost = 0.0
         for index, workorder in enumerate(production.workorder_ids):
-            estimate_cost = workorder._should_estimate_cost()
+            estimate_cost = workorder._is_cost_estimate_required()
             wo_duration = (
                 workorder.duration_expected
                 if estimate_cost
@@ -559,7 +559,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 wo_duration if is_workorder_started else workorder.duration_expected
             )
             total_expected_cost += production.company_id.currency_id.round(mo_cost)
-            total_bom_cost = self._sum_costs(total_bom_cost, bom_cost)
+            total_bom_cost = self._get_cost_sum(total_bom_cost, bom_cost)
             total_real_cost += real_cost
 
         mo_cost_decorator = False
@@ -616,7 +616,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         total_duration = total_duration_expected = total_cost = total_mo_cost = 0
         total_bom_cost = False
         for index, workorder in enumerate(production.workorder_ids):
-            estimate_cost = workorder._should_estimate_cost()
+            estimate_cost = workorder._is_cost_estimate_required()
             hourly_cost = workorder.costs_hour or workorder.workcenter_id.costs_hour
             duration = (
                 workorder.duration_expected
@@ -636,7 +636,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             total_duration_expected += workorder.duration_expected
             total_cost += operation_cost
             total_mo_cost += mo_cost
-            total_bom_cost = self._sum_costs(total_bom_cost, bom_cost)
+            total_bom_cost = self._get_cost_sum(total_bom_cost, bom_cost)
             operations.append(
                 {
                     "level": level,
@@ -699,7 +699,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             bom_cost = current_bom_cost * cost_share
             real_cost = current_real_cost * cost_share
             total_mo_cost += mo_cost
-            total_bom_cost = self._sum_costs(total_bom_cost, bom_cost)
+            total_bom_cost = self._get_cost_sum(total_bom_cost, bom_cost)
             total_real_cost += real_cost
             if self._is_production_started(production):
                 mo_cost_decorator = self._get_comparison_decorator(
@@ -892,7 +892,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             "quantity_reserved": self._get_reserved_qty(
                 move_raw, production.warehouse_id, replenish_data
             ),
-            "receipt": self._check_planned_start(
+            "receipt": self._update_receipt_decorator(
                 production.date_start,
                 self._get_component_receipt(
                     product,
@@ -930,7 +930,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             return 0
         return self._get_unit_cost(move_raw) * quantity
 
-    def _check_planned_start(self, mo_planned_start, receipt):
+    def _update_receipt_decorator(self, mo_planned_start, receipt):
         if (
             mo_planned_start
             and receipt.get("date", False)
@@ -1116,7 +1116,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     "available"
                 )
             else:
-                replenishment["summary"]["receipt"] = self._check_planned_start(
+                replenishment["summary"]["receipt"] = self._update_receipt_decorator(
                     production.date_start,
                     self._get_replenishment_receipt(
                         doc_in, replenishment.get("components", [])
@@ -1232,7 +1232,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 to_order_line["summary"]["bom_cost"] = currency.round(
                     self._get_component_real_cost(move_raw, bom_missing_quantity)
                 )
-                to_order_line["summary"]["receipt"] = self._check_planned_start(
+                to_order_line["summary"]["receipt"] = self._update_receipt_decorator(
                     production.date_start,
                     self._format_receipt_date(
                         "estimated",
@@ -1358,7 +1358,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 "mo_cost_decorator": mo_cost_decorator,
                 "bom_cost": bom_cost,
                 "real_cost": currency.round(real_cost),
-                "receipt": self._check_planned_start(
+                "receipt": self._update_receipt_decorator(
                     production.date_start,
                     self._format_receipt_date("expected", receipt_date),
                 ),
@@ -1741,7 +1741,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
         return replenish_data["qty_reserved"][move_raw]
 
-    def _sum_costs(self, current_total, increment):
+    def _get_cost_sum(self, current_total, increment):
         if current_total is False and increment is False:
             return False
         return current_total + increment

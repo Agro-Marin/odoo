@@ -64,7 +64,9 @@ class MixinOrderLineStock(models.AbstractModel):
     def _get_procurement_qty(self, previous_product_qty=False):
         self.check_singleton()
         procured_moves, returned_moves = self._get_procurement_moves()
-        return self._sum_moves_qty(procured_moves) - self._sum_moves_qty(returned_moves)
+        return self._get_moves_qty_sum(procured_moves) - self._get_moves_qty_sum(
+            returned_moves
+        )
 
     def _get_procurement_moves(self):
         raise NotImplementedError(
@@ -81,7 +83,7 @@ class MixinOrderLineStock(models.AbstractModel):
             ),
         )
 
-    def _sum_moves_qty(self, moves):
+    def _get_moves_qty_sum(self, moves):
         return sum(
             move.product_uom_id._compute_quantity(
                 move.quantity if move.state == "done" else move.product_uom_qty,

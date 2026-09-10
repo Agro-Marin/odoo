@@ -128,6 +128,12 @@ ABOLISHED: dict[str, tuple[str, bool]] = {
     "detect": ("_is_", False),
     "determine": ("_get_", False),
     "calculate": ("_get_", False),
+    # `calculate`'s abbreviations and its arithmetic sibling: `_cal_price` and
+    # `_sum_costs` are the Read row spelled as the operation that produced the
+    # answer, which §2.4.7 says is a read whatever arithmetic produced it.
+    "calc": ("_get_", False),
+    "cal": ("_get_", False),
+    "sum": ("_get_", False),
     "synchronize": ("_sync_", True),
     "synchronise": ("_sync_", True),
 }
@@ -356,6 +362,20 @@ _ORM_READ_CALLS = frozenset(
     {"search", "search_read", "search_count", "search_fetch", "browse", "read_group"}
 )
 _RENDER_DISPATCH_PREFIX = "_render_qweb_"
+# §2.4.4: a word in front of the verb that is not a namespace is a modality and
+# belongs in the tail as a condition. `_safe_` and `_maybe_` are separate
+# tokens and a reader sees them; `auto` FUSES with the verb (`_autoprint_`,
+# `_autoconfirm_`), so `classify` reads `autoprint` as a verb carrying no rule
+# and the name passes. A candidate population rather than a rule: `autovacuum`
+# is a term of art, and nothing mechanical separates a fused modality from one.
+_FUSED_MODALITY = re.compile(r"auto[a-z]{3,}")
+
+
+def fused_modality_verb(name: str) -> str | None:
+    token = name.lstrip("_").partition("_")[0]
+    return token[4:] if _FUSED_MODALITY.fullmatch(token) else None
+
+
 _RENDER_DISPATCH_KEYS = ("_render_qweb_html", "_render_qweb_pdf", "_render_qweb_text")
 
 ASSEMBLE_VERBS = frozenset(
@@ -601,6 +621,7 @@ class Census:
     raise_unconditional: int
     raise_noreturn: int
     infix_abolished: int
+    fused_modality: int
     set_: int
     update: int
     post: int
@@ -845,6 +866,7 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
         raise_unconditional=raise_unconditional,
         raise_noreturn=raise_noreturn,
         infix_abolished=sum(1 for n in names if infix_abolished_verb(n)),
+        fused_modality=sum(1 for n in names if fused_modality_verb(n)),
         set_=tally("set"),
         update=tally("update"),
         post=tally("post"),

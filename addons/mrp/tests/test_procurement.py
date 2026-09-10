@@ -410,7 +410,7 @@ class TestProcurement(TestMrpCommon):
                 "name": "egg",
             }
         )
-        move_values = production._get_move_raw_values(comp1, 40.0, self.uom_unit)
+        move_values = production._prepare_move_raw_vals(comp1, 40.0, self.uom_unit)
         self.env["stock.move"].create(move_values)
 
         production.action_confirm()
@@ -1225,7 +1225,7 @@ class TestProcurement(TestMrpCommon):
                 raw_line.product_id = self.product_2
                 raw_line.product_uom_qty = 2.0
 
-        move_vals = mo._get_move_raw_values(self.product_3, 0, self.product_3.uom_id)
+        move_vals = mo._prepare_move_raw_vals(self.product_3, 0, self.product_3.uom_id)
         mo.move_raw_ids = [Command.create(move_vals)]
         mo.move_raw_ids[-1].product_uom_qty = 3.0
 

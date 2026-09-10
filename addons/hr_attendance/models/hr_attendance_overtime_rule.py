@@ -8,7 +8,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.intervals import Intervals, _boundaries, invert_intervals
 from odoo.libs.numbers import float_compare
-from odoo.tools.date_utils import float_to_time, sum_intervals
+from odoo.tools.date_utils import float_to_time, get_intervals_hours
 
 
 def _record_overlap_intervals(intervals):
@@ -155,7 +155,7 @@ class HrAttendanceOvertimeRule(models.Model):
     def _get_expected_hours_for_period(self, start, stop, schedule, employee):
         self.check_singleton()
         period = Intervals([(start, stop, self.env["resource.calendar"])])
-        return sum_intervals((schedule["work"] - schedule["leave"]) & period)
+        return get_intervals_hours((schedule["work"] - schedule["leave"]) & period)
 
     def _get_daterange_overtime_undertime_intervals_for_quantity_rule(
         self, start, stop, attendance_intervals, schedule
@@ -181,7 +181,7 @@ class HrAttendanceOvertimeRule(models.Model):
             )
 
         overtime_amount = (
-            sum_intervals(Intervals(attendances_interval_without_lunch))
+            get_intervals_hours(Intervals(attendances_interval_without_lunch))
             - expected_duration
         )
         employee = attendances.employee_id
