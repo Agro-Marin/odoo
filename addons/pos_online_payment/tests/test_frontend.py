@@ -381,6 +381,7 @@ class TestUi(TestPointOfSaleHttpCommon, OnlinePaymentCommon):
         self.start_pos_tour("OnlinePaymentErrorsTour", login="pos_op_user")
 
     def test_customer_display_online_payment(self):
+        self.main_pos_config.with_user(self.pos_user).open_ui()
         self.start_tour(
             f"/pos_customer_display/{self.main_pos_config.id}/display-test-device"
             f"?access_token={self.main_pos_config.access_token}",

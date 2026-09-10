@@ -2,7 +2,7 @@ export function increaseQuantityOfTicket(ticket) {
     return [
         {
             content: `increase quantity`,
-            trigger: `.modal .o_event_configurator_popup div:contains('${ticket}') .fa.fa-plus`,
+            trigger: `.modal .o_event_configurator_popup div:contains('${ticket}') .fa-plus`,
             run: "click",
         },
     ];
@@ -12,7 +12,7 @@ export function decreaseQuantityOfTicket(ticket) {
     return [
         {
             content: `decrease quantity`,
-            trigger: `.modal .o_event_configurator_popup div:contains('${ticket}') .fa.fa-minus`,
+            trigger: `.modal .o_event_configurator_popup div:contains('${ticket}') .fa-minus`,
             run: "click",
         },
     ];

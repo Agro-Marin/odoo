@@ -444,7 +444,9 @@ registry.category("web_tour.tours").add("test_self_order_table_sharing-each_mode
 registry.category("web_tour.tours").add("test_self_order_table_sharing-meal_mode", {
     steps: () =>
         [
-            Utils.checkIsNoBtn("My Order"),
+            // The table already holds an order and every device at the table
+            // shares it, so it is offered as this device's order too.
+            Utils.checkBtn("My Order"),
             Utils.clickBtn("Order Now"),
             Utils.clickBtn("Checkout"),
             CartPage.checkProduct("Coca-Cola", "2.20", "1"),

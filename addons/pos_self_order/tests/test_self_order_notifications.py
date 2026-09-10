@@ -62,6 +62,22 @@ class TestSelfOrderNotifications(CommonPosTest):
             "remove_from_ui must remove the order, not merely cancel it",
         )
 
+    def test_removing_a_self_order_keeps_it_cancelled(self):
+        values = self._order_values()
+        values[0]["source"] = "mobile"
+        result = self.env["pos.order"].sync_from_ui(values)
+        order = self.env["pos.order"].browse(result["pos.order"][0]["id"])
+        _result, messages = self._messages_of(
+            "SYNCHRONISATION",
+            lambda: self.env["pos.order"].remove_from_ui([order.id]),
+        )
+        self.assertTrue(
+            order.exists(),
+            "an order the customer placed stays in their history",
+        )
+        self.assertEqual(order.state, "cancel")
+        self.assertEqual(len(messages), 1)
+
     def test_removing_an_order_from_the_ui_sends_one_synchronisation(self):
         result = self.env["pos.order"].sync_from_ui(self._order_values())
         order_id = result["pos.order"][0]["id"]

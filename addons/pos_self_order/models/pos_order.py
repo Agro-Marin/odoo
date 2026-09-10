@@ -67,10 +67,16 @@ class PosOrder(models.Model):
 
     @api.model
     def remove_from_ui(self, server_ids):
-        # before super(), which unlinks them: config_id is unreadable after.
-        # It does NOT pre-cancel them either -- super() selects on state = draft,
-        # so cancelling here left it nothing to remove and the order survived.
-        self._notify_order_state_changed(self.env["pos.order"].browse(server_ids))
+        orders = self.env["pos.order"].browse(server_ids)
+        # An order the customer placed from their own device is never deleted
+        # out from under them: it is cancelled and kept, so their history still
+        # lists it and the ORDER_STATE_CHANGED they receive names a state their
+        # device can show. super() selects on state = draft, so the cancelled
+        # ones are exactly the ones it leaves alone.
+        self_orders = orders.filtered(lambda o: o.source in ("kiosk", "mobile"))
+        self_orders._cancel_draft_orders()
+        # before super(), which unlinks the rest: config_id is unreadable after.
+        self._notify_order_state_changed(orders)
         return super().remove_from_ui(server_ids)
 
     @api.model
@@ -142,6 +148,13 @@ class PosOrder(models.Model):
         )
         if payment_result == "Success":
             self._send_order()
+
+    @api.model
+    def _load_pos_data_fields(self, config):
+        return super()._load_pos_data_fields(config) + [
+            "self_ordering_table_id",
+            "table_stand_number",
+        ]
 
     def _load_pos_self_data_fields(self, config):
         return [
