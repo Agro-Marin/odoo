@@ -9,7 +9,7 @@ class TestComputeScheduling(unittest.TestCase):
 
     def test_initially_empty(self) -> None:
         self.assertFalse(self.engine.has_pending())
-        self.assertEqual(list(self.engine.pending_fields()), [])
+        self.assertEqual(list(self.engine.get_pending_fields()), [])
 
     def test_schedule(self) -> None:
         self.engine.schedule("total", [1, 2, 3])
@@ -20,7 +20,7 @@ class TestComputeScheduling(unittest.TestCase):
     def test_schedule_idempotent(self) -> None:
         self.engine.schedule("total", [1, 2])
         self.engine.schedule("total", [2, 3])
-        ids = self.engine.pending_ids("total")
+        ids = self.engine.get_pending_ids("total")
         self.assertEqual(set(ids), {1, 2, 3})
 
     def test_mark_done(self) -> None:
@@ -41,22 +41,22 @@ class TestComputeScheduling(unittest.TestCase):
     def test_pending_fields(self) -> None:
         self.engine.schedule("total", [1])
         self.engine.schedule("tax", [2])
-        fields = set(self.engine.pending_fields())
+        fields = set(self.engine.get_pending_fields())
         self.assertEqual(fields, {"total", "tax"})
 
     def test_pending_ids_empty(self) -> None:
-        ids = self.engine.pending_ids("nonexistent")
+        ids = self.engine.get_pending_ids("nonexistent")
         self.assertEqual(len(ids), 0)
 
     def test_pending_real_fields(self) -> None:
         self.engine.schedule("total", [0])
         self.engine.schedule("tax", [1])
-        real = self.engine.pending_real_fields()
+        real = self.engine.get_pending_fields_with_real_ids()
         self.assertEqual(real, ["tax"])
 
     def test_pending_real_fields_mixed(self) -> None:
         self.engine.schedule("total", [0, 1])
-        real = self.engine.pending_real_fields()
+        real = self.engine.get_pending_fields_with_real_ids()
         self.assertEqual(real, ["total"])
 
     def test_schedule_empty_creates_no_phantom(self) -> None:
@@ -66,7 +66,7 @@ class TestComputeScheduling(unittest.TestCase):
         empty: list[int] = []
         self.engine.schedule("tax", (i for i in empty if i))
         self.assertNotIn("tax", self.engine._pending)
-        self.assertEqual(self.engine.pending_real_fields(), [])
+        self.assertEqual(self.engine.get_pending_fields_with_real_ids(), [])
 
     def test_schedule_preserves_factory_ordering(self) -> None:
         from odoo.libs.collections import OrderedSet
@@ -110,7 +110,7 @@ class TestComputeProtection(unittest.TestCase):
 
     def test_initially_not_protected(self) -> None:
         self.assertFalse(self.engine.is_protected("total", 1))
-        self.assertEqual(self.engine.protected_ids("total"), frozenset())
+        self.assertEqual(self.engine.get_protected_ids("total"), frozenset())
 
     def test_protect(self) -> None:
         self.engine.push_protection()
@@ -145,7 +145,7 @@ class TestComputeProtection(unittest.TestCase):
     def test_protected_ids(self) -> None:
         self.engine.push_protection()
         self.engine.protect("total", frozenset([1, 2]))
-        ids = self.engine.protected_ids("total")
+        ids = self.engine.get_protected_ids("total")
         self.assertEqual(ids, frozenset([1, 2]))
 
 
@@ -186,7 +186,7 @@ class TestPendingViewContracts(unittest.TestCase):
         for name in ("a", "b", "c"):
             engine.schedule(name, [1])
         seen = []
-        for field in engine.pending_fields():
+        for field in engine.get_pending_fields():
             seen.append(field)
             engine.mark_done(field, [1])
         self.assertEqual(sorted(seen), ["a", "b", "c"])
@@ -195,7 +195,7 @@ class TestPendingViewContracts(unittest.TestCase):
     def test_pending_ids_is_deliberately_a_live_alias(self):
         engine = ComputeEngine()
         engine.schedule("a", [1, 2, 3])
-        ids = engine.pending_ids("a")
+        ids = engine.get_pending_ids("a")
         engine.mark_done("a", [1])
         self.assertEqual(sorted(ids), [2, 3])
         self.assertIs(ids, engine.pending["a"])

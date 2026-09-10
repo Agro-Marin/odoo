@@ -663,14 +663,14 @@ class TestStackMapIteratesInInsertionOrder:
 
         keys = ["z", "a", "m", "q", "b", "k"]
         sm: StackMap = StackMap(dict.fromkeys(keys, 1))
-        sm.pushmap({"y": 2})
+        sm.push_map({"y": 2})
         assert list(sm) == [*keys, "y"]
 
     def test_a_shadowed_key_keeps_its_first_position(self):
         from odoo.libs.collections.misc import StackMap
 
         sm: StackMap = StackMap({"z": 1, "a": 2})
-        sm.pushmap({"z": 3, "b": 4})
+        sm.push_map({"z": 3, "b": 4})
         assert list(sm) == ["z", "a", "b"]
         assert sm["z"] == 3
         assert len(sm) == 3

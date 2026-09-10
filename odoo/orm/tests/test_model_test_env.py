@@ -351,7 +351,7 @@ def test_m2m_active_test_semantics():
         post.write({"tag_ids": [Command.set([t1.id])]})
         _fresh(env, post)
         assert post.with_context(active_test=False).tag_ids._ids == (t1.id,)
-        assert env.cr.storage.row_count("h_post_h_tag_rel") == 1
+        assert env.cr.storage.get_row_count("h_post_h_tag_rel") == 1
 
 
 def test_m2m_clear_command_empties_relation():
@@ -361,7 +361,7 @@ def test_m2m_clear_command_empties_relation():
         post.write({"tag_ids": [Command.clear()]})
         _fresh(env, post)
         assert not post.tag_ids
-        assert env.cr.storage.row_count("h_post_h_tag_rel") == 0
+        assert env.cr.storage.get_row_count("h_post_h_tag_rel") == 0
 
 
 def test_translated_field_reads_back_after_invalidate():

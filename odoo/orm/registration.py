@@ -407,7 +407,7 @@ def _add_table_objects(model_cls: type[BaseModel]):
         )
     model_cls._table_objects = frozendict(
         {
-            cons.full_name(model_cls): cons
+            cons.get_full_name(model_cls): cons
             for cls in reversed(model_cls._model_classes__)
             if isinstance(cls, models.MetaModel)
             for cons in cls._table_object_definitions

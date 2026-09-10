@@ -5,7 +5,7 @@ import logging
 from collections import defaultdict
 from inspect import getmembers
 
-from ...helpers import own_class_memo
+from ...helpers import get_or_create_class_memo
 from ._model_stubs import _ModelStubs
 
 _logger = logging.getLogger("odoo.models")
@@ -20,7 +20,7 @@ class _HooksMixin(_ModelStubs):
             return callable(func) and hasattr(func, "_ondelete")
 
         cls = self.env.registry[self._name]
-        return own_class_memo(
+        return get_or_create_class_memo(
             cls,
             "_ondelete_methods__",
             lambda: [func for _, func in getmembers(cls, is_ondelete)],
@@ -63,4 +63,6 @@ class _HooksMixin(_ModelStubs):
 
             return dict(methods)
 
-        return own_class_memo(cls, "_onchange_methods__", get_onchange_methods)
+        return get_or_create_class_memo(
+            cls, "_onchange_methods__", get_onchange_methods
+        )

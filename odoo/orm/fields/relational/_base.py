@@ -400,7 +400,7 @@ class _RelationalMulti(_Relational):
                     line._update_cache(vals, validate=False)
                 line_ids.append(line.id)
             return typing.cast(
-                "tuple[int | NewId, ...]", tuple(delta.final_ids(current, line_ids))
+                "tuple[int | NewId, ...]", tuple(delta.get_final_ids(current, line_ids))
             )
 
         elif not value:

@@ -25,10 +25,10 @@ class _ScopeStack[F: FieldKey = FieldKey]:
                 return m[key]
         return default
 
-    def pushmap(self, m: dict[F, frozenset[Any]] | None = None) -> None:
+    def push_map(self, m: dict[F, frozenset[Any]] | None = None) -> None:
         self._maps.append(m if m is not None else {})
 
-    def popmap(self) -> dict[F, frozenset[Any]]:
+    def pop_map(self) -> dict[F, frozenset[Any]]:
         return self._maps.pop()
 
     def __setitem__(self, key: F, value: frozenset[Any]) -> None:
@@ -37,7 +37,7 @@ class _ScopeStack[F: FieldKey = FieldKey]:
     def __len__(self) -> int:
         return len(self._maps)
 
-    def any_protected(self) -> bool:
+    def has_any_protected(self) -> bool:
         return any(ids for m in self._maps for ids in m.values())
 
 
@@ -72,10 +72,10 @@ class ComputeEngine[F: FieldKey = FieldKey]:
     def is_pending(self, field: F, record_id: Any) -> bool:
         return record_id in self._pending.get(field, ())
 
-    def pending_ids(self, field: F) -> set[Any] | tuple[()]:
+    def get_pending_ids(self, field: F) -> set[Any] | tuple[()]:
         return self._pending.get(field, ())
 
-    def pending_fields(self) -> Collection[F]:
+    def get_pending_fields(self) -> Collection[F]:
         return tuple(self._pending)
 
     def has_pending(self) -> bool:
@@ -84,7 +84,7 @@ class ComputeEngine[F: FieldKey = FieldKey]:
     def has_pending_field(self, field: F) -> bool:
         return field in self._pending
 
-    def pending_real_fields(self) -> list[F]:
+    def get_pending_fields_with_real_ids(self) -> list[F]:
         return [field for field, ids in self._pending.items() if any(ids)]
 
     def discard_field(self, field: F) -> None:
@@ -93,17 +93,17 @@ class ComputeEngine[F: FieldKey = FieldKey]:
     def is_protected(self, field: F, record_id: Any) -> bool:
         return record_id in (self._protected.get(field) or ())
 
-    def protected_ids(self, field: F) -> frozenset[Any]:
+    def get_protected_ids(self, field: F) -> frozenset[Any]:
         return self._protected.get(field) or frozenset()
 
-    def any_protected(self) -> bool:
-        return self._protected.any_protected()
+    def has_any_protected(self) -> bool:
+        return self._protected.has_any_protected()
 
     def push_protection(self) -> None:
-        self._protected.pushmap()
+        self._protected.push_map()
 
     def pop_protection(self) -> dict[F, frozenset[Any]]:
-        return self._protected.popmap()
+        return self._protected.pop_map()
 
     def protect(self, field: F, ids: frozenset[Any]) -> None:
         existing = self._protected.get(field)

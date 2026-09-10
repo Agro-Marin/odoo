@@ -84,17 +84,17 @@ class DictBackend:
                 result[id_] = dict(row)
         return result
 
-    def contains_ids(self, table: str, ids: list[int]) -> set[int]:
+    def get_existing_ids(self, table: str, ids: list[int]) -> set[int]:
         tbl = self._tables.get(table, {})
         return {id_ for id_ in ids if id_ in tbl}
 
-    def table_ids(self, table: str) -> list[int]:
+    def get_table_ids(self, table: str) -> list[int]:
         return list(self._tables.get(table, {}).keys())
 
-    def row_count(self, table: str) -> int:
+    def get_row_count(self, table: str) -> int:
         return len(self._tables.get(table, {}))
 
-    def next_id(self, table: str) -> int:
+    def allocate_next_id(self, table: str) -> int:
         self._sequences[table] += 1
         return self._sequences[table]
 

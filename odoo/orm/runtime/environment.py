@@ -425,22 +425,22 @@ class Environment(Mapping[str, "BaseModel"]):
         return self._core.is_protected(field, record.id)
 
     def protected(self, field: Field) -> BaseModel:
-        return self[field.model_name].browse(self._core.protected_ids(field))
+        return self[field.model_name].browse(self._core.get_protected_ids(field))
 
     def protecting(self, what, records=None) -> _Protecting:
         return _Protecting(self._core, what, records)
 
     def fields_to_compute(self) -> Collection[Field]:
-        return self._core.pending_fields()
+        return self._core.get_pending_fields()
 
     def records_to_compute(self, field: Field) -> BaseModel:
-        return self[field.model_name].browse(self._core.pending_ids(field))
+        return self[field.model_name].browse(self._core.get_pending_ids(field))
 
     def is_to_compute(self, field: Field, record: BaseModel) -> bool:
         return self._core.is_pending(field, record.id)
 
     def not_to_compute(self, field: Field, records: BaseModel) -> BaseModel:
-        pending = self._core.pending_ids(field)
+        pending = self._core.get_pending_ids(field)
         return records.browse(id_ for id_ in records._ids if id_ not in pending)
 
     def add_to_compute(self, field: Field, records: BaseModel) -> None:

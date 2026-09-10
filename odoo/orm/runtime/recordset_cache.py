@@ -39,7 +39,7 @@ class Cache:
     def __repr__(self) -> str:
         data: dict[Field, dict] = {}
         core = self.transaction.core
-        for field in sorted(core.cached_fields(), key=str):
+        for field in sorted(core.iter_cached_fields(), key=str):
             dirty_ids = core.get_dirty(field) or ()
 
             def entries(values, dirty_ids=dirty_ids, field=field):
@@ -59,17 +59,17 @@ class Cache:
                 data[field] = entries(core.get_field_data_or_none(field) or {})
         return repr(data)
 
-    def _field_cache(
+    def _get_field_cache(
         self, model: BaseModel, field: Field
     ) -> MutableMapping[IdType, typing.Any]:
         return field._get_cache(model.env)
 
     def contains(self, record: BaseModel, field: Field) -> bool:
-        return record.id in self._field_cache(record, field)
+        return record.id in self._get_field_cache(record, field)
 
     def get(self, record: BaseModel, field: Field, default=SENTINEL):
         try:
-            field_cache = self._field_cache(record, field)
+            field_cache = self._get_field_cache(record, field)
             return field_cache[record._ids[0]]
         except KeyError, IndexError:
             if default is SENTINEL:
@@ -117,7 +117,7 @@ class Cache:
                 field,
                 overlap[:10],
             )
-        field_cache = self._field_cache(records, field)
+        field_cache = self._get_field_cache(records, field)
         field_cache.update(zip(records._ids, values, strict=False))
         if field.is_column and dirty:
             self.transaction.core.mark_dirty(
@@ -131,20 +131,20 @@ class Cache:
                 f"{field!r} on record {record}: pending write would be lost"
             )
         try:
-            field_cache = self._field_cache(record, field)
+            field_cache = self._get_field_cache(record, field)
             del field_cache[record._ids[0]]
         except KeyError:
             pass
 
     def get_values(self, records: BaseModel, field: Field) -> Iterator[typing.Any]:
-        field_cache = self._field_cache(records, field)
+        field_cache = self._get_field_cache(records, field)
         for record_id in records._ids:
             with contextlib.suppress(KeyError):
                 yield field_cache[record_id]
 
     def get_fields(self, record: BaseModel) -> Iterator[Field]:
         for name, field in record._fields.items():
-            if name != "id" and record.id in self._field_cache(record, field):
+            if name != "id" and record.id in self._get_field_cache(record, field):
                 yield field
 
     def get_records(
@@ -152,9 +152,9 @@ class Cache:
     ) -> BaseModel:
         ids: Iterable
         if all_contexts and field in model.pool.field_depends_context:
-            ids = OrderedSet(self.transaction.core.all_context_cached_ids(field))
+            ids = OrderedSet(self.transaction.core.get_context_cached_ids(field))
         else:
-            ids = self._field_cache(model, field)
+            ids = self._get_field_cache(model, field)
         return model.browse(ids)
 
     def get_missing_ids(self, records: BaseModel, field: Field) -> Iterator[IdType]:
@@ -230,7 +230,7 @@ class Cache:
                     )
                 )
 
-        for field in list(core.cached_fields()):
+        for field in list(core.iter_cached_fields()):
             if (
                 not field.store
                 or not field.column_type

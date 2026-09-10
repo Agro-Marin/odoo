@@ -91,7 +91,7 @@ class CommandDelta:
     def removed(self) -> AbstractSet[IdType]:
         return self.unlinked | self.deleted
 
-    def final_ids(
+    def get_final_ids(
         self, current: Iterable[IdType], created_ids: Iterable[IdType] = ()
     ) -> OrderedSet[IdType]:
         ids = OrderedSet(self.set_ids if self.replaced else current)

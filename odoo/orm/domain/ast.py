@@ -93,7 +93,7 @@ MAX_OPTIMIZE_ITERATIONS = 1000
 MAX_DOMAIN_NESTING = 100
 
 
-def _comparand_eq(left: typing.Any, right: typing.Any) -> bool:
+def _is_comparand_equal(left: typing.Any, right: typing.Any) -> bool:
     if left.__class__ in (list, tuple, set, frozenset, OrderedSet):
         if len(left) != len(right):
             return False
@@ -871,7 +871,7 @@ class DomainCondition(Domain):
             and self.field_expr == other.field_expr
             and self.operator == other.operator
             and self.value.__class__ is other.value.__class__
-            and _comparand_eq(self.value, other.value)
+            and _is_comparand_equal(self.value, other.value)
         )
 
     def __hash__(self) -> int:

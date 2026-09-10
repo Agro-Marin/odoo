@@ -31,21 +31,21 @@ _DELEGATIONS = [
     ("get_context_data_or_none", "cache", "get_context_data_or_none", 2, True),
     ("has_any_cached", "cache", "has_any_cached", 1, True),
     ("has_any_context_cached", "cache", "has_any_context_cached", 1, True),
-    ("all_cached_ids", "cache", "all_cached_ids", 1, True),
-    ("all_context_cached_ids", "cache", "all_context_cached_ids", 1, True),
-    ("cached_fields", "cache", "cached_fields", 0, True),
+    ("get_cached_ids", "cache", "get_cached_ids", 1, True),
+    ("get_context_cached_ids", "cache", "get_context_cached_ids", 1, True),
+    ("iter_cached_fields", "cache", "iter_cached_fields", 0, True),
     ("clear_cache", "cache", "clear", 0, False),
     ("schedule", "engine", "schedule", 2, False),
     ("mark_done", "engine", "mark_done", 2, False),
     ("is_pending", "engine", "is_pending", 2, True),
     ("has_pending_field", "engine", "has_pending_field", 1, True),
     ("has_pending", "engine", "has_pending", 0, True),
-    ("pending_ids", "engine", "pending_ids", 1, True),
-    ("pending_fields", "engine", "pending_fields", 0, True),
+    ("get_pending_ids", "engine", "get_pending_ids", 1, True),
+    ("get_pending_fields", "engine", "get_pending_fields", 0, True),
     ("discard_field", "engine", "discard_field", 1, False),
     ("is_protected", "engine", "is_protected", 2, True),
-    ("protected_ids", "engine", "protected_ids", 1, True),
-    ("any_protected", "engine", "any_protected", 0, True),
+    ("get_protected_ids", "engine", "get_protected_ids", 1, True),
+    ("has_any_protected", "engine", "has_any_protected", 0, True),
     ("push_protection", "engine", "push_protection", 0, False),
     ("pop_protection", "engine", "pop_protection", 0, True),
     ("protect", "engine", "protect", 2, False),
@@ -129,7 +129,7 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.core.schedule(self.f1, [1, 2])
         self.assertTrue(self.core.has_pending_field(self.f1))
         self.assertTrue(self.core.has_pending())
-        self.assertEqual(self.core.pending_ids(self.f1), {1, 2})
+        self.assertEqual(self.core.get_pending_ids(self.f1), {1, 2})
 
     def test_is_pending(self) -> None:
         self.core.schedule(self.f1, [1, 2])
@@ -144,12 +144,12 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.assertFalse(self.core.has_pending())
 
     def test_pending_ids_empty(self) -> None:
-        self.assertEqual(self.core.pending_ids(self.f1), ())
+        self.assertEqual(self.core.get_pending_ids(self.f1), ())
 
     def test_mark_done(self) -> None:
         self.core.schedule(self.f1, [1, 2, 3])
         self.core.mark_done(self.f1, [1, 2])
-        self.assertEqual(self.core.pending_ids(self.f1), {3})
+        self.assertEqual(self.core.get_pending_ids(self.f1), {3})
 
     def test_mark_done_clears_entry(self) -> None:
         self.core.schedule(self.f1, [1])
@@ -159,7 +159,7 @@ class TestOrmCoreCompute(unittest.TestCase):
     def test_pending_fields(self) -> None:
         self.core.schedule(self.f1, [1])
         self.core.schedule(self.f2, [2])
-        self.assertEqual(set(self.core.pending_fields()), {self.f1, self.f2})
+        self.assertEqual(set(self.core.get_pending_fields()), {self.f1, self.f2})
 
     def test_discard_field(self) -> None:
         self.core.schedule(self.f1, [1, 2])
@@ -174,7 +174,7 @@ class TestOrmCoreCompute(unittest.TestCase):
         self.core.protect(self.f1, frozenset([1, 2]))
         self.assertTrue(self.core.is_protected(self.f1, 1))
         self.assertFalse(self.core.is_protected(self.f1, 3))
-        self.assertEqual(self.core.protected_ids(self.f1), frozenset([1, 2]))
+        self.assertEqual(self.core.get_protected_ids(self.f1), frozenset([1, 2]))
         self.core.pop_protection()
         self.assertFalse(self.core.is_protected(self.f1, 1))
 
@@ -309,8 +309,8 @@ class TestOrmCoreDelegationConsistency(unittest.TestCase):
     def test_pending_ids_same_object(self) -> None:
         self.core.schedule(self.f1, [1, 2])
         self.assertIs(
-            self.core.pending_ids(self.f1),
-            self.engine.pending_ids(self.f1),
+            self.core.get_pending_ids(self.f1),
+            self.engine.get_pending_ids(self.f1),
         )
 
     def test_has_pending_field_matches_engine(self) -> None:
@@ -366,8 +366,8 @@ class TestOrmCoreDelegationConsistency(unittest.TestCase):
             self.engine.is_protected(self.f1, 1),
         )
         self.assertEqual(
-            self.core.protected_ids(self.f1),
-            self.engine.protected_ids(self.f1),
+            self.core.get_protected_ids(self.f1),
+            self.engine.get_protected_ids(self.f1),
         )
 
 

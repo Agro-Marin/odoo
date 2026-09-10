@@ -83,7 +83,7 @@ class TestFieldCacheDirty(unittest.TestCase):
         empty: list[int] = []
         self.cache.mark_dirty("ref", (i for i in empty if i))
         self.assertFalse(self.cache.is_any_dirty())
-        self.assertEqual(self.cache.dirty_entry_count(), 0)
+        self.assertEqual(self.cache.get_dirty_entry_count(), 0)
 
     def test_mark_dirty_empty_keeps_existing(self) -> None:
         self.cache.mark_dirty("name", [1, 2])
@@ -116,16 +116,16 @@ class TestFieldCacheDirty(unittest.TestCase):
         self.assertEqual(list(self.cache.iter_dirty_fields()), [])
 
     def test_dirty_entry_count(self) -> None:
-        self.assertEqual(self.cache.dirty_entry_count(), 0)
+        self.assertEqual(self.cache.get_dirty_entry_count(), 0)
         self.cache.mark_dirty("name", [1, 2])
         self.cache.mark_dirty("email", [3])
-        self.assertEqual(self.cache.dirty_entry_count(), 3)
+        self.assertEqual(self.cache.get_dirty_entry_count(), 3)
 
     def test_dirty_entry_count_after_pop(self) -> None:
         self.cache.mark_dirty("name", [1, 2])
         self.cache.mark_dirty("email", [3])
         self.cache.pop_dirty("name")
-        self.assertEqual(self.cache.dirty_entry_count(), 1)
+        self.assertEqual(self.cache.get_dirty_entry_count(), 1)
 
     def test_custom_dirty_factory(self) -> None:
         class OrderedSet(set):
@@ -246,7 +246,7 @@ class TestFieldCacheInvalidation(unittest.TestCase):
             dict(cache.iter_context_caches("G")), {("en_US",): {1: "dirty_en"}}
         )
         self.assertEqual(list(cache.iter_context_caches("H")), [])
-        self.assertEqual(set(cache.cached_fields()), {"G"})
+        self.assertEqual(set(cache.iter_cached_fields()), {"G"})
 
     def test_invalidate_all_flat_dict_valued_preserves_dirty(self) -> None:
         cache = FieldCache()
@@ -289,14 +289,14 @@ class TestFieldCacheTwoStores(unittest.TestCase):
         cache = FieldCache()
         self.assertIsNone(cache.get_context_data_or_none("G", ("en_US",)))
         self.assertEqual(list(cache.iter_context_caches("G")), [])
-        self.assertEqual(list(cache.cached_fields()), [])
+        self.assertEqual(list(cache.iter_cached_fields()), [])
 
     def test_the_flat_store_and_the_context_store_do_not_see_each_other(self) -> None:
         cache = self._both_stores()
         self.assertEqual(cache.get_field_data("G"), {99: "flat-value"})
-        self.assertEqual(set(cache.all_cached_ids("G")), {99})
-        self.assertEqual(set(cache.all_context_cached_ids("G")), {1, 2, 3})
-        self.assertNotIn(99, cache.all_context_cached_ids("G"))
+        self.assertEqual(set(cache.get_cached_ids("G")), {99})
+        self.assertEqual(set(cache.get_context_cached_ids("G")), {1, 2, 3})
+        self.assertNotIn(99, cache.get_context_cached_ids("G"))
         self.assertTrue(cache.has_any_cached("G"))
         self.assertTrue(cache.has_any_context_cached("G"))
 
@@ -350,18 +350,18 @@ class TestFieldCacheTwoStores(unittest.TestCase):
         cache = FieldCache()
         cache.set_value("flat", 1, "a")
         cache.get_context_data("ctx", ("en_US",))[1] = "b"
-        self.assertEqual(set(cache.cached_fields()), {"flat", "ctx"})
+        self.assertEqual(set(cache.iter_cached_fields()), {"flat", "ctx"})
         self.assertEqual(dict(cache.iter_field_items()), {"flat": {1: "a"}})
 
     def test_all_context_cached_ids_prefers_no_context_over_another(self) -> None:
         cache = FieldCache()
         cache.get_context_data("G", ("en_US",)).update({1: "a", 2: "b"})
         cache.get_context_data("G", ("es_MX",)).update({2: "c", 3: "d"})
-        ids = cache.all_context_cached_ids("G")
+        ids = cache.get_context_cached_ids("G")
         self.assertEqual(set(ids), {1, 2, 3})
         self.assertTrue(ids)
-        self.assertFalse(cache.all_context_cached_ids("never"))
-        self.assertFalse(cache.all_cached_ids("never"))
+        self.assertFalse(cache.get_context_cached_ids("never"))
+        self.assertFalse(cache.get_cached_ids("never"))
         self.assertIsNone(cache.get_field_data_or_none("never"))
 
 

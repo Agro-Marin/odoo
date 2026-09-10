@@ -10,7 +10,7 @@ from .... import decorators as api
 from ...._typing import DomainType
 from ....constants import READ_GROUP_AGGREGATE
 from ....domain import Domain
-from ....helpers import itemgetter_tuple
+from ....helpers import get_tuple_itemgetter
 from ....parsing import parse_read_group_spec, regex_field_agg
 from .fill import _ReadGroupFillMixin
 from .format import _ReadGroupFormatMixin
@@ -299,7 +299,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             if groupby_mask not in mask_grouping_mapping:
                 mask_grouping_mapping[groupby_mask] = (
                     result[result_index].append,
-                    itemgetter_tuple(
+                    get_tuple_itemgetter(
                         list(
                             itertools.chain(
                                 (

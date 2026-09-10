@@ -6,7 +6,7 @@ _BAD_NAMES = frozenset({"id", "parent_path"})
 _BAD_NAMES_LOG = _BAD_NAMES | frozenset(LOG_ACCESS_COLUMNS)
 
 
-def bad_field_names(model) -> frozenset:
+def get_forbidden_field_names(model) -> frozenset:
     if model._log_access and not (
         model.env.uid == SUPERUSER_ID and not model.pool.ready
     ):

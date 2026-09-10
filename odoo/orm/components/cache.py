@@ -97,7 +97,7 @@ class FieldCache[F: FieldKey = FieldKey]:
     def iter_dirty_fields(self) -> Iterator[F]:
         return iter(self._dirty)
 
-    def dirty_entry_count(self) -> int:
+    def get_dirty_entry_count(self) -> int:
         return sum(len(ids) for ids in self._dirty.values())
 
     def add_patch(self, field: F, record_id: Any, new_id: Any) -> None:
@@ -136,14 +136,14 @@ class FieldCache[F: FieldKey = FieldKey]:
         contexts = self._contexts.get(field)
         return contexts is not None and any(contexts.values())
 
-    def all_cached_ids(self, field: F) -> Mapping[Any, Any]:
+    def get_cached_ids(self, field: F) -> Mapping[Any, Any]:
         return self._data.get(field) or {}
 
-    def all_context_cached_ids(self, field: F) -> Mapping[Any, Any]:
+    def get_context_cached_ids(self, field: F) -> Mapping[Any, Any]:
         contexts = self._contexts.get(field)
         return ChainMap(*contexts.values()) if contexts else {}
 
-    def cached_fields(self) -> Iterator[F]:
+    def iter_cached_fields(self) -> Iterator[F]:
         return iter(self._data.keys() | self._contexts.keys())
 
     def invalidate_all(self) -> None:

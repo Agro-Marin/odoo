@@ -74,6 +74,6 @@ def test_iter_context_caches_matches_all_cached_ids():
         from_pairs = {
             id_ for _key, sub in env._core.iter_context_caches(field) for id_ in sub
         }
-        from_ids = set(env._core.all_context_cached_ids(field))
+        from_ids = set(env._core.get_context_cached_ids(field))
 
         assert from_pairs == from_ids == {rec.id}

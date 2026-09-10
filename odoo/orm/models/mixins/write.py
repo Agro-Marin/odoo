@@ -10,7 +10,7 @@ from odoo.tools.translate import _
 from ..._typing import ValuesType
 from ._crud_common import (
     _orm_crud,
-    bad_field_names,
+    get_forbidden_field_names,
 )
 from ._model_stubs import _ModelStubs
 
@@ -148,7 +148,7 @@ class WriteMixin(_ModelStubs):
         prof.mark("acl")
         env = self.env
 
-        bad_names = bad_field_names(self)
+        bad_names = get_forbidden_field_names(self)
         vals = {key: val for key, val in vals.items() if key not in bad_names}
         if self._log_access:
             vals.setdefault("write_uid", self.env.uid)

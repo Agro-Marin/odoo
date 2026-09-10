@@ -50,7 +50,7 @@ def _write_survives_pending(env, field_name):
     record.write({field_name: "manual"})
     field = record._fields[field_name]
     assert not env._core.has_pending_field(field) or (
-        record.id not in (env._core.pending_ids(field) or ())
+        record.id not in (env._core.get_pending_ids(field) or ())
     ), f"pending recompute survived an explicit write of {field_name}"
     env.invalidate_all()
     return record[field_name]

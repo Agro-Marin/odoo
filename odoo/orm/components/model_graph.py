@@ -77,10 +77,10 @@ class TriggerTree(dict):
             subtree = self[key] = TriggerTree()
             return subtree
 
-    def depth_first(self) -> Iterator[TriggerTree]:
+    def iter_depth_first(self) -> Iterator[TriggerTree]:
         yield self
         for subtree in self.values():
-            yield from subtree.depth_first()
+            yield from subtree.iter_depth_first()
 
     @classmethod
     def merge(cls, trees: list[TriggerTree], select: Callable = bool) -> TriggerTree:
@@ -386,7 +386,7 @@ class ModelGraph:
     def _get_dependent_fields(self, state: _TriggerState, field: Any) -> Iterator[Any]:
         if field not in state.triggers:
             return
-        for tree in self._get_field_trigger_tree(state, field).depth_first():
+        for tree in self._get_field_trigger_tree(state, field).iter_depth_first():
             yield from tree.root
 
     def is_modifying_relations(self, field: Any) -> bool:

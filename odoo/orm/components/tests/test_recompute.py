@@ -309,7 +309,7 @@ class TestInlineScheduling(unittest.TestCase):
         scheduler.schedule_recompute(field, {1, 2})
         scheduler.schedule_recompute(field, {3})
 
-        self.assertEqual(engine.pending_ids(field), {1, 2, 3})
+        self.assertEqual(engine.get_pending_ids(field), {1, 2, 3})
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
 
     def test_inline_schedules_delta_not_cumulative(self) -> None:
@@ -325,7 +325,7 @@ class TestInlineScheduling(unittest.TestCase):
             [set(ids) for _f, ids in engine.schedule_calls],
             [{1, 2}, {3, 4}],
         )
-        self.assertEqual(engine.pending_ids(field), {3, 4})
+        self.assertEqual(engine.get_pending_ids(field), {3, 4})
 
     def test_inline_skips_protected_and_invalidate_entries(self) -> None:
         engine = _SpyEngine()
@@ -338,7 +338,7 @@ class TestInlineScheduling(unittest.TestCase):
         scheduler.schedule_recompute(stored, {1, 2})
         scheduler.schedule_recompute(non_stored, {5})
 
-        self.assertEqual(engine.pending_ids(stored), {2})
+        self.assertEqual(engine.get_pending_ids(stored), {2})
         self.assertFalse(engine.has_pending_field(non_stored))
 
     def test_live_pending_seed_prevents_retraversal(self) -> None:
@@ -355,7 +355,7 @@ class TestInlineScheduling(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset({3}))
         self.assertEqual(scheduler.to_recompute[field], {3})
         self.assertEqual(engine.schedule_calls, [(field, [3])])
-        self.assertEqual(engine.pending_ids(field), {1, 2, 3})
+        self.assertEqual(engine.get_pending_ids(field), {1, 2, 3})
 
         engine.schedule_calls.clear()
         recursive_ids = scheduler.schedule_recompute(field, {1, 2, 3})
@@ -377,7 +377,7 @@ class TestDeterministicOrder(unittest.TestCase):
         scheduler.schedule_recompute(field, OrderedSet([1, 8]))
 
         self.assertEqual(list(scheduler.to_recompute[field]), [7, 3, 9, 1, 8])
-        self.assertEqual(list(engine.pending_ids(field)), [7, 3, 9, 1, 8])
+        self.assertEqual(list(engine.get_pending_ids(field)), [7, 3, 9, 1, 8])
 
     def test_order_survives_protection_subtraction(self) -> None:
         from odoo.libs.collections import OrderedSet
@@ -392,7 +392,7 @@ class TestDeterministicOrder(unittest.TestCase):
 
         scheduler.schedule_recompute(field, OrderedSet([7, 3, 9, 1]))
 
-        self.assertEqual(list(engine.pending_ids(field)), [7, 9, 1])
+        self.assertEqual(list(engine.get_pending_ids(field)), [7, 9, 1])
 
     def test_default_factory_is_plain_set(self) -> None:
         engine = ComputeEngine()

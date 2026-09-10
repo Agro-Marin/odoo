@@ -255,7 +255,7 @@ class Registry(
 
     @classmethod
     @locked
-    def forget(cls, db_name: str) -> None:
+    def clear_database_state(cls, db_name: str) -> None:
         cls.delete(db_name)
         clear_unaccent_table(db_name)
         _ASSERTION_REPORTS.pop(db_name, None)

@@ -27,13 +27,13 @@ class TestDirtyModels(unittest.TestCase):
         self.uow = UnitOfWork(self.cache, self.engine)
 
     def test_no_dirty(self) -> None:
-        self.assertEqual(self.uow.dirty_models(), [])
+        self.assertEqual(self.uow.get_dirty_model_names(), [])
 
     def test_single_dirty_field(self) -> None:
         f = _field("sale.order", "amount_total")
         self.cache.set_value(f, 1, 100)
         self.cache.mark_dirty(f, [1])
-        self.assertEqual(self.uow.dirty_models(), ["sale.order"])
+        self.assertEqual(self.uow.get_dirty_model_names(), ["sale.order"])
 
     def test_multiple_dirty_models(self) -> None:
         f1 = _field("sale.order", "amount")
@@ -42,7 +42,7 @@ class TestDirtyModels(unittest.TestCase):
         self.cache.mark_dirty(f1, [1])
         self.cache.set_value(f2, 2, 200)
         self.cache.mark_dirty(f2, [2])
-        models = self.uow.dirty_models()
+        models = self.uow.get_dirty_model_names()
         self.assertEqual(len(models), 2)
         self.assertIn("sale.order", models)
         self.assertIn("account.move", models)
@@ -54,7 +54,7 @@ class TestDirtyModels(unittest.TestCase):
         self.cache.mark_dirty(f1, [1])
         self.cache.set_value(f2, 1, "draft")
         self.cache.mark_dirty(f2, [1])
-        self.assertEqual(self.uow.dirty_models(), ["sale.order"])
+        self.assertEqual(self.uow.get_dirty_model_names(), ["sale.order"])
 
 
 class TestRunRecomputeLoop(unittest.TestCase):
@@ -276,7 +276,7 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
         state = {"flush": 0}
 
         def recompute_fn(field):
-            engine.mark_done(field, list(engine.pending_ids(field)))
+            engine.mark_done(field, list(engine.get_pending_ids(field)))
 
         def flush_fn(_models):
             state["flush"] += 1
@@ -305,7 +305,7 @@ class TestLoopExhaustionConsistency(unittest.TestCase):
                 engine.mark_done(f, [1])
 
         result = uow.recompute_until_converged(recompute_fn)
-        self.assertFalse(engine.pending_real_fields())
+        self.assertFalse(engine.get_pending_fields_with_real_ids())
         self.assertTrue(result.converged)
         self.assertEqual(result.stalled_fields, [])
 
@@ -341,7 +341,7 @@ class TestStallDetection(unittest.TestCase):
         state = {"n": 1}
 
         def recompute_fn(field):
-            engine.mark_done(field, list(engine.pending_ids(field)))
+            engine.mark_done(field, list(engine.get_pending_ids(field)))
             state["n"] += 1
             engine.schedule(field, [state["n"]])
 

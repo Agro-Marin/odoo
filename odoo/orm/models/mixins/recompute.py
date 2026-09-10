@@ -13,7 +13,7 @@ from odoo.tools.misc import PENDING
 
 from ... import decorators as api
 from ...components.recompute import RecomputeScheduler
-from ...helpers import get_fields_by_name, own_class_memo
+from ...helpers import get_fields_by_name, get_or_create_class_memo
 from ...primitives import NewId
 from ._model_stubs import _ModelStubs
 
@@ -222,7 +222,7 @@ class RecomputeMixin(_ModelStubs):
 
     @classmethod
     def _get_stored_computed_fields(cls) -> tuple[Field, ...]:
-        return own_class_memo(
+        return get_or_create_class_memo(
             cls,
             "_stored_computed_fields__",
             lambda: tuple(f for f in cls._fields.values() if f.is_stored_computed),
@@ -253,7 +253,7 @@ class RecomputeMixin(_ModelStubs):
     def _recompute_field(
         self, field: Field, ids: Sequence[IdType] | None = None
     ) -> None:
-        ids_to_compute = self.env._core.pending_ids(field)
+        ids_to_compute = self.env._core.get_pending_ids(field)
         if ids is None:
             ids = ids_to_compute
         else:

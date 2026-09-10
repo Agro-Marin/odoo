@@ -43,7 +43,7 @@ class RecomputeScheduler:
         ids: AbstractSet,
         cached_ids: Container | None = None,
     ) -> frozenset:
-        protected = self._engine.protected_ids(field)
+        protected = self._engine.get_protected_ids(field)
         if protected:
             ids = ids - protected  # noqa: PLR6104  `ids` is caller-owned: -= would mutate it in place
         if not ids:

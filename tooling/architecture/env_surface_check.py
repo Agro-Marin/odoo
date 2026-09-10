@@ -39,9 +39,9 @@ SANCTIONED_PRIVATE: frozenset[str] = frozenset({"_", "_core"})
 LAYER1_CORE_MEMBERS: frozenset[str] = frozenset(
     {
         "add_patch",
-        "all_cached_ids",
-        "any_protected",
-        "all_context_cached_ids",
+        "get_cached_ids",
+        "has_any_protected",
+        "get_context_cached_ids",
         "get_context_data",
         "get_context_data_or_none",
         "get_dirty",
@@ -53,8 +53,8 @@ LAYER1_CORE_MEMBERS: frozenset[str] = frozenset(
         "is_protected",
         "iter_context_caches",
         "mark_dirty",
-        "pending_ids",
-        "protected_ids",
+        "get_pending_ids",
+        "get_protected_ids",
     }
 )
 LAYER1_CORE_REACHES: int = 34

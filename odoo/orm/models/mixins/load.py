@@ -15,7 +15,7 @@ from odoo.tools.translate import _
 
 from ... import decorators as api
 from ..._typing import ValuesType
-from ...helpers import itemgetter_tuple
+from ...helpers import get_tuple_itemgetter
 from ...parsing import fix_import_export_id_paths
 from ._model_stubs import _ModelStubs
 
@@ -273,10 +273,10 @@ class LoadMixin(_ModelStubs):
                 fname0 is not None and fname0 in fields and fields[fname0].is_one2many
             )
 
-        get_o2m_values = itemgetter_tuple(
+        get_o2m_values = get_tuple_itemgetter(
             [index for index, fnames in enumerate(field_paths) if is_o2m(fnames)]
         )
-        get_other_values = itemgetter_tuple(
+        get_other_values = get_tuple_itemgetter(
             [index for index, fnames in enumerate(field_paths) if not is_o2m(fnames)]
         )
 
@@ -332,7 +332,7 @@ class LoadMixin(_ModelStubs):
             strict=False,
         )
         relfield_data = [
-            it for it in map(itemgetter_tuple(indices), record_span) if any(it)
+            it for it in map(get_tuple_itemgetter(indices), record_span) if any(it)
         ]
         return [
             subrecord

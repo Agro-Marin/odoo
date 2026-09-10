@@ -42,7 +42,7 @@ class UnitOfWork[F: FieldKey = FieldKey]:
     ) -> None:
         self._recompute_order = order
 
-    def dirty_models(self) -> list[str]:
+    def get_dirty_model_names(self) -> list[str]:
         seen: dict[str, None] = {}
         for fld in self.cache.iter_dirty_fields():
             model_name = getattr(fld, "model_name", None)
@@ -52,8 +52,8 @@ class UnitOfWork[F: FieldKey = FieldKey]:
 
     def _get_pending_snapshot(self) -> dict[Any, frozenset]:
         return {
-            fld: frozenset(self.engine.pending_ids(fld))
-            for fld in self.engine.pending_fields()
+            fld: frozenset(self.engine.get_pending_ids(fld))
+            for fld in self.engine.get_pending_fields()
         }
 
     def _get_dirty_snapshot(self) -> dict[Any, frozenset]:
@@ -78,7 +78,7 @@ class UnitOfWork[F: FieldKey = FieldKey]:
         previous: dict[Any, frozenset] | None = None
         repeats = 0
         for iteration in range(self.max_iterations):
-            fields = self.engine.pending_real_fields()
+            fields = self.engine.get_pending_fields_with_real_ids()
             if not fields:
                 result.iterations = iteration
                 result.converged = True
@@ -105,7 +105,7 @@ class UnitOfWork[F: FieldKey = FieldKey]:
                 recompute_fn(fld)
         else:
             result.iterations = self.max_iterations
-            pending = self.engine.pending_real_fields()
+            pending = self.engine.get_pending_fields_with_real_ids()
             result.converged = not pending
             if result.converged:
                 result.stalled_fields = []
@@ -133,7 +133,7 @@ class UnitOfWork[F: FieldKey = FieldKey]:
                 result.stalled_fields = recompute_result.stalled_fields
                 break
 
-            model_names = self.dirty_models()
+            model_names = self.get_dirty_model_names()
             if not model_names:
                 result.iterations = iteration + (
                     1 if recompute_result.iterations else 0
@@ -158,8 +158,8 @@ class UnitOfWork[F: FieldKey = FieldKey]:
             flush_fn(model_names)
         else:
             result.iterations = self.max_iterations
-            dirty_models = self.dirty_models()
-            pending = self.engine.pending_real_fields()
+            dirty_models = self.get_dirty_model_names()
+            pending = self.engine.get_pending_fields_with_real_ids()
             result.converged = not dirty_models and not pending
             if result.converged:
                 result.stalled_fields = []
@@ -173,8 +173,9 @@ class UnitOfWork[F: FieldKey = FieldKey]:
         return result
 
     def __repr__(self) -> str:
-        n_dirty = self.cache.dirty_entry_count()
+        n_dirty = self.cache.get_dirty_entry_count()
         n_pending = sum(
-            len(self.engine.pending_ids(f)) for f in self.engine.pending_fields()
+            len(self.engine.get_pending_ids(f))
+            for f in self.engine.get_pending_fields()
         )
         return f"<UnitOfWork dirty={n_dirty} pending={n_pending} max_iter={self.max_iterations}>"

@@ -8,7 +8,7 @@ if typing.TYPE_CHECKING:
     from ...runtime import Environment
 
 
-def scannable_cache(
+def as_scannable_cache(
     field_cache: MutableMapping[IdType, typing.Any],
 ) -> dict[IdType, typing.Any]:
     return typing.cast("dict[IdType, typing.Any]", field_cache)

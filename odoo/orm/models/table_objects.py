@@ -44,7 +44,7 @@ class TableObject:
     def get_definition(self, registry: Registry) -> str:
         raise NotImplementedError
 
-    def full_name(self, model: BaseModel) -> str:
+    def get_full_name(self, model: BaseModel) -> str:
         assert self.name, "The table object is not named"
         name = f"{model._table}_{self.name}"
         return normalize_identifier(name)
@@ -82,7 +82,7 @@ class Constraint(TableObject):
 
     def apply_to_database(self, model: BaseModel) -> None:
         cr = model.env.cr
-        conname = self.full_name(model)
+        conname = self.get_full_name(model)
         definition = self.get_definition(model.pool)
         current_definition = sql.get_constraint_definition(cr, model._table, conname)
         if current_definition == definition:
@@ -122,7 +122,7 @@ class Index(TableObject):
 
     def apply_to_database(self, model: BaseModel) -> None:
         cr = model.env.cr
-        conname = self.full_name(model)
+        conname = self.get_full_name(model)
         definition_clause = self._get_definition_clause(model.pool)
         definition = self._format_definition(definition_clause)
 

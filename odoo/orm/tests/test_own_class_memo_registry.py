@@ -6,9 +6,9 @@ from odoo.orm.helpers import ORM_CLASS_MEMOS
 _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 
 _CALL_WITH_LITERAL_KEY = re.compile(
-    r"own_class_memo\(\s*[\w.]+\s*,\s*\"([A-Za-z_]+)\"", re.DOTALL
+    r"get_or_create_class_memo\(\s*[\w.]+\s*,\s*\"([A-Za-z_]+)\"", re.DOTALL
 )
-_ANY_CALL = re.compile(r"own_class_memo\(")
+_ANY_CALL = re.compile(r"get_or_create_class_memo\(")
 
 
 def _iter_sources():
@@ -23,7 +23,7 @@ def test_every_memo_key_is_registered():
     for _path, text in _iter_sources():
         keys.update(match.group(1) for match in _CALL_WITH_LITERAL_KEY.finditer(text))
     assert keys == set(ORM_CLASS_MEMOS), (
-        f"own_class_memo call-site keys {sorted(keys)} diverged from "
+        f"get_or_create_class_memo call-site keys {sorted(keys)} diverged from "
         f"helpers.ORM_CLASS_MEMOS {sorted(ORM_CLASS_MEMOS)}; register new memo "
         f"keys there so registration._reset_setup discards them on re-setup"
     )
@@ -34,7 +34,7 @@ def test_every_call_site_uses_a_literal_key():
         calls = len(_ANY_CALL.findall(text))
         literal = len(_CALL_WITH_LITERAL_KEY.findall(text))
         assert calls == literal, (
-            f"{path}: {calls - literal} own_class_memo call(s) without a "
+            f"{path}: {calls - literal} get_or_create_class_memo call(s) without a "
             f"string-literal key; keys must be literals listed in "
             f"helpers.ORM_CLASS_MEMOS"
         )

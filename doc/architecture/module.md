@@ -297,7 +297,7 @@ mishandled those layouts and coupled addon code to private field helpers.
 **The two stores are addressed, never inferred.** `FieldCache` keeps the flat
 values and the per-context sub-caches in separate mappings, so which shape a
 field has is decided by the method a caller picks — `get_field_data` /
-`get_context_data(field, key)`, `all_cached_ids` / `all_context_cached_ids`,
+`get_context_data(field, key)`, `get_cached_ids` / `get_context_cached_ids`,
 `has_any_cached` / `has_any_context_cached` — and `invalidate` sweeps both. No
 method looks at a key to guess whether it is a record id or a context tuple;
 the earlier `isinstance(key, tuple)` probe is gone, and a field that reaches the

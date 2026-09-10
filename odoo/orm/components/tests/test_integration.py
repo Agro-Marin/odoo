@@ -55,7 +55,7 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         self.engine.push_protection()
         self.engine.protect(self.total_field, frozenset([2]))
 
-        pending = self.engine.pending_ids(self.total_field)
+        pending = self.engine.get_pending_ids(self.total_field)
         to_recompute = [
             id_
             for id_ in pending
@@ -139,9 +139,9 @@ class TestMultiRecordCompute(unittest.TestCase):
             self.cache.set_value("total", i, None)
         self.engine.schedule("total", range(1, 6))
 
-        self.assertEqual(len(self.engine.pending_ids("total")), 5)
+        self.assertEqual(len(self.engine.get_pending_ids("total")), 5)
 
-        for id_ in list(self.engine.pending_ids("total")):
+        for id_ in list(self.engine.get_pending_ids("total")):
             amount = self.cache.get_value("amount", id_)
             self.cache.set_value("total", id_, amount * 1.16)
         self.engine.mark_done("total", range(1, 6))

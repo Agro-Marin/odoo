@@ -1989,7 +1989,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         fields_recomputed = []
 
         def mock_recompute(self, field, ids=None):
-            ids_to_compute = self.env._core.pending_ids(field)
+            ids_to_compute = self.env._core.get_pending_ids(field)
             ids = (
                 ids_to_compute
                 if ids is None

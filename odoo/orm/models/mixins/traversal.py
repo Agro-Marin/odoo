@@ -18,12 +18,12 @@ from ...domain import Domain
 from ...parsing import regex_order
 from ...primitives import PREFETCH_MAX
 from ._cache_scan import (
+    as_scannable_cache,
     can_scan_identity,
     can_scan_sorted,
     can_scan_truthy,
     has_lang_dict_cache,
     is_cache_detached,
-    scannable_cache,
 )
 from ._model_stubs import _ModelStubs
 
@@ -107,7 +107,7 @@ class TraversalMixin(_ModelStubs):
             if can_scan_identity(field):
                 _none_val: typing.Any = field.convert_to_record(None, records[:1])
                 result, miss_indices = _batch_cache_get(
-                    scannable_cache(field_cache), records._ids, PENDING, _none_val
+                    as_scannable_cache(field_cache), records._ids, PENDING, _none_val
                 )
                 if miss_indices:
                     rec_list = list(records)
@@ -166,7 +166,7 @@ class TraversalMixin(_ModelStubs):
             field.recompute_pending(self)
             field_cache = field._get_cache(self.env)
             passing_ids, miss_indices = _batch_cache_filter(
-                scannable_cache(field_cache), self._ids, PENDING
+                as_scannable_cache(field_cache), self._ids, PENDING
             )
             if miss_indices:
                 _field_get = field.__get__
@@ -218,7 +218,7 @@ class TraversalMixin(_ModelStubs):
                     _none_val: typing.Any = field.convert_to_record(None, self[:1])
                     ids = self._ids
                     results, miss_indices = _batch_cache_get(
-                        scannable_cache(field_cache), ids, PENDING, _none_val
+                        as_scannable_cache(field_cache), ids, PENDING, _none_val
                     )
                     if not miss_indices:
                         collator = _batch_group_ids(ids, results)
@@ -358,7 +358,7 @@ class TraversalMixin(_ModelStubs):
                 ids = tuple(sorted(ids, reverse=reverse_param))
                 continue
             sorted_ids = _sort_ids_by_cache(
-                scannable_cache(field_cache),
+                as_scannable_cache(field_cache),
                 ids,
                 _PENDING,
                 reverse_param,

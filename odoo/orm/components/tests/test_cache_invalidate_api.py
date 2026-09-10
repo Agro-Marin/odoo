@@ -107,22 +107,22 @@ class TestAllCachedIds(unittest.TestCase):
         cache = FieldCache()
         cache.set_value("name", 1, "a")
         cache.set_value("name", 2, "b")
-        ids = cache.all_cached_ids("name")
+        ids = cache.get_cached_ids("name")
         self.assertEqual(set(ids), {1, 2})
         self.assertEqual(set(ids.keys()), {1, 2})
 
     def test_empty_field_returns_empty_and_does_not_vivify(self) -> None:
         cache = FieldCache()
-        self.assertFalse(cache.all_cached_ids("never"))
-        self.assertFalse(cache.all_context_cached_ids("never"))
+        self.assertFalse(cache.get_cached_ids("never"))
+        self.assertFalse(cache.get_context_cached_ids("never"))
         self.assertIsNone(cache.get_field_data_or_none("never"))
-        self.assertEqual(list(cache.cached_fields()), [])
+        self.assertEqual(list(cache.iter_cached_fields()), [])
 
     def test_context_merges_subdict_ids(self) -> None:
         cache = FieldCache()
         cache.get_context_data("G", ("en_US",)).update({1: "a", 2: "b"})
         cache.get_context_data("G", ("es_MX",)).update({2: "c", 3: "d"})
-        ids = cache.all_context_cached_ids("G")
+        ids = cache.get_context_cached_ids("G")
         self.assertEqual(set(ids), {1, 2, 3})
         self.assertTrue(ids)
 
@@ -130,13 +130,13 @@ class TestAllCachedIds(unittest.TestCase):
         cache = FieldCache()
         cache.get_context_data("G", ("en_US",))[1] = "a"
         cache.get_field_data("G").update({7: {"json-key": "v"}, 8: "flat-scalar"})
-        self.assertEqual(set(cache.all_context_cached_ids("G")), {1})
-        self.assertEqual(set(cache.all_cached_ids("G")), {7, 8})
+        self.assertEqual(set(cache.get_context_cached_ids("G")), {1})
+        self.assertEqual(set(cache.get_cached_ids("G")), {7, 8})
 
     def test_context_with_only_flat_entries_yields_empty(self) -> None:
         cache = FieldCache()
         cache.get_field_data("G")[8] = "flat-scalar"
-        ids = cache.all_context_cached_ids("G")
+        ids = cache.get_context_cached_ids("G")
         self.assertEqual(set(ids), set())
         self.assertFalse(ids)
 

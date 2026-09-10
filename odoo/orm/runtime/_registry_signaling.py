@@ -18,12 +18,12 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger("odoo.registry")
 
 
-def signaling_table_name(cache_name: str) -> str:
+def get_signaling_table_name(cache_name: str) -> str:
     return f"orm_signaling_{cache_name}"
 
 
 SIGNALING_TABLES = tuple(
-    signaling_table_name(cache_name) for cache_name in ["registry", *CACHES_BY_KEY]
+    get_signaling_table_name(cache_name) for cache_name in ["registry", *CACHES_BY_KEY]
 )
 
 _SIGNALING_TABLES = SIGNALING_TABLES
@@ -222,7 +222,7 @@ class _RegistrySignalingMixin(_RegistryStubs):
             cr.execute(
                 SQL(
                     "INSERT INTO %s DEFAULT VALUES RETURNING id",
-                    SQL.identifier(signaling_table_name(cache_name)),
+                    SQL.identifier(get_signaling_table_name(cache_name)),
                 )
             )
             self.cache_sequences[cache_name] = self._get_signalled_id(

@@ -7,7 +7,7 @@ from inspect import getmembers
 from odoo.libs.profiling import _OrmProfile
 
 from ... import decorators as api
-from ...helpers import own_class_memo
+from ...helpers import get_or_create_class_memo
 from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
@@ -61,7 +61,9 @@ class _ConstraintsMixin(_ModelStubs):
                 methods.append(func)
             return methods
 
-        return own_class_memo(cls, "_constraint_methods__", get_constraint_methods)
+        return get_or_create_class_memo(
+            cls, "_constraint_methods__", get_constraint_methods
+        )
 
     def _check_fields(
         self, field_names: Iterable[str], excluded_names: Iterable[str] = ()

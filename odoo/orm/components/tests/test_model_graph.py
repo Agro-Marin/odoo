@@ -108,7 +108,7 @@ class TestTriggerTree(unittest.TestCase):
         child["gc"] = grandchild
         root["ch"] = child
 
-        nodes = list(root.depth_first())
+        nodes = list(root.iter_depth_first())
         self.assertEqual(len(nodes), 3)
         self.assertIs(nodes[0], root)
         self.assertIs(nodes[1], child)

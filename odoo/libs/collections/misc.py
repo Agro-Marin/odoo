@@ -95,10 +95,10 @@ class StackMap[K, T](MutableMapping[K, T]):
     def __str__(self) -> str:
         return f"<StackMap {self._maps}>"
 
-    def pushmap(self, m: MutableMapping[K, T] | None = None) -> None:
+    def push_map(self, m: MutableMapping[K, T] | None = None) -> None:
         self._maps.append({} if m is None else m)
 
-    def popmap(self) -> MutableMapping[K, T]:
+    def pop_map(self) -> MutableMapping[K, T]:
         return self._maps.pop()
 
 

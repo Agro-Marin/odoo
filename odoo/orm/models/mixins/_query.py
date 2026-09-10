@@ -270,5 +270,5 @@ class _QueryMixin(_ModelStubs):
         new_ids, ids = partition(lambda i: isinstance(i, NewId), self._ids)
         if not ids:
             return self
-        valid_ids = {*self.env.backend.existing_ids(self, ids), *new_ids}
+        valid_ids = {*self.env.backend.get_existing_ids(self, ids), *new_ids}
         return self.browse(i for i in self._ids if i in valid_ids)

@@ -57,7 +57,7 @@ def test_unlink_leaves_no_pending_compute_on_the_deleted_ids(env):
     mid.unlink()
 
     field = Node._fields["total"]
-    pending = set(env._core.pending_ids(field))
+    pending = set(env._core.get_pending_ids(field))
     assert not (pending & deleted_ids), (
         f"unlink left {pending & deleted_ids} pending for {field} -- the "
         f"trigger walk re-marked the deleted ids after the sweep ran"

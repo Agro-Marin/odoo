@@ -121,7 +121,9 @@ class StorageBackend(typing.Protocol):
 
     def as_query(self, model: BaseModel, ordered: bool = True) -> Query: ...
 
-    def existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]: ...
+    def get_existing_ids(
+        self, model: BaseModel, ids: typing.Iterable[int]
+    ) -> set[int]: ...
 
     def lock_for_update(
         self, model: BaseModel, *, allow_referencing: bool = False
@@ -502,7 +504,7 @@ class PostgresBackend:
         query.set_result_ids(model._ids, ordered)
         return query
 
-    def existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
+    def get_existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
         ids = list(ids)
         query = Query(model.env, model._table, model._table_sql)
         query.add_where(SQL("%s = ANY(%s)", SQL.identifier(model._table, "id"), ids))
@@ -802,7 +804,7 @@ class InMemoryBackend:
         row_dicts: list[dict[str, typing.Any]] = []
         new_ids: list[int] = []
         for stored in stored_list:
-            new_id = self.storage.next_id(model._table)
+            new_id = self.storage.allocate_next_id(model._table)
             row_dict: dict[str, typing.Any] = {"id": new_id}
             for fname, field in zip(columns, col_fields, strict=True):
                 if fname in stored:
@@ -850,7 +852,7 @@ class InMemoryBackend:
     ) -> BaseModel:
         result_ids = query._ids
         if result_ids is None:
-            result_ids = tuple(self.storage.table_ids(model._table))
+            result_ids = tuple(self.storage.get_table_ids(model._table))
 
         if not result_ids:
             return model.browse()
@@ -912,7 +914,7 @@ class InMemoryBackend:
         prof: typing.Any = None,
     ) -> Query:
         searched_fnames = flush_search_dependencies(model, domain, order)
-        all_ids = self.storage.table_ids(model._table)
+        all_ids = self.storage.get_table_ids(model._table)
         all_records = model.browse(all_ids)
 
         fields = model._fields
@@ -950,8 +952,8 @@ class InMemoryBackend:
         query._ids = tuple(model._ids)
         return query
 
-    def existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
-        return set(self.storage.contains_ids(model._table, list(ids)))
+    def get_existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
+        return set(self.storage.get_existing_ids(model._table, list(ids)))
 
     def lock_for_update(
         self, model: BaseModel, *, allow_referencing: bool = False
@@ -959,7 +961,7 @@ class InMemoryBackend:
         ids = {id_ for id_ in model._ids if id_}
         if not ids:
             return
-        if len(self.storage.contains_ids(model._table, list(ids))) != len(ids):
+        if len(self.storage.get_existing_ids(model._table, list(ids))) != len(ids):
             raise LockError(model.env._("Cannot grab a lock on records"))
 
     def try_lock_for_update(
@@ -970,7 +972,7 @@ class InMemoryBackend:
         limit: int | None = None,
     ) -> BaseModel:
         new_ids, real = partition(lambda i: isinstance(i, NewId), model._ids)
-        lockable = self.storage.contains_ids(model._table, real) | set(new_ids)
+        lockable = self.storage.get_existing_ids(model._table, real) | set(new_ids)
         locked = [i for i in model._ids if i in lockable]
         if limit is not None:
             locked = locked[:limit]
@@ -988,7 +990,7 @@ class InMemoryBackend:
         return Data.browse(), Attachment.browse()
 
     def _iter_m2m_rows(self, relation: str):
-        for row_id in self.storage.table_ids(relation):
+        for row_id in self.storage.get_table_ids(relation):
             row = self.storage.get_row(relation, row_id)
             if row is not None:
                 yield row_id, row

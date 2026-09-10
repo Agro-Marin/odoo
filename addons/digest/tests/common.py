@@ -77,7 +77,7 @@ class TestDigestCommon(mail_test.MailCommon):
         """Create one `res.users.log` per user, attributed to that user.
 
         `create_uid` in `create()` values is honoured only while the registry
-        is still loading -- `_crud_common.bad_field_names` pops every
+        is still loading -- `_crud_common.get_forbidden_field_names` pops every
         LOG_ACCESS column unless `env.uid == SUPERUSER_ID and not pool.ready`.
         At install time that holds and the value sticks; **post_install it does
         not**, and every log silently lands on `__system__` instead. Nothing

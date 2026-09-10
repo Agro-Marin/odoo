@@ -34,7 +34,7 @@ class TestKnownSubtractionSemantics(unittest.TestCase):
         )
 
         self.assertEqual(recursive_ids, frozenset({30, 31}))
-        self.assertEqual(list(engine.pending_ids(field)), [10, 11, 20, 21, 30, 31])
+        self.assertEqual(list(engine.get_pending_ids(field)), [10, 11, 20, 21, 30, 31])
 
     def test_only_marked(self) -> None:
         engine = ComputeEngine()

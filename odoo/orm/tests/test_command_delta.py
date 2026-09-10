@@ -23,26 +23,26 @@ def test_a_replacement_supersedes_what_came_before_it_and_keeps_what_follows():
     assert list(delta.linked) == [9]
     assert delta.created == [(0, {"b": 2})]
     assert not delta.unlinked
-    assert list(delta.final_ids((1, 2, 3))) == [7, 8, 9]
+    assert list(delta.get_final_ids((1, 2, 3))) == [7, 8, 9]
 
 
 def test_update_and_delete_survive_a_replacement():
     delta = _fold(Command.update(4, {"x": 1}), Command.delete(5), Command.clear())
     assert delta.updated == [(4, {"x": 1})]
     assert list(delta.deleted) == [5]
-    assert list(delta.final_ids((4, 5, 6))) == []
+    assert list(delta.get_final_ids((4, 5, 6))) == []
 
 
 def test_link_and_unlink_of_one_id_resolve_in_order():
-    assert list(_fold(Command.link(5), Command.unlink(5)).final_ids((1,))) == [1]
-    assert list(_fold(Command.unlink(5), Command.link(5)).final_ids((1,))) == [1, 5]
-    assert list(_fold(Command.link(5), Command.delete(5)).final_ids((1,))) == [1]
+    assert list(_fold(Command.link(5), Command.unlink(5)).get_final_ids((1,))) == [1]
+    assert list(_fold(Command.unlink(5), Command.link(5)).get_final_ids((1,))) == [1, 5]
+    assert list(_fold(Command.link(5), Command.delete(5)).get_final_ids((1,))) == [1]
 
 
 def test_without_a_replacement_the_current_ids_are_the_base():
     delta = _fold(Command.unlink(2), Command.link(4))
     assert not delta.replaced
-    assert list(delta.final_ids((1, 2, 3), created_ids=(10,))) == [1, 3, 4, 10]
+    assert list(delta.get_final_ids((1, 2, 3), created_ids=(10,))) == [1, 3, 4, 10]
 
 
 def test_a_non_superseding_fold_keeps_everything_and_still_names_the_set():

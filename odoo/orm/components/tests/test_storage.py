@@ -118,17 +118,17 @@ class TestDictBackendDelete(_BackendCase):
 
     def test_delete_single(self) -> None:
         self.backend.remove_rows("partner", [1])
-        self.assertEqual(self.backend.row_count("partner"), 1)
+        self.assertEqual(self.backend.get_row_count("partner"), 1)
         rows = self.backend.get_row_tuples("partner", [1], ["name"])
         self.assertEqual(rows, [])
 
     def test_delete_multiple(self) -> None:
         self.backend.remove_rows("partner", [1, 2])
-        self.assertEqual(self.backend.row_count("partner"), 0)
+        self.assertEqual(self.backend.get_row_count("partner"), 0)
 
     def test_delete_nonexistent(self) -> None:
         self.backend.remove_rows("partner", [999])
-        self.assertEqual(self.backend.row_count("partner"), 2)
+        self.assertEqual(self.backend.get_row_count("partner"), 2)
 
     def test_delete_nonexistent_table(self) -> None:
         self.backend.remove_rows("nonexistent", [1])
@@ -145,15 +145,15 @@ class TestDictBackendHelpers(_BackendCase):
 
     def test_table_ids(self) -> None:
         self.backend.insert_rows("partner", ["name"], [("Alice",), ("Bob",)])
-        self.assertEqual(self.backend.table_ids("partner"), [1, 2])
+        self.assertEqual(self.backend.get_table_ids("partner"), [1, 2])
 
     def test_table_ids_empty(self) -> None:
-        self.assertEqual(self.backend.table_ids("partner"), [])
+        self.assertEqual(self.backend.get_table_ids("partner"), [])
 
     def test_row_count(self) -> None:
-        self.assertEqual(self.backend.row_count("partner"), 0)
+        self.assertEqual(self.backend.get_row_count("partner"), 0)
         self.backend.insert_rows("partner", ["name"], [("Alice",)])
-        self.assertEqual(self.backend.row_count("partner"), 1)
+        self.assertEqual(self.backend.get_row_count("partner"), 1)
 
     def test_repr(self) -> None:
         self.backend.insert_rows("partner", ["name"], [("Alice",)])
@@ -168,16 +168,16 @@ class TestDictBackendSealedApi(_BackendCase):
             "partner", [{"id": 5, "name": "Alice"}, {"id": 6, "name": "Bob"}]
         )
         self.assertEqual(self.backend.get_row("partner", 5), {"id": 5, "name": "Alice"})
-        self.assertEqual(self.backend.table_ids("partner"), [5, 6])
+        self.assertEqual(self.backend.get_table_ids("partner"), [5, 6])
 
     def test_put_rows_advances_sequence_past_explicit_id(self) -> None:
         self.backend.put_rows("partner", [{"id": 5, "name": "Alice"}])
-        self.assertEqual(self.backend.next_id("partner"), 6)
+        self.assertEqual(self.backend.allocate_next_id("partner"), 6)
 
     def test_put_rows_overwrites_same_id(self) -> None:
         self.backend.put_rows("partner", [{"id": 1, "name": "Alice"}])
         self.backend.put_rows("partner", [{"id": 1, "name": "Alice2"}])
-        self.assertEqual(self.backend.row_count("partner"), 1)
+        self.assertEqual(self.backend.get_row_count("partner"), 1)
         self.assertEqual(self._row("partner", 1)["name"], "Alice2")
 
     def test_upsert_updates_existing(self) -> None:
@@ -208,7 +208,7 @@ class TestDictBackendSealedApi(_BackendCase):
 
     def test_upsert_advances_sequence_past_explicit_id(self) -> None:
         self.backend.upsert_rows("partner", [(5, {"name": "Alice"})])
-        self.assertEqual(self.backend.next_id("partner"), 6)
+        self.assertEqual(self.backend.allocate_next_id("partner"), 6)
 
     def test_upsert_then_insert_does_not_clobber(self) -> None:
         self.backend.upsert_rows("partner", [(3, {"name": "Kept"})])
@@ -216,7 +216,7 @@ class TestDictBackendSealedApi(_BackendCase):
             new_ids = self.backend.insert_rows("partner", ["name"], [(f"n{i}",)])
             self.assertNotIn(3, new_ids)
         self.assertEqual(self._row("partner", 3)["name"], "Kept")
-        self.assertEqual(self.backend.row_count("partner"), 6)
+        self.assertEqual(self.backend.get_row_count("partner"), 6)
 
     def test_update_rows_skips_missing(self) -> None:
         self.backend.update_rows("partner", [(7, {"name": "New"})])
@@ -235,10 +235,10 @@ class TestDictBackendSealedApi(_BackendCase):
 
     def test_contains_ids(self) -> None:
         self.backend.put_rows("partner", [{"id": 1}, {"id": 3}])
-        self.assertEqual(self.backend.contains_ids("partner", [1, 2, 3, 4]), {1, 3})
+        self.assertEqual(self.backend.get_existing_ids("partner", [1, 2, 3, 4]), {1, 3})
 
     def test_contains_ids_unknown_table(self) -> None:
-        self.assertEqual(self.backend.contains_ids("nope", [1, 2]), set())
+        self.assertEqual(self.backend.get_existing_ids("nope", [1, 2]), set())
 
 
 if __name__ == "__main__":

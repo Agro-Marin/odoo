@@ -7015,11 +7015,11 @@ class AccountMove(models.Model):
             current_val = self.env.context.get(key, default)
 
         disabled = current_val == target
-        stack.pushmap({key: target})
+        stack.push_map({key: target})
         try:
             yield disabled
         finally:
-            stack.popmap()
+            stack.pop_map()
 
     def _conditional_add_to_compute(self, fname, condition):
         field = self._fields[fname]

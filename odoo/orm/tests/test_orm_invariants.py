@@ -296,7 +296,7 @@ def test_all_cached_ids_spans_per_context_subdicts() -> None:
     cache = FieldCache()
     cache.get_context_data("G", ("en_US",))[1] = "a"
     cache.get_context_data("G", ("fr_FR",))[2] = "b"
-    assert set(cache.all_context_cached_ids("G")) == {1, 2}
+    assert set(cache.get_context_cached_ids("G")) == {1, 2}
 
 
 def test_all_cached_ids_skips_stale_flat_entries() -> None:
@@ -305,7 +305,7 @@ def test_all_cached_ids_skips_stale_flat_entries() -> None:
     cache = FieldCache()
     cache.get_context_data("G", ("en_US",))[1] = "a"
     cache.get_field_data("G").update({5: "stale-scalar", 6: None, 7: {"json-key": "v"}})
-    assert set(cache.all_context_cached_ids("G")) == {1}
+    assert set(cache.get_context_cached_ids("G")) == {1}
 
 
 def test_invalidate_mixed_state_never_reaches_into_json_values() -> None:

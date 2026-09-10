@@ -493,8 +493,8 @@ class Field[T](
     def _get_all_cache_ids(self, env: Environment) -> Mapping[IdType, typing.Any]:
         core = env._core
         if self._is_context_dependent(env):
-            return core.all_context_cached_ids(self)
-        return core.all_cached_ids(self)
+            return core.get_context_cached_ids(self)
+        return core.get_cached_ids(self)
 
     def _iter_cache_missing_ids(self, records: ModelLike) -> Iterator[IdType]:
         field_cache = self._get_cache(records.env)
@@ -548,7 +548,7 @@ class Field[T](
         if not field_cache:
             return
         core = env._core
-        scheduled = core.pending_ids(self)
+        scheduled = core.get_pending_ids(self)
         dirty = core.get_dirty(self)
         for id_ in records._ids:
             if field_cache.get(id_) is not PENDING:
@@ -677,7 +677,7 @@ class Field[T](
             records.write({self.name: write_value})
             return
 
-        _protected_ids = core.protected_ids(self)
+        _protected_ids = core.get_protected_ids(self)
         protected_ids = []
         new_ids = []
         other_ids = []

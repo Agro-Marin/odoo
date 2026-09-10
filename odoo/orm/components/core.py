@@ -60,17 +60,17 @@ class OrmCore[F: FieldKey = FieldKey]:
     def has_any_context_cached(self, field: F) -> bool:
         return self._cache.has_any_context_cached(field)
 
-    def all_cached_ids(self, field: F) -> Mapping[Any, Any]:
-        return self._cache.all_cached_ids(field)
+    def get_cached_ids(self, field: F) -> Mapping[Any, Any]:
+        return self._cache.get_cached_ids(field)
 
-    def all_context_cached_ids(self, field: F) -> Mapping[Any, Any]:
-        return self._cache.all_context_cached_ids(field)
+    def get_context_cached_ids(self, field: F) -> Mapping[Any, Any]:
+        return self._cache.get_context_cached_ids(field)
 
     def iter_context_caches(self, field: F) -> Iterable[tuple[tuple, dict[Any, Any]]]:
         return self._cache.iter_context_caches(field)
 
-    def cached_fields(self) -> Iterator[F]:
-        return self._cache.cached_fields()
+    def iter_cached_fields(self) -> Iterator[F]:
+        return self._cache.iter_cached_fields()
 
     def mark_dirty(self, field: F, ids: Iterable[Any]) -> None:
         self._cache.mark_dirty(field, ids)
@@ -138,11 +138,11 @@ class OrmCore[F: FieldKey = FieldKey]:
     def has_pending(self) -> bool:
         return self._engine.has_pending()
 
-    def pending_ids(self, field: F) -> set[Any] | tuple[()]:
-        return self._engine.pending_ids(field)
+    def get_pending_ids(self, field: F) -> set[Any] | tuple[()]:
+        return self._engine.get_pending_ids(field)
 
-    def pending_fields(self) -> Collection[F]:
-        return self._engine.pending_fields()
+    def get_pending_fields(self) -> Collection[F]:
+        return self._engine.get_pending_fields()
 
     def discard_field(self, field: F) -> None:
         self._engine.discard_field(field)
@@ -150,11 +150,11 @@ class OrmCore[F: FieldKey = FieldKey]:
     def is_protected(self, field: F, record_id: Any) -> bool:
         return self._engine.is_protected(field, record_id)
 
-    def protected_ids(self, field: F) -> frozenset[Any]:
-        return self._engine.protected_ids(field)
+    def get_protected_ids(self, field: F) -> frozenset[Any]:
+        return self._engine.get_protected_ids(field)
 
-    def any_protected(self) -> bool:
-        return self._engine.any_protected()
+    def has_any_protected(self) -> bool:
+        return self._engine.has_any_protected()
 
     def push_protection(self) -> None:
         self._engine.push_protection()

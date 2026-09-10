@@ -4,7 +4,7 @@ from odoo.orm.runtime import _registry_capabilities as cap_mod
 from odoo.orm.runtime import registry as reg_mod
 from odoo.orm.runtime.registry import Registry
 
-DB = "test_registry_forget_db"
+DB = "test_registry_clear_database_state_db"
 
 
 @pytest.fixture
@@ -34,17 +34,17 @@ def test_delete_keeps_what_must_survive_a_rebuild(seeded):
     )
 
 
-def test_forget_drops_every_per_database_map(seeded):
-    Registry.forget(DB)
+def test_clear_database_state_drops_every_per_database_map(seeded):
+    Registry.clear_database_state(DB)
 
     assert DB not in cap_mod._UnaccentTables.by_db
     assert DB not in reg_mod._ASSERTION_REPORTS
     assert DB not in Registry.registries
 
 
-def test_forget_is_idempotent(seeded):
-    Registry.forget(DB)
-    Registry.forget(DB)
+def test_clear_database_state_is_idempotent(seeded):
+    Registry.clear_database_state(DB)
+    Registry.clear_database_state(DB)
 
 
 def test_delete_all_clears_the_per_database_maps(seeded):
@@ -55,7 +55,7 @@ def test_delete_all_clears_the_per_database_maps(seeded):
     assert not Registry.registries
 
 
-def test_teardown_call_sites_use_forget_not_delete():
+def test_teardown_call_sites_use_clear_database_state_not_delete():
     import pathlib
 
     root = pathlib.Path(reg_mod.__file__).resolve().parents[3]
@@ -65,8 +65,8 @@ def test_teardown_call_sites_use_forget_not_delete():
     }
     for rel, count in expected.items():
         text = (root / rel).read_text()
-        assert text.count("Registry.forget(") == count, (
-            f"{rel} should call Registry.forget {count}x"
+        assert text.count("Registry.clear_database_state(") == count, (
+            f"{rel} should call Registry.clear_database_state {count}x"
         )
         assert "Registry.delete(" not in text, (
             f"{rel} calls Registry.delete; a database that is gone must be "

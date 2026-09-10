@@ -34,7 +34,9 @@ ORM_CLASS_MEMOS: tuple[str, ...] = (
 )
 
 
-def own_class_memo[T](cls: type, key: str, factory: typing.Callable[[], T]) -> T:
+def get_or_create_class_memo[T](
+    cls: type, key: str, factory: typing.Callable[[], T]
+) -> T:
     value = cls.__dict__.get(key)
     if value is None:
         value = factory()
@@ -42,7 +44,7 @@ def own_class_memo[T](cls: type, key: str, factory: typing.Callable[[], T]) -> T
     return value
 
 
-def itemgetter_tuple(items: list | tuple) -> typing.Callable[[typing.Any], tuple]:
+def get_tuple_itemgetter(items: list | tuple) -> typing.Callable[[typing.Any], tuple]:
     if len(items) == 0:
         return lambda a: ()
     if len(items) == 1:

@@ -24,14 +24,14 @@ class TestCollector(unittest.TestCase):
 class TestStackMapLen(unittest.TestCase):
     def test_shadowed_key_counted_once(self):
         sm = StackMap({"a": 1})
-        sm.pushmap({"a": 2, "b": 3})
+        sm.push_map({"a": 2, "b": 3})
         self.assertEqual(len(sm), 2)
         self.assertEqual(dict(sm), {"a": 2, "b": 3})
 
     def test_len_matches_iteration(self):
         sm = StackMap({"a": 1, "b": 2})
-        sm.pushmap({"b": 20, "c": 30})
-        sm.pushmap({"c": 300})
+        sm.push_map({"b": 20, "c": 30})
+        sm.push_map({"c": 300})
         self.assertEqual(len(sm), len(set(sm)))
         self.assertEqual(len(sm), 3)
 
@@ -41,9 +41,9 @@ class TestStackMapLen(unittest.TestCase):
 
     def test_topmost_wins_and_popmap_restores(self):
         sm = StackMap({"a": 1})
-        sm.pushmap({"a": 2})
+        sm.push_map({"a": 2})
         self.assertEqual(sm["a"], 2)
-        sm.popmap()
+        sm.pop_map()
         self.assertEqual(sm["a"], 1)
         self.assertEqual(len(sm), 1)
 

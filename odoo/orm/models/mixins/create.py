@@ -10,7 +10,7 @@ from odoo.tools.misc import PENDING
 
 from ... import decorators as api
 from ..._typing import ValuesType
-from ...helpers import own_class_memo
+from ...helpers import get_or_create_class_memo
 from ...primitives import (
     INSERT_BATCH_SIZE,
     Command,
@@ -18,7 +18,7 @@ from ...primitives import (
 from ._crud_common import (
     _BAD_NAMES_LOG,
     _orm_crud,
-    bad_field_names,
+    get_forbidden_field_names,
 )
 from ._model_stubs import _ModelStubs
 
@@ -138,7 +138,7 @@ class CreateMixin(_ModelStubs):
             defaults = dict(values)
 
         cls = type(self)
-        properties_names = own_class_memo(
+        properties_names = get_or_create_class_memo(
             cls,
             "_properties_field_names__",
             lambda: tuple(
@@ -328,10 +328,10 @@ class CreateMixin(_ModelStubs):
             self.browse(ids)._check_fields(data["inversed"], data["stored"])
 
     def _prepare_create_values(self, vals_list: list[ValuesType]) -> list[ValuesType]:
-        bad_names = bad_field_names(self)
+        bad_names = get_forbidden_field_names(self)
 
         cls = type(self)
-        precompute_readonly = own_class_memo(
+        precompute_readonly = get_or_create_class_memo(
             cls,
             "_precompute_readonly_names__",
             lambda: frozenset(

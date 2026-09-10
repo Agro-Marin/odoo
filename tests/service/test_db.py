@@ -2393,7 +2393,7 @@ class TestDatabaseDdlSetsAutocommitFirst:
             patch(
                 "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
             ),
-            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
+            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
             patch.object(db_mod.lifecycle, "_terminate_backends"),
             patch.object(db_mod.lifecycle, "_check_filestore_dest_free"),
@@ -2412,7 +2412,7 @@ class TestDatabaseDdlSetsAutocommitFirst:
             patch(
                 "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
             ),
-            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
+            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
             patch.object(db_mod.lifecycle, "_terminate_backends"),
         ):
@@ -2432,7 +2432,7 @@ class TestDatabaseDdlSetsAutocommitFirst:
             patch(
                 "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
             ),
-            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "forget"),
+            patch.object(db_mod.lifecycle.odoo.modules.registry.Registry, "clear_database_state"),
             patch.object(db_mod.lifecycle.odoo.db, "close_db"),
             patch.object(db_mod.lifecycle, "_terminate_backends"),
             patch.object(db_mod.lifecycle.shutil, "move"),

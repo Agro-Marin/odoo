@@ -45,7 +45,7 @@ class TestDiscardFieldsRace(unittest.TestCase):
                 while not stop.is_set():
                     g.clear_caches()
                     tree = g.get_field_trigger_tree(root)
-                    for _node in tree.depth_first():
+                    for _node in tree.iter_depth_first():
                         pass
             except BaseException as exc:
                 errors.append(exc)

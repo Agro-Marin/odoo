@@ -306,7 +306,7 @@ class Many2many(_RelationalMulti):
                     [vals for _ref, vals in delta.created]
                 )._ids
             for x in recs._ids:
-                new_relation[x] = delta.final_ids(new_relation[x], created_ids)
+                new_relation[x] = delta.get_final_ids(new_relation[x], created_ids)
             if delta.deleted:
                 comodel.browse(list(delta.deleted)).unlink()
                 _remove_from_relations(old_relation, new_relation, delta.deleted)
@@ -387,7 +387,7 @@ class Many2many(_RelationalMulti):
             for line_id, vals in delta.updated:
                 comodel.browse([line_id]).update(vals)
             for id_ in recs._ids:
-                new_relation[id_] = delta.final_ids(new_relation[id_], created_ids)
+                new_relation[id_] = delta.get_final_ids(new_relation[id_], created_ids)
 
         if new_relation == old_relation:
             return
