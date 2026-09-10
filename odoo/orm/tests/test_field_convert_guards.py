@@ -36,7 +36,7 @@ def test_base_convert_to_column_scalarish_only():
 def test_id_origin_getter_handles_empty_and_new():
     with model_test_env(Thing) as env:
         Model = env["fcg.thing"]
-        getter = Model._fields["id"].expression_getter("id.origin")
+        getter = Model._fields["id"].get_expression_getter("id.origin")
         assert getter(Model.browse()) is False
         record = Model.create({"name": "x"})
         assert getter(record) == record.id

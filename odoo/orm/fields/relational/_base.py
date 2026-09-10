@@ -270,7 +270,7 @@ class _Relational(Field["BaseModel"]):
         operator: str,
         value: typing.Any,
     ) -> Callable[[BaseModel], bool]:
-        getter = self.expression_getter(field_expr)
+        getter = self.get_expression_getter(field_expr)
 
         if (self.bypass_search_access or operator == "any!") and not records.env.su:
             expr_getter = getter

@@ -177,16 +177,18 @@ class BaseDate[T: date](Field[T | typing.Literal[False]]):
     add = staticmethod(date_utils.add)
     subtract = staticmethod(date_utils.subtract)
 
-    def expression_getter(self, field_expr: str) -> Callable[[BaseModel], typing.Any]:
+    def get_expression_getter(
+        self, field_expr: str
+    ) -> Callable[[BaseModel], typing.Any]:
         _fname, property_name = parse_field_expr(field_expr)
         if not property_name:
-            return super().expression_getter(field_expr)
+            return super().get_expression_getter(field_expr)
 
         get_value = self.__get__
-        get_property = self._expression_property_getter(property_name)
+        get_property = self._get_expression_property_getter(property_name)
         return lambda record: (value := get_value(record)) and get_property(value)
 
-    def _expression_property_getter(
+    def _get_expression_property_getter(
         self, property_name: str
     ) -> Callable[[T], typing.Any]:
         match property_name:
@@ -507,13 +509,15 @@ class Datetime(BaseDate[datetime]):
     ) -> str | typing.Literal[False]:
         return value.strftime(DATETIME_FORMAT) if value else False
 
-    def expression_getter(self, field_expr: str) -> Callable[[BaseModel], typing.Any]:
+    def get_expression_getter(
+        self, field_expr: str
+    ) -> Callable[[BaseModel], typing.Any]:
         if field_expr == self.name:
             return self.__get__
         _fname, property_name = parse_field_expr(field_expr)
         if property_name is None:
-            return super().expression_getter(field_expr)
-        get_property = self._expression_property_getter(property_name)
+            return super().get_expression_getter(field_expr)
+        get_property = self._get_expression_property_getter(property_name)
 
         def getter(record):
             dt = self.__get__(record)

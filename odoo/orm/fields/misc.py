@@ -238,9 +238,9 @@ class Id(Field[IdType | typing.Literal[False]]):
             value = self.convert_to_column(value, records, validate=False)
         return super().filter_function(records, field_expr, operator, value)
 
-    def expression_getter(self, field_expr: str) -> typing.Any:
+    def get_expression_getter(self, field_expr: str) -> typing.Any:
         if field_expr != "id.origin":
-            return super().expression_getter(field_expr)
+            return super().get_expression_getter(field_expr)
 
         def getter(record: BaseModel) -> typing.Any:
             ids = record._ids

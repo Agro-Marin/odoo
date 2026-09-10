@@ -98,7 +98,9 @@ class _FieldSqlMixin(_FieldStubs):
     def _comparand_to_column(self, value: typing.Any, model: BaseModel) -> typing.Any:
         return self.convert_to_column(value, model, validate=False)
 
-    def _inequality_comparand(self, value: typing.Any, model: BaseModel) -> typing.Any:
+    def _get_inequality_comparand(
+        self, value: typing.Any, model: BaseModel
+    ) -> typing.Any:
         return self.convert_to_cache(value, model) or self.falsy_value
 
     def _optimize_condition(
@@ -124,7 +126,7 @@ class _FieldSqlMixin(_FieldStubs):
             )
         return sql_expr
 
-    def _comparand_converter(self, field_expr: str, model: BaseModel):
+    def _get_comparand_converter(self, field_expr: str, model: BaseModel):
         if field_expr == self.name:
             return lambda v: self._comparand_to_column(v, model)
         return lambda v: v
@@ -205,7 +207,7 @@ class _FieldSqlMixin(_FieldStubs):
     ) -> SQL:
         accept_null_value = False
         if (null_value := self.falsy_value) is not None:
-            value = self._inequality_comparand(value, model)
+            value = self._get_inequality_comparand(value, model)
             accept_null_value = can_be_null and PYTHON_INEQUALITY_OPERATOR[operator](
                 null_value, value
             )
@@ -239,7 +241,7 @@ class _FieldSqlMixin(_FieldStubs):
         query: Query,
     ) -> SQL:
         sql_field = model._field_to_sql(alias, field_expr, query)
-        _value_to_column = self._comparand_converter(field_expr, model)
+        _value_to_column = self._get_comparand_converter(field_expr, model)
 
         if operator in SQL_OPERATORS and isinstance(value, SQL):
             warnings.warn(
@@ -299,20 +301,22 @@ class _FieldSqlMixin(_FieldStubs):
             )
         return sql_expr
 
-    def expression_getter(self, field_expr: str) -> Callable[[BaseModel], typing.Any]:
+    def get_expression_getter(
+        self, field_expr: str
+    ) -> Callable[[BaseModel], typing.Any]:
         if field_expr == self.name:
             return self.__get__
         raise ValueError(f"Expression not supported on {self}: {field_expr!r}")
 
-    def _pattern_text(self, cache_value: typing.Any) -> str:
+    def _get_pattern_text(self, cache_value: typing.Any) -> str:
         if cache_value is None or cache_value is False:
             return ""
         return str(cache_value)
 
-    def _pattern_getter(
+    def _get_pattern_getter(
         self, records: M, field_expr: str, getter: Callable[[M], typing.Any]
     ) -> Callable[[M], str]:
-        pattern_text = self._pattern_text
+        pattern_text = self._get_pattern_text
         if field_expr != self.name or callable(self.translate):
             return lambda rec: pattern_text(getter(rec))
 
@@ -358,18 +362,18 @@ class _FieldSqlMixin(_FieldStubs):
             def unaccent(x):
                 return x
 
-        pattern = value if isinstance(value, str) else self._pattern_text(value)
+        pattern = value if isinstance(value, str) else self._get_pattern_text(value)
         like_regex = re.compile(
             "".join(_iter_like_regex_parts(unaccent(pattern), "=" in operator)),
             flags=re.DOTALL,
         )
-        render = self._pattern_getter(records, field_expr, getter)
+        render = self._get_pattern_getter(records, field_expr, getter)
         return lambda rec: like_regex.match(unaccent(render(rec)))
 
     def _filter_inequality(self, records: M, getter, pyop, value) -> Callable:
         can_be_null = False
         if (null_value := self.falsy_value) is not None:
-            value = self._inequality_comparand(value, records)
+            value = self._get_inequality_comparand(value, records)
             can_be_null = pyop(null_value, value)
 
         def is_inequality_satisfied(rec):
@@ -389,7 +393,7 @@ class _FieldSqlMixin(_FieldStubs):
         assert operator not in Domain.NEGATIVE_OPERATORS, (
             "only positive operators are implemented"
         )
-        getter = self.expression_getter(field_expr)
+        getter = self.get_expression_getter(field_expr)
 
         if operator == "in":
             return self._filter_in(getter, value)

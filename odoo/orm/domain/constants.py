@@ -47,7 +47,7 @@ def register_condition_operators(operators: Iterable[str]) -> frozenset[str]:
     if malformed := {op for op in operators if not op or op != op.lower()}:
         raise ValueError(
             f"domain operator(s) {sorted(malformed)!r} must be non-empty and "
-            f"lower-case; DomainCondition.checked() lower-cases the operator "
+            f"lower-case; DomainCondition.normalize() lower-cases the operator "
             f"before looking it up, so a mixed-case name could never match."
         )
     ACCEPTED_CONDITION_OPERATORS.update(operators)

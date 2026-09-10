@@ -668,7 +668,7 @@ class Properties(Field):
         return values_list
 
     @override
-    def expression_getter(self, field_expr: str) -> typing.Any:
+    def get_expression_getter(self, field_expr: str) -> typing.Any:
         _fname, property_name = parse_field_expr(field_expr)
         if not property_name:
             raise ValueError(f"Missing property name for {self}")
@@ -696,7 +696,7 @@ class Properties(Field):
     def filter_function(
         self, records: BaseModel, field_expr: str, operator: str, value: typing.Any
     ) -> typing.Any:
-        getter = self.expression_getter(field_expr)
+        getter = self.get_expression_getter(field_expr)
         domain = None
         if operator == "any" or isinstance(value, Domain):
             domain = Domain(value).optimize(records)

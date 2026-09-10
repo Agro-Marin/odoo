@@ -412,7 +412,7 @@ class TraversalMixin(_ModelStubs):
                     f"Invalid order on relational field {order_part!r} to sort"
                 )
             elif field.is_boolean:
-                getter = field.expression_getter(field_expr)
+                getter = field.get_expression_getter(field_expr)
             elif not property_name and not has_lang_dict_cache(field, _env):
                 _get_cache = field._get_cache
                 _field_get = field.__get__
@@ -429,7 +429,7 @@ class TraversalMixin(_ModelStubs):
                     return value if value is not False else None
 
             else:
-                raw_getter = field.expression_getter(field_expr)
+                raw_getter = field.get_expression_getter(field_expr)
 
                 def getter(rec):
                     value = raw_getter(rec)

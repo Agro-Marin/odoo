@@ -73,17 +73,17 @@ class Integer(Field[int]):
         return super()._comparand_to_column(value, model)
 
     @override
-    def _inequality_comparand(self, value, model) -> typing.Any:
+    def _get_inequality_comparand(self, value, model) -> typing.Any:
         if _is_exact_number(value):
             return value or 0
-        return super()._inequality_comparand(value, model)
+        return super()._get_inequality_comparand(value, model)
 
     @override
     def convert_to_record(self, value, record: ModelLike) -> int:
         return value or 0
 
     @override
-    def _pattern_text(self, cache_value: typing.Any) -> str:
+    def _get_pattern_text(self, cache_value: typing.Any) -> str:
         if cache_value is None:
             return ""
         return str(cache_value)
@@ -209,17 +209,17 @@ class Float(Field[float]):
         return float(value)
 
     @override
-    def _inequality_comparand(self, value, model) -> typing.Any:
+    def _get_inequality_comparand(self, value, model) -> typing.Any:
         if _is_exact_number(value):
             return float(value) or 0.0
-        return super()._inequality_comparand(value, model)
+        return super()._get_inequality_comparand(value, model)
 
     @override
     def convert_to_record(self, value, record: ModelLike) -> float:
         return value or 0.0
 
     @override
-    def _pattern_text(self, cache_value: typing.Any) -> str:
+    def _get_pattern_text(self, cache_value: typing.Any) -> str:
         if cache_value is None:
             return ""
         return _float_to_pg_text(cache_value)
@@ -391,17 +391,17 @@ class Monetary(Field[float]):
         return Decimal(repr(float(value))) if not isinstance(value, Decimal) else value
 
     @override
-    def _inequality_comparand(self, value, model) -> typing.Any:
+    def _get_inequality_comparand(self, value, model) -> typing.Any:
         if _is_exact_number(value):
             return float(value) or 0.0
-        return super()._inequality_comparand(value, model)
+        return super()._get_inequality_comparand(value, model)
 
     @override
     def convert_to_record(self, value, record: ModelLike) -> float:
         return value or 0.0
 
     @override
-    def _pattern_text(self, cache_value: typing.Any) -> str:
+    def _get_pattern_text(self, cache_value: typing.Any) -> str:
         if cache_value is None:
             return ""
         return _float_to_pg_text(cache_value)

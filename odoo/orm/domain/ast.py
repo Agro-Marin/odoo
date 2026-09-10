@@ -241,7 +241,7 @@ class Domain:
                 _first, operator, value = args
                 return DomainCondition(
                     field_expr, typing.cast("str", operator), value
-                ).checked()
+                ).normalize()
             if args == TRUE_LEAF:
                 return _TRUE_DOMAIN
             if args == FALSE_LEAF:
@@ -800,7 +800,7 @@ class DomainCondition(Domain):
         object.__setattr__(self, "_opt", (OptimizationLevel.NONE, None))
         return self
 
-    def checked(self) -> DomainCondition:
+    def normalize(self) -> DomainCondition:
         if not isinstance(self.field_expr, str) or not self.field_expr:
             raise self._prepare_condition_error("Empty field name", error=TypeError)
         op = self.operator.lower()
@@ -810,7 +810,7 @@ class DomainCondition(Domain):
                 DeprecationWarning,
                 stacklevel=2,
             )
-            return DomainCondition(self.field_expr, op, self.value).checked()
+            return DomainCondition(self.field_expr, op, self.value).normalize()
         if op not in ACCEPTED_CONDITION_OPERATORS:
             raise self._prepare_condition_error("Invalid operator")
         if op in SUBDOMAIN_OPERATORS and isinstance(self.value, (list, tuple)):

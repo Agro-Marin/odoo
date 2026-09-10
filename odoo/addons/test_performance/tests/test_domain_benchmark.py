@@ -280,7 +280,7 @@ class TestDomainBenchmark(TransactionCase):
     def test_50_domcondition_checked(self):
         self._bench(
             "alloc: DomainCondition + checked()",
-            lambda: DomainCondition("name", "=", "test").checked(),
+            lambda: DomainCondition("name", "=", "test").normalize(),
         )
 
     def test_51_orderedset_creation(self):

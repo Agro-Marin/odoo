@@ -339,11 +339,13 @@ class BaseString(Field[str | typing.Literal[False]]):
             return SQL("COALESCE(%s)", SQL(", ").join(sql_field_langs))
         return sql_field
 
-    def expression_getter(self, field_expr: str) -> Callable[[BaseModel], typing.Any]:
+    def get_expression_getter(
+        self, field_expr: str
+    ) -> Callable[[BaseModel], typing.Any]:
         if field_expr != "display_name.no_error":
-            return super().expression_getter(field_expr)
+            return super().get_expression_getter(field_expr)
 
-        get_display_name = super().expression_getter("display_name")
+        get_display_name = super().get_expression_getter("display_name")
 
         def getter(record):
             try:
