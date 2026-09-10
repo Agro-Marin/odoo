@@ -470,6 +470,14 @@ describe("getDeepestEditablePosition", () => {
         expect(getDeepestEditablePosition(p, 2)).toEqual([p, 2]);
     });
 
+    test("should keep the deepest position when nothing around it is editable", () => {
+        const [div] = insertTestHtml(`<div>abc<t contenteditable="false">def</t></div>`);
+        const root = div.parentElement;
+        root.setAttribute("contenteditable", "false");
+
+        expect(getDeepestEditablePosition(root, 1)).toEqual([div, 2]);
+    });
+
     test("should get deepest editable position on the paragraph when non-editable descendants contain only text nodes", () => {
         const [p] = insertTestHtml(
             unformat(`

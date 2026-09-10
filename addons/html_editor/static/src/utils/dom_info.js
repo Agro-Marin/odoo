@@ -669,6 +669,11 @@ export function getDeepestEditablePosition(node, offset) {
         deepNode,
         (el) => !isContentEditable(el) && isContentEditable(el.parentElement),
     );
+    if (!closestNonEditable) {
+        // No editable ancestor at all (the whole root is non-editable): there
+        // is no editable position to correct toward, so keep the deepest one.
+        return [deepNode, deepOffset];
+    }
 
     const nodeLevelAncestorIndex = childNodeIndex(nodeLevelAncestor);
     const closestNonEditableIndex = childNodeIndex(closestNonEditable);
