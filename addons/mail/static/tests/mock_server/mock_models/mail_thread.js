@@ -1,4 +1,7 @@
-import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
+import {
+    mailDataHelpers,
+    registeredRoutes,
+} from "@mail/../tests/mock_server/mail_mock_server";
 import { parseEmail } from "@mail/utils/common/format";
 import {
     Command,
@@ -10,6 +13,10 @@ import {
 
 export class MailThread extends models.ServerModel {
     _name = "mixin.mail.thread";
+    // Every /mail route the client reaches a thread through travels with the
+    // model: defineModels() registers them for any helper that spreads
+    // mailModels, whether or not it went through defineMailModels().
+    static _mockRoutes = registeredRoutes;
     _inherit = ["base"];
 
     /**

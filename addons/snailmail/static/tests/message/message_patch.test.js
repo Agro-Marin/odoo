@@ -58,7 +58,7 @@ test("Cancelled", async () => {
     await start();
     await openFormView("res.partner", partnerId);
     await click(".o-mail-Message-notification i.fa-paper-plane");
-    await contains(".o-snailmail-SnailmailNotificationPopover i.fa-trash-o");
+    await contains(".o-snailmail-SnailmailNotificationPopover i.fa-trash-can");
     await contains(".o-snailmail-SnailmailNotificationPopover", { text: "Cancelled" });
 });
 
@@ -83,7 +83,7 @@ test("Pending", async () => {
     await start();
     await openFormView("res.partner", partnerId);
     await click(".o-mail-Message-notification i.fa-paper-plane");
-    await contains(".o-snailmail-SnailmailNotificationPopover i.fa-clock-o");
+    await contains(".o-snailmail-SnailmailNotificationPopover i.fa-clock");
     await contains(".o-snailmail-SnailmailNotificationPopover", {
         text: "Awaiting Dispatch",
     });

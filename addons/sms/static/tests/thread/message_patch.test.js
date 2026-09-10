@@ -24,7 +24,7 @@ test("Notification Pending", async () => {
     await start();
     await openFormView("res.partner", partnerId);
     await _assertContainsSmsNotification();
-    await _assertContainsPopoverWithIcon("fa-paper-plane-o");
+    await _assertContainsPopoverWithIcon("fa-paper-plane");
 });
 
 test("Notification Sent", async () => {
@@ -69,7 +69,7 @@ const _assertContainsSmsNotification = async () => {
     await contains(".o-mail-Message");
     await contains(".o-mail-Message-notification");
     await contains(".o-mail-Message-notification i");
-    await contains(".o-mail-Message-notification i.fa-mobile");
+    await contains(".o-mail-Message-notification i.fa-mobile-screen-button");
 };
 
 const _assertContainsPopoverWithIcon = async (iconClassName) => {

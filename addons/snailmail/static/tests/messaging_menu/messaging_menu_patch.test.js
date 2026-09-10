@@ -131,6 +131,9 @@ test("grouped notifications by document model", async (assert) => {
     ]);
     mockService("action", {
         doAction(action) {
+            if (typeof action !== "object") {
+                return super.doAction(...arguments);
+            }
             asyncStep("do_action");
             expect(action.name).toBe("Snailmail Failures");
             expect(action.type).toBe("ir.actions.act_window");

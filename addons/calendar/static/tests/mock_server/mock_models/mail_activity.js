@@ -4,7 +4,13 @@ import { fields } from "@web/../tests/web_test_helpers";
 export class MailActivity extends mailModels.MailActivity {
     name = fields.Char();
 
-    async action_create_calendar_event() {
+    /** @param {number | number[]} idOrIds */
+    async action_create_calendar_event(idOrIds) {
+        // `this` is the model; the activities are the argument, as on every
+        // mock ORM method.
+        const activities = this.browse(idOrIds);
+        const [activity] = activities;
+        const [user] = this.env["res.users"].browse(activity.user_id);
         await openView({
             res_model: "calendar.event",
             views: [[false, "calendar"]],
@@ -17,33 +23,37 @@ export class MailActivity extends mailModels.MailActivity {
             views: [[false, "calendar"]],
             target: "current",
             context: {
-                default_activity_type_id: this.activity_type_id,
-                default_res_id: this.res_id,
-                default_res_model: this.res_model,
-                default_name: this.res_name,
-                default_description: this.note,
-                default_activity_ids: [(6, 0, this.ids)],
-                default_partner_ids: this.user_id.partner_id,
-                default_user_id: this.user_id,
-                initial_date: this.date_deadline,
-                default_calendar_event_id: this.calendar_event_id,
-                orig_activity_ids: this.ids,
+                default_activity_type_id: activity.activity_type_id,
+                default_res_id: activity.res_id,
+                default_res_model: activity.res_model,
+                default_name: activity.res_name,
+                default_description: activity.note,
+                default_activity_ids: [[6, 0, activities.map((a) => a.id)]],
+                default_partner_ids: user ? [user.partner_id] : [],
+                default_user_id: activity.user_id,
+                initial_date: activity.date_deadline,
+                default_calendar_event_id: activity.calendar_event_id,
+                orig_activity_ids: activities.map((a) => a.id),
                 return_to_parent_breadcrumb: true,
             },
         };
     }
-    unlink_w_meeting() {
-        const events = this.map((act) => act.calendar_event_id).filter(Boolean);
+
+    /** @param {number | number[]} idOrIds */
+    unlink_w_meeting(idOrIds) {
+        const activities = this.browse(idOrIds);
+        const ids = activities.map((a) => a.id);
+        const events = activities.map((a) => a.calendar_event_id).filter(Boolean);
         // Mirror the real model: only unlink an event no OTHER activity
-        // (outside self) still references.
-        const eventsToUnlink = events.filter((eventId) => {
-            const otherActivities = this.env["mail.activity"].search([
-                ["calendar_event_id", "=", eventId],
-                ["id", "not in", this.ids],
-            ]);
-            return otherActivities.length === 0;
-        });
-        const res = this.unlink(arguments[0]);
+        // (outside the ones being unlinked) still references.
+        const eventsToUnlink = events.filter(
+            (eventId) =>
+                this.search([
+                    ["calendar_event_id", "=", eventId],
+                    ["id", "not in", ids],
+                ]).length === 0,
+        );
+        const res = this.unlink(ids);
         this.env["calendar.event"].unlink(eventsToUnlink);
         return res;
     }

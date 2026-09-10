@@ -45,6 +45,9 @@ test("can listen on bus and display notifications in DOM and click OK", async ()
 test("can listen on bus and display notifications in DOM and click Detail", async () => {
     mockService("action", {
         doAction(actionId) {
+            if (actionId === "menu") {
+                return;
+            }
             asyncStep(actionId.type);
         },
     });

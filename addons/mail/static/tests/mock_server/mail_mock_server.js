@@ -77,7 +77,7 @@ const onRpcAfterGlobal = { cb: (route, args) => {} };
 registry.category("mail.on_rpc_before_global").add(true, onRpcBeforeGlobal);
 registry.category("mail.on_rpc_after_global").add(true, onRpcAfterGlobal);
 
-const registeredRoutes = [];
+export const registeredRoutes = [];
 
 export function registerMailMockRoutes() {
     for (const [route, handler] of registeredRoutes) {

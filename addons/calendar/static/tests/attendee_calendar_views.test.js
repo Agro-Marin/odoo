@@ -123,6 +123,10 @@ test("Linked record rendering", async () => {
 });
 
 test("Default duration rendering", async () => {
+    // The mock answers the server's fallback (1 h); the test is about a
+    // CONFIGURED duration reaching the quick-created event, so it sets one
+    // the fallback cannot be mistaken for.
+    onRpc("calendar.event", "get_default_duration", () => 3.25);
     await mountView({ type: "calendar", resModel: "calendar.event", arch });
     expandCalendarView();
     await changeScale("week");

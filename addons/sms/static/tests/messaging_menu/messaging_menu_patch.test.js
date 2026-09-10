@@ -132,6 +132,9 @@ test("grouped notifications by document model", async () => {
     ]);
     mockService("action", {
         doAction(action) {
+            if (typeof action !== "object") {
+                return super.doAction(...arguments);
+            }
             asyncStep("do_action");
             expect(action.name).toBe("SMS Failures");
             expect(action.type).toBe("ir.actions.act_window");

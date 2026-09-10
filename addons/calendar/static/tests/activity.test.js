@@ -7,7 +7,7 @@ import {
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
-import { test } from "@odoo/hoot";
+import { expect, test } from "@odoo/hoot";
 import { onRpc, preloadFullCalendar } from "@web/../tests/web_test_helpers";
 
 defineCalendarModels();
@@ -78,6 +78,10 @@ test("Cancelling an activity linked to an event keeps it visible if the server r
     });
     await start();
     await openFormView("res.partner", partnerId);
+    // The rejection reaches the user through the RPC error dialog; the test
+    // owns it so that it is the one error this test expects.
+    expect.errors(1);
     await click(".o-mail-Activity .btn", { text: "Cancel" });
     await contains(".o-mail-Activity", { count: 1 });
+    await expect.waitForErrors([/boom/]);
 });

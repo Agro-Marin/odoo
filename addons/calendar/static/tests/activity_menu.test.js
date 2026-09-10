@@ -66,6 +66,9 @@ test("activity menu widget:today meetings", async () => {
     ]);
     mockService("action", {
         doAction(action) {
+            if (action === "menu") {
+                return;
+            }
             if (typeof action === "string") {
                 asyncStep(action);
             }
