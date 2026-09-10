@@ -1222,7 +1222,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   321
 §2.4.2   … of those, spelled ``_check_<field>``                        144
 §2.4.2   Multi-field constraints named for one trigger                  61
-§2.4.3   Non-test methods declared on a model class                 26,996
+§2.4.3   Non-test methods declared on a model class                 27,000
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            143
@@ -1231,17 +1231,17 @@ Section  Population                                                  Count
 §2.4.4   ``fields`` family: distinct names spelled head-first          100
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
-§2.4.4   Other heads: definitions spelled head-first                   152
+§2.4.4   Other heads: definitions spelled head-first                   154
 §2.4.4   Other heads: definitions spelled tail-first                   189
 §2.4.5   ``X_to_Y`` converter definitions                              102
 §2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      6,404
+§2.4.7   ``_get_*`` definitions                                      6,406
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   142
 §2.4.7   ``_calculate_*`` model methods                                  0
 §2.4.7   ``_prepare_*`` definitions                                    891
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            36
-§2.4.8   ``_check_*`` definitions                                    1,222
+§2.4.8   ``_check_*`` definitions                                    1,223
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
