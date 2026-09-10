@@ -109,7 +109,7 @@ class StockLot(models.Model):
                 )
 
     @api.model
-    def _alert_date_exceeded(self, company_id=False):
+    def _alert_lots_past_alert_date(self, company_id=False):
         domain = Domain(
             [
                 ("quantity", ">", 0),

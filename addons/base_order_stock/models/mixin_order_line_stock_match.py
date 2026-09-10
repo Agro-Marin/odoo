@@ -184,7 +184,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
         expected_date = self._get_line_date_expected(order_line)
         return (
             0 if expected_lots and move_lots and (expected_lots & move_lots) else 1,
-            self._rank_location(order_line, move),
+            self._get_location_rank(order_line, move),
             0
             if float_compare(move_qty, residual, precision_digits=precision) == 0
             else 1,
@@ -193,7 +193,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
             else float("inf"),
         )
 
-    def _rank_location(self, order_line, move):
+    def _get_location_rank(self, order_line, move):
         return 1
 
     def _get_line_date_expected(self, order_line):

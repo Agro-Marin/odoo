@@ -160,7 +160,7 @@ class SaleOrderLine(models.Model):
     def _purchase_service_get_company(self):
         return self.company_id
 
-    def _purchase_service_prepare_order_values(self, supplierinfo):
+    def _prepare_purchase_service_order_values(self, supplierinfo):
         self.check_singleton()
         company = self._purchase_service_get_company()
         partner_supplier = supplierinfo.partner_id.with_company(company)
@@ -259,7 +259,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _create_purchase_order(self, supplierinfo):
-        values = self._purchase_service_prepare_order_values(supplierinfo)
+        values = self._prepare_purchase_service_order_values(supplierinfo)
         return (
             self.env["purchase.order"]
             .with_context(mail_create_nosubscribe=True)

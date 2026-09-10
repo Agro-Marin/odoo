@@ -42,11 +42,11 @@ class StockValuationReport(models.AbstractModel):
         )
         accounts_by_product = company._get_accounts_by_product(products=valued_products)
         if not date:
-            inventory_data = company.stock_value(accounts_by_product)
-            accounting_data = company.stock_accounting_value(accounts_by_product)
+            inventory_data = company._get_stock_value(accounts_by_product)
+            accounting_data = company._get_stock_accounting_value(accounts_by_product)
         else:
-            inventory_data = company.stock_value(accounts_by_product, at_date=date)
-            accounting_data = company.stock_accounting_value(
+            inventory_data = company._get_stock_value(accounts_by_product, at_date=date)
+            accounting_data = company._get_stock_accounting_value(
                 accounts_by_product, at_date=date
             )
 
@@ -100,7 +100,7 @@ class StockValuationReport(models.AbstractModel):
             "initial_balance": initial_balance,
         }
 
-        if self._must_include_inventory_loss():
+        if self._should_include_inventory_loss():
             location_valuation_vals = company._get_location_valuation_vals(
                 date,
                 location_domain=[("usage", "=", "inventory")],
@@ -166,7 +166,7 @@ class StockValuationReport(models.AbstractModel):
         )
         return report_data
 
-    def _must_include_inventory_loss(self):
+    def _should_include_inventory_loss(self):
         return bool(
             self.env["stock.location"].search_count(
                 [

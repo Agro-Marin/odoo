@@ -173,7 +173,7 @@ class StockMove(models.Model):
                 res["analytic_distribution"] = self.sale_line_id.analytic_distribution
         return res
 
-    def _reassign_sale_lines(self, sale_order):
+    def _update_sale_lines_for_order(self, sale_order):
         movable = self.filtered(lambda m: m.sale_line_id.order_id != sale_order)
         if not movable:
             return

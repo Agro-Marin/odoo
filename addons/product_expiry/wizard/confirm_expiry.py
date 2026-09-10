@@ -32,12 +32,12 @@ class ExpiryPickingConfirmation(models.TransientModel):
                     lot_name=wizard.lot_ids.name,
                 )
 
-    def _pickings_to_validate(self):
+    def _get_pickings_to_validate(self):
         return self.env["stock.picking"].browse(
             self.env.context.get("button_validate_picking_ids") or []
         )
 
-    def _validation_context(self):
+    def _get_validation_context(self):
         return {
             key: value
             for key, value in self.env.context.items()
@@ -45,13 +45,13 @@ class ExpiryPickingConfirmation(models.TransientModel):
         } | {"skip_expired": True}
 
     def process(self):
-        pickings = self._pickings_to_validate()
+        pickings = self._get_pickings_to_validate()
         if not pickings:
             return True
-        return pickings.with_context(**self._validation_context()).button_validate()
+        return pickings.with_context(**self._get_validation_context()).button_validate()
 
     def process_no_expired(self):
-        pickings = self._pickings_to_validate()
+        pickings = self._get_pickings_to_validate()
         self.picking_ids.move_line_ids._filtered_expired().unlink()
         remaining = pickings.filtered("move_line_ids")
         emptied = pickings - remaining

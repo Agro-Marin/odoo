@@ -8,7 +8,7 @@ from odoo.addons.sale.controllers.portal import CustomerPortal
 
 
 class SaleStockPortal(CustomerPortal):
-    def _stock_picking_check_access(self, picking_id, access_token=None):
+    def _check_stock_picking_access(self, picking_id, access_token=None):
         picking = request.env["stock.picking"].browse(picking_id)
         picking_sudo = picking.sudo()
         try:
@@ -24,7 +24,7 @@ class SaleStockPortal(CustomerPortal):
 
     def _render_picking_pdf(self, report_xmlid, picking_id, access_token=None):
         try:
-            picking_sudo = self._stock_picking_check_access(
+            picking_sudo = self._check_stock_picking_access(
                 picking_id, access_token=access_token
             )
         except exceptions.AccessError, exceptions.MissingError:

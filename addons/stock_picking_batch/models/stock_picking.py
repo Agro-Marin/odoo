@@ -75,7 +75,7 @@ class StockPicking(models.Model):
     def action_confirm(self):
         res = super().action_confirm()
         for picking in self:
-            picking._find_auto_batch()
+            picking._resolve_auto_batch()
         return res
 
     def button_validate(self):
@@ -104,7 +104,7 @@ class StockPicking(models.Model):
 
         assignable_pickings = self.env["stock.picking"].browse(to_assign_ids)
         for picking in assignable_pickings:
-            picking._find_auto_batch()
+            picking._resolve_auto_batch()
         assignable_pickings.move_line_ids.with_context(
             skip_auto_waveable=True
         )._auto_wave()
@@ -133,7 +133,7 @@ class StockPicking(models.Model):
             return False
         return super()._should_show_transfers()
 
-    def _find_auto_batch(self):
+    def _resolve_auto_batch(self):
         self.check_singleton()
         if (
             not self.picking_type_id._is_auto_batch_grouped()

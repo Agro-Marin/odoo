@@ -10,4 +10,4 @@ class StockScheduler(models.AbstractModel):
 
     @api.model
     def _alert_expired_lots(self, use_new_cursor=False, company_id=False):
-        self.env["stock.lot"]._alert_date_exceeded(company_id=company_id)
+        self.env["stock.lot"]._alert_lots_past_alert_date(company_id=company_id)

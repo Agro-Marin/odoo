@@ -76,8 +76,8 @@ class SaleOrderLine(models.Model):
                 if line.purchase_line_count > 0:
                     line.product_readonly = True
 
-    def _purchase_service_prepare_order_values(self, supplierinfo):
-        res = super()._purchase_service_prepare_order_values(supplierinfo)
+    def _prepare_purchase_service_order_values(self, supplierinfo):
+        res = super()._prepare_purchase_service_order_values(supplierinfo)
         dropship_operation = self.env["stock.picking.type"].search(
             [
                 ("company_id", "=", res["company_id"]),

@@ -8,7 +8,7 @@ class StockMoveLine(models.Model):
         return (
             super()._should_show_lot_in_invoice()
             or bool(
-                self._counterparty_usages()
+                self._get_counterparty_usages()
                 & {self.location_id.usage, self.location_dest_id.usage},
             )
             or self.env.ref("stock.stock_location_inter_company")
@@ -18,5 +18,5 @@ class StockMoveLine(models.Model):
             )
         )
 
-    def _counterparty_usages(self):
+    def _get_counterparty_usages(self):
         return set()

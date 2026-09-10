@@ -68,10 +68,10 @@ class StockPicking(models.Model):
                 )
             )
             self._add_reference(reference)
-        self.move_ids._reassign_sale_lines(self.sale_id)
+        self.move_ids._update_sale_lines_for_order(self.sale_id)
 
     def _log_less_quantities_than_expected(self, moves):
-        def _keys_in_groupby(sale_line):
+        def _get_groupby_keys(sale_line):
             return (sale_line.order_id, sale_line.order_id.user_id)
 
         def _render_note_exception_quantity(moves_information):
@@ -93,7 +93,7 @@ class StockPicking(models.Model):
             )
 
         documents = self.sudo()._get_log_activity_documents(
-            moves, "sale_line_id", "DOWN", _keys_in_groupby
+            moves, "sale_line_id", "DOWN", _get_groupby_keys
         )
         self._log_activity(_render_note_exception_quantity, documents)
 

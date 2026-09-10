@@ -270,7 +270,7 @@ class ProductProduct(models.Model):
                 product.id, product.standard_price
             )
 
-    def _scoped_for_company(self, company, at_date=None):
+    def _with_company_scope(self, company, at_date=None):
         products = self.with_company(company).with_context(
             allowed_company_ids=company.ids
         )
@@ -280,7 +280,7 @@ class ProductProduct(models.Model):
         return products
 
     def _get_valuation_by_company(self, company, at_date=None):
-        return self._scoped_for_company(company, at_date)._run_valuation_batches(
+        return self._with_company_scope(company, at_date)._run_valuation_batches(
             at_date
         )
 
@@ -384,7 +384,7 @@ class ProductProduct(models.Model):
         products = super().create(vals_list)
         products.with_context(
             valuation_date=datetime.min  # noqa: DTZ901
-        )._change_standard_price(
+        )._create_standard_price_change_values(
             {product: 0 for product in products if product.standard_price}
         )
         return products
@@ -399,10 +399,10 @@ class ProductProduct(models.Model):
             self.product_tmpl_id.write({"lot_valuated": vals.pop("lot_valuated")})
         res = super().write(vals)
         if old_price:
-            self._change_standard_price(old_price)
+            self._create_standard_price_change_values(old_price)
         return res
 
-    def _change_standard_price(self, old_price):
+    def _create_standard_price_change_values(self, old_price):
         product_values = []
         product_ids_lot_valuated = set()
         date = self.env.context.get("valuation_date") or fields.Datetime.now()

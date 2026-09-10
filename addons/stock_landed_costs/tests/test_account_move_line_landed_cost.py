@@ -40,4 +40,4 @@ class TestAccountMoveLineLandedCost(TestStockLandedCostsCommon):
 
     def test_service_landed_cost_is_stock_account_eligible(self):
         line = self.env["account.move.line"].new({"product_id": self.landed_cost.id})
-        self.assertTrue(line._eligible_for_stock_account())
+        self.assertTrue(line._is_eligible_for_stock_account())

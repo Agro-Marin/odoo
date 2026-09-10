@@ -123,7 +123,7 @@ class StockLot(models.Model):
             old_price = {lot: lot.standard_price for lot in self}
         res = super().write(vals)
         if old_price:
-            self._change_standard_price(old_price)
+            self._create_standard_price_change_values(old_price)
         return res
 
     def _update_standard_price(self):
@@ -150,7 +150,7 @@ class StockLot(models.Model):
             for lot in lots.with_context(disable_auto_revaluation=True):
                 lot.standard_price = unit_cost_by_lot_id.get(lot.id, 0)
 
-    def _change_standard_price(self, old_price):
+    def _create_standard_price_change_values(self, old_price):
         product_values = []
         for lot in self:
             lot_old_price = old_price.get(lot)

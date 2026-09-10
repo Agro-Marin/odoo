@@ -149,8 +149,7 @@ class ResCompany(models.Model):
             account_move._post()
         return account_move
 
-    @api.private
-    def stock_value(self, accounts_by_product=None, at_date=None):
+    def _get_stock_value(self, accounts_by_product=None, at_date=None):
         self.check_singleton()
         value_by_account: dict = defaultdict(float)
         if not accounts_by_product:
@@ -163,8 +162,7 @@ class ResCompany(models.Model):
             value_by_account[account] += product_value
         return value_by_account
 
-    @api.private
-    def stock_accounting_value(self, accounts_by_product=None, at_date=None):
+    def _get_stock_accounting_value(self, accounts_by_product=None, at_date=None):
         self.check_singleton()
         if not accounts_by_product:
             accounts_by_product = self._get_accounts_by_product()
@@ -362,8 +360,8 @@ class ResCompany(models.Model):
         if "inventory_data" in self.env.context:
             inventory_data = self.env.context.get("inventory_data")
         else:
-            inventory_data = self.stock_value(accounts_by_product, at_date)
-        accounting_data = self.stock_accounting_value(accounts_by_product, at_date)
+            inventory_data = self._get_stock_value(accounts_by_product, at_date)
+        accounting_data = self._get_stock_accounting_value(accounts_by_product, at_date)
 
         accounts = inventory_data.keys() | accounting_data.keys()
         for account in accounts:
@@ -402,10 +400,10 @@ class ResCompany(models.Model):
         ]
 
         amls_vals_list = []
-        accounting_data_today = self.stock_accounting_value(
+        accounting_data_today = self._get_stock_accounting_value(
             accounts_by_product, at_date=at_date
         )
-        accounting_data_last_period = self.stock_accounting_value(
+        accounting_data_last_period = self._get_stock_accounting_value(
             accounts_by_product, at_date=fiscal_year_date_from
         )
 

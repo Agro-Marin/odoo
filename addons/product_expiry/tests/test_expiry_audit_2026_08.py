@@ -277,7 +277,7 @@ class TestExpiryConfirmation(ExpiryAuditCommon):
             )
             .create({"lot_ids": [Command.set(self._lot("AUDIT-DEF", 30).ids)]})
         )
-        context = wizard._validation_context()
+        context = wizard._get_validation_context()
         self.assertNotIn("default_lot_ids", context)
         self.assertNotIn("default_picking_ids", context)
         self.assertEqual(context["some_other_key"], 1)
@@ -405,7 +405,7 @@ class TestExpiryAlertScheduler(ExpiryAuditCommon):
                 self.product, self.stock_location, 1.0, lot_id=lot
             )
         self.env.flush_all()
-        self.env["stock.lot"]._alert_date_exceeded()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
         self.env.flush_all()
         self.assertTrue(all(stocked.mapped("product_expiry_reminded")))
         self.assertFalse(any(bare.mapped("product_expiry_reminded")))
@@ -422,8 +422,8 @@ class TestExpiryAlertScheduler(ExpiryAuditCommon):
             self.product, self.stock_location, 1.0, lot_id=lot
         )
         self.env.flush_all()
-        self.env["stock.lot"]._alert_date_exceeded()
-        self.env["stock.lot"]._alert_date_exceeded()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
         self.env.flush_all()
         self.assertEqual(
             self.env["mail.activity"].search_count(
@@ -462,7 +462,7 @@ class TestExpiryAlertScheduler(ExpiryAuditCommon):
             return original(records, *args, **kwargs)
 
         self.patch(type(self.env["stock.lot"]), "activity_schedule", counting)
-        self.env["stock.lot"]._alert_date_exceeded()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
         self.env.flush_all()
         self.assertEqual(
             len(calls), 1, "six lots sharing one assignee must take one call, not six"

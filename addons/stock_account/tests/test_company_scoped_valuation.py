@@ -401,7 +401,7 @@ class TestValuationBatching(TestStockValuationCommon):
     def _stock_value_query_count(self):
         self.env.invalidate_all()
         before = self.env.cr.sql_statement_count
-        self.company.stock_value()
+        self.company._get_stock_value()
         return self.env.cr.sql_statement_count - before
 
     def test_stock_value_does_not_scale_with_the_catalogue(self):

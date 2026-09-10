@@ -20,7 +20,7 @@ Mixins:
 
 Also extends ``stock.picking`` (``delay_pass``, effective-transfer-date
 helpers), ``account.move`` (incoterm-location override), ``stock.move.line``
-(``_counterparty_usages``, the location usage each bridge contributes) and
+(``_get_counterparty_usages``, the location usage each bridge contributes) and
 ``res.users`` (``property_warehouse_id``).
 
 ``transfer_state`` is computed per line from the quantities and rolled up to

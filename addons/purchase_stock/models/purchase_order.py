@@ -113,7 +113,7 @@ class PurchaseOrder(models.Model):
         for order in self:
             order.count_transfer_incoming = len(order.picking_ids)
 
-    def _filter_effective_pickings(self, pickings):
+    def _get_effective_pickings(self, pickings):
         return pickings.filtered(
             lambda p: p.state == "done" and p.location_dest_id.usage != "supplier",
         )
@@ -482,7 +482,7 @@ class PurchaseOrder(models.Model):
 
     def _log_decrease_ordered_quantity(self, purchase_order_lines_quantities):
 
-        def _keys_in_groupby(move):
+        def _get_groupby_keys(move):
             return (move.picking_id, move.product_id.responsible_id)
 
         def _render_note_exception_quantity_po(order_exceptions):
@@ -508,7 +508,7 @@ class PurchaseOrder(models.Model):
             purchase_order_lines_quantities,
             "move_ids",
             "DOWN",
-            _keys_in_groupby,
+            _get_groupby_keys,
         )
         filtered_documents = {}
 

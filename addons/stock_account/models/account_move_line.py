@@ -15,7 +15,7 @@ class AccountMoveLine(models.Model):
         for line in self:
             if not line.move_id.is_purchase_document():
                 continue
-            if not line._eligible_for_stock_account():
+            if not line._is_eligible_for_stock_account():
                 continue
             fiscal_position = line.move_id.fiscal_position_id
             accounts = line.with_company(
@@ -33,7 +33,7 @@ class AccountMoveLine(models.Model):
             AccountMoveLine, self.filtered(lambda l: l.display_type != "cogs")
         )._inverse_product_id()
 
-    def _eligible_for_stock_account(self):
+    def _is_eligible_for_stock_account(self):
         self.check_singleton()
         if not self.product_id.is_storable:
             return False

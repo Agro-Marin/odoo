@@ -15,8 +15,8 @@ class SaleOrderLine(models.Model):
             purchase_line_vals["analytic_distribution"] = analytic_distribution
         return purchase_line_vals
 
-    def _purchase_service_prepare_order_values(self, supplierinfo):
+    def _prepare_purchase_service_order_values(self, supplierinfo):
         return {
-            **super()._purchase_service_prepare_order_values(supplierinfo),
+            **super()._prepare_purchase_service_order_values(supplierinfo),
             "project_id": self.order_id.project_id.id,
         }

@@ -86,11 +86,11 @@ class MixinOrderStock(models.AbstractModel):
     )
     def _compute_date_effective(self):
         for order in self:
-            pickings = order._filter_effective_pickings(order.picking_ids)
+            pickings = order._get_effective_pickings(order.picking_ids)
             dates = [d for d in pickings.mapped("date_done") if d]
             order.date_effective = min(dates, default=False)
 
-    def _filter_effective_pickings(self, pickings):
+    def _get_effective_pickings(self, pickings):
         return pickings.filtered(
             lambda p: p.state == "done" and p.date_done,
         )

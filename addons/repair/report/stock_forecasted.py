@@ -9,12 +9,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
             return False
         return super()._get_reservation_data(move)
 
-    def _product_sale_domain(self, product_template_ids, product_ids):
+    def _get_domain_product_sale(self, product_template_ids, product_ids):
         """
         When a product's move is bind at the same time to a Repair Order
         and to a Sale Order, only take the data into account once, as a RO
         """
-        sol_domain = super()._product_sale_domain(product_template_ids, product_ids)
+        sol_domain = super()._get_domain_product_sale(product_template_ids, product_ids)
         move_domain = self._get_domain_product(product_template_ids, product_ids)
         move_domain += [
             ("repair_id", "!=", False),

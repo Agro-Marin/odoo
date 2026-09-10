@@ -35,7 +35,7 @@ class PurchaseReceiptLineMatch(models.Model):
     def _get_no_move_message(self):
         return _("You must select at least one receipt move to match.")
 
-    def _rank_location(self, order_line, move):
+    def _get_location_rank(self, order_line, move):
         if order_line.location_final_id and order_line.location_final_id == (
             move.location_final_id
         ):

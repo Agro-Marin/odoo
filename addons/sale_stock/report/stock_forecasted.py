@@ -55,7 +55,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         res = super()._get_report_header(
             product_template_ids, product_ids, wh_location_ids
         )
-        domain = self._product_sale_domain(product_template_ids, product_ids)
+        domain = self._get_domain_product_sale(product_template_ids, product_ids)
         so_lines = (
             self.env["sale.order.line"].sudo().search(domain).grouped("product_id")
         )
@@ -86,7 +86,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             )
         return res
 
-    def _product_sale_domain(self, product_template_ids, product_ids):
+    def _get_domain_product_sale(self, product_template_ids, product_ids):
         domain = [("state", "=", "draft")]
         if product_template_ids:
             domain += [("product_template_id", "in", product_template_ids)]

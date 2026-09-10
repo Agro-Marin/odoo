@@ -156,7 +156,7 @@ class StockPicking(models.Model):
                 )
         return res
 
-    def _carrier_exception_note(self, exception):
+    def _get_carrier_exception_note(self, exception):
         self.check_singleton()
         line_1 = _("Exception occurred with respect to carrier on the transfer")
         line_2 = _("Manual actions might be needed.")
@@ -198,7 +198,7 @@ class StockPicking(models.Model):
                     pick.sudo().activity_schedule(
                         "mail.mail_activity_data_warning",
                         date.today(),
-                        note=pick._carrier_exception_note(exception_message),
+                        note=pick._get_carrier_exception_note(exception_message),
                         user_id=pick.user_id.id or self.env.uid,
                     )
                 else:

@@ -82,7 +82,7 @@ class TestStockLot(TestStockCommon):
         move_a.picked = True
         picking_in._action_done()
 
-        self.env["stock.lot"]._alert_date_exceeded()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
 
         activity_id = self.env.ref("mail.mail_activity_data_todo").id
         activity_count = self.env["mail.activity"].search_count(
@@ -96,7 +96,7 @@ class TestStockLot(TestStockCommon):
             activity_count, 1, "No activity created while there should be one"
         )
 
-        self.env["stock.lot"]._alert_date_exceeded()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
 
         activity_count = self.env["mail.activity"].search_count(
             [
@@ -129,7 +129,7 @@ class TestStockLot(TestStockCommon):
             "As activity is done, there shouldn't be any related activity",
         )
 
-        self.env["stock.lot"]._alert_date_exceeded()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
 
         activity_count = self.env["mail.activity"].search_count(
             [
@@ -194,7 +194,7 @@ class TestStockLot(TestStockCommon):
 
         picking_in._action_done()
 
-        self.env["stock.lot"]._alert_date_exceeded()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
 
         activity_id = self.env.ref("mail.mail_activity_data_todo").id
         activity_count = self.env["mail.activity"].search_count(
@@ -252,7 +252,7 @@ class TestStockLot(TestStockCommon):
 
         picking_in._action_done()
 
-        self.env["stock.lot"]._alert_date_exceeded()
+        self.env["stock.lot"]._alert_lots_past_alert_date()
 
         activity_id = self.env.ref("mail.mail_activity_data_todo").id
         activity_count = self.env["mail.activity"].search_count(

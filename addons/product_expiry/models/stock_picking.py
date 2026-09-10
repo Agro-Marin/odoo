@@ -7,22 +7,22 @@ class StockPicking(models.Model):
     def _pre_action_done_hook(self):
         res = super()._pre_action_done_hook()
         if res is True and not self.env.context.get("skip_expired"):
-            expired_lines = self._expired_move_lines()
+            expired_lines = self._get_expired_move_lines()
             if expired_lines:
                 return expired_lines.picking_id._action_generate_expired_wizard(
                     expired_lines
                 )
         return res
 
-    def _expired_move_lines(self):
+    def _get_expired_move_lines(self):
         return self.move_line_ids._filtered_expired()
 
     def _check_expired_lots(self):
-        return self._expired_move_lines().picking_id
+        return self._get_expired_move_lines().picking_id
 
     def _action_generate_expired_wizard(self, expired_lines=None):
         if expired_lines is None:
-            expired_lines = self._expired_move_lines()
+            expired_lines = self._get_expired_move_lines()
         view_id = self.env.ref("product_expiry.confirm_expiry_view").id
         context = dict(self.env.context)
         context.update(

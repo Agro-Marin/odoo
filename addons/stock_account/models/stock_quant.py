@@ -78,7 +78,7 @@ class StockQuant(models.Model):
                 )
 
             products = (company_quants - lot_quants).product_id.with_company(company)
-            scoped = products._scoped_for_company(company)
+            scoped = products._with_company_scope(company)
             qty_by_product_id = {
                 product.id: product.qty_available for product in scoped
             }

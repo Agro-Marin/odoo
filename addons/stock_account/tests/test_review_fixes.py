@@ -592,7 +592,7 @@ class TestMixedOwnershipValuation(TestStockValuationCommon):
     def test_historical_quantity_counts_matching_lines_only(self):
         product = self._avco_product("Rewind")
         self._mixed_receipt(product, 10, 5, 10)
-        scoped = product._scoped_for_company(self.company)
+        scoped = product._with_company_scope(self.company)
         self.assertEqual(scoped.qty_available, 10, "the owned on-hand")
         self.assertEqual(
             scoped.with_context(

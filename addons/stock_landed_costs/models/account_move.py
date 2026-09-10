@@ -116,8 +116,8 @@ class AccountMoveLine(models.Model):
         ):
             self.is_landed_costs_line = False
 
-    def _eligible_for_stock_account(self):
-        return super()._eligible_for_stock_account() or (
+    def _is_eligible_for_stock_account(self):
+        return super()._is_eligible_for_stock_account() or (
             self.product_id.type == "service"
             and self.product_id.landed_cost_ok
             and self.product_id.valuation == "real_time"

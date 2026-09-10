@@ -291,7 +291,7 @@ class SaleOrder(models.Model):
         for order in self:
             order.count_transfer_outgoing = len(order.picking_ids)
 
-    def _filter_effective_pickings(self, pickings):
+    def _get_effective_pickings(self, pickings):
         return pickings.filtered(
             lambda p: p.state == "done" and p.location_dest_id.usage == "customer",
         )

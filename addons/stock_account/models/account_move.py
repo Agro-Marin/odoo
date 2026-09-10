@@ -91,7 +91,7 @@ class AccountMove(models.Model):
 
             for line in move.invoice_line_ids:
                 if (
-                    not line._eligible_for_stock_account()
+                    not line._is_eligible_for_stock_account()
                     or line.product_id.valuation != "real_time"
                 ):
                     continue
