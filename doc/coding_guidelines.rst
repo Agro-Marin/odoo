@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.30
+:Version: 6.31
 :Date: 2026-09-09
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -6397,6 +6397,19 @@ and ``RUF075`` (post-``yield`` code is the assertion).
 
 * Default: ``standard`` + ``at_install``.
 * ``HttpCase``: ``@tagged("post_install", "-at_install")``.
+* **``at_install`` means the registry as the module is installed, and the
+  loader keeps that promise on an installed database too** ``[review]``. On a
+  fresh ``-i`` a module's suite runs the moment it loads, in the partial
+  registry upstream describes. On a database where a *dependent* is already
+  installed -- ``--test-tags /hr`` or ``-u hr`` with ``hr_work_entry`` present
+  -- that registry cannot represent the table: ``hr_version`` carries
+  ``date_generated_from NOT NULL`` and no loaded field to fill it, so every
+  fixture that created an employee died. The loader now defers such a suite
+  until the installed dependents that depend on the module are loaded, and
+  says so (``Module hr: 36 at_install test(s) deferred until …``). A dependent
+  marked *to install* has no column yet and does not defer, so a fresh install
+  is unchanged. A test that passes at install and fails deferred has found a
+  real interaction with a dependent, which is information, not noise.
 * Slow or external tests excluded from the standard run: ``@tagged("-standard")``,
   optionally with a real selector tag such as ``external`` or ``nightly``. There
   is no ``heavy`` tag -- do not invent one.
@@ -7680,6 +7693,12 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.31
+     - 2026-09-10
+     - §6.7: an ``at_install`` suite of a module already installed beside its
+       dependents is deferred by the loader until those dependents are loaded,
+       because the partial registry cannot represent a table that carries their
+       columns; a fresh install is unchanged.
    * - 6.30
      - 2026-09-09
      - §2.4.13: the shared gate governs every file under a manifest --

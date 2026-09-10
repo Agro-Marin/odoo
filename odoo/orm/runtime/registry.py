@@ -210,6 +210,7 @@ class Registry(
 
         self.loaded_modules: set[str] = set()
         self.updated_modules: list[str] = []
+        self.deferred_at_install_modules: list[str] = []
         self.loaded_xmlids: set[str] = set()
         self._xmlids_written: set[str] = set()
         self._xmlid_recorder: set[str] | None = None

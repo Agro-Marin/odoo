@@ -523,6 +523,19 @@ class _PackageLoader:
         suite = loader.prepare_suite([self.name], "at_install")
         if not suite.countTestCases():
             return
+        if pending := self._installed_dependents_not_yet_loaded():
+            # The table already carries those modules' columns -- a NOT NULL
+            # one has no field in this registry to give it a value -- so the
+            # registry cannot represent the schema the tests would write to.
+            # The suite runs once it can, after the graph is loaded.
+            _logger.info(
+                "Module %s: %d at_install test(s) deferred until %s are loaded",
+                self.name,
+                suite.countTestCases(),
+                ", ".join(pending),
+            )
+            self.registry.deferred_at_install_modules.append(self.name)
+            return
         if not self.operation:
             self.registry._setup_models__(self.cr, [], skip_if_clean=True)
         self.registry.check_null_constraints(self.cr)
@@ -532,6 +545,11 @@ class _PackageLoader:
         self.report.update(self.test_results)
         self.test_time = time.time() - tests_t0
         self.test_queries = odoo.db.sql_counter - tests_q0
+
+    def _installed_dependents_not_yet_loaded(self) -> list[str]:
+        return installed_dependents_not_yet_loaded(
+            self.package.module_graph, self.name, self.registry.loaded_modules
+        )
 
     def report_cost(self) -> None:
         extra_queries = (
@@ -575,6 +593,36 @@ class _PackageLoader:
         self.mark_module_installed()
         self.run_at_install_tests()
         self.report_cost()
+
+
+def installed_dependents_not_yet_loaded(
+    graph: ModuleGraph, name: str, loaded: Collection[str]
+) -> list[str]:
+    """The graph's installed modules that depend on ``name`` and load later.
+
+    A fresh install has none: a dependent marked "to install" has no column in
+    the table yet, and its own at_install tests are its own. What makes a
+    dependent count is that its schema is already there -- installed, or
+    installed and about to upgrade -- while its models are not.
+    """
+    closure: dict[str, bool] = {}
+
+    def depends_on(node: ModuleNode) -> bool:
+        if node.name in closure:
+            return closure[node.name]
+        closure[node.name] = False
+        closure[node.name] = any(
+            dep.name == name or depends_on(dep) for dep in node.depends
+        )
+        return closure[node.name]
+
+    return [
+        node.name
+        for node in graph
+        if node.name not in loaded
+        and node.state in ("installed", "to upgrade")
+        and depends_on(node)
+    ]
 
 
 def _run_gc_cycle(registry: Registry, cycles: int) -> int:
@@ -917,6 +965,42 @@ class _ModuleLoader:
         self.registry.loaded = True
         self.registry._setup_models__(self.cr)
 
+    def run_deferred_at_install_tests(self) -> None:
+        names = self.registry.deferred_at_install_modules
+        if not names:
+            return
+        from odoo.tests import loader
+
+        self.registry.check_null_constraints(self.cr)
+        for name in names:
+            suite = loader.prepare_suite([name], "at_install")
+            _logger.info(
+                "Module %s: running %d deferred at_install test(s)",
+                name,
+                suite.countTestCases(),
+            )
+            tests_t0, tests_q0 = time.time(), odoo.db.sql_counter
+            results = loader.run_suite(suite, global_report=self.report)
+            assert self.report is not None, "Missing report during tests"
+            self.report.update(results)
+            _logger.info(
+                "Module %s: %d deferred at_install test(s) in %.2fs, %s queries",
+                name,
+                results.testsRun,
+                time.time() - tests_t0,
+                odoo.db.sql_counter - tests_q0,
+            )
+            if not results.wasSuccessful():
+                _logger.error(
+                    "Module %s: %d failures, %d errors of %d tests",
+                    name,
+                    results.failures_count,
+                    results.errors_count,
+                    results.testsRun,
+                )
+            self.env.invalidate_all()
+        names.clear()
+
     def report_modules_that_never_loaded(self) -> None:
         Module = self.env["ir.module.module"]
         modules = Module.search_fetch(
@@ -1173,6 +1257,7 @@ def load_modules(
         loader.converge_module_graph()
         loader.untranslate_dropped_fields()
         loader.finish_registry_setup()
+        loader.run_deferred_at_install_tests()
         loader.report_modules_that_never_loaded()
         loader.run_end_migrations()
         loader.report_pending_module_states()
