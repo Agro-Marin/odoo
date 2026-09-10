@@ -26,6 +26,11 @@ class ResCompany(models.Model):
     ]
     _order = "sequence, name"
     _rec_names_search = ["code", "name"]
+    # display_name is `code or name`; _search_display_name only narrows the
+    # default composition under `user_preference`
+    _display_name_column = ("code", "name")
+    _display_name_context_keys = ("user_preference",)
+    _display_name_search_default = True
 
     partner_id = fields.Many2one(
         "res.partner",

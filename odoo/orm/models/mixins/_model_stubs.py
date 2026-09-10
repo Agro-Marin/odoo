@@ -59,6 +59,10 @@ class _ModelStubs:
         _order: str
         _rec_name: str | None
         _rec_names_search: list[str] | None
+        _display_name_column: str | tuple[str, ...] | None
+        _display_name_column_guard: str | None
+        _display_name_context_keys: tuple[str, ...]
+        _display_name_search_default: bool
         _table_objects: dict
         _check_company_auto: bool
 

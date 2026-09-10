@@ -2711,3 +2711,43 @@ class TestPartnerGeolocationInvalidation(TransactionCase):
         partner.write(vals)
 
         self.assertEqual(vals, {"street": "New street"})
+
+
+@tagged("post_install", "-at_install")
+class TestPartnerDisplayNameColumn(TransactionCase):
+    def test_complete_name_is_the_display_name_without_context(self):
+        Partner = self.env["res.partner"].with_context({})
+        company = Partner.create({"name": "Column Co", "is_company": True})
+        Partner.create(
+            {"name": "Named Child", "parent_id": company.id, "type": "contact"}
+        )
+        Partner.create({"name": False, "parent_id": company.id, "type": "delivery"})
+        Partner.create({"name": "Spaced \n Name", "is_company": True})
+        self.assertEqual(ResPartner._display_name_column, "complete_name")
+        for partner in Partner.search([]):
+            self.assertEqual(
+                partner.display_name,
+                partner.complete_name,
+                "with no display context, display_name must be the stored column",
+            )
+        keyed = company.with_context(
+            show_email=True, partner_display_name_hide_company=True
+        )
+        self.assertTrue(
+            set(keyed.env.context) & set(ResPartner._display_name_context_keys),
+            "the context keys that change display_name are declared",
+        )
+
+    def test_company_display_name_is_code_or_name(self):
+        Company = self.env["res.company"].with_context({})
+        coded = Company.create({"name": "Coded Co", "code": "CC"})
+        plain = Company.create({"name": "Plain Co"})
+        self.assertEqual(coded.display_name, "CC")
+        self.assertEqual(plain.display_name, "Plain Co")
+        self.assertEqual(Company._display_name_column, ("code", "name"))
+        for company in Company.search([]):
+            self.assertEqual(company.display_name, company.code or company.name)
+        self.assertEqual(
+            Company._search_display_name("ilike", "Co"),
+            Company.with_context(other_key=1)._search_display_name("ilike", "Co"),
+        )

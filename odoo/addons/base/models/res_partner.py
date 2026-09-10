@@ -137,6 +137,16 @@ class ResPartner(models.Model):
     _check_company_domain = models.check_company_domain_parent_of
 
     _complete_name_displayed_types = ("invoice", "delivery", "other", "private")
+    _display_name_column = "complete_name"
+    _display_name_column_guard = "name"
+    _display_name_context_keys = (
+        "formatted_display_name",
+        "show_email",
+        "partner_show_db_id",
+        "show_address",
+        "show_vat",
+        "partner_display_name_hide_company",
+    )
 
     company_id = fields.Many2one(
         "res.company",
@@ -557,7 +567,11 @@ class ResPartner(models.Model):
             self._fields["type"]._description_selection(clean_self.env)
         )
         for partner in clean_self:
-            partner.complete_name = partner._get_complete_name(type_description)
+            # normalised exactly as _compute_display_name normalises its result,
+            # so the stored column is the display name and not only nearly
+            partner.complete_name = _RE_WHITESPACE_BEFORE_NEWLINE.sub(
+                "\n", partner._get_complete_name(type_description)
+            ).strip()
 
     @api.depends("parent_id")
     def _compute_lang(self) -> None:

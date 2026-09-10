@@ -58,6 +58,16 @@ class _ModelMetadataMixin(_ModelStubs):
     _parent_name: str = "parent_id"
     _parent_store: bool = False
     _active_name: str | None = None
+    # a stored column that IS display_name whenever the context carries none
+    # of the keys, so a read engine can serve it without the compute; the
+    # guard names a field whose empty rows render a translated placeholder
+    # instead, which the stored column carries in English only
+    _display_name_column: str | tuple[str, ...] | None = None
+    _display_name_column_guard: str | None = None
+    _display_name_context_keys: tuple[str, ...] = ()
+    # the model's _search_display_name is the default composition whenever the
+    # context carries none of the keys above
+    _display_name_search_default: bool = False
     _fold_name: str = "fold"
 
     _translate: bool = True
