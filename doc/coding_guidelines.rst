@@ -1217,48 +1217,48 @@ Section  Population                                                  Count
 §2.4.2   ``@api.ondelete`` hooks                                       170
 §2.4.2   … spelled ``_unlink_except_*``                                111
 §2.4.2   ``@api.constrains`` hooks                                     695
-§2.4.2   … spelled ``_check_*``                                        637
+§2.4.2   … spelled ``_check_*``                                        641
 §2.4.2   … with a first token carrying no rule                          49
 §2.4.2   … binding exactly one field                                   321
-§2.4.2   … of those, spelled ``_check_<field>``                        142
+§2.4.2   … of those, spelled ``_check_<field>``                        144
 §2.4.2   Multi-field constraints named for one trigger                  61
 §2.4.3   Non-test methods declared on a model class                 26,996
-§2.4.3   Stems spelled with two or more verbs of one family              3
+§2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
-§2.4.4   Model methods with an abolished verb behind a noun            144
+§2.4.4   Model methods with an abolished verb behind a noun            143
 §2.4.4   Model methods opening with ``auto`` fused to a verb            13
-§2.4.4   ``fields`` family: definitions spelled head-first             220
-§2.4.4   ``fields`` family: distinct names spelled head-first           99
+§2.4.4   ``fields`` family: definitions spelled head-first             222
+§2.4.4   ``fields`` family: distinct names spelled head-first          100
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   152
 §2.4.4   Other heads: definitions spelled tail-first                   189
-§2.4.5   ``X_to_Y`` converter definitions                              103
-§2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,379
+§2.4.5   ``X_to_Y`` converter definitions                              102
+§2.4.5   … distinct names                                               55
+§2.4.7   ``_get_*`` definitions                                      6,404
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   142
-§2.4.7   ``_calculate_*`` model methods                                  6
-§2.4.7   ``_prepare_*`` definitions                                    883
+§2.4.7   ``_calculate_*`` model methods                                  0
+§2.4.7   ``_prepare_*`` definitions                                    891
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            36
-§2.4.8   ``_check_*`` definitions                                    1,217
-§2.4.8   ``_validate_*`` definitions                                     4
-§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           1
+§2.4.8   ``_check_*`` definitions                                    1,222
+§2.4.8   ``_validate_*`` definitions                                     0
+§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
 §2.4.10  ``_raise_*`` model methods                                     18
 §2.4.10  … raising unconditionally                                      11
-§2.4.11  ``_find_*`` methods                                            17
-§2.4.11  … performing an ORM read                                        1
+§2.4.11  ``_find_*`` methods                                            16
+§2.4.11  … performing an ORM read                                        0
 §2.4.11  … doing something else entirely                                15
 §2.4.11  ``_find_or_create_*`` methods                                   1
 §2.4.11  ``_get_or_create_*`` methods                                   32
-§2.4.11  ``_resolve_*`` definitions                                     27
-§2.4.12  ``_set_*`` definitions                                        128
-§2.4.12  ``_update_*`` definitions                                     411
+§2.4.11  ``_resolve_*`` definitions                                     28
+§2.4.12  ``_set_*`` definitions                                        127
+§2.4.12  ``_update_*`` definitions                                     419
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             261
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
-§2.4.12  ``_sync_*`` definitions                                        80
-§2.4.12  ``_synchronize_*`` definitions                                  7
+§2.4.12  ``_sync_*`` definitions                                        84
+§2.4.12  ``_synchronize_*`` definitions                                  0
 §2.4.12  ``_post_*`` definitions                                       144
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      359
 §2.4.13  Methods on plain classes in model files                       421
@@ -2063,12 +2063,12 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.6 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.7 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 695
+deriving and computing. The split that matters is against ``_prepare_``: 696
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 883 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 891 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -2244,8 +2244,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **347** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **277**
+**A ``bool`` return does not make a predicate** ``[review]``. **345** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **279**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -3263,13 +3263,13 @@ alone held six with no verb at all: ``fallback_loc``, ``next_move``,
   fix: nothing outside the method can collide with the name, so nothing pushes
   back on a private spelling. The freedom and the drift are one fact.
 * **The backlog inside it is drained, and that was always the point**
-  ``[gate doc_restated_counts]``: of them, **12** open with a verb the abolished
+  ``[gate doc_restated_counts]``: of them, **0** open with a verb the abolished
   table reports and **7** with a reserved one. It was 8 and 7 when this
   bullet was written, which is what made the population worth naming as a
   discipline rather than as debt -- and the gate that could see it did not exist
-  yet, so the eight were swept by hand. The four above eight arrived when
-  §2.4.20's synonyms joined the table (below), so they are newly visible
-  rather than new, and they are in the ``naming`` floor's population now. ``naming_vocabulary.py`` measures this
+  yet, so the eight were swept by hand. Four more became visible when
+  §2.4.20's synonyms joined the table (below) and were swept with the
+  ``naming`` floor the same day; the population is gated now, not a backlog. ``naming_vocabulary.py`` measures this
   population now, so the zero is held rather than observed: the cost of leaving
   it ungoverned was never a pile of bad names, it was that nothing stopped one
   forming.
