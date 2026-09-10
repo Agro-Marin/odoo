@@ -3,7 +3,6 @@ import uuid
 import zipfile
 from io import BytesIO
 from itertools import batched
-from typing import Dict, List, Optional
 from urllib.parse import unquote
 
 import qrcode
@@ -11,7 +10,6 @@ import qrcode.image.svg
 
 from odoo import _, api, fields, models, service
 from odoo.exceptions import AccessError, UserError, ValidationError
-from odoo.tools import file_open
 
 
 class PosConfig(models.Model):
@@ -31,6 +29,7 @@ class PosConfig(models.Model):
         for user in users:
             if user.sudo().has_group("point_of_sale.group_pos_manager"):
                 return user
+        return self.env["res.users"]
 
     status = fields.Selection(
         [("inactive", "Inactive"), ("active", "Active")],
@@ -359,15 +358,10 @@ class PosConfig(models.Model):
         }
 
     def _get_self_ordering_attachment(self, images):
-        encoded_images = []
-        for image in images:
-            encoded_images.append(
-                {
-                    "id": image.id,
-                    "data": image.sudo().datas.decode("utf-8"),
-                }
-            )
-        return encoded_images
+        return [
+            {"id": image.id, "data": image.sudo().datas.decode("utf-8")}
+            for image in images
+        ]
 
     def _load_self_data_models(self):
         return [
@@ -483,7 +477,9 @@ class PosConfig(models.Model):
         return [
             {
                 "name": floor.get("name"),
-                "rows_of_tables": [list(b) for b in batched(floor["tables"], cols)],
+                "rows_of_tables": [
+                    list(b) for b in batched(floor["tables"], cols, strict=False)
+                ],
             }
             for floor in floors
         ]
@@ -584,6 +580,7 @@ class PosConfig(models.Model):
                 "self_ordering_pay_after": "each",
             }
         )
+        return True
 
     def _generate_single_qr_code__(self, url):
         qr = qrcode.QRCode(
