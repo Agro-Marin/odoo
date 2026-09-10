@@ -62,7 +62,7 @@ class _RegistryModelsMixin(_RegistryStubs):
                 queue.extend(getattr(parent, "_inherit", ()) or ())
         return seen
 
-    def descendants(
+    def get_descendants(
         self,
         model_names: Iterable[str],
         *kinds: typing.Literal["_inherit", "_inherits"],

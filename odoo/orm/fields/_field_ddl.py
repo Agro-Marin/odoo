@@ -14,7 +14,7 @@ _logger = logging.getLogger("odoo.fields")
 _schema = logging.getLogger("odoo.schema")
 
 
-def column_order_of(udt_name: str) -> int:
+def get_column_order(udt_name: str) -> int:
     return sql.SQL_ORDER_BY_TYPE[udt_name]
 
 

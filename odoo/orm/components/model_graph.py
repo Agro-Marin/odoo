@@ -137,9 +137,12 @@ class _TriggerIndex:
         self.fields: list[Any] = []
         self.payload = [
             (
-                self._id(dep),
+                self._get_or_create_field_id(dep),
                 [
-                    ([self._id(f) for f in path], [self._id(t) for t in targets])
+                    (
+                        [self._get_or_create_field_id(f) for f in path],
+                        [self._get_or_create_field_id(t) for t in targets],
+                    )
                     for path, targets in buckets.items()
                 ],
             )
@@ -158,7 +161,7 @@ class _TriggerIndex:
             for field in self.fields
         ]
 
-    def _id(self, field: Any) -> int:
+    def _get_or_create_field_id(self, field: Any) -> int:
         field_id = self.field_ids.get(field)
         if field_id is None:
             field_id = self.field_ids[field] = len(self.fields)

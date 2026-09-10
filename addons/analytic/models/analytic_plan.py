@@ -364,7 +364,7 @@ class AccountAnalyticPlan(models.Model):
         return self.env["ir.model.fields"].sudo().search(domain)
 
     def _sync_all_plan_column(self):
-        model_names = self.env.registry.descendants(
+        model_names = self.env.registry.get_descendants(
             ["mixin.analytic.plan.fields"], "_inherit"
         ) - {"mixin.analytic.plan.fields"}
         for model in model_names:

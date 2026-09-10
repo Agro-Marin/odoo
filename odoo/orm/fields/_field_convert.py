@@ -56,7 +56,7 @@ class _FieldConvertMixin[T](_FieldStubs):
             return PsycopgJson({"en_US": value, record.env.lang or "en_US": value})
         if not self.company_dependent:
             return value
-        fallback = self._company_dependent_fallback_raw(record)
+        fallback = self._get_company_dependent_fallback_raw(record)
         if value == self.convert_to_column(fallback, record):
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
@@ -172,4 +172,4 @@ class _FieldConvertMixin[T](_FieldStubs):
     @property
     def column_order(self) -> int:
         column_type = self.column_type
-        return 0 if column_type is None else _ddl.column_order_of(column_type[0])
+        return 0 if column_type is None else _ddl.get_column_order(column_type[0])

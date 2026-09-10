@@ -115,7 +115,7 @@ def reload_schema(
     registry = env.registry
     registry._setup_models__(env.cr, setup_models)
     if init_models:
-        affected_models = registry.descendants(init_models, "_inherits")
+        affected_models = registry.get_descendants(init_models, "_inherits")
         registry.init_models(
             env.cr, affected_models, dict(env.context, update_custom_fields=True)
         )

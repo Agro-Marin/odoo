@@ -136,7 +136,7 @@ class IrAttachment(models.Model):
         # A main attachment is read back by business code (OCR, EDI, previews),
         # so it must keep its bytes on the server.
         return list(
-            self.env.registry.descendants(
+            self.env.registry.get_descendants(
                 ["mixin.mail.thread.main.attachment"], "_inherit", "_inherits"
             )
         )

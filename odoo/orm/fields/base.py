@@ -26,7 +26,7 @@ from odoo.tools.misc import (
     frozendict,
 )
 
-from .._recordset import base_model, is_model_class
+from .._recordset import get_base_model, is_model_class
 from ..primitives import PREFETCH_MAX
 from . import (
     _field_cache_miss as _cache_miss,
@@ -284,7 +284,7 @@ class Field[T](
         cls.description_attrs = tuple(described)
 
     def __set_name__(self, owner: ModelClass, name: str) -> None:
-        assert base_model() is None or is_model_class(owner)
+        assert get_base_model() is None or is_model_class(owner)
         self.model_name = owner._name
         self.name = name
         if getattr(owner, "pool", None) is None:
@@ -402,7 +402,7 @@ class Field[T](
 
     def get_company_dependent_fallback(self, records: ModelLike) -> typing.Any:
         assert self.company_dependent
-        fallback = self._company_dependent_fallback_raw(records)
+        fallback = self._get_company_dependent_fallback_raw(records)
         fallback = self.convert_to_cache(fallback, records, validate=False)
         return self.convert_to_record(fallback, records)
 
@@ -478,7 +478,7 @@ class Field[T](
     def _get_cache_impl(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
         core = env._core
         if self._is_context_dependent(env):
-            return core.get_context_data(self, env.cache_key(self))
+            return core.get_context_data(self, env.get_cache_key(self))
         return core.get_field_data(self)
 
     def _invalidate_cache(

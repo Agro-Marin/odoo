@@ -40,7 +40,7 @@ def is_fallback_required(field: BaseString, record_id: typing.Any) -> bool:
 
 
 def get_lang_cache_key(field: BaseString, env: Environment, lang: str) -> tuple:
-    cache_key = env.cache_key(field)
+    cache_key = env.get_cache_key(field)
     if len(cache_key) == 1:
         return _EN_US_KEY if lang == "en_US" else (lang,)
     return (lang, *cache_key[1:])

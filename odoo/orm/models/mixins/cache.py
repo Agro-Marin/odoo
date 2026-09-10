@@ -25,7 +25,7 @@ class RecordCache(Mapping):
         record = self._record
         env = record.env
         if field in env._field_depends_context:
-            return env._core.get_context_data_or_none(field, env.cache_key(field))
+            return env._core.get_context_data_or_none(field, env.get_cache_key(field))
         return env._core.get_field_data_or_none(field)
 
     def __contains__(self, name: object) -> bool:

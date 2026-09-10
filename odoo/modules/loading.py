@@ -429,7 +429,7 @@ class _PackageLoader:
         model_names: OrderedSet[str] = OrderedSet(registry.load(package))
 
         if self.operation:
-            model_names = registry.descendants(model_names, "_inherit", "_inherits")
+            model_names = registry.get_descendants(model_names, "_inherit", "_inherits")
             self.models_updated.update(model_names)
             self.models_to_check -= model_names
             registry._setup_models__(self.cr, [], skip_if_clean=True)
@@ -440,7 +440,7 @@ class _PackageLoader:
                 self.operation == "install",
             )
         elif self.update_module and package.state != "to remove":
-            model_names = registry.descendants(model_names, "_inherit", "_inherits")
+            model_names = registry.get_descendants(model_names, "_inherit", "_inherits")
             self.models_to_check |= model_names & self.models_updated
         elif self.update_module and package.state == "to remove":
             self.models_to_check |= model_names

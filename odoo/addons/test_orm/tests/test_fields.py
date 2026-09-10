@@ -949,7 +949,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.env.flush_all()
 
         field = type(user1).group_count
-        self.assertFalse(self.env.records_to_compute(field))
+        self.assertFalse(self.env.get_records_to_compute(field))
 
         group.write(
             {
@@ -960,19 +960,19 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
                 ]
             }
         )
-        self.assertEqual(self.env.records_to_compute(field), user2 + user3)
+        self.assertEqual(self.env.get_records_to_compute(field), user2 + user3)
 
         self.env.flush_all()
         group.write({"user_ids": [Command.unlink(user2.id)]})
-        self.assertEqual(self.env.records_to_compute(field), user2)
+        self.assertEqual(self.env.get_records_to_compute(field), user2)
 
         self.env.flush_all()
         group.write({"user_ids": [Command.set([user1.id, user2.id])]})
-        self.assertEqual(self.env.records_to_compute(field), user2 + user3)
+        self.assertEqual(self.env.get_records_to_compute(field), user2 + user3)
 
         self.env.flush_all()
         user3.write({"group_ids": [Command.link(group.id)]})
-        self.assertEqual(self.env.records_to_compute(field), user3)
+        self.assertEqual(self.env.get_records_to_compute(field), user3)
 
         user1 = self.env["test_orm.user"].new({})
         user2 = self.env["test_orm.user"].new({})

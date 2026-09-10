@@ -424,24 +424,17 @@ class Environment(Mapping[str, "BaseModel"]):
     def is_protected(self, field: Field, record: BaseModel) -> bool:
         return self._core.is_protected(field, record.id)
 
-    def protected(self, field: Field) -> BaseModel:
-        return self[field.model_name].browse(self._core.get_protected_ids(field))
-
     def protecting(self, what, records=None) -> _Protecting:
         return _Protecting(self._core, what, records)
 
     def fields_to_compute(self) -> Collection[Field]:
         return self._core.get_pending_fields()
 
-    def records_to_compute(self, field: Field) -> BaseModel:
+    def get_records_to_compute(self, field: Field) -> BaseModel:
         return self[field.model_name].browse(self._core.get_pending_ids(field))
 
     def is_to_compute(self, field: Field, record: BaseModel) -> bool:
         return self._core.is_pending(field, record.id)
-
-    def not_to_compute(self, field: Field, records: BaseModel) -> BaseModel:
-        pending = self._core.get_pending_ids(field)
-        return records.browse(id_ for id_ in records._ids if id_ not in pending)
 
     def add_to_compute(self, field: Field, records: BaseModel) -> None:
         if not records:
@@ -456,7 +449,7 @@ class Environment(Mapping[str, "BaseModel"]):
             return
         self._core.mark_done(field, records._ids)
 
-    def cache_key(self, field: Field) -> typing.Any:
+    def get_cache_key(self, field: Field) -> typing.Any:
 
         def get(key, get_context=self.context.get):
             if key == "company":

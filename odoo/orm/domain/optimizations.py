@@ -123,7 +123,7 @@ def nary_condition_optimization(
 
             for domain in domains:
                 if isinstance(domain, DomainCondition) and domain.operator in operators:
-                    field = domain._field(model)
+                    field = domain._get_field(model)
                     if field_types is None or field.type in field_types:
                         if (
                             merge_conditions
@@ -220,7 +220,7 @@ def _optimize_in_set_falsy_value(condition, model):
     value = condition.value
     if not isinstance(value, OrderedSet):
         return condition
-    falsy = condition._field(model).falsy_value
+    falsy = condition._get_field(model).falsy_value
     has_falsy_alias = falsy is not None and falsy is not False
 
     if None not in value and not (has_falsy_alias and falsy in value):
@@ -244,7 +244,7 @@ def _optimize_in_required(condition, model):
     value = condition.value
     if False not in value:
         return condition
-    field = condition._field(model)
+    field = condition._get_field(model)
     if (
         field.falsy_value is None
         and (field.required or field.name == "id")
@@ -271,7 +271,7 @@ def _optimize_any_domain(condition, model):
             )
         return condition
     domain = Domain(value)
-    field = condition._field(model)
+    field = condition._get_field(model)
     if field.name == "id":
         return domain if condition.operator in ("any", "any!") else ~domain
     if value is domain:
@@ -283,7 +283,7 @@ def _optimize_any_domain_at_level(level: OptimizationLevel, condition, model):
     domain = condition.value
     if not isinstance(domain, Domain):
         return condition
-    field = condition._field(model)
+    field = condition._get_field(model)
     if not field.relational:
         raise condition._prepare_condition_error(
             "Cannot use 'any' with non-relational fields"
@@ -317,12 +317,12 @@ def _optimize_like_str(condition, model):
         result = (condition.operator in NEGATIVE_CONDITION_OPERATORS) == (
             "=" in condition.operator
         )
-        if condition._field(model).relational or "=" in condition.operator:
+        if condition._get_field(model).relational or "=" in condition.operator:
             return DomainCondition(condition.field_expr, "!=" if result else "=", False)
         return Domain(result)
     if isinstance(value, str) and not value.strip("%"):
         result = condition.operator not in NEGATIVE_CONDITION_OPERATORS
-        if condition._field(model).relational:
+        if condition._get_field(model).relational:
             return DomainCondition(condition.field_expr, "!=" if result else "=", False)
         return Domain(result)
     if isinstance(value, str):
@@ -369,7 +369,7 @@ def _optimize_numeric_comparand(condition, model):
     ):
         return condition
 
-    field = condition._field(model)
+    field = condition._get_field(model)
     if field.falsy_value is None:
         return condition
 
@@ -408,7 +408,7 @@ def _optimize_relational_falsy_id(condition, model):
     operator = condition.operator
     if operator not in ("in", "not in", ">", "<", ">=", "<="):
         return condition
-    if operator not in ("in", "not in") and condition._field(model).type not in (
+    if operator not in ("in", "not in") and condition._get_field(model).type not in (
         "many2one",
         "many2one_reference",
     ):
@@ -484,7 +484,7 @@ def _optimize_inequality_against_null(condition, model):
         return condition
     if "." in condition.field_expr:
         return condition
-    if condition._field(model).falsy_value is not None:
+    if condition._get_field(model).falsy_value is not None:
         return condition
     return _FALSE_DOMAIN
 
@@ -515,7 +515,7 @@ def _operator_hierarchy(condition, model):
         return _FALSE_DOMAIN
     if value is True:
         raise condition._prepare_condition_error("True is not a valid hierarchy value")
-    field = condition._field(model)
+    field = condition._get_field(model)
     if field.is_many2one:
         comodel = model.env[field.comodel_name].with_context(active_test=False)
     elif field.is_x2many:
@@ -609,7 +609,7 @@ def _operator_parent_of_domain(comodel: BaseModel, parent: str) -> OrderedSet:
 
 @operator_optimization(["any", "not any"], level=OptimizationLevel.FULL)
 def _optimize_any_with_rights(condition, model):
-    if model.env.su or condition._field(model).bypass_search_access:
+    if model.env.su or condition._get_field(model).bypass_search_access:
         return DomainCondition(
             condition.field_expr, condition.operator + "!", condition.value
         )
@@ -669,7 +669,7 @@ def _canonicalize_numeric_sets(
 
 @nary_condition_optimization(operators=("in", "not in"))
 def _optimize_merge_set_conditions_mono_value(cls: type[DomainNary], conditions, model):
-    field = conditions[0]._field(model)
+    field = conditions[0]._get_field(model)
     if field.is_x2many or field.is_properties:
         return conditions
     if field.type in ("integer", "float", "monetary") and (
@@ -700,7 +700,7 @@ def _optimize_merge_set_conditions_x2many_not_in(
 @nary_condition_optimization(["any"], ["many2one", "one2many", "many2many"])
 @nary_condition_optimization(["any!"], ["many2one", "one2many", "many2many"])
 def _optimize_merge_any(cls, conditions, model):
-    field = conditions[0]._field(model)
+    field = conditions[0]._get_field(model)
     if not field.is_many2one and cls is DomainAnd:
         return conditions
     merge_conditions, other_conditions = partition(
@@ -719,7 +719,7 @@ def _optimize_merge_any(cls, conditions, model):
 @nary_condition_optimization(["not any"], ["many2one", "one2many", "many2many"])
 @nary_condition_optimization(["not any!"], ["many2one", "one2many", "many2many"])
 def _optimize_merge_not_any(cls, conditions, model):
-    field = conditions[0]._field(model)
+    field = conditions[0]._get_field(model)
     if not field.is_many2one and cls is DomainOr:
         return conditions
     merge_conditions, other_conditions = partition(

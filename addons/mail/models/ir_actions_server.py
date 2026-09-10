@@ -526,7 +526,7 @@ class IrActionsServer(models.Model):
         }
         pending = records.browse()
         for field_name in field_names:
-            pending |= records & self.env.records_to_compute(
+            pending |= records & self.env.get_records_to_compute(
                 records._fields[field_name]
             )
         return pending

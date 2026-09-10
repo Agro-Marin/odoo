@@ -1275,7 +1275,7 @@ class AutomationRule(models.Model):
                 dep: comp
                 for f in changed_fields
                 for dep in self.env.registry.get_dependent_fields(f)
-                if (comp := self.env.records_to_compute(dep))
+                if (comp := self.env.get_records_to_compute(dep))
             }
             records = (
                 records.with_context(changed_fields=())

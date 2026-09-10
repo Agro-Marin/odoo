@@ -34,7 +34,7 @@ if typing.TYPE_CHECKING:
     from ._field_stubs import TranslateDialect
 
 
-def _string_comparand(value: typing.Any) -> typing.Any:
+def _get_string_comparand(value: typing.Any) -> typing.Any:
     if value is None or isinstance(value, (str, bool, bytes, bytearray, SQL)):
         return value
     return str(value)
@@ -75,11 +75,11 @@ class BaseString(Field[str | typing.Literal[False]]):
 
         value = condition.value
         if isinstance(value, COLLECTION_TYPES):
-            coerced = [_string_comparand(v) for v in value]
+            coerced = [_get_string_comparand(v) for v in value]
             if coerced == list(value):
                 return condition
             return DomainCondition(condition.field_expr, operator, OrderedSet(coerced))
-        coerced = _string_comparand(value)
+        coerced = _get_string_comparand(value)
         if coerced is value:
             return condition
         return DomainCondition(condition.field_expr, operator, coerced)

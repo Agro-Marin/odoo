@@ -130,7 +130,7 @@ def add_model_to_registry(
 
     registry[name] = model_cls
 
-    for model_name in registry.descendants([name], "_inherit", "_inherits"):
+    for model_name in registry.get_descendants([name], "_inherit", "_inherits"):
         registry[model_name]._setup_done__ = False
 
     return model_cls

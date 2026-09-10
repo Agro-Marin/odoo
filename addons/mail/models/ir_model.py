@@ -121,7 +121,7 @@ class IrModel(models.Model):
             self.env.flush_all()
             model_names = self.mapped("model")
             self.pool._setup_models__(self.env.cr, model_names)
-            model_names = self.pool.descendants(model_names, "_inherits")
+            model_names = self.pool.get_descendants(model_names, "_inherits")
             self.pool.init_models(
                 self.env.cr,
                 model_names,

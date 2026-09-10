@@ -95,7 +95,7 @@ KNOWN_VIOLATIONS: tuple[Known, ...] = (
     Known(
         "odoo/orm/fields/_field_metadata.py",
         "_ir_defaults",
-        "Field._company_dependent_fallback_raw() reads model defaults for the "
+        "Field._get_company_dependent_fallback_raw() reads model defaults for the "
         "company-dependent fallback. Belongs behind a public accessor. Moved "
         "here from fields/base.py with _is_context_dependent, same extraction.",
     ),

@@ -58,11 +58,11 @@ def test_fallback_key_follows_real_cache_key():
     with model_test_env(Container, Member) as env:
         env = env(context={"scheme": "dark"})
         field = env.registry["tcg.member"]._fields["label"]
-        cache_key = env.cache_key(field)
+        cache_key = env.get_cache_key(field)
         assert cache_key == ("en_US", "dark")
         assert field._get_lang_fallback_cache_key(env) == ("en_US", "dark")
         fr_env = env(context={"scheme": "dark", "lang": "fr_FR"})
-        assert fr_env.cache_key(field) == ("fr_FR", "dark")
+        assert fr_env.get_cache_key(field) == ("fr_FR", "dark")
         assert field._get_lang_fallback_cache_key(fr_env) == ("en_US", "dark")
 
 
@@ -75,7 +75,7 @@ def test_stored_translate_strips_extra_context_deps(caplog):
             assert tuple(env.registry.field_depends_context[field]) == ("lang",)
             record = env["tcg.member"].create({"name": "m"})
             record.with_context(scheme="dark").badge = "B"
-            assert env.cache_key(field) == ("en_US",)
+            assert env.get_cache_key(field) == ("en_US",)
             assert record.badge == "B"
     assert any("cannot depend on context" in m for m in caplog.messages)
 

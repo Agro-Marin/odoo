@@ -92,7 +92,7 @@ class _FieldStubs:
         column2: str | None
 
         def _is_context_dependent(self, env: Environment) -> bool: ...
-        def _company_dependent_fallback_raw(
+        def _get_company_dependent_fallback_raw(
             self, records: typing.Any
         ) -> typing.Any: ...
 

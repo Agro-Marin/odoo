@@ -20,7 +20,7 @@ def set_base_model(base_model: type[BaseModel]) -> None:
     _BaseModelRef.cls = base_model
 
 
-def base_model() -> type[BaseModel] | None:
+def get_base_model() -> type[BaseModel] | None:
     return _BaseModelRef.cls
 
 

@@ -304,7 +304,9 @@ class Registry(
     def _setup_reset_named_models(
         self, model_names: Iterable[str], models_field_depends_done: set
     ) -> None:
-        model_names_to_setup = self.descendants(model_names, "_inherit", "_inherits")
+        model_names_to_setup = self.get_descendants(
+            model_names, "_inherit", "_inherits"
+        )
         for fields in self.many2many_relations.values():
             for pair in list(fields):
                 if pair[0] in model_names_to_setup:

@@ -23,7 +23,7 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
         txn = cr.transaction
         if txn is None:
             return
-        self._reclear_invalidated_caches(txn.registry)
+        self._clear_invalidated_caches(txn.registry)
         current = type(txn.registry).registries.get(txn.registry.db_name)
         if current is not None and current is not txn.registry:
             txn.reset()
@@ -33,7 +33,7 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
                 reset_cached_properties(env)
 
     @staticmethod
-    def _reclear_invalidated_caches(registry: CacheInvalidating) -> None:
+    def _clear_invalidated_caches(registry: CacheInvalidating) -> None:
         if invalidated := tuple(registry.cache_invalidated):
             registry.clear_cache(*invalidated)
 

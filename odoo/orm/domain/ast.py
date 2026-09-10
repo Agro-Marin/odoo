@@ -852,7 +852,7 @@ class DomainCondition(Domain):
     def _negate(self, model: BaseModel) -> Domain:
         if neg_op := INVERSE_INEQUALITY.get(self.operator):
             condition: Domain = DomainCondition(self.field_expr, neg_op, self.value)
-            if self._field(model).falsy_value is None:
+            if self._get_field(model).falsy_value is None:
                 is_null = DomainCondition(self.field_expr, "in", OrderedSet([False]))
                 condition = is_null | condition
             return condition
@@ -910,13 +910,13 @@ class DomainCondition(Domain):
         message += " in condition (%r, %r, %r)"
         return error(message % (*args, self.field_expr, self.operator, self.value))
 
-    def _field(self, model: BaseModel) -> Field:
+    def _get_field(self, model: BaseModel) -> Field:
         field = self._field_instance
         if field is None or field.model_name != model._name:
-            field, _ = self.__get_field(model)
+            field, _ = self.__get_field_and_property(model)
         return field
 
-    def __get_field(self, model: BaseModel) -> tuple[Field, str]:
+    def __get_field_and_property(self, model: BaseModel) -> tuple[Field, str]:
         field_name, property_name = parse_field_expr(self.field_expr)
         try:
             field = model._fields[field_name]
@@ -935,12 +935,12 @@ class DomainCondition(Domain):
             raise RuntimeError(f"Trying to skip optimization level after {opt_level}")
 
         if level == OptimizationLevel.BASIC:
-            field, property_name = self.__get_field(model)
+            field, property_name = self.__get_field_and_property(model)
             if property_name and field.relational:
                 sub_domain = DomainCondition(property_name, self.operator, self.value)
                 return DomainCondition(field.name, "any", sub_domain)
         else:
-            field = self._field(model)
+            field = self._get_field(model)
 
         if level == OptimizationLevel.FULL:
             if field.inherited:
@@ -986,7 +986,7 @@ class DomainCondition(Domain):
         return self
 
     def _optimize_field_search_method(self, model: BaseModel) -> Domain:
-        field = self._field(model)
+        field = self._get_field(model)
         op, value = self.operator, self.value
         original_exception = None
         try:
@@ -1034,15 +1034,15 @@ class DomainCondition(Domain):
             model.env._(
                 "Unsupported operator on %(field_label)s %(model_label)s in %(domain)s",
                 domain=repr(self),
-                field_label=self._field(model).get_description(model.env, ["string"])[
-                    "string"
-                ],
+                field_label=self._get_field(model).get_description(
+                    model.env, ["string"]
+                )["string"],
                 model_label=f"{model.env['ir.model']._get(model._name).name!r} ({model._name})",
             )
         )
 
     def _is_search_defined(self, records: BaseModel) -> bool:
-        field = self._field(records)
+        field = self._get_field(records)
         return bool((field.search and field.name == self.field_expr) or field.inherited)
 
     def _search_defined_predicate(
@@ -1124,7 +1124,7 @@ class DomainCondition(Domain):
             value = set(value.get_result_ids(records.env))
             return DomainCondition(field_expr, op, value)._as_predicate(records)
 
-        field = self._field(records)
+        field = self._get_field(records)
         if field_expr == "display_name":
             field_expr = "display_name.no_error"
         elif field_expr == "id":
@@ -1149,7 +1149,7 @@ class DomainCondition(Domain):
                 f"SQL for {model._name!r} in term {(field_expr, op, value)}"
             )
 
-        field = self._field(model)
+        field = self._get_field(model)
         model._check_field_access(field, "read")
         return field.condition_to_sql(field_expr, op, value, model, alias, query)
 

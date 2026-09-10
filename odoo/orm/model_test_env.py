@@ -319,7 +319,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
     def unaccent_python(text):
         return text
 
-    def descendants(
+    def get_descendants(
         self,
         model_names: Iterable[str],
         *kinds: str,
