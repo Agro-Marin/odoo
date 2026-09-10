@@ -83,11 +83,11 @@ class _MetricsMixin:
         stat_count, stat_time = log_target.get(table or "", (0, 0))
         log_target[table or ""] = (stat_count + 1, stat_time + delay * 1e6)
 
-    def print_log(self) -> None:
+    def log_sql_stats(self) -> None:
         if not _logger.isEnabledFor(logging.DEBUG):
             return
 
-        def print_direction_log(log_type: str) -> None:
+        def log_direction_stats(log_type: str) -> None:
             sqllogs = {"from": self.sql_from_log, "into": self.sql_into_log}
             sqllog = sqllogs[log_type]
             total = 0.0
@@ -109,8 +109,8 @@ class _MetricsMixin:
                 sql_counter,
             )
 
-        print_direction_log("from")
-        print_direction_log("into")
+        log_direction_stats("from")
+        log_direction_stats("into")
         self.sql_log_count = 0
 
 
@@ -197,7 +197,7 @@ def _match_from_clause(body: str) -> re.Match | None:
     return None
 
 
-def _categorize_write(body: str) -> tuple[str, str] | tuple[str, None] | None:
+def _classify_write_statement(body: str) -> tuple[str, str] | tuple[str, None] | None:
     res_update = re_update.match(body)
     if res_update:
         return "into", res_update.group(1)
@@ -213,16 +213,16 @@ def _categorize_write(body: str) -> tuple[str, str] | tuple[str, None] | None:
     return None
 
 
-def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
+def classify_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
     offset, cte_bodies = _split_ctes(decoded_query)
     body = decoded_query[offset:]
 
     for cte_body in cte_bodies:
-        cte_write = _categorize_write(cte_body)
+        cte_write = _classify_write_statement(cte_body)
         if cte_write is not None:
             return cte_write
 
-    write = _categorize_write(body)
+    write = _classify_write_statement(body)
     if write is not None:
         return write
 

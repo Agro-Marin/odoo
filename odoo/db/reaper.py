@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 _LAST_BORROW_ATTR = "_odoo_last_borrow"
 
 
-def note_activity(pool) -> None:
+def mark_active(pool) -> None:
     setattr(pool, _LAST_BORROW_ATTR, monotonic())
 
 

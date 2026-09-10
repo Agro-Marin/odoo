@@ -16,7 +16,7 @@ REPLICA_OVERRIDABLE: tuple[tuple[str, str], ...] = (
 )
 
 
-def _optional_int(value: object) -> int | None:
+def _coerce_optional_int(value: object) -> int | None:
     if value is None or value == "" or value is False:
         return None
     return int(value)  # type: ignore[call-overload]
@@ -56,12 +56,12 @@ class PoolSettings:
         replica_host = config["db_replica_host"] or None
         return cls(
             host=config["db_host"] or None,
-            port=_optional_int(config["db_port"]),
+            port=_coerce_optional_int(config["db_port"]),
             user=config["db_user"] or None,
             password=config["db_password"] or None,
             sslmode=config["db_sslmode"] or None,
             replica_host=replica_host,
-            replica_port=_optional_int(config["db_replica_port"]),
+            replica_port=_coerce_optional_int(config["db_replica_port"]),
             replica_user=config["db_replica_user"] or None,
             replica_password=config["db_replica_password"] or None,
             replica_sslmode=config["db_replica_sslmode"] or None,

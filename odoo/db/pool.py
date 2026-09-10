@@ -16,7 +16,7 @@ from psycopg_pool import PoolClosed, PoolTimeout
 from odoo.release import MIN_PG_VERSION
 
 from .budget import ConnectionBudget
-from .dsn import _expand_conninfo, _normalize_dsn_key
+from .dsn import _expand_conninfo, _get_dsn_key
 from .leaks import CheckoutTracker
 from .lifecycle import (
     _check_connection,
@@ -24,7 +24,7 @@ from .lifecycle import (
     _reset_connection,
 )
 from .probe import PROBE_CONNECT_TIMEOUT, ReachabilityProbe, get_libpq_connect_timeout
-from .reaper import IdlePoolReaper, note_activity
+from .reaper import IdlePoolReaper, mark_active
 from .settings import PoolSettings, current
 from .stats import PoolStats
 from .utils import is_maintenance_db
@@ -190,7 +190,7 @@ class ConnectionPool:
     ) -> _PsycopgPool:
         pool = self._pools.get(key)
         if pool is not None and not pool.closed:
-            note_activity(pool)
+            mark_active(pool)
             return pool
 
         kwargs = dict(connection_info)
@@ -207,7 +207,7 @@ class ConnectionPool:
         with self._lock:
             pool = self._pools.get(key)
             if pool is not None and not pool.closed:
-                note_activity(pool)
+                mark_active(pool)
                 return pool
 
             pool = _PsycopgPool(
@@ -225,7 +225,7 @@ class ConnectionPool:
                 num_workers=self._pool_workers,
                 open=True,
             )
-            note_activity(pool)
+            mark_active(pool)
             self._pools[key] = pool
             self.stats.record_pool_created()
             self._debug("Created pool for %s", dict(key))
@@ -294,7 +294,7 @@ class ConnectionPool:
         started = monotonic()
         deadline = started + self._borrow_timeout
         if key is None:
-            key = _normalize_dsn_key(connection_info)
+            key = _get_dsn_key(connection_info)
         dbname = connection_info.get("dbname") or dict(key).get("database", "")
         if is_maintenance_db(dbname, self._settings):
             return self._borrow_directly(connection_info, deadline)
@@ -494,7 +494,7 @@ class ConnectionPool:
             self._reap_idle_pools_safely()
             return
 
-        note_activity(pool)
+        mark_active(pool)
         try:
             if not keep_in_pool:
                 self.stats.record_connection_discarded()
@@ -620,7 +620,7 @@ class Connection:
         self.__dbname = dbname
         self.__dsn = dict(dsn)
         self.__pool = pool
-        self.__key = _normalize_dsn_key(dsn)
+        self.__key = _get_dsn_key(dsn)
 
     @property
     def dsn(self) -> dict:

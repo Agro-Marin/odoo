@@ -538,7 +538,7 @@ def get_fk_constraints_batch(
     return cr.fetchall()
 
 
-def get_foreign_keys(
+def get_fk_constraint_names(
     cr: BaseCursor,
     tablename1: str,
     columnname1: str,

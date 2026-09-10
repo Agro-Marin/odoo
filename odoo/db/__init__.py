@@ -5,7 +5,7 @@ from . import settings as pool_settings
 from .budget import ConnectionBudget
 from .cursor import BaseCursor, Cursor, Savepoint
 from .endpoints import EndpointRegistry, get_endpoint_key
-from .metrics import categorize_query
+from .metrics import classify_query
 from .pool import Connection, ConnectionPool, PoolError
 from .savepoint import get_or_create_row
 from .settings import PoolSettings
@@ -24,7 +24,7 @@ __all__ = [
     "PoolError",
     "PoolSettings",
     "Savepoint",
-    "categorize_query",
+    "classify_query",
     "close_all",
     "close_db",
     "db_connect",

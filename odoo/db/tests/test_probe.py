@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import psycopg
 
-from odoo.db.dsn import _normalize_dsn_key
+from odoo.db.dsn import _get_dsn_key
 from odoo.db.pool import ConnectionPool
 
 
@@ -45,14 +45,14 @@ class TestReachabilityProof(unittest.TestCase):
 
     def test_first_cold_start_probes(self):
         pool, calls = self._pool_with_probe_counter()
-        key = _normalize_dsn_key({"dbname": "d"})
+        key = _get_dsn_key({"dbname": "d"})
         with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
             pool._get_or_create_pool(key, {"dbname": "d"})
         self.assertEqual(len(calls), 1, "an unseen DSN must be probed")
 
     def test_rebuild_after_a_proven_connect_skips_the_probe(self):
         pool, calls = self._pool_with_probe_counter()
-        key = _normalize_dsn_key({"dbname": "d"})
+        key = _get_dsn_key({"dbname": "d"})
         pool._probe.mark_proven(key)
         pool._pools.clear()
         with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
@@ -61,7 +61,7 @@ class TestReachabilityProof(unittest.TestCase):
 
     def test_close_database_revokes_the_proof(self):
         pool, calls = self._pool_with_probe_counter()
-        key = _normalize_dsn_key({"dbname": "d"})
+        key = _get_dsn_key({"dbname": "d"})
         pool._probe.mark_proven(key)
         pool.close_database("d")
         self.assertFalse(pool._probe.is_proven(key))
@@ -71,7 +71,7 @@ class TestReachabilityProof(unittest.TestCase):
 
     def test_close_database_revokes_proofs_with_no_live_pool(self):
         pool, _ = self._pool_with_probe_counter()
-        key = _normalize_dsn_key({"dbname": "d", "host": "h"})
+        key = _get_dsn_key({"dbname": "d", "host": "h"})
         pool._probe.mark_proven(key)
         self.assertEqual(pool._pools, {})
         pool.close_database("d")
@@ -79,15 +79,15 @@ class TestReachabilityProof(unittest.TestCase):
 
     def test_other_databases_keep_their_proof(self):
         pool, _ = self._pool_with_probe_counter()
-        keep = _normalize_dsn_key({"dbname": "other"})
+        keep = _get_dsn_key({"dbname": "other"})
         pool._probe.mark_proven(keep)
-        pool._probe.mark_proven(_normalize_dsn_key({"dbname": "d"}))
+        pool._probe.mark_proven(_get_dsn_key({"dbname": "d"}))
         pool.close_database("d")
         self.assertTrue(pool._probe.is_proven(keep))
 
     def test_a_connect_failure_revokes_the_proof(self):
         pool = ConnectionPool(maxconn=2, borrow_timeout=0.05)
-        key = _normalize_dsn_key({"dbname": "d"})
+        key = _get_dsn_key({"dbname": "d"})
         pool._probe.mark_proven(key)
         failing = _FakePool(getconn_raises=psycopg.errors.InvalidCatalogName("gone"))
         with self.assertRaises(psycopg.Error):
@@ -98,8 +98,8 @@ class TestReachabilityProof(unittest.TestCase):
 
     def test_rotated_credentials_revoke_the_old_proof(self):
         pool, _ = self._pool_with_probe_counter()
-        old = _normalize_dsn_key({"dbname": "d", "password": "old"})
-        new = _normalize_dsn_key({"dbname": "d", "password": "new"})
+        old = _get_dsn_key({"dbname": "d", "password": "old"})
+        new = _get_dsn_key({"dbname": "d", "password": "new"})
         pool._probe.mark_proven(old)
         pool._pools[old] = _FakePool()
         with patch("odoo.db.pool._PsycopgPool", _fake_pool_factory):
@@ -113,7 +113,7 @@ class TestTheDedupedProbeDoesNotShareATraceback(unittest.TestCase):
         import time
 
         pool = ConnectionPool(maxconn=8)
-        key = _normalize_dsn_key({"dbname": "unreachable"})
+        key = _get_dsn_key({"dbname": "unreachable"})
         go = threading.Event()
         caught: dict = {}
 
@@ -179,7 +179,7 @@ class TestLeaderRemovalAndCompletionAreAtomic(unittest.TestCase):
         from odoo.db import probe as probe_module
 
         pool = ConnectionPool(maxconn=8)
-        key = _normalize_dsn_key({"dbname": "atomic-check"})
+        key = _get_dsn_key({"dbname": "atomic-check"})
         entered_finally = threading.Event()
         release_leader = threading.Event()
         real_set = threading.Event.set

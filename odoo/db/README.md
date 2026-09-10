@@ -30,7 +30,7 @@ files here carry one, so this README is the only map.
 | `errors.py` | `CURSOR_LOGGER_NAME`, retry taxonomy (`PG_RETRY_*`), user-fault taxonomy (`PG_USER_FAULT_*`), the stale-plan marker (`PG_STALE_PLAN_EXCEPTIONS`, `mark_stale_cached_plan`, `is_stale_cached_plan`), `has_reached_server`, `_log_sql_error`'s four log tiers | yes |
 | `lifecycle.py` | psycopg_pool `configure`/`reset`/`check` callbacks (`register_adapters` and its numeric-to-float loader, prepare tuning, session reset, grace-windowed health check sized by `PoolSettings.healthcheck_grace`) | yes |
 | `schema_cache.py` | `TransactionSchemaCache`: per-cursor, transaction-lifetime catalog facts for `copy_from` (id sequences, column types) | yes |
-| `metrics.py` | `_MetricsMixin` (query counters, thread metrics, DEBUG per-table stats), `categorize_query` (the statement -> (kind, table) classifier those stats key on), `sql_counter` | yes |
+| `metrics.py` | `_MetricsMixin` (query counters, thread metrics, DEBUG per-table stats), `classify_query` (the statement -> (kind, table) classifier those stats key on), `sql_counter` | yes |
 | `utils.py` | `get_connection_info_for_database`, `is_maintenance_db`, `get_value_marker_positions`, `update_planner_stats` | yes |
 | `settings.py` | `PoolSettings`: the frozen snapshot of every `db_*` option the package reads, `from_config` to build one, and the slot (`current`, `installed`, `override`) through which `odoo.tools.config` supplies it — the one door the option dict has into this package | yes |
 
@@ -278,7 +278,7 @@ library.
   `_drained_at`, so it is discarded on return.
   Two different questions, two functions: `_get_ddl_keyword` reports the **leading**
   keyword (all param inlining needs — psycopg cannot bind server-side params
-  into a multi-statement string at all), while `_is_schema_change` scans **every**
+  into a multi-statement string at all), while `_has_schema_changing_statement` scans **every**
   statement, because `BEGIN; ALTER …; COMMIT` would otherwise slip past
   invalidation and make the next `SELECT *` raise `FeatureNotSupported`.
 - **Binary COPY reads the catalog under COPY's own lock**: binary COPY encodes
@@ -334,7 +334,7 @@ library.
   `cr.copy()` and `copy_from` each used to carry their own timing, query-hook
   fan-out, DEBUG line, error tier and counting decision — four copies of one
   shape, and each had drifted into a defect of its own.
-  `executemany` never called `_note_stale_cached_plan`, so the replay
+  `executemany` never called `_invalidate_cached_plans_if_stale`, so the replay
   `service.transaction.retrying` performs for `execute` did not happen for it
   (same table, same `ALTER COLUMN … TYPE`, same connection: `execute` raised
   `FeatureNotSupported` marked, `executemany` raised it unmarked, and through
@@ -381,7 +381,7 @@ library.
   to do its own `lstrip`, its own two-character prefix test and its own
   frozenset lookup. Microbenchmarked over 200k iterations on a typical ORM
   SELECT — a live round trip (~14 µs) cannot see this — `_get_ddl_keyword` cost
-  120 ns and `_is_rollback_to_savepoint` 113 ns against `_is_schema_change`'s
+  120 ns and `_is_rollback_to_savepoint` 113 ns against `_has_schema_changing_statement`'s
   47 ns, so the duplicated prefix dance was most of the classification cost.
   `classify_statement` answers both in one pass; the DDL keywords and
   `ROLLBACK` share no two-character prefix (`RE`VOKE against `RO`LLBACK), so
@@ -480,7 +480,7 @@ library.
   `service.transaction.retrying`, so the cursor's only job is to **name** the
   condition. It is the one place that can: SQLSTATE `0A000` also covers
   permanent failures such as "cannot alter type of a column used by a view", and
-  the message text is translated under `lc_messages`. `_note_stale_cached_plan`
+  the message text is translated under `lc_messages`. `_invalidate_cached_plans_if_stale`
   therefore marks the exception when the connection held auto-prepared
   statements — the necessary condition — and clears them so the replay
   re-prepares. Over-inclusion is bounded by the retry budget; under-inclusion is
@@ -748,7 +748,7 @@ library.
   never reaches a pool key, `conninfo_to_dict` has one caller, `_libpq_connect_timeout`
   never returns a value libpq would read as "wait forever", the budget is keyed
   on the resolved endpoint rather than the presence of `db_replica_host`, the
-  two schema-cache clears keep their distinct call sites, `_is_schema_change`
+  two schema-cache clears keep their distinct call sites, `_has_schema_changing_statement`
   cannot miss a hidden statement, the `SE` branch that claims `SET` runs no
   regex and `SET` stays out of `_DDL_KEYWORDS`, the lag gauge's pair is
   written and rendered under one lock while `allows()` stays lock-free, the

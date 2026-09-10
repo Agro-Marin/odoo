@@ -280,7 +280,7 @@ class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
     def test_it_clears_the_plans_so_the_retry_re_prepares(self):
         cr = self._cursor()
         exc = psycopg.errors.FeatureNotSupported("cached plan must not change")
-        self.assertTrue(cr._note_stale_cached_plan(exc))
+        self.assertTrue(cr._invalidate_cached_plans_if_stale(exc))
         self.assertFalse(
             cr._cnx._prepared._names, "the cache must be empty after the mark"
         )
@@ -293,7 +293,7 @@ class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
     def test_the_marker_issues_no_sql(self):
         cr = self._cursor()
         exc = psycopg.errors.FeatureNotSupported("cached plan must not change")
-        self.assertTrue(cr._note_stale_cached_plan(exc))
+        self.assertTrue(cr._invalidate_cached_plans_if_stale(exc))
 
     def test_the_family_is_exported_for_the_request_layer(self):
         from odoo.db import errors as err
@@ -310,23 +310,23 @@ class TestPasswordNeverReachesAPoolKey(unittest.TestCase):
         self.assertNotIn(self.SECRET, str(dict(key)))
 
     def test_keyword_password_is_fingerprinted(self):
-        key = dsn._normalize_dsn_key({"dbname": "d", "password": self.SECRET})
+        key = dsn._get_dsn_key({"dbname": "d", "password": self.SECRET})
         self._assert_absent(key)
         self.assertIn("password_fp", dict(key))
 
     def test_uri_embedded_password_is_fingerprinted(self):
-        key = dsn._normalize_dsn_key({"dsn": f"postgresql://u:{self.SECRET}@h/d"})
+        key = dsn._get_dsn_key({"dsn": f"postgresql://u:{self.SECRET}@h/d"})
         self._assert_absent(key)
 
     def test_a_rotated_password_changes_the_key(self):
         base = {"dbname": "d", "user": "u"}
-        first = dsn._normalize_dsn_key({**base, "password": "one"})
-        second = dsn._normalize_dsn_key({**base, "password": "two"})
+        first = dsn._get_dsn_key({**base, "password": "one"})
+        second = dsn._get_dsn_key({**base, "password": "two"})
         self.assertNotEqual(first, second, "rotation must not reuse the cached pool")
 
     def test_the_fingerprint_is_stable_for_one_password(self):
         made = {"dbname": "d", "password": self.SECRET}
-        self.assertEqual(dsn._normalize_dsn_key(made), dsn._normalize_dsn_key(made))
+        self.assertEqual(dsn._get_dsn_key(made), dsn._get_dsn_key(made))
 
 
 class TestLibpqTimeoutNeverLeaksZero(unittest.TestCase):
@@ -386,17 +386,21 @@ class TestDdlDetectionCannotMissAHiddenStatement(unittest.TestCase):
     def test_hidden_ddl_is_reported(self):
         for qs in self.HIDDEN:
             with self.subTest(qs=qs):
-                self.assertTrue(ddl._is_schema_change(qs, ddl._get_ddl_keyword(qs)))
+                self.assertTrue(
+                    ddl._has_schema_changing_statement(qs, ddl._get_ddl_keyword(qs))
+                )
 
     def test_ordinary_statements_are_not(self):
         for qs in self.INNOCENT:
             with self.subTest(qs=qs):
-                self.assertFalse(ddl._is_schema_change(qs, ddl._get_ddl_keyword(qs)))
+                self.assertFalse(
+                    ddl._has_schema_changing_statement(qs, ddl._get_ddl_keyword(qs))
+                )
 
     def test_over_reporting_is_the_only_allowed_error(self):
         qs = "SELECT 'a;CREATE' FROM t"
         self.assertTrue(
-            ddl._is_schema_change(qs, ddl._get_ddl_keyword(qs)),
+            ddl._has_schema_changing_statement(qs, ddl._get_ddl_keyword(qs)),
             "a semicolon in a literal may over-report; that costs a cache drop, "
             "which is safe, and is the documented direction of the trade",
         )

@@ -5,7 +5,7 @@ from odoo.db.reaper import (
     _LAST_BORROW_ATTR,
     IdlePoolReaper,
     get_checked_out_count,
-    note_activity,
+    mark_active,
 )
 
 
@@ -63,7 +63,7 @@ class TestCollect(unittest.TestCase):
 
     def test_note_activity_rescues_a_stale_pool(self):
         pool = _aged(60)
-        note_activity(pool)
+        mark_active(pool)
         self.assertEqual(self.reaper.get_keys_reapable({"a": pool}), [])
 
     def test_reaping_disabled_collects_nothing(self):

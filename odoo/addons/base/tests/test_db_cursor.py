@@ -41,7 +41,7 @@ from odoo.db.pool import (
     PoolError,
     _check_connection,
     _configure_connection,
-    _normalize_dsn_key,
+    _get_dsn_key,
     _reset_connection,
     _SuppressKnownPoolWarnings,
 )
@@ -2176,7 +2176,7 @@ class TestPoolTimeoutCleanup(BaseCase):
     def test_pool_removed_on_timeout(self):
         pool = ConnectionPool(maxconn=4)
         info = get_connection_info_for_database("nonexistent_db_test")[1]
-        key = _normalize_dsn_key(info)
+        key = _get_dsn_key(info)
 
         mock_pool = MagicMock()
         mock_pool.closed = False
@@ -2193,7 +2193,7 @@ class TestPoolTimeoutCleanup(BaseCase):
     def test_pool_kept_on_timeout_with_live_connections(self):
         pool = ConnectionPool(maxconn=4)
         info = get_connection_info_for_database("nonexistent_db_test")[1]
-        key = _normalize_dsn_key(info)
+        key = _get_dsn_key(info)
 
         mock_pool = MagicMock()
         mock_pool.closed = False
@@ -2210,7 +2210,7 @@ class TestPoolTimeoutCleanup(BaseCase):
     def test_pool_not_removed_on_other_errors(self):
         pool = ConnectionPool(maxconn=4)
         info = get_connection_info_for_database("nonexistent_db_test")[1]
-        key = _normalize_dsn_key(info)
+        key = _get_dsn_key(info)
 
         mock_pool = MagicMock()
         mock_pool.closed = False
@@ -3352,12 +3352,10 @@ class TestTheModuleLevelFanOut(BaseCase):
 class TestCloseDatabaseByName(BaseCase):
     def test_close_database_matches_uri_pools(self):
         pool = ConnectionPool(maxconn=2)
-        uri_key = _normalize_dsn_key(
-            {"dsn": "postgresql://localhost/dbz?connect_timeout=10"}
-        )
+        uri_key = _get_dsn_key({"dsn": "postgresql://localhost/dbz?connect_timeout=10"})
         uri_pool = MagicMock()
         uri_pool.closed = False
-        other_key = _normalize_dsn_key({"dbname": "other"})
+        other_key = _get_dsn_key({"dbname": "other"})
         other_pool = MagicMock()
         other_pool.closed = False
         pool._pools[uri_key] = uri_pool
@@ -3433,7 +3431,7 @@ class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
     def test_info_failure_returns_connection_and_releases_semaphore(self):
         pool = ConnectionPool(maxconn=4)
         info = get_connection_info_for_database("nonexistent_db_test")[1]
-        key = _normalize_dsn_key(info)
+        key = _get_dsn_key(info)
 
         class _Info:
             @property
@@ -3463,7 +3461,7 @@ class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
     def test_min_version_path_also_returns_connection(self):
         pool = ConnectionPool(maxconn=4)
         info = get_connection_info_for_database("nonexistent_db_test")[1]
-        key = _normalize_dsn_key(info)
+        key = _get_dsn_key(info)
 
         conn = MagicMock()
         conn.info.server_version = 150000
@@ -3812,7 +3810,7 @@ class TestPoolSessionGucOptions(BaseCase):
             def get_stats(self):
                 return {}
 
-        key = _normalize_dsn_key(connection_info)
+        key = _get_dsn_key(connection_info)
         with (
             patch.object(pool_module, "_PsycopgPool", _FakePool),
             patch.object(pool._probe, "probe_connectable"),
@@ -4069,7 +4067,7 @@ class TestBorrowValidationFailureNoLeak(BaseCase):
     def test_version_gate_failure_releases_semaphore_and_putconn(self):
         pool = ConnectionPool(maxconn=4)
         info = get_connection_info_for_database("nonexistent_db_test")[1]
-        key = _normalize_dsn_key(info)
+        key = _get_dsn_key(info)
 
         conn = MagicMock()
         conn.info.server_version = 170000
@@ -4168,8 +4166,8 @@ class TestPasswordRotationEvictsStalePool(BaseCase):
         base = {"dbname": "rotdb", "host": "h", "user": "u"}
         info_old = {**base, "password": "old"}
         info_new = {**base, "password": "new"}
-        k_old = _normalize_dsn_key(info_old)
-        k_new = _normalize_dsn_key(info_new)
+        k_old = _get_dsn_key(info_old)
+        k_new = _get_dsn_key(info_new)
         with patch("odoo.db.pool._PsycopgPool") as PP:
             PP.side_effect = self._pool_factory()
             old_pool = pool._get_or_create_pool(k_old, info_old)
@@ -4185,8 +4183,8 @@ class TestPasswordRotationEvictsStalePool(BaseCase):
         base = {"dbname": "rotdb", "host": "h", "password": "p"}
         info_u1 = {**base, "user": "u1"}
         info_u2 = {**base, "user": "u2"}
-        k1 = _normalize_dsn_key(info_u1)
-        k2 = _normalize_dsn_key(info_u2)
+        k1 = _get_dsn_key(info_u1)
+        k2 = _get_dsn_key(info_u2)
         with patch("odoo.db.pool._PsycopgPool") as PP:
             PP.side_effect = self._pool_factory()
             pool._get_or_create_pool(k1, info_u1)
@@ -5238,7 +5236,7 @@ class TestSchemaForeignKeys(BaseCase):
         )
 
     def _find(self, ondelete):
-        return sql_schema.get_foreign_keys(
+        return sql_schema.get_fk_constraint_names(
             self.cr, "_test_fk_child", "parent_id", "_test_fk_parent", "id", ondelete
         )
 
@@ -6241,7 +6239,7 @@ class TestCloseRunsHooksOnALiveCursor(BaseCase):
         cr = registry().cursor()
         seen = []
         cr.prerollback.add(partial(seen.append, "preR"))
-        cr.print_log = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+        cr.log_sql_stats = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
         with self.assertRaises(RuntimeError):
             cr.close()
         self.assertEqual(seen, ["preR"], "a logging failure skipped the rollback")

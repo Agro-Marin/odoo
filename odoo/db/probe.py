@@ -10,7 +10,7 @@ import psycopg
 from .dsn import (
     _NON_RETRYABLE_CONNECT_ERRORS,
     _expand_conninfo,
-    _translate_connect_error,
+    _resolve_connect_error,
 )
 
 _logger = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ class ReachabilityProbe:
             self._stats.record_probe_outcome("permanent")
             raise
         except psycopg.OperationalError as e:
-            translated = _translate_connect_error(e)
+            translated = _resolve_connect_error(e)
             if translated is not None:
                 self._stats.record_probe_outcome("permanent")
                 raise translated from e

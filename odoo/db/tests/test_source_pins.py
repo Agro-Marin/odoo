@@ -89,7 +89,7 @@ class TestBudgetAccounting(unittest.TestCase):
 class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
     def test_the_one_failure_seam_marks_it(self):
         self.assertIn(
-            "_note_stale_cached_plan",
+            "_invalidate_cached_plans_if_stale",
             _callees(cursor.Cursor._statement_failed),
             "nothing else can tell a recoverable 0A000 from a permanent one",
         )
@@ -116,7 +116,7 @@ class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
                     )
 
     def test_the_marker_requires_prepared_statements(self):
-        src = inspect.getsource(cursor.Cursor._note_stale_cached_plan)
+        src = inspect.getsource(cursor.Cursor._invalidate_cached_plans_if_stale)
         self.assertIn("_prepared", src)
         self.assertIn("_names", src)
         self.assertIn(

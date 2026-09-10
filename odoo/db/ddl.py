@@ -70,7 +70,7 @@ def _is_schema_changing_statement(qs: str, leading: str | None) -> bool:
     return leading != "CREATE" or _RE_CREATE_SEQUENCE.match(qs) is None
 
 
-def _is_schema_change(qs: str, leading: str | None) -> bool:
+def _has_schema_changing_statement(qs: str, leading: str | None) -> bool:
     if _is_schema_changing_statement(qs, leading):
         return True
     if ";" not in qs:
@@ -84,7 +84,7 @@ def _is_schema_change(qs: str, leading: str | None) -> bool:
 _DICT_MARKER_RE = _re.compile(r"%(?:%|\(([^)]+)\)s)")
 
 
-def _in_code_ranges(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
+def _is_within_code_ranges(start: int, end: int, ranges: list[tuple[int, int]]) -> bool:
     return any(r_start <= start and end <= r_end for r_start, r_end in ranges)
 
 
@@ -95,7 +95,7 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
             m.group(1)
             for m in _DICT_MARKER_RE.finditer(qs)
             if m.group(1) is not None
-            and _in_code_ranges(m.start(), m.end(), code_ranges)
+            and _is_within_code_ranges(m.start(), m.end(), code_ranges)
         }
         missing = referenced - params.keys()
         if missing:
@@ -109,7 +109,7 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
             name = m.group(1)
             if name is None:
                 return "%"
-            if not _in_code_ranges(m.start(), m.end(), code_ranges):
+            if not _is_within_code_ranges(m.start(), m.end(), code_ranges):
                 return m.group(0)
             return _sql.quote(params[name], ctx)
 

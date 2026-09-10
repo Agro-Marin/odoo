@@ -56,7 +56,7 @@ if TYPE_CHECKING:
         _schema_cache: TransactionSchemaCache
         dbname: str
 
-        def _note_table_locked(self, table: str) -> None: ...
+        def _mark_table_locked(self, table: str) -> None: ...
 
         def execute(
             self,
@@ -181,7 +181,7 @@ def _prepare_copy_statement(
     )
 
 
-def _note_binary_needs_exact_types(exc: Exception, table: str, columns: list) -> None:
+def _add_binary_types_note(exc: Exception, table: str, columns: list) -> None:
     if has_reached_server(exc):
         return
     exc.add_note(
@@ -321,7 +321,7 @@ class _BulkAccessMixin:
             counts = True
         except Exception as e:
             if binary:
-                _note_binary_needs_exact_types(e, table, columns)
+                _add_binary_types_note(e, table, columns)
             counts = self._statement_failed(
                 e,
                 render_copy_statement,
@@ -401,7 +401,7 @@ class _BulkAccessMixin:
                 _get_table_identifier(table)
             )
         )
-        self._note_table_locked(table)
+        self._mark_table_locked(table)
 
     def _get_id_sequence(self: _CursorInternals, table: str) -> str:
         cache = self._schema_cache

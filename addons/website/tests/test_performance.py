@@ -1,7 +1,7 @@
 import logging
 from contextlib import closing
 
-from odoo.db import categorize_query
+from odoo.db import classify_query
 from odoo.tests.common import tagged
 from odoo.tools import mute_logger
 
@@ -68,7 +68,7 @@ class UtilPerf(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
         queries = query_separator.join(sql_queries)
 
         for query in sql_queries:
-            query_type, table = categorize_query(query)
+            query_type, table = classify_query(query)
             if query_type == "other" and "orm_signaling_registry" in query:
                 # The registry-signaling probe is one SELECT of subselects with
                 # no top-level FROM; the expectations below count it as a read

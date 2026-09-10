@@ -5,8 +5,8 @@ from odoo.db import ddl as ddl_mod
 from odoo.db.ddl import (
     _SCHEMA_CHANGING_DDL,
     _get_ddl_keyword,
+    _has_schema_changing_statement,
     _inline_ddl_params,
-    _is_schema_change,
     classify_statement,
 )
 
@@ -53,9 +53,11 @@ class TestSetTakesClientSideParams(unittest.TestCase):
 
     def test_set_changes_no_schema(self):
         self.assertNotIn("SET", _SCHEMA_CHANGING_DDL)
-        self.assertFalse(_is_schema_change("SET statement_timeout = '5s'", "SET"))
         self.assertFalse(
-            _is_schema_change("SELECT 1; SET x = 1", None),
+            _has_schema_changing_statement("SET statement_timeout = '5s'", "SET")
+        )
+        self.assertFalse(
+            _has_schema_changing_statement("SELECT 1; SET x = 1", None),
             "a hidden SET must not drain the pool either",
         )
 
@@ -355,7 +357,7 @@ class TestInlineDdlParams(unittest.TestCase):
 
 class TestChangesSchema(unittest.TestCase):
     def _check(self, qs):
-        return _is_schema_change(qs, _get_ddl_keyword(qs))
+        return _has_schema_changing_statement(qs, _get_ddl_keyword(qs))
 
     def test_single_statement_schema_ddl(self):
         for qs in (
@@ -401,13 +403,13 @@ class TestChangesSchema(unittest.TestCase):
 
     def test_leading_schema_ddl_short_circuits_before_any_scan(self):
         qs = "CREATE TABLE t (id int); COMMENT ON TABLE t IS 'x'"
-        self.assertTrue(_is_schema_change(qs, "CREATE"))
+        self.assertTrue(_has_schema_changing_statement(qs, "CREATE"))
 
     def test_over_reports_rather_than_misses(self):
         self.assertTrue(self._check("SELECT 'a; DROP TABLE t'"))
 
     def test_no_semicolon_never_pays_for_a_split(self):
-        self.assertFalse(_is_schema_change("SELECT " + "x" * 10_000, None))
+        self.assertFalse(_has_schema_changing_statement("SELECT " + "x" * 10_000, None))
 
     def test_creating_a_sequence_changes_no_schema_anyone_cached(self):
         for qs in (

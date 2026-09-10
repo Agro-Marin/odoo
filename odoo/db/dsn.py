@@ -32,7 +32,7 @@ _ENGLISH_AUTH_MARKERS: tuple[tuple[str, ...], ...] = (
 )
 
 
-def _translate_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | None:
+def _resolve_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | None:
     msg = str(exc).lower()
     if any(marker in msg for marker in _LOCALE_INDEPENDENT_AUTH_MARKERS):
         return psycopg.errors.InvalidAuthorizationSpecification(str(exc))
@@ -55,7 +55,7 @@ def _expand_conninfo(info: dict | str) -> dict:
     return dict(info)
 
 
-def _normalize_dsn_key(dsn: dict | str) -> frozenset:
+def _get_dsn_key(dsn: dict | str) -> frozenset:
     dsn = _expand_conninfo(dsn)
     password = dsn.get("password")
     if password:

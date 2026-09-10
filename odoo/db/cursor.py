@@ -19,7 +19,7 @@ from odoo.libs.func import Callbacks, frame_codeinfo
 from odoo.libs.sql import SQL
 
 from .bulk import _BulkAccessMixin
-from .ddl import _inline_ddl_params, _is_schema_change, classify_statement
+from .ddl import _has_schema_changing_statement, _inline_ddl_params, classify_statement
 from .errors import (
     PG_STALE_PLAN_EXCEPTIONS,
     _log_sql_error,
@@ -29,7 +29,7 @@ from .errors import (
     mark_stale_cached_plan,
 )
 from .lifecycle import clear_prepared_cache
-from .metrics import _MetricsMixin, categorize_query
+from .metrics import _MetricsMixin, classify_query
 from .pool import ConnectionPool
 from .savepoint import Savepoint, _FlushingSavepoint
 from .schema_cache import TransactionSchemaCache
@@ -400,7 +400,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             return has_reached_server(exc)
         mark_handled_by_seam(exc)
         if prepared:
-            self._note_stale_cached_plan(exc)
+            self._invalidate_cached_plans_if_stale(exc)
         if log_exceptions:
             _log_sql_error(exc, _render_query(query), label=label)
         return has_reached_server(exc)
@@ -500,11 +500,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._after_statement(qs, ddl_kw, rollback_to)
 
         if debug:
-            query_type, table = categorize_query(qs)
+            query_type, table = classify_query(qs)
             self._record_sql_log(query_type, table, delay)
 
     def _after_statement(self, qs: str, ddl_kw: str | None, rollback_to: bool) -> None:
-        if _is_schema_change(qs, ddl_kw):
+        if _has_schema_changing_statement(qs, ddl_kw):
             self._invalidate_caches_after_ddl()
         elif rollback_to:
             self._on_rollback_to_savepoint()
@@ -540,10 +540,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     def _on_rollback_to_savepoint(self) -> None:
         self._schema_cache.release_locks_since_depth(self._savepoint_depth)
 
-    def _note_table_locked(self, table: str) -> None:
+    def _mark_table_locked(self, table: str) -> None:
         self._schema_cache.mark_locked(table, self._savepoint_depth)
 
-    def _note_stale_cached_plan(self, exc: Exception) -> bool:
+    def _invalidate_cached_plans_if_stale(self, exc: Exception) -> bool:
         if not isinstance(exc, PG_STALE_PLAN_EXCEPTIONS):
             return False
         prepared = getattr(self._cnx, "_prepared", None)
@@ -628,7 +628,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._after_statement(qs, ddl_kw, rollback_to)
 
         if debug:
-            query_type, table = categorize_query(qs)
+            query_type, table = classify_query(qs)
             self._record_sql_log(query_type, table, delay)
 
     @property
@@ -689,7 +689,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         try:
             try:
                 self.cache.clear()
-                self.print_log()
+                self.log_sql_stats()
             finally:
                 try:
                     self._rollback()

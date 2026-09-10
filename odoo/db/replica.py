@@ -55,12 +55,12 @@ class ReplicaRouter:
     def cursor(self, readonly: bool = False) -> tuple[BaseCursor, CursorMode]:
         if not readonly or self.readonly is None:
             return self.primary.cursor(), "rw"
-        cr = self._replica_cursor(self.readonly)
+        cr = self._resolve_replica_cursor(self.readonly)
         if cr is not None:
             return cr, "ro"
         return self.primary.cursor(), "ro->rw"
 
-    def _replica_cursor(self, replica: Connection) -> BaseCursor | None:
+    def _resolve_replica_cursor(self, replica: Connection) -> BaseCursor | None:
         sample_due = self.lag.is_sample_due()
         if not (self.lag.is_replica_usable() or sample_due):
             return None

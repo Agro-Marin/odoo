@@ -130,7 +130,7 @@ genuine cycle. Moving `errors`/`dsn`/`utils` to `[foundation]` and `helpers` to
 **These are the pre-fix figures**, re-derived by
 `TestEdgeCountConventions`, which holds the *old* bracket assignment
 (`errors`/`dsn`/`utils` in `[connectivity]`) for exactly that reason. The
-`db/` row read 6 until `categorize_query` moved from `utils` to `metrics`:
+`db/` row read 6 until `classify_query` moved from `utils` to `metrics`:
 `cursor` now takes it from a `[resilience]` module, one more downward symbol
 under the old map, and the back-edge is unchanged. Correcting
 its map to match the one above would change all four numbers and measure a
@@ -140,7 +140,7 @@ Three things a re-measurement has to hold apart, each of which produces a
 plausible wrong answer on its own:
 
 - **Statements against symbols.** `layer_check` counts symbols; `from .reaper
-  import IdlePoolReaper, note_activity` is one statement and two. Pick the other
+  import IdlePoolReaper, mark_active` is one statement and two. Pick the other
   convention and the two rows read 5 and 56.
 - **`from . import x`.** A relative import with no module names its targets in
   `node.names`, not in `node.module`. Skip that form and `db/`'s back-edge

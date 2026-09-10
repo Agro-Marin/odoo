@@ -4,47 +4,47 @@ import psycopg
 
 from odoo.db.dsn import (
     _LOCALE_INDEPENDENT_AUTH_MARKERS,
-    _normalize_dsn_key,
-    _translate_connect_error,
+    _get_dsn_key,
+    _resolve_connect_error,
 )
 
 
 class TestNormalizeDsnKey(unittest.TestCase):
     def test_dbname_aliased_to_database(self):
-        key_dict = dict(_normalize_dsn_key({"dbname": "test", "host": "localhost"}))
+        key_dict = dict(_get_dsn_key({"dbname": "test", "host": "localhost"}))
         self.assertEqual(key_dict["database"], "test")
         self.assertNotIn("dbname", key_dict)
 
     def test_password_excluded(self):
-        key_dict = dict(_normalize_dsn_key({"dbname": "test", "password": "secret"}))
+        key_dict = dict(_get_dsn_key({"dbname": "test", "password": "secret"}))
         self.assertNotIn("password", key_dict)
 
     def test_none_values_excluded(self):
-        key_dict = dict(_normalize_dsn_key({"dbname": "test", "host": None}))
+        key_dict = dict(_get_dsn_key({"dbname": "test", "host": None}))
         self.assertNotIn("host", key_dict)
 
     def test_string_dsn(self):
-        key_dict = dict(_normalize_dsn_key("dbname=test host=localhost"))
+        key_dict = dict(_get_dsn_key("dbname=test host=localhost"))
         self.assertEqual(key_dict["database"], "test")
         self.assertEqual(key_dict["host"], "localhost")
 
     def test_same_dsn_same_key(self):
-        key1 = _normalize_dsn_key({"dbname": "test", "host": "localhost"})
-        key2 = _normalize_dsn_key({"database": "test", "host": "localhost"})
+        key1 = _get_dsn_key({"dbname": "test", "host": "localhost"})
+        key2 = _get_dsn_key({"database": "test", "host": "localhost"})
         self.assertEqual(key1, key2)
 
 
 class TestNormalizeDsnKeyPassword(unittest.TestCase):
     def test_password_rotation_yields_different_key(self):
         base = {"dbname": "x", "host": "h", "user": "u"}
-        k0 = _normalize_dsn_key({**base, "password": "old"})
-        k1 = _normalize_dsn_key({**base, "password": "new"})
+        k0 = _get_dsn_key({**base, "password": "old"})
+        k1 = _get_dsn_key({**base, "password": "new"})
         self.assertNotEqual(
             k0, k1, "different passwords must yield different pool keys"
         )
 
     def test_password_not_leaked_in_key(self):
-        key = _normalize_dsn_key(
+        key = _get_dsn_key(
             {"dbname": "x", "host": "h", "user": "u", "password": "s3cr3t"}
         )
         for _k, v in key:
@@ -55,7 +55,7 @@ class TestNormalizeDsnKeyPassword(unittest.TestCase):
 
 class TestNormalizeDsnKeyUriExpansion(unittest.TestCase):
     def test_uri_password_not_in_key(self):
-        key = _normalize_dsn_key(
+        key = _get_dsn_key(
             {"dsn": "postgresql://u:s3cret@h:5433/dbz", "application_name": "x"}
         )
         self.assertNotIn("s3cret", str(sorted(key)))
@@ -64,13 +64,13 @@ class TestNormalizeDsnKeyUriExpansion(unittest.TestCase):
         self.assertEqual(kd.get("host"), "h")
 
     def test_uri_password_rotation_changes_key(self):
-        k1 = _normalize_dsn_key({"dsn": "postgresql://u:old@h/dbz"})
-        k2 = _normalize_dsn_key({"dsn": "postgresql://u:new@h/dbz"})
+        k1 = _get_dsn_key({"dsn": "postgresql://u:old@h/dbz"})
+        k2 = _get_dsn_key({"dsn": "postgresql://u:new@h/dbz"})
         self.assertNotEqual(k1, k2)
 
     def test_kwargs_override_uri_components(self):
         key = dict(
-            _normalize_dsn_key(
+            _get_dsn_key(
                 {
                     "dsn": "postgresql://h/dbz?application_name=uriapp",
                     "application_name": "kwapp",
@@ -89,27 +89,27 @@ class TestConnectErrorTranslation(unittest.TestCase):
             'connection failed: FATAL:  database "nope" does not exist'
         )
         self.assertIsInstance(
-            _translate_connect_error(exc), psycopg.errors.InvalidCatalogName
+            _resolve_connect_error(exc), psycopg.errors.InvalidCatalogName
         )
 
     def test_missing_role_translates_to_auth_error(self):
         exc = self._op_error('connection failed: FATAL:  role "nobody" does not exist')
         self.assertIsInstance(
-            _translate_connect_error(exc),
+            _resolve_connect_error(exc),
             psycopg.errors.InvalidAuthorizationSpecification,
         )
 
     def test_bad_password_translates_to_auth_error(self):
         exc = self._op_error('FATAL:  password authentication failed for user "x"')
         self.assertIsInstance(
-            _translate_connect_error(exc),
+            _resolve_connect_error(exc),
             psycopg.errors.InvalidAuthorizationSpecification,
         )
 
     def test_no_pg_hba_entry_translates_to_auth_error(self):
         exc = self._op_error('FATAL:  no pg_hba.conf entry for host "1.2.3.4"')
         self.assertIsInstance(
-            _translate_connect_error(exc),
+            _resolve_connect_error(exc),
             psycopg.errors.InvalidAuthorizationSpecification,
         )
 
@@ -122,7 +122,7 @@ class TestConnectErrorTranslation(unittest.TestCase):
             "FATAL:  the database system is starting up",
         ):
             with self.subTest(msg=msg):
-                self.assertIsNone(_translate_connect_error(self._op_error(msg)))
+                self.assertIsNone(_resolve_connect_error(self._op_error(msg)))
 
 
 if __name__ == "__main__":
@@ -145,7 +145,7 @@ class TestConnectErrorTranslationIsLocaleAware(unittest.TestCase):
         for msg in self.PG_HBA_IN_FOUR_LANGUAGES:
             with self.subTest(msg=msg[:40]):
                 self.assertIsInstance(
-                    _translate_connect_error(psycopg.OperationalError(msg)),
+                    _resolve_connect_error(psycopg.OperationalError(msg)),
                     psycopg.errors.InvalidAuthorizationSpecification,
                     "pg_hba.conf is a filename; no catalogue translates it, so "
                     "this one must not depend on lc_messages",
@@ -169,7 +169,7 @@ class TestConnectErrorTranslationIsLocaleAware(unittest.TestCase):
         ):
             with self.subTest(msg=msg[:40]):
                 self.assertIsNone(
-                    _translate_connect_error(psycopg.OperationalError(msg)),
+                    _resolve_connect_error(psycopg.OperationalError(msg)),
                     "classifying a restart as permanent would make the pool "
                     "give up on a server that is about to come back",
                 )
@@ -182,7 +182,7 @@ class TestConnectErrorTranslationIsLocaleAware(unittest.TestCase):
         ):
             with self.subTest(msg=msg[:40]):
                 self.assertIsInstance(
-                    _translate_connect_error(psycopg.OperationalError(msg)),
+                    _resolve_connect_error(psycopg.OperationalError(msg)),
                     psycopg.errors.InvalidAuthorizationSpecification,
                 )
 
@@ -192,7 +192,7 @@ class TestConnectErrorTranslationIsLocaleAware(unittest.TestCase):
             "\u00abx\u00bb"
         )
         self.assertIsNone(
-            _translate_connect_error(psycopg.OperationalError(localised)),
+            _resolve_connect_error(psycopg.OperationalError(localised)),
             "This is the documented residual, pinned so it is not mistaken for "
             "a regression: a localised password failure is NOT recognised, and "
             "costs db_borrow_timeout. There is no client-side fix -- psycopg "

@@ -17,7 +17,7 @@ from odoo.db.pool import (
     _SuppressKnownPoolWarnings,
 )
 from odoo.db.probe import PROBE_CONNECT_TIMEOUT, get_libpq_connect_timeout
-from odoo.db.reaper import _LAST_BORROW_ATTR, note_activity
+from odoo.db.reaper import _LAST_BORROW_ATTR, mark_active
 
 
 def _fake_pool_factory(*_a, **_k):
@@ -226,7 +226,7 @@ class TestIdlePoolReaping(unittest.TestCase):
         p = _FakePool()
         setattr(p, _LAST_BORROW_ATTR, monotonic() - 60)
         pool._pools = {_key(database="db"): p}
-        note_activity(p)
+        mark_active(p)
         self.assertEqual(pool._reaper.get_keys_reapable(pool._pools), [])
 
     def test_reap_check_interval_is_derived_and_floored(self):
@@ -409,7 +409,7 @@ class TestConnectionBudgetSharing(unittest.TestCase):
         def spin():
             try:
                 for _ in range(2000):
-                    note_activity(p)
+                    mark_active(p)
             except Exception as exc:
                 errors.append(exc)
 

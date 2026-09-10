@@ -367,7 +367,7 @@ class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
                 patch.object(
                     type(cur), "_rollback", side_effect=rollback_error, create=True
                 ),
-                patch.object(type(cur), "print_log", MagicMock(), create=True),
+                patch.object(type(cur), "log_sql_stats", MagicMock(), create=True),
                 patch.object(
                     type(cur), "_is_connection_clean", return_value=clean, create=True
                 ),

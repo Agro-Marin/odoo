@@ -18,7 +18,7 @@ def _coerce_port(port: object) -> int:
         return DEFAULT_PG_PORT
 
 
-def _resolve(settings: PoolSettings | None) -> PoolSettings:
+def _get_settings(settings: PoolSettings | None) -> PoolSettings:
     return settings if settings is not None else current()
 
 
@@ -27,7 +27,7 @@ def get_endpoint_key(
 ) -> tuple[str | None, int]:
     if not info.get("dsn"):
         return (info.get("host") or None, _coerce_port(info.get("port")))
-    settings = _resolve(settings)
+    settings = _get_settings(settings)
     expanded = _expand_conninfo(info)
     host = expanded.get("host") or settings.host or None
     port = expanded.get("port") or settings.port
@@ -43,14 +43,14 @@ class EndpointRegistry:
     def get_endpoint_for_readonly(
         self, readonly: bool, settings: PoolSettings | None = None
     ) -> tuple:
-        settings = _resolve(settings)
+        settings = _get_settings(settings)
         _, info = get_connection_info_for_database("", readonly, settings)
         return get_endpoint_key(info, settings)
 
     def get_maxconn_at_endpoint(
         self, endpoint: tuple, settings: PoolSettings | None = None
     ) -> int:
-        settings = _resolve(settings)
+        settings = _get_settings(settings)
         base = settings.maxconn
         if endpoint != self.get_endpoint_for_readonly(
             False, settings
@@ -61,7 +61,7 @@ class EndpointRegistry:
     def get_maxconn_for_readonly(
         self, readonly: bool, settings: PoolSettings | None = None
     ) -> int:
-        settings = _resolve(settings)
+        settings = _get_settings(settings)
         return self.get_maxconn_at_endpoint(
             self.get_endpoint_for_readonly(readonly, settings), settings
         )
@@ -80,7 +80,7 @@ class EndpointRegistry:
     def get_budget_for_readonly(
         self, readonly: bool, settings: PoolSettings | None = None
     ) -> ConnectionBudget:
-        settings = _resolve(settings)
+        settings = _get_settings(settings)
         return self.get_budget_at_endpoint(
             self.get_endpoint_for_readonly(readonly, settings), settings
         )
@@ -92,7 +92,7 @@ class EndpointRegistry:
         pool = self._pools.get(key)
         if pool is not None:
             return pool
-        settings = _resolve(settings)
+        settings = _get_settings(settings)
         with self._lock:
             pool = self._pools.get(key)
             if pool is None:
@@ -114,7 +114,7 @@ class EndpointRegistry:
     def get_pool_for_readonly(
         self, readonly: bool, settings: PoolSettings | None = None
     ) -> ConnectionPool:
-        settings = _resolve(settings)
+        settings = _get_settings(settings)
         return self.get_pool_at_endpoint(
             self.get_endpoint_for_readonly(readonly, settings), readonly, settings
         )
@@ -127,7 +127,7 @@ class EndpointRegistry:
         return any(pool.has_database(db_name) for pool in self.get_all_pools())
 
     def get_health(self, settings: PoolSettings | None = None) -> dict:
-        settings = _resolve(settings)
+        settings = _get_settings(settings)
         configured = {
             False: self.get_endpoint_for_readonly(False, settings),
             True: self.get_endpoint_for_readonly(True, settings),
