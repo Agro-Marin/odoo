@@ -129,9 +129,6 @@ test("No preview on small devices", async () => {
     await waitForSteps([
         `/web/dataset/call_kw/account.move.line/web_read_group - ${JSON.stringify({
             kwargs: {
-                domain: [],
-                groupby: ["move_id"],
-                aggregates: [],
                 limit: 80,
                 offset: 0,
                 order: "",
@@ -147,9 +144,13 @@ test("No preview on small devices", async () => {
                 groupby_read_specification: {},
                 context: {
                     ...userContext(),
+                    bin_size: true,
                     read_group_expand: true,
                     group_by: ["move_id"],
                 },
+                domain: [],
+                groupby: ["move_id"],
+                aggregates: [],
             },
         })}`,
     ]);
@@ -219,9 +220,6 @@ test("Fetch and preview of attachments on big devices", async () => {
     await waitForSteps([
         `/web/dataset/call_kw/account.move.line/web_read_group - ${JSON.stringify({
             kwargs: {
-                domain: [],
-                groupby: ["move_id"],
-                aggregates: [],
                 limit: 80,
                 offset: 0,
                 order: "",
@@ -237,9 +235,13 @@ test("Fetch and preview of attachments on big devices", async () => {
                 groupby_read_specification: {},
                 context: {
                     ...userContext(),
+                    bin_size: true,
                     read_group_expand: true,
                     group_by: ["move_id"],
                 },
+                domain: [],
+                groupby: ["move_id"],
+                aggregates: [],
             },
         })}`,
     ]);

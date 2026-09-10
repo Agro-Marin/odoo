@@ -1,7 +1,14 @@
 import { BankRecSelectCreateDialog } from "@account/components/bank_reconciliation/search_dialog/search_dialog";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { click, keyDown, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
+import {
+    click,
+    keyDown,
+    queryAll,
+    queryAllTexts,
+    queryOne,
+    waitFor,
+} from "@odoo/hoot-dom";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import {
     contains,
@@ -11,6 +18,7 @@ import {
     models,
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 import { WebClient } from "@web/webclient/webclient";
 
 class AccountMoveLine extends models.Model {
@@ -128,6 +136,8 @@ describe.current.tags("mobile");
 
 test("BankRecSelectCreateDialog header with right information", async () => {
     await mountWithCleanup(WebClient);
+    // The initial action closes every dialog when it lands; open ours after it.
+    await waitFor(".o_home_menu");
     getService("dialog").add(BankRecSelectCreateDialog, {
         noCreate: true,
         resModel: "account.move.line",
@@ -154,6 +164,8 @@ test("BankRecSelectCreateDialog header with right information", async () => {
 
 test("BankRecSelectCreateDialog kanban view single currency", async () => {
     await mountWithCleanup(WebClient);
+    // The initial action closes every dialog when it lands; open ours after it.
+    await waitFor(".o_home_menu");
     getService("dialog").add(BankRecSelectCreateDialog, {
         noCreate: true,
         resModel: "account.move.line",
@@ -224,6 +236,8 @@ test("BankRecSelectCreateDialog kanban view multiple currencies", async () => {
     });
 
     await mountWithCleanup(WebClient);
+    // The initial action closes every dialog when it lands; open ours after it.
+    await waitFor(".o_home_menu");
 
     getService("dialog").add(BankRecSelectCreateDialog, {
         noCreate: true,
