@@ -8585,3 +8585,72 @@ class TestXmlIdFollowsTheFirstDeclaration(ViewCase):
         )
         view.invalidate_recordset(["xml_id", "model_data_id"])
         self.assertEqual(view.xml_id, "zzz_orig.v1")
+
+
+class TestViewModeScrub(ViewCase):
+    """Deleting a model's last view of a type it generates no default arch for
+    takes that type out of the model's window actions. base itself registers
+    no such window type -- qweb has no default but is no window mode, and every
+    window mode base has is generated -- so the two halves are pinned apart:
+    which (model, type) pairs qualify, and what the scrub does to the actions.
+    web_grid's tests drive the whole path with a real type.
+    """
+
+    def _action(self, view_mode):
+        return self.env["ir.actions.act_window"].create(
+            {"name": "partners", "res_model": "res.partner", "view_mode": view_mode}
+        )
+
+    def test_only_a_type_without_a_default_arch_qualifies(self):
+        qweb = self.View.create(
+            {
+                "name": "scrub_qweb",
+                "model": "res.partner",
+                "type": "qweb",
+                "arch": "<t t-name='scrub_qweb'>x</t>",
+            }
+        )
+        graph = self.View.create(
+            {
+                "name": "scrub_graph",
+                "model": "res.partner",
+                "type": "graph",
+                "arch": "<graph><field name='name'/></graph>",
+            }
+        )
+        self.assertEqual(
+            (qweb | graph)._view_modes_without_default(), {("res.partner", "qweb")}
+        )
+
+    def test_the_scrub_leaves_the_actions_of_a_model_with_no_view_left(self):
+        action = self._action("list,graph,form")
+        other_model = self.env["ir.actions.act_window"].create(
+            {"name": "users", "res_model": "res.users", "view_mode": "list,graph"}
+        )
+        alone = self._action("graph")
+        self.View.search(
+            [("model", "=", "res.partner"), ("type", "=", "graph")]
+        ).unlink()
+        self.View._drop_orphaned_view_modes({("res.partner", "graph")})
+        self.assertEqual(action.view_mode, "list,form")
+        self.assertEqual(
+            alone.view_mode, "list", "an action of that mode alone falls back to list"
+        )
+        self.assertEqual(
+            other_model.view_mode,
+            "list,graph",
+            "another model's actions are not touched",
+        )
+
+    def test_the_scrub_leaves_the_actions_alone_while_a_view_remains(self):
+        self.View.create(
+            {
+                "name": "scrub_graph_kept",
+                "model": "res.partner",
+                "type": "graph",
+                "arch": "<graph><field name='name'/></graph>",
+            }
+        )
+        action = self._action("list,graph")
+        self.View._drop_orphaned_view_modes({("res.partner", "graph")})
+        self.assertEqual(action.view_mode, "list,graph")

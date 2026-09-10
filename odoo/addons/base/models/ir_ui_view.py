@@ -975,7 +975,45 @@ class IrUiView(models.Model):
         if self.env.context.get("_force_unlink", False) and self.inherit_children_ids:
             self.inherit_children_ids.unlink()
         self.env.registry.clear_cache("templates")
-        return super().unlink()
+        candidates = self._view_modes_without_default()
+        res = super().unlink()
+        self._drop_orphaned_view_modes(candidates)
+        return res
+
+    def _view_modes_without_default(self) -> set[tuple[str, str]]:
+        """The (model, type) pairs among ``self`` that a window action cannot
+        show once no view of that type is left: a type the model generates no
+        default arch for -- every type a module registers, none of base's.
+        """
+        return {
+            (view.model, view.type)
+            for view in self
+            if view.model in self.env
+            and view.type
+            and not hasattr(self.env[view.model], f"_get_default_{view.type}_view")
+        }
+
+    def _drop_orphaned_view_modes(self, candidates: set[tuple[str, str]]) -> None:
+        """Take a view type out of every window action of a model that has no
+        view of that type any more. Left in, ``_get_view`` raises
+        ``No default view of type '<type>' could be found!`` the next time the
+        action opens.
+        """
+        for model, view_type in candidates:
+            if self.search_count([("model", "=", model), ("type", "=", view_type)]):
+                continue
+            actions = self.env["ir.actions.act_window"].search(
+                [("res_model", "=", model), ("view_mode", "like", view_type)]
+            )
+            for action in actions:
+                modes = action.view_mode.split(",")
+                if view_type not in modes:
+                    continue
+                action.view_ids.filtered_domain(
+                    [("view_mode", "=", view_type)]
+                ).unlink()
+                remaining = [mode for mode in modes if mode != view_type]
+                action.view_mode = ",".join(remaining) or "list"
 
     def _update_field_translations(
         self,
