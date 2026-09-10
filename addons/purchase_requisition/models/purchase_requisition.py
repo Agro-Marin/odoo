@@ -341,8 +341,10 @@ class PurchaseRequisitionLine(models.Model):
         "product_uom_id",
         "requisition_id.vendor_id",
         "requisition_id.requisition_type",
+        "requisition_id.currency_id",
     )
     def _compute_price_unit(self):
+        resolver = self.env["purchase.price.resolver"]
         for line in self:
             if (
                 line.requisition_id.state != "draft"
@@ -351,13 +353,26 @@ class PurchaseRequisitionLine(models.Model):
                 or not line.product_id
             ):
                 continue
-            seller = line.product_id._select_seller(
-                partner_id=line.requisition_id.vendor_id,
+            requisition = line.requisition_id
+            company = line.company_id or self.env.company
+            seller = resolver._get_seller(
+                line.product_id,
+                partner=requisition.vendor_id,
                 quantity=line.product_qty,
-                date=line.requisition_id.date_start,
-                uom_id=line.product_uom_id,
+                uom=line.product_uom_id,
+                date=requisition.date_start,
+                company=company,
+                params={"force_uom": True},
             )
-            line.price_unit = seller.price if seller else line.product_id.standard_price
+            line.price_unit = resolver._get_price_resolution(
+                line.product_id,
+                seller=seller,
+                uom=line.product_uom_id or line.product_id.uom_id,
+                currency=requisition.currency_id or company.currency_id,
+                company=company,
+                date=requisition.date_start or fields.Date.context_today(line),
+                taxes=line.product_id.supplier_taxes_id,
+            ).price_unit
 
     @api.model_create_multi
     def create(self, vals_list):

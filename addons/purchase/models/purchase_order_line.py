@@ -221,15 +221,16 @@ class PurchaseOrderLine(models.Model):
             )
 
             if cache_key not in seller_cache:
-                params = line._get_select_sellers_params()
-                seller = line.product_id.with_company(line.company_id)._select_seller(
-                    partner_id=line.partner_id,
+                seller = self.env["purchase.price.resolver"]._get_seller(
+                    line.product_id,
+                    partner=line.partner_id,
                     quantity=qty,
+                    uom=line.product_uom_id,
                     date=fields.Date.context_today(
                         line, timestamp=line.order_id.date_order
                     ),
-                    uom_id=line.product_uom_id,
-                    params=params,
+                    company=line.company_id,
+                    params=line._get_select_sellers_params(),
                 )
                 seller_cache[cache_key] = seller or False
 
@@ -264,12 +265,16 @@ class PurchaseOrderLine(models.Model):
         return super()._compute_price_and_discount()
 
     def _get_auto_price_and_discount(self):
-        if self.selected_seller_id:
-            return (
-                self._get_price_from_seller(),
-                self.selected_seller_id.discount or 0.0,
-            )
-        return self._get_price_from_product_cost(), 0.0
+        resolution = self.env["purchase.price.resolver"]._get_price_resolution(
+            self.product_id,
+            seller=self.selected_seller_id,
+            uom=self.product_uom_id or self.product_id.uom_id,
+            currency=self.currency_id,
+            company=self.company_id,
+            date=self.date_order or fields.Date.context_today(self),
+            taxes=self.tax_ids,
+        )
+        return resolution.price_unit, resolution.discount
 
     @api.depends("date_order", "selected_seller_id", "selected_seller_id.delay")
     def _compute_date_commitment(self):
@@ -459,52 +464,6 @@ class PurchaseOrderLine(models.Model):
     def _get_catalog_multi_line_data(self, **kwargs):
         return self.order_id._get_product_price_and_data(self.product_id)
 
-    def _get_price_from_seller(self):
-        self.check_singleton()
-        seller = self.selected_seller_id
-
-        price_unit = self.env["account.tax"]._fix_tax_included_price_company(
-            seller.price,
-            self.product_id.supplier_taxes_id,
-            self.tax_ids,
-            self.company_id,
-        )
-
-        price_unit = seller.currency_id._convert(
-            price_unit,
-            self.currency_id,
-            self.company_id,
-            self.date_order or fields.Date.context_today(self),
-            False,
-        )
-
-        return seller.product_uom_id._compute_price_estimate(
-            price_unit, self.product_uom_id
-        )
-
-    def _get_price_from_product_cost(self):
-        self.check_singleton()
-
-        po_line_uom = self.product_uom_id or self.product_id.uom_id
-
-        price_unit = self.env["account.tax"]._fix_tax_included_price_company(
-            self.product_id.uom_id._compute_price_estimate(
-                self.product_id.standard_price,
-                po_line_uom,
-            ),
-            self.product_id.supplier_taxes_id,
-            self.tax_ids,
-            self.company_id,
-        )
-
-        return self.product_id.cost_currency_id._convert(
-            price_unit,
-            self.currency_id,
-            self.company_id,
-            self.date_order or fields.Date.context_today(self),
-            False,
-        )
-
     def _get_qty_to_consider_for_billing(self):
         if self.product_id.bill_policy == "transferred":
             return self.qty_transferred
@@ -630,14 +589,17 @@ class PurchaseOrderLine(models.Model):
             rounding_method="HALF-UP",
         )
         today = fields.Date.context_today(self)
+        resolver = self.env["purchase.price.resolver"]
         if seller is None:
-            seller = product_id.with_company(company_id)._select_seller(
-                partner_id=partner_id,
+            seller = resolver._get_seller(
+                product_id,
+                partner=partner_id,
                 quantity=product_qty if values.get("force_uom") else uom_po_qty,
+                uom=product_uom_id if values.get("force_uom") else product_id.uom_id,
                 date=max(
                     fields.Date.context_today(self, timestamp=po.date_order), today
                 ),
-                uom_id=product_uom_id if values.get("force_uom") else product_id.uom_id,
+                company=company_id,
                 params={"force_uom": values.get("force_uom")},
             )
         if (
@@ -655,34 +617,15 @@ class PurchaseOrderLine(models.Model):
         product_taxes = product_id.supplier_taxes_id.filtered_domain(tax_domain)
         taxes = po.fiscal_position_id.map_tax(product_taxes)
 
-        if seller:
-            price_unit = (
-                seller.product_uom_id._compute_price_estimate(
-                    seller.price, product_uom_id
-                )
-                if product_uom_id
-                else seller.price
-            )
-            price_unit = self.env["account.tax"]._fix_tax_included_price_company(
-                price_unit,
-                product_taxes,
-                taxes,
-                company_id,
-            )
-        else:
-            price_unit = 0
-        if (
-            price_unit
-            and seller
-            and po.currency_id
-            and seller.currency_id != po.currency_id
-        ):
-            price_unit = seller.currency_id._convert(
-                price_unit,
-                po.currency_id,
-                po.company_id,
-                po.date_order or fields.Date.today(),
-            )
+        resolution = resolver._get_price_resolution(
+            product_id,
+            seller=seller,
+            uom=product_uom_id or seller.product_uom_id or product_id.uom_id,
+            currency=po.currency_id or company_id.currency_id,
+            company=company_id,
+            date=po.date_order or today,
+            taxes=taxes,
+        )
 
         product_lang = product_id.with_prefetch().with_context(
             lang=partner_id.lang,
@@ -693,18 +636,17 @@ class PurchaseOrderLine(models.Model):
             name += "\n" + product_lang.description_purchase
 
         date_commitment = self._get_date_commitment(seller, po=po)
-        discount = seller.discount or 0.0
 
         return {
             "name": name,
             "product_qty": product_qty if product_uom_id else uom_po_qty,
             "product_id": product_id.id,
             "product_uom_id": product_uom_id.id or seller.product_uom_id.id,
-            "price_unit": price_unit,
+            "price_unit": resolution.price_unit,
             "date_commitment": date_commitment,
             "tax_ids": [Command.set(taxes.ids)],
             "order_id": po.id,
-            "discount": discount,
+            "discount": resolution.discount,
         }
 
     def _reset_invoice_amounts(self):

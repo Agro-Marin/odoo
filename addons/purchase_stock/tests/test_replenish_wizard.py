@@ -458,7 +458,13 @@ class TestReplenishWizard(PurchaseTestCommon):
         )[-1]
 
         self.assertEqual(last_po_id.partner_id, vendor)
-        self.assertEqual(last_po_id.line_ids.price_unit, 0)
+        self.assertEqual(
+            last_po_id.line_ids.price_unit,
+            60,
+            "The only vendor price has expired, so the line is priced like any "
+            "purchase line without a seller in force: at product cost. It used to be "
+            "0, and the first quantity edit then repriced it at cost anyway.",
+        )
 
     def test_correct_supplier(self):
         self.env["stock.warehouse"].search([], limit=1).reception_steps = "two_steps"

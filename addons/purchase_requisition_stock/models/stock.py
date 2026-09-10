@@ -15,6 +15,14 @@ class StockRule(models.Model):
             ].purchase_requisition_id.currency_id.id
         return res
 
+    def _get_fallback_supplier(self, product_id, company_id):
+        return product_id._prepare_sellers(False).filtered(
+            lambda s: (
+                not s.purchase_requisition_id
+                and (not s.company_id or s.company_id == company_id)
+            ),
+        )[:1]
+
     def _get_domain_po(self, company_id, values, partner):
         domain = super()._get_domain_po(company_id, values, partner)
         if "supplier" in values and values["supplier"].purchase_requisition_id:

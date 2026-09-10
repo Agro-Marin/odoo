@@ -1367,3 +1367,50 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
             purchase_requisition.line_ids.product_id.supplier_taxes_id,
             "The blanket order taxes should have been set",
         )
+
+    def test_purchase_template_seeds_its_price_in_its_own_currency_and_unit(self):
+        company = self.env.company
+        eur = self.env.ref("base.EUR")
+        foreign = eur if company.currency_id != eur else self.env.ref("base.USD")
+        foreign.active = True
+        self.env["res.currency.rate"].create(
+            {
+                "currency_id": foreign.id,
+                "name": fields.Date.today() - timedelta(days=5),
+                "rate": 2.0,
+                "company_id": company.id,
+            }
+        )
+        self.env["product.supplierinfo"].create(
+            {
+                "partner_id": self.res_partner_1.id,
+                "product_tmpl_id": self.product_09.product_tmpl_id.id,
+                "price": 100.0,
+                "currency_id": foreign.id,
+            }
+        )
+        requisition = self.env["purchase.requisition"].create(
+            {
+                "vendor_id": self.res_partner_1.id,
+                "requisition_type": "purchase_template",
+                "date_start": fields.Date.today(),
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_09.id,
+                            "product_uom_id": self.env.ref("uom.product_uom_dozen").id,
+                            "product_qty": 2.0,
+                        }
+                    )
+                ],
+            }
+        )
+
+        self.assertEqual(requisition.currency_id, company.currency_id)
+        self.assertAlmostEqual(
+            requisition.line_ids.price_unit,
+            600.0,
+            msg="100 per unit in a currency at rate 2.0 is 50 per unit in the "
+            "template's currency, and the line is in dozens: 600. The seed used to "
+            "copy the seller's raw 100.",
+        )

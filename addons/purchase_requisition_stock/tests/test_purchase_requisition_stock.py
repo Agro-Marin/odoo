@@ -1,4 +1,6 @@
-from odoo import Command
+from datetime import timedelta
+
+from odoo import Command, fields
 from odoo.tests import Form
 
 from odoo.addons.purchase_requisition.tests.common import TestPurchaseRequisitionCommon
@@ -452,3 +454,94 @@ class TestPurchaseRequisitionStock(TestPurchaseRequisitionCommon):
         alt_po_id = alt_po_wizard.action_create_alternative()["res_id"]
         alt_po = self.env["purchase.order"].browse(alt_po_id)
         self.assertEqual(alt_po.reference_ids, orig_po.reference_ids)
+
+    def _run_buy_procurement(self, product, quantity):
+        warehouse = self.env.ref("stock.warehouse0")
+        route_buy = self.env.ref("purchase_stock.route_warehouse0_buy")
+        procurement = self.env["stock.rule"].Procurement(
+            product,
+            quantity,
+            product.uom_id,
+            warehouse.lot_stock_id,
+            "replenishment",
+            "replenishment",
+            self.env.company,
+            {
+                "warehouse_id": warehouse,
+                "route_ids": route_buy,
+                "date_planned": fields.Datetime.now(),
+            },
+        )
+        self.env["stock.rule"].run([procurement])
+        return self.env["purchase.order.line"].search([("product_id", "=", product.id)])
+
+    def _create_expired_blanket_order(self, vendor, product):
+        agreement = self.env["purchase.requisition"].create(
+            {
+                "vendor_id": vendor.id,
+                "requisition_type": "blanket_order",
+                "date_start": fields.Date.today() - timedelta(days=30),
+                "date_end": fields.Date.today() - timedelta(days=1),
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": product.id,
+                            "product_qty": 100.0,
+                            "price_unit": 42.0,
+                        }
+                    )
+                ],
+            }
+        )
+        agreement.action_confirm()
+        return agreement
+
+    def _create_bought_product(self):
+        route_buy = self.env.ref("purchase_stock.route_warehouse0_buy")
+        return self.env["product.product"].create(
+            {
+                "name": "Contracted part",
+                "is_storable": True,
+                "standard_price": 7.0,
+                "route_ids": [Command.set(route_buy.ids)],
+            }
+        )
+
+    def test_expired_blanket_order_does_not_capture_replenishment(self):
+        vendor = self.env["res.partner"].create({"name": "Agreement vendor"})
+        product = self._create_bought_product()
+        self._create_expired_blanket_order(vendor, product)
+
+        lines = self._run_buy_procurement(product, 50.0)
+
+        self.assertFalse(
+            lines,
+            "An expired agreement is the product's only seller, so nothing may be "
+            "ordered: the replenishment fallback used to pick the agreement's seller "
+            "regardless of its dates and bind a zero-priced RFQ to the expired agreement.",
+        )
+
+    def test_replenishment_fallback_skips_an_expired_blanket_order(self):
+        agreement_vendor = self.env["res.partner"].create({"name": "Agreement vendor"})
+        regular_vendor = self.env["res.partner"].create({"name": "Regular vendor"})
+        product = self._create_bought_product()
+        self._create_expired_blanket_order(agreement_vendor, product)
+        self.env["product.supplierinfo"].create(
+            {
+                "partner_id": regular_vendor.id,
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "price": 90.0,
+                "date_end": fields.Date.today() - timedelta(days=2),
+            }
+        )
+
+        lines = self._run_buy_procurement(product, 50.0)
+
+        self.assertEqual(lines.order_id.partner_id, regular_vendor)
+        self.assertFalse(lines.order_id.requisition_id)
+        self.assertEqual(
+            lines.price_unit,
+            7.0,
+            "No seller is in force, so the line is priced like any purchase line "
+            "without one: at product cost.",
+        )

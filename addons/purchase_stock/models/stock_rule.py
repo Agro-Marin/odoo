@@ -121,12 +121,12 @@ class StockRule(models.Model):
                 params={"force_uom": values.get("force_uom")},
             )
 
-        return (
-            supplier
-            or product_id._prepare_sellers(False).filtered(
-                lambda s: not s.company_id or s.company_id == company_id,
-            )[:1]
-        )
+        return supplier or self._get_fallback_supplier(product_id, company_id)
+
+    def _get_fallback_supplier(self, product_id, company_id):
+        return product_id._prepare_sellers(False).filtered(
+            lambda s: not s.company_id or s.company_id == company_id,
+        )[:1]
 
     def _get_message_dict(self):
         message_dict = super()._get_message_dict()
@@ -509,40 +509,18 @@ class StockRule(models.Model):
             line.product_uom_id,
             rounding_method="HALF-UP",
         )
-        seller = product_id.with_company(company_id)._select_seller(
-            partner_id=partner,
+        seller = self.env["purchase.price.resolver"]._get_seller(
+            product_id,
+            partner=partner,
             quantity=line.product_qty + procurement_uom_po_qty,
+            uom=line.product_uom_id,
             date=line.order_id.date_order and line.order_id.date_order.date(),
-            uom_id=line.product_uom_id,
+            company=company_id,
             params={"force_uom": values.get("force_uom")},
         )
 
-        price_unit = (
-            self.env["account.tax"]._fix_tax_included_price_company(
-                seller.price,
-                line.product_id.supplier_taxes_id,
-                line.sudo().tax_ids,
-                company_id,
-            )
-            if seller
-            else line.price_unit
-        )
-        if (
-            price_unit
-            and seller
-            and line.order_id.currency_id
-            and seller.currency_id != line.order_id.currency_id
-        ):
-            price_unit = seller.currency_id._convert(
-                price_unit,
-                line.order_id.currency_id,
-                line.order_id.company_id,
-                fields.Date.today(),
-            )
-
         res = {
             "product_qty": line.product_qty + procurement_uom_po_qty,
-            "price_unit": price_unit,
             "move_dest_ids": [
                 Command.link(x.id) for x in values.get("move_dest_ids", [])
             ],

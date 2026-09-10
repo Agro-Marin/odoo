@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.tests import tagged
 
 from odoo.addons.stock.tests.common import TestStockCommon
@@ -816,4 +816,83 @@ class TestPurchaseStockPricing(TestStockCommon):
             po.line_ids[0].qty_transferred,
             7,
             "qty_transferred should be 7 after returning 3",
+        )
+
+    def _run_buy_procurement(self, product, quantity):
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)], limit=1
+        )
+        procurement = self.env["stock.rule"].Procurement(
+            product,
+            quantity,
+            product.uom_id,
+            warehouse.lot_stock_id,
+            "replenishment",
+            "replenishment",
+            self.env.company,
+            {
+                "warehouse_id": warehouse,
+                "route_ids": self.buy_route,
+                "date_planned": fields.Datetime.now(),
+            },
+        )
+        self.env["stock.rule"].run([procurement])
+        return self.env["purchase.order.line"].search([("product_id", "=", product.id)])
+
+    def _create_tiered_product(self):
+        return self.env["product.product"].create(
+            {
+                "name": "Tiered product",
+                "is_storable": True,
+                "route_ids": [Command.set(self.buy_route.ids)],
+                "seller_ids": [
+                    Command.create(
+                        {
+                            "partner_id": self.vendor.id,
+                            "min_qty": 0,
+                            "price": 100.0,
+                            "discount": 10.0,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "partner_id": self.vendor.id,
+                            "min_qty": 60,
+                            "price": 80.0,
+                            "discount": 0.0,
+                        }
+                    ),
+                ],
+            }
+        )
+
+    def test_replenishment_merge_across_a_tier_takes_that_tier_discount(self):
+        product = self._create_tiered_product()
+        self._run_buy_procurement(product, 50.0)
+
+        line = self._run_buy_procurement(product, 20.0)
+
+        self.assertEqual(line.product_qty, 70.0)
+        self.assertEqual(line.price_unit, 80.0)
+        self.assertEqual(
+            line.discount,
+            0.0,
+            "The merged quantity reaches the 60-unit tier, so its price and its "
+            "discount both come from that tier; the merge used to write the tier's "
+            "price and leave the first tier's 10% discount on it.",
+        )
+
+    def test_replenishment_merge_keeps_a_manually_set_price(self):
+        product = self._create_tiered_product()
+        line = self._run_buy_procurement(product, 50.0)
+        line.price_unit = 95.0
+
+        line = self._run_buy_procurement(product, 20.0)
+
+        self.assertEqual(line.product_qty, 70.0)
+        self.assertEqual(
+            line.price_unit,
+            95.0,
+            "A buyer's price on a draft RFQ line survives a replenishment merging "
+            "into it, as it survives any other quantity change.",
         )

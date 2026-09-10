@@ -11,6 +11,7 @@ from . import (
     product_supplierinfo,
     purchase_order,
     purchase_order_line,
+    purchase_price_resolver,
     res_company,
     res_partner,
     srm_tag,
