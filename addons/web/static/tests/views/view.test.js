@@ -1321,3 +1321,22 @@ test("action-restricting context is read from the NEW props when the arch change
     await animationFrame();
     expect(".spy").toHaveAttribute("data-create", "0");
 });
+
+test("the descriptor schema is closed: an unknown key is refused, SearchPanel is not", async () => {
+    serverState.debug = "1";
+    // `"*": true` used to admit any key, which is how dead keys accumulated on
+    // descriptors outside web. A key the framework reads nowhere is now a
+    // registration error rather than a silent no-op.
+    class Panel extends Component {
+        static template = xml`<div/>`;
+        static props = ["*"];
+    }
+    expect(() =>
+        viewRegistry.add("toy_with_panel", { ...toyView, SearchPanel: Panel }),
+    ).not.toThrow();
+    expect(() => {
+        // @ts-expect-error Unknown descriptor keys must be rejected at runtime too.
+        viewRegistry.add("toy_with_dead_key", { ...toyView, multiRecord: true });
+    }).toThrow(/unknown key 'multiRecord'/);
+    expect(viewRegistry.contains("toy_with_dead_key")).toBe(false);
+});

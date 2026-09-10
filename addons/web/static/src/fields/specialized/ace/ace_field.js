@@ -4,14 +4,14 @@
 import { useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { colorScheme } from "@web/core/color_scheme";
-import { ModelEvent } from "@web/core/events";
 import { formatText } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { fieldHandleFor } from "@web/fields/field_handle";
+import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -44,18 +44,8 @@ export class AceField extends FieldComponent {
             }
         });
 
-        const { model } = this.props.record;
-        useBus(
-            model.bus,
-            ModelEvent.WILL_SAVE_URGENTLY,
-            /** @type {any} */ ((ev) => ev.detail?.proms?.push(this.commitChanges())),
-        );
-        useBus(
-            model.bus,
-            ModelEvent.NEED_LOCAL_CHANGES,
-            /** @type {any} */ (
-                ({ detail }) => detail.proms.push(this.commitChanges())
-            ),
+        useFieldFlush(this.props.record.model.bus, (ev) =>
+            ev.detail?.proms?.push(this.commitChanges()),
         );
     }
 
@@ -103,6 +93,10 @@ export class AceField extends FieldComponent {
         }
         this.setFieldDirty(this.isDirty);
         this.editedValue = editedValue;
+        if (this.props.record.invalidFields.has(this.props.name)) {
+            // an edit reopens the save; the next commit decides again
+            this.props.record.resetFieldValidity(this.props.name);
+        }
     }
 
     async commitChanges() {
@@ -112,6 +106,7 @@ export class AceField extends FieldComponent {
                 try {
                     value = this.deserialize(this.editedValue);
                 } catch {
+                    this.props.record.setInvalidField(this.props.name);
                     this.notification.add(
                         _t("Invalid JSON: your changes to this field were not saved."),
                         { type: "danger" },

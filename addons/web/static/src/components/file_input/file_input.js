@@ -88,7 +88,7 @@ export class FileInput extends Component {
             }
             const parsedFileData = await this.uploadFiles(this.props.route, httpParams);
             if (parsedFileData) {
-                this.props.onUpload(parsedFileData, this.fileInputRef.el?.files ?? []);
+                this.props.onUpload(parsedFileData, httpParams.ufile ?? []);
             }
         } finally {
             if (this.fileInputRef.el) {

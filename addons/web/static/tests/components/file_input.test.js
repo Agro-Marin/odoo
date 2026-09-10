@@ -12,6 +12,13 @@ import {
 import { FileInput } from "@web/components/file_input/file_input";
 import { session } from "@web/session";
 
+/**
+ * @param {{
+ *     mockPost?: (route: string, params: Record<string, any>) => any,
+ *     mockAdd?: (...args: any[]) => any,
+ *     props: Partial<import("@web/components/file_input/file_input").FileInputProps>,
+ * }} options
+ */
 async function createFileInput({ mockPost, mockAdd, props }) {
     mockService("notification", {
         add: mockAdd || (() => {}),
@@ -224,4 +231,26 @@ test("support preprocessing of files via props", async () => {
     await animationFrame();
 
     expect.verifySteps(["fake_file.txt"]);
+});
+
+test("onUpload receives the files that were uploaded, not the ones that were picked", async () => {
+    const resized = new File(["tiny"], "icon.png", { type: "image/png" });
+    await createFileInput({
+        props: {
+            route: "/web/binary/upload",
+            onWillUploadFiles: () => [resized],
+            onUpload(_data, files) {
+                expect(files).toEqual([resized]);
+                expect.step("uploaded");
+            },
+        },
+        mockPost: (_route, params) => {
+            expect(params.ufile).toEqual([resized]);
+            expect.step("posted");
+            return "[]";
+        },
+    });
+    await contains(".o_file_input input", { visible: false }).click();
+    await setInputFiles([new File(["big"], "photo.png", { type: "image/png" })]);
+    expect.verifySteps(["posted", "uploaded"]);
 });

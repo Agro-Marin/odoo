@@ -1,6 +1,6 @@
 declare module "registries" {
     import { FieldDefinitionMap } from "fields";
-    import { Component } from "@odoo/owl";
+    import { ComponentConstructor } from "@odoo/owl";
     import { Model } from "@web/model/model";
     import { SearchModel } from "@web/search/search_model";
     import { ViewCompiler } from "@web/views/view_compiler";
@@ -40,6 +40,7 @@ declare module "registries" {
         Renderer?: any;
         searchMenuTypes?: string[];
         SearchModel?: any;
+        SearchPanel?: ComponentConstructor;
         type: string;
     }
 

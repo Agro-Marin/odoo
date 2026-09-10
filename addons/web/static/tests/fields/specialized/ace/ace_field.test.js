@@ -24,6 +24,7 @@ class Partner extends models.Model {
     _rec_name = "display_name";
 
     foo = fields.Text({ default: "My little Foo Value" });
+    settings = fields.Json();
 
     _records = [
         { id: 1, foo: "yop" },
@@ -215,4 +216,27 @@ test("Save and Discard buttons are displayed when necessary", async () => {
     await clickSave();
     expect(`.o_form_status_indicator_buttons`).toHaveCount(1);
     expect(`.o_form_status_indicator_buttons`).toHaveClass("invisible");
+});
+
+test("invalid JSON in the editor marks the field invalid and blocks the save", async () => {
+    onRpc("web_save", () => expect.step("web_save"));
+    await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `<form><field name="settings" widget="code"/></form>`,
+    });
+    const aceEditor = queryOne`.ace_editor`;
+    ace.edit(aceEditor).setValue("{");
+    await animationFrame();
+
+    await contains(".o_form_button_save").click();
+    expect.verifySteps([]);
+    expect(".o_field_widget[name=settings]").toHaveClass("o_field_invalid");
+
+    ace.edit(aceEditor).setValue('{"a": 1}');
+    await animationFrame();
+    await contains(".o_form_button_save").click();
+    expect.verifySteps(["web_save"]);
+    expect(".o_field_widget[name=settings]").not.toHaveClass("o_field_invalid");
 });

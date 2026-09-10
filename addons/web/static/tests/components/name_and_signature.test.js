@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryAllTexts } from "@odoo/hoot-dom";
+import { queryAllTexts, setInputFiles } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     contains,
@@ -196,4 +196,19 @@ test("an auto-drawn name counts as a signature, and clearing it does not", async
     component.clear();
     expect(component.isSignatureEmpty).toBe(true);
     expect(/** @type {any} */ (props.signature).isSignatureEmpty).toBe(true);
+});
+
+test("loading a file that is not an image says so", async () => {
+    await mountWithCleanup(NameAndSignature, { props: { signature: { name: "Don" } } });
+    await contains(".o_web_sign_load_button").click();
+    expect(".o_web_sign_load_invalid").toHaveCount(0);
+
+    await contains(".o_web_sign_load_file input", { visible: false }).click();
+    await setInputFiles([
+        new File(["not an image"], "notes.txt", { type: "text/plain" }),
+    ]);
+    await animationFrame();
+
+    expect(".o_web_sign_load_invalid").toHaveCount(1);
+    expect(".o_web_sign_load_invalid").toBeVisible();
 });

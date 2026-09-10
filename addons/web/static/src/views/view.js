@@ -80,6 +80,10 @@ viewRegistry.addValidation({
         validate: (/** @type {any} */ c) => c.prototype instanceof Component,
         optional: true,
     },
+    SearchPanel: {
+        validate: (/** @type {any} */ c) => c.prototype instanceof Component,
+        optional: true,
+    },
     Model: { type: Function, optional: true },
     SearchModel: { type: Function, optional: true },
     ArchParser: { type: Function, optional: true },
@@ -91,8 +95,6 @@ viewRegistry.addValidation({
     searchMenuTypes: { type: Array, element: String, optional: true },
     canOrderByCount: { type: Boolean, optional: true },
     hideCustomGroupBy: { type: Boolean, optional: true },
-
-    "*": true,
 });
 
 export function getDefaultConfig() {
