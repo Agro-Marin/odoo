@@ -1,6 +1,6 @@
 import { expect, test } from "@odoo/hoot";
 import {
-    buildLabelAction,
+    prepareLabelAction,
     collectAssignable,
     collectAssignedLabels,
     isLineAssignable,
@@ -53,10 +53,10 @@ test("collectAssignedLabels rounds quantities up and defaults to 1", () => {
     });
 });
 
-test("buildLabelAction builds the report action or null when empty", () => {
-    expect(buildLabelAction({ id: 42 }, [], [])).toBe(null);
+test("prepareLabelAction builds the report action or null when empty", () => {
+    expect(prepareLabelAction({ id: 42 }, [], [])).toBe(null);
     expect(
-        buildLabelAction({ id: 42, type: "ir.actions.report" }, [1, 2], [3, 1]),
+        prepareLabelAction({ id: 42, type: "ir.actions.report" }, [1, 2], [3, 1]),
     ).toEqual({
         id: 42,
         type: "ir.actions.report",

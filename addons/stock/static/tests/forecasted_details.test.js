@@ -7,7 +7,7 @@ import {
 function makeDetails(docs) {
     const details = Object.create(ForecastedDetails.prototype);
     details.props = { docs };
-    details._deriveLinesData(docs);
+    details._updateLines(docs);
     return details;
 }
 
@@ -119,7 +119,7 @@ test("re-deriving from new docs replaces the local line list", () => {
     const firstLines = details.lines;
     const { docs: newDocs } = makeDocs();
     newDocs.lines = newDocs.lines.slice(0, 2);
-    details._deriveLinesData(newDocs);
+    details._updateLines(newDocs);
     expect(details.lines).not.toBe(firstLines);
     expect(details.lines.length).toBe(2);
 });

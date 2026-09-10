@@ -4,7 +4,7 @@ import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { formatFieldFloat } from "@web/core/formatters";
 import { useService } from "@web/core/utils/hooks";
 
-import { assignMoves, buildLabelAction } from "../reception_report_utils.js";
+import { assignMoves, prepareLabelAction } from "../reception_report_utils.js";
 
 export class ReceptionReportLine extends Component {
     static template = "stock.ReceptionReportLine";
@@ -42,7 +42,7 @@ export class ReceptionReportLine extends Component {
         if (!this.data.move_out_id) {
             return;
         }
-        const action = buildLabelAction(
+        const action = prepareLabelAction(
             this.props.labelReport,
             [this.data.move_out_id],
             [Math.ceil(this.data.quantity) || 1],

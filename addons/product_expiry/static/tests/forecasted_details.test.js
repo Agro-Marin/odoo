@@ -5,7 +5,7 @@ import { ForecastedDetails } from "@stock/stock_forecasted/forecasted_details";
 function makeDetails(docs) {
     const details = Object.create(ForecastedDetails.prototype);
     details.props = { docs };
-    details._deriveLinesData(docs);
+    details._updateLines(docs);
     return details;
 }
 

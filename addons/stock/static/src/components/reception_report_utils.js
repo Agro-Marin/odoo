@@ -43,7 +43,7 @@ export function collectAssignedLabels(lines) {
     return { docids, quantities };
 }
 
-export function buildLabelAction(labelReport, docids, quantities) {
+export function prepareLabelAction(labelReport, docids, quantities) {
     if (!docids.length) {
         return null;
     }

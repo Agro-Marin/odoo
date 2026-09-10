@@ -47,7 +47,7 @@ export class GenerateDialog extends Component {
 
     setup() {
         this.size = "md";
-        this.title = this._buildTitle();
+        this.title = this._getTitle();
         this.orm = useService("orm");
         this.opGuard = useOperationGuard();
         this._onGenerate = this.opGuard.guard(this._onGenerate.bind(this));
@@ -85,7 +85,7 @@ export class GenerateDialog extends Component {
         return this.opGuard.busy;
     }
 
-    _buildTitle() {
+    _getTitle() {
         if (this.props.mode === "generate") {
             return this.isLot
                 ? _t("Generate Lot numbers")

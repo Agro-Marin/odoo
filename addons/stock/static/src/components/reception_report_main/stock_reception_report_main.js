@@ -9,7 +9,7 @@ import { standardActionServiceProps } from "@web/webclient/actions";
 import { ReceptionReportTable } from "../reception_report_table/stock_reception_report_table.js";
 import {
     assignMoves,
-    buildLabelAction,
+    prepareLabelAction,
     collectAssignable,
     collectAssignedLabels,
     isLineAssignable,
@@ -132,7 +132,7 @@ export class ReceptionReportMain extends Component {
     onClickPrintLabels() {
         const lines = Object.values(this.state.sourcesToLines).flat();
         const { docids, quantities } = collectAssignedLabels(lines);
-        const action = buildLabelAction(
+        const action = prepareLabelAction(
             this.receptionReportLabelAction,
             docids,
             quantities,

@@ -6,7 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 import { ReceptionReportLine } from "../reception_report_line/stock_reception_report_line.js";
 import {
     assignMoves,
-    buildLabelAction,
+    prepareLabelAction,
     collectAssignable,
     collectAssignedLabels,
     isLineAssignable,
@@ -59,7 +59,7 @@ export class ReceptionReportTable extends Component {
 
     async onClickPrintLabels() {
         const { docids, quantities } = collectAssignedLabels(this.props.lines);
-        const action = buildLabelAction(this.props.labelReport, docids, quantities);
+        const action = prepareLabelAction(this.props.labelReport, docids, quantities);
         if (action) {
             return this.actionService.doAction(action);
         }

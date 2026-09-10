@@ -45,14 +45,14 @@ export class ForecastedDetails extends Component {
         this._onClickChangePriority = this.opGuard.guard(
             this._onClickChangePriority.bind(this),
         );
-        this._deriveLinesData(this.props.docs);
-        onWillUpdateProps((nextProps) => this._deriveLinesData(nextProps.docs));
+        this._updateLines(this.props.docs);
+        onWillUpdateProps((nextProps) => this._updateLines(nextProps.docs));
 
         this._formatFloat = (num) =>
             formatFieldFloat(num, { digits: [false, this.props.docs.precision] });
     }
 
-    _deriveLinesData(docs) {
+    _updateLines(docs) {
         this.docs = docs;
         this._prepareLines();
         this._indexLines();
