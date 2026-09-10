@@ -38,10 +38,14 @@ class InboundController(BaseCommController):
         )
         return ValidationResult(
             success=False,
-            response=self._error_response(
-                "payload_too_large",
-                f"Request exceeds maximum size of {endpoint.max_payload_size // 1024}KB",
-                413,
+            response=self._json_response(
+                {
+                    "error": "payload_too_large",
+                    "message": "Request exceeds maximum size of "
+                    f"{endpoint.max_payload_size // 1024}KB",
+                    "limit_bytes": endpoint.max_payload_size,
+                },
+                status=413,
             ),
             error_message="Payload too large",
         )
