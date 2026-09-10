@@ -60,6 +60,7 @@ GATES = {
     "py_shadowed_member": ["--count"],
     "py_unresolved_calls": ["--count"],
     "py_orphan_overrides": ["--count"],
+    "supplierinfo_write_authority": ["--count"],
     "js_service_shape": ["--count"],
     "js_unreached_assertions": ["--count"],
     "field_hook_naming": ["--count"],

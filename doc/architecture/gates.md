@@ -23,7 +23,8 @@ python tooling/architecture/layer_check.py --json    # machine-readable
 `py_shadowed_member`, `naming_vocabulary`, `naming_core_vocabulary`,
 `field_hook_naming`, `field_hook_purity`, `js_service_shape`,
 `js_vacuous_assertions`, `js_duplication`, `compute_context_deps`,
-`js_eager_mock_fixture`, `py_unresolved_calls`, `py_orphan_overrides`, `order_line_qty` and
+`js_eager_mock_fixture`, `py_unresolved_calls`, `py_orphan_overrides`,
+`supplierinfo_write_authority`, `order_line_qty` and
 `bridge_budget` — implement no
 `--check` at all. They print a number under `--count` and hand it
 to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
@@ -103,6 +104,7 @@ js_duplication     jsduplication
 translation_catalog translations
 py_unresolved_calls unresolved_calls
 py_orphan_overrides orphan_overrides
+supplierinfo_write_authority supplierinfo_authority
 naming_core_vocabulary naming_core
 orphan_depends     orphandepends
 EOF
@@ -229,6 +231,7 @@ own:
 | `bridge_budget.py` | an auto-installed bridge -- two or more triggers, so every parent is already in each closure the bridge appears in -- carrying fewer than 60 lines of Python outside its manifest, tests and migrations. Such a module is a directory, a manifest and a security file for the lines it holds; folded into the parent that already depends on the others it costs the graph nothing. Ratchets the bridge count over `odoo/addons` and `addons` as one number, and prints the list bare because a fold is a decision per module: a stub for a feature still landing, or a bridge that keeps an OPL-1 dependency out of an LGPL-3 parent, stays one |
 | `py_unresolved_calls.py` | a call that resolves to nothing this checkout defines — a method renamed without its callers, or a caller written against a method that never existed. Five such defects landed in one day, each invisible to every other gate: the call is syntactically fine, imports nothing and reaches no boundary, so it is only found when the branch runs. Ratchets the offender count |
 | `py_orphan_overrides.py` | a `super()` call in a model class that no parent of that model can answer — an override whose method was renamed out from under it. It parses, imports and registers, so every other gate is blind to it, and `py_unresolved_calls` reports none of them by construction: the name *is* defined, by the very class whose `super()` has nowhere to go. Resolved per model, because a same-named method on an unrelated model is not a parent — `purchase.order`'s `_prepare_invoice` hid a family of dead `sale.order` overrides of it — and an override is never a parent either, so overrides of one vanished method cannot vouch for each other. A hard zero with no baseline file |
+| `supplierinfo_write_authority.py` | a Python write of `price`, `min_qty`, `date_start`, `date_end` or `discount` on `product.supplierinfo` from anywhere but the sites its `AUTHORITIES` names, each with the reason it may. Those rows are what `purchase.price.resolver` prices from, so a second writer is a second representation of a negotiated price, reconciled by hand -- the projection that let expired blanket orders keep pricing. A listed authority that stops writing is reported as well, so the list cannot outlive the code. Hard zero, no baseline |
 
 | `js_private_access.py` | the cross-module private-access budget (`_member` reached past a module) |
 | `js_service_shape.py` | a service handing back an instance, not a literal |
