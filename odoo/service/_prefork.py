@@ -217,7 +217,7 @@ class PreforkServer(CommonServer):
                     os.close(fd)
         self._close_watchdog_selector()
 
-    def _note_spawn_failure(self) -> None:
+    def _record_spawn_failure(self) -> None:
         self._consecutive_fast_deaths += 1
         backoff = min(2.0**self._consecutive_fast_deaths, WORKER_RESPAWN_BACKOFF_CAP_S)
         self._respawn_not_before = time.monotonic() + backoff
@@ -240,7 +240,7 @@ class PreforkServer(CommonServer):
                 "worker spawn failed (pipe/fork); skipping, will retry",
                 exc_info=True,
             )
-            self._note_spawn_failure()
+            self._record_spawn_failure()
             return None
         if pid != 0:
             worker.pid = pid
@@ -284,7 +284,7 @@ class PreforkServer(CommonServer):
                 "long-polling subprocess spawn failed; will retry",
                 exc_info=True,
             )
-            self._note_spawn_failure()
+            self._record_spawn_failure()
             return
         self.long_polling_pid = popen.pid
         self.long_polling_popen = popen
@@ -341,14 +341,14 @@ class PreforkServer(CommonServer):
                 wpid, status = os.waitpid(-1, os.WNOHANG)
                 if not wpid:
                     break
-                self._note_worker_exit(wpid, status)
+                self._record_worker_exit(wpid, status)
                 self.remove_worker(wpid)
             except OSError as e:
                 if e.errno == errno.ECHILD:
                     break
                 raise
 
-    def _note_worker_exit(self, pid: int, status: int) -> None:
+    def _record_worker_exit(self, pid: int, status: int) -> None:
         if pid == self.long_polling_pid:
             name = "Long-polling (evented) subprocess"
             lifetime = time.monotonic() - self.long_polling_spawn_time

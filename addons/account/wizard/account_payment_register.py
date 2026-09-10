@@ -369,7 +369,7 @@ class AccountPaymentRegister(models.TransientModel):
         }
 
     @api.model
-    def _from_sibling_companies(self, lines):
+    def _is_from_sibling_companies(self, lines):
         return len(lines.company_id) > 1 and not any(
             c.root_id in lines.company_id for c in lines.company_id
         )
@@ -379,7 +379,7 @@ class AccountPaymentRegister(models.TransientModel):
         companies = lines.company_id
         if not companies:
             return self.env["res.company"]
-        if self._from_sibling_companies(lines):
+        if self._is_from_sibling_companies(lines):
             return companies.root_id
         return min(companies, key=lambda c: len(c.sudo().parent_ids))
 
@@ -1239,7 +1239,7 @@ class AccountPaymentRegister(models.TransientModel):
                     )
                 )
             if (
-                self._from_sibling_companies(lines)
+                self._is_from_sibling_companies(lines)
                 and lines.company_id.root_id not in self.env.user.company_ids
             ):
                 raise UserError(
@@ -1606,7 +1606,7 @@ class AccountPaymentRegister(models.TransientModel):
             (batch_result["lines"] for batch_result in batches),
             self.env["account.move.line"],
         )
-        from_sibling_companies = self._from_sibling_companies(lines)
+        from_sibling_companies = self._is_from_sibling_companies(lines)
         wizard = self.sudo() if from_sibling_companies else self
 
         payments = wizard.with_context(clean_context(self.env.context))._init_payments(

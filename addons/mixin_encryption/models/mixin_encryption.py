@@ -162,7 +162,7 @@ class MixinEncryption(models.AbstractModel):
             ),
         )
 
-    def _no_key_worked_error(
+    def _prepare_no_key_worked_error(
         self, binary: bool, current_version: int | None
     ) -> ValidationError:
         if binary:
@@ -264,7 +264,7 @@ class MixinEncryption(models.AbstractModel):
                     )
                     continue
 
-        raise self._no_key_worked_error(binary, current_version)
+        raise self._prepare_no_key_worked_error(binary, current_version)
 
     def _decrypt_binary_value(self, encrypted_value: bytes) -> bytes | bool:
         return self._decrypt_with_fallback(encrypted_value, binary=True)

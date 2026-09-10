@@ -404,7 +404,7 @@ class OutboundAPIClient:
                     "body": None,
                 },
             )
-            raise self._http_error_for(status_code, error) from _masked_cause(e)
+            raise self._prepare_http_error(status_code, error) from _masked_cause(e)
 
         except requests.exceptions.RequestException as e:
             error = _mask_sensitive_text(str(e))
@@ -556,7 +556,7 @@ class OutboundAPIClient:
             )
 
     @staticmethod
-    def _http_error_for(status_code, error):
+    def _prepare_http_error(status_code, error):
         if status_code == 401:
             return AuthenticationError(
                 _("Authentication failed: %s") % error, status_code

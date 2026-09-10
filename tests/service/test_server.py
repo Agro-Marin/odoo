@@ -941,7 +941,7 @@ class TestLongPollingPopenReconciliation:
         prefork_server.long_polling_pid = 9999
         prefork_server.long_polling_popen = popen
         prefork_server.long_polling_spawn_time = time.monotonic()
-        prefork_server._note_worker_exit(9999, 0)
+        prefork_server._record_worker_exit(9999, 0)
         assert popen.returncode == 0
         assert prefork_server.long_polling_popen is None
 
@@ -978,18 +978,18 @@ class TestPreforkRespawnBackoff:
     def test_young_crash_arms_exponential_backoff(self, prefork_server):
         self._worker(prefork_server, 1234, age_s=0.0)
         before = time.monotonic()
-        prefork_server._note_worker_exit(1234, 1 << 8)
+        prefork_server._record_worker_exit(1234, 1 << 8)
         assert prefork_server._consecutive_fast_deaths == 1
         assert prefork_server._respawn_not_before > before
         self._worker(prefork_server, 1235, age_s=0.0)
-        prefork_server._note_worker_exit(1235, 1 << 8)
+        prefork_server._record_worker_exit(1235, 1 << 8)
         assert prefork_server._consecutive_fast_deaths == 2
 
     def test_backoff_capped(self, prefork_server):
         prefork_server._consecutive_fast_deaths = 20
         self._worker(prefork_server, 1, age_s=0.0)
         t = time.monotonic()
-        prefork_server._note_worker_exit(1, 1 << 8)
+        prefork_server._record_worker_exit(1, 1 << 8)
         assert (
             prefork_server._respawn_not_before - t
             <= _prefork.WORKER_RESPAWN_BACKOFF_CAP_S + 0.5
@@ -1001,7 +1001,7 @@ class TestPreforkRespawnBackoff:
         self._worker(
             prefork_server, 42, age_s=_prefork.WORKER_MIN_HEALTHY_LIFETIME_S + 5
         )
-        prefork_server._note_worker_exit(42, 1 << 8)
+        prefork_server._record_worker_exit(42, 1 << 8)
         assert prefork_server._consecutive_fast_deaths == 0
         assert prefork_server._respawn_not_before == 0.0
 
@@ -1009,7 +1009,7 @@ class TestPreforkRespawnBackoff:
         prefork_server._consecutive_fast_deaths = 2
         prefork_server._respawn_not_before = 555.0
         self._worker(prefork_server, 7, age_s=1.0)
-        prefork_server._note_worker_exit(7, 0)
+        prefork_server._record_worker_exit(7, 0)
         assert prefork_server._consecutive_fast_deaths == 2
         assert prefork_server._respawn_not_before == 555.0
 
@@ -1017,34 +1017,34 @@ class TestPreforkRespawnBackoff:
         prefork_server._consecutive_fast_deaths = 0
         before = time.monotonic()
         self._worker(prefork_server, 8, age_s=1.0)
-        prefork_server._note_worker_exit(8, signal.SIGKILL)
+        prefork_server._record_worker_exit(8, signal.SIGKILL)
         assert prefork_server._consecutive_fast_deaths == 1
         assert prefork_server._respawn_not_before > before
 
     def test_sigterm_killed_young_worker_not_counted(self, prefork_server):
         prefork_server._consecutive_fast_deaths = 0
         self._worker(prefork_server, 81, age_s=1.0)
-        prefork_server._note_worker_exit(81, signal.SIGTERM)
+        prefork_server._record_worker_exit(81, signal.SIGTERM)
         assert prefork_server._consecutive_fast_deaths == 0
 
     def test_segfault_young_worker_arms_backoff(self, prefork_server):
         prefork_server._consecutive_fast_deaths = 0
         before = time.monotonic()
         self._worker(prefork_server, 82, age_s=0.0)
-        prefork_server._note_worker_exit(82, signal.SIGSEGV)
+        prefork_server._record_worker_exit(82, signal.SIGSEGV)
         assert prefork_server._consecutive_fast_deaths == 1
         assert prefork_server._respawn_not_before > before
 
     def test_unknown_pid_ignored(self, prefork_server):
         prefork_server._consecutive_fast_deaths = 1
-        prefork_server._note_worker_exit(99999, 1 << 8)
+        prefork_server._record_worker_exit(99999, 1 << 8)
         assert prefork_server._consecutive_fast_deaths == 1
 
     def test_long_polling_young_crash_arms_backoff(self, prefork_server):
         prefork_server.long_polling_pid = 4321
         prefork_server.long_polling_spawn_time = time.monotonic() - 1.0
         before = time.monotonic()
-        prefork_server._note_worker_exit(4321, 1 << 8)
+        prefork_server._record_worker_exit(4321, 1 << 8)
         assert prefork_server._consecutive_fast_deaths == 1
         assert prefork_server._respawn_not_before > before
 
@@ -1054,7 +1054,7 @@ class TestPreforkRespawnBackoff:
         prefork_server._consecutive_fast_deaths = 2
         prefork_server.long_polling_pid = 4321
         prefork_server.long_polling_spawn_time = time.monotonic() - 1.0
-        prefork_server._note_worker_exit(4321, 0)
+        prefork_server._record_worker_exit(4321, 0)
         assert prefork_server._consecutive_fast_deaths == 2
 
     def test_long_polling_healthy_lifetime_clears_throttle(self, prefork_server):
@@ -1064,7 +1064,7 @@ class TestPreforkRespawnBackoff:
         prefork_server.long_polling_spawn_time = (
             time.monotonic() - _prefork.WORKER_MIN_HEALTHY_LIFETIME_S - 5
         )
-        prefork_server._note_worker_exit(4321, 1 << 8)
+        prefork_server._record_worker_exit(4321, 1 << 8)
         assert prefork_server._consecutive_fast_deaths == 0
         assert prefork_server._respawn_not_before == 0.0
 
@@ -2990,7 +2990,7 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
     `kill_timed_out_workers` SIGKILLs a worker that stopped pinging, and
     `kill_worker` pops it so the watchdog cannot kill the same pid twice. But
     the exit is only *accounted* for later, when `reap_exited_workers` reaps it, and
-    `_note_worker_exit` looked the worker up in `self.workers` to learn how
+    `_record_worker_exit` looked the worker up in `self.workers` to learn how
     long it lived — so after the pop it returned immediately, taking the whole
     crash branch with it.
 
@@ -3015,7 +3015,7 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
         with patch.object(_prefork.os, "kill"):
             prefork_server.kill_timed_out_workers()
         assert 4242 not in prefork_server.workers, "the pop still has to happen"
-        prefork_server._note_worker_exit(4242, signal.SIGKILL)
+        prefork_server._record_worker_exit(4242, signal.SIGKILL)
         assert prefork_server._consecutive_fast_deaths == 1
         assert prefork_server._respawn_not_before > 0, (
             "a worker the watchdog killed young must damp the respawn, which "
@@ -3028,7 +3028,7 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
         prefork_server._consecutive_fast_deaths = 3
         with patch.object(_prefork.os, "kill"):
             prefork_server.kill_timed_out_workers()
-        prefork_server._note_worker_exit(4243, signal.SIGKILL)
+        prefork_server._record_worker_exit(4243, signal.SIGKILL)
         assert prefork_server._consecutive_fast_deaths == 0
 
     def test_the_record_does_not_outlive_the_reap(self, prefork_server):
@@ -3036,5 +3036,5 @@ class TestAWatchdogKillIsAccountedForLikeAnyOtherCrash:
         with patch.object(_prefork.os, "kill"):
             prefork_server.kill_timed_out_workers()
         assert prefork_server._killed_workers
-        prefork_server._note_worker_exit(4244, signal.SIGKILL)
+        prefork_server._record_worker_exit(4244, signal.SIGKILL)
         assert not prefork_server._killed_workers, "kept a worker after its reap"

@@ -156,7 +156,7 @@ class _PsqlSqlScanner:
                 if m:
                     self.dollar_tag = m.group(0)
                     self._reset_ident_run()
-                    self._note_opaque_token()
+                    self._mark_opaque_token_seen()
                     i = self._resume_dollar_body(line, m.end(), n)
                     continue
             if c == "'":
@@ -165,13 +165,13 @@ class _PsqlSqlScanner:
                     i > 0 and line[i - 1] in "Ee" and self._ident_run_start == i - 1
                 )
                 self._reset_ident_run()
-                self._note_opaque_token()
+                self._mark_opaque_token_seen()
                 i = self._resume_single_quote(line, i + 1, n)
                 continue
             if c == '"':
                 self.in_double_quote = True
                 self._reset_ident_run()
-                self._note_opaque_token()
+                self._mark_opaque_token_seen()
                 i = self._resume_double_quote(line, i + 1, n)
                 continue
             if c == "\\":
@@ -179,7 +179,7 @@ class _PsqlSqlScanner:
                 if violation is not None:
                     return violation
                 self._reset_ident_run()
-                self._note_opaque_token()
+                self._mark_opaque_token_seen()
                 i = line.find("\n", i)
                 if i == -1:
                     return None
@@ -219,7 +219,7 @@ class _PsqlSqlScanner:
             self.copy_pending = True
         self._prev_word = upper
 
-    def _note_opaque_token(self) -> None:
+    def _mark_opaque_token_seen(self) -> None:
         self._stmt_seen_token = True
         self._prev_word = ""
 

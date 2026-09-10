@@ -304,7 +304,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             except UserError:
                 raise
             except Exception as err:
-                raise server._connection_test_error(err) from err
+                raise server._prepare_connection_test_error(err) from err
             finally:
                 if connection is not None:
                     try:
@@ -389,7 +389,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         self.check_singleton()
         connection.login(self.user, self.password)
 
-    def _connection_test_error(self, exc: Exception) -> UserError:
+    def _prepare_connection_test_error(self, exc: Exception) -> UserError:
         self.check_singleton()
         for exc_types, make_message in CONNECTION_ERROR_MESSAGES:
             if isinstance(exc, exc_types):

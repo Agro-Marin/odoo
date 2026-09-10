@@ -491,11 +491,15 @@ class TestFetchmailConnect(FetchmailCommon):
             (RuntimeError("internal detail leaking"), "Check the server log"),
         ]:
             with self.subTest(exception=type(exception).__name__):
-                error = server._connection_test_error(exception)
+                error = server._prepare_connection_test_error(exception)
                 self.assertIn(expected, str(error))
         self.assertNotIn(
             "internal detail leaking",
-            str(server._connection_test_error(RuntimeError("internal detail leaking"))),
+            str(
+                server._prepare_connection_test_error(
+                    RuntimeError("internal detail leaking")
+                )
+            ),
             "an unexpected error must not be echoed to the user (§2.7)",
         )
 

@@ -971,7 +971,7 @@ SMTP server configuration and email sending.
 - `_build_email__(email_from, email_to, subject, body, ...)` — Build RFC2822 EmailMessage (`headers` override singleton headers via del-then-set)
 - `send_email(message, mail_server_id, ...)` — Send email via SMTP
 - `_find_mail_server(email_from, mail_servers)` — Find server by FROM address
-- `test_smtp_connection(autodetect_max_email_size)` — Test connection; maps low-level errors via `_connection_test_error`
+- `test_smtp_connection(autodetect_max_email_size)` — Test connection; maps low-level errors via `_prepare_connection_test_error`
 
 ---
 

@@ -83,7 +83,7 @@ class MixinInboundGate(models.AbstractModel):
             mode=mode,
             caller_already_checked=caller_already_checked,
         )
-        self._note_inbound_verdict(
+        self._record_inbound_verdict(
             allowed,
             status,
             reason,
@@ -247,7 +247,7 @@ class MixinInboundGate(models.AbstractModel):
         "will fill the table.",
     )
 
-    def _note_inbound_verdict(
+    def _record_inbound_verdict(
         self,
         allowed: bool,
         status: int,

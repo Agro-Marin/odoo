@@ -167,6 +167,6 @@ class TestWizardAudit(AccountTestInvoicingCommon):
             )
             .create({})
         )
-        self.assertTrue(wizard._from_sibling_companies(lines))
+        self.assertTrue(wizard._is_from_sibling_companies(lines))
         self.assertNotIn(lines.company_id.root_id, wizard.env.companies)
         self.assertIs(wizard.action_create_payments(), True)
