@@ -15,8 +15,8 @@ from odoo.libs.numbers import float_is_zero
 from odoo.tools import SQL, Query, convert, email_normalize, format_time
 
 from odoo.addons.hr.models.hr_version import (
-    remove_values_from_other_companies,
     format_date_abbr,
+    remove_values_from_other_companies,
 )
 from odoo.addons.mail.tools.discuss import Store
 
