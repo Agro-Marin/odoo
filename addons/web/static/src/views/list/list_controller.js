@@ -9,7 +9,6 @@ import { useModelWithSampleData } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
-import { usePager } from "@web/search/pager_hook";
 import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
@@ -124,33 +123,12 @@ export class ListController extends MultiRecordController {
             () => [this.model.isReady],
         );
 
-        usePager(() => {
-            if (this.model.useSampleModel) {
-                return;
-            }
-            const { count, hasLimitedCount, isGrouped, limit, offset } =
-                this.model.root;
-            return {
-                offset: offset,
-                limit: limit,
-                total: count,
-                onUpdate: async ({ offset, limit }, hasNavigated) => {
-                    if (this.editedRecord) {
-                        if (!(await this.editedRecord.save())) {
-                            return;
-                        }
-                    }
-                    await this.model.root.load({ limit, offset });
-                    if (hasNavigated) {
-                        this.onPageChangeScroll();
-                    }
-                },
-                updateTotal:
-                    !isGrouped && hasLimitedCount
-                        ? () => this.model.root.fetchCount()
-                        : undefined,
-            };
-        });
+        this.setupPager();
+    }
+
+    /** @returns {Promise<boolean>} the edited row must be saved before the page moves */
+    async beforePagerUpdate() {
+        return this.editedRecord ? Boolean(await this.editedRecord.save()) : true;
     }
 
     /** @returns {Record<string, any>} */

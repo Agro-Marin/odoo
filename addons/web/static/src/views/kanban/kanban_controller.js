@@ -10,7 +10,6 @@ import {
     extractFieldsFromArchInfo,
 } from "@web/model/relational_model";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
-import { usePager } from "@web/search/pager_hook";
 import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
@@ -155,25 +154,12 @@ export class KanbanController extends MultiRecordController {
             },
             () => [this.model.isReady],
         );
-        usePager(() => {
-            const root = this.model.root;
-            const { count, hasLimitedCount, isGrouped, limit, offset } = root;
-            if (!isGrouped && !this.model.useSampleModel) {
-                return {
-                    offset: offset,
-                    limit: limit,
-                    total: count,
-                    onUpdate: async ({ offset, limit }, hasNavigated) => {
-                        await this.model.root.load({ offset, limit });
-                        await this.onUpdatedPager();
-                        if (hasNavigated) {
-                            this.onPageChangeScroll();
-                        }
-                    },
-                    updateTotal: hasLimitedCount ? () => root.fetchCount() : undefined,
-                };
-            }
-        });
+        this.setupPager();
+    }
+
+    /** @param {any} root */
+    pagerEnabled(root) {
+        return !root.isGrouped;
     }
 
     /** @returns {Record<string, any>} */
@@ -401,10 +387,8 @@ export class KanbanController extends MultiRecordController {
         }
     }
 
-    async onUpdatedPager() {}
-
     scrollTop() {
-        this.rootRef.el?.querySelector(".o_content")?.scrollTo({ top: 0 });
+        this.onPageChangeScroll();
     }
 
     /**

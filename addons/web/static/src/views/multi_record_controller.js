@@ -5,6 +5,7 @@ import { onMounted, onWillStart, useEffect, useSubEnv } from "@odoo/owl";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
+import { usePager } from "@web/search/pager_hook";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
 import { useViewChassis } from "@web/views/view_components/view_layout";
 import { ViewController } from "@web/views/view_controller";
@@ -223,6 +224,45 @@ export class MultiRecordController extends ViewController {
     get scrollSelector() {
         return ".o_content";
     }
+
+    setupPager() {
+        usePager(() => {
+            const root = this.model.root;
+            if (this.model.useSampleModel || !this.pagerEnabled(root)) {
+                return;
+            }
+            const { count, hasLimitedCount, isGrouped, limit, offset } = root;
+            return {
+                offset,
+                limit,
+                total: count,
+                onUpdate: async ({ offset, limit }, hasNavigated) => {
+                    if (!(await this.beforePagerUpdate())) {
+                        return;
+                    }
+                    await root.load({ limit, offset });
+                    await this.onUpdatedPager();
+                    if (hasNavigated) {
+                        this.onPageChangeScroll();
+                    }
+                },
+                updateTotal:
+                    !isGrouped && hasLimitedCount ? () => root.fetchCount() : undefined,
+            };
+        });
+    }
+
+    /** @param {any} _root */
+    pagerEnabled(_root) {
+        return true;
+    }
+
+    /** @returns {Promise<boolean>} false keeps the current page */
+    async beforePagerUpdate() {
+        return true;
+    }
+
+    async onUpdatedPager() {}
 
     onPageChangeScroll() {
         if (!this.rootRef?.el) {
