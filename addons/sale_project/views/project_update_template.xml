@@ -4,7 +4,7 @@
     <template
         id="sale_project.milestone_deadline_inherit"
         inherit_id="project.milestone_deadline">
-        <xpath expr="//t[@t-if=&quot;milestone['deadline']&quot;]" position="before">
+        <xpath expr="//t[@t-if=&quot;milestone['date_deadline']&quot;]" position="before">
         <t t-if="milestone['quantity_percentage']">
         <font style="color: rgb(190, 190, 190);">
         <t t-if="milestone['sale_line_display_name']">
