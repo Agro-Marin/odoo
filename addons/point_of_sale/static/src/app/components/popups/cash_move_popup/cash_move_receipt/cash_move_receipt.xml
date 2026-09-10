@@ -34,8 +34,8 @@
                 <div class="w-50 text-break text-end" style="font-size: 75%;">
                     <div>
                         <div t-if="company.vat" t-out="vatText"/>
-                        <div t-if="company.phone">
-                            Tel: <t t-out="company.phone"/>
+                        <div t-if="company.phone_ids?.length">
+                            Tel: <t t-out="company.phone_ids[0].number"/>
                         </div>
                         <div t-if="company.email" t-out="company.email"/>
                         <div t-if="company.website" t-out="company.website"/>
