@@ -7,6 +7,7 @@ from . import (
     approval_binding_observation,
     approval_category,
     approval_category_approver,
+    approval_category_step,
     approval_document_requirement,
     mixin_approval,
     approval_refusal_reason,

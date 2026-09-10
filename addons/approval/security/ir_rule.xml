@@ -64,6 +64,24 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
+    <record id="approval_category_step_rule" model="ir.rule">
+        <field name="name">Approval Step: multi-company</field>
+        <field
+            name="model_id"
+            model="ir.model"
+            search="[('model','=','approval.category.step')]" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+    </record>
+
+    <record id="approval_category_step_member_rule" model="ir.rule">
+        <field name="name">Approval Step Member: multi-company</field>
+        <field
+            name="model_id"
+            model="ir.model"
+            search="[('model','=','approval.category.step.member')]" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+    </record>
+
     <record id="approval_metrics_rule" model="ir.rule">
         <field name="name">Approval Metrics: multi-company</field>
         <field

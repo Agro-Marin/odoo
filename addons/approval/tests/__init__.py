@@ -9,6 +9,7 @@ from . import (
     test_auto_expire,
     test_bulk_operations,
     test_category,
+    test_category_steps,
     test_conditional_rules,
     test_consent_approval,
     test_dashboard,

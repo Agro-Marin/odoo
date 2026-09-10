@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 16:03+0000\n"
-"PO-Revision-Date: 2026-09-10 16:03+0000\n"
+"POT-Creation-Date: 2026-09-10 17:58+0000\n"
+"PO-Revision-Date: 2026-09-10 17:58+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -209,11 +209,23 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "%(user)s approved step(s) %(steps)s of %(request)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
 #: code:addons/approval/models/approval_category_approver.py:0
 msgid ""
 "%(user)s does not belong to company %(company)s, so they cannot approve "
 "requests of category '%(category)s'. Add the company to the user or choose "
 "another approver."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "%(user)s refused step(s) %(steps)s of %(request)s."
 msgstr ""
 
 #. module: approval
@@ -496,6 +508,15 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
+#: code:addons/approval/models/approval_category.py:0
+msgid ""
+"A category with steps orders them itself, so it cannot also use Approvers "
+"Sequence: sequencing individual approvers forbids a later step from deciding"
+" early, which steps allow. Use Request Steps In Order instead."
+msgstr ""
+
+#. module: approval
+#. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "A change can only be requested while the approval is pending. Current state:"
@@ -513,6 +534,11 @@ msgstr ""
 #. module: approval
 #: model:ir.model.constraint,message:approval.constraint_approval_refusal_reason_name_src_uniq
 msgid "A refusal reason with this name already exists for this company."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.constraint,message:approval.constraint_approval_category_step_member_step_user_uniq
+msgid "A user is a member of a step only once."
 msgstr ""
 
 #. module: approval
@@ -561,6 +587,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_binding__active
 #: model:ir.model.fields,field_description:approval.field_approval_category__active
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__active
 #: model:ir.model.fields,field_description:approval.field_approval_refusal_reason__active
 #: model:ir.model.fields,field_description:approval.field_approval_rule__active
 #: model:ir.model.fields,field_description:approval.field_approval_template__active
@@ -690,6 +717,14 @@ msgid "An approval template with this name already exists for this company."
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step__exclusive
+msgid ""
+"An approval that counts toward this step counts toward no other step of the "
+"same request, and the other way round: a user who decided an exclusive step "
+"decides nothing else on that request."
+msgstr ""
+
+#. module: approval
 #. odoo-python
 #: code:addons/approval/models/mixin_approval.py:0
 msgid ""
@@ -719,6 +754,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_binding__subject_domain
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__subject_domain
 msgid "Applies When"
 msgstr ""
 
@@ -826,6 +862,11 @@ msgid "Approval Granted Date"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__group_id
+msgid "Approval Group"
+msgstr ""
+
+#. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_inbox
 msgid "Approval Inbox"
 msgstr ""
@@ -926,6 +967,22 @@ msgstr ""
 #: model:mail.message.subtype,description:approval.mt_approval_state
 #: model:mail.message.subtype,name:approval.mt_approval_state
 msgid "Approval Status Change"
+msgstr ""
+
+#. module: approval
+#: model:ir.model,name:approval.model_approval_category_step
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_step_view_form
+msgid "Approval Step"
+msgstr ""
+
+#. module: approval
+#: model:ir.model,name:approval.model_approval_category_step_member
+msgid "Approval Step Member"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_step_view_list
+msgid "Approval Steps"
 msgstr ""
 
 #. module: approval
@@ -1050,6 +1107,11 @@ msgstr ""
 #: model:ir.ui.menu,name:approval.approvals_menu_root
 #: model:res.groups.privilege,name:approval.res_groups_privilege_approvals
 msgid "Approvals"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__minimum
+msgid "Approvals Needed"
 msgstr ""
 
 #. module: approval
@@ -1717,6 +1779,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_binding__category_id
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__category_id
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__category_id
 #: model:ir.model.fields,field_description:approval.field_approval_document_requirement__category_id
 #: model:ir.model.fields,field_description:approval.field_approval_request__category_id
@@ -1802,6 +1865,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_approver__company_id
 #: model:ir.model.fields,field_description:approval.field_approval_category__company_id
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__company_id
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__company_id
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__company_id
 #: model:ir.model.fields,field_description:approval.field_approval_metrics__company_id
 #: model:ir.model.fields,field_description:approval.field_approval_refusal_reason__company_id
 #: model:ir.model.fields,field_description:approval.field_approval_request__company_id
@@ -1962,6 +2027,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_binding_observation__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__create_uid
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__create_uid
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_delegate_wizard__create_uid
@@ -1979,6 +2046,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_binding_observation__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_category__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__create_date
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__create_date
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_delegate_wizard__create_date
@@ -2183,6 +2252,14 @@ msgid "Decision Date"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category__step_ids
+msgid ""
+"Declare steps when approval must pass several pools, each needing its own "
+"approvals. Without steps the flat approver list and Minimum Approval apply "
+"exactly as before."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_template__default_amount
 msgid "Default Amount"
 msgstr ""
@@ -2249,6 +2326,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/wizard/approval_delegate_wizard.py:0
 msgid "Delegated Approval: %s"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__delegated_by_id
+msgid "Delegated By"
 msgstr ""
 
 #. module: approval
@@ -2328,6 +2410,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_binding_observation__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_category__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__display_name
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__display_name
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_delegate_wizard__display_name
@@ -2406,6 +2490,13 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_binding__subject_domain
 msgid "Domain on the gated model. Empty means every record."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step__subject_domain
+msgid ""
+"Domain on the request's source document. The step applies only to requests "
+"whose source document matches; empty means every request."
 msgstr ""
 
 #. module: approval
@@ -2526,6 +2617,18 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_request_escalation.py:0
 msgid "Escalation: Overdue Approval - %(name)s"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step__group_id
+msgid ""
+"Every member of this group may approve the step, together with the step's "
+"own members."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__exclusive
+msgid "Exclusive"
 msgstr ""
 
 #. module: approval
@@ -2761,6 +2864,11 @@ msgid "Hours remaining until SLA target (negative if breached)"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step__minimum
+msgid "How many approvals from this step's pool complete it."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_dashboard__trend_15days_display
 msgid "Human-readable 15-day trend with arrow"
 msgstr ""
@@ -2781,6 +2889,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_binding_observation__id
 #: model:ir.model.fields,field_description:approval.field_approval_category__id
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__id
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__id
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__id
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__id
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__id
 #: model:ir.model.fields,field_description:approval.field_approval_delegate_wizard__id
@@ -2959,6 +3069,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_binding_observation__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__write_uid
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__write_uid
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_delegate_wizard__write_uid
@@ -2976,6 +3088,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_binding_observation__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_category__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__write_date
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__write_date
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_delegate_wizard__write_date
@@ -2990,6 +3104,13 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_delegate_wizard__end_date
 msgid "Last day of delegation period"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step_member__date_end
+msgid ""
+"Last day this user may approve the step. Empty means no end, so a delegation"
+" until a date is a membership with an end date."
 msgstr ""
 
 #. module: approval
@@ -3106,6 +3227,12 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__member_ids
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_step_view_form
+msgid "Members"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_has_error
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_has_error
 msgid "Message Delivery error"
@@ -3208,6 +3335,11 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step__subject_model_id
+msgid "Model the condition reads. Required when a condition is set."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__target_model
 msgid "Model to create when approval is granted (if any)"
 msgstr ""
@@ -3288,6 +3420,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_binding__name
 #: model:ir.model.fields,field_description:approval.field_approval_category__name
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__name
 #: model:ir.model.fields,field_description:approval.field_approval_document_requirement__name
 #: model:ir.model.fields,field_description:approval.field_approval_request__name
 #: model:ir.model.fields,field_description:approval.field_approval_rule__name
@@ -3472,6 +3605,12 @@ msgid "Nothing to approve — you're all caught up!"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__notify_user_ids
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_step_view_form
+msgid "Notify"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_needaction_counter
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_needaction_counter
 msgid "Number of Actions"
@@ -3649,6 +3788,14 @@ msgstr ""
 msgid ""
 "Only for 'Replace Approvers': the minimum number of approvals this band "
 "requires, overriding the category's."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category__notify_sequentially
+msgid ""
+"Only for categories with steps. Every step may be decided at any time, but "
+"its approvers are only asked -- given an activity -- once every earlier step"
+" is met. It orders the asking, not the deciding."
 msgstr ""
 
 #. module: approval
@@ -4014,6 +4161,11 @@ msgid "Portal communication history for this record."
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step__notify_user_ids
+msgid "Posted an internal note when an approver of this step decides."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_template__default_reason
 msgid "Pre-filled reason/description for the request"
 msgstr ""
@@ -4293,6 +4445,11 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_tree
 msgid "Request Start"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category__notify_sequentially
+msgid "Request Steps In Order"
 msgstr ""
 
 #. module: approval
@@ -4702,6 +4859,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_binding__sequence
 #: model:ir.model.fields,field_description:approval.field_approval_category__sequence
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__sequence
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__sequence
 #: model:ir.model.fields,field_description:approval.field_approval_document_requirement__sequence
 #: model:ir.model.fields,field_description:approval.field_approval_refusal_reason__sequence
 #: model:ir.model.fields,field_description:approval.field_approval_rule__sequence
@@ -4842,6 +5000,7 @@ msgid "Source Field"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__subject_model_id
 #: model:ir.model.fields,field_description:approval.field_approval_request__res_model_id
 #: model:ir.model.fields,field_description:approval.field_approval_rule__subject_model_id
 msgid "Source Model"
@@ -4900,6 +5059,49 @@ msgid ""
 "Overdue: Due date is already passed\n"
 "Today: Activity date is today\n"
 "Planned: Future activities."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__step_id
+msgid "Step"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_category_step.py:0
+msgid ""
+"Step '%(step)s' has a condition, so it needs the source model that condition"
+" reads."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_category_step.py:0
+msgid ""
+"Step '%(step)s' has nobody who could approve it: give it members, an "
+"approval group, or both."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid ""
+"Step '%(step)s' needs %(minimum)d approval(s) but only %(count)d user(s) can"
+" give one, so this request could never be approved. Add members to the step "
+"or lower its quorum."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_category_step.py:0
+msgid "Step '%(step)s' needs at least one approval."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_approver__step_ids
+#: model:ir.model.fields,field_description:approval.field_approval_category__step_ids
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_view_form_steps
+msgid "Steps"
 msgstr ""
 
 #. module: approval
@@ -5208,6 +5410,13 @@ msgid "The sequence code must be unique per company."
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_approver__step_ids
+msgid ""
+"The steps this approver's decision counts toward. Rows are one per user per "
+"request, so a user in the pools of two steps appears once, with both here."
+msgstr ""
+
+#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_rule.py:0
 msgid ""
@@ -5468,6 +5677,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_approver__user_id
 #: model:ir.model.fields,field_description:approval.field_approval_binding_observation__user_id
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__user_id
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__user_id
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__user_id
 #: model:ir.model.fields,field_description:approval.field_approval_request__user_ids
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
@@ -5538,6 +5748,11 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__pending_approver_ids
 msgid "Users who still need to approve this request"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step_member__date_end
+msgid "Valid Until"
 msgstr ""
 
 #. module: approval
@@ -5664,6 +5879,11 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_step_view_form
+msgid "When"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_approver__decision_date
 msgid ""
 "When THIS approver personally approved or refused, stamped by the decision "
@@ -5763,6 +5983,11 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_step_view_form
+msgid "Who"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_approver__decided_by_user_id
 msgid ""
 "Who actually made the decision recorded in decision_date — the delegate when"
@@ -5775,6 +6000,11 @@ msgid ""
 "who did the work scored nothing. Left empty for rows flipped by non-"
 "decisions, exactly like decision_date, and cleared beside it on withdraw and"
 " reset-to-draft."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step_member__delegated_by_id
+msgid "Who handed over the right, when this membership is a delegation."
 msgstr ""
 
 #. module: approval
@@ -6078,6 +6308,11 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 msgid "e.g. Brussels"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_step_view_form
+msgid "e.g. Finance review"
 msgstr ""
 
 #. module: approval

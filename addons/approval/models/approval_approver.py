@@ -62,6 +62,18 @@ class ApprovalApprover(models.Model):
         "on a request that was never confirmed.",
     )
     required = fields.Boolean(default=False, readonly=True)
+    step_ids = fields.Many2many(
+        comodel_name="approval.category.step",
+        relation="approval_approver_step_rel",
+        column1="approver_id",
+        column2="step_id",
+        string="Steps",
+        readonly=True,
+        copy=False,
+        help="The steps this approver's decision counts toward. Rows are one per "
+        "user per request, so a user in the pools of two steps appears once, with "
+        "both here.",
+    )
     source_rule_id = fields.Many2one(
         comodel_name="approval.rule",
         readonly=True,
@@ -332,6 +344,9 @@ class ApprovalApprover(models.Model):
             return
         if self.env.context.get("mail_activity_automation_skip"):
             return
+        self = self._get_notifiable()
+        if not self:
+            return
         activity_type = self.env.ref("approval.mail_activity_data_approval")
         model_id = self.env["ir.model"]._get("approval.request").id
         date_deadline = fields.Date.context_today(self)
@@ -361,6 +376,23 @@ class ApprovalApprover(models.Model):
             )
         if create_vals_list:
             self.env["mail.activity"].create(create_vals_list)
+
+    def _get_notifiable(self):
+        """The rows whose approver should be asked now.
+
+        Every activity is created through `_create_activity`, so this one filter
+        orders the asking for all of its callers. A row that counts toward no step
+        is asked as it always was. On a category that requests its steps in order,
+        a row is asked only once one of its steps is among the lowest steps still
+        unmet -- the decision is open from the start, the asking is not.
+        """
+        return self.filtered(lambda approver: approver._is_notifiable())
+
+    def _is_notifiable(self) -> bool:
+        self.check_singleton()
+        if not self.step_ids or not self.request_id.category_id.notify_sequentially:
+            return True
+        return bool(self.step_ids & self.request_id._get_open_steps())
 
     def _get_effective_approver(self):
         self.check_singleton()

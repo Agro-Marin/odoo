@@ -190,6 +190,7 @@ class ApprovalRequestLifecycle(models.Model):
             message_type="notification",
             partner_ids=self.request_owner_id.partner_id.ids,
         )
+        self._notify_step_decision(approver, acting_user, decision)
         if decision == "approve":
             self.sudo()._update_next_approvers_state(
                 approver,
@@ -206,6 +207,10 @@ class ApprovalRequestLifecycle(models.Model):
             if not self.approve_sequentially:
                 self._flip_unsettled_approvers("refused")
         self._get_user_approval_activities(user=acting_user).sudo().action_feedback()
+        if decision == "approve" and self.state == "pending":
+            self.approver_ids.filtered(
+                lambda a: a.state == "pending" and a.step_ids,
+            ).sudo()._create_activity()
         if self.state in self._TERMINAL_STATES:
             self._cancel_activities()
         if self.state == "approved":
@@ -224,6 +229,34 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         self._check_no_pending_change("approve")
         self._apply_decision("approve", approver)
+
+    def _notify_step_decision(self, approvers, acting_user, decision: str) -> None:
+        """Post an internal note to the notify list of every step these rows count toward."""
+        self.check_singleton()
+        steps = approvers.step_ids
+        partners = steps.notify_user_ids.partner_id
+        if not partners:
+            return
+        if decision == "approve":
+            body = self.env._(
+                "%(user)s approved step(s) %(steps)s of %(request)s.",
+                user=acting_user.name,
+                steps=", ".join(steps.mapped("name")),
+                request=self.display_name,
+            )
+        else:
+            body = self.env._(
+                "%(user)s refused step(s) %(steps)s of %(request)s.",
+                user=acting_user.name,
+                steps=", ".join(steps.mapped("name")),
+                request=self.display_name,
+            )
+        self.sudo().message_post(
+            body=body,
+            message_type="comment",
+            subtype_xmlid="mail.mt_note",
+            partner_ids=partners.ids,
+        )
 
     def _refuse_cascade(self) -> bool:
         self.check_singleton()
@@ -712,6 +745,10 @@ class ApprovalRequestLifecycle(models.Model):
 
     def _check_enough_approvers(self) -> None:
         self.check_singleton()
+        steps = self._get_applicable_steps()
+        if steps:
+            self._check_steps_can_be_met(steps)
+            return
         if len(self.approver_ids) < self.approval_minimum:
             raise UserError(
                 self.env._(
@@ -720,6 +757,22 @@ class ApprovalRequestLifecycle(models.Model):
                     count=self.approval_minimum,
                 ),
             )
+
+    def _check_steps_can_be_met(self, steps) -> None:
+        self.check_singleton()
+        for step in steps:
+            pool = step._get_pool_user_ids()
+            if len(pool) < step.minimum:
+                raise UserError(
+                    self.env._(
+                        "Step '%(step)s' needs %(minimum)d approval(s) but only "
+                        "%(count)d user(s) can give one, so this request could never "
+                        "be approved. Add members to the step or lower its quorum.",
+                        step=step.name,
+                        minimum=step.minimum,
+                        count=len(pool),
+                    ),
+                )
 
     def _check_has_document_has_attachment(self) -> None:
         if self.has_document == "required" and not self.count_attachment:

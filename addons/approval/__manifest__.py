@@ -1,6 +1,6 @@
 {
     "name": "Base Approval",
-    "version": "19.0.1.3.0",
+    "version": "19.0.1.4.0",
     "category": "Human Resources/Approvals",
     "sequence": 190,
     "summary": "Create and validate approval requests with delegation and escalation",
@@ -47,6 +47,7 @@ activities to a substitute for a dated window; escalation reminds by priority.
         "reports/approval_request_report.xml",
         "views/approval_category_views.xml",
         "views/approval_category_approver_views.xml",
+        "views/approval_category_step_views.xml",
         "views/approval_request_views.xml",
         "views/approval_refusal_reason_views.xml",
         "views/approval_template_views.xml",

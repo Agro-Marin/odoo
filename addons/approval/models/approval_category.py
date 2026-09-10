@@ -267,6 +267,21 @@ class ApprovalCategory(models.Model):
         inverse_name="category_id",
         string="Conditional Rules",
     )
+    step_ids = fields.One2many(
+        comodel_name="approval.category.step",
+        inverse_name="category_id",
+        string="Steps",
+        help="Declare steps when approval must pass several pools, each needing its "
+        "own approvals. Without steps the flat approver list and Minimum Approval "
+        "apply exactly as before.",
+    )
+    notify_sequentially = fields.Boolean(
+        string="Request Steps In Order",
+        tracking=True,
+        help="Only for categories with steps. Every step may be decided at any time, "
+        "but its approvers are only asked -- given an activity -- once every earlier "
+        "step is met. It orders the asking, not the deciding.",
+    )
     rule_count = fields.Integer(
         compute="_compute_rule_count",
         help="Number of active conditional rules",
@@ -390,6 +405,22 @@ class ApprovalCategory(models.Model):
                     "Approver Sequence can only be activated with at least 1 minimum approver.",
                 ),
             )
+
+    @api.constrains("approve_sequentially", "step_ids")
+    def _constrains_steps_not_sequential(self) -> None:
+        for category in self:
+            if category.approve_sequentially and category.step_ids:
+                category._raise_steps_with_approver_sequence()
+
+    def _raise_steps_with_approver_sequence(self) -> None:
+        raise ValidationError(
+            self.env._(
+                "A category with steps orders them itself, so it cannot also use "
+                "Approvers Sequence: sequencing individual approvers forbids a later "
+                "step from deciding early, which steps allow. Use Request Steps In "
+                "Order instead.",
+            ),
+        )
 
     @api.constrains("approve_sequentially", "consent_approval_hours")
     def _constrains_consent_sequential(self) -> None:

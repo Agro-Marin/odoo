@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="approval_category_step_view_form" model="ir.ui.view">
+        <field name="name">approval.category.step.form</field>
+        <field name="model">approval.category.step</field>
+        <field name="arch" type="xml">
+            <form string="Approval Step">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Finance review" /></h1>
+                    </div>
+                    <group>
+                        <group string="Who">
+                            <field name="group_id" options="{'no_create': True}" />
+                            <field name="minimum" />
+                            <field name="exclusive" />
+                        </group>
+                        <group string="When">
+                            <field name="sequence" />
+                            <field
+                                name="subject_model_id"
+                                options="{'no_create': True}" />
+                            <field
+                                name="subject_domain"
+                                widget="domain"
+                                options="{'model': 'subject_model_id'}"
+                                invisible="not subject_model_id" />
+                            <field name="active" invisible="1" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="members" string="Members">
+                            <field name="member_ids">
+                                <list editable="bottom">
+                                    <field name="user_id" />
+                                    <field name="date_end" />
+                                    <field name="delegated_by_id" optional="show" />
+                                </list>
+                            </field>
+                        </page>
+                        <page name="notify" string="Notify">
+                            <field name="notify_user_ids" widget="many2many_tags" />
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="approval_category_step_view_list" model="ir.ui.view">
+        <field name="name">approval.category.step.list</field>
+        <field name="model">approval.category.step</field>
+        <field name="arch" type="xml">
+            <list string="Approval Steps">
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="minimum" />
+                <field name="group_id" optional="show" />
+                <field name="exclusive" optional="show" />
+                <field name="notify_user_ids" widget="many2many_tags" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="approval_category_view_form_steps" model="ir.ui.view">
+        <field name="name">approval.category.form.steps</field>
+        <field name="model">approval.category</field>
+        <field name="inherit_id" ref="view_approval_category_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='approvers']" position="after">
+                <page name="steps" string="Steps">
+                    <group>
+                        <field name="notify_sequentially" invisible="not step_ids" />
+                    </group>
+                    <field name="step_ids" context="{'default_category_id': id}" />
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

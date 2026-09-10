@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from odoo import api, models
+from odoo.fields import Command
 
 _logger = logging.getLogger(__name__)
 
@@ -60,6 +61,18 @@ class ApprovalRequestRouting(models.Model):
                 }
                 for r in cat.rule_ids.filtered("active")
             ],
+            "steps": [
+                {
+                    "name": step.name,
+                    "sequence": step.sequence,
+                    "minimum": step.minimum,
+                    "exclusive": step.exclusive,
+                    "group": step.group_id.name or False,
+                    "members": sorted(step._get_pool_user_ids()),
+                    "condition": step.subject_domain or False,
+                }
+                for step in self._get_applicable_steps()
+            ],
             "effective_approval_minimum": self.approval_minimum,
             "effective_approvers": [
                 {
@@ -94,6 +107,13 @@ class ApprovalRequestRouting(models.Model):
             ),
         )
 
+    def _get_applicable_steps(self):
+        """The category's steps whose condition this request meets, in order."""
+        self.check_singleton()
+        return self.category_id.step_ids.filtered(
+            lambda step: step._applies_to(self),
+        ).sorted(lambda step: (step.sequence, step.id))
+
     def _get_additional_approvers(self) -> list[tuple[int, bool, int]]:
         self.check_singleton()
         return []
@@ -122,6 +142,8 @@ class ApprovalRequestRouting(models.Model):
     ) -> set[int]:
         self.check_singleton()
         managed = set(self.category_id.approver_ids.user_id.ids)
+        for step in self._get_applicable_steps():
+            managed.update(step._get_pool_user_ids())
         if replacement:
             managed.update(replacement.approver_ids.ids)
         for rule in matched_rules or ():
@@ -320,6 +342,7 @@ class ApprovalRequestRouting(models.Model):
                             "sequence": vals["sequence"],
                             "source_rule_id": vals.get("source_rule_id"),
                             "source_synced": vals.get("source_synced", True),
+                            "step_ids": [Command.set(list(vals.get("step_ids", ())))],
                         },
                     )
                 else:
@@ -331,17 +354,20 @@ class ApprovalRequestRouting(models.Model):
                         vals["sequence"],
                         vals.get("source_rule_id"),
                         vals.get("source_synced", True),
+                        vals.get("step_ids", ()),
                     )
 
             rows_to_delete.extend(
                 current_approver.id for current_approver in users_to_approver.values()
             )
 
-            effective_minimum = (
-                replacement.approval_minimum
-                if replacement
-                else request.category_id.approval_minimum
-            )
+            applicable_steps = request._get_applicable_steps()
+            if applicable_steps:
+                effective_minimum = sum(applicable_steps.mapped("minimum"))
+            elif replacement:
+                effective_minimum = replacement.approval_minimum
+            else:
+                effective_minimum = request.category_id.approval_minimum
             if request.approval_minimum != effective_minimum:
                 minimum_updates[request.id] = effective_minimum
 
@@ -505,7 +531,10 @@ class ApprovalRequestRouting(models.Model):
                 approver_model.create(payload)
             else:
                 update_vals, approver_ids = payload
-                approver_model.browse(approver_ids).write(dict(update_vals))
+                vals = dict(update_vals)
+                if "step_ids" in vals:
+                    vals["step_ids"] = [Command.set(list(vals["step_ids"]))]
+                approver_model.browse(approver_ids).write(vals)
 
     def _log_sync_plan(self, plan: list[tuple]) -> None:
         _logger.debug(
@@ -602,8 +631,17 @@ class ApprovalRequestRouting(models.Model):
                 approver_staging, user_id, required, sequence
             )
 
+        steps = self._get_applicable_steps()
+        step_ids_by_user: dict[int, set[int]] = {}
         replacement = False
-        if self.group_approval != "exclusive":
+        if steps:
+            for step in steps:
+                for user_id in step._get_pool_user_ids():
+                    self._merge_approver_to_staging(
+                        approver_staging, user_id, False, step.sequence
+                    )
+                    step_ids_by_user.setdefault(user_id, set()).add(step.id)
+        elif self.group_approval != "exclusive":
             replacement = self._find_matching_replacement()
             if replacement:
                 replacement_sequence = self._get_sequence_replacement()
@@ -623,7 +661,7 @@ class ApprovalRequestRouting(models.Model):
                         cat_approver.sequence,
                     )
 
-        if self.group_approval != "no" and self.approver_group_id:
+        if not steps and self.group_approval != "no" and self.approver_group_id:
             for user in self.approver_group_id.all_user_ids:
                 self._merge_approver_to_staging(
                     approver_staging,
@@ -641,6 +679,7 @@ class ApprovalRequestRouting(models.Model):
                 vals["source_rule_id"] = replacement.id
             else:
                 vals["source_rule_id"] = rule_user_to_rule_id.get(user_id)
+            vals["step_ids"] = tuple(sorted(step_ids_by_user.get(user_id, ())))
 
         managed_user_ids = self._get_managed_approver_user_ids(
             replacement=replacement,
@@ -689,17 +728,20 @@ class ApprovalRequestRouting(models.Model):
         new_sequence: int,
         new_source_rule_id: int | None = None,
         new_source_synced: bool = True,
+        new_step_ids: tuple[int, ...] = (),
     ) -> None:
         if (
             approver.required != new_required
             or approver.sequence != new_sequence
             or approver.source_rule_id.id != (new_source_rule_id or False)
             or approver.source_synced != new_source_synced
+            or tuple(sorted(approver.step_ids.ids)) != tuple(new_step_ids)
         ):
             key = (
                 ("required", new_required),
                 ("sequence", new_sequence),
                 ("source_rule_id", new_source_rule_id),
                 ("source_synced", new_source_synced),
+                ("step_ids", tuple(new_step_ids)),
             )
             rows_to_update.setdefault(key, []).append(approver.id)

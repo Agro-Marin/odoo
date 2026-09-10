@@ -12,6 +12,11 @@ approval.category                       [inherits mixin.mail.thread, mixin.catal
     |                           +-- approver_ids -> res.users (m2m)
     |                           +-- currency_id -> res.currency
     |                           +-- subject_model_id -> ir.model
+    +-- step_ids ---------> approval.category.step   [inherits mixin.approval.domain]
+    |                           +-- member_ids -> approval.category.step.member
+    |                           |                   +-- user_id / delegated_by_id -> res.users
+    |                           +-- group_id -> res.groups
+    |                           +-- notify_user_ids -> res.users (m2m)
     +-- document_requirement_ids -> approval.document.requirement
     +-- template_count ----> approval.template (o2m via category_id)
     +-- allowed_user_ids --> res.users (m2m)
@@ -156,6 +161,8 @@ so category names are unique per company, archived rows included.
 | `sla_warning_pct` | Integer | Yes | No | default=80, tracking |
 | `consent_approval_hours` | Integer | Yes | No | default=0, tracking |
 | `automation_id` | Many2one(`automation.rule`) | Yes | No | |
+| `step_ids` | One2many(`approval.category.step`) | — | No | Declaring steps switches the category to step mode. Without steps, the flat `approver_ids` and `approval_minimum` apply exactly as before |
+| `notify_sequentially` | Boolean | Yes | No | Step mode only. Every step may be decided at any time, but an approver is only asked — given an activity — once every earlier step is met. It orders the asking, not the deciding |
 
 ### Key Methods
 
@@ -315,6 +322,7 @@ State is a **stored computed field** based on `approver_ids.state`
 - Any approver `new` => `new`
 - approved_count >= `approval_minimum` (NOT clamped to len(approvers)) AND all required approved => `approved`
 - Otherwise => `pending`
+- `_constrains_steps_not_sequential`: a category with steps cannot also use `approve_sequentially` — sequencing individual approvers forbids a later step from deciding early, which steps allow; `notify_sequentially` orders them instead
 
 `refused` outranks `cancelled` so a real decision is never masked.
 `_TERMINAL_STATES = frozenset({"approved", "refused", "cancelled"})`
@@ -378,6 +386,12 @@ requester re-submits (`action_resubmit`).
 | `cron_auto_expire()` | escalation.py | **Cancel** (not refuse) requests past `auto_expire_hours` via `_force_terminal` |
 | `cron_consent_approval()` | escalation.py | Auto-approve after consent window; skips sequential categories, refused approvers, `pending_change_field`, `_can_consent_approve()` vetoes |
 | `_replay_bound_operation()` | Called from `_notify_if_terminal_transition` when a request becomes `approved`, AFTER `_notify_source_document_state_change`, so an adopter sees itself approved before the operation it gated runs. Hands off to `approval.binding._replay`; does nothing once `date_binding_replayed` is set |
+| `_get_applicable_steps()` | The category's steps whose condition this request meets, in order. Routing stages one row per user over them instead of the flat approvers, group and replacement |
+| `_is_quorum_met(state_counts, threshold)` | Step mode when any row carries steps: every applicable step meets its quorum. Otherwise the flat `approval_minimum`, unchanged |
+| `_get_step_counts()` | Approvals per step. An approved row counts toward every step it belongs to, unless one is exclusive: then toward exactly one, the lowest step still short — Studio's exclusivity expressed as counting |
+| `_get_unmet_steps()` / `_get_open_steps()` | The steps still short of their quorum, and the lowest-sequence ones among them, which are the ones being asked |
+| `_check_steps_can_be_met(steps)` | At confirmation, refuses a step whose pool is smaller than its quorum, rather than leaving a request that could never be approved |
+| `_notify_step_decision(approvers, acting_user, decision)` | Posts an internal note to the notify list of every step the decided rows count toward |
 
 ### Constraints
 
@@ -434,6 +448,7 @@ resolved by `_get_escalation_rules()`:
 | `is_delegated` | Boolean | **No** | No | compute, search=`_search_is_delegated`, copy=False. Non-stored: "today" is resolved in the SLOT OWNER's timezone (`user_id.tz`, `@api.depends` includes it), not the server's. The compute buckets the recordset by tz (`_delegation_today_by_tz`); the search inverts that into one OR-branch per distinct `res.users.tz` value, built by `_delegation_date_buckets()` and memoised in `env.cr.cache` under `approval_delegation_tz_buckets` (dropped by `res.users.write` on a `tz` change) |
 | `note` | Text | Yes | No | Decision note (approve/refuse context) |
 | `refusal_reason_id` | Many2one(`approval.refusal.reason`) | Yes | No | |
+| `step_ids` | Many2many(`approval.category.step`) | Yes | No | readonly, copy=False. The steps this row's decision counts toward. Rows stay `unique(request_id, user_id)`, so a user in the pools of two steps is one row carrying both |
 
 ### Key Methods
 
@@ -447,6 +462,7 @@ resolved by `_get_escalation_rules()`:
 | `_check_business_rules_create/unlink()` | Business rules layer: DRAFT only since 19.0.1.0.13 (relaxed only by `env.su` + `approver_ids_computation` sync context) — rows on decided requests are state-transition vehicles and are re-cycled via reset-to-draft |
 | `_check_delegation_dates` (constraint) | Delegation requires both dates, end >= start |
 | `_check_delegate_identity` (constraint) | Delegate must not be the approver themselves, the request owner, or a co-approver on the same request |
+| `_get_notifiable()` | The rows whose approver should be asked now. Every activity goes through `_create_activity`, which applies this first, so it orders the asking for all six callers: a row on a `notify_sequentially` category is asked only once one of its steps is among the lowest unmet ones |
 
 ---
 
@@ -746,6 +762,80 @@ question the table answers needs the breakdown rather than a total.
 | `elevation` | Selection(none/superuser/self_elevated) | Yes | **Yes** | index |
 | `would_block` | Boolean | Yes | No | whether Block would have refused this call — the number that sizes switching a binding on |
 | `date` | Datetime | Yes | No | default=now, index |
+
+---
+
+## approval.category.step
+
+| Key | Value |
+|-----|-------|
+| Model | `approval.category.step` |
+| File | `models/approval_category_step.py` |
+| Type | Model |
+| Inherits | `mixin.approval.domain` (parses and path-checks `subject_domain`) |
+| Order | `category_id, sequence, id` |
+
+One step of a category's approval: a pool of users, and how many of them must
+approve. The flat model — one approver list and one request-wide minimum —
+cannot tell two steps that each need one of two people from one step that needs
+two: a minimum of 2 accepts both approvals from the first. That is exactly what a
+Studio approval rule is. A category that needs steps declares them, and one that
+does not is left as it was.
+
+### Fields
+
+| Field | Type | Stored | Required | Key Attributes |
+|-------|------|--------|----------|----------------|
+| `category_id` | Many2one(`approval.category`) | Yes | **Yes** | ondelete=cascade, index |
+| `company_id` | Many2one(`res.company`) | Yes | No | related `category_id.company_id`; scopes the multi-company rule |
+| `sequence` | Integer | Yes | No | default=10. The step's place in the order `notify_sequentially` asks in |
+| `name` | Char | Yes | **Yes** | translate |
+| `active` | Boolean | Yes | No | default=True |
+| `minimum` | Integer | Yes | No | string="Approvals Needed", default=1. The step's quorum |
+| `member_ids` | One2many(`approval.category.step.member`) | — | No | the step's named users |
+| `group_id` | Many2one(`res.groups`) | Yes | No | its members join the pool too — the union Studio's `approver_ids` / `approval_group_id` pair expresses |
+| `exclusive` | Boolean | Yes | No | an approval counting toward this step counts toward no other step of the request, and the other way round |
+| `notify_user_ids` | Many2many(`res.users`) | Yes | No | posted an internal note when an approver of this step decides |
+| `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition reads; required when `subject_domain` is set |
+| `subject_domain` | Char | Yes | No | string="Applies When". The step applies only to requests whose source document matches |
+
+### Constraints
+
+- `_check_pool`: a quorum of at least one, and members or a group to give it
+- `_check_condition`: a condition names its source model, and every path it reads exists there
+- `_check_category_not_sequential`: the same refusal as `approval.category._constrains_steps_not_sequential`, from the step's side, since creating a step does not write the category
+
+### Key Methods
+
+| Method | Purpose |
+|--------|---------|
+| `_get_pool_user_ids()` | Who may approve today: members whose `date_end` has not passed, plus the group's users |
+| `_applies_to(request)` | No condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
+
+---
+
+## approval.category.step.member
+
+| Key | Value |
+|-----|-------|
+| Model | `approval.category.step.member` |
+| File | `models/approval_category_step.py` |
+| Type | Model |
+| Order | `step_id, id` |
+
+### Fields
+
+| Field | Type | Stored | Required | Key Attributes |
+|-------|------|--------|----------|----------------|
+| `step_id` | Many2one(`approval.category.step`) | Yes | **Yes** | ondelete=cascade, index |
+| `company_id` | Many2one(`res.company`) | Yes | No | related `step_id.company_id` |
+| `user_id` | Many2one(`res.users`) | Yes | **Yes** | ondelete=cascade, index |
+| `date_end` | Date | Yes | No | string="Valid Until". Empty means no end, so a delegation until a date is a membership with an end date |
+| `delegated_by_id` | Many2one(`res.users`) | Yes | No | who handed over the right, when the membership is a delegation |
+
+### SQL constraints
+
+- `_step_user_uniq`: unique(step_id, user_id)
 
 ---
 

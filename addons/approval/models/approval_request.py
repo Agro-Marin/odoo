@@ -760,7 +760,14 @@ class ApprovalRequest(models.Model):
             pending = request.approver_ids.filtered(lambda a: a.state == "pending")
             request.pending_approver_ids = pending.mapped("user_id")
 
-    @api.depends("approver_ids.state", "approver_ids.required", "approval_minimum")
+    @api.depends(
+        "approver_ids.state",
+        "approver_ids.required",
+        "approval_minimum",
+        "approver_ids.step_ids",
+        "approver_ids.step_ids.minimum",
+        "approver_ids.step_ids.exclusive",
+    )
     def _compute_state(self) -> None:
         for request in self:
             state_lst = request.mapped("approver_ids.state")
@@ -783,13 +790,60 @@ class ApprovalRequest(models.Model):
                 request.state = "cancelled"
             elif state_counts.get("new", 0) > 0:
                 request.state = "new"
-            elif (
-                state_counts.get("approved", 0) >= approval_threshold
-                and required_approved
+            elif required_approved and request._is_quorum_met(
+                state_counts, approval_threshold
             ):
                 request.state = "approved"
             else:
                 request.state = "pending"
+
+    def _is_quorum_met(self, state_counts, approval_threshold: int) -> bool:
+        self.check_singleton()
+        if self.approver_ids.step_ids:
+            return not self._get_unmet_steps()
+        return state_counts.get("approved", 0) >= approval_threshold
+
+    def _get_step_counts(self) -> dict[int, int]:
+        """How many approvals each step of this request has, exclusivity applied.
+
+        An approved row counts toward every step it belongs to, unless one of them
+        is exclusive: then it counts toward exactly one, the lowest step still short
+        of its quorum. That is Studio's rule -- a user who decided an exclusive step
+        decides nothing else on the same record, and the other way round --
+        expressed as counting rather than as refused writes.
+        """
+        self.check_singleton()
+        steps = self.approver_ids.step_ids.sorted(lambda step: (step.sequence, step.id))
+        counts = dict.fromkeys(steps.ids, 0)
+        approved = self.approver_ids.filtered(
+            lambda approver: approver.state == "approved" and approver.step_ids,
+        ).sorted(lambda approver: (approver.sequence, approver.id))
+        for approver in approved:
+            own = approver.step_ids.sorted(lambda step: (step.sequence, step.id))
+            if any(own.mapped("exclusive")):
+                target = own.filtered(lambda step: counts[step.id] < step.minimum)[:1]
+                if target:
+                    counts[target.id] += 1
+                continue
+            for step in own:
+                counts[step.id] += 1
+        return counts
+
+    def _get_unmet_steps(self):
+        self.check_singleton()
+        counts = self._get_step_counts()
+        return self.approver_ids.step_ids.filtered(
+            lambda step: counts[step.id] < step.minimum,
+        )
+
+    def _get_open_steps(self):
+        """The unmet steps an approver is asked for now: the lowest sequence among them."""
+        self.check_singleton()
+        unmet = self._get_unmet_steps()
+        if not unmet:
+            return unmet
+        lowest = min(unmet.mapped("sequence"))
+        return unmet.filtered(lambda step: step.sequence == lowest)
 
     def _compute_terminal_date_stamp(self, field_name: str, target_state: str) -> None:
         now = fields.Datetime.now()
