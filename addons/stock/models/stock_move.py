@@ -1024,7 +1024,7 @@ class StockMove(models.Model):
                     move_create_proc.add(move.id)
             else:
                 move_to_confirm.add(move.id)
-            if move._should_be_assigned():
+            if move._is_assignment_required():
                 to_assign.add(move.id)
 
         self.browse(move_create_proc)._run_procurements(consumed_from_stock_dict)
@@ -1400,6 +1400,6 @@ class StockMove(models.Model):
             and not self.location_dest_id.company_id
         )
 
-    def _should_be_assigned(self):
+    def _is_assignment_required(self):
         self.check_singleton()
         return bool(not self.picking_id and self.picking_type_id)

@@ -613,7 +613,7 @@ class StockPicking(models.Model):
                     picking.state = "cancel"
                 else:
                     picking.state = "done"
-            elif picking.location_id.should_bypass_reservation() and all(
+            elif picking.location_id.is_reservation_bypass_required() and all(
                 m.procure_method == "make_to_stock" for m in moves
             ):
                 picking.state = "assigned"
@@ -968,7 +968,7 @@ class StockPicking(models.Model):
             pickings_to_backorder = self._get_pickings_to_backorder()
             if pickings_to_backorder:
                 return pickings_to_backorder._prepare_action_backorder_confirmation(
-                    show_transfers=self._should_show_transfers(),
+                    show_transfers=self._is_transfer_display_required(),
                 )
         return True
 
@@ -1105,7 +1105,7 @@ class StockPicking(models.Model):
                     pickings_without_lots |= line.picking_id
                     products_without_lots |= line.product_id
 
-        if not self._should_show_transfers():
+        if not self._is_transfer_display_required():
             if pickings_without_moves:
                 raise UserError(
                     _(

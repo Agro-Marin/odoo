@@ -390,7 +390,7 @@ class StockPackage(models.Model):
         package_name=False,
         from_package_wizard=False,
     ):
-        if self.move_line_ids._should_display_put_in_pack_wizard(
+        if self.move_line_ids._is_put_in_pack_wizard_required(
             package_id, package_type_id, package_name, from_package_wizard
         ):
             action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(

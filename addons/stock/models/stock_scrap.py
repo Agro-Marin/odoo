@@ -361,12 +361,12 @@ class StockScrap(models.Model):
         action["domain"] = [("move_id", "in", self.move_ids.ids)]
         return action
 
-    def _should_check_available_qty(self):
+    def _is_available_qty_check_required(self):
         return self.product_id.is_storable
 
     def has_available_qty(self):
         self.check_singleton()
-        if not self._should_check_available_qty():
+        if not self._is_available_qty_check_required():
             return True
 
         precision = self.env["decimal.precision"].get_precision("Product Unit")

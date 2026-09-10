@@ -69,7 +69,7 @@ class StockMoveLot(models.Model):
         base_location = self.picking_id.location_id or self.location_id
         quant_domain = self._get_domain_extra_lot_quant(extra_lot_names)
         minimal_quantity = product.uom_id._compute_quantity(1, self.product_uom_id)
-        if self._should_bypass_reservation():
+        if self._is_reservation_bypass_required():
             nb_of_exceed = max(len(extra_lot_names) - nb_of_assignable_sml, 0)
             if nb_of_exceed > 0:
                 quantity = max(
@@ -240,7 +240,7 @@ class StockMoveLot(models.Model):
             picking_type = self.env["stock.picking.type"].browse(
                 default_vals["picking_type_id"],
             )
-            if generator._should_materialize_lots(picking_type):
+            if generator._is_lot_materialization_required(picking_type):
                 self._create_lot_ids_from_move_line_vals(
                     vals_list,
                     default_vals["product_id"],
@@ -457,10 +457,10 @@ class StockMoveLot(models.Model):
             assigned_lot_ids,
             free_uom_qty,
         ) = self._classify_move_lines_for_lots()
-        should_bypass_reservation = self._should_bypass_reservation()
+        is_reservation_bypass_required = self._is_reservation_bypass_required()
         extra_uom_qty = free_uom_qty - len(set(self.lot_ids.ids) - assigned_lot_ids)
         quants_by_lot = {}
-        if not should_bypass_reservation:
+        if not is_reservation_bypass_required:
             quants_by_lot = (
                 self.env["stock.quant"]
                 ._gather(product, self.location_id)
@@ -469,7 +469,7 @@ class StockMoveLot(models.Model):
         for lot in self.lot_ids:
             if lot.id in assigned_lot_ids:
                 continue
-            if should_bypass_reservation:
+            if is_reservation_bypass_required:
                 commands, available_move_lines, extra_uom_qty = (
                     self._prepare_lot_commands_bypass(
                         lot, available_move_lines, extra_uom_qty
@@ -482,7 +482,7 @@ class StockMoveLot(models.Model):
                     extra_uom_qty,
                 )
             move_lines_commands += commands
-        if not should_bypass_reservation and available_move_lines:
+        if not is_reservation_bypass_required and available_move_lines:
             move_lines_commands += self._prepare_lot_commands_rebalance_unlotted(
                 available_move_lines,
                 extra_uom_qty,
@@ -578,7 +578,7 @@ class StockMoveLot(models.Model):
             )
         lot_names = self.env["stock.lot"].prepare_lot_names(next_serial, count)
         field_data = [{"lot_name": lot_name, "quantity": 1} for lot_name in lot_names]
-        if self._should_materialize_lots():
+        if self._is_lot_materialization_required():
             self._create_lot_ids_from_move_line_vals(
                 field_data,
                 self.product_id.id,
@@ -793,7 +793,7 @@ class StockMoveLot(models.Model):
             move_lines_vals.append(move_line_vals)
         return move_lines_vals
 
-    def _should_materialize_lots(self, picking_type=None):
+    def _is_lot_materialization_required(self, picking_type=None):
         if picking_type is None:
             picking_type = self.picking_type_id
         return picking_type.use_existing_lots

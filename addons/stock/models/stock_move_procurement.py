@@ -135,7 +135,7 @@ class StockMoveProcurement(models.Model):
 
         forecasted_qties_by_loc = {}
         for location, product_ids in mtso_products_by_locations.items():
-            if location.should_bypass_reservation():
+            if location.is_reservation_bypass_required():
                 continue
             products = (
                 self.env["product.product"]
@@ -153,7 +153,7 @@ class StockMoveProcurement(models.Model):
                 quantities.append(move.product_uom_qty)
                 continue
 
-            if move._should_bypass_reservation():
+            if move._is_reservation_bypass_required():
                 quantities.append(move.product_uom_qty)
                 continue
 

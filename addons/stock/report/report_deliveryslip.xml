@@ -13,7 +13,7 @@
                     <div name="div_outgoing_address">
                         <div
                             name="outgoing_delivery_address"
-                            t-if="o.should_print_delivery_address()">
+                            t-if="o.is_delivery_address_print_required()">
                             <strong>Delivery Address</strong>
                             <div
                                 t-out="o.move_ids[0].partner_id or o.partner_id"

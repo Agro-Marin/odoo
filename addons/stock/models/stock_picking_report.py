@@ -265,7 +265,7 @@ class StockPickingReport(models.Model):
             }
         return self.action_view_label_layout()
 
-    def should_print_delivery_address(self):
+    def is_delivery_address_print_required(self):
         self.check_singleton()
         return bool(
             self.move_ids

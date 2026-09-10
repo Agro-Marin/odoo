@@ -147,7 +147,7 @@ class StockMoveLine(models.Model):
             package_carrier_type = "none"
         return package_carrier_type
 
-    def _should_set_package(self):
+    def _is_package_set_required(self):
         if self.carrier_id:
             return True
-        return super()._should_set_package()
+        return super()._is_package_set_required()

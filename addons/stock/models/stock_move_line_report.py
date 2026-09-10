@@ -174,6 +174,6 @@ class StockMoveLineReport(models.Model):
     def _compute_sale_price(self):
         pass
 
-    def _should_show_lot_in_invoice(self):
+    def _is_lot_display_in_invoice_required(self):
         self.check_singleton()
         return False

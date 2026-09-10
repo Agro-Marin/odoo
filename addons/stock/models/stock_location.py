@@ -650,7 +650,7 @@ class StockLocation(models.Model):
         )
         return self._is_child_of(inter_company_location)
 
-    def should_bypass_reservation(self):
+    def is_reservation_bypass_required(self):
         self.check_singleton()
         return self.usage in ("supplier", "customer", "inventory", "production")
 

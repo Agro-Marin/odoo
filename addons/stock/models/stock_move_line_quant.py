@@ -193,7 +193,7 @@ class StockMoveLineQuant(models.Model):
         product, location = self.product_id, self.location_id
         ml_ids_to_ignore = OrderedSet(ml_ids_to_ignore or ()) | OrderedSet(self.ids)
 
-        if self._should_bypass_reservation(location):
+        if self._is_reservation_bypass_required(location):
             return
         self = self.with_context(quants_cache=None)
 
@@ -252,7 +252,7 @@ class StockMoveLineQuant(models.Model):
                 not ml.product_uom_id._is_zero_stored(
                     ml.quantity_product_uom, ml.product_id.uom_id
                 )
-                and not ml._should_bypass_reservation(ml.location_id)
+                and not ml._is_reservation_bypass_required(ml.location_id)
             )
         )
 
@@ -284,11 +284,11 @@ class StockMoveLineQuant(models.Model):
 
             if not ml.product_uom_id._is_zero_stored(
                 ml.quantity_product_uom, ml.product_id.uom_id
-            ) and not ml._should_bypass_reservation(ml.location_id):
+            ) and not ml._is_reservation_bypass_required(ml.location_id):
                 deltas[ml._get_reservation_key()] -= ml.quantity_product_uom
 
             new_location = updates.get("location_id", ml.location_id)
-            if not ml._should_bypass_reservation(new_location):
+            if not ml._is_reservation_bypass_required(new_location):
                 deltas[ml._get_reservation_key(updates)] += new_reserved_qty
 
             if (
@@ -318,7 +318,7 @@ class StockMoveLineQuant(models.Model):
             quantity, self.product_id.uom_id
         ):
             return 0, False
-        if reserved_delta and self._should_bypass_reservation(location):
+        if reserved_delta and self._is_reservation_bypass_required(location):
             reserved_delta = None
         available_qty, in_date = self.env["stock.quant"]._update_available_quantity(
             self.product_id,
@@ -373,11 +373,13 @@ class StockMoveLineQuant(models.Model):
             in_date=in_date,
         )
 
-    def _should_bypass_reservation(self, location):
+    def _is_reservation_bypass_required(self, location):
         self.check_singleton()
         if self.move_id:
-            return self.move_id._should_bypass_reservation(location)
-        return not self.product_id.is_storable or location.should_bypass_reservation()
+            return self.move_id._is_reservation_bypass_required(location)
+        return (
+            not self.product_id.is_storable or location.is_reservation_bypass_required()
+        )
 
     def _update_quants_done(self):
         ml_ids_to_ignore = OrderedSet()

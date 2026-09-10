@@ -337,7 +337,7 @@ class StockRule(models.Model):
                     self._get_push_new_date(move),
                 ),
             )[0]
-            if not move.location_dest_id.should_bypass_reservation():
+            if not move.location_dest_id.is_reservation_bypass_required():
                 vals["move_orig_ids"] = [Command.link(move.id)]
             vals_list.append(vals)
         new_moves = self.env["stock.move"].sudo().create(vals_list)
@@ -351,7 +351,7 @@ class StockRule(models.Model):
         for location_id, move_ids in moves_by_final_location.items():
             new_moves.browse(move_ids).location_dest_id = location_id
         unreserved = new_moves.filtered(
-            lambda move: move._should_bypass_reservation(),
+            lambda move: move._is_reservation_bypass_required(),
         )
         if unreserved:
             unreserved.procure_method = "make_to_stock"

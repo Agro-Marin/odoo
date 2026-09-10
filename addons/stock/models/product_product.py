@@ -298,7 +298,7 @@ class ProductProduct(models.Model):
     def _compute_show_qty_update_button(self):
         for product in self:
             product.show_qty_update_button = (
-                product.product_tmpl_id._should_open_product_quants()
+                product.product_tmpl_id._is_product_quants_open_required()
             )
 
     @api.depends("barcode")
@@ -548,8 +548,8 @@ class ProductProduct(models.Model):
     def _get_allowed_uoms(self):
         return self.uom_id | self.uom_ids | self.seller_ids.product_uom_id
 
-    def _should_warn_uom_change(self):
-        res = super()._should_warn_uom_change()
+    def _is_uom_change_warning_required(self):
+        res = super()._is_uom_change_warning_required()
         if res:
             return res
         moves = (

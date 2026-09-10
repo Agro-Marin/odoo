@@ -484,7 +484,7 @@ class StockMove(models.Model):
             ):
                 continue
             if move.product_uom_id.compare(move.product_uom_qty, 0) > 0:
-                if move._should_assign_at_confirm():
+                if move._is_assign_at_confirm_required():
                     to_assign_ids.add(move.id)
             proc_move.add(move.id)
 
@@ -566,9 +566,9 @@ class StockMove(models.Model):
         moves = (self - moves_to_explode) | exploded_moves
         return super(StockMove, moves)._action_done(cancel_backorder)
 
-    def _should_bypass_reservation(self, forced_location=False):
+    def _is_reservation_bypass_required(self, forced_location=False):
         return (
-            super()._should_bypass_reservation(forced_location)
+            super()._is_reservation_bypass_required(forced_location)
             or self.product_id.with_company(self.company_id).is_kit
         )
 
@@ -810,8 +810,8 @@ class StockMove(models.Model):
         productions = self.raw_material_production_id | self.production_id
         return res + list(productions)
 
-    def _should_be_assigned(self):
-        res = super()._should_be_assigned()
+    def _is_assignment_required(self):
+        res = super()._is_assignment_required()
         return bool(res and not self._get_production())
 
     def _is_qty_producing_bypass_required(self):

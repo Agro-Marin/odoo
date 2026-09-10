@@ -47,7 +47,7 @@ class StockMoveReservation(models.Model):
                 assigned_moves_ids.add(move.id)
                 reserved_by_this_run.add(move.id)
                 continue
-            if move._should_bypass_reservation():
+            if move._is_reservation_bypass_required():
                 outcome = move._update_reserved_bypass(
                     missing_reserved_quantity,
                     ledger,
@@ -89,7 +89,7 @@ class StockMoveReservation(models.Model):
                 ),
             )
         moves_needing_reservation = moves_to_assign.filtered(
-            lambda m: not m._should_bypass_reservation(),
+            lambda m: not m._is_reservation_bypass_required(),
         )
         quants_cache = self.env["stock.quant"]._get_quants_by_products_locations(
             moves_needing_reservation.product_id,
@@ -418,7 +418,7 @@ class StockMoveReservation(models.Model):
         allow_negative=False,
     ):
         self.check_singleton()
-        if location_id.should_bypass_reservation():
+        if location_id.is_reservation_bypass_required():
             return self.product_qty
         return self.env["stock.quant"]._get_available_quantity(
             self.product_id,
@@ -824,14 +824,16 @@ class StockMoveReservation(models.Model):
         if ledger is not None:
             ledger.take(quant, quantity)
 
-    def _should_bypass_reservation(self, forced_location=False):
+    def _is_reservation_bypass_required(self, forced_location=False):
         self.check_singleton()
         location = forced_location or self.location_id
-        return location.should_bypass_reservation() or not self.product_id.is_storable
-
-    def _should_assign_at_confirm(self):
         return (
-            self._should_bypass_reservation()
+            location.is_reservation_bypass_required() or not self.product_id.is_storable
+        )
+
+    def _is_assign_at_confirm_required(self):
+        return (
+            self._is_reservation_bypass_required()
             or self.picking_type_id.reservation_method == "at_confirm"
             or (self.date_reservation and self.date_reservation <= fields.Date.today())
         )
@@ -840,6 +842,6 @@ class StockMoveReservation(models.Model):
         return self.filtered(
             lambda move: (
                 move.state in ("confirmed", "partially_available")
-                and move._should_assign_at_confirm()
+                and move._is_assign_at_confirm_required()
             )
         )

@@ -99,7 +99,7 @@ class AccountMove(models.Model):
         for sml in stock_move_lines:
             if (
                 sml.product_id not in invoiced_products
-                or not sml._should_show_lot_in_invoice()
+                or not sml._is_lot_display_in_invoice_required()
             ):
                 continue
 

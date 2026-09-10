@@ -21,7 +21,7 @@
                         <t t-if="o.picking_type_id.code == 'outgoing'">
                             <t
                                 t-set="main_address_box"
-                                t-value="o.move_ids[0].partner_id if o.should_print_delivery_address() else o.partner_id" />
+                                t-value="o.move_ids[0].partner_id if o.is_delivery_address_print_required() else o.partner_id" />
                             <t
                                 t-if="main_address_box.id != o.partner_id.commercial_partner_id.id">
                                 <span class="fw-bold">Beneficiary:</span>

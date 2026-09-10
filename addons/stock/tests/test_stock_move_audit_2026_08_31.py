@@ -329,7 +329,7 @@ class TestStockMoveAudit20260831(TransactionCase):
             {"product_id": product.id, "picking_type_id": creates_only.id}
         )
         self.assertFalse(
-            move._should_materialize_lots(),
+            move._is_lot_materialization_required(),
             "an operation type that only creates names keeps them as lot_name; "
             "the old spelling _can_create_lot read as use_create_lots and said "
             "the opposite of what it gates",

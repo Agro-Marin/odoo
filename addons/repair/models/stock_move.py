@@ -259,10 +259,10 @@ class StockMove(models.Model):
             for line_type, m in grouped_moves.items():
                 m.location_id, m.location_dest_id = m._get_repair_locations(line_type)
 
-    def _should_be_assigned(self):
+    def _is_assignment_required(self):
         if self.repair_id:
             return False
-        return super()._should_be_assigned()
+        return super()._is_assignment_required()
 
     def _split(self, qty, restrict_partner_id=False):
         # When setting the Repair Order as done with partially done moves, do not split these moves

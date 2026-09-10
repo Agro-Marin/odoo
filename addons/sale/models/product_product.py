@@ -73,8 +73,8 @@ class ProductProduct(models.Model):
     def _get_invoice_policy(self):
         return self.invoice_policy
 
-    def _should_warn_uom_change(self):
-        res = super()._should_warn_uom_change()
+    def _is_uom_change_warning_required(self):
+        res = super()._is_uom_change_warning_required()
         if res:
             return res
         return self._has_order_lines("sale.order.line")

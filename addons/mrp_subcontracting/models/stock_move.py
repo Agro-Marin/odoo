@@ -250,13 +250,13 @@ class StockMove(models.Model):
             res["warehouse_id"] = self.picking_type_id.warehouse_id
         return res
 
-    def _should_bypass_reservation(self, forced_location=False):
-        should_bypass_reservation = super()._should_bypass_reservation(
+    def _is_reservation_bypass_required(self, forced_location=False):
+        is_reservation_bypass_required = super()._is_reservation_bypass_required(
             forced_location=forced_location
         )
-        if not should_bypass_reservation and self.is_subcontract:
+        if not is_reservation_bypass_required and self.is_subcontract:
             return True
-        return should_bypass_reservation
+        return is_reservation_bypass_required
 
     def _get_available_move_lines(self, reserved_by_this_run):
         return super(
@@ -283,10 +283,10 @@ class StockMove(models.Model):
             and self.location_dest_id.id == subcontracting_location.id
         )
 
-    def _should_materialize_lots(self, picking_type=None):
-        return super()._should_materialize_lots(picking_type) or self.env.context.get(
-            "force_lot_m2o"
-        )
+    def _is_lot_materialization_required(self, picking_type=None):
+        return super()._is_lot_materialization_required(
+            picking_type
+        ) or self.env.context.get("force_lot_m2o")
 
     def _sync_subcontracting_productions(self):
         for move in self:

@@ -4,9 +4,9 @@ from odoo import models
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
-    def _should_show_lot_in_invoice(self):
+    def _is_lot_display_in_invoice_required(self):
         return (
-            super()._should_show_lot_in_invoice()
+            super()._is_lot_display_in_invoice_required()
             or bool(
                 self._get_counterparty_usages()
                 & {self.location_id.usage, self.location_dest_id.usage},

@@ -99,8 +99,8 @@ class StockScrap(models.Model):
                     scrap.product_id, scrap.scrap_qty, scrap.bom_id, filters
                 )
 
-    def _should_check_available_qty(self):
-        return super()._should_check_available_qty() or self.product_is_kit
+    def _is_available_qty_check_required(self):
+        return super()._is_available_qty_check_required() or self.product_is_kit
 
     def _create_scrap_move(self):
         move = super()._create_scrap_move()

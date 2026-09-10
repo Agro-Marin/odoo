@@ -148,7 +148,7 @@ class StockMoveLinePackage(models.Model):
         action = move_lines._action_open_choose_destination()
         if action:
             return action
-        if self._should_display_put_in_pack_wizard(
+        if self._is_put_in_pack_wizard_required(
             package_id, package_type_id, package_name, from_package_wizard
         ):
             action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
@@ -261,16 +261,16 @@ class StockMoveLinePackage(models.Model):
 
         return self.env["stock.move.line"].browse(ids_to_update)
 
-    def _should_display_put_in_pack_wizard(
+    def _is_put_in_pack_wizard_required(
         self, package_id, package_type_id, package_name, from_package_wizard
     ):
         return (
-            self._should_set_package()
+            self._is_package_set_required()
             and not from_package_wizard
             and not (package_id or package_type_id or package_name)
         )
 
-    def _should_set_package(self):
+    def _is_package_set_required(self):
         picking_type = self.picking_type_id
         return len(picking_type) == 1 and picking_type.set_package_type
 

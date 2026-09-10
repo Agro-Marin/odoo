@@ -69,8 +69,10 @@ class StockForecasted_Product_Product(models.AbstractModel):
             )
         return res
 
-    def _should_add_free_stock_lines(self, product, free_stock, lines, wh_location_ids):
-        if super()._should_add_free_stock_lines(
+    def _is_free_stock_lines_required(
+        self, product, free_stock, lines, wh_location_ids
+    ):
+        if super()._is_free_stock_lines_required(
             product, free_stock, lines, wh_location_ids
         ):
             return True

@@ -116,7 +116,7 @@ class StockPickingBackorder(models.Model):
                 backorder_pickings |= picking
         return backorder_pickings
 
-    def _should_ignore_backorders(self):
+    def _is_backorder_ignore_required(self):
         return bool(self.return_id)
 
     def _log_less_quantities_than_expected(self, moves):
@@ -161,5 +161,5 @@ class StockPickingBackorder(models.Model):
             "Set some quantities and let's get moving!",
         )
 
-    def _should_show_transfers(self):
+    def _is_transfer_display_required(self):
         return len(self) > 1

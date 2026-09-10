@@ -572,7 +572,7 @@ class StockQuantReservation(models.Model):
                     lambda q: product_id.uom_id.compare(q.quantity, 0) > 0 or q.lot_id,
                 )
 
-        if location_id.should_bypass_reservation():
+        if location_id.is_reservation_bypass_required():
             incoming_dates = []
         else:
             incoming_dates = [
@@ -646,7 +646,7 @@ class StockQuantReservation(models.Model):
             owner_id=owner_id,
         )
 
-    def _should_bypass_product(
+    def _is_product_bypass_required(
         self,
         product_id=False,
         location_id=False,
@@ -770,7 +770,7 @@ class StockQuantReservation(models.Model):
             ml_reserved_qty = reserved_move_lines.get(
                 (product, location, lot, package, owner), 0
             )
-            if location.should_bypass_reservation():
+            if location.is_reservation_bypass_required():
                 quants._update_reserved_delta(-reserved_quantity)
             elif product.uom_id.compare(reserved_quantity, ml_reserved_qty) != 0:
                 quants._update_reserved_delta(ml_reserved_qty - reserved_quantity)
@@ -784,9 +784,9 @@ class StockQuantReservation(models.Model):
             package,
             owner,
         ), reserved_quantity in reserved_move_lines.items():
-            if location.should_bypass_reservation() or self.env[
+            if location.is_reservation_bypass_required() or self.env[
                 "stock.quant"
-            ]._should_bypass_product(
+            ]._is_product_bypass_required(
                 product, location, reserved_quantity, lot, package, owner
             ):
                 continue

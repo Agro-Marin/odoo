@@ -14,7 +14,7 @@ class StockQuant(models.Model):
                 )
             )
 
-    def _should_bypass_product(
+    def _is_product_bypass_required(
         self,
         product_id=False,
         location_id=False,
@@ -23,6 +23,6 @@ class StockQuant(models.Model):
         package_id=False,
         owner_id=False,
     ):
-        return super()._should_bypass_product(
+        return super()._is_product_bypass_required(
             product_id, location_id, reserved_quantity, lot_id, package_id, owner_id
         ) or (product_id and product_id.is_kit)

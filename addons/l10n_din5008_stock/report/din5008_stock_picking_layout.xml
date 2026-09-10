@@ -7,12 +7,12 @@
             inherit_id="l10n_din5008.external_layout_din5008">
             <xpath expr="//div[@id='din5008_report_main_address']" position="before">
                 <t
-                    t-if="o and o._name == 'stock.picking' and (o.should_print_delivery_address() or o.partner_id)">
+                    t-if="o and o._name == 'stock.picking' and (o.is_delivery_address_print_required() or o.partner_id)">
                     <t t-set="address">
                         <t
                             t-set="main_address"
-                            t-value="o.move_ids[0].partner_id if o.should_print_delivery_address() else o.partner_id" />
-                        <t t-if="o.should_print_delivery_address()">
+                            t-value="o.move_ids[0].partner_id if o.is_delivery_address_print_required() else o.partner_id" />
+                        <t t-if="o.is_delivery_address_print_required()">
                             <address
                                 class="mb-0"
                                 t-field="o.move_ids[0].partner_id"

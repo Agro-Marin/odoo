@@ -884,7 +884,10 @@ class ProductProduct(models.Model):
 
     @api.onchange("uom_id")
     def _onchange_uom_id(self):
-        if self._origin.uom_id == self.uom_id or not self._should_warn_uom_change():
+        if (
+            self._origin.uom_id == self.uom_id
+            or not self._is_uom_change_warning_required()
+        ):
             return None
         message = self.env._(
             "Changing the unit of measure for your product will apply a conversion 1 %(old_uom_name)s = 1 %(new_uom_name)s.\n"
@@ -1522,7 +1525,7 @@ class ProductProduct(models.Model):
             else:
                 record[variant_field] = record[template_field]
 
-    def _should_warn_uom_change(self):
+    def _is_uom_change_warning_required(self):
         return False
 
     def _unlink_or_archive(self, check_access=True):

@@ -236,16 +236,16 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertFalse(tmpl.show_qty_update_button)
 
         cls = type(self.Tmpl)
-        original = cls._should_open_product_quants
-        cls._should_open_product_quants = lambda records: True
+        original = cls._is_product_quants_open_required
+        cls._is_product_quants_open_required = lambda records: True
         try:
             tmpl.invalidate_recordset()
             self.assertTrue(
                 tmpl.show_qty_update_button,
-                "the compute must call _should_open_product_quants, not restate it",
+                "the compute must call _is_product_quants_open_required, not restate it",
             )
         finally:
-            cls._should_open_product_quants = original
+            cls._is_product_quants_open_required = original
 
     def test_quantity_scope_context_keys_are_in_the_cache_key(self):
         sub = self.env["stock.location"].create(

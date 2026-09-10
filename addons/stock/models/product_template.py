@@ -435,7 +435,7 @@ class ProductTemplate(models.Model):
     def _compute_show_qty_update_button(self):
         for product in self:
             product.show_qty_update_button = (
-                product._should_open_product_quants()
+                product._is_product_quants_open_required()
                 or product.product_variant_count > 1
             )
 
@@ -699,6 +699,6 @@ class ProductTemplate(models.Model):
             self.env.user.has_group(group) for group in ADVANCED_STOCK_OPTION_GROUPS
         )
 
-    def _should_open_product_quants(self):
+    def _is_product_quants_open_required(self):
         self.check_singleton()
         return self._has_advanced_stock_option() or self.tracking != "none"

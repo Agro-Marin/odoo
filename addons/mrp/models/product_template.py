@@ -68,8 +68,8 @@ class ProductTemplate(models.Model):
                 )
                 template.show_forecasted_qty_status_button = False
 
-    def _should_open_product_quants(self):
-        return super()._should_open_product_quants() or self.is_kit
+    def _is_product_quants_open_required(self):
+        return super()._is_product_quants_open_required() or self.is_kit
 
     def _compute_mrp_product_qty(self):
         for template in self:
