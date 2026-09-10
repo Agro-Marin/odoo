@@ -578,7 +578,10 @@ describe("throttleForAnimationScrollEvent", () => {
 
         throttled = new Deferred();
         scrolled = new Deferred();
-        el.scrollBy(3, 3);
+        // a second scroll in the same frame: scrollBy would dispatch it in the
+        // next frame, after the animation-frame callback has already run and
+        // released the throttle, so it is dispatched here, before that stage
+        el.dispatchEvent(new Event("scroll"));
         await scrolled;
         expect.verifySteps(["before scroll", "after scroll"]);
         await advanceFrame(1);
