@@ -23,12 +23,22 @@ class IrUiView(models.Model):
         }
 
     def _get_view_info(self) -> dict[str, dict[str, Any]]:
+        """What each view type declares about itself, keyed by type.
+
+        ``icon`` and ``multi_record`` reach the client through
+        :meth:`get_view_info`; ``date_range`` does not -- it says the arch's
+        ``date_start``/``date_stop`` bound the records a listing shows, and
+        the ``/json`` route reads it to filter by date.
+        """
         return {
             "list": {"icon": "oi oi-view-list"},
             "form": {"icon": "fa-solid fa-address-card", "multi_record": False},
             "graph": {"icon": "fa-solid fa-chart-area"},
             "pivot": {"icon": "oi oi-view-pivot"},
             "kanban": {"icon": "oi oi-view-kanban"},
-            "calendar": {"icon": "fa-solid fa-calendar-days"},
+            "calendar": {"icon": "fa-solid fa-calendar-days", "date_range": True},
             "search": {"icon": "oi oi-search"},
         }
+
+    def _view_type_has_date_range(self, view_type: str) -> bool:
+        return bool(self._get_view_info().get(view_type, {}).get("date_range"))

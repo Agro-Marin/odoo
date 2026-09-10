@@ -73,7 +73,7 @@ class WebJsonController(http.Controller):
 
         view_tree = etree.fromstring(view["arch"])
 
-        if view_type in ("calendar", "gantt", "cohort"):
+        if env["ir.ui.view"]._view_type_has_date_range(view_type):
             domains.append(self._get_json_date_domain(view_tree, kwargs))
 
         if view_type == "activity":
