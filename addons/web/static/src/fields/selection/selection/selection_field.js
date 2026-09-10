@@ -33,19 +33,6 @@ export class SelectionField extends SelectionLikeField {
     get isBottomSheet() {
         return this.env.isSmall && hasTouch();
     }
-    get options() {
-        switch (this.type) {
-            case "many2one":
-                return this.specialData.data;
-            case "selection":
-                return this.field.definition.selection.filter(
-                    (option) => option[1] !== "",
-                );
-            default:
-                return [];
-        }
-    }
-
     onChange(value) {
         const options = { save: this.props.autosave };
         switch (this.type) {

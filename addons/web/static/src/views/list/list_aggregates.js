@@ -65,14 +65,30 @@ function getFormatOptions(attrs, fieldDigits, fieldName) {
  * @param {Record<string, any>} field
  * @returns {{ formatter: Function | false, formatOptions: Record<string, any> }}
  */
+/** @type {WeakMap<Object, { formatter: Function | false, formatOptions: Record<string, any> }>} */
+const aggregateFormatByColumn = new WeakMap();
+
 function resolveAggregateFormat(column, field) {
-    const { attrs = {}, widget } = column;
-    const formatter =
-        formatters.get(/** @type {string} */ (widget), /** @type {any} */ (false)) ||
-        formatters.get(field.type, /** @type {any} */ (false));
+    // a column object is stable for the life of its arch, and this runs once
+    // per group cell per render; the options are copied because callers set
+    // a currency on them
+    let resolved = aggregateFormatByColumn.get(column);
+    if (!resolved) {
+        const { attrs = {}, widget } = column;
+        const formatter =
+            formatters.get(
+                /** @type {string} */ (widget),
+                /** @type {any} */ (false),
+            ) || formatters.get(field.type, /** @type {any} */ (false));
+        resolved = {
+            formatter,
+            formatOptions: getFormatOptions(attrs, field.digits, column.name),
+        };
+        aggregateFormatByColumn.set(column, resolved);
+    }
     return {
-        formatter,
-        formatOptions: getFormatOptions(attrs, field.digits, column.name),
+        formatter: resolved.formatter,
+        formatOptions: { ...resolved.formatOptions },
     };
 }
 

@@ -24,20 +24,6 @@ export class BadgeSelectionField extends SelectionLikeField {
         size: "md",
     };
 
-    /** @returns {Array<[any, string]>} */
-    get options() {
-        switch (this.type) {
-            case "many2one":
-                return this.specialData.data;
-            case "selection":
-                return this.field.definition.selection.filter(
-                    (/** @type {[any, string]} */ option) => option[1] !== "",
-                );
-            default:
-                return [];
-        }
-    }
-
     /**
      * @param {KeyboardEvent} ev
      * @param {string | number | false} value

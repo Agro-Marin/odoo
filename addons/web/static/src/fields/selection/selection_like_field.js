@@ -31,6 +31,20 @@ export class SelectionLikeField extends FieldComponent {
         }
     }
 
+    /** @returns {Array<[any, string]>} the choices a selection-like widget offers, an empty label excluded */
+    get options() {
+        switch (this.type) {
+            case "many2one":
+                return this.specialData.data;
+            case "selection":
+                return this.field.definition.selection.filter(
+                    (/** @type {[any, string]} */ option) => option[1] !== "",
+                );
+            default:
+                return [];
+        }
+    }
+
     get string() {
         switch (this.type) {
             case "many2one":
