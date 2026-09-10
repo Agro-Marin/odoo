@@ -82,7 +82,11 @@ class WriteMixin(_ModelStubs):
             if self.pool.is_modifying_relations(field):
                 plan.fnames_modifying_relations.append(fname)
             if field.inverse or (field.compute and not field.readonly):
-                if field.store or not field.is_x2many:
+                if (
+                    field.store
+                    or not field.is_x2many
+                    or (field.related and field._related_names[0] in vals)
+                ):
                     plan.protected.update(self.pool.field_computed.get(field, [field]))
         return plan
 
