@@ -456,15 +456,14 @@ class FleetVehicle(models.Model):
                 record.co2_emission_unit = "g/mi"
 
     def _compute_odometer(self):
-        FleetVehicalOdometer = self.env["fleet.vehicle.odometer"]
+        odometers = self.env["fleet.vehicle.odometer"].search(
+            [("vehicle_id", "in", self.ids)], order="date desc, id desc"
+        )
+        latest_by_vehicle = {}
+        for odometer in odometers:
+            latest_by_vehicle.setdefault(odometer.vehicle_id.id, odometer.value)
         for record in self:
-            vehicle_odometer = FleetVehicalOdometer.search(
-                [("vehicle_id", "in", record.ids)], limit=1, order="value desc"
-            )
-            if vehicle_odometer:
-                record.odometer = vehicle_odometer.value
-            else:
-                record.odometer = 0
+            record.odometer = latest_by_vehicle.get(record.id, 0)
 
     def _inverse_odometer(self):
         self.env["fleet.vehicle.odometer"].create(

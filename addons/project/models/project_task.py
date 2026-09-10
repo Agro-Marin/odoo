@@ -29,6 +29,10 @@ from odoo.tools.date_utils import localized, get_intervals_hours, weekend, weeks
 
 from odoo.addons.html_editor.tools import handle_history_divergence
 from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mixin_recurrence.models.mixin_recurrence_rule import (
+    REPEAT_TYPE_SELECTION,
+    REPEAT_UNIT_SELECTION,
+)
 from odoo.addons.project.controllers.project_sharing_chatter import (
     ProjectSharingChatter,
 )
@@ -795,22 +799,14 @@ class ProjectTask(models.Model):
         readonly=False,
     )
     repeat_unit = fields.Selection(
-        [
-            ("day", "Days"),
-            ("week", "Weeks"),
-            ("month", "Months"),
-            ("year", "Years"),
-        ],
+        REPEAT_UNIT_SELECTION,
         default="week",
         compute="_compute_repeat",
         compute_sudo=True,
         readonly=False,
     )
     repeat_type = fields.Selection(
-        [
-            ("forever", "Forever"),
-            ("until", "Until"),
-        ],
+        REPEAT_TYPE_SELECTION,
         default="forever",
         string="Until",
         compute="_compute_repeat",

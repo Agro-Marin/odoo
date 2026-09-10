@@ -1513,7 +1513,7 @@ class TestServerActionsMailActivityDeadline(MailCommon):
                 "activity_user_type": "generic",
                 "activity_user_field_name": "user_id",
                 "activity_date_deadline_range": 1,
-                "activity_date_deadline_range_type": "days",
+                "activity_date_deadline_range_type": "day",
             }
         )
 
@@ -1542,7 +1542,7 @@ class TestServerActionsMailActivityDeadline(MailCommon):
                 "activity_user_type": "specific",
                 "activity_user_id": self.env.uid,
                 "activity_date_deadline_range": -2,
-                "activity_date_deadline_range_type": "days",
+                "activity_date_deadline_range_type": "day",
             }
         )
         self.assertFalse(action.warning)
@@ -1559,7 +1559,7 @@ class TestServerActionsMailActivityDeadline(MailCommon):
         """One arithmetic for "N units". A Jan-31 base is what tells a month
         step apart from thirty days."""
         base = date(2026, 1, 31)
-        for unit in ("days", "weeks", "months", False):
+        for unit in ("day", "week", "month", False):
             for count in (-3, 0, 1, 13):
                 with self.subTest(unit=unit, count=count):
                     action = self.env["ir.actions.server"].new(
@@ -1570,7 +1570,7 @@ class TestServerActionsMailActivityDeadline(MailCommon):
                     )
                     step = (
                         self.env["mail.activity.type"]
-                        .new({"delay_count": count, "delay_unit": unit or "days"})
+                        .new({"delay_count": count, "delay_unit": unit or "day"})
                         ._get_delay_delta()
                     )
                     self.assertEqual(

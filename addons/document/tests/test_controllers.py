@@ -84,7 +84,7 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
                 "create_activity_summary": "test summary",
                 "create_activity_note": "test note",
                 "create_activity_user_id": cls.user_admin.id,
-                "create_activity_date_deadline_range_type": "days",
+                "create_activity_date_deadline_range_type": "day",
                 "create_activity_date_deadline_range": 5,
             }
         )

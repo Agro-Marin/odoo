@@ -6,7 +6,7 @@ from typing import Literal, Self
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
-from odoo.tools.date_utils import get_timedelta
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 
 FOLLOWER_STATES = frozenset({"followers", "remove_followers"})
 MAIL_STATES = frozenset({"mail_post", "next_activity"}) | FOLLOWER_STATES
@@ -124,7 +124,7 @@ class IrActionsServer(models.Model):
         store=True,
     )
     activity_date_deadline_range_type = fields.Selection(
-        [("days", "Days"), ("weeks", "Weeks"), ("months", "Months")],
+        time_unit_selection("day", "week", "month"),
         string="Due type",
         compute="_compute_activity_info",
         readonly=False,
@@ -291,7 +291,7 @@ class IrActionsServer(models.Model):
             ):
                 action.activity_type_id = False
             if not action.activity_date_deadline_range_type:
-                action.activity_date_deadline_range_type = "days"
+                action.activity_date_deadline_range_type = "day"
             if not action.activity_user_type:
                 action.activity_user_type = "specific"
 
@@ -609,7 +609,7 @@ class IrActionsServer(models.Model):
 
     def _get_activity_deadline_delta(self) -> relativedelta:
         self.check_singleton()
-        unit = (self.activity_date_deadline_range_type or "days").removesuffix("s")
+        unit = self.activity_date_deadline_range_type or "day"
         return get_timedelta(self.activity_date_deadline_range, unit)
 
     def _get_activity_assignees(

@@ -32,7 +32,7 @@
         <field name="res_model">mail.test.activity</field>
         <field name="delay_count">10</field>
         <field name="delay_from">current_date</field>
-        <field name="delay_unit">days</field>
+        <field name="delay_unit">day</field>
     </record>
 
     <record id="mail_act_test_chained_1" model="mail.activity.type">

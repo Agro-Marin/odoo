@@ -1,10 +1,9 @@
 from ast import literal_eval
 from typing import Any
 
-from dateutil.relativedelta import relativedelta
-
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools.date_utils import get_timedelta
 
 
 class DocumentsDocument(models.Model):
@@ -222,10 +221,9 @@ class DocumentsDocument(models.Model):
                 if settings_record.create_activity_date_deadline_range > 0:
                     activity_vals["date_deadline"] = fields.Date.context_today(
                         settings_record
-                    ) + relativedelta(
-                        **{
-                            settings_record.create_activity_date_deadline_range_type: settings_record.create_activity_date_deadline_range
-                        }
+                    ) + get_timedelta(
+                        settings_record.create_activity_date_deadline_range,
+                        settings_record.create_activity_date_deadline_range_type,
                     )
                 activity_vals["user_id"] = (
                     settings_record.create_activity_user_id or self.env.user

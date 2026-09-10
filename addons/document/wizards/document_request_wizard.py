@@ -1,9 +1,8 @@
 from datetime import datetime
 
-from dateutil.relativedelta import relativedelta
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 from odoo.tools.misc import clean_context
 
 
@@ -38,13 +37,9 @@ class DocumentsRequest_Wizard(models.TransientModel):
     activity_note = fields.Html(string="Message")
     activity_date_deadline_range = fields.Integer(string="Due Date In", default=30)
     activity_date_deadline_range_type = fields.Selection(
-        [
-            ("days", "Days"),
-            ("weeks", "Weeks"),
-            ("months", "Months"),
-        ],
+        time_unit_selection("day", "week", "month"),
         string="Due type",
-        default="days",
+        default="day",
     )
 
     @api.onchange("activity_type_id")
@@ -89,10 +84,9 @@ class DocumentsRequest_Wizard(models.TransientModel):
         if self.activity_date_deadline_range > 0:
             activity_vals["date_deadline"] = fields.Date.context_today(
                 self
-            ) + relativedelta(
-                **{
-                    self.activity_date_deadline_range_type: self.activity_date_deadline_range
-                }
+            ) + get_timedelta(
+                self.activity_date_deadline_range,
+                self.activity_date_deadline_range_type,
             )
 
         request_by_mail = (

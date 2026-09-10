@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class FleetVehicleOdometer(models.Model):
@@ -41,3 +42,45 @@ class FleetVehicleOdometer(models.Model):
     def _onchange_vehicle(self):
         if self.vehicle_id:
             self.unit = self.vehicle_id.odometer_unit
+
+    _value_positive = models.Constraint(
+        "CHECK(value >= 0)", "An odometer reading cannot be negative."
+    )
+
+    @api.constrains("value", "date", "vehicle_id")
+    def _check_monotonic(self):
+        """An odometer only goes up.
+
+        The rule existed only on ``fleet.vehicle.write({"odometer": ...})``,
+        which is one of two ways in and not the one the odometer log view uses:
+        creating a ``fleet.vehicle.odometer`` row directly was unguarded, so a
+        reading dated after a higher one was accepted and a negative reading
+        was accepted too. It also compared against the highest reading rather
+        than the neighbouring ones, which is a different question -- see
+        ``fleet.vehicle._compute_odometer``.
+        """
+        readings_by_vehicle = self.search(
+            [("vehicle_id", "in", self.vehicle_id.ids)]
+        ).grouped("vehicle_id")
+        for odometer in self:
+            if not odometer.vehicle_id or not odometer.date:
+                continue
+            neighbours = (
+                readings_by_vehicle.get(odometer.vehicle_id, self.browse()) - odometer
+            )
+            earlier_and_higher = neighbours.filtered(
+                lambda other, o=odometer: other.date <= o.date and other.value > o.value
+            )
+            later_and_lower = neighbours.filtered(
+                lambda other, o=odometer: other.date > o.date and other.value < o.value
+            )
+            if earlier_and_higher or later_and_lower:
+                raise ValidationError(
+                    self.env._(
+                        "%(vehicle)s: a reading of %(value)s on %(date)s would make the"
+                        " odometer run backwards.",
+                        vehicle=odometer.vehicle_id.display_name,
+                        value=odometer.value,
+                        date=odometer.date,
+                    )
+                )

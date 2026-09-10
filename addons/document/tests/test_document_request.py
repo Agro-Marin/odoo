@@ -72,7 +72,7 @@ class TestDocumentRequest(MailCommon, HttpCase):
                     "requestee_id": self.doc_partner_1.id,
                     "activity_type_id": self.activity_type.id,
                     "folder_id": self.folder_a.id,
-                    "activity_date_deadline_range_type": "days",
+                    "activity_date_deadline_range_type": "day",
                     "activity_date_deadline_range": 3,
                 }
             )
@@ -143,7 +143,7 @@ class TestDocumentRequest(MailCommon, HttpCase):
                     "requestee_id": self.doc_partner_2.id,
                     "activity_type_id": self.activity_type.id,
                     "folder_id": self.folder_a.id,
-                    "activity_date_deadline_range_type": "days",
+                    "activity_date_deadline_range_type": "day",
                     "activity_date_deadline_range": 3,
                 }
             )

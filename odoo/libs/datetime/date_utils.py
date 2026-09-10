@@ -151,7 +151,10 @@ def get_fiscal_year[D: (date, datetime)](
 
 _WEEKDAYS = (MO, TU, WE, TH, FR, SA, SU)
 
-_RELATIVEDELTA_ARGUMENT = {
+TimeUnit = Literal["minute", "hour", "day", "week", "month", "year"]
+
+_RELATIVEDELTA_ARGUMENT: dict[TimeUnit, str] = {
+    "minute": "minutes",
     "hour": "hours",
     "day": "days",
     "week": "weeks",
@@ -159,15 +162,38 @@ _RELATIVEDELTA_ARGUMENT = {
     "year": "years",
 }
 
+_TIME_UNIT_LABEL: dict[TimeUnit, str] = {
+    "minute": "Minutes",
+    "hour": "Hours",
+    "day": "Days",
+    "week": "Weeks",
+    "month": "Months",
+    "year": "Years",
+}
+
+TIME_UNIT_SELECTION: list[tuple[TimeUnit, str]] = [
+    (unit, _TIME_UNIT_LABEL[unit]) for unit in _RELATIVEDELTA_ARGUMENT
+]
+
+
+def time_unit_selection(*units: str) -> list[tuple[TimeUnit, str]]:
+    unknown = sorted(set(units) - _RELATIVEDELTA_ARGUMENT.keys())
+    if unknown:
+        msg = f"Not time units: {unknown}"
+        raise ValueError(msg)
+    keep = set(units)
+    return [pair for pair in TIME_UNIT_SELECTION if pair[0] in keep]
+
 
 def get_timedelta(
     qty: int,
-    granularity: Literal["hour", "day", "week", "month", "year"],
+    granularity: TimeUnit,
 ) -> relativedelta:
     try:
         argument = _RELATIVEDELTA_ARGUMENT[granularity]
     except KeyError:
-        msg = f"Granularity must be hour, day, week, month or year, got {granularity!r}"
+        allowed = ", ".join(_RELATIVEDELTA_ARGUMENT)
+        msg = f"Granularity must be one of {allowed}, got {granularity!r}"
         raise ValueError(msg) from None
     return relativedelta(dt1=None, dt2=None, **{argument: qty})
 

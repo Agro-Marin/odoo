@@ -362,7 +362,7 @@ class TestMailGateway(MailCommon):
                 "create_activity_summary": "TODO summary",
                 "create_activity_note": "TODO note",
                 "create_activity_user_id": self.user_admin.id,
-                "create_activity_date_deadline_range_type": "days",
+                "create_activity_date_deadline_range_type": "day",
                 "create_activity_date_deadline_range": 5,
             }
         )
@@ -395,7 +395,7 @@ class TestMailGateway(MailCommon):
                 "create_activity_summary": "TODO summary defaults",
                 "create_activity_note": "TODO note defaults",
                 "create_activity_user_id": self.user_employee.id,
-                "create_activity_date_deadline_range_type": "months",
+                "create_activity_date_deadline_range_type": "month",
                 "create_activity_date_deadline_range": 1,
             }
         )
@@ -407,7 +407,7 @@ class TestMailGateway(MailCommon):
                 "create_activity_summary": "TODO summary",
                 "create_activity_note": "TODO note",
                 "create_activity_user_id": self.user_admin.id,
-                "create_activity_date_deadline_range_type": "days",
+                "create_activity_date_deadline_range_type": "day",
                 "create_activity_date_deadline_range": 5,
             }
         )

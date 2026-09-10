@@ -19,6 +19,7 @@ from odoo.exceptions import AccessError, MissingError, UserError, ValidationErro
 from odoo.fields import Domain
 from odoo.libs.filesystem import get_extension
 from odoo.tools import groupby
+from odoo.tools.date_utils import time_unit_selection
 from odoo.tools.image import image_process
 from odoo.tools.misc import clean_context
 from odoo.tools.pdf import PdfReader
@@ -316,13 +317,9 @@ class DocumentsDocument(models.Model):
     create_activity_summary = fields.Char("Summary")
     create_activity_date_deadline_range = fields.Integer(string="Due Date In")
     create_activity_date_deadline_range_type = fields.Selection(
-        [
-            ("days", "Days"),
-            ("weeks", "Weeks"),
-            ("months", "Months"),
-        ],
+        time_unit_selection("day", "week", "month"),
         string="Due type",
-        default="days",
+        default="day",
     )
     create_activity_note = fields.Html(string="Note")
     create_activity_user_id = fields.Many2one(

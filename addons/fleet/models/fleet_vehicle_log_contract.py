@@ -1,6 +1,8 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
+from odoo.tools.date_utils import time_unit_selection
 
 
 class FleetVehicleLogContract(models.Model):
@@ -83,18 +85,26 @@ class FleetVehicleLogContract(models.Model):
     )
     notes = fields.Html("Terms and Conditions", copy=False)
     cost_generated = fields.Monetary("Recurring Cost", tracking=True)
-    cost_frequency = fields.Selection(
-        [
-            ("no", "No"),
-            ("daily", "Daily"),
-            ("weekly", "Weekly"),
-            ("monthly", "Monthly"),
-            ("yearly", "Yearly"),
-        ],
-        "Recurring Cost Frequency",
-        default="monthly",
+    # "every N units", like every other recurrence in the codebase, rather than
+    # the five adverbs this used to offer. The adverbs could not say "every two
+    # weeks", and each reader spelled its own conversion to a comparable figure
+    # by hand -- fleet's own cost report simply omitted `weekly`, so a weekly
+    # contract contributed nothing to it for as long as the report has existed.
+    #
+    # An empty unit is what "no recurring cost" means now. The old `no` value
+    # had to sit inside a required Selection, which made every reader carry a
+    # special case for a value that means "this field does not apply".
+    cost_frequency_interval = fields.Integer(
+        "Recurring Cost Every",
+        default=1,
         required=True,
+    )
+    cost_frequency_unit = fields.Selection(
+        time_unit_selection("day", "week", "month", "year"),
+        "Recurring Cost Frequency",
+        default="month",
         tracking=True,
+        help="Leave empty for a contract that generates no recurring cost.",
     )
     service_ids = fields.Many2many("fleet.service.type", string="Included Services")
 
@@ -119,6 +129,38 @@ class FleetVehicleLogContract(models.Model):
         for log_contract in self:
             log_contract.has_open_contract = (
                 log_contract.vehicle_id in open_contracts.vehicle_id
+            )
+
+    # Days in one period of each unit. ``month`` is absent on purpose: a month
+    # is not a fixed number of days, so a monthly cost normalises to itself.
+    # ``fleet_report.py`` mirrors these numbers in SQL, where it prorates by the
+    # real length of the month being reported; an average month is the right
+    # answer here, because a caller asking for "the monthly cost of this car"
+    # wants a comparable figure rather than one particular month's accrual.
+    _PERIOD_DAYS = {"day": 1.0, "week": 7.0, "year": 365.25}
+    _AVERAGE_MONTH_DAYS = 30.4375
+
+    def _cost_per_month(self):
+        """This contract's recurring cost expressed per month, 0 when it has none."""
+        self.check_singleton()
+        if not self.cost_frequency_unit or self.cost_frequency_interval <= 0:
+            return 0.0
+        if self.cost_frequency_unit == "month":
+            return self.cost_generated / self.cost_frequency_interval
+        period_days = (
+            self._PERIOD_DAYS[self.cost_frequency_unit] * self.cost_frequency_interval
+        )
+        return self.cost_generated * self._AVERAGE_MONTH_DAYS / period_days
+
+    @api.constrains("cost_frequency_interval")
+    def _check_cost_frequency_interval(self):
+        """Python rather than a SQL CHECK, for the reason ``mixin.recurrence.rule``
+        gives: a CHECK fires inside the INSERT and hands the user a
+        CheckViolation that has already poisoned the transaction, where a
+        ValidationError names the field and leaves the transaction usable."""
+        if self.filtered(lambda contract: contract.cost_frequency_interval <= 0):
+            raise ValidationError(
+                self.env._("The recurring cost interval must be greater than 0.")
             )
 
     @api.depends("expiration_date", "state")

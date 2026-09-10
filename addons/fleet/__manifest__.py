@@ -1,6 +1,6 @@
 {
     "name": "Fleet",
-    "version": "0.1",
+    "version": "1.0",
     "category": "Human Resources/Fleet",
     "sequence": 185,
     "summary": "Manage your fleet and track car costs",

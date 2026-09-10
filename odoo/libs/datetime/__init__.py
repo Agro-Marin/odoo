@@ -1,6 +1,8 @@
 from .date_utils import (
     WEEKDAY_NUMBER,
     Granularity,
+    TIME_UNIT_SELECTION,
+    TimeUnit,
     float_to_time,
     time_to_float,
     localized,
@@ -11,6 +13,7 @@ from .date_utils import (
     get_quarter_number,
     get_fiscal_year,
     get_timedelta,
+    time_unit_selection,
     start_of,
     end_of,
     add,
@@ -37,8 +40,10 @@ from .tz import (
 
 __all__ = [
     "TIMEZONE_ALIASES",
+    "TIME_UNIT_SELECTION",
     "WEEKDAY_NUMBER",
     "Granularity",
+    "TimeUnit",
     "add",
     "all_timezones",
     "country_timezones",
@@ -61,6 +66,7 @@ __all__ = [
     "start_of",
     "subtract",
     "time_to_float",
+    "time_unit_selection",
     "timezone",
     "to_timezone",
     "utc",

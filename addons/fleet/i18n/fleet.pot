@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-25 18:36+0000\n"
-"PO-Revision-Date: 2026-01-25 18:36+0000\n"
+"POT-Creation-Date: 2026-09-10 17:11+0000\n"
+"PO-Revision-Date: 2026-09-10 17:11+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -16,8 +16,16 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. module: fleet
+#. odoo-python
+#: code:addons/fleet/models/fleet_vehicle_odometer.py:0
+msgid ""
+"%(vehicle)s: a reading of %(value)s on %(date)s would make the odometer run "
+"backwards."
+msgstr ""
+
+#. module: fleet
 #: model_terms:ir.ui.view,arch_db:fleet.fleet_vehicle_view_kanban
-msgid "<i class=\"fa fa-map-marker\" title=\"Location\"/>"
+msgid "<i class=\"fa-solid fa-location-dot\" title=\"Location\"/>"
 msgstr ""
 
 #. module: fleet
@@ -25,6 +33,11 @@ msgstr ""
 msgid ""
 "<span class=\"o_stat_value\">New</span>\n"
 "                                <span class=\"o_stat_text\">Vehicle</span>"
+msgstr ""
+
+#. module: fleet
+#: model_terms:ir.ui.view,arch_db:fleet.fleet_vehicle_log_contract_view_form
+msgid "<span class=\"text-muted me-1\">every</span>"
 msgstr ""
 
 #. module: fleet
@@ -100,6 +113,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_services__active
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_model__active
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_model_brand__active
+#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_tag__active
 msgid "Active"
 msgstr ""
 
@@ -182,6 +196,11 @@ msgid "All-Wheel Drive (AWD)"
 msgstr ""
 
 #. module: fleet
+#: model:ir.model.constraint,message:fleet.constraint_fleet_vehicle_odometer_value_positive
+msgid "An odometer reading cannot be negative."
+msgstr ""
+
+#. module: fleet
 #: model_terms:ir.ui.view,arch_db:fleet.fleet_vehicle_view_form
 msgid "Apply New Driver"
 msgstr ""
@@ -189,6 +208,11 @@ msgstr ""
 #. module: fleet
 #: model_terms:ir.ui.view,arch_db:fleet.fleet_vehicle_model_brand_view_kanban
 msgid "Archive"
+msgstr ""
+
+#. module: fleet
+#: model:ir.model.fields,help:fleet.field_fleet_vehicle_tag__active
+msgid "Archive a tag to hide it without deleting it."
 msgstr ""
 
 #. module: fleet
@@ -492,6 +516,11 @@ msgid "Co2 Emission Unit"
 msgstr ""
 
 #. module: fleet
+#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_tag__code
+msgid "Code"
+msgstr ""
+
+#. module: fleet
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle__color
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_model__color
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_tag__color
@@ -723,11 +752,6 @@ msgid "Current state of the vehicle"
 msgstr ""
 
 #. module: fleet
-#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency__daily
-msgid "Daily"
-msgstr ""
-
-#. module: fleet
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_cost_report__date_start
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_contract__date
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_services__date
@@ -764,6 +788,11 @@ msgstr ""
 #. module: fleet
 #: model:ir.model.fields,help:fleet.field_fleet_vehicle__write_off_date
 msgid "Date when the vehicle's license plate has been cancelled/removed."
+msgstr ""
+
+#. module: fleet
+#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency_unit__day
+msgid "Days"
 msgstr ""
 
 #. module: fleet
@@ -880,7 +909,7 @@ msgstr ""
 #: model_terms:ir.actions.act_window,help:fleet.fleet_vehicle_log_contract_action
 msgid ""
 "Each contract (e.g.: leasing) may include several services\n"
-"            (reparation, insurances, periodic maintenance)."
+"                (reparation, insurances, periodic maintenance)."
 msgstr ""
 
 #. module: fleet
@@ -1075,14 +1104,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_services__message_partner_ids
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_model__message_partner_ids
 msgid "Followers (Partners)"
-msgstr ""
-
-#. module: fleet
-#: model:ir.model.fields,help:fleet.field_fleet_vehicle__activity_type_icon
-#: model:ir.model.fields,help:fleet.field_fleet_vehicle_log_contract__activity_type_icon
-#: model:ir.model.fields,help:fleet.field_fleet_vehicle_log_services__activity_type_icon
-#: model:ir.model.fields,help:fleet.field_fleet_vehicle_model__activity_type_icon
-msgid "Font awesome icon e.g. fa-tasks"
 msgstr ""
 
 #. module: fleet
@@ -1421,6 +1442,11 @@ msgid "Leasing"
 msgstr ""
 
 #. module: fleet
+#: model:ir.model.fields,help:fleet.field_fleet_vehicle_log_contract__cost_frequency_unit
+msgid "Leave empty for a contract that generates no recurring cost."
+msgstr ""
+
+#. module: fleet
 #: model_terms:ir.actions.act_window,help:fleet.fleet_vehicle_action
 msgid "Let's create your first vehicle."
 msgstr ""
@@ -1480,8 +1506,8 @@ msgstr ""
 #: model_terms:ir.actions.act_window,help:fleet.fleet_vehicle_log_contract_action
 msgid ""
 "Manage all your contracts (leasing, insurances, etc.) with\n"
-"            their related services, costs. Odoo will automatically warn\n"
-"            you when some contracts have to be renewed."
+"                their related services, costs. Odoo will automatically warn\n"
+"                you when some contracts have to be renewed."
 msgstr ""
 
 #. module: fleet
@@ -1602,8 +1628,8 @@ msgid "Models"
 msgstr ""
 
 #. module: fleet
-#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency__monthly
-msgid "Monthly"
+#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency_unit__month
+msgid "Months"
 msgstr ""
 
 #. module: fleet
@@ -1648,14 +1674,6 @@ msgid "New Request"
 msgstr ""
 
 #. module: fleet
-#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle__activity_calendar_event_id
-#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_contract__activity_calendar_event_id
-#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_services__activity_calendar_event_id
-#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_model__activity_calendar_event_id
-msgid "Next Activity Calendar Event"
-msgstr ""
-
-#. module: fleet
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle__activity_date_deadline
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_contract__activity_date_deadline
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_services__activity_date_deadline
@@ -1682,11 +1700,6 @@ msgstr ""
 #. module: fleet
 #: model:ir.model.fields,help:fleet.field_fleet_vehicle__future_driver_id
 msgid "Next Driver Address of the vehicle"
-msgstr ""
-
-#. module: fleet
-#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency__no
-msgid "No"
 msgstr ""
 
 #. module: fleet
@@ -1996,7 +2009,12 @@ msgid "Recurring Cost"
 msgstr ""
 
 #. module: fleet
-#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_contract__cost_frequency
+#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_contract__cost_frequency_interval
+msgid "Recurring Cost Every"
+msgstr ""
+
+#. module: fleet
+#: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_contract__cost_frequency_unit
 msgid "Recurring Cost Frequency"
 msgstr ""
 
@@ -2234,6 +2252,13 @@ msgid "Specify the End date of %s"
 msgstr ""
 
 #. module: fleet
+#: model:ir.model.fields,help:fleet.field_fleet_vehicle_tag__code
+msgid ""
+"Stable identifier for imports, filters and data files. Unlike the name it is"
+" never translated, so it means the same thing to every reader."
+msgstr ""
+
+#. module: fleet
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle_log_services__state
 msgid "Stage"
 msgstr ""
@@ -2255,7 +2280,7 @@ msgid "State"
 msgstr ""
 
 #. module: fleet
-#: model:ir.model.constraint,message:fleet.constraint_fleet_vehicle_state_fleet_state_name_unique
+#: model:ir.model.constraint,message:fleet.constraint_fleet_vehicle_state_name_src_uniq
 msgid "State name already exists"
 msgstr ""
 
@@ -2300,11 +2325,6 @@ msgid "Tag Name"
 msgstr ""
 
 #. module: fleet
-#: model:ir.model.constraint,message:fleet.constraint_fleet_vehicle_tag_name_uniq
-msgid "Tag name already exists!"
-msgstr ""
-
-#. module: fleet
 #: model:ir.actions.act_window,name:fleet.fleet_vehicle_tag_action
 #: model:ir.model.fields,field_description:fleet.field_fleet_vehicle__tag_ids
 #: model:ir.ui.menu,name:fleet.fleet_vehicle_tag_menu
@@ -2344,6 +2364,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/fleet/models/fleet_vehicle.py:0
 msgid "The odometer value cannot be lower than the previous one."
+msgstr ""
+
+#. module: fleet
+#. odoo-python
+#: code:addons/fleet/models/fleet_vehicle_log_contract.py:0
+msgid "The recurring cost interval must be greater than 0."
 msgstr ""
 
 #. module: fleet
@@ -2414,7 +2440,7 @@ msgstr ""
 #: model_terms:ir.actions.act_window,help:fleet.fleet_vehicle_log_services_action
 msgid ""
 "Track all the services done on your vehicle.\n"
-"            Services can be of many types: occasional repair, fixed maintenance, etc."
+"                Services can be of many types: occasional repair, fixed maintenance, etc."
 msgstr ""
 
 #. module: fleet
@@ -2649,8 +2675,8 @@ msgid "Wave"
 msgstr ""
 
 #. module: fleet
-#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency__weekly
-msgid "Weekly"
+#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency_unit__week
+msgid "Weeks"
 msgstr ""
 
 #. module: fleet
@@ -2699,8 +2725,8 @@ msgid "Year of the model"
 msgstr ""
 
 #. module: fleet
-#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency__yearly
-msgid "Yearly"
+#: model:ir.model.fields.selection,name:fleet.selection__fleet_vehicle_log_contract__cost_frequency_unit__year
+msgid "Years"
 msgstr ""
 
 #. module: fleet
@@ -2712,7 +2738,7 @@ msgstr ""
 #: model_terms:ir.actions.act_window,help:fleet.fleet_vehicle_state_action
 msgid ""
 "You can customize available status to track the evolution of\n"
-"            each vehicle. Example: active, being repaired, sold."
+"                each vehicle. Example: active, being repaired, sold."
 msgstr ""
 
 #. module: fleet

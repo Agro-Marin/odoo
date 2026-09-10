@@ -49,7 +49,7 @@ class TestActivitySchedule(ActivityScheduleCase):
                 "chaining_type": "trigger",
                 "delay_count": 2,
                 "delay_from": "current_date",
-                "delay_unit": "days",
+                "delay_unit": "day",
                 "triggered_next_type_id": cls.test_type_2.id,
             }
         )
@@ -57,7 +57,7 @@ class TestActivitySchedule(ActivityScheduleCase):
             {
                 "chaining_type": "suggest",
                 "delay_count": 3,
-                "delay_unit": "weeks",
+                "delay_unit": "week",
                 "suggested_next_type_ids": [
                     (4, cls.test_type_1.id),
                     (4, cls.test_type_3.id),
@@ -78,7 +78,7 @@ class TestActivitySchedule(ActivityScheduleCase):
                             "activity_type_id": cls.activity_type_todo.id,
                             "delay_count": 1,
                             "delay_from": "before_plan_date",
-                            "delay_unit": "days",
+                            "delay_unit": "day",
                             "responsible_type": "on_demand",
                             "sequence": 10,
                             "summary": "Book a place",
@@ -91,7 +91,7 @@ class TestActivitySchedule(ActivityScheduleCase):
                             "activity_type_id": cls.activity_type_todo.id,
                             "delay_count": 1,
                             "delay_from": "after_plan_date",
-                            "delay_unit": "weeks",
+                            "delay_unit": "week",
                             "responsible_id": cls.user_admin.id,
                             "responsible_type": "other",
                             "sequence": 20,
@@ -113,7 +113,7 @@ class TestActivitySchedule(ActivityScheduleCase):
                             "activity_type_id": cls.activity_type_todo.id,
                             "delay_count": 3,
                             "delay_from": "before_plan_date",
-                            "delay_unit": "days",
+                            "delay_unit": "day",
                             "responsible_id": cls.user_admin.id,
                             "responsible_type": "other",
                             "sequence": 10,
@@ -127,7 +127,7 @@ class TestActivitySchedule(ActivityScheduleCase):
                             "activity_type_id": cls.activity_type_todo.id,
                             "delay_count": 2,
                             "delay_from": "after_plan_date",
-                            "delay_unit": "weeks",
+                            "delay_unit": "week",
                             "responsible_id": cls.user_admin.id,
                             "responsible_type": "other",
                             "sequence": 20,

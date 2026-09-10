@@ -2,30 +2,7 @@ from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.libs.sql import SQL
 
-
-class FleetVehicleCostReport(models.Model):
-    _name = "fleet.vehicle.cost.report"
-    _description = "Fleet Analysis Report"
-    _auto = False
-    _order = "date_start desc"
-
-    company_id = fields.Many2one("res.company", "Company", readonly=True)
-    vehicle_id = fields.Many2one("fleet.vehicle", "Vehicle", readonly=True)
-    name = fields.Char("Vehicle Name", readonly=True)
-    driver_id = fields.Many2one("res.partner", "Driver", readonly=True)
-    fuel_type = fields.Char("Fuel", readonly=True)
-    date_start = fields.Date("Date", readonly=True)
-    vehicle_type = fields.Selection([("car", "Car"), ("bike", "Bike")], readonly=True)
-
-    cost = fields.Float("Cost", readonly=True)
-    cost_type = fields.Selection(
-        string="Cost Type",
-        selection=[("contract", "Contract"), ("service", "Service")],
-        readonly=True,
-    )
-
-    def init(self):
-        query = """
+COST_REPORT_QUERY = """
 WITH service_costs AS (
     SELECT
         ve.id AS vehicle_id,
@@ -61,6 +38,76 @@ WITH service_costs AS (
         ve.id,
         date_start
 ),
+contract_month AS (
+    -- One row per (contract, month). The costs used to be gathered by joining
+    -- fleet_vehicle_log_contract three times, once per frequency, under a
+    -- single GROUP BY: every extra contract row multiplied every sum, so a
+    -- vehicle with two monthly contracts of 100 reported 400 and three
+    -- reported 900. Aggregating per contract first and joining the result once
+    -- is what makes each contract count exactly once.
+    SELECT
+        co.vehicle_id AS vehicle_id,
+        date_trunc('month', d) AS month_start,
+        CASE
+            WHEN date_trunc('month', co.date) = date_trunc('month', d)
+                THEN COALESCE(co.amount, 0)
+            ELSE 0
+        END
+        + CASE
+            WHEN co.cost_frequency_unit IS NULL
+                 OR COALESCE(co.cost_frequency_interval, 0) <= 0
+                 OR co.start_date IS NULL
+                THEN 0
+            WHEN co.cost_frequency_unit = 'day'
+                THEN COALESCE(co.cost_generated, 0) * cov.days
+                     / co.cost_frequency_interval
+            WHEN co.cost_frequency_unit = 'week'
+                THEN COALESCE(co.cost_generated, 0) * cov.days
+                     / (7.0 * co.cost_frequency_interval)
+            WHEN co.cost_frequency_unit = 'month'
+                THEN COALESCE(co.cost_generated, 0) * cov.days
+                     / (cov.month_days * co.cost_frequency_interval)
+            WHEN co.cost_frequency_unit = 'year'
+                THEN COALESCE(co.cost_generated, 0) * cov.days
+                     / (365.25 * co.cost_frequency_interval)
+            ELSE 0
+        END AS cost
+    FROM
+        fleet_vehicle_log_contract co
+    CROSS JOIN generate_series((
+            SELECT
+                min(acquisition_date)
+                FROM fleet_vehicle), CURRENT_DATE + '1 month'::interval, '1 month') d
+    CROSS JOIN LATERAL (
+        -- Days of this month the contract actually covers, and the length of
+        -- the month to measure them against. A recurring cost is prorated by
+        -- that fraction, so a contract starting mid-month contributes half.
+        SELECT
+            GREATEST(0, EXTRACT(epoch FROM
+                LEAST(
+                    date_trunc('month', d) + interval '1 month',
+                    COALESCE(
+                        co.expiration_date::timestamp + interval '1 day',
+                        date_trunc('month', d) + interval '1 month')
+                )
+                - GREATEST(
+                    date_trunc('month', d),
+                    COALESCE(co.start_date::timestamp, date_trunc('month', d)))
+            ) / 86400.0) AS days,
+            EXTRACT(day FROM
+                date_trunc('month', d) + interval '1 month' - interval '1 day'
+            ) AS month_days
+    ) cov
+    WHERE
+        date_trunc('month', co.date) = date_trunc('month', d)
+        OR (
+            co.start_date IS NOT NULL
+            AND date_trunc('month', co.start_date) <= date_trunc('month', d)
+            AND date_trunc('month', COALESCE(
+                    co.expiration_date,
+                    CURRENT_DATE + interval '100 years')) >= date_trunc('month', d)
+        )
+),
 contract_costs AS (
     SELECT
         ve.id AS vehicle_id,
@@ -70,7 +117,7 @@ contract_costs AS (
         ve.fuel_type AS fuel_type,
         date(date_trunc('month', d)) AS date_start,
         vem.vehicle_type as vehicle_type,
-        (COALESCE(sum(co.amount), 0) + COALESCE(sum(cod.cost_generated * extract(day FROM least (date_trunc('month', d) + interval '1 month', cod.expiration_date) - greatest (date_trunc('month', d), cod.start_date))), 0) + COALESCE(sum(com.cost_generated), 0) + COALESCE(sum(coy.cost_generated), 0)) AS
+        COALESCE(sum(cm.cost), 0) AS
         COST,
         'contract' AS cost_type
     FROM
@@ -81,20 +128,8 @@ contract_costs AS (
             SELECT
                 min(acquisition_date)
                 FROM fleet_vehicle), CURRENT_DATE + '1 month'::interval, '1 month') d
-        LEFT JOIN fleet_vehicle_log_contract co ON co.vehicle_id = ve.id
-            AND date_trunc('month', co.date) = date_trunc('month', d)
-        LEFT JOIN fleet_vehicle_log_contract cod ON cod.vehicle_id = ve.id
-            AND date_trunc('month', cod.start_date) <= date_trunc('month', d)
-            AND date_trunc('month', cod.expiration_date) >= date_trunc('month', d)
-            AND cod.cost_frequency = 'daily'
-    LEFT JOIN fleet_vehicle_log_contract com ON com.vehicle_id = ve.id
-        AND date_trunc('month', com.start_date) <= date_trunc('month', d)
-        AND date_trunc('month', com.expiration_date) >= date_trunc('month', d)
-        AND com.cost_frequency = 'monthly'
-    LEFT JOIN fleet_vehicle_log_contract coy ON coy.vehicle_id = ve.id
-        AND d BETWEEN coy.start_date and coy.expiration_date
-        AND date_part('month', coy.date) = date_part('month', d)
-        AND coy.cost_frequency = 'yearly'
+    LEFT JOIN contract_month cm ON cm.vehicle_id = ve.id
+        AND cm.month_start = date_trunc('month', d)
     WHERE
         ve.active
     GROUP BY
@@ -146,11 +181,35 @@ FROM (
             contract_costs cc)
 ) c
 """
+
+
+class FleetVehicleCostReport(models.Model):
+    _name = "fleet.vehicle.cost.report"
+    _description = "Fleet Analysis Report"
+    _auto = False
+    _order = "date_start desc"
+
+    company_id = fields.Many2one("res.company", "Company", readonly=True)
+    vehicle_id = fields.Many2one("fleet.vehicle", "Vehicle", readonly=True)
+    name = fields.Char("Vehicle Name", readonly=True)
+    driver_id = fields.Many2one("res.partner", "Driver", readonly=True)
+    fuel_type = fields.Char("Fuel", readonly=True)
+    date_start = fields.Date("Date", readonly=True)
+    vehicle_type = fields.Selection([("car", "Car"), ("bike", "Bike")], readonly=True)
+
+    cost = fields.Float("Cost", readonly=True)
+    cost_type = fields.Selection(
+        string="Cost Type",
+        selection=[("contract", "Contract"), ("service", "Service")],
+        readonly=True,
+    )
+
+    def init(self):
         drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             SQL(
                 """CREATE or REPLACE VIEW %s as (%s)""",
                 SQL.identifier(self._table),
-                SQL(query),
+                SQL(COST_REPORT_QUERY),
             )
         )
