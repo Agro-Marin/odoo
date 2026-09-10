@@ -1130,7 +1130,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         self.assertEqual(po.requisition_id, requisition_2)
         po.action_confirm()
         self.assertEqual(po.state, "done")
-        (self.bo_requisition.line_ids | requisition_2.line_ids)._compute_ordered_qty()
+        (self.bo_requisition.line_ids | requisition_2.line_ids)._compute_qty_ordered()
         self.assertEqual(self.bo_requisition.line_ids.qty_ordered, 0)
         self.assertEqual(requisition_2.line_ids.qty_ordered, 10)
 
