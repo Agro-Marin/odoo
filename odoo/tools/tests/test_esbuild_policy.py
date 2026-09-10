@@ -192,7 +192,7 @@ class TestBoundedGrowth:
         circuit.record_failure(
             ("kept", "b"), "boom", now=0.0, cooldown_s=1.0, extended_cooldown_s=1.0
         )
-        assert circuit.forget_database("gone") == 1
+        assert circuit.clear_database_entries("gone") == 1
         assert list(circuit._entries) == [("kept", "b")]
 
 

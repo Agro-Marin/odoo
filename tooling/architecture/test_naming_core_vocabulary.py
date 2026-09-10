@@ -627,6 +627,12 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
             self.assertEqual(hit[0], "synonym")
             self.assertIn("_classify_", hit[1])
 
+    def test_forget_is_a_cache_verb_the_section_does_not_print(self):
+        hit = ncv.classify_name("_forget_ref_cache")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "synonym")
+        self.assertIn("_clear_", hit[1])
+
     def test_a_dunder_is_not_a_naming_choice(self):
         self.assertIsNone(ncv.classify_name("__init__"))
 

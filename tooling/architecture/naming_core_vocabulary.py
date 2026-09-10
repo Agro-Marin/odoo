@@ -389,6 +389,15 @@ SYNONYMS: dict[str, tuple[str, str]] = {
         "_classify_",
         "one operation, and the tree already spells it classify",
     ),
+    # `forget` was §2.4.17's fourth cache verb in core -- `forget_unaccent_table`,
+    # `_forget_ref_cache`, `Registry.forget`, the reachability probe's `forget` --
+    # and every one named a drop or an invalidation the section already has a
+    # word for. Read to zero across core before the entry landed (odoo-95's
+    # `clear_database_state`, odoo-07's probe half), so it is a contract.
+    "forget": (
+        "_clear_ / _invalidate_",
+        "§2.4.17 names the drop and the invalidation; forget says neither",
+    ),
 }
 
 # Vendored code is not ours to rename. `nv.SKIP_DIRS` carries "vendored"; this

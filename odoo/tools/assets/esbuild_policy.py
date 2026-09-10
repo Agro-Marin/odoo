@@ -59,7 +59,7 @@ class EsbuildCircuit:
         with self._lock:
             return self._entries.pop(key, None) is not None
 
-    def forget_database(self, dbname: str) -> int:
+    def clear_database_entries(self, dbname: str) -> int:
         with self._lock:
             stale = [key for key in self._entries if key[0] == dbname]
             for key in stale:
