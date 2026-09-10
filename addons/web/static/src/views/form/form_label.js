@@ -7,6 +7,14 @@ import { user } from "@web/core/user";
 import { fieldVisualFeedback } from "@web/fields/field";
 import { getTooltipInfo } from "@web/fields/field_tooltip";
 
+/**
+ * A label's tooltip payload depends on the field definition, the arch's field
+ * info and the debug flag, none of which change for the life of a form, so it
+ * is serialised once per label rather than on every render.
+ * @type {WeakMap<Object, { field: Object, debug: string, info: string }>}
+ */
+const tooltipInfoByFieldInfo = new WeakMap();
+
 export class FormLabel extends Component {
     static template = "web.FormLabel";
     static props = {
@@ -56,19 +64,22 @@ export class FormLabel extends Component {
     }
     /** @returns {string} */
     get tooltipInfo() {
-        if (!odoo.debug) {
-            return JSON.stringify({
-                field: {
-                    help: this.tooltipHelp,
-                },
-            });
+        const { fieldInfo, record, fieldName } = this.props;
+        const field = record.fields[fieldName];
+        const cached = tooltipInfoByFieldInfo.get(fieldInfo);
+        if (cached && cached.field === field && cached.debug === odoo.debug) {
+            return cached.info;
         }
-        return getTooltipInfo({
-            viewMode: "form",
-            resModel: this.props.record.resModel,
-            field: this.props.record.fields[this.props.fieldName],
-            fieldInfo: this.props.fieldInfo,
-            help: this.tooltipHelp,
-        });
+        const info = odoo.debug
+            ? getTooltipInfo({
+                  viewMode: "form",
+                  resModel: record.resModel,
+                  field,
+                  fieldInfo,
+                  help: this.tooltipHelp,
+              })
+            : JSON.stringify({ field: { help: this.tooltipHelp } });
+        tooltipInfoByFieldInfo.set(fieldInfo, { field, debug: odoo.debug, info });
+        return info;
     }
 }
