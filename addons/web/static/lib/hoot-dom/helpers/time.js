@@ -125,7 +125,10 @@ let timeOffset = 0;
  * @param {AdvanceTimeOptions} [options]
  */
 export function advanceFrame(frameCount, options) {
-    return advanceTime(frameDelay * parseNat(frameCount), options);
+    // advanceTime floors its argument and a frame is 16.67ms at 60fps, so
+    // `frameDelay * n` floored lands 1ms short of the n-th frame requested at
+    // this instant: advanceFrame(1) after freezeTime() ran no frame at all.
+    return advanceTime($ceil(frameDelay * parseNat(frameCount)), options);
 }
 
 /**

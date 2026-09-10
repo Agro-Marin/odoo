@@ -2,8 +2,12 @@
 
 import { Mutex } from "@web/core/utils/concurrency";
 
+// The notification channel the doubles share is a stand-in for SearchModel's
+// own: `_notifications` is where a test reads the steps, and `blockNotification`
+// is the channel's flag -- search_model.js declares the real one as its private
+// field (0b4ef19ee6cc), so neither is a member of the composition contract.
 /** @type {string[]} */
-export const DOUBLE_ONLY_MEMBERS = ["_notifications"];
+export const DOUBLE_ONLY_MEMBERS = ["_notifications", "blockNotification"];
 
 /** @param {string[]} steps */
 function notificationChannel(steps) {

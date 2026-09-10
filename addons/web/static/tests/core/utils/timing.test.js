@@ -3,9 +3,11 @@
 import { describe, destroy, expect, getFixture, test } from "@odoo/hoot";
 import { click, tick } from "@odoo/hoot-dom";
 import {
+    advanceFrame,
     advanceTime,
     animationFrame,
     Deferred,
+    freezeTime,
     microTick,
     runAllTimers,
 } from "@odoo/hoot-mock";
@@ -533,13 +535,20 @@ describe("throttleForAnimation", () => {
 
 describe("throttleForAnimationScrollEvent", () => {
     test("scroll loses target", async () => {
+        // The frame requested inside a scroll listener runs in the SAME
+        // rendering update, after the scroll steps, so on a real clock the
+        // throttle's frame is spent before the next scroll event arrives and
+        // nothing is left to coalesce. Freeze the clock: frames then advance
+        // only through advanceFrame(), which is what the test is about.
+        freezeTime();
         let throttled = new Deferred();
         const throttledFn = throttleForAnimation((val, targetEl) => {
-            const nodeName = val && val.currentTarget && val.currentTarget.nodeName;
+            // Whether `val.currentTarget` still reads after dispatch is the
+            // browser's business (Chrome 153 keeps it on a trusted scroll
+            // event, earlier versions and synthetic events null it), which is
+            // exactly why the target travels as a parameter; assert that.
             const targetName = targetEl && targetEl.nodeName;
-            expect.step(
-                `throttled function called with ${nodeName} in event, but ${targetName} in parameter`,
-            );
+            expect.step(`throttled function called with ${targetName} in parameter`);
             throttled.resolve();
         });
 
@@ -563,7 +572,7 @@ describe("throttleForAnimationScrollEvent", () => {
 
         expect.verifySteps([
             "before scroll",
-            "throttled function called with DIV in event, but DIV in parameter",
+            "throttled function called with DIV in parameter",
             "after scroll",
         ]);
 
@@ -572,10 +581,9 @@ describe("throttleForAnimationScrollEvent", () => {
         el.scrollBy(3, 3);
         await scrolled;
         expect.verifySteps(["before scroll", "after scroll"]);
+        await advanceFrame(1);
         await throttled;
-        expect.verifySteps([
-            "throttled function called with null in event, but DIV in parameter",
-        ]);
+        expect.verifySteps(["throttled function called with DIV in parameter"]);
         el.remove();
     });
 });
