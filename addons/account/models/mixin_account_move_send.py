@@ -469,7 +469,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return
 
     @api.model
-    def _prepare_invoice_pdf_report(self, invoices_data):
+    def _update_invoice_data_pdf_report(self, invoices_data):
         grouped_invoices_by_report = defaultdict(dict)
         for invoice, invoice_data in invoices_data.items():
             grouped_invoices_by_report[
@@ -535,7 +535,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return {}
 
     @api.model
-    def _prepare_invoice_proforma_pdf_report(self, invoice, invoice_data):
+    def _update_invoice_data_proforma_pdf_report(self, invoice, invoice_data):
         pdf_report = invoice_data["pdf_report"]
         content, report_type = (
             self.env["ir.actions.report"]
@@ -919,7 +919,7 @@ class MixinAccountMoveSend(models.AbstractModel):
             batches.append(pdf_to_generate)
 
         for batch in batches:
-            self._prepare_invoice_pdf_report(batch)
+            self._update_invoice_data_pdf_report(batch)
 
         for invoice, invoice_data in invoices_data_pdf.items():
             if not invoice_data.get("error") and not invoice.invoice_pdf_report_id:
@@ -959,7 +959,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         for invoice, invoice_data in invoices_data.items():
             if not invoice.invoice_pdf_report_id and invoice_data.get("error"):
                 invoice_data.pop("error")
-                self._prepare_invoice_proforma_pdf_report(invoice, invoice_data)
+                self._update_invoice_data_proforma_pdf_report(invoice, invoice_data)
                 self._hook_invoice_document_after_pdf_report_render(
                     invoice, invoice_data
                 )

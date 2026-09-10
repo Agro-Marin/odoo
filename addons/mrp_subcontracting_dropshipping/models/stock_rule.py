@@ -17,8 +17,8 @@ class StockRule(models.Model):
                 )
         return super()._prepare_purchase_order_vals(company_id, origins, values)
 
-    def _prepare_po_get_domain(self, company_id, values, partner):
-        domain = super()._prepare_po_get_domain(company_id, values, partner)
+    def _get_domain_po(self, company_id, values, partner):
+        domain = super()._get_domain_po(company_id, values, partner)
         carries_destination = (
             self.picking_type_id.default_location_dest_id.usage == "customer"
         )

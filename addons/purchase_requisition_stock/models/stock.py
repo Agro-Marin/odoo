@@ -15,8 +15,8 @@ class StockRule(models.Model):
             ].purchase_requisition_id.currency_id.id
         return res
 
-    def _prepare_po_get_domain(self, company_id, values, partner):
-        domain = super()._prepare_po_get_domain(company_id, values, partner)
+    def _get_domain_po(self, company_id, values, partner):
+        domain = super()._get_domain_po(company_id, values, partner)
         if "supplier" in values and values["supplier"].purchase_requisition_id:
             domain += (
                 ("requisition_id", "=", values["supplier"].purchase_requisition_id.id),

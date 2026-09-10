@@ -452,12 +452,12 @@ class AccountAccount(models.Model):
                 account.code and (not account.account_type or not account.tag_ids)
             ),
         )
-        self._get_closest_parent_account(
+        self._update_from_closest_parent_account(
             accounts_to_process,
             {"account_type": "asset_current", "tag_ids": []},
         )
 
-    def _get_closest_parent_account(self, accounts_to_process, field_defaults):
+    def _update_from_closest_parent_account(self, accounts_to_process, field_defaults):
         field_names = list(field_defaults)
         assert all(field_name in self._fields for field_name in field_names)
 

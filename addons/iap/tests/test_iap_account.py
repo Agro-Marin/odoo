@@ -213,7 +213,7 @@ class TestIapAccount(TransactionCase):
             patch.object(iap_account_module.module, "current_test", False),
             patch.object(iap_tools, "iap_jsonrpc", return_value=fake_payload),
         ):
-            account._get_account_information_from_iap()
+            account._update_account_information_from_iap()
         self.assertEqual(account.state, "registered")
         self.assertEqual(account.warning_threshold, 0)
         # 'reveal' is an integer_balance service: rounds to a whole unit.
@@ -239,6 +239,6 @@ class TestIapAccount(TransactionCase):
             patch.object(iap_account_module.module, "current_test", False),
             patch.object(iap_tools, "iap_jsonrpc", return_value=fake_payload),
         ):
-            account._get_account_information_from_iap()
+            account._update_account_information_from_iap()
         self.assertEqual(account.warning_threshold, 10)
         self.assertFalse(account.warning_user_ids)

@@ -73,7 +73,7 @@ class IapAccount(models.Model):
 
     def web_read(self, *args, **kwargs):
         if not self.env.context.get("disable_iap_fetch"):
-            self._get_account_information_from_iap()
+            self._update_account_information_from_iap()
         return super().web_read(*args, **kwargs)
 
     def web_save(self, *args, **kwargs):
@@ -97,7 +97,7 @@ class IapAccount(models.Model):
             url = url_join(endpoint, route)
             # One blocking iap_jsonrpc round-trip per account: this endpoint's
             # contract takes a single account, unlike the batched
-            # 'iap_accounts' list _get_account_information_from_iap sends in
+            # 'iap_accounts' list _update_account_information_from_iap sends in
             # one call. A bulk write across many accounts pays one network
             # round-trip per record inside this write() transaction.
             for account in self:
@@ -120,7 +120,7 @@ class IapAccount(models.Model):
                     )
         return res
 
-    def _get_account_information_from_iap(self):
+    def _update_account_information_from_iap(self):
         # During testing, we don't want to call the iap server
         if module.current_test:
             return

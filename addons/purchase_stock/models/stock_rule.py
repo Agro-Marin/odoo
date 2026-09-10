@@ -173,7 +173,7 @@ class StockRule(models.Model):
             )
         ]
 
-    def _prepare_po_get_domain(self, company_id, values, partner):
+    def _get_domain_po(self, company_id, values, partner):
         currency = (
             ("supplier" in values and values["supplier"].currency_id)
             or partner.with_company(company_id).property_purchase_currency_id
@@ -366,9 +366,7 @@ class StockRule(models.Model):
             partner = supplier.partner_id
             procurement.values["supplier"] = supplier
             procurement.values["propagate_cancel"] = rule.propagate_cancel
-            domain = rule._prepare_po_get_domain(
-                company_id, procurement.values, partner
-            )
+            domain = rule._get_domain_po(company_id, procurement.values, partner)
             procurements_by_po_domain[domain].append((procurement, rule))
 
         if errors:

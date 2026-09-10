@@ -299,7 +299,7 @@ class ProjectProject(models.Model):
                 ("price_subtotal", "!=", 0),
                 ("id", "not in", purchase_order_line_invoice_line_ids),
             ]
-            self._get_costs_items_from_purchase(
+            self._update_costs_items_from_purchase(
                 domain, profitability_items, with_action=with_action
             )
         return profitability_items

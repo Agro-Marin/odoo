@@ -195,7 +195,7 @@ class ApplicantGetRefuseReason(models.TransientModel):
         )
 
         if self.send_mail:
-            self._prepare_send_refusal_mails()
+            self._send_refusal_mails()
 
         return {"type": "ir.actions.act_window_close"}
 
@@ -220,7 +220,7 @@ class ApplicantGetRefuseReason(models.TransientModel):
                     break
         return related_original_applicants
 
-    def _prepare_send_refusal_mails(self):
+    def _send_refusal_mails(self):
         for applicant in self.applicant_ids:
             mail_values = self._prepare_mail_values(applicant)
             applicant.message_post(**mail_values)

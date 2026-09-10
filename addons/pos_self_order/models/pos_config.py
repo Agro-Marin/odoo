@@ -119,7 +119,7 @@ class PosConfig(models.Model):
         self._prepare_self_order_splash_screen(vals_list, is_new=True)
         pos_config_ids = super().create(vals_list)
         pos_config_ids._update_public_attachments()
-        pos_config_ids._prepare_self_order_custom_btn()
+        pos_config_ids._create_missing_self_order_custom_btn()
         return pos_config_ids
 
     @api.model
@@ -163,7 +163,7 @@ class PosConfig(models.Model):
 
         return True
 
-    def _prepare_self_order_custom_btn(self):
+    def _create_missing_self_order_custom_btn(self):
         for record in self:
             exists = record.env["pos_self_order.custom_link"].search_count(
                 [
@@ -213,7 +213,7 @@ class PosConfig(models.Model):
 
         res = super().write(vals)
         self._update_public_attachments()
-        self._prepare_self_order_custom_btn()
+        self._create_missing_self_order_custom_btn()
         return res
 
     def _update_public_attachments(self):

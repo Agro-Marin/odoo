@@ -2943,7 +2943,7 @@ class Base_ImportImport(models.TransientModel):
 
         return import_fields, merged_data
 
-    def _resolve_fallback_accepted_values(self, fallback_values):
+    def _update_fallback_accepted_values(self, fallback_values):
         """Record, per fallback field, the set of values it actually accepts.
 
         Adds an ``accepted_values`` key in place. Boolean and selection fields
@@ -2997,7 +2997,7 @@ class Base_ImportImport(models.TransientModel):
 
         :param value: the raw cell
         :param dict fallback: one entry of ``fallback_values``, already through
-            :meth:`_resolve_fallback_accepted_values`
+            :meth:`_update_fallback_accepted_values`
         """
         # A spreadsheet date cell reaching here is not a str, and
         # `.lower()` on it raised a bare AttributeError that escaped
@@ -3056,7 +3056,7 @@ class Base_ImportImport(models.TransientModel):
                     },
                 }
         """
-        self._resolve_fallback_accepted_values(fallback_values)
+        self._update_fallback_accepted_values(fallback_values)
 
         # check fallback values
         for record_index, records in enumerate(input_file_data):

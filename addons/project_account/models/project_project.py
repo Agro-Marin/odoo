@@ -15,7 +15,7 @@ class ProjectProject(models.Model):
             self.env.user.has_group("account.group_account_invoice")
             or self.env.user.has_group("account.group_account_readonly")
         )
-        self._get_costs_items_from_purchase(
+        self._update_costs_items_from_purchase(
             domain, profitability_items, with_action=with_action
         )
 
@@ -30,7 +30,7 @@ class ProjectProject(models.Model):
             ("id", "not in", purchase_order_line_invoice_line_ids),
         ]
 
-    def _get_costs_items_from_purchase(
+    def _update_costs_items_from_purchase(
         self, domain, profitability_items, with_action=True
     ):
         account_move_lines = (

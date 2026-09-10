@@ -674,7 +674,7 @@ class AccountAnalyticLine(models.Model):
         return self.env.context.get("user_id", self.env.user.id)
 
     @api.model
-    def _get_or_create_uom_hours(self):
+    def _create_missing_uom_hours(self):
         uom_hours = self.env.ref("uom.product_uom_hour", raise_if_not_found=False)
         if not uom_hours:
             uom_hours = self.env["uom.uom"].create(
