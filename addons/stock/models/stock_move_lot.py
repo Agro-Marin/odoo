@@ -442,7 +442,7 @@ class StockMoveLot(models.Model):
     def _get_serial_line_count(self, quantity):
         return max(int(self.product_id.uom_id.round(quantity)), 0)
 
-    def _prefill_serial_count(self):
+    def _get_serial_count_to_prefill(self):
         self.check_singleton()
         if self.next_serial_count:
             return 0

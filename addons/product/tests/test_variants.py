@@ -2194,7 +2194,7 @@ class TestVariantsExclusion(ProductVariantsCommon):
         )
 
         with patch(
-            "odoo.addons.product.models.product_product.ProductProduct._filter_to_unlink",
+            "odoo.addons.product.models.product_product.ProductProduct._filtered_to_unlink",
             lambda products: products.filtered(
                 lambda pp: pp.product_tmpl_id.id != product_template.id
             ),

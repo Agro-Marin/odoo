@@ -264,7 +264,7 @@ class StockMoveLineQuant(models.Model):
             | to_reserve.move_id.filtered(lambda move: move.state != "draft")
         )._recompute_state()
 
-    def _resync_reservation(self, vals, updates):
+    def _sync_quant_reservation(self, vals, updates):
         moves_to_recompute_state = self.env["stock.move"]
         if not (
             (set(updates) - {"result_package_id", "location_dest_id"})

@@ -14,7 +14,7 @@ class StockReplenishmentReport(models.AbstractModel):
     @api.model
     def _create_missing_orderpoints(self, orderpoints):
         shortages = self._get_projected_shortages()
-        shortages = self._net_shortages(shortages, orderpoints)
+        shortages = self._get_net_shortages(shortages, orderpoints)
         return self._create_shortage_orderpoints(shortages, orderpoints)
 
     @api.model
@@ -132,7 +132,7 @@ class StockReplenishmentReport(models.AbstractModel):
         return shortages
 
     @api.model
-    def _net_shortages(self, shortages, orderpoints):
+    def _get_net_shortages(self, shortages, orderpoints):
         if not shortages:
             return shortages
         Orderpoint = self.env["stock.warehouse.orderpoint"]

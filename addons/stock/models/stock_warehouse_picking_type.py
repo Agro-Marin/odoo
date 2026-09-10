@@ -50,10 +50,10 @@ class StockWarehousePickingType(models.Model):
             for field, picking_type in zip(to_create, picking_types, strict=True):
                 warehouse_data[field] = picking_type.id
 
-        self._pair_return_picking_types(warehouse_data)
+        self._link_return_picking_types(warehouse_data)
         return warehouse_data
 
-    def _pair_return_picking_types(self, created_ids):
+    def _link_return_picking_types(self, created_ids):
         PickingType = self.env["stock.picking.type"]
         if not {"in_type_id", "out_type_id"} & set(created_ids):
             return

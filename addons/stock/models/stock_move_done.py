@@ -60,7 +60,7 @@ class StockMoveDone(models.Model):
             lambda ml: ml.package_id and ml.package_id == ml.result_package_id
         )
         if same_package_mls:
-            self.env["stock.quant"]._unlink_zero_quants(
+            self.env["stock.quant"]._remove_zero_quants(
                 products=same_package_mls.product_id,
                 locations=same_package_mls.location_id
                 | same_package_mls.location_dest_id,

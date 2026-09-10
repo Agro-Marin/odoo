@@ -531,7 +531,7 @@ class ProductProduct(models.Model):
         self._restamp_uom("stock.move.line", to_uom_id)
         return super()._update_uom(to_uom_id)
 
-    def _filter_to_unlink(self):
+    def _filtered_to_unlink(self):
         domain = [("product_id", "in", self.ids)]
         grouped = (
             self.env["stock.lot"]
@@ -543,13 +543,13 @@ class ProductProduct(models.Model):
         linked_product_ids = {product.id for groups in grouped for [product] in groups}
         return super(
             ProductProduct, self - self.browse(linked_product_ids)
-        )._filter_to_unlink()
+        )._filtered_to_unlink()
 
     def _get_allowed_uoms(self):
         return self.uom_id | self.uom_ids | self.seller_ids.product_uom_id
 
-    def _trigger_uom_warning(self):
-        res = super()._trigger_uom_warning()
+    def _should_warn_uom_change(self):
+        res = super()._should_warn_uom_change()
         if res:
             return res
         moves = (

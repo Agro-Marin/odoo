@@ -295,7 +295,7 @@ class StockPickingTypeDashboard(models.Model):
                 picking_type.sequence_id = sequence.id
 
     @api.model
-    def _unlink_orphaned_sequences(self, sequences):
+    def _remove_orphaned_sequences(self, sequences):
         if not sequences:
             return
         still_referenced = (

@@ -62,8 +62,8 @@ class ProductProduct(models.Model):
             self.env.ref("purchase.menu_purchase_root").id
         ]
 
-    def _trigger_uom_warning(self):
-        res = super()._trigger_uom_warning()
+    def _should_warn_uom_change(self):
+        res = super()._should_warn_uom_change()
         if res:
             return res
         return self._has_order_lines("purchase.order.line")

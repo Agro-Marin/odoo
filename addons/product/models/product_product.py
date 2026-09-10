@@ -884,7 +884,7 @@ class ProductProduct(models.Model):
 
     @api.onchange("uom_id")
     def _onchange_uom_id(self):
-        if self._origin.uom_id == self.uom_id or not self._trigger_uom_warning():
+        if self._origin.uom_id == self.uom_id or not self._should_warn_uom_change():
             return None
         message = self.env._(
             "Changing the unit of measure for your product will apply a conversion 1 %(old_uom_name)s = 1 %(new_uom_name)s.\n"
@@ -965,7 +965,7 @@ class ProductProduct(models.Model):
             "target": "new",
         }
 
-    def _filter_to_unlink(self):
+    def _filtered_to_unlink(self):
         return self
 
     def get_contextual_price(self):
@@ -1522,7 +1522,7 @@ class ProductProduct(models.Model):
             else:
                 record[variant_field] = record[template_field]
 
-    def _trigger_uom_warning(self):
+    def _should_warn_uom_change(self):
         return False
 
     def _unlink_or_archive(self, check_access=True):
@@ -1530,7 +1530,7 @@ class ProductProduct(models.Model):
             self.check_access("unlink")
             self.check_access("write")
             self = self.sudo()
-            to_unlink = self._filter_to_unlink()
+            to_unlink = self._filtered_to_unlink()
             to_archive = self - to_unlink
             to_archive.write({"active": False})
             self = to_unlink

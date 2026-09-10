@@ -136,7 +136,7 @@ class StockLocationPutaway(models.Model):
             },
         )
 
-    def _putaway_memo(self, key, factory):
+    def _memoize_putaway(self, key, factory):
         scan = self.env.context.get(CONTEXT_PUTAWAY_SCAN)
         if scan is None:
             return factory()
@@ -158,7 +158,7 @@ class StockLocationPutaway(models.Model):
             return {}
         by_package = bool(package and package.package_type_id)
         exclude_sml_ids = list(self.env.context.get("exclude_sml_ids", set()))
-        return self._putaway_memo(
+        return self._memoize_putaway(
             (
                 "stored_qty",
                 by_package,
@@ -245,7 +245,7 @@ class StockLocationPutaway(models.Model):
     def _get_putaway_capacity(self, product, package=None):
         if not self:
             return PutawayCapacity({}, frozenset(), 0.0)
-        stored = self._putaway_memo(
+        stored = self._memoize_putaway(
             (
                 "capacity",
                 product.id,

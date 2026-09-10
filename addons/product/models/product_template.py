@@ -700,7 +700,7 @@ class ProductTemplate(models.Model):
             self._origin.uom_id == self.uom_id
             or not self.with_context(
                 active_test=False
-            ).product_variant_ids._trigger_uom_warning()
+            ).product_variant_ids._should_warn_uom_change()
         ):
             return None
         message = _(

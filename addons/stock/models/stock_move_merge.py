@@ -331,7 +331,7 @@ class StockMoveMerge(models.Model):
             return uom_quantity
         return None
 
-    def _convert_to_move_uom(self, product_uom_qty):
+    def _product_uom_qty_to_move_uom_qty(self, product_uom_qty):
         self.check_singleton()
         return self.product_id.uom_id._compute_quantity(
             product_uom_qty,

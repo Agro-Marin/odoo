@@ -499,7 +499,7 @@ class TestQuantSearchShape(TestStockCommon):
             "UPDATE stock_quant SET quantity = 1e-9 WHERE id = %s", [quant.id]
         )
         self.env.invalidate_all()
-        self.Quant._unlink_zero_quants(products=product, locations=self.loc)
+        self.Quant._remove_zero_quants(products=product, locations=self.loc)
         self.assertFalse(
             quant.exists(),
             "a residue below the rounding precision is still a zero quant",
@@ -513,7 +513,7 @@ class TestQuantSearchShape(TestStockCommon):
             {"product_id": product.id, "location_id": self.loc.id, "quantity": 0.01}
         )
         self.env.flush_all()
-        self.Quant._unlink_zero_quants(products=product, locations=self.loc)
+        self.Quant._remove_zero_quants(products=product, locations=self.loc)
         self.assertTrue(quant.exists())
 
 

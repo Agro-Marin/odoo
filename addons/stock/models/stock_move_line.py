@@ -386,7 +386,7 @@ class StockMoveLine(models.Model):
             packages_to_check = self._get_package_dests()
 
         updates = self._get_write_field_updates(vals)
-        moves_to_recompute_state = self._resync_reservation(vals, updates)
+        moves_to_recompute_state = self._sync_quant_reservation(vals, updates)
         reservation_touched = bool(updates) or "quantity" in vals
 
         to_restock, to_adjust = (

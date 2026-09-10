@@ -88,7 +88,7 @@ class TestLotSerial(TestStockCommon):
             lambda q: q.location_id == self.locationA
         ).move_quants(location_dest_id=self.locationC)
         self.StockQuantObj.invalidate_model()
-        self.StockQuantObj._unlink_zero_quants()
+        self.StockQuantObj._remove_zero_quants()
         self.assertEqual(self.lot_p_a.location_id, self.locationC)
 
     def test_import_lots(self):

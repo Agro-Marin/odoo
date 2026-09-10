@@ -115,7 +115,7 @@ class StockRoute(models.Model):
         res = super().write(vals)
         if vals.get("active"):
             for warehouse in self.sudo().supplier_wh_id:
-                warehouse._align_resupply_rule_activity()
+                warehouse._update_resupply_rule_activity()
         return res
 
     def copy_data(self, default=None):

@@ -686,9 +686,9 @@ class StockWarehouseRoute(models.Model):
                     for location in transit_legs.location_dest_id
                 ]
             )
-        self._align_resupply_rule_activity(multi_step=change_to_multiple)
+        self._update_resupply_rule_activity(multi_step=change_to_multiple)
 
-    def _align_resupply_rule_activity(self, multi_step=None):
+    def _update_resupply_rule_activity(self, multi_step=None):
         self.check_singleton()
         Rule = self.env["stock.rule"].with_context(active_test=False)
         routes = self._get_resupply_routes()

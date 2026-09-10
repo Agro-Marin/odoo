@@ -660,7 +660,7 @@ class StockQuantReservation(models.Model):
     def _run_maintenance_tasks(self):
         self._merge_quants()
         self._sync_reserved_quantities()
-        self._unlink_zero_quants()
+        self._remove_zero_quants()
 
     @api.model
     def _merge_quants(self):
@@ -800,7 +800,7 @@ class StockQuantReservation(models.Model):
             )
 
     @api.model
-    def _unlink_zero_quants(self, products=None, locations=None):
+    def _remove_zero_quants(self, products=None, locations=None):
         self.env["stock.quant"].flush_model(
             ["quantity", "reserved_quantity", "inventory_quantity", "user_id"]
         )

@@ -323,7 +323,7 @@ class ProductTemplate(models.Model):
                 active_test=False
             ).product_variant_ids
             Quant._sync_reserved_quantities(products=products)
-            templates_to_reset._reset_inventory()
+            templates_to_reset._apply_zero_inventory()
         if templates_losing_storage:
             Quant._sync_reserved_quantities(
                 products=templates_losing_storage.with_context(
@@ -636,7 +636,7 @@ class ProductTemplate(models.Model):
             )
         )
 
-    def _reset_inventory(self):
+    def _apply_zero_inventory(self):
         move_line_domain = Domain(
             [
                 (

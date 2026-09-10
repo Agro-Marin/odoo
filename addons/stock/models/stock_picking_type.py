@@ -289,7 +289,7 @@ class StockPickingType(models.Model):
     def unlink(self):
         sequences = self.sequence_id
         result = super().unlink()
-        self._unlink_orphaned_sequences(sequences)
+        self._remove_orphaned_sequences(sequences)
         return result
 
     def write(self, vals):

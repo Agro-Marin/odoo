@@ -157,11 +157,11 @@ class TestCompanyStockProvisioning(TransactionCase):
 
     def test_bootstrap_first_warehouse_is_noop_when_warehouse_exists(self):
         before = self.env["stock.warehouse"].search_count([])
-        self.env["res.company"].bootstrap_first_warehouse()
+        self.env["res.company"].create_missing_warehouse()
         self.assertEqual(
             self.env["stock.warehouse"].search_count([]),
             before,
-            "bootstrap_first_warehouse must not create a warehouse when one exists",
+            "create_missing_warehouse must not create a warehouse when one exists",
         )
 
     def test_get_text_validation_gate(self):

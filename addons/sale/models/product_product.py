@@ -57,13 +57,13 @@ class ProductProduct(models.Model):
         action["display_name"] = _("Sales History for %s", self.display_name)
         return action
 
-    def _filter_to_unlink(self):
+    def _filtered_to_unlink(self):
         domain = [("product_id", "in", self.ids)]
         lines = self.env["sale.order.line"]._read_group(domain, ["product_id"])
         linked_product_ids = [product.id for [product] in lines]
         return super(
             ProductProduct, self - self.browse(linked_product_ids)
-        )._filter_to_unlink()
+        )._filtered_to_unlink()
 
     def _get_backend_root_menu_ids(self):
         return super()._get_backend_root_menu_ids() + [
@@ -73,8 +73,8 @@ class ProductProduct(models.Model):
     def _get_invoice_policy(self):
         return self.invoice_policy
 
-    def _trigger_uom_warning(self):
-        res = super()._trigger_uom_warning()
+    def _should_warn_uom_change(self):
+        res = super()._should_warn_uom_change()
         if res:
             return res
         return self._has_order_lines("sale.order.line")

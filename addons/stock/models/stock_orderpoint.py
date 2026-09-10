@@ -272,14 +272,14 @@ class StockWarehouseOrderpoint(models.Model):
             )
 
     @api.model
-    def _mark_manual_qty_override(self, vals):
+    def _update_vals_manual_qty_override(self, vals):
         if "qty_to_order_manual" in vals and "qty_to_order_manual_set" not in vals:
             vals = dict(vals, qty_to_order_manual_set=True)
         return vals
 
     @api.model_create_multi
     def create(self, vals_list):
-        vals_list = [self._mark_manual_qty_override(vals) for vals in vals_list]
+        vals_list = [self._update_vals_manual_qty_override(vals) for vals in vals_list]
         default_trigger = None
         if any(vals.get("snoozed_until") for vals in vals_list):
             default_trigger = self.default_get(["trigger"])["trigger"]
@@ -295,7 +295,7 @@ class StockWarehouseOrderpoint(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        vals = self._mark_manual_qty_override(vals)
+        vals = self._update_vals_manual_qty_override(vals)
         if "company_id" in vals:
             for orderpoint in self:
                 if orderpoint.company_id.id != vals["company_id"]:

@@ -341,10 +341,10 @@ class StockRule(models.Model):
                 vals["move_orig_ids"] = [Command.link(move.id)]
             vals_list.append(vals)
         new_moves = self.env["stock.move"].sudo().create(vals_list)
-        self._correct_pushed_moves(new_moves)
+        self._update_pushed_moves(new_moves)
         return dict(zip(moves.ids, new_moves, strict=True))
 
-    def _correct_pushed_moves(self, new_moves):
+    def _update_pushed_moves(self, new_moves):
         moves_by_final_location = defaultdict(list)
         for move in new_moves.filtered(lambda move: move._is_excluded_from_push()):
             moves_by_final_location[move.location_final_id.id].append(move.id)

@@ -42,7 +42,7 @@ class StockPickingPackage(models.Model):
         "move_line_ids.product_id.weight",
     )
     def _compute_weight_bulk(self):
-        weights = self._measure_total_by_picking(
+        weights = self._get_total_by_picking(
             [("result_package_id", "=", False)],
             "weight",
             "move_line_ids",
@@ -83,7 +83,7 @@ class StockPickingPackage(models.Model):
         "move_ids.product_id.volume",
     )
     def _compute_shipping_volume(self):
-        volumes = self._measure_total_by_picking(
+        volumes = self._get_total_by_picking(
             [],
             "volume",
             "move_ids",
@@ -91,7 +91,7 @@ class StockPickingPackage(models.Model):
         for picking in self:
             picking.shipping_volume = volumes[picking.id]
 
-    def _measure_total_by_picking(self, extra_domain, product_attr, lines_field):
+    def _get_total_by_picking(self, extra_domain, product_attr, lines_field):
         totals = defaultdict(float)
         saved = self.filtered("id")
         if saved:

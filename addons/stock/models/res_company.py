@@ -211,7 +211,7 @@ class ResCompany(models.Model):
         )
 
     @api.model
-    def bootstrap_first_warehouse(self):
+    def create_missing_warehouse(self):
         if self.env["stock.warehouse"].search_count([], limit=1):
             return
         self.env["res.company"].search([], limit=1)._create_warehouse()

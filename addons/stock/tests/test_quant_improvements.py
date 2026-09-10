@@ -274,14 +274,14 @@ class TestStockQuantImprovements(TestStockCommon):
             {"product_id": py.id, "location_id": self.loc.id, "quantity": 0.0}
         )
         self.env.cr.flush()
-        qx._unlink_zero_quants()
+        qx._remove_zero_quants()
         self.assertFalse(
             qx.exists(), "scoped call should remove the in-scope zero quant"
         )
         self.assertTrue(
             qy.exists(), "scoped call must not touch out-of-scope zero quants"
         )
-        self.env["stock.quant"]._unlink_zero_quants()
+        self.env["stock.quant"]._remove_zero_quants()
         self.assertFalse(qy.exists(), "model-level call should sweep all zero quants")
 
     def test_inventory_mode_create_can_set_what_write_forbids(self):
@@ -408,7 +408,7 @@ class TestStockQuantImprovements(TestStockCommon):
         )
         self.env.cr.flush()
 
-        self.Quant._unlink_zero_quants(products=px)
+        self.Quant._remove_zero_quants(products=px)
         self.assertFalse(in_scope.exists(), "a products-only scope must still sweep")
         self.assertFalse(
             out_of_location.exists(),
@@ -419,7 +419,7 @@ class TestStockQuantImprovements(TestStockCommon):
             "a products-only scope must not reach another product",
         )
 
-        self.Quant._unlink_zero_quants(locations=other_loc)
+        self.Quant._remove_zero_quants(locations=other_loc)
         self.assertTrue(
             out_of_product.exists(),
             "a locations-only scope must not reach another location",

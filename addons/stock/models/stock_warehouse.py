@@ -705,7 +705,7 @@ class StockWarehouse(models.Model):
             values = {depend: self[depend] for depend in reactivate_depends}
             if values:
                 self.write(values)
-            self._align_resupply_rule_activity()
+            self._update_resupply_rule_activity()
 
     def _check_archivable(self, picking_types, deleting=False):
         PickingType = self.env["stock.picking.type"].with_context(active_test=False)

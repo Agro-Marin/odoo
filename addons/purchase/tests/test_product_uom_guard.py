@@ -34,11 +34,11 @@ class TestProductUomGuard(TransactionCase):
         )
 
     def test_untouched_product_changes_unit_silently(self):
-        self.assertFalse(self.product._trigger_uom_warning())
+        self.assertFalse(self.product._should_warn_uom_change())
 
     def test_ordered_product_warns_before_changing_unit(self):
         self._order()
-        self.assertTrue(self.product._trigger_uom_warning())
+        self.assertTrue(self.product._should_warn_uom_change())
 
     def test_changing_the_unit_rewrites_the_order_lines(self):
         order = self._order()

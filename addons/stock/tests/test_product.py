@@ -128,7 +128,7 @@ class TestVirtualAvailable(TestStockCommon):
             product.company_id = company2.id
         quant = self.env["stock.quant"].search([("product_id", "=", product.id)])
         quant.quantity = 0
-        self.env["stock.quant"]._unlink_zero_quants()
+        self.env["stock.quant"]._remove_zero_quants()
         product.company_id = company2.id
 
     def test_change_product_company_02(self):

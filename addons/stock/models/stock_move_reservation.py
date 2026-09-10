@@ -68,7 +68,7 @@ class StockMoveReservation(models.Model):
             if outcome.redirect:
                 moves_to_redirect.add(move.id)
             if outcome.reserved and move.product_id.tracking == "serial":
-                serial_move_ids_by_qty[move._prefill_serial_count()].add(move.id)
+                serial_move_ids_by_qty[move._get_serial_count_to_prefill()].add(move.id)
 
         self._apply_reservation_outcomes(
             ledger,
@@ -573,7 +573,7 @@ class StockMoveReservation(models.Model):
                 round=False,
             )
 
-        if self.product_uom_id.is_zero(self._convert_to_move_uom(qty)):
+        if self.product_uom_id.is_zero(self._product_uom_qty_to_move_uom_qty(qty)):
             res.append(Command.delete(ml.id))
             return qty
 
@@ -592,7 +592,10 @@ class StockMoveReservation(models.Model):
             return qty - ml_qty
 
         qty -= min(qty, ml_qty)
-        if self.product_uom_id.compare(self._convert_to_move_uom(qty), 0) <= 0:
+        if (
+            self.product_uom_id.compare(self._product_uom_qty_to_move_uom_qty(qty), 0)
+            <= 0
+        ):
             return qty
         return self._grow_line_from_its_own_location(
             ml,
@@ -637,7 +640,10 @@ class StockMoveReservation(models.Model):
 
     def _spend_on_free_quants(self, qty, total_qty, res, consumed_quant):
         self.check_singleton()
-        if self.product_uom_id.compare(self._convert_to_move_uom(qty), 0.0) <= 0:
+        if (
+            self.product_uom_id.compare(self._product_uom_qty_to_move_uom_qty(qty), 0.0)
+            <= 0
+        ):
             return qty
         quants = self.env["stock.quant"]._get_reserve_quantity(
             self.product_id,
@@ -657,17 +663,25 @@ class StockMoveReservation(models.Model):
                     ),
                 ),
             )
-            if self.product_id.uom_id.compare(self._convert_to_move_uom(qty), 0.0) <= 0:
+            if (
+                self.product_id.uom_id.compare(
+                    self._product_uom_qty_to_move_uom_qty(qty), 0.0
+                )
+                <= 0
+            ):
                 break
         return qty
 
     def _add_unreserved_lines(self, qty, res):
         self.check_singleton()
-        if self.product_uom_id.compare(self._convert_to_move_uom(qty), 0.0) <= 0:
+        if (
+            self.product_uom_id.compare(self._product_uom_qty_to_move_uom_qty(qty), 0.0)
+            <= 0
+        ):
             return
         if self.product_id.tracking != "serial":
             vals = self._prepare_move_line_vals(quantity=0)
-            vals["quantity"] = self._convert_to_move_uom(qty)
+            vals["quantity"] = self._product_uom_qty_to_move_uom_qty(qty)
             res.append(Command.create(vals))
             return
         for _i in range(self._get_serial_line_count(qty)):
@@ -795,9 +809,9 @@ class StockMoveReservation(models.Model):
             )
             if not vals_list:
                 return []
-            self._record_pending_reservation(reserved_quant, quantity)
+            self._add_pending_reservation(reserved_quant, quantity)
             return vals_list
-        self._record_pending_reservation(reserved_quant, quantity)
+        self._add_pending_reservation(reserved_quant, quantity)
         return [
             self._prepare_move_line_vals(
                 quantity=quantity,
@@ -805,7 +819,7 @@ class StockMoveReservation(models.Model):
             ),
         ]
 
-    def _record_pending_reservation(self, quant, quantity):
+    def _add_pending_reservation(self, quant, quantity):
         ledger = self.env.context.get("reservation_ledger")
         if ledger is not None:
             ledger.take(quant, quantity)

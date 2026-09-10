@@ -248,7 +248,7 @@ class TestProductQuantityScope(TransactionCase):
         clean = self.env["product.product"].create(
             {"name": "Scope Clean", "is_storable": True, "type": "consu"}
         )
-        unlinkable = (with_stock | clean)._filter_to_unlink()
+        unlinkable = (with_stock | clean)._filtered_to_unlink()
         self.assertIn(clean, unlinkable)
         self.assertNotIn(with_stock, unlinkable)
 

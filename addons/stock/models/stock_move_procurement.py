@@ -288,7 +288,7 @@ class StockMoveProcurement(models.Model):
         for move, _rule, _foreign in plan:
             new_move = pushed.get(move.id) or moves.browse()
             new_moves |= new_move
-            move._rewire_dests_after_push(new_move)
+            move._update_move_dests_after_push(new_move)
         return new_moves.sudo()._action_confirm()
 
     def _plan_push(self):
@@ -335,7 +335,7 @@ class StockMoveProcurement(models.Model):
             return move, rule, foreign
         return move, StockRule.browse(), foreign
 
-    def _rewire_dests_after_push(self, new_move):
+    def _update_move_dests_after_push(self, new_move):
         self.check_singleton()
         move_to_propagate_ids = set()
         move_to_mts_ids = set()

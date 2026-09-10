@@ -341,7 +341,9 @@ class ReportStockReport_Reception(models.AbstractModel):
         new_outs.write({"state": "confirmed"})
         return new_outs, dict(zip(split_out_ids, new_outs, strict=True))
 
-    def _reassign_move_lines(self, out, new_out, potential_ins, qty_to_link):
+    def _update_move_lines_for_split_out(
+        self, out, new_out, potential_ins, qty_to_link
+    ):
         if potential_ins[0].state != "done" and out.quantity:
             out.move_line_ids.move_id = new_out
             return
@@ -416,7 +418,7 @@ class ReportStockReport_Reception(models.AbstractModel):
         for out, (_out_id, qty_to_link, ins) in zip(outs, assignments, strict=True):
             potential_ins = self.env["stock.move"].browse(ins)
             if out.id in out_to_new_out:
-                self._reassign_move_lines(
+                self._update_move_lines_for_split_out(
                     out, out_to_new_out[out.id], potential_ins, qty_to_link
                 )
             self._link_ins(out, potential_ins, qty_to_link)

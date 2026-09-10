@@ -65,7 +65,7 @@
         <function model="res.company" name="create_missing_inventory_loss_location" />
         <function model="res.company" name="create_missing_production_location" />
         <function model="res.company" name="create_missing_scrap_sequence" />
-        <function model="res.company" name="bootstrap_first_warehouse" />
+        <function model="res.company" name="create_missing_warehouse" />
         <record id="barcode_separator" model="ir.config_parameter" forcecreate="False">
             <field name="key">stock.barcode_separator</field>
             <field name="value">,</field>
