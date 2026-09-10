@@ -3,6 +3,7 @@ import datetime
 import io
 import json
 import mimetypes
+import re
 from ast import literal_eval
 from collections import defaultdict
 from itertools import groupby
@@ -23,7 +24,10 @@ from .account_report import (
     ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
     ACCOUNT_CODES_ENGINE_TERM_REGEX,
 )
-from .account_report_engine import ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX
+from .account_report_engine import (
+    ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX,
+    AccountReportFileDownloadException,
+)
 
 
 class AccountReportExport(models.Model):
@@ -1494,3 +1498,283 @@ class AccountReportExport(models.Model):
 
         errors_trie = self._regroup_accounts_coverage_report_errors_trie(errors_trie)
         return self._get_accounts_coverage_report_coverage_lines("", errors_trie)
+
+    @api.depends("country_id", "chart_template", "root_report_id")
+    def _compute_is_account_coverage_report_available(self):
+        for report in self:
+            report.is_account_coverage_report_available = (
+                (
+                    report.availability_condition == "country"
+                    and self.env.company.account_fiscal_country_id == report.country_id
+                )
+                or (
+                    report.availability_condition == "coa"
+                    and self.env.company.chart_template == report.chart_template
+                )
+                or report.availability_condition == "always"
+            ) and report.root_report_id in (
+                self.env.ref("account.profit_and_loss", raise_if_not_found=False),
+                self.env.ref("account.balance_sheet", raise_if_not_found=False),
+            )
+
+    def _get_accounts_coverage_report_errors_trie(
+        self,
+        all_reported_codes,
+        non_reported_codes,
+        duplicate_codes,
+        duplicate_codes_same_line,
+        non_existing_codes,
+    ):
+        """Create the trie used to regroup the same errors on the same subcodes, in the form:
+
+        {
+            "children": {
+                "1": {
+                    "children": {
+                        "10": { ... },
+                        "11": { ... },
+                    },
+                    "lines": {
+                        "Line1",
+                        "Line2",
+                    },
+                    "errors": {
+                        "DUPLICATE"
+                    }
+                },
+            "lines": {
+                "",
+            },
+            "errors": {
+                None    # Avoid that all codes are merged into the root with the code "" in case all of the errors are the same
+            },
+        }
+        """
+        errors_trie = {"children": {}, "lines": {}, "errors": {None}}
+        for reported_code in all_reported_codes:
+            current_trie = errors_trie
+            lines = self.env["account.report.line"]
+            errors = set()
+            if reported_code in non_reported_codes:
+                errors.add("NON_REPORTED")
+            elif reported_code in duplicate_codes_same_line:
+                lines |= duplicate_codes_same_line[reported_code]
+                errors.add("DUPLICATE_SAME_LINE")
+            elif reported_code in duplicate_codes:
+                lines |= duplicate_codes[reported_code]
+                errors.add("DUPLICATE")
+            elif reported_code in non_existing_codes:
+                lines |= non_existing_codes[reported_code]
+                errors.add("NON_EXISTING")
+            else:
+                errors.add("NONE")
+
+            for j in range(1, len(reported_code) + 1):
+                current_trie = current_trie["children"].setdefault(
+                    reported_code[:j],
+                    {"children": {}, "lines": lines, "errors": errors},
+                )
+        return errors_trie
+
+    @api.model
+    def _get_account_tag_coverage_report_errors_trie(
+        self, lines_per_non_linked_tag, lines_per_bad_operator_tag
+    ):
+        """As we don't want to make a hierarchy for tags, we use a specific
+        function to handle tags.
+        """
+        errors = {
+            non_linked_tag: {
+                "children": {},
+                "lines": line,
+                "errors": {"NON_LINKED"},
+            }
+            for non_linked_tag, line in lines_per_non_linked_tag.items()
+        }
+        errors.update(
+            {
+                bad_operator_tag: {
+                    "children": {},
+                    "lines": line,
+                    "errors": {"BAD_OPERATOR"},
+                }
+                for bad_operator_tag, line in lines_per_bad_operator_tag.items()
+            }
+        )
+        return errors
+
+    def _regroup_accounts_coverage_report_errors_trie(self, trie):
+        """Regroup the codes sharing the same error under their common subcode/prefix, in place on the given trie."""
+        if trie.get("children"):
+            children_errors = set()
+            children_lines = self.env["account.report.line"]
+            if trie.get("errors"):  # Add own error
+                children_errors |= set(trie.get("errors"))
+            for child in trie["children"].values():
+                regroup = self._regroup_accounts_coverage_report_errors_trie(child)
+                children_lines |= regroup["lines"]
+                children_errors |= set(regroup["errors"])
+            if (
+                len(children_errors) == 1
+                and children_lines
+                and children_lines == trie["lines"]
+            ):
+                trie["children"] = {}
+                trie["lines"] = children_lines
+                trie["errors"] = children_errors
+        return trie
+
+    def _get_accounts_coverage_report_coverage_lines(
+        self, subcode, trie, coverage_lines=None
+    ):
+        """Create the coverage lines from the grouped trie. Each line has:
+
+        - the account code
+        - the error message
+        - the lines on which the account code is used
+        - the color of the error message for the xlsx
+        """
+        # Dictionnary of the three possible errors, their message and the corresponding color for the xlsx file
+        ERRORS = {
+            "NON_REPORTED": {
+                "msg": _(
+                    "This account exists in the Chart of Accounts but is not mentioned in any line of the report"
+                ),
+                "color": "#FF0000",
+            },
+            "DUPLICATE": {
+                "msg": _("This account is reported in multiple lines of the report"),
+                "color": "#FF8916",
+            },
+            "DUPLICATE_SAME_LINE": {
+                "msg": _(
+                    "This account is reported multiple times on the same line of the report"
+                ),
+                "color": "#E6A91D",
+            },
+            "NON_EXISTING": {
+                "msg": _(
+                    "This account is reported in a line of the report but does not exist in the Chart of Accounts"
+                ),
+                "color": "#FFBF00",
+            },
+            "NON_LINKED": {
+                "msg": _(
+                    "This tag is reported in a line of the report but is not linked to any account of the Chart of Accounts"
+                ),
+                "color": "#FFBF00",
+            },
+            "BAD_OPERATOR": {
+                "msg": _("The used operator is not supported for this expression."),
+                "color": "#FFBF00",
+            },
+        }
+        if coverage_lines is None:
+            coverage_lines = []
+        if trie.get("children"):
+            for child in trie.get("children"):
+                self._get_accounts_coverage_report_coverage_lines(
+                    child, trie["children"][child], coverage_lines
+                )
+        else:
+            error = next(iter(trie["errors"])) if trie["errors"] else False
+            if error and error != "NONE":
+                coverage_lines.append(
+                    [
+                        subcode,
+                        ERRORS[error]["msg"],
+                        " + ".join(trie["lines"].sorted().mapped("name")),
+                        ERRORS[error]["color"],
+                    ]
+                )
+        return coverage_lines
+
+    def get_default_report_filename(self, options, extension):
+        """The default to be used for the file when downloading pdf,xlsx,..."""
+        self.check_singleton()
+        if title := options.get("report_title"):
+            return title
+        if "sections_source_id" not in options:
+            return _("report.%(file_extension)s", file_extension=extension)
+
+        def _transform_period(period=""):
+            if dates := re.findall(r"\d{2}/\d{2}/\d{4}", period):
+                return f"{'_'.join(dates).replace('/', '')}"
+            # We replace _-_ to handle periods with type 'quarter'
+            return f"{period.replace(' ', '_').replace('_-_', '_').lower()}"
+
+        def _get_company_name(companies):
+            if companies and len(companies) == 1:
+                return f"_{companies[0]['name'].replace(' ', '_').lower()}"
+            return ""
+
+        period = options.get("date", {}).get("string")
+        sections_source_id = options["sections_source_id"]
+        if sections_source_id != self.id:
+            sections_source = self.env["account.report"].browse(sections_source_id)
+        else:
+            sections_source = self
+
+        return f"{sections_source.name.lower().replace(' ', '_')}_{_transform_period(period)}{_get_company_name(options['companies'])}.{extension}"
+
+    def _get_layout_footer(self, rcontext):
+        if self.env.context.get("exclude_page_footer"):
+            return None
+        else:
+            footer_html = self.env["ir.actions.report"]._render_template(
+                "account.internal_layout", values=rcontext
+            )
+            footer_html = self.env["ir.actions.report"]._render_template(
+                "web.minimal_layout",
+                values=dict(
+                    rcontext, subst=True, body=markupsafe.Markup(footer_html.decode())
+                ),
+            )
+            return footer_html.decode()
+
+    def _generate_file_data_with_error_check(
+        self, options, content_generator, generator_params, errors
+    ):
+        """Checks for critical errors (i.e. errors that would cause the rendering to fail) in the generator values.
+        If at least one error is critical, the 'account.report.file.download.error.wizard' wizard is opened
+        before rendering the file, so they can be fixed.
+        If there are only non-critical errors, the wizard is opened after the file has been generated,
+        allowing the user to download it anyway.
+
+        :param dict options: The report options.
+        :param def content_generator: The function used to generate the exported content.
+        :param dict generator_params: The parameters passed to the 'content_generator' method (List).
+        :param dict errors: A dict of errors in the following format:
+            {
+                key: {
+                    'message': The error message to be displayed in the wizard (String),
+                    'action_text': The text of the action button (String),
+                    'action': Contains the action values (Dictionary),
+                    'level': One of 'info', 'warning', 'danger'. (String).
+                             Only the 'danger' level represents a blocking error.
+                },
+                key: {...},
+            }
+        :returns: The data that will be used by the file generator.
+        :rtype: dict
+        """
+        if errors is None:
+            errors = []
+        self.check_singleton()
+        if any(error_value.get("level") == "danger" for error_value in errors.values()):
+            raise AccountReportFileDownloadException(errors)
+
+        content = content_generator(**generator_params)
+
+        file_data = {
+            "file_name": self.get_default_report_filename(
+                options, generator_params["file_type"]
+            ),
+            "file_content": re.sub(r"\n\s*\n", "\n", content).encode(),
+            "file_type": generator_params["file_type"],
+        }
+
+        if errors:
+            raise AccountReportFileDownloadException(errors, file_data)
+
+        return file_data

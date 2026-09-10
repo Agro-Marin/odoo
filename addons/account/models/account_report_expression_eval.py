@@ -5,11 +5,11 @@ from ast import literal_eval
 from collections import defaultdict, deque
 from itertools import chain
 
-from odoo import _, models
+from odoo import _, api, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.libs.numbers import float_round
-from odoo.tools import SQL
+from odoo.tools import SQL, Query
 from odoo.tools.safe_eval import expr_eval, safe_eval
 
 from .account_report_engine import (
@@ -1919,3 +1919,205 @@ class AccountReportExpressionEval(models.Model):
             return literal_eval(expression_to_audit.formula)
 
         return None
+
+    @api.model
+    def _currency_table_apply_rate(self, value: SQL) -> SQL:
+        """Returns an SQL term to use in a SELECT statement converting the value passed as parameter into the current company's currency, using the
+        currency table (which must be joined in the query as well ; using _currency_table_aml_join for account.move.line, or _get_currency_table for
+        other more specific uses).
+        """
+        return SQL(
+            "(%(value)s) * COALESCE(account_currency_table.rate, 1)", value=value
+        )
+
+    @api.model
+    def _currency_table_aml_join(
+        self,
+        options,
+        aml_alias=SQL("account_move_line"),  # noqa: B008
+    ) -> SQL:
+        """Returns the JOIN condition to the currency table in a query needing to use it to convert aml balances from one currency to another."""
+        if options["currency_table"]["type"] == "cta":
+            return SQL(
+                """
+                    JOIN account_account aml_ct_account
+                        ON aml_ct_account.id = %(aml_table)s.account_id
+                    LEFT JOIN %(currency_table)s
+                        ON %(aml_table)s.company_id = account_currency_table.company_id
+                        AND (
+                            account_currency_table.rate_type = CASE
+                                WHEN aml_ct_account.account_type LIKE ANY (ARRAY[%(income_prefix)s, %(expense_prefix)s, 'equity_unaffected']) THEN 'average'
+                                WHEN aml_ct_account.account_type LIKE %(equity_prefix)s THEN 'historical'
+                                ELSE 'current'
+                            END
+                        )
+                        AND (account_currency_table.date_from IS NULL OR account_currency_table.date_from <= %(aml_table)s.date)
+                        AND (account_currency_table.date_next IS NULL OR account_currency_table.date_next > %(aml_table)s.date)
+                        AND (account_currency_table.period_key = %(period_key)s OR account_currency_table.period_key IS NULL)
+                """,
+                aml_table=aml_alias,
+                equity_prefix="equity%",
+                income_prefix="income%",
+                expense_prefix="expense%",
+                currency_table=self._get_currency_table(options),
+                period_key=options["date"]["currency_table_period_key"],
+            )
+
+        return SQL(
+            """
+                JOIN %(currency_table)s
+                    ON %(aml_table)s.company_id = account_currency_table.company_id
+                    AND (account_currency_table.period_key = %(period_key)s OR account_currency_table.period_key IS NULL)
+            """,
+            aml_table=aml_alias,
+            currency_table=self._get_currency_table(options),
+            period_key=options["date"]["currency_table_period_key"],
+        )
+
+    @api.model
+    def _get_currency_table(self, options) -> SQL:
+        """Returns the currency table table definition to be injected in the JOIN condition of an SQL query needing to use it."""
+        if options["currency_table"]["type"] == "monocurrency":
+            companies = self.env["res.company"].browse(
+                self.get_report_company_ids(options)
+            )
+            # No CTA rates here by construction: this branch is the monocurrency one.
+            return self.env["res.currency"]._get_monocurrency_currency_table_sql(
+                companies, use_cta_rates=False
+            )
+
+        return SQL("account_currency_table")
+
+    def _get_report_query(self, options, date_scope, domain=None) -> Query:
+        """Get a Query object that references the records needed for this report."""
+        domain = self._get_options_domain(options, date_scope) & Domain(
+            domain or Domain.TRUE
+        )
+
+        if options.get("compute_budget"):
+            # remove required columns that are not filled from the domain
+            # these are not in the budget table
+            domain = domain.optimize(self.env["account.move.line"])
+            aml_required_columns = {
+                "move_id",
+                "currency_id",
+                "journal_id",
+                "display_type",
+            }
+            domain = domain.map_conditions(
+                lambda condition: (
+                    Domain.TRUE
+                    if condition.field_expr in aml_required_columns
+                    else condition
+                )
+            )
+
+        query = self.env["account.move.line"]._search(domain)
+
+        if options.get("compute_budget"):
+            query._tables["account_move_line"] = (
+                self._create_aml_shadowing_query_for_budget(options)
+            )
+            # add_where appends to the query's where clauses, which are already ANDed
+            # together; passing query.where_clause back in would emit the whole domain twice.
+            query.add_where(SQL("budget_id = %s", options["compute_budget"]))
+
+        return query
+
+    def _get_engine_query_tail(self, offset, limit) -> SQL:
+        """Helper to generate the OFFSET, LIMIT and ORDER conditions of formula engines' queries."""
+        query_tail = SQL()
+
+        if offset:
+            query_tail = SQL("%s OFFSET %s", query_tail, offset)
+
+        if limit:
+            query_tail = SQL("%s LIMIT %s", query_tail, limit)
+
+        return query_tail
+
+    def _get_batch_model_ids(self, batch_model, domain, batch_ids_cache=None):
+        """Resolve a batched domain to the ids of the comodel records it selects.
+
+        The domain comes from the expression's formula alone, so the answer is the same
+        for every column group of a render; batch_ids_cache, when the caller provides
+        one, holds it for the duration of that render.
+        """
+        if not batch_model:
+            return [None]
+
+        cache_key = (batch_model, repr(domain))
+        if batch_ids_cache is not None and cache_key in batch_ids_cache:
+            return batch_ids_cache[cache_key]
+
+        ids = self.env[batch_model].with_context(active_test=False).search(domain).ids
+        if batch_ids_cache is not None:
+            batch_ids_cache[cache_key] = ids
+        return ids
+
+    @api.model
+    def _is_id_positive_condition(self, operator, value):
+        """Whether (many2one_field, operator, value) keeps its meaning when rewritten as a
+        condition on the comodel's id, as the domain engine's batching does.
+        """
+        if operator == "=":
+            return isinstance(value, int) and not isinstance(value, bool)
+        if operator == "in":
+            return isinstance(value, (list, tuple, set)) and all(
+                isinstance(v, int) and not isinstance(v, bool) for v in value
+            )
+        return False
+
+    def _check_groupby_fields(self, groupby_fields_name: list[str] | str):
+        """Checks that each string in the groupby_fields_name list is a valid groupby value for an accounting report.
+        So it must be:
+        - a field from account.move.line which is (1) searchable and (2) for which _field_to_sql is implemented,
+          this includes stored and related non-stored fields, or
+        - a custom value allowed by the _get_custom_groupby_map function of the custom handler
+        """
+        self.check_singleton()
+        if isinstance(groupby_fields_name, str | bool):
+            groupby_fields_name = (
+                groupby_fields_name.split(",") if groupby_fields_name else []
+            )
+
+        custom_handler_name = self._get_custom_handler_model()
+
+        for field_name in (fname.strip() for fname in groupby_fields_name):
+            groupby_field = self.env["account.move.line"]._fields.get(field_name)
+            if groupby_field:
+                if not groupby_field._description_searchable:
+                    raise UserError(
+                        self.env._(
+                            "Field %s of account.move.line is not searchable and can therefore not be used in a groupby expression.",
+                            field_name,
+                        )
+                    )
+                try:
+                    self.env["account.move.line"]._field_to_sql(
+                        "account_move_line",
+                        field_name,
+                        Query(self.env, "account_move_line"),
+                    )
+                except ValueError:
+                    raise UserError(
+                        self.env._(
+                            "Field %s of account.move.line cannot be used in a groupby expression.",
+                            field_name,
+                        )
+                    ) from None
+            elif custom_handler_name:
+                if (
+                    field_name
+                    not in self.env[custom_handler_name]._get_custom_groupby_map()
+                ):
+                    raise UserError(
+                        _(
+                            "Field %s does not exist on account.move.line, and is not supported by this report's custom handler.",
+                            field_name,
+                        )
+                    )
+            else:
+                raise UserError(
+                    _("Field %s does not exist on account.move.line.", field_name)
+                )

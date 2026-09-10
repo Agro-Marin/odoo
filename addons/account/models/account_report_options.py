@@ -8,7 +8,9 @@ from odoo import _, api, fields, models, modules
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import date_utils
+from odoo.tools.misc import format_date
 
+from .account_report_engine import CURRENCIES_USING_LAKH
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
 
@@ -1868,3 +1870,227 @@ class AccountReportOptions(models.Model):
             dates_domain = Domain.OR(unlinked_comparison_periods_domains_list)
 
         return dates_domain
+
+    @api.model
+    def _get_dates_period(
+        self, date_from, date_to, mode, period_type=None, options_return=False
+    ):
+        """Compute some information about the period:
+        * The name to display on the report.
+        * The period type (e.g. quarter) if not specified explicitly.
+        :param date_from:   The starting date of the period.
+        :param date_to:     The ending date of the period.
+        :param mode:        'single' for a date-based period, 'range' for a date range.
+        :param period_type: The type of the interval date_from -> date_to.
+        :param options_return: The 'return_period' options, needed to name a 'return_period' period.
+        :return:            A dictionary containing:
+            * date_from * date_to * string * period_type * mode * currency_table_period_key *
+        """
+
+        def match(dt_from, dt_to):
+            return (dt_from, dt_to) == (date_from, date_to)
+
+        def get_quarter_name(date_to, date_from):
+            date_to_quarter_string = format_date(
+                self.env, fields.Date.to_string(date_to), date_format="MMM yyyy"
+            )
+            date_from_quarter_string = format_date(
+                self.env, fields.Date.to_string(date_from), date_format="MMM"
+            )
+            return f"{date_from_quarter_string} - {date_to_quarter_string}"
+
+        string = None
+        # If no date_from or not date_to, we are unable to determine a period
+        if not period_type or period_type == "custom":
+            date = date_to or date_from
+            company_fiscalyear_dates = self.env.company.compute_fiscalyear_dates(date)
+            if match(
+                company_fiscalyear_dates["date_from"],
+                company_fiscalyear_dates["date_to"],
+            ):
+                period_type = "fiscalyear"
+                if company_fiscalyear_dates.get("record"):
+                    string = company_fiscalyear_dates["record"].name
+            elif match(*date_utils.get_month(date)):
+                period_type = "month"
+            elif match(*date_utils.get_quarter(date)):
+                period_type = "quarter"
+            elif match(*date_utils.get_fiscal_year(date)):
+                period_type = "year"
+            elif match(date_utils.get_month(date)[0], fields.Date.today()):
+                period_type = "today"
+            else:
+                period_type = "custom"
+        elif period_type == "fiscalyear":
+            date = date_to or date_from
+            company_fiscalyear_dates = self.env.company.compute_fiscalyear_dates(date)
+            record = company_fiscalyear_dates.get("record")
+            string = record and record.name
+        elif period_type == "return_period" and options_return:
+            day = options_return["start_day"]
+            month = options_return["start_month"]
+            string = self.env["account.return.type"]._get_period_name(
+                period_from=fields.Date.to_string(date_from),
+                period_to=fields.Date.to_string(date_to),
+                start_day=day,
+                start_month=month,
+            )
+
+        if not string:
+            fy_day = self.env.company.fiscalyear_last_day
+            fy_month = int(self.env.company.fiscalyear_last_month)
+            if mode == "single":
+                string = _("As of %s", format_date(self.env, date_to))
+            elif period_type == "year" or (
+                period_type == "fiscalyear"
+                and (date_from, date_to) == date_utils.get_fiscal_year(date_to)
+            ):
+                string = date_to.strftime("%Y")
+            elif period_type == "fiscalyear" and (
+                date_from,
+                date_to,
+            ) == date_utils.get_fiscal_year(date_to, day=fy_day, month=fy_month):
+                string = "%s - %s" % (date_to.year - 1, date_to.year)
+            elif period_type == "month":
+                string = format_date(
+                    self.env, fields.Date.to_string(date_to), date_format="MMM yyyy"
+                )
+            elif period_type == "quarter":
+                string = get_quarter_name(date_to, date_from)
+            else:
+                dt_from_str = format_date(self.env, fields.Date.to_string(date_from))
+                dt_to_str = format_date(self.env, fields.Date.to_string(date_to))
+                string = _(
+                    "%(date_from)s - %(date_to)s",
+                    date_from=dt_from_str,
+                    date_to=dt_to_str,
+                )
+
+        return {
+            "string": string,
+            "period_type": period_type,
+            "currency_table_period_key": f"{date_from if mode == 'range' else 'None'}_{date_to}",
+            "mode": mode,
+            "date_from": (date_from and fields.Date.to_string(date_from)) or False,
+            "date_to": fields.Date.to_string(date_to),
+        }
+
+    @api.model
+    def _get_shifted_dates_period(
+        self, options, period_vals, periods, return_period=False
+    ):
+        """Shift the period.
+        :param options:     The report options.
+        :param period_vals: A dictionary generated by the _get_dates_period method.
+        :param periods:     The number of periods we want to move either in the future or the past
+        :param return_period: Force the shift to follow the return periodicity of options.
+        :return:            A dictionary in the format returned by _get_dates_period, or None
+                            for a period_type this method cannot shift.
+        """
+        period_type = period_vals["period_type"]
+        mode = period_vals["mode"]
+        date_from = fields.Date.from_string(period_vals["date_from"])
+        date_to = fields.Date.from_string(period_vals["date_to"])
+        if period_type == "month":
+            date_to = date_from + relativedelta(months=periods)
+        elif period_type == "quarter":
+            date_to = date_from + relativedelta(months=3 * periods)
+        elif period_type == "year":
+            date_to = date_from + relativedelta(years=periods)
+        elif period_type in {"custom", "today"}:
+            date_to = date_from + relativedelta(days=periods)
+
+        if return_period or "return_period" in period_type:
+            month_per_period = options["return_periodicity"]["months_per_period"]
+            return_type = self.env["account.return.type"].browse(
+                options["return_periodicity"]["return_type_id"]
+            )
+            date_from, date_to = return_type._get_period_boundaries(
+                self.env.company,
+                date_from + relativedelta(months=month_per_period * periods),
+            )
+            return self._get_dates_period(
+                date_from,
+                date_to,
+                mode,
+                period_type="return_period",
+                options_return=options["return_periodicity"],
+            )
+        if period_type in ("fiscalyear", "today"):
+            # Don't pass the period_type to _get_dates_period to be able to retrieve the account.fiscal.year record if
+            # necessary.
+            company_fiscalyear_dates = {}
+            # This loop is needed because a fiscal year can be a month, quarter, etc
+            for _ in range(abs(periods)):
+                date_to = (date_from if periods < 0 else date_to) + relativedelta(
+                    days=periods / abs(periods)
+                )
+                company_fiscalyear_dates = self.env.company.compute_fiscalyear_dates(
+                    date_to
+                )
+                if periods < 0:
+                    date_from = company_fiscalyear_dates["date_from"]
+                else:
+                    date_to = company_fiscalyear_dates["date_to"]
+
+            return self._get_dates_period(
+                company_fiscalyear_dates["date_from"],
+                company_fiscalyear_dates["date_to"],
+                mode,
+            )
+        if period_type in ("month", "custom"):
+            return self._get_dates_period(
+                *date_utils.get_month(date_to), mode, period_type="month"
+            )
+        if period_type == "quarter":
+            return self._get_dates_period(
+                *date_utils.get_quarter(date_to), mode, period_type="quarter"
+            )
+        if period_type == "year":
+            return self._get_dates_period(
+                *date_utils.get_fiscal_year(date_to), mode, period_type="year"
+            )
+        return None
+
+    def _get_filter_journals(self, options, additional_domain=None):
+        return (
+            self.env["account.journal"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    *self.env["account.journal"]._check_company_domain(
+                        self.get_report_company_ids(options)
+                    ),
+                    *(additional_domain or []),
+                ],
+                order="company_id, name",
+            )
+        )
+
+    def _get_filter_journal_groups(self, options):
+        return self.env["account.journal.group"].search(
+            [
+                *self.env["account.journal.group"]._check_company_domain(
+                    self.get_report_company_ids(options)
+                ),
+            ],
+            order="sequence",
+        )
+
+    def _get_rounding_unit_names(self):
+        currency_symbol = self.env.company.currency_id.symbol
+        currency_name = self.env.company.currency_id.name
+
+        rounding_unit_names = [
+            ("decimals", (f".{currency_symbol}", "")),
+            ("units", (f"{currency_symbol}", "")),
+            ("thousands", (f"K{currency_symbol}", _("Amounts in Thousands"))),
+            ("millions", (f"M{currency_symbol}", _("Amounts in Millions"))),
+        ]
+
+        if currency_name in CURRENCIES_USING_LAKH:
+            rounding_unit_names.insert(
+                3, ("lakhs", (f"L{currency_symbol}", _("Amounts in Lakhs")))
+            )
+
+        return dict(rounding_unit_names)
