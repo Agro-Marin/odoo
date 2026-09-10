@@ -284,6 +284,7 @@ class AccountMove(models.Model):
     _sequence_index = "journal_id"
     _rec_names_search = ["name", "partner_id.name", "ref"]
     _mailing_enabled = True
+    _operation_checkpoints = {"action_post": "_post_check_business_rules"}
 
     @property
     def _sequence_monthly_regex(self):

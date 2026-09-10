@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 21:02+0000\n"
-"PO-Revision-Date: 2026-09-10 21:02+0000\n"
+"POT-Creation-Date: 2026-09-10 21:16+0000\n"
+"PO-Revision-Date: 2026-09-10 21:16+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -260,6 +260,15 @@ msgid ""
 "%(record)s needs an approval before %(method)s can run.\n"
 "\n"
 "Ask for approval on the document first."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(records)s need an approval before %(operation)s can run, and this way of "
+"running it cannot ask for one. Use %(operation)s itself, which raises the "
+"request."
 msgstr ""
 
 #. module: approval

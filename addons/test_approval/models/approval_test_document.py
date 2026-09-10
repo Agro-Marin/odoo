@@ -7,6 +7,7 @@ class ApprovalTestDocument(models.Model):
     _name = "approval.test.document"
     _description = "Test Document for Approval Mixin"
     _inherit = ["mixin.mail.thread", "mixin.approval"]
+    _operation_checkpoints = {"action_record_operation": "_check_record_operation"}
 
     name = fields.Char(required=True, tracking=True)
     description = fields.Text()
@@ -51,8 +52,19 @@ class ApprovalTestDocument(models.Model):
     )
 
     def action_record_operation(self) -> None:
+        self._record_operation()
+
+    def action_record_operation_from_list(self) -> dict[str, Any]:
+        self._record_operation()
+        return {"type": "ir.actions.act_window_close"}
+
+    def _record_operation(self) -> None:
+        self._check_record_operation()
         for document in self:
             document.sudo().operation_count += 1
+
+    def _check_record_operation(self) -> None:
+        return
 
     def _get_domain_approval_category(self) -> list[Any]:
         if self.test_category_id:

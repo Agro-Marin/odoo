@@ -1,6 +1,7 @@
 from . import (
     test_approval_mixin,
     test_binding_adopter,
+    test_binding_checkpoint,
     test_decision_attribution,
     test_document_is_not_reachable,
     test_rate_limit,

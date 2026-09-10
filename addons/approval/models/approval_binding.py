@@ -30,6 +30,7 @@ ENABLED_PARAM = "approval.binding_enabled"
 REPLAY_CONTEXT_KEY = "approval_binding_replay"
 INVOKE_CONTEXT_KEY = "approval_binding_invoking"
 SYNC_CONTEXT_KEY = "approval_binding_syncing"
+ADMITTED_CONTEXT_KEY = "approval_binding_admitted"
 ENFORCEABLE_ACTION_TYPES = frozenset({"ir.actions.server", "ir.actions.report"})
 
 
@@ -934,6 +935,17 @@ class ApprovalBinding(models.Model):
                 guarded = self._get_guarded_method(model_name, method_name)
                 setattr(guarded, ORIGIN_ATTR, origin)
                 setattr(ModelClass, method_name, guarded)
+            checkpoints = getattr(ModelClass, "_operation_checkpoints", {})
+            for checkpoint in {checkpoints[m] for m in methods if m in checkpoints}:
+                origin = getattr(ModelClass, checkpoint, None)
+                if origin is None or getattr(origin, ORIGIN_ATTR, None) is not None:
+                    continue
+                operations = tuple(
+                    sorted(m for m, c in checkpoints.items() if c == checkpoint)
+                )
+                guarded = self._get_checkpoint_guard(model_name, checkpoint, operations)
+                setattr(guarded, ORIGIN_ATTR, origin)
+                setattr(ModelClass, checkpoint, guarded)
 
     def _unregister_hook(self):
         """Remove only our own wrappers, identified by the marker we set."""
@@ -1006,9 +1018,91 @@ class ApprovalBinding(models.Model):
                 records,
                 bindings,
                 method_name,
-                lambda runnable: origin(runnable, *args, **kwargs),
+                lambda runnable: origin(
+                    Binding._admit(runnable, method_name), *args, **kwargs
+                ),
             )
 
         guarded.__name__ = method_name
         guarded.__qualname__ = f"{model_name}.{method_name}"
         return guarded
+
+    @api.model
+    def _admit(self, records, operation: str):
+        """Mark these records as let through `operation`'s own wrapper.
+
+        The ids are part of the mark: an operation that posts other records inside
+        the admitted call leaves those records to be checked on their own.
+        """
+        admitted = records.env.context.get(ADMITTED_CONTEXT_KEY, ())
+        return records.with_context(
+            **{
+                ADMITTED_CONTEXT_KEY: (
+                    *admitted,
+                    (records._name, operation, tuple(records.ids)),
+                )
+            }
+        )
+
+    @api.model
+    def _get_admitted_ids(self, records, operation: str) -> set[int]:
+        return {
+            record_id
+            for model_name, admitted_operation, ids in records.env.context.get(
+                ADMITTED_CONTEXT_KEY, ()
+            )
+            if model_name == records._name and admitted_operation == operation
+            for record_id in ids
+        }
+
+    def _get_checkpoint_guard(
+        self, model_name: str, checkpoint: str, operations: tuple[str, ...]
+    ):
+        def guarded(records, *args, **kwargs):
+            origin = getattr(guarded, ORIGIN_ATTR)
+            Binding = records.env["approval.binding"]
+            if records and Binding._enabled():
+                for operation in operations:
+                    bindings = Binding._bindings_for(model_name, operation)
+                    if bindings:
+                        Binding._enforce_at_checkpoint(records, bindings, operation)
+            return origin(records, *args, **kwargs)
+
+        guarded.__name__ = checkpoint
+        guarded.__qualname__ = f"{model_name}.{checkpoint}"
+        return guarded
+
+    @api.model
+    def _enforce_at_checkpoint(self, records, bindings, operation: str) -> None:
+        """Hold `operation`'s bindings on a path that reaches its checkpoint.
+
+        A checkpoint can neither ask for an approval nor keep a request it raised,
+        so a record Block or Request mode would stop is refused here.
+        """
+        admitted = self._get_admitted_ids(records, operation)
+        pending = records.filtered(lambda record: record.id not in admitted)
+        if not pending:
+            return
+        elevation = self._elevation()
+        observations = []
+        refused = pending.browse()
+        for binding in bindings:
+            selected = binding._get_selected(pending)
+            if not selected:
+                continue
+            covered_ids = binding._get_covered_ids(selected)
+            for record in selected:
+                if binding._enforce(record, elevation, observations, covered_ids):
+                    refused |= record
+        if observations:
+            records.env["approval.binding.observation"].sudo().create(observations)
+        if refused:
+            raise UserError(
+                self.env._(
+                    "%(records)s need an approval before %(operation)s can run, and "
+                    "this way of running it cannot ask for one. Use %(operation)s "
+                    "itself, which raises the request.",
+                    records=", ".join(refused.mapped("display_name")),
+                    operation=operation,
+                ),
+            )
