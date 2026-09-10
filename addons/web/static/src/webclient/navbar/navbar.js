@@ -145,6 +145,9 @@ export class NavBar extends Component {
     handleItemError(error, item) {
         this.failedSystrayKeys.add(item.key);
         reportUncaught(error);
+        // Owl drops the render a child crashed in; the item is excluded only
+        // by the render that follows
+        this.render();
     }
 
     /** @returns {Object | undefined} */

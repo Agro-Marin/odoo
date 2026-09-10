@@ -62,6 +62,7 @@ export async function registerServiceWorker(settledDeferred) {
     let readyTimeoutId;
     /** @type {() => void} */
     let stopWatching = () => {};
+    let releaseStateListener = () => {};
     /** @type {ServiceWorkerRegistration | undefined} */
     let registration;
     try {
@@ -80,11 +81,12 @@ export async function registerServiceWorker(settledDeferred) {
                 if (sw) {
                     const onStateChange = (/** @type {Event} */ e) => {
                         if (/** @type {any} */ (e.target).state === "activated") {
-                            sw.removeEventListener("statechange", onStateChange);
                             settledDeferred.resolve();
                         }
                     };
                     sw.addEventListener("statechange", onStateChange);
+                    releaseStateListener = () =>
+                        sw.removeEventListener("statechange", onStateChange);
                 }
             }
             await Promise.race([
@@ -104,6 +106,7 @@ export async function registerServiceWorker(settledDeferred) {
         console.error("Service worker registration failed, error:", error);
     } finally {
         browser.clearTimeout(readyTimeoutId);
+        releaseStateListener();
         settledDeferred.resolve();
     }
     return { registration, stopWatching };

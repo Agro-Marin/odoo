@@ -748,3 +748,21 @@ test("the navbar hides the breadcrumb's slot, not the breadcrumb another compone
     await animationFrame();
     expect(".o_navbar_breadcrumbs").not.toHaveClass("o_hidden");
 });
+
+test("a systray item that throws while rendering is dropped and the navbar still renders", async () => {
+    class CrashingItem extends Component {
+        static props = ["*"];
+        static template = xml`<li class="my-crashing-item" t-esc="boom"/>`;
+        get boom() {
+            throw new Error("render boom");
+        }
+    }
+    systrayRegistry.add("addon.crashing", { Component: CrashingItem });
+    expect.errors(1);
+    await mountWithCleanup(NavBar);
+    await animationFrame();
+    expect(".o_menu_systray").toHaveCount(1);
+    expect("li.my-item").toHaveCount(1);
+    expect("li.my-crashing-item").toHaveCount(0);
+    expect.verifyErrors(["Error: render boom"]);
+});

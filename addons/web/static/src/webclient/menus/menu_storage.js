@@ -84,12 +84,13 @@ export const menuStorage = {
      * @param {string} [hash]
      */
     write(menus, hash) {
+        const raw = JSON.stringify(menus);
         const version = cacheVersion();
         if (!version) {
-            return;
+            return raw;
         }
         try {
-            browser.localStorage.setItem(PAYLOAD_KEY, JSON.stringify(menus));
+            browser.localStorage.setItem(PAYLOAD_KEY, raw);
             if (hash) {
                 browser.localStorage.setItem(HASH_KEY, hash);
             } else if (browser.localStorage.getItem(HASH_KEY) !== null) {

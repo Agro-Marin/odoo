@@ -233,7 +233,7 @@ export function reorderApps(apps, order) {
     });
 }
 
-export const HOME_MENU_CONFIG_VERSION = 2;
+const HOME_MENU_CONFIG_VERSION = 2;
 
 /**
  * @typedef HomeMenuConfig

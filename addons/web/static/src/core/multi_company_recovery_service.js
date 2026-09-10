@@ -37,6 +37,22 @@ function _isAllowedCompany(suggestedCompany) {
     return user.allowedCompanies.some((c) => c.id === suggestedCompany.id);
 }
 
+/**
+ * @param {any} error
+ * @returns {any | null} the company the error names when switching to it can
+ *  help: an access error naming a company not yet active that the user may use
+ */
+function _recoverableCompany(error) {
+    const suggestedCompany = _suggestedCompany(error);
+    if (!_isAccessError(error) || !suggestedCompany) {
+        return null;
+    }
+    if (user.activeCompanies.some((c) => c.id === suggestedCompany.id)) {
+        return null;
+    }
+    return _isAllowedCompany(suggestedCompany) ? suggestedCompany : null;
+}
+
 const multiCompanyRecoveryService = {
     /** @param {import("@web/env").OdooEnv} env */
     start(env) {
@@ -53,17 +69,11 @@ const multiCompanyRecoveryService = {
                 if (inDialog) {
                     return false;
                 }
-                const suggestedCompany = _suggestedCompany(error);
-                if (!_isAccessError(error) || !suggestedCompany) {
+                const suggestedCompany = _recoverableCompany(error);
+                if (!suggestedCompany) {
                     return false;
                 }
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
-                if (activeCompanyIds.includes(suggestedCompany.id)) {
-                    return false;
-                }
-                if (!_isAllowedCompany(suggestedCompany)) {
-                    return false;
-                }
                 /** @type {any} */ (callerEnv).pushStateBeforeReload?.();
                 activeCompanyIds.push(suggestedCompany.id);
                 user.activateCompanies(activeCompanyIds);
@@ -76,17 +86,11 @@ const multiCompanyRecoveryService = {
              * @returns {boolean}
              */
             recoverFromSaveError(error, model) {
-                const suggestedCompany = _suggestedCompany(error);
-                if (!_isAccessError(error) || !suggestedCompany) {
+                const suggestedCompany = _recoverableCompany(error);
+                if (!suggestedCompany) {
                     return false;
                 }
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
-                if (activeCompanyIds.includes(suggestedCompany.id)) {
-                    return false;
-                }
-                if (!_isAllowedCompany(suggestedCompany)) {
-                    return false;
-                }
                 const scopedIds = model.config.context.allowed_company_ids ?? [];
                 const requestedIds = [...activeCompanyIds, suggestedCompany.id];
                 user.activateCompanies(requestedIds, { reload: false });

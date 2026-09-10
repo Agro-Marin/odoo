@@ -165,8 +165,7 @@ class MenuService {
      * @param {string} [hash]
      */
     _persist(menus, hash) {
-        menuStorage.write(menus, hash);
-        this.storedRaw = JSON.stringify(menus);
+        this.storedRaw = menuStorage.write(menus, hash);
         this.storedHash = hash;
     }
 

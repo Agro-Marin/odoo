@@ -168,15 +168,24 @@ class FileUploadService {
                 return;
             }
             upload.state = "loading";
+            const toCloud = this.uploadToUrl(content.upload_info, params.directFile, {
+                onProgress: (loaded, total) => {
+                    upload.progress = total > 0 ? loaded / total : 0;
+                    upload.loaded = loaded;
+                    upload.total = total;
+                },
+            });
+            // the cancel button aborts upload.xhr: the request to cancel is
+            // the long one, not the metadata post that just finished
+            upload.xhr = toCloud.xhr;
             try {
-                await this.uploadToUrl(content.upload_info, params.directFile, {
-                    onProgress: (loaded, total) => {
-                        upload.progress = total > 0 ? loaded / total : 0;
-                        upload.loaded = loaded;
-                        upload.total = total;
-                    },
-                });
+                await toCloud;
             } catch (e) {
+                if (e.name === "AbortError") {
+                    this._settle(upload, "abort");
+                    this.bus.trigger(FileUploadEvent.ERROR, { upload });
+                    return;
+                }
                 this._fail(upload, params, e);
                 return;
             }
@@ -217,7 +226,7 @@ class FileUploadService {
      * @param {{url: string, method: string, response_status: number, headers?: Record<string, string>}} uploadInfo
      * @param {File | Blob} file
      * @param {{ onProgress?: (loaded: number, total: number) => void }} [options]
-     * @returns {Promise<XMLHttpRequest> & { abort: () => void }}
+     * @returns {Promise<XMLHttpRequest> & { abort: () => void, xhr: XMLHttpRequest }}
      */
     uploadToUrl(uploadInfo, file, { onProgress } = {}) {
         const xhr = fileUploadService.createXhr();
@@ -261,7 +270,7 @@ class FileUploadService {
             });
             xhr.send(file);
         });
-        return Object.assign(promise, { abort: () => xhr.abort() });
+        return Object.assign(promise, { abort: () => xhr.abort(), xhr });
     }
 
     destroy() {

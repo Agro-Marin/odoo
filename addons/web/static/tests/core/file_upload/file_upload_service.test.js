@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
     getService,
     makeMockEnv,
@@ -104,4 +105,55 @@ test("a JSON-RPC error payload fails the upload", async () => {
             }),
         }),
     ).toEqual(["ERROR"]);
+});
+
+test("cancelling a cloud upload aborts the request to the cloud, not the metadata post", async () => {
+    mockService("notification", { add: () => () => {} });
+    /** @type {XMLHttpRequest[]} */
+    const xhrs = [];
+    patchWithCleanup(fileUploadService, {
+        createXhr: () => {
+            const xhr = new XMLHttpRequest();
+            patchWithCleanup(xhr, {
+                send() {},
+                abort() {
+                    expect.step("xhr.abort");
+                    this.dispatchEvent(new Event("abort"));
+                },
+                getResponseHeader: () => "application/json",
+                get responseURL() {
+                    return ROUTE;
+                },
+                get status() {
+                    return 200;
+                },
+                get responseText() {
+                    return JSON.stringify({
+                        upload_info: {
+                            url: "https://cloud.test/put",
+                            method: "PUT",
+                            response_status: 200,
+                        },
+                    });
+                },
+            });
+            xhrs.push(xhr);
+            return xhr;
+        },
+    });
+    await makeMockEnv();
+    const fileUpload = getService("file_upload");
+    fileUpload.bus.addEventListener(FileUploadEvent.ERROR, ({ detail }) =>
+        expect.step(`settled:${detail.upload.state}`),
+    );
+    const file = new File(["x"], "doc.txt", { type: "text/plain" });
+    const upload = await fileUpload.upload(ROUTE, [file], { directFile: file });
+    xhrs[0].dispatchEvent(new Event("load"));
+    await animationFrame();
+    expect(xhrs).toHaveLength(2);
+    expect(upload.xhr).toBe(xhrs[1]);
+
+    upload.xhr.abort();
+    await animationFrame();
+    expect.verifySteps(["xhr.abort", "settled:abort"]);
 });
