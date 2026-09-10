@@ -23,7 +23,7 @@ from odoo.libs.rst import render_html as render_rst_html
 from odoo.modules.module import (
     Manifest,
     MissingDependencyError,
-    module_content_checksum,
+    get_module_content_checksum,
 )
 from odoo.tools import SQL, config
 from odoo.tools.misc import get_flag, topological_sort
@@ -957,7 +957,7 @@ class IrModuleModule(models.Model):
             if (
                 module.id not in requested_ids
                 and stored is not None
-                and module_content_checksum(module.name) == stored
+                and get_module_content_checksum(module.name) == stored
             ):
                 skipped += 1
             else:

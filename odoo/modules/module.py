@@ -45,13 +45,13 @@ __all__ = [
     "ResourceLocation",
     "adapt_version",
     "get_manifest",
+    "get_module_content_checksum",
     "get_module_names",
     "get_module_path",
     "get_resource_from_path",
     "initialize_sys_path",
     "load_odoo_module",
     "load_script",
-    "module_content_checksum",
 ]
 
 MODULE_NAME_RE = re.compile(r"^\w{1,256}$", re.ASCII)
@@ -403,7 +403,7 @@ _CHECKSUM_IGNORE_DIRS = frozenset({"__pycache__", ".git"})
 _CHECKSUM_IGNORE_SUFFIXES = (".pyc", ".pyo", ".swp", "~")
 
 
-def module_content_checksum(module: str) -> str | None:
+def get_module_content_checksum(module: str) -> str | None:
     path = get_module_path(module, display_warning=False)
     if not path:
         return None

@@ -23,9 +23,9 @@ from . import db as modules_db
 from .migration import MigrationManager
 from .module import (
     adapt_version,
+    get_module_content_checksum,
     initialize_sys_path,
     load_odoo_module,
-    module_content_checksum,
 )
 from .module_graph import ModuleGraph
 from .registry import Registry
@@ -106,7 +106,7 @@ def _is_reusable_checksum_entry(entry: object, digest: str) -> typing.TypeGuard[
     )
 
 
-def _overrides_another_module(entry: dict, module: str) -> bool:
+def _has_xmlids_of_another_module(entry: dict, module: str) -> bool:
     return any(xmlid.split(".", 1)[0] != module for xmlid in entry["xmlids"])
 
 
@@ -153,7 +153,7 @@ def _load_tracked_file(
     entry = stored_files.get(filename)
     if not dynamic and _is_reusable_checksum_entry(entry, digest):
         contended = registry._xmlids_written.intersection(entry["xmlids"])
-        if _overrides_another_module(entry, package.name):
+        if _has_xmlids_of_another_module(entry, package.name):
             _logger.info(
                 "re-applying unchanged %s/%s: it writes records another "
                 "module declares, so its effect is its place in the load "
@@ -500,7 +500,7 @@ class _PackageLoader:
             "db_version": adapt_version(self.package.manifest["version"]),
         }
         if schema.column_exists(env.cr, "ir_module_module", "content_checksum"):
-            values["content_checksum"] = module_content_checksum(self.name)
+            values["content_checksum"] = get_module_content_checksum(self.name)
         self.module.write(values)
 
         self.package.state = "installed"
@@ -523,7 +523,7 @@ class _PackageLoader:
         suite = loader.prepare_suite([self.name], "at_install")
         if not suite.countTestCases():
             return
-        if pending := self._installed_dependents_not_yet_loaded():
+        if pending := self._get_installed_dependents_not_yet_loaded():
             # The table already carries those modules' columns -- a NOT NULL
             # one has no field in this registry to give it a value -- so the
             # registry cannot represent the schema the tests would write to.
@@ -546,12 +546,12 @@ class _PackageLoader:
         self.test_time = time.time() - tests_t0
         self.test_queries = odoo.db.sql_counter - tests_q0
 
-    def _installed_dependents_not_yet_loaded(self) -> list[str]:
-        return installed_dependents_not_yet_loaded(
+    def _get_installed_dependents_not_yet_loaded(self) -> list[str]:
+        return get_installed_dependents_not_yet_loaded(
             self.package.module_graph, self.name, self.registry.loaded_modules
         )
 
-    def report_cost(self) -> None:
+    def log_cost(self) -> None:
         extra_queries = (
             odoo.db.sql_counter - self.extra_queries_at_start - self.test_queries
         )
@@ -592,10 +592,10 @@ class _PackageLoader:
         self.run_post_init_hook()
         self.mark_module_installed()
         self.run_at_install_tests()
-        self.report_cost()
+        self.log_cost()
 
 
-def installed_dependents_not_yet_loaded(
+def get_installed_dependents_not_yet_loaded(
     graph: ModuleGraph, name: str, loaded: Collection[str]
 ) -> list[str]:
     """The graph's installed modules that depend on ``name`` and load later.
@@ -607,12 +607,12 @@ def installed_dependents_not_yet_loaded(
     """
     closure: dict[str, bool] = {}
 
-    def depends_on(node: ModuleNode) -> bool:
+    def is_dependent(node: ModuleNode) -> bool:
         if node.name in closure:
             return closure[node.name]
         closure[node.name] = False
         closure[node.name] = any(
-            dep.name == name or depends_on(dep) for dep in node.depends
+            dep.name == name or is_dependent(dep) for dep in node.depends
         )
         return closure[node.name]
 
@@ -621,7 +621,7 @@ def installed_dependents_not_yet_loaded(
         for node in graph
         if node.name not in loaded
         and node.state in ("installed", "to upgrade")
-        and depends_on(node)
+        and is_dependent(node)
     ]
 
 
@@ -929,7 +929,7 @@ class _ModuleLoader:
             self.graph.extend(module_list)
             _logger.debug("Updating graph with %d more modules", len(module_list))
             updated_modules_count = len(self.registry.updated_modules)
-            self.migrations.update()
+            self.migrations.index_migration_scripts()
             load_module_graph(
                 env,
                 self.graph,
@@ -961,7 +961,7 @@ class _ModuleLoader:
             self.cr, list(models_to_untranslate), {"models_to_check": True}
         )
 
-    def finish_registry_setup(self) -> None:
+    def finalize_registry_setup(self) -> None:
         self.registry.loaded = True
         self.registry._setup_models__(self.cr)
 
@@ -1001,7 +1001,7 @@ class _ModuleLoader:
             self.env.invalidate_all()
         names.clear()
 
-    def report_modules_that_never_loaded(self) -> None:
+    def log_modules_that_never_loaded(self) -> None:
         Module = self.env["ir.module.module"]
         modules = Module.search_fetch(
             Module._get_domain_modules_to_load(), ["name"], order="name"
@@ -1019,7 +1019,7 @@ class _ModuleLoader:
         for package in self.graph:
             self.migrations.migrate_module(package, "end")
 
-    def report_pending_module_states(self) -> None:
+    def log_pending_module_states(self) -> None:
         cr = self.cr
         cr.execute(
             "SELECT name, state FROM ir_module_module WHERE state IN ('to install', 'to upgrade')"
@@ -1256,11 +1256,11 @@ def load_modules(
         loader.apply_module_requests()
         loader.converge_module_graph()
         loader.untranslate_dropped_fields()
-        loader.finish_registry_setup()
+        loader.finalize_registry_setup()
         loader.run_deferred_at_install_tests()
-        loader.report_modules_that_never_loaded()
+        loader.log_modules_that_never_loaded()
         loader.run_end_migrations()
-        loader.report_pending_module_states()
+        loader.log_pending_module_states()
         loader.finalize_constraints()
         loader.run_post_update_model_checks()
 

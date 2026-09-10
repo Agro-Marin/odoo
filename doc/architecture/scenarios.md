@@ -26,7 +26,7 @@ on `_ModuleLoader` and run in this order:
 | 6 | `apply_module_requests()` — "updating modules list": reconcile `ir_module_module` against `addons_path` | data + module |
 | 7 | `converge_module_graph()` — resolve dependencies and load each module's Python, data and views | module + data |
 | 8 | `untranslate_dropped_fields()` | data |
-| 9 | `finish_registry_setup()` | runtime |
+| 9 | `finalize_registry_setup()` | runtime |
 | 10 | `run_end_migrations()` | data |
 | 11 | `finalize_constraints()` — SQL constraints last, once all columns exist | data |
 | 12 | `uninstall_removed_modules()` | data + module |
@@ -39,7 +39,7 @@ out split two ways, and the second group is not bookkeeping:
 
 | Left out | Why |
 |---|---|
-| `report_modules_that_never_loaded`, `report_pending_module_states`, `log_assertion_report`, `mark_database_partially_updated`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
+| `log_modules_that_never_loaded`, `log_pending_module_states`, `log_assertion_report`, `mark_database_partially_updated`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
 | `register_model_hooks`, `check_null_constraints`, `warn_invalid_custom_views`, `run_post_update_model_checks`, `run_deferred_at_install_tests` | real work, selected out of *this* thread rather than out of the loader. Three of the five appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose; the fifth runs the `at_install` suites the loader held back until their installed dependents had loaded |
 
 Three things this ordering encodes that no other view states:

@@ -116,7 +116,7 @@ Registry.new(db)
    ├─ load_languages()
    ├─ apply_module_requests()             update only: to-install / to-upgrade
    ├─ converge_module_graph()             load modules until the graph is stable
-   ├─ finish_registry_setup()             _setup_models__ / init_models
+   ├─ finalize_registry_setup()             _setup_models__ / init_models
    ├─ run_end_migrations()                update only
    ├─ finalize_constraints()              deferred constraints, then NOT NULL
    ├─ uninstall_removed_modules()         update only; may force one full reload

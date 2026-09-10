@@ -107,7 +107,7 @@ def _as_graph(packages: list[_FakePkg]) -> ModuleGraph:
 
 
 class TestMigrationManagerDoesNotReindexDonePackages:
-    def test_update_skips_a_package_already_indexed(self, monkeypatch):
+    def test_indexing_skips_a_package_already_indexed(self, monkeypatch):
         calls = []
         original = migration_mod._get_scripts_by_version
 
@@ -122,12 +122,12 @@ class TestMigrationManagerDoesNotReindexDonePackages:
         assert calls, "the first index must scan the (absent) package"
         calls_after_init = len(calls)
 
-        manager.update()
+        manager.index_migration_scripts()
         assert len(calls) == calls_after_init, (
-            "update() re-scanned a package already present in self.migrations"
+            "index_migration_scripts() re-scanned a package already present in self.migrations"
         )
 
-    def test_update_indexes_a_package_added_after_init(self, monkeypatch):
+    def test_indexing_indexes_a_package_added_after_init(self, monkeypatch):
         calls = []
         original = migration_mod._get_scripts_by_version
 
@@ -142,9 +142,9 @@ class TestMigrationManagerDoesNotReindexDonePackages:
         calls_after_init = len(calls)
 
         graph.append(_FakePkg("odoo_probe_nonexistent_module_b", "to upgrade"))
-        manager.update()
+        manager.index_migration_scripts()
         assert len(calls) > calls_after_init, (
-            "update() must still index a package newly added to the graph"
+            "index_migration_scripts() must still index a package newly added to the graph"
         )
         assert set(manager.migrations) == {
             "odoo_probe_nonexistent_module_a",

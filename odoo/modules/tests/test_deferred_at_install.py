@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from odoo.modules.loading import installed_dependents_not_yet_loaded
+from odoo.modules.loading import get_installed_dependents_not_yet_loaded
 from odoo.modules.module import _DEFAULT_MANIFEST, Manifest
 from odoo.modules.module_graph import ModuleGraph
 from odoo.tools import mute_logger
@@ -63,39 +63,41 @@ class TestDeferredAtInstall(unittest.TestCase):
     def test_an_installed_dependent_still_to_load_defers(self):
         graph = self._graph({})
         self.assertEqual(
-            installed_dependents_not_yet_loaded(graph, "hr", {"base", "hr"}),
+            get_installed_dependents_not_yet_loaded(graph, "hr", {"base", "hr"}),
             ["hr_work_entry", "hr_payroll"],
         )
 
     def test_the_closure_is_transitive_and_ordered_by_load_order(self):
         graph = self._graph({})
         self.assertEqual(
-            installed_dependents_not_yet_loaded(graph, "base", {"base"}),
+            get_installed_dependents_not_yet_loaded(graph, "base", {"base"}),
             ["hr", "mail", "hr_work_entry", "hr_payroll"],
         )
 
     def test_a_loaded_dependent_no_longer_counts(self):
         graph = self._graph({})
         loaded = {"base", "hr", "hr_work_entry", "hr_payroll"}
-        self.assertEqual(installed_dependents_not_yet_loaded(graph, "hr", loaded), [])
+        self.assertEqual(
+            get_installed_dependents_not_yet_loaded(graph, "hr", loaded), []
+        )
 
     def test_a_dependent_being_installed_has_no_columns_yet(self):
         # A fresh `-i hr,hr_work_entry`: hr's tests run at install, as before.
         graph = self._graph({"hr_work_entry": "to install", "hr_payroll": "to install"})
         self.assertEqual(
-            installed_dependents_not_yet_loaded(graph, "hr", {"base", "hr"}), []
+            get_installed_dependents_not_yet_loaded(graph, "hr", {"base", "hr"}), []
         )
 
     def test_a_dependent_about_to_upgrade_already_has_its_columns(self):
         # `-u hr` on a database holding hr_work_entry marks both to upgrade.
         graph = self._graph({"hr": "to upgrade", "hr_work_entry": "to upgrade"})
         self.assertEqual(
-            installed_dependents_not_yet_loaded(graph, "hr", {"base", "hr"}),
+            get_installed_dependents_not_yet_loaded(graph, "hr", {"base", "hr"}),
             ["hr_work_entry", "hr_payroll"],
         )
 
     def test_an_unrelated_module_does_not_count(self):
         graph = self._graph({})
         self.assertEqual(
-            installed_dependents_not_yet_loaded(graph, "mail", {"base", "mail"}), []
+            get_installed_dependents_not_yet_loaded(graph, "mail", {"base", "mail"}), []
         )
