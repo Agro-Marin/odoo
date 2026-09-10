@@ -514,7 +514,7 @@ class MrpWorkorder(models.Model):
     def _get_fields_reservation_date(self):
         return ("date_start", "date_end")
 
-    def _get_reservation_vals_list(self):
+    def _prepare_reservation_vals_list(self):
         self.check_singleton()
         resource = self.workcenter_id.resource_id
         if not self.date_start or not self.date_end or not resource:

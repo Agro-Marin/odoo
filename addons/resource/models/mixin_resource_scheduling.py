@@ -30,7 +30,7 @@ class MixinResourceScheduling(models.AbstractModel):
         start_field, end_field = self._get_fields_reservation_date()
         return bool(start_field and end_field and self[start_field] and self[end_field])
 
-    def _get_reservation_vals_list(self):
+    def _prepare_reservation_vals_list(self):
         self.check_singleton()
         return []
 
@@ -63,7 +63,7 @@ class MixinResourceScheduling(models.AbstractModel):
         for record in self:
             reservation_model._sync_reservation(
                 record,
-                record._get_reservation_vals_list(),
+                record._prepare_reservation_vals_list(),
                 existing=existing_by_record.get(record.id, no_reservations),
             )
         self.invalidate_recordset(["reservation_ids", "schedule_overlap_count"])
@@ -156,7 +156,7 @@ class MixinResourceScheduling(models.AbstractModel):
 
         for record in self - stored:
             result[record.id] = reservation_model._prospective_conflicts(
-                record._get_reservation_vals_list(),
+                record._prepare_reservation_vals_list(),
                 ignore_ids=record._origin.reservation_ids.ids,
             )
         return result

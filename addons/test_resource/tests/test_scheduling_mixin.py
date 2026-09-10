@@ -627,7 +627,10 @@ class TestSchedulingMixin(TransactionCase):
         self.assertTrue(record._is_scheduling_dated())
 
         with patch.object(
-            type(record), "_get_reservation_vals_list", autospec=True, return_value=[]
+            type(record),
+            "_prepare_reservation_vals_list",
+            autospec=True,
+            return_value=[],
         ):
             record.invalidate_recordset(["allocated_hours"])
             self.assertFalse(record.reservation_ids)

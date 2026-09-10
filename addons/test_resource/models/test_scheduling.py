@@ -53,7 +53,7 @@ class ResourceSchedulingTest(models.Model):
     def _get_fields_reservation_date(self):
         return ("date_start", "date_end")
 
-    def _get_reservation_vals_list(self):
+    def _prepare_reservation_vals_list(self):
         # Faithful consumer: project the local scheduling columns into a single
         # reservation so the mixin's create/write sync path and the
         # reservation-ledger aggregation of ``allocated_hours`` /

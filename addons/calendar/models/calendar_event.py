@@ -1219,7 +1219,7 @@ class CalendarEvent(models.Model):
         """Return (start_field, end_field) names for reservation sync."""
         return ("start", "stop")
 
-    def _get_reservation_vals_list(self):
+    def _prepare_reservation_vals_list(self):
         """Mirror the meeting into the shared ledger, one row per attendee.
 
         Only attendees resolving to a ``resource.resource`` book anything: a

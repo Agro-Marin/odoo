@@ -2741,7 +2741,7 @@ class ProjectTask(models.Model):
     def _get_fields_reservation_date(self):
         return ("date_start", "date_end")
 
-    def _get_reservation_vals_list(self):
+    def _prepare_reservation_vals_list(self):
         self.check_singleton()
         start_field, end_field = self._get_fields_reservation_date()
         if not start_field or not end_field:

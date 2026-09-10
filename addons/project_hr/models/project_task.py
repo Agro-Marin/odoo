@@ -64,7 +64,7 @@ class ProjectTask(models.Model):
                 task.sudo().date_assign = now
         return tasks
 
-    def _get_reservation_vals_list(self):
+    def _prepare_reservation_vals_list(self):
         self.check_singleton()
         start_field, end_field = self._get_fields_reservation_date()
         if not start_field or not end_field:

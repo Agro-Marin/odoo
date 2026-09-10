@@ -125,7 +125,7 @@ class ResourceAssignment(models.Model):
     def _get_fields_reservation_date(self):
         return ("date_start", "date_end")
 
-    def _get_reservation_vals_list(self):
+    def _prepare_reservation_vals_list(self):
         self.check_singleton()
         # An open-ended custody is a fact about who answers for the thing, not
         # a claim on its time; only a bounded assignment books the resource.
