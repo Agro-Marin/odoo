@@ -1215,7 +1215,7 @@ Section  Population                                                  Count
 §2.4.2   Single-field ``@api.onchange`` hooks                          389
 §2.4.2   … spelled ``_onchange_<field>``                               283
 §2.4.2   ``@api.ondelete`` hooks                                       170
-§2.4.2   … spelled ``_unlink_except_*``                                109
+§2.4.2   … spelled ``_unlink_except_*``                                110
 §2.4.2   ``@api.constrains`` hooks                                     695
 §2.4.2   … spelled ``_check_*``                                        637
 §2.4.2   … with a first token carrying no rule                          49
@@ -1225,39 +1225,39 @@ Section  Population                                                  Count
 §2.4.3   Non-test methods declared on a model class                 26,996
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               103
-§2.4.4   Model methods with an abolished verb behind a noun            141
+§2.4.4   Model methods with an abolished verb behind a noun            144
 §2.4.4   Model methods opening with ``auto`` fused to a verb            13
 §2.4.4   ``fields`` family: definitions spelled head-first             220
 §2.4.4   ``fields`` family: distinct names spelled head-first           99
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   152
-§2.4.4   Other heads: definitions spelled tail-first                   188
+§2.4.4   Other heads: definitions spelled tail-first                   189
 §2.4.5   ``X_to_Y`` converter definitions                              103
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,382
+§2.4.7   ``_get_*`` definitions                                      6,376
 §2.4.7   Abolished payload verbs, the four between them                  0
-§2.4.7   ``_generate_*`` definitions                                   146
+§2.4.7   ``_generate_*`` definitions                                   142
 §2.4.7   ``_calculate_*`` model methods                                  6
-§2.4.7   ``_prepare_*`` definitions                                    876
-§2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            35
-§2.4.8   ``_check_*`` definitions                                    1,218
+§2.4.7   ``_prepare_*`` definitions                                    883
+§2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            36
+§2.4.8   ``_check_*`` definitions                                    1,217
 §2.4.8   ``_validate_*`` definitions                                     4
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           1
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
 §2.4.10  ``_raise_*`` model methods                                     18
 §2.4.10  … raising unconditionally                                      11
-§2.4.11  ``_find_*`` methods                                            19
+§2.4.11  ``_find_*`` methods                                            17
 §2.4.11  … performing an ORM read                                        1
-§2.4.11  … doing something else entirely                                17
+§2.4.11  … doing something else entirely                                15
 §2.4.11  ``_find_or_create_*`` methods                                   1
-§2.4.11  ``_get_or_create_*`` methods                                   34
-§2.4.11  ``_resolve_*`` definitions                                     28
-§2.4.12  ``_set_*`` definitions                                        129
-§2.4.12  ``_update_*`` definitions                                     396
-§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             259
+§2.4.11  ``_get_or_create_*`` methods                                   32
+§2.4.11  ``_resolve_*`` definitions                                     27
+§2.4.12  ``_set_*`` definitions                                        128
+§2.4.12  ``_update_*`` definitions                                     411
+§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             261
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
-§2.4.12  ``_sync_*`` definitions                                        78
+§2.4.12  ``_sync_*`` definitions                                        80
 §2.4.12  ``_synchronize_*`` definitions                                  7
 §2.4.12  ``_post_*`` definitions                                       144
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      359
@@ -2065,10 +2065,10 @@ running the other way.
 
 **``_get_`` is not a default.** It is 23.6 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 709
+deriving and computing. The split that matters is against ``_prepare_``: 695
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 876 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 883 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -2110,6 +2110,15 @@ new ones this way; do not rename the bound ones.
   ``_prepare_local_attachments`` migrated remote attachments and returned the
   local ones -- a write, then a filter, with no consumer anywhere. It is
   ``_migrate_attachments_to_local``.
+* **A domain is not a payload, whatever verb assembled it** ``[gate naming]``.
+  A domain is handed to ``search()``, never to ``create()``, so ``_prepare_``
+  claims the wrong row for it, and the §2.4 table spells the free-standing
+  form ``_get_domain_<what>``: ``_prepare_po_get_domain`` is ``_get_domain_po``,
+  ``_prepare_badges_domain`` is ``_get_domain_badges``. ``classify()`` already
+  routed every abolished verb with a ``_domain`` tail there; it now routes
+  ``prepare`` the same way. *Frozen reading* (§1.4) at odoo ``5d1a36d538ac``,
+  before the renames: **4** in ``addons/``, **5** in ``enterprise``, **1** in
+  ``agromarin``, all renamed ahead of the rule so no floor moved for it.
 
 **``_generate_`` is the largest member of the payload family and is not in the
 table** ``[review]``. The four verbs the Payload row abolishes are a small family
@@ -2235,7 +2244,7 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **346** functions in
+**A ``bool`` return does not make a predicate** ``[review]``. **347** functions in
 this repository are annotated ``-> bool`` and are not predicates, against **277**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
@@ -2925,6 +2934,54 @@ correct too.
 method handed a ``dict`` its caller owns, which adds to it, is this row and not a
 payload builder, even though no record is written; §2.4.7's parameter-list test
 is what separates the two.
+
+**A producer prefix on a body that hands nothing back is this row** ``[gate
+naming]``. ``_get_``, ``_resolve_`` and ``_prepare_`` each claim a return -- the
+Read row's value, §2.4.11's object-or-``None``, the Payload row's mapping. A body
+under one of them that never ``return``\ s or ``yield``\ s a value, and instead
+stores into something or writes records, did this row's work under a producer's
+name: filled a dict the caller owns (``_prepare_request(url, kwargs)`` setting
+``kwargs["timeout"]``, ``_resolve_fallback_accepted_values(fallback_values)``
+adding a key "in place"), wrote fields on the receiver
+(``account.online.link._get_access_token`` assigning ``link.access_token``),
+re-pointed a record it searched for (``_get_or_create_payment_channel``, whose
+callers never read the return). All are ``_update_`` -- or, where the body is a
+whole operation the prefix hid, that operation's verb: ``_send_refusal_mails``,
+``_create_missing_uom_hours``, ``_sync_payment_channel``. The rule reads the
+body because the name cannot be trusted here by construction: the prefix is the
+claim under test. *Frozen reading* (§1.4) of the rule over odoo
+``366986f0dcd3`` and enterprise ``1a10fe02ba4``, the commits that renamed ahead
+of it: **4** in ``addons/``, every one in a file another session's sweep was
+already carrying; **0** in ``agromarin``; **31** in ``enterprise`` (23 of them
+``_prepare_``, eleven in one ``l10n_in_reports`` spreadsheet writer whose
+``_prepare_<section>_sheet(workbook)`` fills a sheet), banked into that floor
+with a note saying the scan grew and not the tree.
+
+* **The store-or-write test is what keeps this from reading as "no return means
+  mutation".** A body with no product and no store is some other question:
+  ``_get_reconciled_checks_error`` only raises and is §2.4.8's; a
+  ``_get_..._vals`` whose base branch raises ``NotImplementedError`` and whose
+  override returns is an extension point. Three more are left alone on the same
+  argument. An extension stub -- docstring, ``pass``, a bare ``return``,
+  ``check_singleton()``, a ``raise`` -- returns nothing because it does nothing
+  yet, and its overrides carry the contract. A body whose last statement raises
+  is §2.4.10's question. And a name a field declaration in the same file binds
+  as a hook belongs to ``field_hook_naming.py``, whose ``unprefixed`` kind names
+  it (``_get_mo_count`` assigning five ``count_mo_*`` fields is a
+  ``_compute_``); reporting it here too would be one question answered by two
+  gates.
+* **It found missing returns as well as wrong names, which is the case for
+  reading the body.** ``_get_or_create_uom_hours`` and
+  ``_get_or_create_payment_channel`` both created the record and dropped it;
+  their callers -- an XML ``<function>`` and two ``write`` hooks -- had already
+  stopped reading a return that was never there. A name can promise more than
+  the body delivers, and only the body says so.
+* **``naming_core_vocabulary.py`` asks the same question of its seven scopes
+  as ``empty-return``**, keyed on ``get`` and ``prepare`` and without the store
+  test, and holds each at a hard zero with an argued allowlist. The two do not
+  double-report today because those scopes read zero under both; where they
+  ever disagree, the shared gate's store-or-write test is the narrower reading
+  and the one to trust.
 
 2.4.13 Scope, adoption and the ratchet
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

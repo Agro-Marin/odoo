@@ -17,6 +17,7 @@ from naming_vocabulary import (
     governs_module_helpers,
     is_model_class,
     measure,
+    producer_without_product,
     reserved_misuse,
 )
 
@@ -728,3 +729,151 @@ def test_governed_definitions_reads_a_file_without_measuring_it(tmp_path):
         "the population is every definition the vocabulary reaches, compliant "
         f"ones included; classify() is what narrows it. Got {sorted(names)}"
     )
+
+
+@pytest.mark.parametrize(
+    ("name", "canonical"),
+    [
+        ("_prepare_po_get_domain", "_get_domain_"),
+        ("_prepare_badges_domain", "_get_domain_"),
+        ("_build_search_domain", "_get_domain_"),
+    ],
+)
+def test_a_domain_tail_lands_on_the_domain_row_whatever_verb_assembled_it(
+    name, canonical
+):
+    assert classify(name) == (name.lstrip("_").partition("_")[0], canonical)
+
+
+@pytest.mark.parametrize(
+    "name", ["_get_domain_po", "_prepare_invoice_vals", "_domain_partner_id"]
+)
+def test_the_domain_row_itself_and_the_payload_row_stay_quiet(name):
+    assert classify(name) is None
+
+
+@pytest.mark.parametrize(
+    ("src", "canonical"),
+    [
+        # fills a dict the caller owns
+        (
+            "def _prepare_request(self, url, kwargs):\n    kwargs['timeout'] = 10",
+            "_update_",
+        ),
+        # writes fields on the receiver and returns nothing
+        (
+            "def _get_access_token(self):\n    for link in self:\n        link.access_token = link._fetch()",
+            "_update_",
+        ),
+        # §2.4.11 reserves _resolve_ for an object-or-None
+        (
+            "def _resolve_partner_to(self, by_res_id, contribution):\n    for k, v in by_res_id.items():\n        contribution[k] = v",
+            "_update_",
+        ),
+        # a bare `return` after the side effect is still no product
+        ("def _get_mfa_state(self):\n    self.state = 'done'\n    return", "_update_"),
+        # a raise in a branch does not rescue a body that stores
+        (
+            "def _get_locked(self):\n    if self.bad:\n        raise UserError('x')\n    self.locked = True",
+            "_update_",
+        ),
+        # an ORM write with no store is still the Mutation row
+        (
+            "def _get_or_create_channel(self):\n    if not self.line:\n        self.env['channel'].create({'a': 1})",
+            "_update_",
+        ),
+    ],
+)
+def test_a_producer_prefix_on_a_body_with_no_product_is_the_mutation_row(
+    src, canonical
+):
+    node = _fn(src)
+    assert (
+        producer_without_product(node, ast.Module(body=[node], type_ignores=[]))
+        == canonical
+    )
+
+
+def test_a_hook_bound_name_is_left_to_the_field_hook_gate():
+    tree = ast.parse(
+        textwrap.dedent("""
+            class Picking(models.Model):
+                count_mo_todo = fields.Integer(compute="_get_mo_count")
+
+                def _get_mo_count(self):
+                    for picking in self:
+                        picking.count_mo_todo = 1
+        """)
+    )
+    node = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef))
+    assert producer_without_product(node, tree) is None
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        # returns a value
+        "def _get_lines(self):\n    return self.line_ids",
+        # yields
+        "def _get_pairs(self, other):\n    yield self, other",
+        # a return inside a nested scope does not count, but this one is the outer
+        "def _get_total(self):\n    def inner():\n        return 1\n    return inner()",
+        # extension stubs: docstring, pass, bare return, check_singleton, raise
+        "def _get_signature(self):\n    self.check_singleton()",
+        "def _get_mfa_type(self) -> str | None:\n    return",
+        "def _prepare_extra(self):\n    pass",
+        "def _get_thing(self):\n    raise NotImplementedError",
+        # a body whose last statement raises is §2.4.10's question
+        "def _get_locked(self):\n    self.locked = True\n    raise UserError('x')",
+        # no product and no store: a raise-only validator is §2.4.8's question
+        "def _get_checks_error(self):\n    if self.bad:\n        raise UserError('x')",
+        # a branch that raises NotImplementedError with an override elsewhere
+        "def _get_document_vals(self):\n    self.check_singleton()\n    if self.kind == 'invoice':\n        raise NotImplementedError",
+        # calls something, stores nothing, writes no record
+        "def _prepare_mails(self):\n    for a in self.ids:\n        self.env['mail'].send(a)",
+        # not a producer prefix
+        "def _update_kwargs(self, kwargs):\n    kwargs['a'] = 1",
+    ],
+)
+def test_a_product_a_stub_a_raise_and_a_non_producer_are_quiet(src):
+    node = _fn(src)
+    assert (
+        producer_without_product(node, ast.Module(body=[node], type_ignores=[])) is None
+    )
+
+
+def test_a_nested_return_does_not_lend_the_outer_def_a_product():
+    node = _fn(
+        "def _get_total(self, acc):\n    def inner():\n        return 1\n    acc['total'] = inner()"
+    )
+    assert (
+        producer_without_product(node, ast.Module(body=[node], type_ignores=[]))
+        == "_update_"
+    )
+
+
+def test_the_producer_rule_reaches_measure_and_skips_overrides(tmp_path):
+    (tmp_path / "__manifest__.py").write_text("{}")
+    models = tmp_path / "models"
+    models.mkdir()
+    (models / "a.py").write_text(
+        textwrap.dedent("""
+            class Thing(models.Model):
+                _name = "thing"
+
+                def _prepare_request(self, kwargs):
+                    kwargs["a"] = 1
+
+                def _get_lines(self):
+                    super()._get_lines()
+                    self.x = 1
+
+                def _prepare_search_domain(self):
+                    return []
+        """)
+    )
+    found = measure([tmp_path])
+    assert [(v.name, v.verb, v.canonical) for v in found] == [
+        ("_prepare_request", "prepare", "_update_"),
+        ("_prepare_search_domain", "prepare", "_get_domain_"),
+    ]

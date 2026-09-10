@@ -275,17 +275,26 @@ def classify(name: str) -> tuple[str, str] | None:
     if not rest:
         return None
     entry = ABOLISHED.get(verb)
+    if name.endswith("_domain") and (entry is not None or verb in DOMAIN_TAIL_VERBS):
+        return verb, DOMAIN_CANONICAL
     if entry is None:
         return None
     canonical, payload_choice = entry
-    if name.endswith("_domain"):
-        return verb, "_domain_"
     if payload_choice and name.endswith(PAYLOAD_SUFFIXES):
         return verb, PAYLOAD_CANONICAL
     return verb, canonical
 
 
 PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
+
+# §2.4's table spells a free-standing domain `_get_domain_<what>`, and the
+# `_domain` tail already routes every abolished verb there. `prepare` is a
+# canonical verb on the wrong row for it: a domain is handed to `search()`, not
+# to `create()`, so `_prepare_po_get_domain` claimed a payload it never was.
+# Measured when this landed: 4 in addons, 5 in enterprise, 1 in agromarin, all
+# renamed first so no floor moved.
+DOMAIN_TAIL_VERBS = frozenset({"prepare"})
+DOMAIN_CANONICAL = "_get_domain_"
 
 
 def infix_abolished_verb(name: str) -> str | None:
@@ -999,6 +1008,115 @@ def governed_definitions(
     return found
 
 
+_PRODUCER_VERBS = frozenset({"get", "resolve", "prepare"})
+_TRIVIAL_CALLS = frozenset({"check_singleton", "ensure_one"})
+
+
+def _own_scope(node: ast.AST):
+    for child in ast.iter_child_nodes(node):
+        if isinstance(
+            child, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda | ast.ClassDef
+        ):
+            continue
+        yield child
+        yield from _own_scope(child)
+
+
+def _returns_a_value(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    for inner in _own_scope(node):
+        if isinstance(inner, ast.Yield | ast.YieldFrom):
+            return True
+        if isinstance(inner, ast.Return) and inner.value is not None:
+            if not (
+                isinstance(inner.value, ast.Constant) and inner.value.value is None
+            ):
+                return True
+    return False
+
+
+def _stores_into_something(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    for inner in _own_scope(node):
+        if isinstance(inner, ast.AugAssign) and isinstance(
+            inner.target, ast.Attribute | ast.Subscript
+        ):
+            return True
+        if isinstance(inner, ast.Attribute | ast.Subscript) and isinstance(
+            inner.ctx, ast.Store
+        ):
+            return True
+    return False
+
+
+def _is_trivial_statement(stmt: ast.stmt) -> bool:
+    if isinstance(stmt, ast.Pass | ast.Raise):
+        return True
+    if isinstance(stmt, ast.Return):
+        return stmt.value is None or isinstance(stmt.value, ast.Constant)
+    if isinstance(stmt, ast.Expr):
+        value = stmt.value
+        if isinstance(value, ast.Constant):
+            return True
+        return (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Attribute)
+            and value.func.attr in _TRIVIAL_CALLS
+        )
+    return False
+
+
+def _is_extension_stub(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    return all(_is_trivial_statement(stmt) for stmt in node.body)
+
+
+def _is_hook_bound(name: str, tree: ast.AST) -> bool:
+    return any(
+        isinstance(inner, ast.keyword)
+        and inner.arg in HOOK_ATTRS
+        and isinstance(inner.value, ast.Constant)
+        and inner.value.value == name
+        for inner in ast.walk(tree)
+    )
+
+
+def producer_without_product(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, tree: ast.AST
+) -> str | None:
+    """The canonical for a producer prefix on a body that hands nothing back.
+
+    `_get_`, `_resolve_` and `_prepare_` each claim a return: the Read row's
+    value, §2.4.11's object-or-None, the Payload row's mapping. A body under
+    one of them that never returns or yields a value, and instead stores into
+    something -- a dict the caller owns, a field on the receiver -- or writes
+    records, did the Mutation row's work under a producer's name, and
+    `_update_` is its canonical whatever the prefix says.
+
+    The store-or-write test is what keeps this from being "no return means
+    mutation". A body with no product and no store is some other question:
+    `_get_reconciled_checks_error` only raises and is §2.4.8's, a
+    `_get_..._vals` whose base branch raises NotImplementedError and whose
+    override returns is an extension point. Three more bodies are left alone
+    on the same argument. An extension stub -- docstring, `pass`, a bare
+    `return`, `check_singleton()`, a `raise` -- returns nothing because it
+    does nothing yet. A body whose last statement raises is §2.4.10's. And a
+    name a field declaration in the same file binds as a hook belongs to
+    `field_hook_naming.py`, whose `unprefixed` kind names it (`_get_mo_count`
+    assigning five `count_mo_*` fields is a `_compute_`); reporting it here
+    too would be one question answered by two gates. A same-name override
+    reaching `super()` is excluded upstream of every rule in `measure()`.
+    """
+    stem = node.name.lstrip("_")
+    verb, _, rest = stem.partition("_")
+    if verb not in _PRODUCER_VERBS or not rest:
+        return None
+    if _returns_a_value(node) or _is_extension_stub(node) or _always_raises(node):
+        return None
+    if not (_stores_into_something(node) or _performs_orm_write(node)):
+        return None
+    if _is_hook_bound(node.name, tree):
+        return None
+    return "_update_"
+
+
 def measure(roots: list[Path] | None = None) -> list[Violation]:
 
     roots = roots or [ROOT / r for r in SCAN_ROOTS]
@@ -1017,7 +1135,9 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
                 continue
             hit = classify(item.name)
             if hit is None:
-                canonical = reserved_misuse(item)
+                canonical = reserved_misuse(item) or producer_without_product(
+                    item, tree
+                )
                 if canonical is None:
                     continue
                 hit = (item.name.lstrip("_").partition("_")[0], canonical)
