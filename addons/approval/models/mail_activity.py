@@ -69,6 +69,30 @@ class MailActivity(models.Model):
             ("res_id", operator, value),
         ]
 
+    def _action_done(self, feedback=False, attachment_ids=None):
+        self._approve_through_done_activities()
+        return super()._action_done(feedback=feedback, attachment_ids=attachment_ids)
+
+    def _approve_through_done_activities(self) -> None:
+        """Done by the approver it was asked of, an approval activity approves.
+
+        Anyone else marking it done only dismisses it. A decision that cannot be
+        recorded raises, so the activity stays open rather than vanishing with
+        nothing decided.
+        """
+        activity_type = self.env.ref("approval.mail_activity_data_approval")
+        user = self.env.user
+        for activity in self:
+            if (
+                not activity.active
+                or activity.activity_type_id != activity_type
+                or activity.user_id != user
+            ):
+                continue
+            approver = activity.approver_id
+            if approver.state == "pending" and approver.request_id.state == "pending":
+                approver.action_approve()
+
     def _to_store_defaults(self, target):
         return super()._to_store_defaults(target) + [
             Store.One("approver_id", ["state"]),

@@ -1124,6 +1124,8 @@ is computed and non-stored, recalculated per read.
 | Fields | `approval_request_id` (compute+search), `approver_id` (compute) |
 | Method | `_to_store_defaults()` adds approver state to Store |
 
+`_action_done` first runs `_approve_through_done_activities`: an approval activity marked done by the user it was asked of approves that user's pending row through `approval.approver.action_approve`. Anyone else, the system included, only dismisses it. A decision that cannot be recorded raises, so the activity stays open. The decision path marks the decider's activities done after their row is approved, so it never re-enters the approval.
+
 ### mail.activity.type (extended)
 
 | File | `models/mail_activity_type.py` |

@@ -58,7 +58,7 @@ dashboards.
 | `approval_document_requirement.py` | `approval.document.requirement` | Required document types per category. A LABEL model since 19.0.1.0.23: the confirm-time check reads `ir.attachment.approval_requirement_id`, not the file name |
 | `approval_utils.py` | — (no model) | Module-level helpers shared across the split files: `is_approval_manager(env)` and `boolean_search_domain()` (the `search=` builder behind `is_overdue`, `is_delegated`, `is_pending_my_review`) |
 | `ir_attachment.py` | extends `ir.attachment` | `approval_requirement_id` — which required document a file IS — and blocks deletion of attachments on finalized requests |
-| `mail_activity.py` | extends `mail.activity` | Adds approval_request_id and approver_id computed fields |
+| `mail_activity.py` | extends `mail.activity` | Adds approval_request_id and approver_id computed fields; an approval activity marked done by its approver approves |
 | `mail_activity_type.py` | extends `mail.activity.type` | Registers approval activity type metadata |
 | `res_groups.py` | extends `res.groups` | Drops the escalation-manager memo when group membership moves from the GROUP side |
 | `res_users.py` | extends `res.users` | `_is_approval_manager` seam, archive handover (SM-7), memo invalidation |
@@ -84,6 +84,7 @@ dashboards.
 | File | Coverage Area |
 |------|---------------|
 | `common.py` | `ApprovalCommon` base class (shared users/category/request fixtures) + product helpers |
+| `test_activity_done.py` | An approval activity marked done: by its approver it approves, by anyone else or the system it only dismisses, and an approval that cannot be recorded leaves it open |
 | `test_approvals.py` | Core approval lifecycle, state transitions (`TestRequest`) |
 | `test_approver_computation.py` | _sync_approvers, category changes, band matching |
 | `test_sequential_approval.py` | Sequential workflow, ordering, locking |
@@ -206,7 +207,7 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 19 script directories (1.0.1 .. 1.0.26)
-+-- tests/                            # 34 test modules + common.py
++-- tests/                            # 35 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -219,7 +220,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
-| Python test files | 34 (+ `common.py`) |
+| Python test files | 35 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 16 |
