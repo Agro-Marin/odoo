@@ -10,7 +10,7 @@ from odoo import _, api, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.libs.numbers import float_compare, float_is_zero, float_round
-from odoo.tools import date_utils, float_repr, get_lang, html2plaintext
+from odoo.tools import float_repr, get_lang, html2plaintext
 from odoo.tools.formatting import ROUNDING_UNIT_MAPPING
 from odoo.tools.misc import format_date, formatLang
 
@@ -111,8 +111,10 @@ class AccountReportLines(models.Model):
             # The format escapes nothing, so a markup or a non-relational groupby
             # value carrying either delimiter builds an id that cannot be parsed
             # back. Fail here, where the offending value is still in hand, rather
-            # than somewhere downstream with an id nobody can trace. The format
-            # itself is not changed: account.report.annotation persists these ids.
+            # than somewhere downstream with an id nobody can trace. The id is not
+            # stored anywhere -- it is rebuilt on every render -- but it round-trips
+            # to the client and back on fold, expand and audit, and those calls
+            # parse it.
             if "~" in part or LINE_ID_HIERARCHY_DELIMITER in part:
                 raise UserError(
                     _(
@@ -531,22 +533,11 @@ class AccountReportLines(models.Model):
 
                 formatter_params["digits"] = rounding
 
-            # Handle editable financial budgets
-            editable_budget = groupby_model == "account.account" and options[
-                "column_groups"
-            ][col_group_key]["forced_options"].get("compute_budget")
-            if editable_budget and self.env.user.has_group(
-                "account.group_account_manager"
-            ):
-                edit_popup_data = {
-                    "column_group_key": col_group_key,
-                    "target_expression_id": column_expression.id,
-                    "rounding": self.env.company.currency_id.decimal_places,
-                    "figure_type": "monetary",
-                    "column_value": self.env.company.currency_id.round(column_value)
-                    if column_value
-                    else column_value,
-                }
+            editable_cell_data = self._get_editable_cell_data(
+                options, col_group_key, groupby_model, column_expression, column_value
+            )
+            if editable_cell_data:
+                edit_popup_data = editable_cell_data
 
             # Build result
             if (
@@ -1988,284 +1979,6 @@ class AccountReportLines(models.Model):
             # the date is not parsable thus is returned as text
             return ("text", cell["name"])
 
-    @api.model
-    def _create_hierarchy(self, lines, options):
-        """Compute the hierarchy based on account groups when the option is activated.
-
-        The option is available only when there are account.group for the company.
-        It should be called when before returning the lines to the client/templater.
-        The lines are the result of _get_lines(). If there is a hierarchy, it is left
-        untouched, only the lines related to an account.account are put in a hierarchy
-        according to the account.group's and their prefixes.
-        """
-        if not lines:
-            return lines
-
-        def get_account_group_hierarchy(account):
-            # Create codes path in the hierarchy based on account.
-            groups = self.env["account.group"]
-            if account.group_id:
-                group = account.group_id
-                while group:
-                    groups += group
-                    group = group.parent_id
-            return list(groups.sorted(reverse=True))
-
-        def create_hierarchy_line(account_group, column_totals, level, parent_id):
-            line_id = self._get_generic_line_id(
-                "account.group",
-                account_group.id if account_group else None,
-                parent_line_id=parent_id,
-            )
-            unfolded = line_id in options.get("unfolded_lines") or options["unfold_all"]
-            name = account_group.display_name if account_group else _("(No Group)")
-            columns = []
-            for col_total, column in zip(
-                column_totals, options["columns"], strict=False
-            ):
-                if isinstance(col_total, tuple):
-                    col_value, currency = col_total
-                else:
-                    col_value = col_total
-                    currency = None
-
-                columns.append(
-                    self._prepare_column_dict(
-                        col_value, column, options=options, currency=currency
-                    )
-                )
-
-            return {
-                "id": line_id,
-                "name": name,
-                "title_hover": name,
-                "unfoldable": True,
-                "unfolded": unfolded,
-                "level": level,
-                "parent_id": parent_id,
-                "columns": columns,
-            }
-
-        def compute_group_totals(line, group=None):
-            totals = []
-
-            for total, column in zip(
-                hierarchy[group]["totals"], line["columns"], strict=False
-            ):
-                if not isinstance(column.get("no_format"), (int, float)):
-                    total = None
-
-                if isinstance(total, (int, float)):
-                    total += column["no_format"]
-                elif isinstance(total, tuple):
-                    if total == (None, None):
-                        # Entering here only on first aggregation
-                        amount = 0.0
-                        currency = column.get("currency")
-                    else:
-                        amount, currency = total
-
-                    if currency != column.get("currency"):
-                        total = None
-                    else:
-                        total = (amount + column["no_format"], currency)
-
-                totals.append(total)
-
-            return totals
-
-        def render_lines(
-            account_groups, current_level, parent_line_id, skip_no_group=True
-        ):
-            to_treat = [
-                (current_level, parent_line_id, group)
-                for group in account_groups.sorted()
-            ]
-
-            if None in hierarchy and not skip_no_group:
-                to_treat.append((current_level, parent_line_id, None))
-
-            while to_treat:
-                level_to_apply, parent_id, group = to_treat.pop(0)
-                group_data = hierarchy[group]
-                hierarchy_line = create_hierarchy_line(
-                    group, group_data["totals"], level_to_apply, parent_id
-                )
-                new_lines.append(hierarchy_line)
-                treated_child_groups = self.env["account.group"]
-
-                for account_line in group_data["lines"]:
-                    for child_group in group_data["child_groups"]:
-                        if (
-                            child_group not in treated_child_groups
-                            and child_group["code_prefix_end"] < account_line["name"]
-                        ):
-                            render_lines(
-                                child_group,
-                                hierarchy_line["level"] + 1,
-                                hierarchy_line["id"],
-                            )
-                            treated_child_groups += child_group
-
-                    markup, model, account_id = self._parse_line_id(account_line["id"])[
-                        -1
-                    ]
-                    account_line_id = self._get_generic_line_id(
-                        model,
-                        account_id,
-                        markup=markup,
-                        parent_line_id=hierarchy_line["id"],
-                    )
-                    account_line.update(
-                        {
-                            "id": account_line_id,
-                            "parent_id": hierarchy_line["id"],
-                            "level": hierarchy_line["level"] + 1,
-                        }
-                    )
-                    new_lines.append(account_line)
-
-                    for child_line in account_line_children_map[account_id]:
-                        markup, model, res_id = self._parse_line_id(child_line["id"])[
-                            -1
-                        ]
-                        child_line.update(
-                            {
-                                "id": self._get_generic_line_id(
-                                    model,
-                                    res_id,
-                                    markup=markup,
-                                    parent_line_id=account_line_id,
-                                ),
-                                "parent_id": account_line_id,
-                                "level": account_line["level"] + 1,
-                            }
-                        )
-                        new_lines.append(child_line)
-
-                to_treat = [
-                    (level_to_apply + 1, hierarchy_line["id"], child_group)
-                    for child_group in group_data["child_groups"].sorted()
-                    if child_group not in treated_child_groups
-                ] + to_treat
-
-        def create_hierarchy_dict():
-            def create_totals():
-                totals = []
-
-                for column in options["columns"]:
-                    default_value = None
-                    if figure_type := column.get("figure_type"):
-                        if figure_type == "float":
-                            default_value = 0.0
-                        elif figure_type == "integer":
-                            default_value = 0
-                        elif figure_type == "monetary":
-                            default_value = (None, None)
-                    totals.append(default_value)
-
-                return totals
-
-            return defaultdict(
-                lambda: {
-                    "lines": [],
-                    "totals": create_totals(),
-                    "child_groups": self.env["account.group"],
-                }
-            )
-
-        # Precompute the account groups of the accounts in the report
-        account_ids = []
-        for line in lines:
-            markup, res_model, model_id = self._parse_line_id(line["id"])[-1]
-            if res_model == "account.account":
-                account_ids.append(model_id)
-        self.env["account.account"].browse(account_ids).group_id  # noqa: B018
-
-        new_lines, total_lines = [], []
-
-        # root_line_id is the id of the parent line of the lines we want to render
-        root_line_id = (
-            self._prepare_parent_line_id(self._parse_line_id(lines[0]["id"])) or None
-        )
-        last_account_line_id = account_id = None
-        current_level = 0
-        account_line_children_map = defaultdict(list)
-        account_groups = self.env["account.group"]
-        root_account_groups = self.env["account.group"]
-        hierarchy = create_hierarchy_dict()
-
-        for line in lines:
-            markup, res_model, model_id = self._parse_line_id(line["id"])[-1]
-
-            # Account lines are used as the basis for the computation of the hierarchy.
-            if res_model == "account.account":
-                last_account_line_id = line["id"]
-                current_level = line["level"]
-                account_id = model_id
-                account = self.env[res_model].browse(account_id)
-                account_groups = get_account_group_hierarchy(account)
-
-                if not account_groups:
-                    hierarchy[None]["lines"].append(line)
-                    hierarchy[None]["totals"] = compute_group_totals(line)
-                else:
-                    for i, group in enumerate(account_groups):
-                        if i == 0:
-                            hierarchy[group]["lines"].append(line)
-                        if (
-                            i == len(account_groups) - 1
-                            and group not in root_account_groups
-                        ):
-                            root_account_groups += group
-                        if (
-                            group.parent_id
-                            and group not in hierarchy[group.parent_id]["child_groups"]
-                        ):
-                            hierarchy[group.parent_id]["child_groups"] += group
-
-                        hierarchy[group]["totals"] = compute_group_totals(
-                            line, group=group
-                        )
-
-            # This is not an account line, so we check to see if it is a descendant of the last account line.
-            # If so, it is added to the mapping of the lines that are related to this account.
-            elif last_account_line_id and line.get("parent_id", "").startswith(
-                last_account_line_id
-            ):
-                account_line_children_map[account_id].append(line)
-
-            # This is a total line that is not linked to an account. It is saved in order to be added at the end.
-            elif markup == "total":
-                total_lines.append(line)
-
-            # This line ends the scope of the current hierarchy and is (possibly) the root of a new hierarchy.
-            # We render the current hierarchy and set up to build a new hierarchy
-            else:
-                render_lines(
-                    root_account_groups,
-                    current_level,
-                    root_line_id,
-                    skip_no_group=False,
-                )
-
-                new_lines.append(line)
-
-                # Reset the hierarchy-related variables for a new hierarchy
-                root_line_id = line["id"]
-                last_account_line_id = account_id = None
-                current_level = 0
-                account_line_children_map = defaultdict(list)
-                root_account_groups = self.env["account.group"]
-                account_groups = self.env["account.group"]
-                hierarchy = create_hierarchy_dict()
-
-        render_lines(
-            root_account_groups, current_level, root_line_id, skip_no_group=False
-        )
-
-        return new_lines + total_lines
-
     def _compute_column_percent_comparison_data(
         self, options, value1, value2, green_on_positive=True
     ):
@@ -2454,90 +2167,6 @@ class AccountReportLines(models.Model):
                     }
                 )
         return annotations_by_line
-
-    def _get_annotations_domain_date_from(self, options):
-        if (
-            options["date"]["filter"] in {"today", "custom"}
-            and options["date"]["mode"] == "single"
-        ):
-            options_company_ids = [company["id"] for company in options["companies"]]
-            root_companies_ids = (
-                self.env["res.company"].browse(options_company_ids).root_id.ids
-            )
-            fiscal_year = self.env["account.fiscal.year"].search_fetch(
-                [
-                    ("company_id", "in", root_companies_ids),
-                    ("date_from", "<=", options["date"]["date_to"]),
-                    ("date_to", ">=", options["date"]["date_to"]),
-                ],
-                limit=1,
-                field_names=["date_from"],
-            )
-            if fiscal_year:
-                return datetime.datetime.combine(
-                    fiscal_year.date_from, datetime.time.min
-                )
-
-            period_date_from, _ = date_utils.get_fiscal_year(
-                datetime.datetime.strptime(options["date"]["date_to"], "%Y-%m-%d"),
-                day=self.env.company.fiscalyear_last_day,
-                month=int(self.env.company.fiscalyear_last_month),
-            )
-            return period_date_from
-
-        date_from = datetime.datetime.strptime(options["date"]["date_from"], "%Y-%m-%d")
-        if options["date"]["period_type"] == "fiscalyear":
-            period_date_from, _ = date_utils.get_fiscal_year(date_from)
-        elif options["date"]["period_type"] in [
-            "year",
-            "quarter",
-            "month",
-            "week",
-            "day",
-            "hour",
-        ]:
-            period_date_from = date_utils.start_of(
-                date_from, options["date"]["period_type"]
-            )
-        else:
-            period_date_from = date_from
-        return period_date_from
-
-    @api.model
-    def _get_annotatable_models(self):
-        return {"account.account", "account.move", "account.tax"}
-
-    @api.model
-    def _postprocess_chatter_for_annotations(self, lines):
-        """Add the chatter information on lines that can be annotated, so that it's then possible to open the right
-        chatter for that line.
-        """
-        aml_id_to_report_lines_map = defaultdict(list)
-        for line in lines:
-            if line.get("unfoldable"):
-                continue
-
-            model, record_id = self._get_model_info_from_id(line.get("id"))
-            if model == "account.move.line" and record_id is not None:
-                aml_id_to_report_lines_map[record_id].append(line)
-            elif model in self._get_annotatable_models():
-                line["chatter"] = {
-                    "model": model,
-                    "id": record_id,
-                }
-
-        aml_id_to_account_move_id = {
-            line["id"]: line["move_id"][0]
-            for line in self.env["account.move.line"]
-            .browse(aml_id_to_report_lines_map.keys())
-            .read(["id", "move_id"])
-        }
-        for aml_id, lines in aml_id_to_report_lines_map.items():  # noqa: PLR1704
-            for line in lines:
-                line["chatter"] = {
-                    "model": "account.move",
-                    "id": aml_id_to_account_move_id[aml_id],
-                }
 
     def _get_last_comments_by_line(self, options, lines):
         annotations_by_line = self.get_annotations(options, lines)
