@@ -219,11 +219,9 @@ def resolve_depends(field: Field, registry: Registry) -> Iterator[tuple[Field, .
                 )
 
             if check_precompute and step.store and step.compute and not step.precompute:
-                warnings.warn(
-                    f"Field {field} cannot be precomputed as it depends on non-precomputed field {step}",
-                    stacklevel=1,
+                raise ValueError(
+                    f"Field {field} cannot be precomputed as it depends on non-precomputed field {step}"
                 )
-                field.precompute = False
 
             if field_seq and not field_seq[-1]._description_searchable:
                 warnings.warn(

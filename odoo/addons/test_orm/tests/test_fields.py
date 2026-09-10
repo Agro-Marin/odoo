@@ -5582,17 +5582,13 @@ class TestPrecomputeModel(TransactionCase):
         self.assertTrue(Model.lowup.precompute)
 
         self.addCleanup(self.registry.reset_changes)
-
-        def reset():
-            Model.lowup.precompute = True
-
-        self.addCleanup(reset)
         self.patch(Model.lower, "precompute", False)
         self.patch(Model.upper, "precompute", False)
 
-        with self.assertWarns(UserWarning):
+        with self.assertRaisesRegex(ValueError, "cannot be precomputed"):
             self.registry._setup_models__(self.cr, ["test_orm.precompute"])
             self.registry.get_trigger_tree(Model._fields.values())
+        self.assertTrue(Model.lowup.precompute)
 
     def test_precompute_dependencies_many2one(self):
         Model = self.registry["test_orm.precompute"]
@@ -5610,11 +5606,12 @@ class TestPrecomputeModel(TransactionCase):
         self.addCleanup(self.registry.reset_changes)
         self.patch(Model.size, "precompute", True)
         self.patch(Line.size, "precompute", False)
-        with self.assertWarns(UserWarning):
+        with self.assertRaisesRegex(ValueError, "cannot be precomputed"):
             self.registry._setup_models__(
                 self.cr, ["test_orm.precompute", "test_orm.precompute.line"]
             )
             self.registry.get_trigger_tree(Model._fields.values())
+        self.assertTrue(Model.size.precompute)
 
 
 class TestPrecompute(TransactionCase):

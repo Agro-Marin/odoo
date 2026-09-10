@@ -55,7 +55,6 @@ class ResPartner(models.Model):
         compute="_compute_partner_profile_id",
         store=True,
         compute_sudo=True,
-        precompute=True,
         recursive=True,
         tracking=True,
         help="First active profile whose score range contains the partner's "

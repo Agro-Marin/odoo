@@ -195,7 +195,6 @@ class HrVersion(models.Model):
         compute="_compute_resource_calendar_id",
         inverse="_inverse_resource_calendar_id",
         store=True,
-        precompute=True,
         readonly=False,
         check_company=True,
         string="Working Hours",
