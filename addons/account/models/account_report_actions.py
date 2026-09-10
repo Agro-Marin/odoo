@@ -1,15 +1,25 @@
 import base64
+import datetime
 import re
+from collections import defaultdict
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.numbers import float_round
 from odoo.service.model import get_public_method
 from odoo.tools import SQL
 
-from .account_report_engine import UNDISTR_LINE_NAME
+from .account_report_engine import (
+    ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX,
+    UNDISTR_LINE_NAME,
+)
+from odoo.addons.account.models.account_report import (
+    ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
+    ACCOUNT_CODES_ENGINE_TERM_REGEX,
+)
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.web.controllers.utils import clean_action
 
@@ -776,3 +786,372 @@ class AccountReportActions(models.Model):
                 "default_section_report_ids": self.ids,
             },
         }
+
+    def _get_existing_menuitem(self):
+        self.check_singleton()
+        action = (
+            self.env["ir.actions.client"]
+            .search([("name", "=", self.name), ("tag", "=", "account_report")])
+            .filtered(
+                lambda act: (
+                    self.env["ir.actions.actions"]
+                    ._eval_action_context(act.context)
+                    .get("report_id")
+                    == self.id
+                )
+            )
+        )
+        menuitem = (
+            self.env["ir.ui.menu"]
+            .with_context({"active_test": False})
+            .search([("action", "=", f"ir.actions.client,{action.id}")])
+        )
+        return action, menuitem
+
+    def _create_menu_item_for_report(self):
+        """Adds a default menu item for this report. This is called by an action on the report, for reports created manually by the user."""
+        self.check_singleton()
+
+        action, menuitem = self._get_existing_menuitem()
+
+        if menuitem:
+            raise UserError(_("This report already has a menuitem."))
+
+        if not action:
+            action = self.env["ir.actions.client"].create(
+                {
+                    "name": self.name,
+                    "tag": "account_report",
+                    "context": {"report_id": self.id},
+                }
+            )
+
+        self.env["ir.ui.menu"].create(
+            {
+                "name": self.name,
+                "parent_id": self.env["ir.model.data"]._xmlid_to_res_id(
+                    "account.menu_finance_reports"
+                ),
+                "action": f"ir.actions.client,{action.id}",
+            }
+        )
+
+        return {
+            "type": "ir.actions.client",
+            "tag": "reload",
+        }
+
+    def _get_action_name(self, params, record_model=None, record_id=None):
+        if not (record_model or record_id):
+            record_model, record_id = self._get_model_info_from_id(
+                params.get("line_id")
+            )
+        return (
+            params.get("name")
+            or self.env[record_model].browse(record_id).display_name
+            or ""
+        )
+
+    def execute_action(self, options, params=None):
+        action_id = int(params.get("actionId"))
+        action = self.env["ir.actions.actions"].sudo().browse([action_id])
+        action_type = action.type
+        action = self.env[action.type].sudo().browse([action_id])
+        action_read = clean_action(action.read()[0], env=action.env)
+
+        if action_type == "ir.actions.client":
+            # Check if we are opening another report. If so, generate options for it from the current options.
+            if action.tag == "account_report":
+                target_report = self.env["account.report"].browse(
+                    self.env["ir.actions.actions"]._eval_action_context(
+                        action_read["context"]
+                    )["report_id"]
+                )
+                new_options = target_report.get_options(previous_options=options)
+                action_read.update(
+                    {"params": {"options": new_options, "ignore_session": True}}
+                )
+
+        if params.get("id"):
+            # Add the id of the calling object in the action's context
+            if isinstance(params["id"], int):
+                # id of the report line might directly be the id of the model we want.
+                model_id = params["id"]
+            else:
+                # It can also be a generic account.report id, as defined by _get_generic_line_id
+                model_id = self._get_model_info_from_id(params["id"])[1]
+
+            context = (
+                action_read.get("context")
+                and self.env["ir.actions.actions"]._eval_action_context(
+                    action_read["context"]
+                )
+            ) or {}
+            context.setdefault("active_id", model_id)
+            action_read["context"] = context
+
+        return action_read
+
+    def _action_modify_manual_external_value(
+        self, target_column_group_options, new_value_str, target_expression_id, rounding
+    ):
+        """Edit a manual value from the report, updating or creating the corresponding account.report.external.value object.
+
+        :param target_column_group_options: The options dict of the column group where the modification happened.
+
+        :param new_value_str: The new value to be set, as a string.
+
+        :param target_expression_id: The id of the account.report.expression the manual value belongs to.
+
+        :param rounding: The number of decimal digits to round with.
+        """
+        if len(target_column_group_options["companies"]) > 1:
+            raise UserError(
+                _(
+                    "Editing a manual report line is not allowed when multiple companies are selected."
+                )
+            )
+
+        # Create the manual value
+        target_expression = self.env["account.report.expression"].browse(
+            target_expression_id
+        )
+        date_from, date_to = self._get_date_bounds_info(
+            target_column_group_options, target_expression.date_scope
+        )
+
+        external_values_domain = [
+            ("target_report_expression_id", "=", target_expression.id),
+            ("company_id", "=", self.env.company.id),
+        ]
+
+        if target_expression.formula == "most_recent":
+            value_to_adjust = 0
+            existing_value_to_modify = self.env["account.report.external.value"].search(
+                [
+                    *external_values_domain,
+                    ("date", "=", date_to),
+                ]
+            )
+
+            # There should be at most 1
+            if len(existing_value_to_modify) > 1:
+                raise UserError(
+                    _(
+                        "Inconsistent data: more than one external value at the same date for a 'most_recent' external line."
+                    )
+                )
+        else:
+            existing_external_values = self.env["account.report.external.value"].search(
+                [
+                    *external_values_domain,
+                    ("date", ">=", date_from),
+                    ("date", "<=", date_to),
+                ],
+                order="date ASC",
+            )
+            existing_value_to_modify = (
+                existing_external_values[-1]
+                if existing_external_values
+                and str(existing_external_values[-1].date) == date_to
+                else None
+            )
+            value_to_adjust = sum(
+                existing_external_values.filtered(
+                    lambda x: x != existing_value_to_modify
+                ).mapped("value")
+            )
+
+        if not new_value_str and target_expression.figure_type != "string":
+            new_value_str = "0"
+
+        try:
+            float(new_value_str)
+            is_number = True
+        except ValueError:
+            is_number = False
+
+        if target_expression.figure_type == "string":
+            value_to_set = new_value_str
+        else:
+            if not is_number:
+                raise UserError(_("%s is not a numeric value", new_value_str))
+            if target_expression.figure_type == "boolean":
+                rounding = 0
+            value_to_set = float_round(
+                float(new_value_str) - value_to_adjust, precision_digits=rounding
+            )
+
+        field_name = (
+            "value" if target_expression.figure_type != "string" else "text_value"
+        )
+
+        if existing_value_to_modify:
+            existing_value_to_modify[field_name] = value_to_set
+            existing_value_to_modify.flush_recordset()
+        else:
+            self.env["account.report.external.value"].create(
+                {
+                    "name": _("Manual value"),
+                    field_name: value_to_set,
+                    "date": date_to,
+                    "target_report_expression_id": target_expression.id,
+                    "company_id": self.env.company.id,
+                }
+            )
+
+    def _action_modify_manual_budget_value(
+        self,
+        line_id,
+        target_column_group_options,
+        new_value_str,
+        target_expression_id,
+        rounding,
+    ):
+        target_expression = self.env["account.report.expression"].browse(
+            target_expression_id
+        )
+
+        if not new_value_str and target_expression.figure_type != "string":
+            new_value_str = "0"
+
+        try:
+            value_to_set = float_round(float(new_value_str), precision_digits=rounding)
+        except ValueError:
+            raise UserError(_("%s is not a numeric value", new_value_str))  # noqa: B904
+
+        model, account_id = self._get_model_info_from_id(line_id)
+        if model != "account.account":
+            raise UserError(_("Budget items can only be edited from account lines."))
+
+        # Depending on the expression's formula, the balance of the account could be multiplied by -1
+        # within the report. We need to apply the same multiplier on the budget item we create.
+        if (
+            target_expression.engine == "domain"
+            and target_expression.subformula.startswith("-")
+        ):
+            value_to_set *= -1
+        elif target_expression.engine == "account_codes":
+            account = self.env["account.account"].browse(account_id)
+
+            # Search for the sign to apply to this account
+            for token in ACCOUNT_CODES_ENGINE_SPLIT_REGEX.split(
+                target_expression.formula.replace(" ", "")
+            ):
+                if not token:
+                    continue
+
+                token_match = ACCOUNT_CODES_ENGINE_TERM_REGEX.match(token)
+                multiplicator = -1 if token_match["sign"] == "-" else 1
+                prefix = token_match["prefix"]
+
+                tag_match = ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX.match(prefix)
+                if tag_match:
+                    if tag_match["ref"]:
+                        tag = self.env.ref(tag_match["ref"])
+                    else:
+                        tag = self.env["account.account.tag"].browse(tag_match["id"])
+
+                    account_matches = tag in account.tag_ids
+                else:
+                    account_matches = account.code.startswith(prefix)
+
+                if account_matches:
+                    value_to_set *= multiplicator
+                    break
+
+        self.env["account.report.budget"].browse(
+            target_column_group_options["compute_budget"]
+        )._create_or_update_budget_items(
+            value_to_set,
+            account_id,
+            rounding,
+            target_column_group_options["date"]["date_from"],
+            target_column_group_options["date"]["date_to"],
+        )
+
+    def _get_audit_line_domain(self, column_group_options, expression, params):
+        groupby_domain = Domain(
+            self._get_audit_line_groupby_domain(params["calling_line_dict_id"])
+        )
+        # Aggregate all domains per date scope, then create the final domain.
+        audit_or_domains_per_date_scope = defaultdict(list)
+        for expression_to_audit in expression._expand_aggregations():
+            expression_domain = self._get_expression_audit_aml_domain(
+                expression_to_audit, column_group_options
+            )
+
+            if expression_domain is None:
+                continue
+
+            date_scope = (
+                expression.date_scope
+                if expression.subformula
+                and expression.subformula.startswith("cross_report")
+                else expression_to_audit.date_scope
+            )
+            audit_or_domains_per_date_scope[date_scope].append(expression_domain)
+
+        if audit_or_domains_per_date_scope:
+            domain = Domain.OR(
+                Domain.OR(audit_or_domains)
+                & self._get_options_domain(column_group_options, date_scope)
+                for date_scope, audit_or_domains in audit_or_domains_per_date_scope.items()
+            )
+        else:
+            # Happens when no expression was provided (empty recordset), or if none of the expressions had a standard engine
+            domain = self._get_options_domain(column_group_options, "strict_range")
+        domain &= groupby_domain
+
+        # Analytic Filter
+        if column_group_options.get("analytic_accounts"):
+            domain &= Domain(
+                "analytic_distribution", "in", column_group_options["analytic_accounts"]
+            )
+
+        return domain
+
+    def _get_audit_line_groupby_domain(self, calling_line_dict_id):
+        parsed_line_dict_id = self._parse_line_id(calling_line_dict_id)
+        groupby_domain = []
+        for markup, _model, grouping_key in parsed_line_dict_id:
+            if isinstance(markup, dict) and "groupby" in markup:
+                groupby_field_name = markup["groupby"]
+                custom_handler_model = self._get_custom_handler_model()
+                if custom_handler_model and (
+                    custom_groupby_data := self.env[custom_handler_model]
+                    ._get_custom_groupby_map()
+                    .get(groupby_field_name)
+                ):
+                    groupby_domain += custom_groupby_data["domain_builder"](
+                        grouping_key
+                    )
+                else:
+                    groupby_domain.append((groupby_field_name, "=", grouping_key))
+
+        return groupby_domain
+
+    def _get_generated_deferral_entries_domain(self, options):
+        """Get the search domain for the generated deferral entries of the current period.
+
+        :param options: the report's `options` dict containing `date_from`, `date_to` and `deferred_report_type`
+        :return: a search domain that can be used to get the deferral entries
+        """
+        if options.get("deferred_report_type") == "expense":
+            account_types = ("expense", "expense_depreciation", "expense_direct_cost")
+        else:
+            account_types = ("income", "income_other")
+        date_to = fields.Date.from_string(options["date"]["date_to"])
+        date_to_next_reversal = fields.Date.to_string(
+            date_to + datetime.timedelta(days=1)
+        )
+        return [
+            ("company_id", "=", self.env.company.id),
+            # We exclude the reversal entries of the previous period that fall on the first day of this period
+            ("date", ">", options["date"]["date_from"]),
+            # We include the reversal entries of the current period that fall on the first day of the next period
+            ("date", "<=", date_to_next_reversal),
+            ("deferred_original_move_ids", "!=", False),
+            ("line_ids.account_id.account_type", "in", account_types),
+            ("state", "!=", "cancel"),
+        ]
