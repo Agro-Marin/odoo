@@ -213,9 +213,13 @@ export class KanbanRecord extends Component {
     static menuTemplate = "web.KanbanRecordMenu";
     static template = "web.KanbanRecord";
 
+    /** @returns {number} a draggable card waits longer before a long touch selects it */
+    get LONG_TOUCH_THRESHOLD() {
+        return this.props.canResequence ? 600 : 400;
+    }
+
     setup() {
         useRenderCounter("kanban.KanbanRecord");
-        this.LONG_TOUCH_THRESHOLD = this.props.canResequence ? 600 : 400;
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         this.action = useAction();
         this.dialog = useService("dialog");

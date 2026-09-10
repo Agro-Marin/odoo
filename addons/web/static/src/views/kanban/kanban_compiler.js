@@ -28,7 +28,6 @@ const SPECIAL_TYPES = [
     ...ACTION_TYPES,
     "open",
     "delete",
-    "url",
     "set_cover",
     "archive",
     "unarchive",

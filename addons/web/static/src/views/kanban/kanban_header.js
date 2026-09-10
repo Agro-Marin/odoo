@@ -59,6 +59,7 @@ export class KanbanHeader extends Component {
         this.orm = useService("orm");
         this.rootRef = useRef("root");
         this.popover = usePopover(KanbanHeaderTooltip);
+        this.titleHovered = false;
         this.onTitleMouseEnter = useDebounced(this.onTitleMouseEnter, 400);
         this.groupOps = useGroupManagement({
             getList: () => this.props.list,
@@ -74,18 +75,21 @@ export class KanbanHeader extends Component {
         if (!this.hasTooltip) {
             return;
         }
+        this.titleHovered = true;
         let tooltip;
         try {
             tooltip = await this.loadTooltip();
         } catch {
             return;
         }
-        if (tooltip.length) {
+        // the pointer may have left while the tooltip was loading
+        if (tooltip.length && this.titleHovered) {
             this.popover.open(/** @type {HTMLElement} */ (ev.target), { tooltip });
         }
     }
 
     onTitleMouseLeave() {
+        this.titleHovered = false;
         /** @type {any} */ (this.onTitleMouseEnter).cancel();
         this.popover.close();
     }

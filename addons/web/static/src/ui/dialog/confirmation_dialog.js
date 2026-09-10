@@ -55,7 +55,13 @@ export class ConfirmationDialog extends Component {
     }
 
     async dismiss() {
-        return this.runButton(this.props.dismiss || this.props.cancel);
+        try {
+            return await this.runButton(this.props.dismiss || this.props.cancel);
+        } catch (e) {
+            // a throwing callback must not leave a dialog nobody can close
+            this.props.close();
+            throw e;
+        }
     }
 
     /** @param {boolean} disabled */

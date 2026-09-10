@@ -481,3 +481,27 @@ test("dismissing closes the dialog exactly once", async () => {
     await tick();
     expect.verifySteps([`close({"dismiss":true})`]);
 });
+
+test("a dismiss callback that throws still lets the dialog close", async () => {
+    const close = () => expect.step("Close action");
+    const env = await makeDialogMockEnv({ dialogData: { close } });
+    await mountWithCleanup(ConfirmationDialog, {
+        env,
+        props: {
+            body: "Some content",
+            title: "Confirmation",
+            close,
+            confirm: () => {},
+            dismiss: () => {
+                expect.step("Dismiss action");
+                throw new Error("dismiss failed");
+            },
+        },
+    });
+    expect.errors(1);
+    await press("escape");
+    await tick();
+    expect.verifySteps(["Dismiss action", "Close action"]);
+    await animationFrame();
+    expect.verifyErrors(["Error: dismiss failed"]);
+});

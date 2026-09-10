@@ -629,12 +629,14 @@ test("grouped rendering with active field (archivable false)", async () => {
 
     await toggleKanbanColumnActions(0);
 
-    expect(".o_column_archive_records").toHaveCount(0, {
-        root: getKanbanColumnDropdownMenu(0),
-    });
-    expect(".o_column_unarchive_records").toHaveCount(0, {
-        root: getKanbanColumnDropdownMenu(0),
-    });
+    expect(
+        queryAll(".o_column_archive_records", { root: getKanbanColumnDropdownMenu(0) }),
+    ).toHaveCount(0);
+    expect(
+        queryAll(".o_column_unarchive_records", {
+            root: getKanbanColumnDropdownMenu(0),
+        }),
+    ).toHaveCount(0);
 });
 
 test.tags("desktop");
@@ -672,12 +674,14 @@ test("m2m grouped rendering with active field (archivable true)", async () => {
     await animationFrame();
     await toggleKanbanColumnActions(0);
 
-    expect(".o_column_archive_records").toHaveCount(0, {
-        root: getKanbanColumnDropdownMenu(0),
-    });
-    expect(".o_column_unarchive_records").toHaveCount(0, {
-        root: getKanbanColumnDropdownMenu(0),
-    });
+    expect(
+        queryAll(".o_column_archive_records", { root: getKanbanColumnDropdownMenu(0) }),
+    ).toHaveCount(0);
+    expect(
+        queryAll(".o_column_unarchive_records", {
+            root: getKanbanColumnDropdownMenu(0),
+        }),
+    ).toHaveCount(0);
 });
 
 test("kanban grouped by date field", async () => {
@@ -1559,7 +1563,7 @@ test("click on a button type='unarchive' to unarchive a record in a column", asy
 test.tags("desktop");
 test("kanban with an action id as on_create attrs", async () => {
     mockService("action", {
-        doAction(action, options) {
+        async doAction(action, options) {
             expect.step(`doAction ${action}`);
             MockServer.env["partner"].create({ foo: "new" });
             options.onClose();
@@ -10489,7 +10493,7 @@ test("set cover image", async () => {
     });
 
     mockService("action", {
-        switchView(_viewType, { readonly, resModel, res_id, view_type }) {
+        async switchView(_viewType, { readonly, resModel, res_id, view_type }) {
             expect({ readonly, resModel, res_id, view_type }).toBe({
                 readonly: true,
                 resModel: "partner",
@@ -11206,6 +11210,7 @@ test("empty-bar deselection reload failure does not raise an unhandled rejection
 
 test("stale in-flight _updateProgressBar does not clobber a reloaded domain's counts", async () => {
     let pbCall = 0;
+    /** @type {Deferred<unknown>} */
     let staleDef;
     onRpc("read_progress_bar", async () => {
         pbCall++;
@@ -14068,7 +14073,7 @@ test("selection can be enabled by pressing 'shift + space' key", async () => {
 test.tags("desktop");
 test("range selection follows the clicked record's state at click time", async () => {
     patchWithCleanup(RelationalRecord.prototype, {
-        toggleSelection(selected) {
+        async toggleSelection(selected) {
             this._toggleSelection(selected);
         },
     });
@@ -14102,7 +14107,8 @@ test("range selection follows the clicked record's state at click time", async (
 });
 
 test("progress bars: fetch discarded on a group-set change is retried", async () => {
-    let capturedState = null;
+    /** @type {ReturnType<typeof import("@web/views/kanban/progress_bar_hook").useProgressBar>} */
+    let capturedState;
     patchWithCleanup(KanbanController.prototype, {
         setup() {
             super.setup();
@@ -15418,4 +15424,34 @@ test("header button modifiers see the same names as in a list: uid, today and co
     expect(
         ".o_control_panel_main_buttons button:contains('Hidden by today')",
     ).toHaveCount(0);
+});
+
+test.tags("desktop");
+test("a group tooltip that loads after the pointer left does not open", async () => {
+    const def = new Deferred();
+    onRpc("read", () => def);
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        groupBy: ["product_id"],
+        arch: `
+            <kanban default_group_by="product_id">
+                <field name="product_id" options='{"group_by_tooltip": {"name": "Name"}}'/>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+    });
+
+    await hover(".o_kanban_group .o_kanban_header_title .o_column_title");
+    await runAllTimers();
+    await leave();
+    await runAllTimers();
+
+    def.resolve();
+    await animationFrame();
+
+    expect(".o-tooltip").toHaveCount(0);
 });

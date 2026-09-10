@@ -108,7 +108,6 @@ export class KanbanRenderer extends Component {
             this.props.quickCreateState || { groupId: false },
         );
         this.dialogClose = [];
-        this._onValidateQuickCreate = (...args) => this.props.list.createGroup(...args);
         this.state = useState({
             selectionAvailable: false,
             processedIds: [],
