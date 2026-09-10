@@ -1,19 +1,21 @@
 /** @odoo-module native */
 import { AccountProductCatalogSearchModel } from "@account/components/product_catalog/search/search_model";
-import { useSubEnv } from "@odoo/owl";
+import { reactive, useSubEnv } from "@odoo/owl";
 
 import { getSuggestToggleState } from "../utils.js";
 
 export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalogSearchModel {
     setup() {
         super.setup(...arguments);
-        this.suggest = {
+        // The total arrives from its own RPC after the kanban has reloaded and
+        // the panel has rendered, so the panel has to observe it.
+        this.suggest = reactive({
             numberOfDays: 0,
             basedOn: null,
             percentFactor: 0,
             suggestToggle: { isOn: false },
             totalEstimatedPrice: 0,
-        };
+        });
         useSubEnv({
             suggest: this.suggest,
             _computeTotalEstimatedPrice: () => this._computeTotalEstimatedPrice(),

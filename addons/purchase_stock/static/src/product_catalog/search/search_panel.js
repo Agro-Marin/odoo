@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { AccountProductCatalogSearchPanel } from "@account/components/product_catalog/search/search_panel";
-import { useEnv } from "@odoo/owl";
+import { useEnv, useState } from "@odoo/owl";
 import { formatMonetary } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { clamp } from "@web/core/utils/format/numbers";
@@ -24,7 +24,7 @@ export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSear
 
     setup() {
         super.setup();
-        this.suggest = useEnv().suggest;
+        this.suggest = useState(useEnv().suggest);
         this.toggleSuggest = useEnv().toggleSuggest;
         this.debouncedReloadKanban = useEnv().debouncedReloadKanban;
         this.reloadKanban = useEnv().reloadKanban;
