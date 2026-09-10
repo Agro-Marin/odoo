@@ -1588,6 +1588,50 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         return finished, byproduct, bom, unit
 
+    def test_creating_with_the_byproduct_key_alone_keeps_the_finished_product(self):
+        finished, byproduct, bom, unit = self._audit_byproduct_fixture()
+        bom.byproduct_ids = [
+            Command.create({"product_id": byproduct.id, "product_qty": 2.0})
+        ]
+        moves_before = self.env["stock.move"].search(
+            [("product_id", "in", (finished | byproduct).ids)]
+        )
+
+        production = self.env["mrp.production"].create(
+            {
+                "product_id": finished.id,
+                "product_qty": 1.0,
+                "bom_id": bom.id,
+                "move_byproduct_ids": [
+                    Command.create(
+                        {
+                            "product_id": byproduct.id,
+                            "product_uom_qty": 2,
+                            "product_uom_id": unit.id,
+                        }
+                    )
+                ],
+            }
+        )
+
+        self.assertEqual(
+            sorted(production.move_finished_ids.product_id.mapped("name")),
+            sorted([finished.name, byproduct.name]),
+            "the product's own finished move must exist beside the by-product's",
+        )
+        moves_after = (
+            self.env["stock.move"].search(
+                [("product_id", "in", (finished | byproduct).ids)]
+            )
+            - moves_before
+        )
+        self.assertEqual(
+            moves_after,
+            production.move_finished_ids,
+            "no finished move may be left outside the order (an orphan by-product "
+            "move from the compute that the inverse then detached)",
+        )
+
     def test_writing_both_move_keys_keeps_the_byproduct(self):
         finished, byproduct, bom, unit = self._audit_byproduct_fixture()
         production = self.env["mrp.production"].create(

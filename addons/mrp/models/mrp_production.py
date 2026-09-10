@@ -1924,7 +1924,7 @@ class MrpProduction(models.Model):
         default_picking_type_by_company = {}
         vals_needing_group = []
         for vals in vals_list:
-            if vals.get("move_byproduct_ids"):
+            if vals.get("move_byproduct_ids") and vals.get("move_finished_ids"):
                 self._merge_byproduct_commands(vals, vals.get("product_id"))
             if not vals.get("name", False) or vals["name"] == _("New"):
                 picking_type_id = vals.get("picking_type_id")
