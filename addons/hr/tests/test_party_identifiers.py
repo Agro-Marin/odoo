@@ -16,7 +16,7 @@ class TestPartyIdentifiers(TransactionCase):
             {
                 "name": "Ident",
                 "identification_id": "NIN-1",
-                "ssnid": "123-45-6789",
+                "ssnid": "123456789",
                 "passport_id": "P0001",
                 "passport_expiration_date": "2030-01-31",
                 "barcode": "041000000001",
@@ -24,11 +24,11 @@ class TestPartyIdentifiers(TransactionCase):
         )
         rows = self._rows(employee)
         self.assertEqual(rows["NATIONAL_ID"].value, "NIN-1")
-        self.assertEqual(rows["SSN"].value, "123-45-6789")
+        self.assertEqual(rows["SSN"].value, "123456789")
         self.assertEqual(rows["PASSPORT"].value, "P0001")
         self.assertEqual(str(rows["PASSPORT"].valid_until), "2030-01-31")
         self.assertEqual(rows["BADGE"].value, "041000000001")
-        self.assertEqual(employee.ssnid, "123-45-6789")
+        self.assertEqual(employee.ssnid, "123456789")
         self.assertEqual(str(employee.passport_expiration_date), "2030-01-31")
 
     def test_linking_a_user_moves_the_identifiers(self):
@@ -54,7 +54,9 @@ class TestPartyIdentifiers(TransactionCase):
         self.assertEqual(employee.resource_id.tz, "Europe/Brussels")
 
     def test_clearing_a_value_removes_its_row(self):
-        employee = self.env["hr.employee"].create({"name": "Ident Clear", "ssnid": "1"})
+        employee = self.env["hr.employee"].create(
+            {"name": "Ident Clear", "ssnid": "111111111"}
+        )
         self.assertIn("SSN", self._rows(employee))
         employee.ssnid = False
         self.assertNotIn("SSN", self._rows(employee))
@@ -86,7 +88,7 @@ class TestPartyIdentifiers(TransactionCase):
 
     def test_a_colleague_cannot_read_them_through_the_employee(self):
         employee = self.env["hr.employee"].create(
-            {"name": "Ident Hidden", "ssnid": "9"}
+            {"name": "Ident Hidden", "ssnid": "999999999"}
         )
         colleague = mail_new_test_user(
             self.env, login="ident_colleague", groups="base.group_user"
