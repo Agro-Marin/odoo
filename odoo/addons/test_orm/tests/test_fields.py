@@ -900,6 +900,24 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         record.write({"bar": "Ho", "baz": "Ho"})
         self.assertCountEqual(log, ["inverse", "constraint"])
 
+    def test_15_constraint_inverse_runs_after_the_inverse_on_create(self):
+        """A constraint over a stored and an inverted field waits for the inverse.
+
+        write always deferred it; create ran it in the stored pass, before the
+        inverse had written, and never again.
+        """
+        log = []
+        model = self.env["test_orm.compute.inverse"].with_context(
+            log=log, log_constraint=True
+        )
+        model.create({"bar": "Hi", "baz": "Hi"})
+        self.assertEqual(log, ["inverse", "constraint"])
+
+        log.clear()
+        model.create([{"bar": "Hi", "baz": "Hi"}, {"baz": "Ho"}])
+        self.assertEqual(log.count("constraint"), 1, "once for the batch, after it")
+        self.assertEqual(log[-1], "constraint")
+
     def test_16_compute_unassigned(self):
         model = self.env["test_orm.compute.unassigned"]
 

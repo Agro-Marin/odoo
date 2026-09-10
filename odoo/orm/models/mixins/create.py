@@ -314,18 +314,15 @@ class CreateMixin(_ModelStubs):
         return records
 
     def _check_created(self, data_list: list[dict]) -> None:
-        groups: dict[tuple, tuple[list, dict]] = {}
-        for data in data_list:
-            inversed = data["inversed"]
-            stored = data["stored"]
-            key = (frozenset(inversed), frozenset(stored))
-            group = groups.get(key)
-            if group is None:
-                groups[key] = ([data["record"].id], data)
-            else:
-                group[0].append(data["record"].id)
-        for ids, data in groups.values():
-            self.browse(ids)._check_fields(data["inversed"], data["stored"])
+        # The second half of write's two passes: every constraint that reads a
+        # field inverted in this batch runs once the inverses have written, on
+        # every record of the batch, including one that constrains a stored field
+        # as well and was therefore left out of the stored pass in _create.
+        inversed_names = {name for data in data_list for name in data["inversed"]}
+        if inversed_names:
+            self.browse([data["record"].id for data in data_list])._check_fields(
+                inversed_names
+            )
 
     def _prepare_create_values(self, vals_list: list[ValuesType]) -> list[ValuesType]:
         bad_names = get_forbidden_field_names(self)
@@ -481,7 +478,10 @@ class CreateMixin(_ModelStubs):
 
                 records.modified([field.name for field in other_fields], create=True)
 
-        records._check_fields(name for data in data_list for name in data["stored"])
+        records._check_fields(
+            (name for data in data_list for name in data["stored"]),
+            {name for data in data_list for name in data["inversed"]},
+        )
         records.check_access("create")
 
         prof.stop("trigger")
