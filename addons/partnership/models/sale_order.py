@@ -6,7 +6,7 @@ class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     assigned_grade_id = fields.Many2one(
-        "res.partner.grade", compute="_compute_partnership"
+        "res.partner.grade", compute="_compute_assigned_grade_id"
     )
 
     @api.constrains("line_ids")
@@ -22,7 +22,7 @@ class SaleOrder(models.Model):
                 )
 
     @api.depends("line_ids.product_id")
-    def _compute_partnership(self):
+    def _compute_assigned_grade_id(self):
         for so in self:
             partnership_lines = so.line_ids.filtered(
                 lambda l: l.service_tracking == "partnership"

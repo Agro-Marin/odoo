@@ -264,8 +264,8 @@ class SurveySurvey(models.Model):
         help="Which events trigger the webhook. 'All' fires on survey_started, "
         "page_submitted, and survey_completed.",
     )
-    survey_url = fields.Char("Survey URL", compute="_compute_survey_url")
-    survey_qr_url = fields.Char("QR Code URL", compute="_compute_survey_url")
+    survey_url = fields.Char("Survey URL", compute="_compute_survey_urls")
+    survey_qr_url = fields.Char("QR Code URL", compute="_compute_survey_urls")
     survey_embed_code = fields.Text(
         "Embed Code",
         compute="_compute_survey_embed_code",
@@ -519,7 +519,7 @@ class SurveySurvey(models.Model):
             survey.users_can_signup = signup_allowed
 
     @api.depends("access_token")
-    def _compute_survey_url(self) -> None:
+    def _compute_survey_urls(self) -> None:
         for survey in self:
             base_url = survey.get_base_url()
             full_url = url_join(base_url, survey.get_start_url())

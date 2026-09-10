@@ -23,13 +23,19 @@ class MixinRating(models.AbstractModel):
         aggregator="avg",
     )
     rating_last_feedback = fields.Text(
-        "Rating Last Feedback", groups="base.group_user", related="rating_ids.feedback"
+        "Rating Last Feedback",
+        groups="base.group_user",
+        related="rating_ids.feedback",
     )
     rating_last_image = fields.Binary(
-        "Rating Last Image", groups="base.group_user", related="rating_ids.rating_image"
+        "Rating Last Image",
+        groups="base.group_user",
+        related="rating_ids.rating_image",
     )
     rating_count = fields.Integer(
-        "Rating count", compute="_compute_rating_stats", compute_sudo=True
+        "Rating count",
+        compute="_compute_rating_stats",
+        compute_sudo=True,
     )
     rating_avg = fields.Float(
         "Average Rating",
@@ -45,10 +51,14 @@ class MixinRating(models.AbstractModel):
         compute_sudo=True,
     )
     rating_percentage_satisfaction = fields.Float(
-        "Rating Satisfaction", compute="_compute_rating_satisfaction", compute_sudo=True
+        "Rating Satisfaction",
+        compute="_compute_rating_percentage_satisfaction",
+        compute_sudo=True,
     )
     rating_last_text = fields.Selection(
-        string="Rating Text", groups="base.group_user", related="rating_ids.rating_text"
+        string="Rating Text",
+        groups="base.group_user",
+        related="rating_ids.rating_text",
     )
 
     @api.depends("rating_ids", "rating_ids.rating", "rating_ids.consumed")
@@ -80,7 +90,7 @@ class MixinRating(models.AbstractModel):
     @api.depends("rating_ids.res_id", "rating_ids.rating")
     def _compute_rating_stats(self):
         """Compute avg and count in one query, as thoses fields will be used together most of the time."""
-        domain = self._rating_domain() & Domain(
+        domain = self._get_domain_rating() & Domain(
             "rating", ">=", rating_data.RATING_LIMIT_MIN
         )
         read_group_res = self.env["rating.rating"]._read_group(
@@ -124,10 +134,10 @@ class MixinRating(models.AbstractModel):
             record.rating_avg_text = rating_data._rating_avg_to_text(record.rating_avg)
 
     @api.depends("rating_ids.res_id", "rating_ids.rating")
-    def _compute_rating_satisfaction(self):
+    def _compute_rating_percentage_satisfaction(self):
         """Compute the rating satisfaction percentage, this is done separately from rating_count and rating_avg
         since the query is different, to avoid computing if it is not necessary"""
-        domain = self._rating_domain() & Domain(
+        domain = self._get_domain_rating() & Domain(
             "rating", ">=", rating_data.RATING_LIMIT_MIN
         )
         # See `_compute_rating_percentage_satisfaction` above
@@ -172,7 +182,7 @@ class MixinRating(models.AbstractModel):
         """Return the name of the field holding the parent relation, or None."""
         return
 
-    def _rating_domain(self, record_ids=None):
+    def _get_domain_rating(self, record_ids=None):
         """Returns a normalized domain on rating.rating to select the records to
         include in count, avg, ... computation of current model.
 
@@ -205,7 +215,7 @@ class MixinRating(models.AbstractModel):
             otherwise, key is the value of the information (string) : either stat name (avg, total, ...) or 'repartition'
             containing the same dict if add_stats was False.
         """
-        base_domain = self._rating_domain(record_ids=record_ids) & Domain(
+        base_domain = self._get_domain_rating(record_ids=record_ids) & Domain(
             "rating", ">=", 1
         )
         if domain:
@@ -235,7 +245,7 @@ class MixinRating(models.AbstractModel):
         :param domain: Optional domain of the rating to include/exclude
             in the grades computation.
         :param record_ids: Optional override for which records to grade,
-            passed to :meth:`_rating_domain`; a ``Query`` stays a subquery.
+            passed to :meth:`_get_domain_rating`; a ``Query`` stays a subquery.
         :returns: A dictionary where the key is the grade bucket and the value
             is the count of unique ``(res_model, res_id)`` pairs whose
             grades are associated with that rating.
@@ -286,7 +296,7 @@ class MixinRating(models.AbstractModel):
         :return: A dictionary mapping each record ID to its statistics dictionary.
         :rtype: dict
         """
-        base_domain = self._rating_domain() & Domain("rating", ">=", 1)
+        base_domain = self._get_domain_rating() & Domain("rating", ">=", 1)
         if domain:
             base_domain &= Domain(domain)
         rg_data = self.env["rating.rating"]._read_group(

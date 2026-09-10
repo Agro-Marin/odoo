@@ -21,7 +21,7 @@ class StockPackage(models.Model):
                 "product.template"
             ]._get_weight_uom_name_from_ir_config_parameter()
 
-    def _compute_weight_is_kg(self):
+    def _compute_weight_uom_info(self):
         self.weight_is_kg = False
         uom_id = self.env[
             "product.template"
@@ -43,11 +43,11 @@ class StockPackage(models.Model):
     )
     weight_is_kg = fields.Boolean(
         "Technical field indicating whether weight uom is kg or not (i.e. lb)",
-        compute="_compute_weight_is_kg",
+        compute="_compute_weight_uom_info",
     )
     weight_uom_rounding = fields.Float(
         "Technical field indicating weight's number of decimal places",
-        compute="_compute_weight_is_kg",
+        compute="_compute_weight_uom_info",
     )
     package_carrier_type = fields.Selection(
         related="package_type_id.package_carrier_type"

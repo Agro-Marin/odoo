@@ -10,7 +10,7 @@ class TestValidMovesDomain(TransactionCase):
         cls.company = cls.env.user.company_id
 
     def _domain_str(self):
-        return str(self.move._get_valid_moves_domain())
+        return str(self.move._get_domain_valid_moves())
 
     def test_anglo_saxon_excludes_reinvoiced_products(self):
         self.company.anglo_saxon_accounting = True

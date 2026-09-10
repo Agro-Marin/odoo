@@ -36,7 +36,7 @@ class SaleOrderTemplateLine(models.Model):
     product_id = fields.Many2one(
         comodel_name="product.product",
         check_company=True,
-        domain=lambda self: self._product_id_domain(),
+        domain=lambda self: self._domain_product_id(),
     )
 
     name = fields.Text(
@@ -132,7 +132,7 @@ class SaleOrderTemplateLine(models.Model):
         return super().write(vals)
 
     @api.model
-    def _product_id_domain(self):
+    def _domain_product_id(self):
         return [("sale_ok", "=", True), ("type", "!=", "combo")]
 
     def _prepare_order_line_values(self):

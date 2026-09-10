@@ -6,12 +6,12 @@ class ResPartner(models.Model):
 
     loyalty_card_count = fields.Integer(
         string="Active loyalty cards",
-        compute="_compute_count_active_cards",
+        compute="_compute_loyalty_card_count",
         compute_sudo=True,
         groups="base.group_user",
     )
 
-    def _compute_count_active_cards(self):
+    def _compute_loyalty_card_count(self):
         """Count each partner's usable cards, those of its children included.
 
         Not declarable with `@api.depends` -- the count is a search. `loyalty.card`

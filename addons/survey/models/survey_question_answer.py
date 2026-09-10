@@ -140,7 +140,7 @@ class SurveyQuestionAnswer(models.Model):
             letters = chr(65 + remainder) + letters
         return letters
 
-    def _get_answer_matching_domain(
+    def _get_domain_answer_matching(
         self, row_id: int | bool = False
     ) -> list[str | tuple[str, str, Any]]:
         self.check_singleton()

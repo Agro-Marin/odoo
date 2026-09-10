@@ -130,12 +130,12 @@ class LoyaltyReward(models.Model):
     reward_product_tag_id = fields.Many2one(
         string="Product Tag", comodel_name="product.tag"
     )
-    multi_product = fields.Boolean(compute="_compute_multi_product")
+    multi_product = fields.Boolean(compute="_compute_reward_products")
     reward_product_ids = fields.Many2many(
         string="Reward Products",
         help="These are the products that can be claimed with this rule.",
         comodel_name="product.product",
-        compute="_compute_multi_product",
+        compute="_compute_reward_products",
         search="_search_reward_product_ids",
     )
     reward_product_qty = fields.Integer(default=1)
@@ -209,7 +209,7 @@ class LoyaltyReward(models.Model):
         return domain
 
     @api.model
-    def _get_active_products_domain(self):
+    def _get_domain_active_products(self):
         return [
             "|",
             ("reward_type", "!=", "product"),
@@ -294,7 +294,7 @@ class LoyaltyReward(models.Model):
             reward.all_discount_product_ids = products
 
     @api.depends("reward_product_id", "reward_product_tag_id", "reward_type")
-    def _compute_multi_product(self):
+    def _compute_reward_products(self):
         for reward in self:
             products = (
                 reward.reward_product_id

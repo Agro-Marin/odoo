@@ -298,11 +298,11 @@ class SurveyQuestion(models.Model):
         "survey.question",
         string="Allowed Triggering Questions",
         copy=False,
-        compute="_compute_allowed_triggering_question_ids",
+        compute="_compute_triggering_questions",
     )
     is_placed_before_trigger = fields.Boolean(
         string="Is misplaced?",
-        compute="_compute_allowed_triggering_question_ids",
+        compute="_compute_triggering_questions",
         help="Is this question placed before any of its trigger questions?",
     )
     triggering_answer_ids = fields.Many2many(
@@ -630,7 +630,7 @@ class SurveyQuestion(models.Model):
                 question.validation_required = False
 
     @api.depends("survey_id", "survey_id.question_ids", "triggering_answer_ids")
-    def _compute_allowed_triggering_question_ids(self) -> None:
+    def _compute_triggering_questions(self) -> None:
         possible_trigger_questions = self.search(
             [
                 ("is_page", "=", False),

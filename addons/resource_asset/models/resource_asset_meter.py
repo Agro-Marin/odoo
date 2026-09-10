@@ -25,7 +25,7 @@ class ResourceAssetMeter(models.Model):
     reading_ids = fields.One2many("resource.asset.meter.reading", "meter_id")
     last_reading_id = fields.Many2one(
         "resource.asset.meter.reading",
-        compute="_compute_last_reading",
+        compute="_compute_last_reading_id",
         store=True,
     )
     value = fields.Float(related="last_reading_id.value", string="Current Value")
@@ -36,7 +36,7 @@ class ResourceAssetMeter(models.Model):
     )
 
     @api.depends("reading_ids.date", "reading_ids.value")
-    def _compute_last_reading(self):
+    def _compute_last_reading_id(self):
         for meter in self:
             meter.last_reading_id = meter.reading_ids.sorted(
                 key=lambda r: (r.date, r.id), reverse=True

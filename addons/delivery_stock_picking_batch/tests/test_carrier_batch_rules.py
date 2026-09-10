@@ -55,9 +55,9 @@ class TestCarrierBatchRules(TransactionCase):
     def test_pickings_domain_filters_by_carrier_when_grouping(self):
         """With carrier grouping on, candidate pickings filter by carrier."""
         picking = self._picking(carrier=self.carrier)
-        self.assertIn("carrier_id", str(picking._get_possible_pickings_domain()))
+        self.assertIn("carrier_id", str(picking._get_domain_possible_pickings()))
         self.picking_type.batch_group_by_carrier = False
-        self.assertNotIn("carrier_id", str(picking._get_possible_pickings_domain()))
+        self.assertNotIn("carrier_id", str(picking._get_domain_possible_pickings()))
 
     def test_auto_batch_description_appends_carrier(self):
         """The auto-batch description carries the carrier name."""

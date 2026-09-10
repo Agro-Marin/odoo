@@ -9,11 +9,11 @@ class LoyaltyRule(models.Model):
     valid_product_ids = fields.Many2many(
         "product.product",
         "Valid Products",
-        compute="_compute_valid_product_ids",
+        compute="_compute_valid_products",
         help="These are the products that are valid for this rule.",
     )
     any_product = fields.Boolean(
-        compute="_compute_valid_product_ids",
+        compute="_compute_valid_products",
         help="Technical field, whether all product match",
     )
 
@@ -50,7 +50,7 @@ class LoyaltyRule(models.Model):
     @api.depends(
         "product_ids", "product_category_id", "product_tag_id", "product_domain"
     )  # TODO later: product tags
-    def _compute_valid_product_ids(self):
+    def _compute_valid_products(self):
         for key, rules in self.grouped(
             lambda rule: (
                 tuple(rule.product_ids.ids),
@@ -79,4 +79,4 @@ class LoyaltyRule(models.Model):
     @api.depends("code")
     def _compute_promo_barcode(self):
         for rule in self:
-            rule.promo_barcode = self.env["loyalty.card"]._generate_code()
+            rule.promo_barcode = self.env["loyalty.card"]._prepare_code()

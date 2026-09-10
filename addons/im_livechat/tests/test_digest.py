@@ -130,7 +130,7 @@ class TestLiveChatDigest(TestDigestCommon):
         )
 
     def test_rating_domain_accepts_a_query(self):
-        """`_rating_domain(record_ids=...)` is what keeps it a subquery, and the
+        """`_get_domain_rating(record_ids=...)` is what keeps it a subquery, and the
         two forms have to select the same ratings."""
         Channel = self.env["discuss.channel"]
         by_ids = Channel.search([("channel_type", "=", "livechat")]).rating_get_grades()

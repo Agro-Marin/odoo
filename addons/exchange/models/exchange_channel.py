@@ -81,10 +81,10 @@ class ExchangeChannel(models.Model):
         inverse_name="channel_id",
     )
     count_transmission = fields.Integer(
-        compute="_compute_count_transmission",
+        compute="_compute_transmission_counts",
     )
     count_transmission_open = fields.Integer(
-        compute="_compute_count_transmission",
+        compute="_compute_transmission_counts",
     )
 
     # SELECTION METHODS
@@ -141,7 +141,7 @@ class ExchangeChannel(models.Model):
 
     # COMPUTE METHODS
 
-    def _compute_count_transmission(self):
+    def _compute_transmission_counts(self):
         totals = dict(
             self.env["exchange.transmission"]._read_group(
                 domain=[("channel_id", "in", self.ids)],

@@ -231,7 +231,7 @@ class SaleOrderLine(models.Model):
             )
         return supplier
 
-    def _get_additional_domain_for_purchase_order_line(self):
+    def _get_domain_purchase_order_line_additional(self):
         return [("sale_order_id", "=", self.order_id.id)]
 
     def _purchase_service_match_purchase_order(self, partner):
@@ -249,7 +249,7 @@ class SaleOrderLine(models.Model):
                                 self._purchase_service_get_company().id,
                             ),
                         ],
-                        self._get_additional_domain_for_purchase_order_line(),
+                        self._get_domain_purchase_order_line_additional(),
                     ]
                 ),
                 order="order_id",

@@ -1526,7 +1526,7 @@ class Survey(http.Controller):
             for answer in answers:
                 if not answer_by_column[answer.id]:
                     user_input_line_subdomains.append(
-                        answer._get_answer_matching_domain()
+                        answer._get_domain_answer_matching()
                     )
                     search_filters.append(self._prepare_search_filter_answer(answer))
                 else:
@@ -1535,7 +1535,7 @@ class Survey(http.Controller):
                             lambda answer_or_row, rid=row_id: answer_or_row.id == rid
                         )
                         user_input_line_subdomains.append(
-                            answer._get_answer_matching_domain(row_id)
+                            answer._get_domain_answer_matching(row_id)
                         )
                         search_filters.append(
                             self._prepare_search_filter_answer(answer, row)
@@ -1547,7 +1547,7 @@ class Survey(http.Controller):
             )
             for input_line in user_input_lines:
                 user_input_line_subdomains.append(
-                    input_line._get_answer_matching_domain()
+                    input_line._get_domain_answer_matching()
                 )
                 search_filters.append(
                     self._prepare_search_filter_input_line(input_line)

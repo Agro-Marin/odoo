@@ -234,7 +234,7 @@ class ResCompany(models.Model):
                     exc_info=True,
                 )
 
-    def _get_valuation_product_domain(self):
+    def _get_domain_valuation_product(self):
         return [("is_storable", "=", True)]
 
     def _get_accounts_by_product(self, products=None):
@@ -243,7 +243,7 @@ class ResCompany(models.Model):
                 self.env["product.product"]
                 .with_company(self)
                 .search_fetch(
-                    self._get_valuation_product_domain(),
+                    self._get_domain_valuation_product(),
                     ["categ_id"],
                 )
             )

@@ -5,8 +5,8 @@ from odoo.fields import Domain
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    def _get_valid_moves_domain(self):
-        domain = super()._get_valid_moves_domain()
+    def _get_domain_valid_moves(self):
+        domain = super()._get_domain_valid_moves()
         if self.env.user.company_id.anglo_saxon_accounting:
             domain = Domain.AND(
                 [

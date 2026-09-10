@@ -268,12 +268,12 @@ class RepairOrder(models.Model):
     )  # Once RO switch to state done, a binded move is created for the "Product to repair" (move_id), this move appears in 'move_ids' if not filtered
     parts_availability = fields.Char(
         string="Component Status",
-        compute="_compute_parts_availability",
+        compute="_compute_parts_availability_and_state",
         help="Latest parts availability status for this RO. If green, then the RO's readiness status is ready.",
     )
     parts_availability_state = fields.Selection(
         [("available", "Available"), ("expected", "Expected"), ("late", "Late")],
-        compute="_compute_parts_availability",
+        compute="_compute_parts_availability_and_state",
     )
     is_parts_available = fields.Boolean(
         "All Parts are available",
@@ -330,12 +330,12 @@ class RepairOrder(models.Model):
     has_uncomplete_moves = fields.Boolean(compute="_compute_has_uncomplete_moves")
     unreserve_visible = fields.Boolean(
         "Allowed to Unreserve Production",
-        compute="_compute_unreserve_visible",
+        compute="_compute_reservation_visibility",
         help="Technical field to check when we can unreserve",
     )
     reserve_visible = fields.Boolean(
         "Allowed to Reserve Production",
-        compute="_compute_unreserve_visible",
+        compute="_compute_reservation_visibility",
         help="Technical field to check when we can reserve quantities",
     )
     picking_type_visible = fields.Boolean(compute="_compute_picking_type_visible")
@@ -474,7 +474,7 @@ class RepairOrder(models.Model):
         "move_ids.forecast_availability",
         "move_ids.date_planned_forecast",
     )
-    def _compute_parts_availability(self):
+    def _compute_parts_availability_and_state(self):
         repairs = self.filtered(lambda ro: ro.state in ("confirmed", "under_repair"))
         repairs.parts_availability_state = "available"
         repairs.parts_availability = _("Available")
@@ -539,7 +539,7 @@ class RepairOrder(models.Model):
             )
 
     @api.depends("move_ids", "state", "move_ids.product_uom_qty")
-    def _compute_unreserve_visible(self):
+    def _compute_reservation_visibility(self):
         for repair in self:
             repair.unreserve_visible = repair.state not in (
                 "draft",

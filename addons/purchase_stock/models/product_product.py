@@ -29,8 +29,8 @@ class ProductProduct(models.Model):
         compute="_compute_monthly_demand",
     )
     suggested_qty = fields.Integer(
-        compute="_compute_suggested_quantity",
-        search="_search_product_with_suggested_quantity",
+        compute="_compute_suggested_qty",
+        search="_search_suggested_qty",
     )
     suggest_estimated_price = fields.Float(
         compute="_compute_suggest_estimated_price",
@@ -43,7 +43,7 @@ class ProductProduct(models.Model):
         "warehouse_id",
     )
     @api.depends("monthly_demand")
-    def _compute_suggested_quantity(self):
+    def _compute_suggested_qty(self):
         ctx = self.env.context
         self.suggested_qty = 0
         if ctx.get("suggest_based_on") == "actual_demand":
@@ -151,7 +151,7 @@ class ProductProduct(models.Model):
         for product in self:
             product.monthly_demand = qty_by_product.get(product.id, 0) / factor
 
-    def _search_product_with_suggested_quantity(self, operator, value):
+    def _search_suggested_qty(self, operator, value):
         if operator not in _SUGGESTED_QTY_OPERATORS:
             return NotImplemented
 

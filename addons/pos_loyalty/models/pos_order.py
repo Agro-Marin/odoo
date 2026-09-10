@@ -121,7 +121,7 @@ class PosOrder(models.Model):
                 "partner_id": get_partner_id(p.get("partner_id", self.partner_id.id)),
                 "code": p.get("code")
                 or p.get("barcode")
-                or self.env["loyalty.card"]._generate_code(),
+                or self.env["loyalty.card"]._prepare_code(),
                 "points": 0,
                 "source_pos_order_id": self.id,
                 "expiration_date": p.get("expiration_date"),

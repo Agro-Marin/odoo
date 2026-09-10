@@ -6,9 +6,11 @@ class DigestDigest(models.Model):
     _inherit = "digest.digest"
 
     kpi_all_sale_total = fields.Boolean("All Sales")
-    kpi_all_sale_total_value = fields.Monetary(compute="_compute_kpi_sale_total_value")
+    kpi_all_sale_total_value = fields.Monetary(
+        compute="_compute_kpi_all_sale_total_value"
+    )
 
-    def _compute_kpi_sale_total_value(self):
+    def _compute_kpi_all_sale_total_value(self):
         if not self.env.user.has_group("sales_team.group_sale_salesman_all_leads"):
             raise AccessError(
                 _("Do not have access, skip this data for user's digest email")

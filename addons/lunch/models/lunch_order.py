@@ -54,7 +54,7 @@ class LunchOrder(models.Model):
     )
     note = fields.Text("Notes")
     price = fields.Monetary(
-        "Total Price", compute="_compute_total_price", readonly=True, store=True
+        "Total Price", compute="_compute_price", readonly=True, store=True
     )
     active = fields.Boolean("Active", default=True)
     state = fields.Selection(
@@ -352,7 +352,7 @@ class LunchOrder(models.Model):
     @api.depends(
         "topping_ids_1", "topping_ids_2", "topping_ids_3", "product_id", "quantity"
     )
-    def _compute_total_price(self):
+    def _compute_price(self):
         for line in self:
             line.price = line.quantity * (
                 line.product_id.price

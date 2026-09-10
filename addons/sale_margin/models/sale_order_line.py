@@ -6,14 +6,14 @@ class SaleOrderLine(models.Model):
 
     margin = fields.Float(
         "Margin",
-        compute="_compute_margin",
+        compute="_compute_margins",
         min_display_digits="Product Price",
         store=True,
         groups="base.group_user",
     )
     margin_percent = fields.Float(
         "Margin (%)",
-        compute="_compute_margin",
+        compute="_compute_margins",
         store=True,
         groups="base.group_user",
         aggregator="avg",
@@ -53,7 +53,7 @@ class SaleOrderLine(models.Model):
         "purchase_price",
         "qty_transferred",
     )
-    def _compute_margin(self):
+    def _compute_margins(self):
         for line in self:
             if line.qty_transferred and not line.product_qty:
                 calculated_subtotal = line.price_unit * line.qty_transferred

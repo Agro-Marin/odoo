@@ -28,7 +28,7 @@ class TestLoyaltyCardHelpers(TransactionCase):
 
     def test_generate_code_is_nonempty_string(self):
         """The default code generator yields a non-empty string."""
-        code = self.env["loyalty.card"]._generate_code()
+        code = self.env["loyalty.card"]._prepare_code()
         self.assertIsInstance(code, str)
         self.assertTrue(code)
 

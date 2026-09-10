@@ -8,18 +8,18 @@ class PurchaseOrder(models.Model):
 
     sale_order_count = fields.Integer(
         "Number of Source Sale",
-        compute="_compute_sale_order_count",
+        compute="_compute_sale_orders",
         groups="sales_team.group_sale_salesman",
     )
     has_sale_order = fields.Boolean(
         "Has Source Sale",
-        compute="_compute_sale_order_count",
+        compute="_compute_sale_orders",
         groups="sales_team.group_sale_salesman",
         help="Technical field: whether the purchase order has associated sale orders.",
     )
 
     @api.depends("line_ids.sale_order_id")
-    def _compute_sale_order_count(self):
+    def _compute_sale_orders(self):
         for purchase in self:
             purchase.sale_order_count = len(purchase._get_sale_orders())
             purchase.has_sale_order = bool(purchase.sale_order_count)

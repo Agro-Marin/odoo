@@ -46,10 +46,10 @@ class MaintenanceEquipmentCategory(models.Model):
     )
     maintenance_ids = fields.One2many("maintenance.request", "category_id", copy=False)
     maintenance_count = fields.Integer(
-        string="Maintenance Count", compute="_compute_maintenance_count"
+        string="Maintenance Count", compute="_compute_maintenance_counts"
     )
     maintenance_open_count = fields.Integer(
-        string="Current Maintenance", compute="_compute_maintenance_count"
+        string="Current Maintenance", compute="_compute_maintenance_counts"
     )
     fold = fields.Boolean(
         string="Folded in Maintenance Pipe", compute="_compute_fold", store=True
@@ -66,7 +66,7 @@ class MaintenanceEquipmentCategory(models.Model):
         for category in self:
             category.equipment_count = mapped_data.get(category.id, 0)
 
-    def _compute_maintenance_count(self):
+    def _compute_maintenance_counts(self):
         maintenance_data = self.env["maintenance.request"]._read_group(
             [("category_id", "in", self.ids)], ["category_id", "archive"], ["__count"]
         )
@@ -201,7 +201,7 @@ class MaintenanceRequest(models.Model):
             return self.env.ref("maintenance.mt_req_status")
         return super()._track_subtype(init_values)
 
-    def _get_default_team_id(self):
+    def _default_maintenance_team_id(self):
         MT = self.env["maintenance.team"]
         team = MT.search([("company_id", "=", self.env.company.id)], limit=1)
         if not team:
@@ -300,7 +300,7 @@ class MaintenanceRequest(models.Model):
         string="Team",
         required=True,
         index=True,
-        default=_get_default_team_id,
+        default=_default_maintenance_team_id,
         compute="_compute_maintenance_team_id",
         store=True,
         readonly=False,

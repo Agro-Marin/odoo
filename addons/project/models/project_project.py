@@ -2582,10 +2582,10 @@ class ProjectProject(models.Model):
     def _check_account_id(self) -> None:
         pass
 
-    def _get_plan_domain(self, plan: Any) -> list:
+    def _get_domain_plan(self, plan: Any) -> list:
         return Domain.AND(
             [
-                super()._get_plan_domain(plan),
+                super()._get_domain_plan(plan),
                 [
                     "|",
                     ("company_id", "=", False),

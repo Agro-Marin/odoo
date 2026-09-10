@@ -1591,7 +1591,7 @@ class ProductTemplate(models.Model):
     def _service_tracking_blacklist(self) -> list:
         return []
 
-    def _base_domain_item_ids(self):
+    def _get_domain_item_ids_base(self):
         return [
             "|",
             ("pricelist_id", "=", False),
@@ -1599,7 +1599,7 @@ class ProductTemplate(models.Model):
         ]
 
     def _domain_pricelist_rule_ids(self):
-        return self._base_domain_item_ids()
+        return self._get_domain_item_ids_base()
 
     def has_dynamic_attributes(self):
         self.check_singleton()

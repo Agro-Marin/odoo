@@ -15,10 +15,10 @@ class SaleOrder(models.Model):
         help="Fill this field if you plan to invoice the shipping based on picking.",
     )
     delivery_message = fields.Char(readonly=True, copy=False)
-    delivery_set = fields.Boolean(compute="_compute_delivery_state")
+    delivery_set = fields.Boolean(compute="_compute_delivery_set")
     recompute_delivery_price = fields.Boolean("Delivery cost should be recomputed")
     is_all_service = fields.Boolean(
-        "Service Product", compute="_compute_is_service_products"
+        "Service Product", compute="_compute_is_all_service"
     )
     shipping_weight = fields.Float(
         "Shipping Weight",
@@ -35,7 +35,7 @@ class SaleOrder(models.Model):
                 order.partner_shipping_id = order.partner_id
 
     @api.depends("line_ids")
-    def _compute_is_service_products(self):
+    def _compute_is_all_service(self):
         for so in self:
             so.is_all_service = all(
                 line.product_id.type == "service"
@@ -48,7 +48,7 @@ class SaleOrder(models.Model):
         return self.amount_total - delivery_cost
 
     @api.depends("line_ids")
-    def _compute_delivery_state(self):
+    def _compute_delivery_set(self):
         for order in self:
             order.delivery_set = any(line.is_delivery for line in order.line_ids)
 

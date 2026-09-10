@@ -10,10 +10,10 @@ class MixinExchangeSubject(models.AbstractModel):
 
     transmission_ids = fields.One2many(
         comodel_name="exchange.transmission",
-        compute="_compute_transmission_ids",
+        compute="_compute_transmissions",
     )
     count_transmission = fields.Integer(
-        compute="_compute_transmission_ids",
+        compute="_compute_transmissions",
     )
     exchange_state = fields.Selection(
         selection=[
@@ -29,11 +29,11 @@ class MixinExchangeSubject(models.AbstractModel):
         "verdict, not whether a call completed.",
     )
 
-    def _compute_transmission_ids(self):
+    def _compute_transmissions(self):
         by_reference: dict[str, list[int]] = {}
         if self.ids:
             groups = self.env["exchange.transmission"]._read_group(
-                domain=self._get_transmission_domain(),
+                domain=self._get_domain_transmission(),
                 groupby=["subject_id"],
                 aggregates=["id:recordset"],
             )
@@ -76,7 +76,7 @@ class MixinExchangeSubject(models.AbstractModel):
                 return found
         return channels
 
-    def _get_transmission_domain(self) -> list:
+    def _get_domain_transmission(self) -> list:
         return [
             (
                 "subject_id",

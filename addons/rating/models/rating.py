@@ -75,8 +75,8 @@ class RatingRating(models.Model):
     rated_partner_name = fields.Char(related="rated_partner_id.name")
     partner_id = fields.Many2one("res.partner", string="Customer")
     rating = fields.Float(string="Rating Value", aggregator="avg", default=0)
-    rating_image = fields.Binary("Image", compute="_compute_rating_image")
-    rating_image_url = fields.Char("Image URL", compute="_compute_rating_image")
+    rating_image = fields.Binary("Image", compute="_compute_rating_images")
+    rating_image_url = fields.Char("Image URL", compute="_compute_rating_images")
     rating_text = fields.Selection(
         rating_data.RATING_TEXT,
         string="Rating",
@@ -161,7 +161,7 @@ class RatingRating(models.Model):
         return "rating_%s.png" % rating_data._rating_to_threshold(self.rating)
 
     @api.depends("rating")
-    def _compute_rating_image(self):
+    def _compute_rating_images(self):
         self.rating_image_url = False
         self.rating_image = False
         for rating in self:

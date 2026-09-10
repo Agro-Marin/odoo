@@ -46,17 +46,17 @@ class DateRange(models.Model):
     )
     duration_days = fields.Integer(
         string="Duration (days)",
-        compute="_compute_duration",
+        compute="_compute_duration_days",
         store=True,
         help="Number of days in this date range (inclusive)",
     )
     business_days = fields.Integer(
-        compute="_compute_business_days",
+        compute="_compute_day_counts",
         store=True,
         help="Number of business days (Mon-Fri) in this date range",
     )
     weekend_days = fields.Integer(
-        compute="_compute_business_days",
+        compute="_compute_day_counts",
         store=True,
         help="Number of weekend days (Sat-Sun) in this date range",
     )
@@ -316,7 +316,7 @@ class DateRange(models.Model):
                 )
 
     @api.depends("date_start", "date_end")
-    def _compute_duration(self) -> None:
+    def _compute_duration_days(self) -> None:
         """Compute the inclusive day count between start and end dates."""
         for record in self:
             if record.date_start and record.date_end:
@@ -325,7 +325,7 @@ class DateRange(models.Model):
                 record.duration_days = 0
 
     @api.depends("date_start", "date_end")
-    def _compute_business_days(self) -> None:
+    def _compute_day_counts(self) -> None:
         """Split the range into Mon-Fri and Sat-Sun day counts.
 
         Closed form rather than a day-by-day walk: whole weeks contribute five

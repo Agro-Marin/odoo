@@ -1115,7 +1115,7 @@ class SaleOrderLine(models.Model):
     def _get_pricelist_price(self):
         self.check_singleton()
         self.product_id.check_singleton()
-        return self.pricelist_item_id._compute_price(
+        return self.pricelist_item_id._get_price(
             product=self.product_id.with_context(**self._get_product_price_context()),
             **self._get_pricelist_kwargs(),
         )

@@ -189,7 +189,7 @@ class ProductPricelistItem(models.Model):
     )
     price = fields.Char(
         string="Price",
-        compute="_compute_price_label",
+        compute="_compute_price",
         help="Human-readable summary of the price this rule computes.",
     )
     rule_tip = fields.Char(
@@ -470,7 +470,7 @@ class ProductPricelistItem(models.Model):
         "base_pricelist_id",
         "currency_id",
     )
-    def _compute_price_label(self):
+    def _compute_price(self):
         for item in self:
             if item.compute_price == "fixed":
                 item.price = formatLang(
@@ -730,7 +730,7 @@ class ProductPricelistItem(models.Model):
             return product.id == self.product_id.id
         return True
 
-    def _compute_price(
+    def _get_price(
         self, product, quantity, uom, date, currency=None, *, base_price=None, **kwargs
     ):
         self and self.check_singleton()

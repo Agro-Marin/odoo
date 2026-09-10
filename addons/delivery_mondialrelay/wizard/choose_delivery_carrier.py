@@ -13,11 +13,13 @@ class ChooseDeliveryCarrier(models.TransientModel):
 
     is_mondialrelay = fields.Boolean(compute="_compute_is_mondialrelay")
     mondialrelay_last_selected = fields.Char(string="Last Relay Selected")
-    mondialrelay_last_selected_id = fields.Char(compute="_compute_mr_last_selected_id")
+    mondialrelay_last_selected_id = fields.Char(
+        compute="_compute_mondialrelay_last_selected_id"
+    )
     mondialrelay_brand = fields.Char(related="carrier_id.mondialrelay_brand")
     mondialrelay_colLivMod = fields.Char(related="carrier_id.mondialrelay_packagetype")
     mondialrelay_allowed_countries = fields.Char(
-        compute="_compute_mr_allowed_countries"
+        compute="_compute_mondialrelay_allowed_countries"
     )
 
     @api.depends("carrier_id")
@@ -26,7 +28,7 @@ class ChooseDeliveryCarrier(models.TransientModel):
         self.is_mondialrelay = self.carrier_id.product_id.default_code == "MR"
 
     @api.depends("carrier_id", "order_id.partner_shipping_id")
-    def _compute_mr_last_selected_id(self):
+    def _compute_mondialrelay_last_selected_id(self):
         self.check_singleton()
         if self.order_id.partner_shipping_id.is_mondialrelay:
             self.mondialrelay_last_selected_id = "%s-%s" % (
@@ -37,7 +39,7 @@ class ChooseDeliveryCarrier(models.TransientModel):
             self.mondialrelay_last_selected_id = ""
 
     @api.depends("carrier_id")
-    def _compute_mr_allowed_countries(self):
+    def _compute_mondialrelay_allowed_countries(self):
         self.check_singleton()
         self.mondialrelay_allowed_countries = (
             ",".join(self.carrier_id.country_ids.mapped("code")).upper() or ""

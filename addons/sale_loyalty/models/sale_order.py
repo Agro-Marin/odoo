@@ -18,21 +18,33 @@ class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     applied_coupon_ids = fields.Many2many(
-        string="Manually Applied Coupons", comodel_name="loyalty.card", copy=False
+        string="Manually Applied Coupons",
+        comodel_name="loyalty.card",
+        copy=False,
     )
     code_enabled_rule_ids = fields.Many2many(
-        string="Manually Triggered Rules", comodel_name="loyalty.rule", copy=False
+        string="Manually Triggered Rules",
+        comodel_name="loyalty.rule",
+        copy=False,
     )
     coupon_point_ids = fields.One2many(
-        comodel_name="sale.order.coupon.points", inverse_name="order_id", copy=False
+        comodel_name="sale.order.coupon.points",
+        inverse_name="order_id",
+        copy=False,
     )
-    reward_amount = fields.Float(compute="_compute_reward_total")
+    reward_amount = fields.Float(
+        compute="_compute_reward_amount",
+    )
 
-    gift_card_count = fields.Integer(compute="_compute_gift_card_count")
-    loyalty_data = fields.Json(compute="_compute_loyalty_data")
+    gift_card_count = fields.Integer(
+        compute="_compute_gift_card_count",
+    )
+    loyalty_data = fields.Json(
+        compute="_compute_loyalty_data",
+    )
 
     @api.depends("line_ids")
-    def _compute_reward_total(self):
+    def _compute_reward_amount(self):
         for order in self:
             reward_amount = 0
             for line in order.line_ids:
@@ -698,7 +710,7 @@ class SaleOrder(models.Model):
             reward_dict[next(iter(reward_dict))]["points_cost"] = point_cost
         return list(reward_dict.values())
 
-    def _get_program_domain(self):
+    def _get_domain_program(self):
         self.check_singleton()
         today = self._get_confirmed_tx_create_date()
         return [
@@ -718,7 +730,7 @@ class SaleOrder(models.Model):
             ("date_to", ">=", today),
         ]
 
-    def _get_trigger_domain(self):
+    def _get_domain_trigger(self):
         self.check_singleton()
         today = self._get_confirmed_tx_create_date()
         return [
@@ -763,7 +775,7 @@ class SaleOrder(models.Model):
         self.check_singleton()
         if not domain:
             domain = [("trigger", "=", "auto")]
-        domain = Domain.AND([self._get_program_domain(), domain])
+        domain = Domain.AND([self._get_domain_program(), domain])
         programs = self.env["loyalty.program"].search(domain)
         all_status = self._program_check_compute_points(programs)
         return {
@@ -1024,7 +1036,7 @@ class SaleOrder(models.Model):
         global_discount_reward = self._get_applied_global_discount()
         active_products_domain = self.env[
             "loyalty.reward"
-        ]._get_active_products_domain()
+        ]._get_domain_active_products()
 
         discountable = lazy(lambda: self._discountable_amount(global_discount_reward))
         total_is_zero = lazy(lambda: self.currency_id.is_zero(discountable))
@@ -1090,7 +1102,7 @@ class SaleOrder(models.Model):
                 self.applied_coupon_ids += loyalty_card
         points_programs = self._get_points_programs()
         coupon_programs = self.applied_coupon_ids.program_id
-        program_domain = self._get_program_domain()
+        program_domain = self._get_domain_program()
         domain = Domain.AND(
             [
                 program_domain,
@@ -1508,7 +1520,7 @@ class SaleOrder(models.Model):
 
     def _try_apply_program(self, program, coupon=None):
         self.check_singleton()
-        if not program.filtered_domain(self._get_program_domain()):
+        if not program.filtered_domain(self._get_domain_program()):
             return {"error": _("The program is not available for this order.")}
         elif program in self._get_applied_programs():
             return {
@@ -1551,7 +1563,7 @@ class SaleOrder(models.Model):
     def _try_apply_code(self, code):
         self.check_singleton()
 
-        base_domain = self._get_trigger_domain()
+        base_domain = self._get_domain_trigger()
         domain = Domain.AND(
             [base_domain, [("mode", "=", "with_code"), ("code", "=", code)]]
         )
@@ -1572,7 +1584,7 @@ class SaleOrder(models.Model):
                 not coupon
                 or not coupon.program_id.active
                 or not coupon.program_id.reward_ids
-                or not coupon.program_id.filtered_domain(self._get_program_domain())
+                or not coupon.program_id.filtered_domain(self._get_domain_program())
             ):
                 return {
                     "error": _("This code is invalid (%s).", code),

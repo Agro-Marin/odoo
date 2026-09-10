@@ -563,7 +563,7 @@ class MixinOrder(models.AbstractModel):
             return NotImplemented
         domain = self._get_domain_is_late(operator, value)
         positive = (operator == "=" and value) or (operator == "!=" and not value)
-        return self._get_is_late_search_domain(domain, positive)
+        return self._get_domain_is_late_with_polarity(domain, positive)
 
     def _get_domain_is_late(self, operator, value):
         return Domain(
@@ -574,7 +574,7 @@ class MixinOrder(models.AbstractModel):
             ]
         )
 
-    def _get_is_late_search_domain(self, domain, positive):
+    def _get_domain_is_late_with_polarity(self, domain, positive):
         return domain if positive else ~domain
 
     def _get_draft_type_name(self):

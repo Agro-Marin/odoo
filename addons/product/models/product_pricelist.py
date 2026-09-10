@@ -118,7 +118,7 @@ class ProductPricelist(models.Model):
             "tag": "generate_pricelist_report",
         }
 
-    def _base_domain_item_ids(self):
+    def _get_domain_item_ids_base(self):
         return [
             "|",
             ("product_tmpl_id", "=", None),
@@ -184,7 +184,7 @@ class ProductPricelist(models.Model):
             suitable_rule = rule_by_pid[product.id]
 
             if compute_price:
-                price = suitable_rule._compute_price(
+                price = suitable_rule._get_price(
                     product,
                     quantity,
                     target_uom_by_pid[product.id],
@@ -220,7 +220,7 @@ class ProductPricelist(models.Model):
         return self.env.company.currency_id.id
 
     def _domain_item_ids(self):
-        return self._base_domain_item_ids()
+        return self._get_domain_item_ids_base()
 
     def _get_suitable_rule(self, rules, product, qty_in_product_uom):
         for rule in rules:
@@ -323,10 +323,10 @@ class ProductPricelist(models.Model):
             return self.env["product.pricelist.item"]
 
         return self.env["product.pricelist.item"].search(
-            self._get_applicable_rules_domain(products=products, date=date, **kwargs)
+            self._get_domain_applicable_rules(products=products, date=date, **kwargs)
         )
 
-    def _get_applicable_rules_domain(self, products, date, **kwargs):
+    def _get_domain_applicable_rules(self, products, date, **kwargs):
         self and self.check_singleton()
         if products._name == "product.template":
             templates_domain = ("product_tmpl_id", "in", products.ids)
@@ -363,9 +363,7 @@ class ProductPricelist(models.Model):
                 return None
 
         company_id = self.env.company.id
-        pl_domain = Domain(
-            self._get_partner_pricelist_multi_search_domain_hook(company_id)
-        )
+        pl_domain = Domain(self._get_domain_partner_pricelist_multi_search(company_id))
 
         country_ids = list(country_ids)
         if (ctx_code := self.env.context.get("country_code")) and (
@@ -443,7 +441,7 @@ class ProductPricelist(models.Model):
 
         return result
 
-    def _get_partner_pricelist_multi_search_domain_hook(self, company_id):
+    def _get_domain_partner_pricelist_multi_search(self, company_id):
         return [
             ("active", "=", True),
             ("company_id", "in", [company_id, False]),

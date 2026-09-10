@@ -21,12 +21,12 @@ class MixinOrderInvoice(models.AbstractModel):
     invoice_ids = fields.Many2many(
         comodel_name="account.move",
         string="Invoices",
-        compute="_compute_invoice_ids",
+        compute="_compute_invoices",
         search="_search_invoice_ids",
     )
     invoice_count = fields.Integer(
         string="Invoice Count",
-        compute="_compute_invoice_ids",
+        compute="_compute_invoices",
     )
     invoice_state = fields.Selection(
         selection=INVOICE_STATE,
@@ -49,7 +49,7 @@ class MixinOrderInvoice(models.AbstractModel):
         "line_ids.invoice_line_ids",
         "line_ids.invoice_line_ids.move_id.reversal_move_ids",
     )
-    def _compute_invoice_ids(self):
+    def _compute_invoices(self):
         move_types = self._get_invoice_move_types()
         refund_type = move_types[1]
 

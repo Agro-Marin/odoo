@@ -243,7 +243,7 @@ class TestPricelist(ProductVariantsCommon):
         ICP.set_param("res.partner.property_product_pricelist", pricelist_2.id)
         with patch.object(
             self.pricelist.__class__,
-            "_get_partner_pricelist_multi_search_domain_hook",
+            "_get_domain_partner_pricelist_multi_search",
             return_value=Domain.FALSE,
         ):
             with Form(self.partner) as partner_form:

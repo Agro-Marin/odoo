@@ -5,18 +5,18 @@ class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     margin = fields.Monetary(
-        "Margin", compute="_compute_margin", store=True, groups="base.group_user"
+        "Margin", compute="_compute_margins", store=True, groups="base.group_user"
     )
     margin_percent = fields.Float(
         "Margin (%)",
-        compute="_compute_margin",
+        compute="_compute_margins",
         store=True,
         aggregator="avg",
         groups="base.group_user",
     )
 
     @api.depends("line_ids.margin", "amount_untaxed")
-    def _compute_margin(self):
+    def _compute_margins(self):
         if not all(self._ids):
             for order in self:
                 order.margin = sum(order.line_ids.mapped("margin"))

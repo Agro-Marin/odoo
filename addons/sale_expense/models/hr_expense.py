@@ -7,7 +7,7 @@ class HrExpense(models.Model):
     sale_order_id = fields.Many2one(
         "sale.order",
         string="Customer to Reinvoice",
-        compute="_compute_sale_order_id",
+        compute="_compute_sale_order",
         store=True,
         readonly=False,
         index="btree_not_null",
@@ -18,7 +18,7 @@ class HrExpense(models.Model):
     )
     sale_order_line_id = fields.Many2one(
         comodel_name="sale.order.line",
-        compute="_compute_sale_order_id",
+        compute="_compute_sale_order",
         store=True,
         readonly=True,
         index="btree_not_null",
@@ -36,7 +36,7 @@ class HrExpense(models.Model):
             ]
 
     @api.depends("can_be_reinvoiced")
-    def _compute_sale_order_id(self):
+    def _compute_sale_order(self):
         for expense in self.filtered(lambda e: not e.can_be_reinvoiced):
             expense.sale_order_id = False
             expense.sale_order_line_id = False

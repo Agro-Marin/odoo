@@ -20,7 +20,7 @@ class StockMove(models.Model):
             res["category"] = "picking_entry"
         return res
 
-    def _get_valid_moves_domain(self):
+    def _get_domain_valid_moves(self):
         return [
             "&",
             ("picking_id.project_id", "!=", False),

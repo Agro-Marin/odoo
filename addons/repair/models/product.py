@@ -5,15 +5,15 @@ class ProductProduct(models.Model):
     _inherit = "product.product"
 
     product_catalog_product_is_in_repair = fields.Boolean(
-        compute="_compute_product_is_in_repair",
-        search="_search_product_is_in_repair",
+        compute="_compute_product_catalog_product_is_in_repair",
+        search="_search_product_catalog_product_is_in_repair",
     )
 
-    def _compute_product_is_in_repair(self):
+    def _compute_product_catalog_product_is_in_repair(self):
         # Just to enable the _search method
         self.product_catalog_product_is_in_repair = False
 
-    def _search_product_is_in_repair(self, operator, value):
+    def _search_product_catalog_product_is_in_repair(self, operator, value):
         if operator != "in":
             return NotImplemented
         product_ids = (

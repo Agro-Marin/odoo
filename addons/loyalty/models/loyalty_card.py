@@ -13,7 +13,10 @@ class LoyaltyCard(models.Model):
     _rec_name = "code"
 
     @api.model
-    def _generate_code(self):
+    def _default_code(self):
+        return self._prepare_code()
+
+    def _prepare_code(self):
         """Barcode identifiable codes."""
         return "044" + str(uuid4())[7:-18]
 
@@ -43,7 +46,7 @@ class LoyaltyCard(models.Model):
     point_name = fields.Char(related="program_id.portal_point_name", readonly=True)
     points_display = fields.Char(compute="_compute_points_display")
 
-    code = fields.Char(required=True, default=lambda self: self._generate_code())
+    code = fields.Char(required=True, default=lambda self: self._default_code())
     expiration_date = fields.Date()
 
     use_count = fields.Integer(compute="_compute_use_count")
@@ -242,7 +245,7 @@ class LoyaltyCard(models.Model):
                 coupon_ids, email_layout_xmlid="mail.mail_notification_light"
             )
 
-    # What `res.partner._compute_count_active_cards` searches on. Changing any of
+    # What `res.partner._compute_loyalty_card_count` searches on. Changing any of
     # them changes some partner's count.
     _PARTNER_COUNT_FIELDS = frozenset(
         {

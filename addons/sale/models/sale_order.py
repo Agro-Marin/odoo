@@ -243,14 +243,14 @@ class SaleOrder(models.Model):
     authorized_transaction_ids = fields.Many2many(
         comodel_name="payment.transaction",
         string="Authorized Transactions",
-        compute="_compute_authorized_transaction_ids",
+        compute="_compute_authorized_transactions",
         compute_sudo=True,
         copy=False,
         groups="account.group_account_invoice",
     )
     has_authorized_transaction_ids = fields.Boolean(
         string="Has Authorized Transactions",
-        compute="_compute_authorized_transaction_ids",
+        compute="_compute_authorized_transactions",
         compute_sudo=True,
     )
     amount_paid = fields.Float(
@@ -609,7 +609,7 @@ class SaleOrder(models.Model):
             )
 
     @api.depends("transaction_ids", "transaction_ids.state")
-    def _compute_authorized_transaction_ids(self):
+    def _compute_authorized_transactions(self):
         for trans in self:
             trans.authorized_transaction_ids = trans.transaction_ids.filtered(
                 lambda t: t.state == "authorized",
@@ -1015,7 +1015,7 @@ class SaleOrder(models.Model):
         self.check_singleton()
         if "no" in states:
             invoiceable_lines = self.line_ids.filtered_domain(
-                self._get_rollup_lines_domain() + [("invoice_state", "=", "to do")],
+                self._get_domain_rollup_lines() + [("invoice_state", "=", "to do")],
             )
             auxiliary_lines = invoiceable_lines.filtered(
                 lambda sol: not sol._can_be_invoiced_alone(),

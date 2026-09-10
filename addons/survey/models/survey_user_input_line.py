@@ -79,13 +79,13 @@ class SurveyUser_InputLine(models.Model):
     )
     answer_score = fields.Float(
         "Score",
-        compute="_compute_answer_score",
+        compute="_compute_answer_scoring",
         precompute=True,
         store=True,
     )
     answer_is_correct = fields.Boolean(
         "Correct",
-        compute="_compute_answer_score",
+        compute="_compute_answer_scoring",
         precompute=True,
         store=True,
     )
@@ -148,7 +148,7 @@ class SurveyUser_InputLine(models.Model):
         "question_id.answer_datetime",
         "user_input_id",
     )
-    def _compute_answer_score(self) -> None:
+    def _compute_answer_scoring(self) -> None:
         for line in self:
             answer_is_correct, answer_score = False, 0
             if line.answer_type:
@@ -234,7 +234,7 @@ class SurveyUser_InputLine(models.Model):
             if field_name and not line[field_name]:
                 raise ValidationError(_("The answer must be in the right type"))
 
-    def _get_answer_matching_domain(self) -> list[Any] | None:
+    def _get_domain_answer_matching(self) -> list[Any] | None:
         self.check_singleton()
         if self.answer_type in (
             "char_box",
@@ -270,7 +270,7 @@ class SurveyUser_InputLine(models.Model):
                 ),
             ]
         elif self.answer_type == "suggestion":
-            return self.suggested_answer_id._get_answer_matching_domain(
+            return self.suggested_answer_id._get_domain_answer_matching(
                 self.matrix_row_id.id if self.matrix_row_id else False
             )
         return None

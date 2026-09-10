@@ -145,13 +145,13 @@ class PurchaseOrder(models.Model):
     duplicated_order_ids = fields.Many2many(comodel_name="purchase.order")
     receipt_reminder_email = fields.Boolean(
         string="Receipt Reminder Email",
-        compute="_compute_receipt_reminder_email",
+        compute="_compute_receipt_reminder",
         store=True,
         readonly=False,
     )
     reminder_date_before_receipt = fields.Integer(
         string="Days Before Receipt",
-        compute="_compute_receipt_reminder_email",
+        compute="_compute_receipt_reminder",
         store=True,
         readonly=False,
     )
@@ -214,7 +214,7 @@ class PurchaseOrder(models.Model):
         "partner_id.receipt_reminder_email",
         "partner_id.reminder_date_before_receipt",
     )
-    def _compute_receipt_reminder_email(self):
+    def _compute_receipt_reminder(self):
         for order in self:
             partner = order.partner_id.with_company(order.company_id)
             order.receipt_reminder_email = partner.receipt_reminder_email
@@ -275,7 +275,7 @@ class PurchaseOrder(models.Model):
     def _compute_purchase_warning_text(self):
         self._compute_warning_text("purchase_warning_text")
 
-    def _get_is_late_search_domain(self, domain, positive):
+    def _get_domain_is_late_with_polarity(self, domain, positive):
         lines_domain = Domain("order_id", "any", domain) & Domain.custom(
             to_sql=lambda model, alias, query: SQL(
                 "%s < %s" if positive else "%s >= %s",

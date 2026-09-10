@@ -15,8 +15,8 @@ class SaleOrder(models.Model):
         "loyalty.reward", relation="sale_order_disabled_auto_rewards_rel"
     )
 
-    def _get_program_domain(self):
-        res = super()._get_program_domain()
+    def _get_domain_program(self):
+        res = super()._get_domain_program()
         # Replace `sale_ok` leaf with `ecommerce_ok` if order is linked to a website
         if self.website_id:
             for idx, leaf in enumerate(res):
@@ -28,8 +28,8 @@ class SaleOrder(models.Model):
                 )
         return res
 
-    def _get_trigger_domain(self):
-        res = super()._get_trigger_domain()
+    def _get_domain_trigger(self):
+        res = super()._get_domain_trigger()
         # Replace `sale_ok` leaf with `ecommerce_ok` if order is linked to a website
         if self.website_id:
             for idx, leaf in enumerate(res):
@@ -247,7 +247,7 @@ class SaleOrder(models.Model):
         loyality_cards = self.env["loyalty.card"].search(
             [
                 ("partner_id", "=", self.partner_id.id),
-                ("program_id", "any", self._get_program_domain()),
+                ("program_id", "any", self._get_domain_program()),
                 "|",
                 ("program_id.trigger", "=", "with_code"),
                 "&",

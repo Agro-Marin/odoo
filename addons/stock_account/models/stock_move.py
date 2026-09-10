@@ -35,11 +35,11 @@ class StockMove(models.Model):
     )
     value_justification = fields.Text(
         "Value Description",
-        compute="_compute_value_justification",
+        compute="_compute_value_justifications",
     )
     value_computed_justification = fields.Text(
         "Computed Value Description",
-        compute="_compute_value_justification",
+        compute="_compute_value_justifications",
     )
     value_manual = fields.Monetary(
         "Manual Value",
@@ -190,7 +190,7 @@ class StockMove(models.Model):
             move.value_manual = move.value
 
     @api.depends("value", "is_in", "is_out")
-    def _compute_value_justification(self):
+    def _compute_value_justifications(self):
         self.value_justification = False
         self.value_computed_justification = False
         for move in self:

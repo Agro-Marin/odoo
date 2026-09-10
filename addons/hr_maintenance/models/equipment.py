@@ -27,13 +27,13 @@ class MaintenanceEquipment(models.Model):
         required=True,
         default="employee",
     )
-    owner_user_id = fields.Many2one(compute="_compute_owner", store=True)
+    owner_user_id = fields.Many2one(compute="_compute_owner_user_id", store=True)
     assign_date = fields.Date(
         compute="_compute_equipment_assign", store=True, readonly=False, copy=True
     )
 
     @api.depends("employee_id", "department_id", "equipment_assign_to")
-    def _compute_owner(self):
+    def _compute_owner_user_id(self):
         for equipment in self:
             equipment.owner_user_id = self.env.user.id
             if equipment.equipment_assign_to == "employee":
@@ -106,13 +106,13 @@ class MaintenanceRequest(models.Model):
     employee_id = fields.Many2one(
         "hr.employee", string="Employee", default=_default_employee_id
     )
-    owner_user_id = fields.Many2one(compute="_compute_owner", store=True)
+    owner_user_id = fields.Many2one(compute="_compute_owner_user_id", store=True)
     equipment_id = fields.Many2one(
         domain="['|', ('employee_id', '=', employee_id), ('employee_id', '=', False)]"
     )
 
     @api.depends("employee_id")
-    def _compute_owner(self):
+    def _compute_owner_user_id(self):
         for r in self:
             if r.equipment_id.equipment_assign_to == "employee":
                 r.owner_user_id = r.employee_id.user_id.id

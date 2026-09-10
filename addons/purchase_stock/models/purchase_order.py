@@ -49,7 +49,7 @@ class PurchaseOrder(models.Model):
     )
     count_transfer_incoming = fields.Integer(
         string="Incoming Shipment count",
-        compute="_compute_count_transfer_incoming",
+        compute="_compute_incoming_transfer_counts",
     )
     is_shipped = fields.Boolean(
         compute="_compute_is_shipped",
@@ -109,7 +109,7 @@ class PurchaseOrder(models.Model):
         ).dest_address_id = False
 
     @api.depends("picking_ids")
-    def _compute_count_transfer_incoming(self):
+    def _compute_incoming_transfer_counts(self):
         for order in self:
             order.count_transfer_incoming = len(order.picking_ids)
 

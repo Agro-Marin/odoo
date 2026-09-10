@@ -565,7 +565,7 @@ class TestPricelistItemComputeHardening(ProductCommon):
                 "percent_price": 25.0,
             }
         )
-        price = rule._compute_price(
+        price = rule._get_price(
             product, 1.0, product.uom_id, date=fields.Datetime.now()
         )
         self.assertAlmostEqual(price, 150.0, places=2)
@@ -611,7 +611,7 @@ class TestPricelistItemComputeHardening(ProductCommon):
                 "fixed_price": 50.0,
             }
         )
-        got = fixed_rule._compute_price(
+        got = fixed_rule._get_price(
             product, 1.0, product.uom_id, date=date, currency=req_cur
         )
         self.assertAlmostEqual(
@@ -629,7 +629,7 @@ class TestPricelistItemComputeHardening(ProductCommon):
                 "price_surcharge": 10.0,
             }
         )
-        got2 = surcharge_rule._compute_price(
+        got2 = surcharge_rule._get_price(
             product, 1.0, product.uom_id, date=date, currency=req_cur
         )
         base_req = rule_cur._convert(100.0, req_cur, company, date)
@@ -676,13 +676,11 @@ class TestPricelistItemRefactor(ProductCommon):
                 "price_round": 10.0,
             }
         )
-        same = rule._compute_price(
+        same = rule._get_price(
             product, 1.0, product.uom_id, date=date, currency=rule_cur
         )
         self.assertAlmostEqual(same, 30.0, places=2, msg="same-currency grid of 10")
-        cross = rule._compute_price(
-            product, 1.0, product.uom_id, date=date, currency=req
-        )
+        cross = rule._get_price(product, 1.0, product.uom_id, date=date, currency=req)
         self.assertAlmostEqual(
             cross, 90.0, places=2, msg="cross-currency grid must convert to 30"
         )

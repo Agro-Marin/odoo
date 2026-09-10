@@ -6,12 +6,12 @@ class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
     dropship_picking_count = fields.Integer(
-        "Dropship Count", compute="_compute_count_transfer_incoming"
+        "Dropship Count", compute="_compute_incoming_transfer_counts"
     )
 
     @api.depends("picking_ids.is_dropship")
-    def _compute_count_transfer_incoming(self):
-        super()._compute_count_transfer_incoming()
+    def _compute_incoming_transfer_counts(self):
+        super()._compute_incoming_transfer_counts()
         for order in self:
             dropship_count = len(order.picking_ids.filtered(lambda p: p.is_dropship))
             order.count_transfer_incoming -= dropship_count

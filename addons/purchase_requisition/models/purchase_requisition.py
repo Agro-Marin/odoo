@@ -46,7 +46,9 @@ class PurchaseRequisition(models.Model):
         default=lambda self: self.env.company,
     )
     purchase_ids = fields.One2many(
-        "purchase.order", "requisition_id", string="Purchase Orders"
+        "purchase.order",
+        "requisition_id",
+        string="Purchase Orders",
     )
     line_ids = fields.One2many(
         "purchase.requisition.line",
@@ -55,7 +57,9 @@ class PurchaseRequisition(models.Model):
         copy=True,
     )
     product_id = fields.Many2one(
-        "product.product", related="line_ids.product_id", string="Product"
+        "product.product",
+        related="line_ids.product_id",
+        string="Product",
     )
     state = fields.Selection(
         selection=[
@@ -265,7 +269,10 @@ class PurchaseRequisitionLine(models.Model):
         readonly=False,
         precompute=True,
     )
-    product_qty = fields.Float(string="Quantity", digits="Product Unit")
+    product_qty = fields.Float(
+        string="Quantity",
+        digits="Product Unit",
+    )
     product_description_variants = fields.Char("Description")
     price_unit = fields.Float(
         string="Unit Price",
@@ -274,7 +281,10 @@ class PurchaseRequisitionLine(models.Model):
         readonly=False,
         store=True,
     )
-    qty_ordered = fields.Float(compute="_compute_ordered_qty", string="Ordered")
+    qty_ordered = fields.Float(
+        compute="_compute_qty_ordered",
+        string="Ordered",
+    )
     requisition_id = fields.Many2one(
         "purchase.requisition",
         required=True,
@@ -294,7 +304,7 @@ class PurchaseRequisitionLine(models.Model):
     )
 
     @api.depends("requisition_id.purchase_ids.state")
-    def _compute_ordered_qty(self):
+    def _compute_qty_ordered(self):
         line_found = defaultdict(set)
         for line in self:
             total = 0.0

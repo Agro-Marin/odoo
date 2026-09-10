@@ -33,7 +33,7 @@ class AccountMove(models.Model):
     )
     purchase_order_count = fields.Integer(
         string="Purchase Order Count",
-        compute="_compute_origin_po_count",
+        compute="_compute_purchase_order_count",
     )
     purchase_order_name = fields.Char(
         compute="_compute_purchase_order_name",
@@ -115,7 +115,7 @@ class AccountMove(models.Model):
             move.is_purchase_matched = True
 
     @api.depends("line_ids.purchase_line_ids")
-    def _compute_origin_po_count(self):
+    def _compute_purchase_order_count(self):
         for move in self:
             move.purchase_order_count = len(move.line_ids.purchase_line_ids.order_id)
 

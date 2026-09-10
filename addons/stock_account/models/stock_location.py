@@ -25,10 +25,10 @@ class StockLocation(models.Model):
     is_valued_internal = fields.Boolean(
         "Is valued inside the company",
         compute="_compute_is_valued_internal",
-        search="_search_is_valued",
+        search="_search_is_valued_internal",
     )
 
-    def _search_is_valued(self, operator, value):
+    def _search_is_valued_internal(self, operator, value):
         if operator not in ["=", "!="]:
             raise NotImplementedError(self.env._("Invalid search operator or value"))
         positive_operator = (operator == "=" and value) or (

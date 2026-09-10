@@ -11,14 +11,14 @@ class MixinOrderStateRollup(models.AbstractModel):
     _name = "mixin.order.state.rollup"
     _description = "Order Line State Rollup"
 
-    def _get_rollup_lines_domain(self):
+    def _get_domain_rollup_lines(self):
         return [
             ("is_downpayment", "=", False),
             ("display_type", "=", False),
         ]
 
     def _rollup_line_states(self, state_field, nothing_may_be_pending=False):
-        lines_domain = self._get_rollup_lines_domain()
+        lines_domain = self._get_domain_rollup_lines()
         lines = self.env[self._get_line_model()]
 
         states_per_order = {}

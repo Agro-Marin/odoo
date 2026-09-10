@@ -146,7 +146,7 @@ class StockPicking(models.Model):
         possible_batches = (
             self.env["stock.picking.batch"]
             .sudo()
-            .search(self._get_possible_batches_domain())
+            .search(self._get_domain_possible_batches())
         )
         for batch in possible_batches:
             if batch._is_auto_mergeable(**self._get_auto_merge_amounts()):
@@ -154,7 +154,7 @@ class StockPicking(models.Model):
                 return batch
 
         possible_pickings = self.env["stock.picking"].search(
-            self._get_possible_pickings_domain()
+            self._get_domain_possible_pickings()
         )
         new_batch_data = {
             "picking_ids": [Command.link(self.id)],
@@ -191,7 +191,7 @@ class StockPicking(models.Model):
             res = res and self.picking_type_id.batch_max_pickings > 1
         return res
 
-    def _get_possible_pickings_domain(self):
+    def _get_domain_possible_pickings(self):
         self.check_singleton()
         domain = [
             ("id", "!=", self.id),
@@ -207,7 +207,7 @@ class StockPicking(models.Model):
 
         return Domain(domain)
 
-    def _get_possible_batches_domain(self):
+    def _get_domain_possible_batches(self):
         self.check_singleton()
         domain = [
             (

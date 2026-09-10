@@ -41,7 +41,7 @@ class SaleOrder(models.Model):
     )
     count_transfer_outgoing = fields.Integer(
         string="Delivery Orders",
-        compute="_compute_count_transfer_outgoing",
+        compute="_compute_outgoing_transfer_counts",
     )
     reference_ids = fields.Many2many(
         comodel_name="stock.reference",
@@ -75,11 +75,11 @@ class SaleOrder(models.Model):
     )
     json_popover = fields.Char(
         string="JSON data for the popover widget",
-        compute="_compute_json_popover",
+        compute="_compute_popover",
     )
     show_json_popover = fields.Boolean(
         string="Has late picking",
-        compute="_compute_json_popover",
+        compute="_compute_popover",
     )
 
     def _init_column(self, column_name, *, new_column=False):
@@ -245,7 +245,7 @@ class SaleOrder(models.Model):
         return res
 
     @api.depends("picking_ids.date_delay_alert")
-    def _compute_json_popover(self):
+    def _compute_popover(self):
         for order in self:
             late_stock_picking = order.picking_ids.filtered(
                 lambda p: p.date_delay_alert,
@@ -287,7 +287,7 @@ class SaleOrder(models.Model):
         super()._compute_date_planned()
 
     @api.depends("picking_ids")
-    def _compute_count_transfer_outgoing(self):
+    def _compute_outgoing_transfer_counts(self):
         for order in self:
             order.count_transfer_outgoing = len(order.picking_ids)
 

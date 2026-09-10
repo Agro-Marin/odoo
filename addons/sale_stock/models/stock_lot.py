@@ -9,15 +9,15 @@ class StockLot(models.Model):
     sale_order_ids = fields.Many2many(
         comodel_name="sale.order",
         string="Sales Orders",
-        compute="_compute_sale_order_ids",
+        compute="_compute_sale_orders",
     )
     sale_order_count = fields.Integer(
         string="Sale order count",
-        compute="_compute_sale_order_ids",
+        compute="_compute_sale_orders",
     )
 
     @api.depends("quant_ids")
-    def _compute_sale_order_ids(self):
+    def _compute_sale_orders(self):
         sale_orders = defaultdict(set)
         move_lines = self.env["stock.move.line"].search(
             [

@@ -52,7 +52,7 @@ class StockLandedCost(models.Model):
     )
     description = fields.Text("Item Description")
     amount_total = fields.Monetary(
-        "Total", compute="_compute_total_amount", store=True, tracking=True
+        "Total", compute="_compute_amount_total", store=True, tracking=True
     )
     state = fields.Selection(
         [("draft", "Draft"), ("done", "Posted"), ("cancel", "Cancelled")],
@@ -91,7 +91,7 @@ class StockLandedCost(models.Model):
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id")
 
     @api.depends("cost_lines.price_unit")
-    def _compute_total_amount(self):
+    def _compute_amount_total(self):
         for cost in self:
             cost.amount_total = sum(line.price_unit for line in cost.cost_lines)
 

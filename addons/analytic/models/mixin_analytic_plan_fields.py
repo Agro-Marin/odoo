@@ -24,13 +24,13 @@ class MixinAnalyticPlanFields(models.AbstractModel):
     auto_account_id = fields.Many2one(
         comodel_name="account.analytic.account",
         string="Analytic Account",
-        compute="_compute_auto_account",
-        inverse="_inverse_auto_account",
-        search="_search_auto_account",
+        compute="_compute_auto_account_id",
+        inverse="_inverse_auto_account_id",
+        search="_search_auto_account_id",
     )
 
     @api.depends_context("analytic_plan_id")
-    def _compute_auto_account(self):
+    def _compute_auto_account_id(self):
         plan = self.env["account.analytic.plan"].browse(
             self.env.context.get("analytic_plan_id")
         )
@@ -41,11 +41,11 @@ class MixinAnalyticPlanFields(models.AbstractModel):
         # TO OVERRIDE
         pass
 
-    def _inverse_auto_account(self):
+    def _inverse_auto_account_id(self):
         for line in self:
             line[line.auto_account_id.plan_id._column_name()] = line.auto_account_id
 
-    def _search_auto_account(self, operator, value):
+    def _search_auto_account_id(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
         project_plan, other_plans = self.env["account.analytic.plan"]._get_all_plans()
@@ -91,7 +91,7 @@ class MixinAnalyticPlanFields(models.AbstractModel):
             if plan["applicability"] == "mandatory"
         ]
 
-    def _get_plan_domain(self, plan):
+    def _get_domain_plan(self, plan):
         return [("plan_id", "child_of", plan.id)]
 
     def _get_account_node_context(self, plan):
@@ -126,7 +126,7 @@ class MixinAnalyticPlanFields(models.AbstractModel):
                 fname = plan._column_name()
                 if fname in fields:
                     fields[fname]["string"] = plan.name
-                    fields[fname]["domain"] = repr(self._get_plan_domain(plan))
+                    fields[fname]["domain"] = repr(self._get_domain_plan(plan))
         return fields
 
     def _get_view(self, view_id=None, view_type="form", **options):
@@ -147,7 +147,7 @@ class MixinAnalyticPlanFields(models.AbstractModel):
 
             # Force domain on main account node as the fields_get doesn't do the trick
             if account_node is not None and view_type == "search":
-                account_node.set("domain", repr(self._get_plan_domain(project_plan)))
+                account_node.set("domain", repr(self._get_domain_plan(project_plan)))
 
             # If there is a main node, append the ones for other plans
             if account_node is not None:
@@ -163,7 +163,7 @@ class MixinAnalyticPlanFields(models.AbstractModel):
                                     "optional": "show",
                                     **account_node.attrib,
                                     "name": fname,
-                                    "domain": repr(self._get_plan_domain(plan)),
+                                    "domain": repr(self._get_domain_plan(plan)),
                                     "context": repr(
                                         self._get_account_node_context(plan)
                                     ),

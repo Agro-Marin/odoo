@@ -18,8 +18,8 @@ class UpdateProductAttributeValue(models.TransientModel):
         required=True,
     )
     message = fields.Char(compute="_compute_message")
-    product_count = fields.Integer(compute="_compute_product_count")
-    customized_product_count = fields.Integer(compute="_compute_product_count")
+    product_count = fields.Integer(compute="_compute_product_counts")
+    customized_product_count = fields.Integer(compute="_compute_product_counts")
 
     @api.depends(
         "product_count", "customized_product_count", "mode", "attribute_value_id"
@@ -58,20 +58,20 @@ class UpdateProductAttributeValue(models.TransientModel):
         return None
 
     @api.model
-    def _get_product_count_domain(self, key):
+    def _get_domain_product_count(self, key):
         mode, record_id = key
         if mode == "add":
             return [("attribute_line_ids.attribute_id", "=", record_id)]
         return [("attribute_line_ids.value_ids", "=", record_id)]
 
     @api.depends("mode", "attribute_value_id")
-    def _compute_product_count(self):
+    def _compute_product_counts(self):
         self.product_count = 0
         self.customized_product_count = 0
         ProductTemplate = self.env["product.template"]
         keys_by_wizard = {wizard: wizard._get_product_count_key() for wizard in self}
         counts = {
-            key: ProductTemplate.search_count(self._get_product_count_domain(key))
+            key: ProductTemplate.search_count(self._get_domain_product_count(key))
             for key in set(keys_by_wizard.values()) - {None}
         }
         customized = self._get_customized_counts_per_value()

@@ -5,8 +5,8 @@ class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
     @api.depends("reference_ids", "reference_ids.sale_ids")
-    def _compute_sale_order_count(self):
-        super()._compute_sale_order_count()
+    def _compute_sale_orders(self):
+        super()._compute_sale_orders()
 
     @api.depends("line_ids.sale_order_id.partner_shipping_id")
     def _compute_dest_address_id(self):

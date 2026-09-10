@@ -38,7 +38,9 @@ class MixinMaintenance(models.AbstractModel):
         store=True,
     )
     maintenance_open_count = fields.Integer(
-        compute="_compute_maintenance_count", string="Current Maintenance", store=True
+        compute="_compute_maintenance_open_count",
+        string="Current Maintenance",
+        store=True,
     )
     expected_mtbf = fields.Integer(
         string="Expected MTBF", help="Expected Mean Time Between Failure"
@@ -109,7 +111,7 @@ class MixinMaintenance(models.AbstractModel):
             ) or False
 
     @api.depends("maintenance_ids.stage_id.done", "maintenance_ids.archive")
-    def _compute_maintenance_count(self):
+    def _compute_maintenance_open_count(self):
         for record in self:
             record.maintenance_open_count = len(
                 record.maintenance_ids.filtered(

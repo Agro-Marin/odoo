@@ -12,9 +12,7 @@ class SaleLoyaltyRewardWizard(models.TransientModel):
         required=True,
     )
 
-    reward_ids = fields.Many2many(
-        "loyalty.reward", compute="_compute_claimable_reward_ids"
-    )
+    reward_ids = fields.Many2many("loyalty.reward", compute="_compute_reward_ids")
     selected_reward_id = fields.Many2one(
         "loyalty.reward", domain="[('id', 'in', reward_ids)]"
     )
@@ -31,7 +29,7 @@ class SaleLoyaltyRewardWizard(models.TransientModel):
     )
 
     @api.depends("order_id")
-    def _compute_claimable_reward_ids(self):
+    def _compute_reward_ids(self):
         for wizard in self:
             if not wizard.order_id:
                 wizard.reward_ids = False
