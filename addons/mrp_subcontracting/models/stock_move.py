@@ -214,7 +214,7 @@ class StockMove(models.Model):
                     (move, move._get_subcontract_bom())
                 )
         for picking, subcontract_details in subcontract_details_per_picking.items():
-            picking._subcontracted_produce(subcontract_details)
+            picking._produce_subcontracted_productions(subcontract_details)
 
         if subcontract_details_per_picking:
             self.env["stock.picking"].concat(
@@ -227,7 +227,7 @@ class StockMove(models.Model):
         return (
             self.env["mrp.bom"]
             .sudo()
-            ._bom_subcontract_find(
+            ._get_subcontract_bom_by_product(
                 self.product_id,
                 picking_type=self.picking_type_id,
                 company_id=self.company_id.id,

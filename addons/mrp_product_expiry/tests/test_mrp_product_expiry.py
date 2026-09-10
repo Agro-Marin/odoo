@@ -107,7 +107,7 @@ class TestStockLot(TestStockCommon):
         message_count_before = self.env["mail.message"].search_count(
             [("model", "=", "mrp.production"), ("res_id", "=", mo.id)]
         )
-        wizard.confirm_produce()
+        wizard.action_confirm_produce()
         self.assertEqual(mo.state, "done")
         messages = self.env["mail.message"].search(
             [("model", "=", "mrp.production"), ("res_id", "=", mo.id)]
@@ -144,4 +144,4 @@ class TestStockLot(TestStockCommon):
             .create({})
         )
         with self.assertRaises(AccessError):
-            wizard.with_user(mrp_user).confirm_produce()
+            wizard.with_user(mrp_user).action_confirm_produce()

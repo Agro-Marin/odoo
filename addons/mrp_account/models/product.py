@@ -42,7 +42,7 @@ class ProductProduct(models.Model):
 
     def button_bom_cost(self):
         self.check_singleton()
-        self.with_context(action_button_product=self)._set_price_from_bom()
+        self.with_context(action_button_product=self)._update_standard_price_from_bom()
 
     def action_bom_cost(self):
         boms_to_recompute = self.env["mrp.bom"].search(
@@ -55,11 +55,11 @@ class ProductProduct(models.Model):
             ]
         )
         for product in self:
-            product.with_context(action_button_product=product)._set_price_from_bom(
-                boms_to_recompute
-            )
+            product.with_context(
+                action_button_product=product
+            )._update_standard_price_from_bom(boms_to_recompute)
 
-    def _set_price_from_bom(self, boms_to_recompute=False):
+    def _update_standard_price_from_bom(self, boms_to_recompute=False):
         self.check_singleton()
         bom = self.env["mrp.bom"]._get_bom_by_product(self)[self]
         if bom:

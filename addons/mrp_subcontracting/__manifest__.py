@@ -1,6 +1,6 @@
 {
     "name": "MRP Subcontracting",
-    "version": "0.1",
+    "version": "0.2",
     "category": "Supply Chain/Manufacturing",
     "summary": "Subcontract Productions",
     "author": "Odoo S.A.",

@@ -19,7 +19,7 @@ class MrpBom(models.Model):
         check_company=True,
     )
 
-    def _bom_subcontract_find(
+    def _get_subcontract_bom_by_product(
         self,
         product,
         picking_type=None,

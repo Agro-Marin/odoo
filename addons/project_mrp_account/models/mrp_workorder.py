@@ -8,8 +8,8 @@ class MrpWorkorder(models.Model):
         "account.analytic.line", "mrp_workorder_mo_analytic_rel", copy=False
     )
 
-    def _analytic_line_fields(self):
-        return super()._analytic_line_fields() + ["mo_analytic_account_line_ids"]
+    def _get_fields_analytic_line(self):
+        return super()._get_fields_analytic_line() + ["mo_analytic_account_line_ids"]
 
     def _create_or_update_analytic_entry_for_record(self, value, hours):
         super()._create_or_update_analytic_entry_for_record(value, hours)

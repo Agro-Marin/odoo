@@ -37,7 +37,7 @@ class SaleOrderLine(models.Model):
             products_per_company[line.company_id].add(line.product_id.id)
         found_per_company = {}
 
-        def find(line):
+        def get_bom(line):
             company = line.company_id
             if company not in found_per_company:
                 found_per_company[company] = self.env["mrp.bom"]._get_bom_by_product(
@@ -50,7 +50,7 @@ class SaleOrderLine(models.Model):
         result = {}
         for line in self:
             if line.state == "draft":
-                boms = find(line)
+                boms = get_bom(line)
             elif line.state == "done":
                 boms = line.move_ids.filtered(
                     lambda move: move.state != "cancel"
@@ -59,7 +59,7 @@ class SaleOrderLine(models.Model):
                 boms = self.env["mrp.bom"]
             relevant_bom = boms.filtered(line._is_own_phantom_bom)
             if not relevant_bom and retry:
-                relevant_bom = find(line)
+                relevant_bom = get_bom(line)
             result[line] = (boms, relevant_bom)
         return result
 

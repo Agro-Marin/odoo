@@ -8,12 +8,12 @@ class MrpWorkorder(models.Model):
         "account.analytic.line", "mrp_workorder_wc_analytic_rel", copy=False
     )
 
-    def _analytic_line_fields(self):
+    def _get_fields_analytic_line(self):
         return ["wc_analytic_account_line_ids"]
 
     def _get_analytic_lines(self):
         lines = self.env["account.analytic.line"]
-        for field_name in self._analytic_line_fields():
+        for field_name in self._get_fields_analytic_line():
             lines |= self[field_name]
         return lines
 

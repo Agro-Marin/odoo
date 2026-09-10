@@ -21,7 +21,7 @@
             </xpath>
             <xpath expr="//button[@name='process']" position="after">
                 <button
-                    name="confirm_produce"
+                    name="action_confirm_produce"
                     data-hotkey="q"
                     string="Confirm"
                     type="object"

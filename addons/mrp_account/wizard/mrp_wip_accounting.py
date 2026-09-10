@@ -106,7 +106,7 @@ class MrpAccountWipAccounting(models.TransientModel):
             .id
         )
 
-    def _end_of_day_utc(self, day):
+    def _get_day_end_utc(self, day):
         try:
             tz = ZoneInfo(self.env.context.get("tz") or self.env.user.tz or "UTC")
         except ZoneInfoNotFoundError, ValueError:
@@ -121,7 +121,7 @@ class MrpAccountWipAccounting(models.TransientModel):
         if not productions:
             productions = self.env["mrp.production"]
         if not date:
-            date = self._end_of_day_utc(fields.Date.context_today(self))
+            date = self._get_day_end_utc(fields.Date.context_today(self))
         compo_value = sum(
             ml.quantity_product_uom
             * (
@@ -177,10 +177,10 @@ class MrpAccountWipAccounting(models.TransientModel):
         for wizard in self:
             if not wizard.line_ids or wizard.mo_ids:
                 wizard.line_ids = [Command.clear()] + wizard._prepare_wip_line_vals(
-                    wizard.mo_ids, wizard._end_of_day_utc(wizard.date)
+                    wizard.mo_ids, wizard._get_day_end_utc(wizard.date)
                 )
 
-    def confirm(self):
+    def action_confirm(self):
         self.check_singleton()
         if len(self.mo_ids.company_id) > 1:
             raise UserError(

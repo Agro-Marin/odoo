@@ -264,7 +264,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": [mo.id]})
         )
-        wizard.save().confirm()
+        wizard.save().action_confirm()
         wip_manual_entry1 = self.env["account.move"].search(
             [("ref", "ilike", "WIP - Manual Entry")]
         )
@@ -323,7 +323,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": [mo.id]})
         )
-        wizard.save().confirm()
+        wizard.save().action_confirm()
         wip_empty_entries = self.env["account.move"].search(
             [("ref", "ilike", "WIP - " + mo.name)]
         )
@@ -396,7 +396,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": [mo.id]})
         )
-        wizard.save().confirm()
+        wizard.save().action_confirm()
         wip_entries1 = self.env["account.move"].search(
             [
                 ("ref", "ilike", "WIP - " + mo.name),
@@ -462,7 +462,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": mos.ids})
         )
-        wizard.save().confirm()
+        wizard.save().action_confirm()
         wip_entries2 = self.env["account.move"].search(
             [("ref", "ilike", "WIP - " + mo.name), ("id", "not in", previous_wip_ids)]
         )
@@ -527,7 +527,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": mos.ids})
         )
-        wizard.save().confirm()
+        wizard.save().action_confirm()
         wip_entries3 = self.env["account.move"].search(
             [("ref", "ilike", "WIP - " + mo.name), ("id", "not in", previous_wip_ids)]
         )
@@ -594,7 +594,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         wizard = Form(
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": mos.ids})
         )
-        wizard.save().confirm()
+        wizard.save().action_confirm()
         wip_entries4 = self.env["account.move"].search(
             [("ref", "ilike", "WIP - " + mo.name), ("id", "not in", previous_wip_ids)]
         )
@@ -661,7 +661,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             self.env["mrp.account.wip.accounting"].with_context({"active_ids": [mo.id]})
         )
         wizard.date = now - timedelta(days=2)
-        wizard.save().confirm()
+        wizard.save().action_confirm()
         wip_entries5 = self.env["account.move"].search(
             [("ref", "ilike", "WIP - " + mo.name), ("id", "not in", previous_wip_ids)]
         )

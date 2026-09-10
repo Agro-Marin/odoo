@@ -64,9 +64,9 @@ MODEL_METHODS_TO_IGNORE = {
     ("mrp.production", "set_qty_producing"),
     ("mrp.workorder", "button_start"),
     ("quality.check", "add_check_in_chain"),
-    ("propose.change", "_do_remove_step"),
-    ("propose.change", "_do_set_picture"),
-    ("propose.change", "_do_update_step"),
+    ("propose.change", "_remove_step"),
+    ("propose.change", "_update_picture"),
+    ("propose.change", "_update_step"),
     ("sign.request", "_generate_completed_document"),
 }
 

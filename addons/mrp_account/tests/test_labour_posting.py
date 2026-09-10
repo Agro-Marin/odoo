@@ -399,7 +399,7 @@ class TestWipWizardDates(TestBomPriceCommon):
         )
 
         with self.assertRaisesRegex(UserError, "one WIP entry per company"):
-            wizard.confirm()
+            wizard.action_confirm()
 
     def test_components_consumed_late_in_the_local_day_are_included(self):
         mo = self.env["mrp.production"].create(

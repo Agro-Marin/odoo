@@ -16,7 +16,7 @@ class StockRule(models.Model):
         bom = (
             self.env["mrp.bom"]
             .sudo()
-            ._bom_subcontract_find(
+            ._get_subcontract_bom_by_product(
                 product,
                 company_id=buy_rule.picking_type_id.company_id.id,
                 bom_type="subcontract",

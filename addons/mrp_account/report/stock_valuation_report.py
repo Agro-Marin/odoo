@@ -10,7 +10,7 @@ class StockValuationReport(models.AbstractModel):
         report_data = super()._get_report_data(
             date=date, product_category=product_category
         )
-        if not self._must_include_cost_of_production():
+        if not self._is_cost_of_production_included():
             return report_data
         production_locations_valuation_vals = (
             self.env.company._get_location_valuation_vals(
@@ -51,7 +51,7 @@ class StockValuationReport(models.AbstractModel):
         report_data["cost_of_production"] = cost_of_production
         return report_data
 
-    def _must_include_cost_of_production(self):
+    def _is_cost_of_production_included(self):
         return bool(
             self.env["stock.location"].search_count(
                 [

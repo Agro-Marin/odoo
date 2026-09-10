@@ -174,7 +174,7 @@ class StockPicking(models.Model):
             return {"no_procurement": True}
         return {}
 
-    def _subcontracted_produce(self, subcontract_details):
+    def _produce_subcontracted_productions(self, subcontract_details):
         self.check_singleton()
         group_by_company = defaultdict(lambda: ([], []))
         for move, bom in subcontract_details:

@@ -29,7 +29,7 @@
                     </field>
                     <footer>
                         <button
-                            name="confirm"
+                            name="action_confirm"
                             string="Post WIP"
                             data-hotkey="q"
                             colspan="1"

@@ -1,6 +1,6 @@
 {
     "name": "Accounting - MRP",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Supply Chain/Manufacturing",
     "summary": "Analytic accounting in Manufacturing",
     "description": """

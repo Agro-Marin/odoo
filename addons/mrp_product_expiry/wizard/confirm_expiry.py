@@ -24,7 +24,7 @@ class ExpiryPickingConfirmation(models.TransientModel):
                 )
         super(ExpiryPickingConfirmation, self - manufacturing)._compute_description()
 
-    def confirm_produce(self):
+    def action_confirm_produce(self):
         return self.production_ids.with_context(
-            **self._validation_context()
+            **self._get_validation_context()
         ).button_mark_done()
