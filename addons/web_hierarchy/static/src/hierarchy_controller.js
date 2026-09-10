@@ -1,28 +1,18 @@
 /** @odoo-module native */
-import { Component, useRef } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 
-import { useBus } from "@web/core/utils/hooks";
+import { useSetupAction } from "@web/core/action_hook";
 import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
 } from "@web/model/relational_model";
-import { useSetupAction } from "@web/core/action_hook";
-import { CogMenu } from "@web/search/cog_menu/cog_menu";
-import { Layout } from "@web/search/layout";
-import { SearchBar } from "@web/search/search_bar/search_bar";
-import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { useViewButtons } from "@web/views/view_button";
-import { ActionHelper } from "@web/views/action_helper";
+import { useViewChassis, ViewLayout } from "@web/views/view_components";
 
 export class HierarchyController extends Component {
-    static components = {
-        Layout,
-        CogMenu,
-        SearchBar,
-        ActionHelper,
-    };
+    static components = { ViewLayout };
     static props = {
         ...standardViewProps,
         Model: Function,
@@ -33,7 +23,8 @@ export class HierarchyController extends Component {
     static template = "web_hierarchy.HierarchyView";
 
     setup() {
-        this.rootRef = useRef("root");
+        this.chassis = useViewChassis();
+        this.rootRef = this.chassis.rootRef;
         const { parentFieldName, childFieldName } = this.props.archInfo;
         const { activeFields, fields } = extractFieldsFromArchInfo(
             this.props.archInfo,
@@ -45,18 +36,17 @@ export class HierarchyController extends Component {
         }
         addFieldDependencies(activeFields, fields, additionalFields);
         const modelConfig = this.props.state?.modelState?.config || {};
-        this.model = useModelWithSampleData(this.props.Model, {
-            config: modelConfig,
-            resModel: this.props.resModel,
-            activeFields,
-            defaultOrderBy: this.props.archInfo.defaultOrder,
-            fields,
-            parentFieldName,
-            childFieldName,
-        });
-        useBus(this.model.bus, "update", () => {
-            this.render(true);
-        });
+        this.model = useState(
+            useModelWithSampleData(this.props.Model, {
+                config: modelConfig,
+                resModel: this.props.resModel,
+                activeFields,
+                defaultOrderBy: this.props.archInfo.defaultOrder,
+                fields,
+                parentFieldName,
+                childFieldName,
+            }),
+        );
         useViewButtons(this.rootRef, {
             reload: this.model.reload.bind(this.model),
         });
@@ -68,11 +58,15 @@ export class HierarchyController extends Component {
                 };
             },
         });
-        this.searchBarToggler = useSearchBarToggler();
     }
 
-    get displayNoContent() {
-        return this.model.useSampleModel || !this.model.hasData();
+    get chassisProps() {
+        const small = this.env.isSmall ? " o_action_delegate_scroll" : "";
+        return {
+            ...this.chassis.props,
+            className: `o_hierarchy_view${small} ${this.props.className || ""}`,
+            contentClassName: "d-flex",
+        };
     }
 
     async openRecord(node, newWindow) {

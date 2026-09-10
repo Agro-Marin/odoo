@@ -92,7 +92,6 @@ PINNED_HANDROLLED: dict[str, str] = {
         "enterprise/hr_payroll, enterprise/account_accountant)"
     ),
     "grid": "not yet converted",
-    "hierarchy": "not yet converted",
 }
 
 

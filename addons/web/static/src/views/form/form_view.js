@@ -31,7 +31,6 @@ export const formView = {
             genericProps.readonly ||
             (props.archInfo.activeActions?.edit === false &&
                 genericProps.resId !== false);
-        props.buttonTemplate = genericProps.buttonTemplate || view.buttonTemplate;
         return props;
     },
 };

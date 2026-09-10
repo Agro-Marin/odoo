@@ -278,7 +278,7 @@ export function defaultViewProps(genericProps, view) {
         ...genericProps,
         Model: view.Model,
         Renderer: view.Renderer,
-        buttonTemplate: view.buttonTemplate,
+        buttonTemplate: genericProps.buttonTemplate || view.buttonTemplate,
         ...(view.Compiler ? { Compiler: view.Compiler } : {}),
         archInfo,
     };

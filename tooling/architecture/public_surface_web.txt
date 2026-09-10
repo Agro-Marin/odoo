@@ -199,7 +199,7 @@
 @web/ui/tooltip  odoo enterprise
 @web/ui/ui_service  odoo enterprise
 @web/ui/viewport  odoo enterprise
-@web/views/action_helper  odoo enterprise
+@web/views/action_helper  enterprise
 @web/views/calendar  odoo enterprise
 @web/views/field_arch  odoo agromarin
 @web/views/form  odoo enterprise
@@ -214,6 +214,7 @@
 @web/views/settings/fields/upgrade_dialog  odoo
 @web/views/standard_view_props  odoo enterprise agromarin
 @web/views/view  odoo enterprise
+@web/views/view_arch_parser  odoo enterprise agromarin
 @web/views/view_button  odoo enterprise
 @web/views/view_buttons  enterprise
 @web/views/view_compiler  odoo enterprise agromarin

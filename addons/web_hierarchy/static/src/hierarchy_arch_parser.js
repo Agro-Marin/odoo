@@ -2,10 +2,11 @@
 import { visitXML } from "@web/core/utils/dom/xml";
 import { stringToOrderBy } from "@web/core/utils/order_by";
 import { parseFieldNode } from "@web/views/field_arch";
+import { ViewArchParser } from "@web/views/view_arch_parser";
 import { getActiveActions } from "@web/views/view_utils";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 
-export class HierarchyArchParser {
+export class HierarchyArchParser extends ViewArchParser {
     parse(xmlDoc, models, modelName) {
         const archInfo = {
             activeActions: getActiveActions(xmlDoc),
