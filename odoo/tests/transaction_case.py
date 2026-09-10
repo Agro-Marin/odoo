@@ -426,6 +426,7 @@ class BaseCase(TestCase):
         super().setUp()
         self.http_request_key: str = ""
         self.http_request_allow_all: bool = False
+        self._test_thread = threading.current_thread()
         self.addCleanup(
             setattr,
             type(self),
@@ -1137,6 +1138,12 @@ class BaseCase(TestCase):
             raise BadRequest(message)
         request = odoo.http.request
         if not request or self.http_request_allow_all:
+            return
+        # The cookie is how a request served on a SERVER thread proves it is
+        # this test's. Code running on the test's own thread under a request it
+        # mocked -- a login that reads its durable cooldown row through
+        # `registry.cursor()`, say -- needs no ticket, and has none to show.
+        if threading.current_thread() is self._test_thread:
             return
         http_request_required_key = self.http_request_key
         http_request_key = request.cookies.get(TEST_CURSOR_COOKIE_NAME)

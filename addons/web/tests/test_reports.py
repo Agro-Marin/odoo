@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import odoo.tests
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.http import root
 from odoo.tools import mute_logger
 
@@ -105,31 +105,25 @@ class TestReports(odoo.tests.HttpCase):
         public_device_log_count_before = self.env["res.device.log"].search_count(
             [("user_id", "=", public.id)]
         )
+        # The records bound the print (bfdd12837e3c): a user who may not read
+        # the partner is refused before the PDF engine is asked for anything,
+        # so nothing is fetched as anyone and no device is logged in.
         report = report.with_user(public)
         with MockRequest(self.env) as mock_request:
             mock_request.session = self.authenticate(None, None)
-            report.with_context(force_report_rendering=True)._render_qweb_pdf(
-                report.id, [partner_id]
-            )
+            with self.assertRaises(AccessError):
+                report.with_context(force_report_rendering=True)._render_qweb_pdf(
+                    report.id, [partner_id]
+                )
         public_device_log_count_after = self.env["res.device.log"].search_count(
             [("user_id", "=", public.id)]
         )
         self.assertFalse(public_device_log_count_after - public_device_log_count_before)
-
         self.assertEqual(
-            result.get("uid"),
-            public.id,
-            "PDF engine is not fetching the image as the user printing the report",
-        )
-        self.assertEqual(
-            result.get("record_id"),
-            None,
-            "PDF engine must not have been allowed to fetch the image",
-        )
-        self.assertEqual(
-            result.get("data"),
-            None,
-            "PDF engine must not have been allowed to fetch the image",
+            result,
+            {},
+            "PDF engine must not have been asked to fetch anything for a print "
+            "the caller may not make",
         )
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
