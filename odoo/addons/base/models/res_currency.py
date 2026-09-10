@@ -24,7 +24,7 @@ RATE_HISTORY_CACHE_KEY = "res_currency_rate_history"
 class ResCurrency(models.Model):
     _name = "res.currency"
     _description = "Currency"
-    _rec_names_search = ["name", "get_full_name"]
+    _rec_names_search = ["name", "full_name"]
     _order = "active desc, name"
 
     name = fields.Char(
