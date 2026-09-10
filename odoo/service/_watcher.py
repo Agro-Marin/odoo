@@ -128,7 +128,7 @@ class FSWatcherBase:
                     exc_info=True,
                 )
 
-    def handle_asset_file(self, path: str) -> None:
+    def on_asset_file_changed(self, path: str) -> None:
         with self._burst_lock:
             self._assets_dirty = True
             leading = not self._burst_active
@@ -168,10 +168,10 @@ class FSWatcherBase:
         if timer is not None:
             timer.cancel()
 
-    def handle_file(self, path: str) -> bool | None:
+    def on_file_changed(self, path: str) -> bool | None:
         if path.endswith(ASSET_SUFFIXES) and "/static/" in path:
             if "assets" in current().dev_mode:
-                self.handle_asset_file(path)
+                self.on_asset_file_changed(path)
             return None
         if self._reload_triggered:
             return None
@@ -215,7 +215,7 @@ class FSWatcherWatchdog(FSWatcherBase):
         if isinstance(event, (FileCreatedEvent, FileModifiedEvent, FileMovedEvent)):
             if not event.is_directory:
                 path = getattr(event, "dest_path", "") or event.src_path
-                self.handle_file(path)
+                self.on_file_changed(path)
 
     def start(self) -> None:
         self.observer.start()
@@ -358,7 +358,7 @@ class FSWatcherInotify(FSWatcherBase):
             self._watch_directory(root_path)
             for directory, _, _ in root_path.walk():
                 self._watch_directory(directory)
-        self.handle_asset_file(OVERFLOW_PATH)
+        self.on_asset_file_changed(OVERFLOW_PATH)
 
     def _watch_directory(self, directory: Path) -> None:
         path = str(directory)
@@ -401,14 +401,14 @@ class FSWatcherInotify(FSWatcherBase):
                     if "IN_ISDIR" not in type_names:
                         if "IN_DELETE" not in type_names:
                             full_path = str(Path(path, filename))
-                            if self.handle_file(full_path):
+                            if self.on_file_changed(full_path):
                                 return
                     elif dir_creation_events.intersection(type_names):
                         created_dir = Path(path, filename)
                         for root, _, files in created_dir.walk():
                             self._watch_directory(root)
                             for file in files:
-                                if self.handle_file(str(root / file)):
+                                if self.on_file_changed(str(root / file)):
                                     return
             except TerminalEventException as exc:
                 if str(exc) != "IN_Q_OVERFLOW":

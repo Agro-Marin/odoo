@@ -109,7 +109,7 @@ def _rollback_transaction(env: Environment, exc: Exception) -> None:
     env.registry.reset_changes()
 
 
-def _retry_error_name(exc: Exception) -> str | None:
+def _resolve_retry_error_name(exc: Exception) -> str | None:
     if isinstance(exc, PG_RETRY_EXCEPTIONS):
         return type(exc).__name__
     if isinstance(exc, ConcurrencyError):
@@ -152,7 +152,7 @@ def retrying[T](
                         raise translated from exc
                     raise
 
-                error = _retry_error_name(exc)
+                error = _resolve_retry_error_name(exc)
                 if error is None:
                     _logger.info(
                         "OperationalError not retryable: %s (sqlstate=%s)",

@@ -103,7 +103,7 @@ _HOST_PLACEHOLDER_RE = re.compile(r"%[hd]")
 _dbfilter_warned = False
 
 
-def _static_dbfilter() -> re.Pattern[str] | None:
+def _resolve_static_dbfilter() -> re.Pattern[str] | None:
     global _dbfilter_warned  # noqa: PLW0603  warn once per process, not per sweep
 
     pattern = current().dbfilter
@@ -138,7 +138,7 @@ def get_cron_databases() -> list[str]:
     if configured:
         return list(configured)
     names = [name for name in list_dbs(True) if not is_maintenance_db(name)]
-    dbfilter = _static_dbfilter()
+    dbfilter = _resolve_static_dbfilter()
     if dbfilter is None:
         return names
     return [name for name in names if dbfilter.match(name)]

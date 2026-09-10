@@ -159,7 +159,7 @@ class TestResyncAfterOverflow:
         obj.roots = [str(r) for r in roots]
         watched, invalidated = [], []
         obj._watch_directory = lambda d: watched.append(Path(d))
-        obj.handle_asset_file = invalidated.append
+        obj.on_asset_file_changed = invalidated.append
         obj._sync_watches_after_overflow()
         return watched, invalidated
 

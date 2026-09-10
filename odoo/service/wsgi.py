@@ -35,11 +35,11 @@ def get_http_socket_timeout() -> float:
     return get_env_float("ODOO_HTTP_SOCKET_TIMEOUT", 2.0, minimum=0.1, logger=_logger)
 
 
-def _plain_style(msg: str, *styles: str) -> str:
+def _style_plain(msg: str, *styles: str) -> str:
     return msg
 
 
-_ansi_style = getattr(werkzeug.serving, "_ansi_style", _plain_style)
+_ansi_style = getattr(werkzeug.serving, "_ansi_style", _style_plain)
 
 
 def _is_ansi_enabled() -> bool:

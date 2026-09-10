@@ -5020,7 +5020,10 @@ class TestStaleCachedPlanIsRecoverable(BaseCase):
 
     def test_retrying_catches_the_family_and_retries_on_the_marker(self):
         from odoo.db.errors import PG_STALE_PLAN_EXCEPTIONS, mark_stale_cached_plan
-        from odoo.service.transaction import _RECOVERY_EXCEPTIONS, _retry_error_name
+        from odoo.service.transaction import (
+            _RECOVERY_EXCEPTIONS,
+            _resolve_retry_error_name,
+        )
 
         for cls in PG_STALE_PLAN_EXCEPTIONS:
             self.assertTrue(
@@ -5029,9 +5032,9 @@ class TestStaleCachedPlanIsRecoverable(BaseCase):
                 "must name the family or the retry loop never sees it",
             )
             exc = cls("cached plan must not change result type")
-            self.assertIsNone(_retry_error_name(exc))
+            self.assertIsNone(_resolve_retry_error_name(exc))
             mark_stale_cached_plan(exc)
-            self.assertEqual(_retry_error_name(exc), "StaleCachedPlan")
+            self.assertEqual(_resolve_retry_error_name(exc), "StaleCachedPlan")
 
     def test_a_marked_exception_is_not_blanket_retryable_by_sqlstate(self):
         from odoo.db.errors import PG_RETRY_SQLSTATES, PG_STALE_PLAN_EXCEPTIONS

@@ -30,7 +30,7 @@ class TestBindFailureIsLogged:
             caplog.at_level(logging.CRITICAL, logger="odoo.service.server"),
             pytest.raises(SystemExit),
         ):
-            server.http_spawn()
+            server.spawn_http_server()
 
         critical = [r for r in caplog.records if r.levelno == logging.CRITICAL]
         assert critical, "a failed bind must produce a CRITICAL log record"
@@ -43,7 +43,7 @@ class TestBindFailureIsLogged:
             caplog.at_level(logging.CRITICAL, logger="odoo.service.server"),
             pytest.raises(SystemExit),
         ):
-            server.http_spawn()
+            server.spawn_http_server()
 
         critical = [r for r in caplog.records if r.levelno == logging.CRITICAL]
         assert critical, "a failed bind must produce a CRITICAL log record"
@@ -54,7 +54,7 @@ class TestBindFailureIsLogged:
     def test_the_exit_still_propagates(self, server):
         with failing_bind():
             with pytest.raises(SystemExit) as excinfo:
-                server.http_spawn()
+                server.spawn_http_server()
         assert excinfo.value.code == 1
 
     def test_no_serving_thread_is_started_on_failure(self, server):
@@ -63,7 +63,7 @@ class TestBindFailureIsLogged:
             patch.object(_threaded.threading, "Thread") as thread,
             pytest.raises(SystemExit),
         ):
-            server.http_spawn()
+            server.spawn_http_server()
         thread.assert_not_called()
 
 
@@ -75,7 +75,7 @@ class TestSuccessfulSpawnIsUnchanged:
             patch.object(_threaded.threading, "Thread") as thread,
             caplog.at_level(logging.CRITICAL, logger="odoo.service.server"),
         ):
-            server.http_spawn()
+            server.spawn_http_server()
 
         assert server.httpd is httpd
         thread.assert_called_once()

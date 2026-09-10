@@ -36,7 +36,7 @@ class TestFSWatcherBase:
             patch("odoo.service._process_state.server_phoenix", False),
             patch("odoo.service._watcher.restart") as mock_restart,
         ):
-            result = watcher.handle_file(str(py))
+            result = watcher.on_file_changed(str(py))
         mock_restart.assert_called_once()
         assert result is True
 
@@ -48,8 +48,8 @@ class TestFSWatcherBase:
             patch("odoo.service._process_state.server_phoenix", False),
             patch("odoo.service._watcher.restart") as mock_restart,
         ):
-            first = watcher.handle_file(str(a))
-            second = watcher.handle_file(str(b))
+            first = watcher.on_file_changed(str(a))
+            second = watcher.on_file_changed(str(b))
         assert first is True
         assert second is None
         mock_restart.assert_called_once()
@@ -58,13 +58,13 @@ class TestFSWatcherBase:
         bad = tmp_path / "bad.py"
         bad.write_text("def (\n")
         with patch("odoo.service._watcher.restart") as mock_restart:
-            result = watcher.handle_file(str(bad))
+            result = watcher.on_file_changed(str(bad))
         mock_restart.assert_not_called()
         assert result is None
 
     def test_missing_file_suppresses_restart(self, watcher, tmp_path):
         with patch("odoo.service._watcher.restart") as mock_restart:
-            result = watcher.handle_file(str(tmp_path / "ghost.py"))
+            result = watcher.on_file_changed(str(tmp_path / "ghost.py"))
         mock_restart.assert_not_called()
         assert result is None
 
@@ -72,7 +72,7 @@ class TestFSWatcherBase:
         txt = tmp_path / "config.yaml"
         txt.write_text("key: value")
         with patch("odoo.service._watcher.restart") as mock_restart:
-            result = watcher.handle_file(str(txt))
+            result = watcher.on_file_changed(str(txt))
         mock_restart.assert_not_called()
         assert result is None
 
@@ -80,7 +80,7 @@ class TestFSWatcherBase:
         hidden = tmp_path / ".~mymodule.py"
         hidden.write_text("pass\n")
         with patch("odoo.service._watcher.restart") as mock_restart:
-            result = watcher.handle_file(str(hidden))
+            result = watcher.on_file_changed(str(hidden))
         mock_restart.assert_not_called()
         assert result is None
 
@@ -91,7 +91,7 @@ class TestFSWatcherBase:
             patch("odoo.service._process_state.server_phoenix", True),
             patch("odoo.service._watcher.restart") as mock_restart,
         ):
-            result = watcher.handle_file(str(py))
+            result = watcher.on_file_changed(str(py))
         mock_restart.assert_not_called()
         assert result is None
 
@@ -123,7 +123,7 @@ class TestFSWatcherAssetInvalidation:
                 patch.object(registry_mod, "Registry", fake_registry),
                 server_settings.override(db_name=tuple(configured)),
             ):
-                watcher.handle_asset_file("/src/some_bundle.js")
+                watcher.on_asset_file_changed("/src/some_bundle.js")
             return statements
 
         return _run
@@ -164,7 +164,7 @@ class TestFSWatcherInotifyRewatch:
         obj.started = False
         obj.thread = None
         obj._arm_watcher([str(root)], block_duration_s=0.05)
-        obj.handle_file = seen.append
+        obj.on_file_changed = seen.append
         obj.start()
         try:
             yield obj, seen, root
@@ -296,7 +296,7 @@ class TestFSWatcherInotifyRewatch:
             lambda self, path: inserts.append(path),
         ):
             for i in range(50):
-                obj.handle_asset_file(f"/x/f{i}.js")
+                obj.on_asset_file_changed(f"/x/f{i}.js")
             assert len(inserts) == 1, "leading edge did not fire exactly once"
             obj._end_burst()
             assert len(inserts) == 2, "trailing flush did not fire"
@@ -313,9 +313,9 @@ class TestFSWatcherInotifyRewatch:
             "_signal_asset_change",
             lambda self, path: inserts.append(path),
         ):
-            obj.handle_asset_file("/x/first.js")
+            obj.on_asset_file_changed("/x/first.js")
             assert len(inserts) == 1
-            obj.handle_asset_file("/x/second.js")
+            obj.on_asset_file_changed("/x/second.js")
             assert len(inserts) == 1, "should be pending, not immediate"
             obj._end_burst()
             assert len(inserts) == 2, "the later edit was never signalled"
@@ -330,7 +330,7 @@ class TestFSWatcherInotifyRewatch:
             "_signal_asset_change",
             lambda self, path: inserts.append(path),
         ):
-            obj.handle_asset_file("/x/only.js")
+            obj.on_asset_file_changed("/x/only.js")
             assert len(inserts) == 1, "single edit was deferred to the idle tick"
 
 
@@ -400,7 +400,7 @@ class TestBothBackendsCoalesceAssetBursts:
         w.FSWatcherBase.__init__(obj)
         obj._needs_burst_timer = False
         for i in range(files):
-            obj.handle_asset_file(f"/addon/static/src/f{i}.js")
+            obj.on_asset_file_changed(f"/addon/static/src/f{i}.js")
         obj._end_burst()
         return len(opened)
 
@@ -431,9 +431,9 @@ class TestBothBackendsCoalesceAssetBursts:
         monkeypatch.setattr(
             w.FSWatcherBase, "_signal_asset_change", lambda self, p: flushed.append(p)
         )
-        obj.handle_asset_file("/addon/static/src/a.js")
+        obj.on_asset_file_changed("/addon/static/src/a.js")
         assert len(flushed) == 1, "leading edge did not fire"
-        obj.handle_asset_file("/addon/static/src/b.js")
+        obj.on_asset_file_changed("/addon/static/src/b.js")
         deadline = time.monotonic() + 2.0
         while len(flushed) < 2 and time.monotonic() < deadline:
             time.sleep(0.01)

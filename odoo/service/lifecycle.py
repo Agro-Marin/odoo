@@ -9,7 +9,6 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
 
 from odoo import api, db
 from odoo.libs import gc
@@ -24,9 +23,6 @@ from odoo.tools.misc import stripped_sys_argv
 from . import _process_state
 from ._env import _IS_POSIX, _IS_WINDOWS, get_env_float, get_env_int
 from .settings import current
-
-if TYPE_CHECKING:
-    from odoo.db import BaseCursor
 
 _logger = logging.getLogger("odoo.service.server")
 
@@ -247,11 +243,6 @@ def _get_connection_budget_demand() -> tuple[int, int]:
     return processes, demand
 
 
-def _scalar(cr: BaseCursor) -> Any:
-    row = cr.fetchone()
-    return row[0] if row else None
-
-
 def _warn_on_connection_budget() -> None:
     import odoo
 
@@ -262,11 +253,11 @@ def _warn_on_connection_budget() -> None:
         configured_port = current().db_port
         with contextlib.closing(db.db_connect("postgres").cursor()) as cr:
             cr.execute("SHOW max_connections")
-            server_max = int(_scalar(cr))
+            server_max = int(cr.fetchscalar())
             cr.execute("SHOW superuser_reserved_connections")
-            reserved = int(_scalar(cr))
+            reserved = int(cr.fetchscalar())
             cr.execute("SELECT inet_server_port()")
-            server_port = _scalar(cr)
+            server_port = cr.fetchscalar()
     except Exception:
         _logger.debug("Could not check the connection budget", exc_info=True)
         return

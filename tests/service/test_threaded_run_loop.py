@@ -49,7 +49,7 @@ def listen(server):
             patch.object(_threaded, "CRON_POLL_INTERVAL_S", 0),
             pytest.raises(SystemExit),
         ):
-            _threaded.ThreadedServer._listen_thread(
+            _threaded.ThreadedServer._run_listener_thread(
                 server,
                 0,
                 channel="ch",

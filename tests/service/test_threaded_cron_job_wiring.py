@@ -25,13 +25,13 @@ class TestEachListenerIsWiredToItsOwnQueue:
     """
 
     def _call(self, server, method):
-        with patch.object(server, "_listen_thread") as listen:
+        with patch.object(server, "_run_listener_thread") as listen:
             getattr(server, method)(3)
         assert listen.call_count == 1
         return listen.call_args
 
     def test_the_cron_listener_takes_the_cron_channel_and_processor(self, server):
-        args, kwargs = self._call(server, "cron_thread")
+        args, kwargs = self._call(server, "run_cron_thread")
         from odoo.addons.base.models.ir_cron import IrCron
 
         assert args == (3,)
@@ -40,7 +40,7 @@ class TestEachListenerIsWiredToItsOwnQueue:
         assert kwargs["label"] == "cron"
 
     def test_the_job_listener_takes_the_job_channel_and_processor(self, server):
-        args, kwargs = self._call(server, "job_thread")
+        args, kwargs = self._call(server, "run_job_thread")
         from odoo.addons.base.models.ir_job import IrJob
 
         assert args == (3,)
@@ -54,22 +54,22 @@ class TestEachListenerIsWiredToItsOwnQueue:
         Asserting each side separately still passes if `JOB_QUEUE_CHANNEL` is
         ever redefined to equal `CRON_TRIGGER_CHANNEL`; this is what notices.
         """
-        _, cron = self._call(server, "cron_thread")
-        _, job = self._call(server, "job_thread")
+        _, cron = self._call(server, "run_cron_thread")
+        _, job = self._call(server, "run_job_thread")
 
         assert cron["channel"] != job["channel"]
         assert cron["process_jobs"] != job["process_jobs"]
         assert cron["label"] != job["label"]
 
     def test_the_label_is_what_selects_the_recycle_age(self, server):
-        """`_listen_thread` branches on `label == "job"` and nothing else.
+        """`_run_listener_thread` branches on `label == "job"` and nothing else.
 
         So the label is not cosmetic: it decides whether the thread recycles on
         `get_job_max_age()` or on `limit_time_worker_cron`.
         """
         import inspect
 
-        source = inspect.getsource(_threaded.ThreadedServer._listen_thread)
+        source = inspect.getsource(_threaded.ThreadedServer._run_listener_thread)
         assert 'label == "job"' in source
 
 
@@ -111,7 +111,7 @@ class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
             "odoo.service.cron.cron0",
             "odoo.service.cron.cron1",
         ]
-        assert all(t.target == server.cron_thread for t in made)
+        assert all(t.target == server.run_cron_thread for t in made)
         assert all(t.start.called for t in made)
 
     def test_job_threads_are_counted_by_job_workers_and_typed_job(self, server):
@@ -125,7 +125,7 @@ class TestSpawnersTypeTheirThreadsForTheRightTimeBudget:
             "odoo.service.job.job0",
             "odoo.service.job.job1",
         ]
-        assert all(t.target == server.job_thread for t in made)
+        assert all(t.target == server.run_job_thread for t in made)
 
     def test_both_spawn_nothing_when_their_own_knob_is_zero(self, server):
         cfg = {"max_cron_threads": 0, "job_workers": 0}

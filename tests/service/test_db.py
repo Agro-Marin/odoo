@@ -831,7 +831,7 @@ class TestCheckFaketimeMode:
             patch.object(odoo.tools, "config", {"test_enable": True, "db_name": ["x"]}),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect") as mock_connect,
         ):
-            db_mod.lifecycle._check_faketime_mode("x")
+            db_mod.lifecycle._create_faketime_now_function("x")
 
         mock_connect.assert_not_called()
 
@@ -846,7 +846,7 @@ class TestCheckFaketimeMode:
             patch("odoo.service.db.lifecycle.odoo.db.db_connect") as mock_connect,
             caplog.at_level("WARNING", logger="odoo.service.db"),
         ):
-            db_mod.lifecycle._check_faketime_mode("x")
+            db_mod.lifecycle._create_faketime_now_function("x")
 
         mock_connect.assert_not_called()
         assert any("Refusing to install faketime" in m for m in caplog.messages)
@@ -861,7 +861,7 @@ class TestCheckFaketimeMode:
             ),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect") as mock_connect,
         ):
-            db_mod.lifecycle._check_faketime_mode("unlisted_db")
+            db_mod.lifecycle._create_faketime_now_function("unlisted_db")
 
         mock_connect.assert_not_called()
 
@@ -880,7 +880,7 @@ class TestCheckFaketimeMode:
             patch.object(odoo.tools, "config", {"test_enable": True, "db_name": ["x"]}),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db),
         ):
-            db_mod.lifecycle._check_faketime_mode("x")
+            db_mod.lifecycle._create_faketime_now_function("x")
 
         assert any(
             "CREATE OR REPLACE FUNCTION" in str(call_args)
@@ -902,7 +902,7 @@ class TestCreateEmptyDatabaseTOCTOU:
             patch.object(odoo.tools, "config", {"db_template": "template0"}),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db),
             patch("odoo.service.db.lifecycle.get_database_identifier", return_value=""),
-            patch("odoo.service.db.lifecycle._check_faketime_mode"),
+            patch("odoo.service.db.lifecycle._create_faketime_now_function"),
         ):
             with pytest.raises(db_mod.DatabaseExists, match="already exists"):
                 db_mod._create_empty_database("x")
@@ -925,7 +925,7 @@ class TestCreateEmptyDatabaseTOCTOU:
             patch(
                 "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
             ),
-            patch("odoo.service.db.lifecycle._check_faketime_mode"),
+            patch("odoo.service.db.lifecycle._create_faketime_now_function"),
         ):
             db_mod._create_empty_database("x")
 
@@ -2370,7 +2370,7 @@ class TestDatabaseDdlSetsAutocommitFirst:
             patch(
                 "odoo.service.db.lifecycle.get_database_identifier", return_value="x"
             ),
-            patch("odoo.service.db.lifecycle._check_faketime_mode"),
+            patch("odoo.service.db.lifecycle._create_faketime_now_function"),
         ):
             db_mod._create_empty_database("newdb")
         self._assert_every_statement_follows_autocommit(
@@ -2476,7 +2476,7 @@ class TestCreateEmptyDatabaseHardening:
             ),
             patch("odoo.service.db.lifecycle.odoo.db.db_connect", return_value=fake_db),
             patch("odoo.service.db.lifecycle.get_database_identifier", identifier),
-            patch("odoo.service.db.lifecycle._check_faketime_mode"),
+            patch("odoo.service.db.lifecycle._create_faketime_now_function"),
         ):
             db_mod._create_empty_database("newdb")
 
@@ -2785,7 +2785,7 @@ class TestCreateEmptyDatabaseTemplateContention:
             patch.object(
                 db_mod.lifecycle, "get_database_identifier", side_effect=lambda c, n: n
             ),
-            patch.object(db_mod.lifecycle, "_check_faketime_mode"),
+            patch.object(db_mod.lifecycle, "_create_faketime_now_function"),
             patch.object(db_mod.lifecycle.time, "sleep"),
             patch.object(
                 odoo.tools,
@@ -2806,7 +2806,7 @@ class TestCreateEmptyDatabaseTemplateContention:
             patch.object(
                 db_mod.lifecycle, "get_database_identifier", side_effect=lambda c, n: n
             ),
-            patch.object(db_mod.lifecycle, "_check_faketime_mode"),
+            patch.object(db_mod.lifecycle, "_create_faketime_now_function"),
             patch.object(db_mod.lifecycle, "_terminate_backends") as drop_conn,
             patch.object(
                 odoo.tools,

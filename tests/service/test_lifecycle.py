@@ -40,11 +40,7 @@ def make_config(**overrides):
 
 def limits_cursor(max_connections=100, reserved=3, server_port=5432):
     cr = MagicMock()
-    cr.fetchone.side_effect = [
-        (str(max_connections),),
-        (str(reserved),),
-        (server_port,),
-    ]
+    cr.fetchscalar.side_effect = [str(max_connections), str(reserved), server_port]
     return cr
 
 

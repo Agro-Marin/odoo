@@ -15,7 +15,7 @@ from odoo import api
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.logutils import init_logger
 from odoo.modules.registry import Registry
-from odoo.service.db.lifecycle import _check_faketime_mode
+from odoo.service.db.lifecycle import _create_faketime_now_function
 from odoo.tests import standalone_tests
 from odoo.tools import config, profiler, topological_sort, unique
 
@@ -337,7 +337,7 @@ if __name__ == "__main__":
         if os.environ.get("ODOO_PROFILE_PRELOAD_SQL"):
             collectors.append("sql")
         prof = profiler.Profiler(db=args.database, collectors=collectors)
-    _check_faketime_mode(args.database)
+    _create_faketime_now_function(args.database)
 
     try:
         with prof:

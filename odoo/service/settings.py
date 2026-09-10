@@ -22,7 +22,7 @@ def _is_inherited(limit: int) -> bool:
     return limit <= INHERIT_FROM_CRON
 
 
-def _first_owned(*limits: int) -> int:
+def _get_first_owned_limit(*limits: int) -> int:
     limit = limits[0]
     for candidate in limits[1:]:
         if not _is_inherited(limit):
@@ -111,16 +111,20 @@ class ServerSettings:
 
     @property
     def job_max_age(self) -> int:
-        return _first_owned(self.limit_time_worker_job, self.limit_time_worker_cron)
+        return _get_first_owned_limit(
+            self.limit_time_worker_job, self.limit_time_worker_cron
+        )
 
     @property
     def cron_real_time_budget(self) -> float:
-        return max(_first_owned(self.limit_time_real_cron, self.limit_time_real), 0)
+        return max(
+            _get_first_owned_limit(self.limit_time_real_cron, self.limit_time_real), 0
+        )
 
     @property
     def job_real_time_budget(self) -> float:
         return max(
-            _first_owned(
+            _get_first_owned_limit(
                 self.limit_time_real_job,
                 self.limit_time_real_cron,
                 self.limit_time_real,
@@ -133,13 +137,15 @@ class ServerSettings:
         return bool(self.init or self.update or self.reinit)
 
 
-def _from_live_config() -> ServerSettings:
+def _get_settings_from_live_config() -> ServerSettings:
     import odoo.tools
 
     return ServerSettings.from_config(odoo.tools.config)
 
 
-slot: SettingsSlot[ServerSettings] = SettingsSlot("odoo.service", _from_live_config)
+slot: SettingsSlot[ServerSettings] = SettingsSlot(
+    "odoo.service", _get_settings_from_live_config
+)
 current = slot.current
 installed = slot.installed
 override = slot.override

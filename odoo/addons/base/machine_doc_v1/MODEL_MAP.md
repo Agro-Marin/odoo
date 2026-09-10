@@ -685,7 +685,7 @@ instead of executed (the method must be decorated with `@api.job`).
 
 Background job queue — a persisted method call (model, method, records,
 JSON args) executed asynchronously by the job workers (`WorkerJob` /
-`job_thread`, LISTEN/NOTIFY on channel `job_queue`), each in its own
+`run_job_thread`, LISTEN/NOTIFY on channel `job_queue`), each in its own
 transaction. States: wait_deps → pending → started → done / failed /
 cancelled. Dependency graphs via `delayed(after=jobs)`: chains and fan-in;
 dependents are released atomically with the dependency's completion and

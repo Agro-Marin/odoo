@@ -80,7 +80,7 @@ classes individually silently stops covering new ones.
   to run zero tour assertions and exit 0.
   This covers `browser.py` throughout and `HttpCase.setUpClass` in `http.py`,
   which raises it when there is no HTTP server (`--no-http`, a port-bind
-  failure, a crashed `http_spawn`).
+  failure, a crashed `spawn_http_server`).
 - `@unittest.expectedFailure` is **refused**, not honoured: `run()` implements
   `__unittest_skip__` but not `__unittest_expecting_failure__`, and
   `OdooTestResult` has neither `addExpectedFailure` nor `addUnexpectedSuccess`.

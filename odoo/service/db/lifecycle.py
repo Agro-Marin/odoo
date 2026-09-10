@@ -52,7 +52,7 @@ def _terminate_backends(cr: BaseCursor, db_name: str) -> None:
         _logger.debug("pg_terminate_backend failed for %r", db_name, exc_info=True)
 
 
-def _check_faketime_mode(db_name: str) -> None:
+def _create_faketime_now_function(db_name: str) -> None:
     if not os.getenv("ODOO_FAKETIME_TEST_MODE"):
         return
     if not odoo.tools.config["test_enable"]:
@@ -170,7 +170,7 @@ def _create_empty_database(
             name,
             e,
         )
-    _check_faketime_mode(name)
+    _create_faketime_now_function(name)
 
     try:
         db = odoo.db.db_connect(name)

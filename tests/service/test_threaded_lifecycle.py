@@ -123,7 +123,7 @@ class TestStartInstallsTheHandlers:
         with (
             server_settings.override(**cfg),
             patch.object(_threaded.signal, "signal"),
-            patch.object(server, "http_spawn") as spawn,
+            patch.object(server, "spawn_http_server") as spawn,
         ):
             server.start()
         spawn.assert_not_called()
@@ -133,7 +133,7 @@ class TestStartInstallsTheHandlers:
         with (
             server_settings.override(**cfg),
             patch.object(_threaded.signal, "signal"),
-            patch.object(server, "http_spawn") as spawn,
+            patch.object(server, "spawn_http_server") as spawn,
         ):
             server.start(stop=True)
         spawn.assert_called_once()

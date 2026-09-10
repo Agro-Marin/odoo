@@ -37,7 +37,7 @@ _logger = logging.getLogger("odoo.service.server")
 GRACEFUL_STOP_TIMEOUT_S = 60.0
 
 
-def _graceful_stop_timeout(logger: logging.Logger) -> float:
+def _get_graceful_stop_timeout(logger: logging.Logger) -> float:
     return get_env_float(
         "ODOO_GRACEFUL_STOP_TIMEOUT",
         GRACEFUL_STOP_TIMEOUT_S,
@@ -306,7 +306,7 @@ class PreforkServer(CommonServer):
             self.workers_job.pop(pid, None)
             self.workers.pop(pid).close()
 
-    def _remember_killed_worker(self, pid: int) -> None:
+    def _record_killed_worker(self, pid: int) -> None:
         worker = self.workers.get(pid)
         if worker is not None:
             self._killed_workers[pid] = worker
@@ -315,11 +315,11 @@ class PreforkServer(CommonServer):
         try:
             os.kill(pid, sig)
             if sig == signal.SIGKILL:
-                self._remember_killed_worker(pid)
+                self._record_killed_worker(pid)
                 self.remove_worker(pid)
         except OSError as e:
             if e.errno == errno.ESRCH:
-                self._remember_killed_worker(pid)
+                self._record_killed_worker(pid)
                 self.remove_worker(pid)
 
     def apply_pending_signals(self) -> None:
@@ -635,7 +635,7 @@ class PreforkServer(CommonServer):
 
         self.beat = 0.1
         phoenix_decided = _process_state.server_phoenix
-        stop_timeout = _graceful_stop_timeout(self.logger)
+        stop_timeout = _get_graceful_stop_timeout(self.logger)
         deadline = time.monotonic() + stop_timeout
         escalated = False
         while self.workers:

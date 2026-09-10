@@ -1160,16 +1160,18 @@ class TestPreforkGracefulStopEscalation:
     def test_stop_timeout_env_override(self, monkeypatch):
         logger = MagicMock()
         monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "300")
-        assert _prefork._graceful_stop_timeout(logger) == 300.0
+        assert _prefork._get_graceful_stop_timeout(logger) == 300.0
         monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "0")
-        assert _prefork._graceful_stop_timeout(logger) == 1.0
+        assert _prefork._get_graceful_stop_timeout(logger) == 1.0
         monkeypatch.setenv("ODOO_GRACEFUL_STOP_TIMEOUT", "garbage")
         assert (
-            _prefork._graceful_stop_timeout(logger) == _prefork.GRACEFUL_STOP_TIMEOUT_S
+            _prefork._get_graceful_stop_timeout(logger)
+            == _prefork.GRACEFUL_STOP_TIMEOUT_S
         )
         monkeypatch.delenv("ODOO_GRACEFUL_STOP_TIMEOUT")
         assert (
-            _prefork._graceful_stop_timeout(logger) == _prefork.GRACEFUL_STOP_TIMEOUT_S
+            _prefork._get_graceful_stop_timeout(logger)
+            == _prefork.GRACEFUL_STOP_TIMEOUT_S
         )
 
 
@@ -2595,7 +2597,7 @@ def _drive_listen_thread(listen_server, process_jobs, *, sleeps_before_stop=2):
         patch("odoo.service._threaded.time.sleep", fake_sleep),
     ):
         with pytest.raises(_StopHarness):
-            listen_server._listen_thread(
+            listen_server._run_listener_thread(
                 0, channel="cron_trigger", process_jobs=process_jobs, label="cron"
             )
         calls["full_scans"] = db_list.call_count
@@ -2798,7 +2800,7 @@ class TestListenThreadFirstPassIsImmediate:
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
         ):
             with pytest.raises(_StopHarness):
-                listen_server._listen_thread(
+                listen_server._run_listener_thread(
                     0, channel="cron_trigger", process_jobs=MagicMock(), label="cron"
                 )
         return seen
@@ -2844,7 +2846,7 @@ class TestListenThreadFirstPassIsImmediate:
             patch("odoo.service._threaded.time.sleep", lambda _s: None),
         ):
             with pytest.raises(_StopHarness):
-                listen_server._listen_thread(
+                listen_server._run_listener_thread(
                     0, channel="cron_trigger", process_jobs=process_jobs, label="cron"
                 )
         process_jobs.assert_called_once_with("db1")

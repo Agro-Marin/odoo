@@ -153,20 +153,20 @@ class ThreadedServer(CommonServer):
         else:
             self.limit_reached_time = None
 
-    def cron_thread(self, number: int) -> None:
+    def run_cron_thread(self, number: int) -> None:
         from odoo.addons.base.models.ir_cron import IrCron
 
-        self._listen_thread(
+        self._run_listener_thread(
             number,
             channel=CRON_TRIGGER_CHANNEL,
             process_jobs=IrCron._process_jobs,
             label="cron",
         )
 
-    def job_thread(self, number: int) -> None:
+    def run_job_thread(self, number: int) -> None:
         from odoo.addons.base.models.ir_job import IrJob
 
-        self._listen_thread(
+        self._run_listener_thread(
             number,
             channel=JOB_QUEUE_CHANNEL,
             process_jobs=IrJob._process_jobs,
@@ -224,7 +224,7 @@ class ThreadedServer(CommonServer):
             self._run_due_jobs(db_names, process_jobs, cron_logger)
         return _RECYCLE_MAX_AGE
 
-    def _listen_thread(
+    def _run_listener_thread(
         self,
         number: int,
         *,
@@ -270,7 +270,7 @@ class ThreadedServer(CommonServer):
     def spawn_cron_threads(self) -> None:
         for i in range(self.settings.max_cron_threads):
             t = threading.Thread(
-                target=self.cron_thread,
+                target=self.run_cron_thread,
                 args=(i,),
                 name=f"odoo.service.cron.cron{i}",
                 daemon=True,
@@ -281,7 +281,7 @@ class ThreadedServer(CommonServer):
     def spawn_job_threads(self) -> None:
         for i in range(self.settings.job_workers):
             t = threading.Thread(
-                target=self.job_thread,
+                target=self.run_job_thread,
                 args=(i,),
                 name=f"odoo.service.job.job{i}",
                 daemon=True,
@@ -289,7 +289,7 @@ class ThreadedServer(CommonServer):
             as_worker_thread(t).type = "job"
             t.start()
 
-    def http_spawn(self) -> None:
+    def spawn_http_server(self) -> None:
         try:
             self.httpd = ThreadedWSGIServerReloadable(
                 self.interface, self.port, self.app
@@ -336,7 +336,7 @@ class ThreadedServer(CommonServer):
             )
 
         if self.settings.http_enable and (self.settings.test_enable or not stop):
-            self.http_spawn()
+            self.spawn_http_server()
 
     def stop(self) -> None:
         if _process_state.server_phoenix:

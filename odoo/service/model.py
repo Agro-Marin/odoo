@@ -281,7 +281,7 @@ def _force_lazy_in_sequence(val: Sequence) -> Sequence:
     return val
 
 
-def _warm_in_place(val: Iterable) -> None:
+def _force_lazy_in_place(val: Iterable) -> None:
     for item in val:
         if item.__class__ not in _SCALAR_LEAF_TYPES and not _is_bare_iterator(item):
             _force_lazy_in_value(item)
@@ -302,7 +302,7 @@ def _force_lazy_in_value(val: typing.Any) -> typing.Any:
     if isinstance(val, Sequence):
         return _force_lazy_in_sequence(val)
     if isinstance(val, (AbstractSet, Iterable)):
-        _warm_in_place(val)
+        _force_lazy_in_place(val)
     return val
 
 

@@ -44,7 +44,7 @@ def run_tests(
         return None
 
     if not server.httpd:
-        server.http_spawn()
+        server.spawn_http_server()
 
     if env.cr.connection.info.transaction_status != TransactionStatus.IDLE:
         _logger.warning("Rolling back the transaction before testing")
