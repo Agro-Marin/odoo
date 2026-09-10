@@ -422,8 +422,15 @@ class ApprovalBinding(models.Model):
             return True
         return elevation == "superuser"
 
+    def _has_anyone_to_ask(self) -> bool:
+        self.check_singleton()
+        category = self.category_id.sudo()
+        return bool(category.step_ids or category.approver_ids or category.rule_ids)
+
     def _get_selected(self, records):
         self.check_singleton()
+        if self.mode != "advise" and not self._has_anyone_to_ask():
+            return records.browse()
         if not self.subject_domain:
             return records
         domain = self._parse_domain_or_warn()

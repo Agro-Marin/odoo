@@ -53,6 +53,7 @@ dashboards.
 | `approval_binding.py` | `approval.binding` | Gates a model's method on an approval by wrapping it at registry load: Observe, Block or Request, with a `sudo_policy` that tells the real superuser apart from an ordinary user elevated by `sudo()` |
 | `approval_binding_observation.py` | `approval.binding.observation` | Append-only record of each gated call with the caller's elevation and whether Block would have refused it — how a binding is sized before it is switched on |
 | `approval_binding_client.py` | extends `approval.binding` | What the approval button asks: `get_button_approvals`, `check_button_approval`, `action_decide_approval`, `action_withdraw_decision`, and the gated-model set `get_views` reads |
+| `approval_binding_editor.py` | extends `approval.binding` | What Studio's editor asks: `create_step_for_button` (binds the button on its first step), `action_open_button_steps` |
 | `ir_actions_server.py` | `ir.actions.server` (extended) | `run()` consults the bindings on the action before running, on the server. web_studio gated a server action only in the browser, so any RPC caller ran it unchecked |
 | `ir_actions_report.py` | `ir.actions.report` (extended) | The PDF, HTML and text render entry points consult the bindings on the report. Checked at the entry, because a PDF stored as an attachment is returned without rendering again |
 | `approval_template.py` | `approval.template` | Request templates with smart defaults |
@@ -104,6 +105,7 @@ dashboards.
 | `test_binding.py` | `approval.binding`: wrapping and unwrapping, one wrapper per method, Observe and Block, superuser vs `sudo()` elevation, the caller's elevation rather than the binding's, the kill switch, every configuration-time refusal; Request mode — no duplicate while pending, one replay as the requester, no replay after re-approval, no borrowing the approver's rights, no run once the snapshot moved, Block covered by a separately approved request; approve on invoke — an approver's call runs the operation exactly once, a non-approver's only raises the request, one step of two waits; run on approval off leaves the operation to the next call; the ORM-API and private-method refusals, and a stored refused binding left unapplied; a refusal that stands, who may reopen it, and withdrawing across steps |
 | `test_binding_actions.py` | Action bindings: a blocked server action refused on the server — the call web_studio let through — request, replay as the requester and approve-on-invoke on a server action, a report refused and then rendered once covered, the PDF entry point gated too, `is_enforced`, and every constraint on what an action binding may be |
 | `test_binding_client.py` | The approval button's questions: the `get_views` flag, an ungated button, who may decide each step before any call, a check that raises the request and runs nothing, decisions assigned to steps and withdrawn by a later step, a refusal reopened by its refuser only, a record the caller cannot read, an action button |
+| `test_binding_editor.py` | Studio's editor on the engine: the first step binds the button as Studio did, further steps join it up to order nine, an action button named by xmlid, the approvers list keeping delegations, the steps action, a button whose steps are all archived no longer gated |
 | `test_binding_reset.py` | Coverage reset: the managed automation rule keeps its transition filter across an edit, a record returning to the condition needs approval again, an edit that keeps it there resets nothing, leaving and re-entering is a transition, a second cycle runs on approval again, and the rule goes with the condition or the binding |
 | `test_approver_replacement.py` | Approver-replacing rules: band matching, overlap validation, minimum override, batched constraints |
 | `test_document_requirements.py` | Required document validation on confirm, through the structural attachment link |
@@ -216,7 +218,7 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 19 script directories (1.0.1 .. 1.0.26)
-+-- tests/                            # 36 test modules + common.py
++-- tests/                            # 37 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -229,7 +231,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
-| Python test files | 36 (+ `common.py`) |
+| Python test files | 37 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 16 |

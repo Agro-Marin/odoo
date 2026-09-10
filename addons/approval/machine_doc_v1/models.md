@@ -761,6 +761,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `action_decide_approval(...)` / `action_withdraw_decision(..., approver_id)` | Decide as the caller, or withdraw through `action_withdraw_approver` (a refusal through `action_reset_to_draft`); the rights are `_can_withdraw_approver` / `_can_reopen_refusal`, the same predicates the checks raise from |
 | `_get_checkpoint_guard(model, checkpoint, operations)` / `_enforce_at_checkpoint(records, bindings, operation)` | Operation checkpoints. A model that declares `_operation_checkpoints = {operation: private_hook}` (`account.move`: `action_post` -> `_post_check_business_rules`) has the hook wrapped too, so a binding on the operation holds on every path that crosses it. The paths that never reach the operation's own wrapper get Block semantics: a checkpoint can neither ask for an approval nor keep a request, so a record Block or Request mode would stop is refused there |
 | `_admit(records, operation)` / `_get_admitted_ids(records, operation)` | The operation's wrapper marks the records it lets through, as (model, operation, ids) in `approval_binding_admitted`; their checkpoint does not check them again. Records the admitted call touches on its own (a reversal a posting creates) are still checked |
+| `create_step_for_button(model, method, action_id)` | Adds a step to a button; the first one binds the button in Studio's shape (Request, approve-on-invoke, run-on-approval off, a category that requests its steps in order). A step starts with the Internal User group and the gated model as subject model; its sequence is the last plus one, capped at 9 |
+| `action_open_button_steps(model, method, action_id)` | The list and form of a button's steps, replacing Studio's rule kanban |
+| `_has_anyone_to_ask()` | False when the category has no active step, no approver and no routing rule; `_get_selected` then selects nothing outside Observe mode, so a button whose steps are all archived is no longer gated |
 
 ---
 
@@ -824,6 +827,7 @@ does not is left as it was.
 | `notify_user_ids` | Many2many(`res.users`) | Yes | No | posted an internal note when an approver of this step decides |
 | `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition reads; required when `subject_domain` is set |
 | `subject_domain` | Char | Yes | No | string="Applies When". The step applies only to requests whose source document matches |
+| `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
 
 ### Constraints
 

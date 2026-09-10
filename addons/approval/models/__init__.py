@@ -5,6 +5,7 @@ from . import (
     approval_approver,
     approval_binding,
     approval_binding_client,
+    approval_binding_editor,
     approval_binding_observation,
     approval_category,
     approval_category_approver,

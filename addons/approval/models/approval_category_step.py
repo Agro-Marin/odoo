@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.fields import Command
 
 
 class ApprovalCategoryStep(models.Model):
@@ -41,6 +42,14 @@ class ApprovalCategoryStep(models.Model):
         comodel_name="approval.category.step.member",
         inverse_name="step_id",
         string="Members",
+    )
+    user_ids = fields.Many2many(
+        comodel_name="res.users",
+        string="Approvers",
+        compute="_compute_user_ids",
+        inverse="_inverse_user_ids",
+        help="The step's current members, as an editable list. Delegated members are "
+        "kept as they are when this list is edited.",
     )
     group_id = fields.Many2one(
         comodel_name="res.groups",
@@ -113,6 +122,23 @@ class ApprovalCategoryStep(models.Model):
         for step in self:
             if step.category_id.approve_sequentially:
                 step.category_id._raise_steps_with_approver_sequence()
+
+    @api.depends("member_ids.user_id", "member_ids.date_end")
+    def _compute_user_ids(self) -> None:
+        today = fields.Date.context_today(self)
+        for step in self:
+            step.user_ids = step.member_ids.filtered(
+                lambda member: not member.date_end or member.date_end >= today
+            ).user_id
+
+    def _inverse_user_ids(self) -> None:
+        for step in self:
+            plain = step.member_ids.filtered(lambda member: not member.delegated_by_id)
+            plain.filtered(
+                lambda member, users=step.user_ids: member.user_id not in users
+            ).unlink()
+            missing = step.user_ids - step.member_ids.user_id
+            step.member_ids = [Command.create({"user_id": user.id}) for user in missing]
 
     def _get_pool_user_ids(self) -> set[int]:
         """Who may approve this step today: valid members, and the group's users."""
