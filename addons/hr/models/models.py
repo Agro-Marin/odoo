@@ -6,9 +6,9 @@ from odoo.addons.mail.tools.alias_error import AliasError
 class Base(models.AbstractModel):
     _inherit = "base"
 
-    def _alias_get_error(self, message, message_dict, alias):
+    def _alias_resolve_error(self, message, message_dict, alias):
         if alias.alias_contact != "employees":
-            return super()._alias_get_error(message, message_dict, alias)
+            return super()._alias_resolve_error(message, message_dict, alias)
         error = AliasError(
             "error_hr_employee_restricted", self.env._("restricted to employees")
         )

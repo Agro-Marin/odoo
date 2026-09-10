@@ -181,12 +181,12 @@ class MailAlias(models.Model):
                 company = document[document._mail_get_company_field()]
                 if not company or company.alias_domain_id == alias.alias_domain_id:
                     continue
-                raise ValidationError(self._alias_domain_mc_error(alias, company, kind))
+                raise self._alias_prepare_domain_mc_error(alias, company, kind)
 
     @api.model
-    def _alias_domain_mc_error(
+    def _alias_prepare_domain_mc_error(
         self, alias: MailAlias, company: models.Model, kind: Literal["owner", "target"]
-    ) -> str:
+    ) -> ValidationError:
         values = {
             "alias_company_names": ",".join(
                 alias.alias_domain_id.company_ids.mapped("name")
@@ -196,17 +196,21 @@ class MailAlias(models.Model):
             "company_name": company.name,
         }
         if kind == "owner":
-            return _(
+            return ValidationError(
+                _(
+                    "We could not create alias %(alias_name)s because domain "
+                    "%(alias_domain_name)s belongs to company %(alias_company_names)s "
+                    "while the owner document belongs to company %(company_name)s.",
+                    **values,
+                )
+            )
+        return ValidationError(
+            _(
                 "We could not create alias %(alias_name)s because domain "
                 "%(alias_domain_name)s belongs to company %(alias_company_names)s "
-                "while the owner document belongs to company %(company_name)s.",
+                "while the target document belongs to company %(company_name)s.",
                 **values,
             )
-        return _(
-            "We could not create alias %(alias_name)s because domain "
-            "%(alias_domain_name)s belongs to company %(alias_company_names)s "
-            "while the target document belongs to company %(company_name)s.",
-            **values,
         )
 
     @api.model

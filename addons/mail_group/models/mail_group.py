@@ -293,7 +293,7 @@ class MailGroup(models.Model):
         self.check_singleton()
         self.is_closed = False
 
-    def _alias_get_error(self, message, message_dict, alias):
+    def _alias_resolve_error(self, message, message_dict, alias):
         self.check_singleton()
 
         email = email_normalize(message_dict.get("email_from", ""))

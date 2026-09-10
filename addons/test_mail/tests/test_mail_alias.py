@@ -467,7 +467,7 @@ class TestMailAlias(TestMailAliasCommon):
         """`alias_status` is a verdict on the alias *configuration*.
 
         It must therefore be dropped when any input that verdict was reached from
-        changes -- `alias_force_thread_id` included, because `_alias_get_error`
+        changes -- `alias_force_thread_id` included, because `_alias_resolve_error`
         returns `config_follower_no_record` precisely when a followers-only alias has
         no record to read followers from. Setting one repairs the alias, so leaving
         the badge on "invalid" reports a fault that no longer exists.
@@ -2753,7 +2753,7 @@ class TestMailAliasModelTarget(TestMailAliasCommon):
 
         A mailing list receives every one of its messages through its alias, is
         **not** a `mixin.mail.thread`, and files what arrives as `mail.group.message`
-        -- it implements `message_new` and `_alias_get_error` itself. A constraint
+        -- it implements `message_new` and `_alias_resolve_error` itself. A constraint
         written on `_mail_is_thread` looks right and refuses to create a mail group
         at all, which is what the wider suite caught.
         """
@@ -2800,7 +2800,7 @@ class TestMailAliasStatusInputs(TestMailAliasCommon):
         self.assertIsNone(alias._alias_get_document("owner"))
         self.assertEqual(
             self.env["mail.test.container"]
-            ._alias_get_error(None, {"author_id": False}, alias)
+            ._alias_resolve_error(None, {"author_id": False}, alias)
             .code,
             "config_follower_no_record",
             "no record to read followers from -- the fault the badge reports",
@@ -2812,7 +2812,7 @@ class TestMailAliasStatusInputs(TestMailAliasCommon):
         )
         self.assertEqual(alias.alias_status, "not_tested")
         self.assertNotEqual(
-            record._alias_get_error(None, {"author_id": False}, alias).code,
+            record._alias_resolve_error(None, {"author_id": False}, alias).code,
             "config_follower_no_record",
             "and the fault really is gone",
         )

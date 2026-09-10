@@ -66,7 +66,7 @@ class TestMailGroup(TestMailListCommon):
 
         self.test_group.alias_id.alias_contact = "followers"
         self.test_group.access_mode = "groups"
-        err_msg = self.test_group._alias_get_error(
+        err_msg = self.test_group._alias_resolve_error(
             {}, {"email_from": group_user_not_member.email}, self.test_group.alias_id
         )
         self.assertFalse(
@@ -78,7 +78,7 @@ class TestMailGroup(TestMailListCommon):
         self.test_group.access_mode = "groups"
         for email_from in ("", False, "not an address"):
             with self.subTest(email_from=email_from):
-                error = self.test_group._alias_get_error(
+                error = self.test_group._alias_resolve_error(
                     {}, {"email_from": email_from}, self.test_group.alias_id
                 )
                 self.assertTrue(error)
@@ -164,7 +164,7 @@ class TestMailGroup(TestMailListCommon):
         }
         self.test_group.alias_id.alias_contact = "followers"
         self.assertFalse(
-            self.test_group._alias_get_error({}, msg_dict, self.test_group.alias_id)
+            self.test_group._alias_resolve_error({}, msg_dict, self.test_group.alias_id)
         )
 
     @users("employee")

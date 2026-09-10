@@ -54,7 +54,9 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
         Employee = self.env["hr.employee"]
 
         def verdict(email_from):
-            return Employee._alias_get_error(None, {"email_from": email_from}, alias)
+            return Employee._alias_resolve_error(
+                None, {"email_from": email_from}, alias
+            )
 
         for refused in (
             "%@test.example.com",

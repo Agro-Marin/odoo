@@ -1231,7 +1231,7 @@ class Base(models.AbstractModel):
             formatted_email = record_email
         return formatted_email
 
-    def _alias_get_error(
+    def _alias_resolve_error(
         self, message: EmailMessage, message_dict: dict[str, Any], alias: MailAlias
     ) -> AliasError | Literal[False]:
         author = self.env["res.partner"].browse(message_dict.get("author_id", False))

@@ -7,7 +7,7 @@
         <!--
             alias_parent_model_id is required alongside alias_parent_thread_id:
             without it, "Open Parent Document" stays hidden and
-            mail_thread._alias_get_error / open_parent_document() resolve to an
+            mail_thread._alias_resolve_error / open_parent_document() resolve to an
             empty recordset instead of the Inbox folder.
         -->
         <field name="alias_parent_model_id" ref="document.model_document_document" />

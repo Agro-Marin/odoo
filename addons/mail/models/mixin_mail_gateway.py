@@ -394,7 +394,7 @@ class MixinMailGateway(models.AbstractModel):
             obj = record_set[0]
         else:
             obj = owner or self.env[model]
-        error = obj._alias_get_error(message, message_dict, alias)
+        error = obj._alias_resolve_error(message, message_dict, alias)
         if error:
             self._routing_warn(
                 _(
