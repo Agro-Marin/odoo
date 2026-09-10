@@ -211,12 +211,21 @@ export function parseInteger(value, { allowOperation = false } = {}) {
     if (!Number.isInteger(parsed)) {
         throw new InvalidNumberError(`"${value}" is not a correct number`);
     }
+    assertInt32(value, parsed);
+    return parsed;
+}
+
+/**
+ * @param {string} value what the user typed, for the message
+ * @param {number} parsed
+ * @throws {InvalidNumberError} when the integer does not fit the server's int32 column
+ */
+export function assertInt32(value, parsed) {
     if (parsed < -2147483648 || parsed > 2147483647) {
         throw new InvalidNumberError(
             `"${value}" is out of bounds (integers should be between -2,147,483,648 and 2,147,483,647)`,
         );
     }
-    return parsed;
 }
 
 /**

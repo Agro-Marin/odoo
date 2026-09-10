@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 import { useState } from "@odoo/owl";
-import { InvalidNumberError } from "@web/core/parsers";
+import { assertInt32, InvalidNumberError } from "@web/core/parsers";
 import { FieldComponent } from "@web/fields/field_component";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
@@ -39,13 +39,13 @@ export class NumericInputFieldBase extends FieldComponent {
         if (this.props.inputType === "number") {
             const parsed = Number(value);
             if (Number.isFinite(parsed)) {
-                if (
-                    integer &&
-                    (!Number.isInteger(parsed) ||
-                        parsed < -2147483648 ||
-                        parsed > 2147483647)
-                ) {
-                    throw new InvalidNumberError(`"${value}" is not a correct integer`);
+                if (integer) {
+                    if (!Number.isInteger(parsed)) {
+                        throw new InvalidNumberError(
+                            `"${value}" is not a correct integer`,
+                        );
+                    }
+                    assertInt32(value, parsed);
                 }
                 return parsed;
             }
