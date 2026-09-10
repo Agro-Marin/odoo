@@ -413,10 +413,12 @@ class Environment(Mapping[str, "BaseModel"]):
         reset_cached_properties(self)
         self.transaction.clear()
 
-    def invalidate_all(self, flush: bool = True) -> None:
+    def invalidate_all(
+        self, flush: bool = True, *, keep_new_records: bool = False
+    ) -> None:
         if flush:
             self.flush_all()
-        self.transaction.invalidate_field_data()
+        self.transaction.invalidate_field_data(keep_new_records=keep_new_records)
 
     def flush_all(self) -> None:
         self.transaction.flush(self)

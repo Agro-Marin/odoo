@@ -17,7 +17,7 @@ from ..components.cache import FieldCache
 from ..components.compute import ComputeEngine
 from ..components.core import OrmCore
 from ..components.unit_of_work import UnitOfWork
-from ..primitives import SUPERUSER_ID
+from ..primitives import SUPERUSER_ID, NewId
 from .backend import POSTGRES_BACKEND, InMemoryBackend
 from .recordset_cache import Cache
 from .registry import Registry
@@ -32,6 +32,10 @@ _logger = logging.getLogger("odoo.api")
 _orm_cache = logging.getLogger("odoo.orm.cache")
 
 MAX_FIXPOINT_ITERATIONS = 1000
+
+
+def _is_new_id(record_id: object) -> bool:
+    return isinstance(record_id, NewId)
 
 
 class _EnvironmentSet(WeakSet):
@@ -240,6 +244,6 @@ class Transaction:
             reset_cached_properties(env)
         self.clear()
 
-    def invalidate_field_data(self) -> None:
-        self._cache_store.invalidate_all()
+    def invalidate_field_data(self, *, keep_new_records: bool = False) -> None:
+        self._cache_store.invalidate_all(keep=_is_new_id if keep_new_records else None)
         self._ref_cache.clear()

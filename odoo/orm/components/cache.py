@@ -146,27 +146,29 @@ class FieldCache[F: FieldKey = FieldKey]:
     def iter_cached_fields(self) -> Iterator[F]:
         return iter(self._data.keys() | self._contexts.keys())
 
-    def invalidate_all(self) -> None:
+    def invalidate_all(self, *, keep: Callable[[Any], bool] | None = None) -> None:
         if self._on_detach is not None:
             self._on_detach()
-        if not self._dirty:
+        if not self._dirty and keep is None:
             self._data.clear()
             self._contexts.clear()
             return
         for field in list(self._data):
             dirty_ids = self._dirty.get(field)
-            if dirty_ids and _retain(self._data[field], dirty_ids):
+            if (dirty_ids or keep) and _retain(self._data[field], dirty_ids, keep):
                 continue
             del self._data[field]
         for field in list(self._contexts):
             dirty_ids = self._dirty.get(field)
             contexts = self._contexts[field]
-            if dirty_ids:
+            if dirty_ids or keep:
                 for key in [
-                    k for k, sub in contexts.items() if not _retain(sub, dirty_ids)
+                    k
+                    for k, sub in contexts.items()
+                    if not _retain(sub, dirty_ids, keep)
                 ]:
                     del contexts[key]
-            if not dirty_ids or not contexts:
+            if not (dirty_ids or keep) or not contexts:
                 del self._contexts[field]
 
     def clear(self) -> None:
@@ -199,7 +201,12 @@ def _evict(
         values.pop(id_, None)
 
 
-def _retain(values: dict[Any, Any], ids: set[Any]) -> bool:
-    for id_ in [k for k in values if k not in ids]:
+def _retain(
+    values: dict[Any, Any],
+    ids: set[Any] | None,
+    keep: Callable[[Any], bool] | None = None,
+) -> bool:
+    kept = ids or ()
+    for id_ in [k for k in values if k not in kept and (keep is None or not keep(k))]:
         del values[id_]
     return bool(values)
