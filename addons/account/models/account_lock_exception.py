@@ -193,7 +193,7 @@ class AccountLock_Exception(models.Model):
             field = exception.lock_date_field
             value = exception.lock_date
             field_info = exception.fields_get([field])[field]
-            tracking_values = self.env["mail.tracking.value"]._create_tracking_values(
+            tracking_values = self.env["mail.tracking.value"]._prepare_tracking_values(
                 company[field],
                 value,
                 field,

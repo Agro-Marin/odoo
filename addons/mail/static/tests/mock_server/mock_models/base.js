@@ -45,7 +45,7 @@ export class Base extends models.ServerModel {
                 continue;
             }
             if (initialValue !== newValue) {
-                const tracking = MailTrackingValue._create_tracking_values(
+                const tracking = MailTrackingValue._prepare_tracking_values(
                     initialValue,
                     newValue,
                     fname,

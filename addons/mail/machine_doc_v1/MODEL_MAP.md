@@ -372,7 +372,7 @@ Methods: `_check_unique(...)`, `_sanitize_alias_name(name, ...)`, `open_document
 ### `mail.tracking.value` (`mail_tracking_value.py`, `_rec_name="field_id"`)
 Fields: `field_id` (→`ir.model.fields`), `field_info` (Json),
 `old_value_integer/float/char/text/datetime`, `new_value_*`, `currency_id`, `mail_message_id`.
-Methods: `_create_tracking_values(...)`, `_create_tracking_values_property(...)`,
+Methods: `_prepare_tracking_values(...)`, `_prepare_tracking_values_property(...)`,
 `_tracking_value_format()`, `_format_display_value(...)`, `_filtered_has_field_access(env)`.
 
 ### `mail.message.subtype` (`mail_message_subtype.py`)

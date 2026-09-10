@@ -1350,7 +1350,7 @@ class TestTrackingInternals(MailCommon):
 
         # raise on non existing field
         with self.assertRaises(ValueError):
-            self.env["mail.tracking.value"]._create_tracking_values(
+            self.env["mail.tracking.value"]._prepare_tracking_values(
                 "",
                 "Test",
                 "not_existing_field",
@@ -1360,7 +1360,7 @@ class TestTrackingInternals(MailCommon):
 
         # raise on unsupported field type
         with self.assertRaises(NotImplementedError):
-            self.env["mail.tracking.value"]._create_tracking_values(
+            self.env["mail.tracking.value"]._prepare_tracking_values(
                 "",
                 "<p>Html</p>",
                 "html_field",

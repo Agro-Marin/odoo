@@ -29,7 +29,7 @@ export class MailTrackingValue extends models.ServerModel {
      * @param {Object} col_info
      * @param {models.ServerModel} record
      */
-    _create_tracking_values(initial_value, new_value, col_name, col_info, record) {
+    _prepare_tracking_values(initial_value, new_value, col_name, col_info, record) {
         const kwargs = getKwArgs(
             arguments,
             "initial_value",

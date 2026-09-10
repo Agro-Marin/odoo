@@ -395,7 +395,7 @@ class Base(models.AbstractModel):
                         0,
                         self.env[
                             "mail.tracking.value"
-                        ]._create_tracking_values_property(
+                        ]._prepare_tracking_values_property(
                             property_,
                             col_name,
                             tracked_fields[col_name],
@@ -416,7 +416,7 @@ class Base(models.AbstractModel):
                 [
                     0,
                     0,
-                    self.env["mail.tracking.value"]._create_tracking_values(
+                    self.env["mail.tracking.value"]._prepare_tracking_values(
                         initial_value,
                         new_value,
                         col_name,

@@ -95,7 +95,7 @@ class MailTrackingValue(models.Model):
         return self.filtered(has_free_access)
 
     @api.model
-    def _create_tracking_values(
+    def _prepare_tracking_values(
         self,
         initial_value: Any,
         new_value: Any,
@@ -223,7 +223,7 @@ class MailTrackingValue(models.Model):
             )
             return ""
 
-    def _create_tracking_values_property(
+    def _prepare_tracking_values_property(
         self,
         initial_value: dict,
         col_name: str,
@@ -248,7 +248,7 @@ class MailTrackingValue(models.Model):
         if value and initial_value["type"] == "tags":
             value = [t for t in initial_value.get("tags", []) if t[0] in value]
 
-        tracking_values = self.env["mail.tracking.value"]._create_tracking_values(
+        tracking_values = self.env["mail.tracking.value"]._prepare_tracking_values(
             value, False, col_name, property_col_info, record
         )
         return {**tracking_values, "field_info": field_info}
