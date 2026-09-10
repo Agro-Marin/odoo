@@ -973,7 +973,9 @@ def run_suites(
         result.ok = True
     except ChromeBrowserException as exc:
         text = str(exc)
-        result.error = text.splitlines()[0] if text.strip() else "failed"
+        result.error = _name_unresolved_ids(
+            text.splitlines()[0] if text.strip() else "failed", suites
+        )
     except Exception as exc:
         result.error = f"{type(exc).__name__}: {exc}"
         _log.debug("Unexpected runner error", exc_info=True)
@@ -986,6 +988,21 @@ def run_suites(
         browser_logger.propagate = prev_propagate
 
     return summarise(capture.lines, result)
+
+
+_RE_UNRESOLVED = re.compile(r'"([0-9a-f]{8})"')
+
+
+def _name_unresolved_ids(error: str, suites: list[str]) -> str:
+    """Rewrite the page's `no suite or test matches ids "…"` with suite names.
+
+    The page knows only the hash it was sent; the runner minted it from a name,
+    and a reader can act on `@cloud_storage` where `"2ec52a31"` says nothing.
+    """
+    if "no suite or test matches" not in error:
+        return error
+    by_hash = {generate_hash(s): s for s in suites}
+    return _RE_UNRESOLVED.sub(lambda m: f'"{by_hash.get(m[1], m[1])}"', error)
 
 
 def summarise(lines: list[str], result: RunResult) -> RunResult:
@@ -1183,6 +1200,59 @@ def mobile_tagged_files(suites: list[str]) -> list[Path]:
             except OSError:
                 continue
     return sorted(set(found))
+
+
+# Suites that are in no asset bundle and therefore cannot be reached by an
+# `&id=` filter against /web/tests: they are driven whole, on their own page,
+# with `--page`. Keyed by suite prefix; the value is the page and the module the
+# page needs installed. `hoot --affected` reaches these through the import scan
+# like any other suite, and before this table existed the runner answered by
+# refusing the WHOLE run on their ids.
+OWN_PAGE_SUITES: dict[str, tuple[str, str]] = {
+    "@im_livechat/embed": ("/web/tests/livechat", "im_livechat"),
+}
+
+
+def own_page_of(suite: str) -> tuple[str, str] | None:
+    for prefix, target in OWN_PAGE_SUITES.items():
+        if suite == prefix or suite.startswith(prefix + "/"):
+            return target
+    return None
+
+
+def partition_own_page(
+    suites: list[str],
+) -> tuple[list[str], dict[tuple[str, str], list[str]]]:
+    """Split a plan into the /web/tests suites and the groups each own page runs."""
+    on_web_tests: list[str] = []
+    groups: dict[tuple[str, str], list[str]] = {}
+    for suite in suites:
+        target = own_page_of(suite)
+        if target is None:
+            on_web_tests.append(suite)
+        else:
+            groups.setdefault(target, []).append(suite)
+    return on_web_tests, groups
+
+
+def suite_is_known(suite: str) -> bool:
+    """Whether some test file on disk can carry this id.
+
+    A suite id is a `static/tests` path with `.test.js` stripped, and a nested
+    `describe` or a test's own name extends it (`@hr_holidays/leave_card/Test
+    request creator buttons`), so the check walks the id back to the longest
+    prefix that is a file or a directory holding tests. `@cloud_storage` -- an
+    addon with no `static/tests` at all -- resolves to nothing at any length.
+    """
+    parts = suite.lstrip("@").split("/")
+    for n in range(len(parts), 0, -1):
+        if suite_test_files("@" + "/".join(parts[:n])):
+            return True
+    return False
+
+
+def unknown_suites(suites: list[str]) -> list[str]:
+    return [s for s in suites if not suite_is_known(s)]
 
 
 def suite_test_files(suite: str) -> list[Path]:

@@ -441,6 +441,7 @@ def main() -> int:
                 print(reaped)
         return 0
 
+    own_page_groups: dict[tuple[str, str], list[str]] = {}
     if getattr(args, "page", None) and not args.self_tests:
         # The suites named on the command line label the run; the page decides
         # what actually executes, so they are not resolved to ids.
@@ -459,11 +460,40 @@ def main() -> int:
         args.suites = ["@web/hoot"]
     else:
         suites = _resolve_suites(args)
-    if not suites:
+        # Settle both questions the page cannot answer by name BEFORE a server
+        # boots: a suite no file on disk can carry, and a suite that lives on a
+        # page of its own. The page's answer to either used to be a refusal of
+        # the whole run, printed as hashes.
+        unknown = H.unknown_suites(suites)
+        if unknown:
+            for suite in unknown:
+                print(
+                    _color(
+                        f"{suite}: no static/tests/**/*.test.js can carry this id "
+                        f"-- not a suite, a test, or an addon that ships HOOT tests",
+                        C_RED,
+                    ),
+                    file=sys.stderr,
+                )
+            if not args.affected:
+                return 2
+            suites = [s for s in suites if s not in unknown]
+        suites, own_page_groups = H.partition_own_page(suites)
+        for (page, _module), group in own_page_groups.items():
+            print(
+                _color(
+                    f"{len(group)} suite(s) live on {page} and run there, whole, "
+                    f"after the /web/tests run: " + " ".join(group),
+                    C_DIM,
+                )
+            )
+    if not suites and not own_page_groups:
         if args.restart:
             db = args.db or H.db_for_modules(H.modules_for_suites([]))
             print(H.stop_server(db=db, clean=False))
         return 0
+    if not suites:
+        return _run_own_pages(own_page_groups, args, None)
 
     if getattr(args, "page", None) and not args.self_tests:
         modules = []
@@ -515,9 +545,46 @@ def main() -> int:
     result = (_run_isolated if isolated else _run_once)(suites, state, args)
     _report(result)
     _report_unrun_preset(suites, args, result)
-    if result.failed:
-        return 1
-    return 0 if (result.ok or result.incomplete) else 1
+    rc = 1 if result.failed else (0 if (result.ok or result.incomplete) else 1)
+    if own_page_groups:
+        rc = max(rc, _run_own_pages(own_page_groups, args, result))
+    return rc
+
+
+def _run_own_pages(
+    groups: dict[tuple[str, str], list[str]], args, previous: H.RunResult | None
+) -> int:
+    """Run each own-page group on its page, with a server holding its module.
+
+    Such a page runs whole, so the group only labels the run; a database is
+    derived from the page's module the way it is for any suite.
+    """
+    rc = 0
+    for (page, module), group in groups.items():
+        db = args.db or H.db_for_modules((module,))
+        try:
+            state, booted = H.ensure_server(db, (module,), verbose=args.verbose)
+        except H.PostgresUnavailable as exc:
+            print(
+                _color(f"hoot: cannot reach PostgreSQL -- {exc}", C_DIM),
+                file=sys.stderr,
+            )
+            return 2
+        print(
+            _color(
+                f"{'Booted' if booted else 'Reusing'} server for {page} "
+                f"(port={state['port']} db={state['db']})",
+                C_DIM,
+            )
+        )
+        page_args = argparse.Namespace(**vars(args))
+        page_args.page = page
+        page_args.self_tests = False
+        result = _run_once(group, state, page_args)
+        _report(result)
+        if result.failed or not (result.ok or result.incomplete):
+            rc = 1
+    return rc
 
 
 if __name__ == "__main__":

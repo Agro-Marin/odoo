@@ -1394,3 +1394,38 @@ class TestSelfTestPage:
             "index.js and the directory disagree: a test file nobody imports "
             "runs nowhere, and --self would report green over it"
         )
+
+
+def test_a_suite_is_known_by_its_longest_prefix_that_names_a_file() -> None:
+    # A nested describe or a test's own name extends a file's id; the check
+    # walks back to the file. An addon with no static/tests resolves nowhere.
+    assert H.suite_is_known("@mail")
+    assert H.suite_is_known("@web/core/domain")
+    assert H.suite_is_known("@web/core/domain/some nested describe/and a test")
+    assert not H.suite_is_known("@cloud_storage")
+    assert not H.suite_is_known("@no_such_addon/anything")
+    assert H.unknown_suites(["@mail", "@cloud_storage"]) == ["@cloud_storage"]
+
+
+def test_own_page_suites_are_partitioned_out_of_the_web_tests_plan() -> None:
+    on_web, groups = H.partition_own_page(
+        ["@mail/core/record", "@im_livechat/embed/chat_window", "@im_livechat/call"]
+    )
+    assert on_web == ["@mail/core/record", "@im_livechat/call"]
+    assert groups == {
+        ("/web/tests/livechat", "im_livechat"): ["@im_livechat/embed/chat_window"]
+    }
+    assert H.own_page_of("@im_livechat/embed") == ("/web/tests/livechat", "im_livechat")
+    assert H.own_page_of("@im_livechat/embedded") is None
+
+
+def test_the_pages_unresolved_ids_are_named_after_the_suites_that_minted_them() -> None:
+    suites = ["@cloud_storage", "@mail/core/record"]
+    page_error = (
+        f'HootError: no suite or test matches id "{H.generate_hash("@cloud_storage")}"'
+        ": refusing to fall back to running every test"
+    )
+    named = H._name_unresolved_ids(page_error, suites)
+    assert '"@cloud_storage"' in named
+    assert H.generate_hash("@cloud_storage") not in named
+    assert H._name_unresolved_ids("Some tests failed", suites) == "Some tests failed"

@@ -146,8 +146,14 @@ Two suites in this tree are in no asset bundle and cannot be reached by an
 | HOOT's own 204 | `/web/static/lib/hoot/tests/index.html` | each declares `describe(parseUrl(import.meta.url))`, which in a bundle is the bundle's url for every file — all thirteen would collapse into one suite and registration would die on the first duplicate name. `--self` drives it |
 | `im_livechat`'s embed, 36 | `/web/tests/livechat` | the embed runs outside the web client and is bundled as a visitor gets it (`im_livechat.embed_assets_unit_tests`) |
 
-`./hoot '@im_livechat/embed'` therefore fails with *no suite or test matches id* —
-the page it asks does not carry them. Drive the page instead:
+`hoot_lib.OWN_PAGE_SUITES` is the table of these, keyed by suite prefix, and
+the runner routes on it: a plan naming `@im_livechat/embed/*` — typed, or
+selected by `--affected` through the import scan — runs its `/web/tests` half
+first and then each own-page group on its page, with a server holding the
+page's module, and the exit code is the worse of the two. Before the table
+existed the page answered such a plan by refusing the **whole** run on the
+embed's ids, and a `--affected` plan for any change reaching the embed (most
+of `mail`'s) reported `0 failed / 0 passed`. To drive a page by hand:
 
 ```bash
 ./hoot --page /web/tests/livechat --db hoot_livechat '@im_livechat/embed'
@@ -216,6 +222,18 @@ runner answered by refusing the **whole** run — `no suite or test matches ids
 tour alongside ten real suites reported `0 failed / 0 passed`, which reads like
 a clean pass. They now flow through the import scan instead, which is also what
 makes a changed helper select the suites that actually use it.
+
+**An id no file can carry is refused by name, before a server boots.** The
+page knows only the hash it was sent, so its refusal read `no suite or test
+matches id "2ec52a31"` — nothing a reader can act on, and `./hoot @cloud_storage
+@hr` (an addon that ships no HOOT tests beside one that does) refused both. The
+runner now walks each requested id back to the longest prefix that is a test
+file or a directory holding one; an id that resolves nowhere is printed by name
+and, when typed, ends the run with exit 2 (under `--affected` it is dropped with
+the same line). A nested `describe` or a test's own name below a real file is
+unknowable from the filesystem and passes through — and when the page then
+refuses one, the runner rewrites the hashes in its message back to the names
+that minted them.
 
 The scan covers **every addons-path root**, not just `addons/odoo/addons`. It
 used to stop there, so a changed `src` file in any of the 84 enterprise or 4
