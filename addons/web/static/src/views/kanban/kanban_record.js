@@ -20,7 +20,7 @@ import { useLongTouchSelection } from "@web/views/multi_record_selection";
 import { SELF_HANDLED_SELECTOR } from "@web/views/self_handled";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { compileViewTemplates } from "@web/views/view_compiler";
-import { getFormattedValue, getOpenActionParams } from "@web/views/view_utils";
+import { getColorIndex, getFormattedValue, getOpenActionParams } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import { KANBAN_CARD_ATTRIBUTE, KANBAN_MENU_ATTRIBUTE } from "./kanban_arch_parser.js";
@@ -38,20 +38,6 @@ export const CANCEL_GLOBAL_CLICK = [
     ".oe_kanban_action",
     SELF_HANDLED_SELECTOR,
 ].join(",");
-
-function getColorIndex(value) {
-    if (typeof value === "number") {
-        return ((Math.round(value) % COLORS.length) + COLORS.length) % COLORS.length;
-    } else if (typeof value === "string") {
-        const codePointSum = [...value].reduce(
-            (acc, char) => acc + (char.codePointAt(0) ?? 0),
-            0,
-        );
-        return codePointSum % COLORS.length;
-    } else {
-        return 0;
-    }
-}
 
 /**
  * @param {any} record
@@ -248,6 +234,10 @@ export class KanbanRecord extends Component {
                 this.formattedRecord = getFormattedRecord(nextProps.record);
             }
         });
+        // a microtask boundary before the first render: a card created by a
+        // render fiber that a concurrent state write supersedes would otherwise
+        // render on the discarded fiber (pinned by "rerenders only once after
+        // resequencing records")
         onWillStart(() => Promise.resolve());
         this.rootRef = useRef("root");
         this.hasTouch = hasTouch();

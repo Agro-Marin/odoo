@@ -8,6 +8,7 @@ import {
     drillDownAction,
     drillDownContext,
     drillDownViews,
+    getColorIndex,
     getOpenActionParams,
     handleBeforeUnload,
     prepareStaticActionMenuItems,
@@ -278,5 +279,33 @@ describe("drill-down", () => {
                 [false, "form"],
             ],
         });
+    });
+});
+
+describe("getColorIndex", () => {
+    test("a number wraps into the palette, negatives included", () => {
+        expect(getColorIndex(0)).toBe(0);
+        expect(getColorIndex(5)).toBe(5);
+        expect(getColorIndex(14)).toBe(2);
+        expect(getColorIndex(-1)).toBe(11);
+        expect(getColorIndex(2.6)).toBe(3);
+        expect(getColorIndex(14, 5)).toBe(4);
+    });
+
+    test("a string hashes by code points", () => {
+        expect(getColorIndex("a")).toBe(97 % 12);
+        expect(getColorIndex("ab")).toBe((97 + 98) % 12);
+    });
+
+    test("a relational value colours by its id", () => {
+        expect(getColorIndex({ id: 14, display_name: "x" })).toBe(2);
+        expect(getColorIndex([14, "x"])).toBe(2);
+    });
+
+    test("anything else takes slot 0", () => {
+        expect(getColorIndex(false)).toBe(0);
+        expect(getColorIndex(null)).toBe(0);
+        expect(getColorIndex(undefined)).toBe(0);
+        expect(getColorIndex({ display_name: "no id" })).toBe(0);
     });
 });
