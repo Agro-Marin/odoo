@@ -45,9 +45,9 @@ patch(Composer.prototype, {
     /** @param {InputEvent} ev */
     onInput(ev) {
         super.onInput(ev);
-        this.detectTyping(ev);
+        this.updateTypingState(ev);
     },
-    detectTyping() {
+    updateTypingState() {
         if (this.props.composer.message) {
             return;
         }
@@ -101,7 +101,7 @@ patch(Composer.prototype, {
      */
     addEmoji(str) {
         const res = super.addEmoji(str);
-        this.detectTyping();
+        this.updateTypingState();
         return res;
     },
 });

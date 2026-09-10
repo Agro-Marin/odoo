@@ -1471,7 +1471,7 @@ export class Rtc extends Record {
             });
         }
         if (this.state.channel) {
-            logs.push(this.buildSnapshot());
+            logs.push(this.getSnapshot());
         }
         if (logs.length || download) {
             browser.navigator.serviceWorker?.controller?.postMessage({
@@ -1482,7 +1482,7 @@ export class Rtc extends Record {
         }
     }
 
-    buildSnapshot() {
+    getSnapshot() {
         const server = {};
         if (this.state.connectionType === CONNECTION_TYPES.SERVER) {
             const { jsonWebToken, iceServers, ...safeInfo } =
@@ -1552,7 +1552,7 @@ export class Rtc extends Record {
         }
         browser.navigator.serviceWorker?.controller?.postMessage({
             name: SW_MESSAGE_TYPE.POST_RTC_LOGS,
-            logs: [this.buildSnapshot()],
+            logs: [this.getSnapshot()],
         });
     }
 

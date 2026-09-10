@@ -187,6 +187,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_duplication"): "ROOT",
         ("architecture", "js_face_boundary"): "ROOT",
         ("architecture", "js_function_length"): "ROOT",
+        ("architecture", "js_naming_vocabulary"): "ROOT",
         ("architecture", "py_function_length"): "ROOT",
         ("architecture", "py_hook_arity"): "ROOT",
         ("architecture", "py_x2many_count"): "ROOT",

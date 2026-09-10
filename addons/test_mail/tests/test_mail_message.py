@@ -243,7 +243,7 @@ class TestMessageValues(MailCommon):
 
     @users("employee")
     def test_empty_message(self):
-        """Test that message is correctly considered as empty (see `_filter_empty()`).
+        """Test that message is correctly considered as empty (see `_filtered_empty()`).
         Message considered as empty if:
             - no body or empty body
             - AND no subtype or no subtype description
@@ -294,7 +294,7 @@ class TestMessageValues(MailCommon):
             attachment_ids=message.attachment_ids.ids,
         )
         self.assertTrue(is_html_empty(message.body))
-        self.assertFalse(message.sudo()._filter_empty(), "Still having attachments")
+        self.assertFalse(message.sudo()._filtered_empty(), "Still having attachments")
 
         # Subtype content
         note_subtype.sudo().write({"description": "Very important discussions"})
@@ -302,11 +302,11 @@ class TestMessageValues(MailCommon):
         self.assertFalse(message.attachment_ids)
         self.assertEqual(message.notified_partner_ids, self.partner_admin)
         self.assertEqual(message.starred_partner_ids, self.partner_admin)
-        self.assertFalse(message.sudo()._filter_empty(), "Subtype with description")
+        self.assertFalse(message.sudo()._filtered_empty(), "Subtype with description")
 
         # Completely emptied now
         note_subtype.sudo().write({"description": ""})
-        self.assertEqual(message.sudo()._filter_empty(), message)
+        self.assertEqual(message.sudo()._filtered_empty(), message)
         record._message_update_content(message.sudo(), body="", attachment_ids=[])
         self.assertEqual(
             message.notified_partner_ids, self.partner_admin
@@ -322,7 +322,9 @@ class TestMessageValues(MailCommon):
         self.assertFalse(tracking_message.attachment_ids)
         self.assertTrue(is_html_empty(tracking_message.body))
         self.assertFalse(tracking_message.subtype_id.description)
-        self.assertFalse(tracking_message.sudo()._filter_empty(), "Has tracking values")
+        self.assertFalse(
+            tracking_message.sudo()._filtered_empty(), "Has tracking values"
+        )
         with self.assertRaises(
             UserError, msg="Tracking values prevent from updating content"
         ):

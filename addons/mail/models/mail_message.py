@@ -963,7 +963,7 @@ class MailMessage(models.Model):
         self.check_singleton()
         return self.env.user
 
-    def _filter_empty(self) -> Self:
+    def _filtered_empty(self) -> Self:
         return self.filtered(lambda message: message._is_empty())
 
     def _is_empty(self) -> bool:

@@ -43,7 +43,7 @@ export function handleValidChannelMention(channelLinks) {
  * @param {import("models").Store} store
  * @param {MessagePostData} postData
  */
-export function fillPartnersMentionToken(store, postData) {
+export function updatePartnersMentionToken(store, postData) {
     postData.partner_ids_mention_token ||= {};
     for (const pid of postData.partner_ids) {
         const partner = store["res.partner"].get(pid);
@@ -173,7 +173,7 @@ export async function getMessagePostParams(store, { body, postData, thread }) {
     }
     if (partner_ids.length) {
         Object.assign(postData, { partner_ids });
-        fillPartnersMentionToken(store, postData);
+        updatePartnersMentionToken(store, postData);
     }
     if (role_ids.length) {
         Object.assign(postData, { role_ids });

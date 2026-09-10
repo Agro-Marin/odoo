@@ -661,7 +661,7 @@ class MailMail(models.Model):
         return bool(body) and _UNFOLLOW_LINK in body and _UNFOLLOW_SPAN_ID in body
 
     @api.model
-    def _find_unfollow_block(self, body: str) -> tuple[int, int] | None:
+    def _resolve_unfollow_span(self, body: str) -> tuple[int, int] | None:
         opening = _UNFOLLOW_SPAN_OPEN_REGEX.search(body)
         if not opening:
             return None
@@ -677,10 +677,10 @@ class MailMail(models.Model):
         return opening.start(), len(body)
 
     @api.model
-    def _locate_unfollow_block(self, body: str) -> tuple[int, int] | None:
+    def _resolve_unfollow_block(self, body: str) -> tuple[int, int] | None:
         if not self._has_unfollow_block(body):
             return None
-        return self._find_unfollow_block(body)
+        return self._resolve_unfollow_span(body)
 
     def _wants_unfollow_link(
         self,
@@ -726,7 +726,7 @@ class MailMail(models.Model):
     def _strip_unfollow_block(self, body: str | Literal[False]) -> str | Literal[False]:
         if not body:
             return body
-        if block := self._find_unfollow_block(body):
+        if block := self._resolve_unfollow_span(body):
             start, end = block
             body = body[:start] + body[end:]
         if _UNFOLLOW_LINK in body:
@@ -958,7 +958,7 @@ class MailMail(models.Model):
 
         results = []
         plaintext_per_body = {}
-        unfollow_block = self._locate_unfollow_block(body)
+        unfollow_block = self._resolve_unfollow_block(body)
         body_without_unfollow_link = None
         for email_values in email_list:
             partner = email_values["partner"]

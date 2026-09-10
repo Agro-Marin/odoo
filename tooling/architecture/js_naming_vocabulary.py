@@ -1,0 +1,295 @@
+"""§2.4's method vocabulary over an addon's JavaScript, which no gate reads.
+
+§2.4.19 is called *What a Python-only reading misses* and lists three things a
+sweep of `def` statements walks past. It does not list the largest one, because
+at the time the vocabulary was a Python rule: **the other half of the codebase**.
+`naming_vocabulary.py` and `naming_core_vocabulary.py` both parse Python, so a
+method that builds a payload, validates an argument or fetches a record is
+governed when it is written in `models/` and governed by nothing when the same
+operation is written in `static/src/`. §4.2 says components are PascalCase and
+methods camelCase and stops there, so nothing in the workspace has an opinion
+about the VERB a JS method opens with.
+
+This is the instrument for that population and deliberately **not** a gate. It
+carries no baseline file, `test_gate_adr_coverage` has no record to bind, and
+nothing fails on its count. The reason is in the numbers rather than in
+caution: pointed at `addons/mail` before the tables below existed it read 74,
+and reading those one at a time turned up **eight** names worth renaming against
+**sixty-four** rows where the verb is right and the Python table is the wrong
+instrument. Fifty-eight of the sixty-four are what `IDIOM`, `PLATFORM_METHODS`
+and `CONTRACT_TREES` exempt outright, which is why the reported figure at that
+commit was 16 and not 74; the eight renames cleared ten of those rows -- a call
+site matches the definition shape -- and took the report to 6. A gate banked on
+that ratio would be a floor of sixty-four exemptions, which is §2.4.20's word
+list with a JSON file around it.
+
+**What makes the ratio that bad is that JS has its own reservations, and they
+are not ours to abolish.** Each entry in `IDIOM` below is a word the Python
+table calls abolished and JavaScript spells for a reason:
+
+* `fetch` is `window.fetch`, and in this codebase it is also the store's read
+  from the server -- `fetchStoreData`, `fetchMessages`, `fetchSuggestions`.
+  §2.4.3 already reserves `fetch` for "the ORM read operation that loads stored
+  values into the cache" and says the spellings of one contract are renamed
+  together or not at all. The JS half is that contract's other end.
+* `make` is the framework's own factory idiom. `makeEnv` and `makeStore` are
+  `web`'s, `makeRecordProxy` and `makeRecordClass` are mail's, and the file
+  holding the last two is named `make_store.js`. The Payload row abolishes
+  `_make_` in Python because `_prepare_` already means it; JS has no
+  `_prepare_`, and a rename here would be inventing one.
+* `assign` is `Object.assign`. mail's twelve are `assignDefined`,
+  `assignGetter` and `assignIn` -- three helpers in `utils/common/misc.js` and
+  their call sites -- and each is named for the built-in it wraps.
+* `delete` and `fill` are the two that need the CALLEE and not the word.
+  `deleteBackward` and `deleteForward` are `html_editor` plugin-contract names,
+  and a plugin whose method is renamed is silently unhooked; `fillRect`,
+  `fillRects` and `fillText` are the Canvas 2D API. Those six are exempt by
+  NAME and the two contract trees by FILE. Nothing else is: their honest
+  members stay in the report, so `fillPartnersMentionToken`, which wrote into a
+  payload it was handed, is `updatePartnersMentionToken`, and `fillEmpty` and
+  the three `delete*` the sweep left behind are still listed for a reader to
+  judge.
+
+So the report is a candidate list on §2.4.4's terms: a population to read, not
+a defect list. Where it is wrong it is wrong in the direction that costs a
+reader a minute, which is the only direction a non-blocking instrument may be
+wrong in.
+"""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import re
+import sys
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import naming_core_vocabulary as ncv
+import naming_vocabulary as nv
+from _repo_root import find_odoo_root
+
+ROOT = find_odoo_root(Path(__file__).resolve())
+
+# The words §2.4.3 abolishes, plus §2.4.20's synonyms and the assemble verbs
+# `naming_core_vocabulary` reads on the same terms. Taken from those tables
+# rather than restated, so a word added there is asked about here too and this
+# file never becomes a second copy that drifts.
+ABOLISHED = frozenset(nv.ABOLISHED) | frozenset(ncv.SYNONYMS) | ncv.ASSEMBLE
+
+# Argued one by one in the module docstring. These are not exceptions to the
+# vocabulary; they are words whose JavaScript meaning is a different word.
+IDIOM = frozenset({"fetch", "make", "assign"})
+
+# `delete` and `fill` are honest verbs in most positions and contract names in
+# two trees. Exempting the WORD would lose `fillPartnersMentionToken`, which
+# was a real finding; exempting the TREE loses only the names those trees own.
+CONTRACT_TREES = ("/plugin/", "_plugin.js", "/html_editor/")
+
+# A Canvas 2D or DOM method the code is implementing or wrapping, where the
+# name is the platform's and not ours.
+PLATFORM_METHODS = frozenset(
+    {"fillRect", "fillRects", "fillText", "deleteBackward", "deleteForward"}
+)
+
+SKIP_DIRS = frozenset({"node_modules", "lib", "libs", "vendored", "_vendor"})
+
+# A method shorthand in a class or object literal, a `function` declaration, and
+# an arrow bound to a const. Deliberately not a JS parser: this reports a
+# population for a human to read, and the cost of a regex missing a definition
+# is one name nobody looks at, where the cost of adding a JS parser to this
+# repository is a dependency for a non-blocking report.
+_SHORTHAND = re.compile(
+    r"^[ \t]*(?:async[ \t]+|static[ \t]+|get[ \t]+|set[ \t]+|\*)*"
+    r"([a-z][A-Za-z0-9_$]*)[ \t]*\(",
+    re.MULTILINE,
+)
+_FUNCTION = re.compile(r"\bfunction[ \t]+([a-z][A-Za-z0-9_$]*)[ \t]*\(")
+_ARROW = re.compile(
+    r"^[ \t]*(?:export[ \t]+)?(?:const|let|var)[ \t]+([a-z][A-Za-z0-9_$]*)"
+    r"[ \t]*=[ \t]*(?:async[ \t]*)?\(",
+    re.MULTILINE,
+)
+
+# `if (`, `for (`, `while (`, `catch (` and `switch (` all match the shorthand
+# shape, and so does a bare call at statement level. A keyword list is exact
+# where a heuristic would not be.
+_KEYWORDS = frozenset(
+    {
+        "if",
+        "for",
+        "while",
+        "switch",
+        "catch",
+        "return",
+        "typeof",
+        "await",
+        "yield",
+        "do",
+        "else",
+        "function",
+        "new",
+        "delete",
+        "void",
+        "in",
+        "of",
+    }
+)
+
+
+@dataclass(frozen=True)
+class Violation:
+    path: str
+    line: int
+    name: str
+    verb: str
+    why: str
+
+    def __str__(self) -> str:
+        return f"{self.path}:{self.line}  {self.name}  [{self.verb}] {self.why}"
+
+
+def addon_src(addon: str) -> Path:
+    return ROOT / "addons" / addon / "static" / "src"
+
+
+def leading_verb(name: str) -> str | None:
+    """The camelCase head of a JS method name, or None when there is no tail.
+
+    `getKeySet` opens with `get`; `fetch` alone opens with nothing, because a
+    bare verb in JS is as likely to be the contract being implemented as it is
+    in Python -- §2.4.6's `[review]` tier, and the same argument
+    `naming_core_vocabulary` makes for holding bare verbs out of its gate.
+    """
+    head = re.match(r"[a-z]+", name)
+    if head is None:
+        return None
+    verb = head.group(0)
+    return verb if len(verb) < len(name) else None
+
+
+def is_exempt(path: Path, name: str, verb: str) -> bool:
+    if verb in IDIOM or name in PLATFORM_METHODS:
+        return True
+    display = path.as_posix()
+    return verb in ("delete", "fill") and any(
+        tree in display for tree in CONTRACT_TREES
+    )
+
+
+def scan_files(root: Path) -> list[Path]:
+    return [
+        path for path in sorted(root.rglob("*.js")) if not (set(path.parts) & SKIP_DIRS)
+    ]
+
+
+def definitions(text: str) -> list[tuple[str, int]]:
+    """Every name this file appears to define, with its line."""
+    found: list[tuple[str, int]] = []
+    for regex in (_SHORTHAND, _FUNCTION, _ARROW):
+        for match in regex.finditer(text):
+            name = match.group(1)
+            if name in _KEYWORDS:
+                continue
+            found.append((name, text.count("\n", 0, match.start()) + 1))
+    return found
+
+
+def measure(root: Path) -> list[Violation]:
+    files = scan_files(root)
+    if not files:
+        raise RuntimeError(
+            f"no JavaScript under {root} -- refusing to report a count from an "
+            f"empty scan"
+        )
+    seen: set[tuple[str, int, str]] = set()
+    found: list[Violation] = []
+    for path in files:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        display = path.relative_to(ROOT).as_posix()
+        for name, line in definitions(text):
+            verb = leading_verb(name)
+            if verb is None or verb not in ABOLISHED:
+                continue
+            if is_exempt(path, name, verb):
+                continue
+            if (display, line, name) in seen:
+                continue
+            seen.add((display, line, name))
+            found.append(
+                Violation(
+                    path=display,
+                    line=line,
+                    name=name,
+                    verb=verb,
+                    why=_why(verb),
+                )
+            )
+    found.sort(key=lambda v: (v.path, v.line))
+    return found
+
+
+def _why(verb: str) -> str:
+    if verb in ncv.ASSEMBLE:
+        return (
+            "an assemble verb -- §2.4.3's Payload row; take the row the body satisfies"
+        )
+    if (entry := nv.ABOLISHED.get(verb)) is not None:
+        canonical = entry[0].strip("_")
+        return f"§2.4.3 abolishes it; the row's canonical is `{canonical}`"
+    canonical, why = ncv.SYNONYMS[verb]
+    return f"§2.4.20 synonym -> {canonical} -- {why}"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--addon", default="mail", help="addon whose static/src to read"
+    )
+    parser.add_argument("--roots", nargs="+", help="scan these paths instead")
+    parser.add_argument("--count", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--top", type=int, default=30, help="0 for all")
+    args = parser.parse_args(argv)
+
+    roots = (
+        [Path(r).resolve() for r in args.roots]
+        if args.roots
+        else [addon_src(args.addon)]
+    )
+    found: list[Violation] = []
+    try:
+        for root in roots:
+            found += measure(root)
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.count:
+        print(len(found))
+        return 0
+    if args.json:
+        print(json.dumps([asdict(v) for v in found], indent=2))
+        return 0
+
+    where = ", ".join(str(r.relative_to(ROOT)) for r in roots)
+    print(f"§2.4 method vocabulary in JavaScript -- {where}")
+    print("=" * 72)
+    for item in found if args.top == 0 else found[: args.top]:
+        print(f"  {item}")
+    if args.top and len(found) > args.top:
+        print(f"  ... and {len(found) - args.top} more (--top 0 for all)")
+    print("-" * 72)
+    by_verb = collections.Counter(v.verb for v in found)
+    print(f"\n{len(found)} candidate(s) -- a population to READ, not a floor\n")
+    for verb, n in by_verb.most_common():
+        print(f"    {verb:<12}{n:>5}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

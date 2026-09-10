@@ -4485,7 +4485,7 @@ class MixinMailThread(models.AbstractModel):
         return True
 
     def _message_update_body(self, message: MailMessage, body: str) -> str:
-        if not body and message._filter_empty():
+        if not body and message._filtered_empty():
             return ""
         tree = html.fragment_fromstring(_escape_body(body), create_parent="div")
         children = list(tree)
@@ -4557,7 +4557,7 @@ class MixinMailThread(models.AbstractModel):
             msg_values["subject"] = kwargs["subject"]
         if msg_values:
             message.write(msg_values)
-        if message._filter_empty():
+        if message._filtered_empty():
             self._clean_empty_message(message)
 
         if "scheduled_date" in kwargs:

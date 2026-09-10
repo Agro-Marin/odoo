@@ -331,7 +331,7 @@ export class Settings extends Record {
      * @param {string|false} [shortcut.key]
      * @returns {Set<string>}
      */
-    buildKeySet({ shiftKey, ctrlKey, altKey, key }) {
+    getKeySet({ shiftKey, ctrlKey, altKey, key }) {
         const keys = new Set();
         if (key) {
             keys.add(key === "Meta" ? "Alt" : key);
@@ -354,8 +354,8 @@ export class Settings extends Record {
             return false;
         }
         const [shiftKey, ctrlKey, altKey, key] = this.push_to_talk_key.split(".");
-        const settingsKeySet = this.buildKeySet({ shiftKey, ctrlKey, altKey, key });
-        const eventKeySet = this.buildKeySet({
+        const settingsKeySet = this.getKeySet({ shiftKey, ctrlKey, altKey, key });
+        const eventKeySet = this.getKeySet({
             shiftKey: ev.shiftKey,
             ctrlKey: ev.ctrlKey,
             altKey: ev.altKey,

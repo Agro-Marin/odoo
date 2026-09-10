@@ -32,7 +32,7 @@ from odoo.addons.mail.tools.failure_type import (
 
 def _personalize(mail, body, partner=False, doc_to_followers=None):
     return mail._apply_unfollow_block(
-        body, mail._locate_unfollow_block(body), partner, doc_to_followers
+        body, mail._resolve_unfollow_block(body), partner, doc_to_followers
     )
 
 
@@ -4075,7 +4075,7 @@ class TestMailMailSelfClosingUnfollowSpan(MailCommon):
     `_SPAN_TAG_REGEX` skips self-closing tags when it looks for the closing
     `</span>`, but `_UNFOLLOW_SPAN_OPEN_REGEX` matched `/>` as an ordinary
     opening tag. `<span id="mail_unfollow"/>` therefore opened a block nothing
-    closed, `_find_unfollow_block` fell back to the end of the document, and
+    closed, `_resolve_unfollow_span` fell back to the end of the document, and
     everything after the span was deleted from the outgoing mail.
 
     The form is not hypothetical: `mail.tools.html_body.render_body_fragments`
@@ -4093,7 +4093,7 @@ class TestMailMailSelfClosingUnfollowSpan(MailCommon):
 
     def test_the_block_of_a_self_closing_span_is_the_span(self):
         body = '<p>A</p><span id="mail_unfollow"/><p>B</p>'
-        start, end = self.env["mail.mail"]._find_unfollow_block(body)
+        start, end = self.env["mail.mail"]._resolve_unfollow_span(body)
         self.assertEqual(
             body[start:end],
             '<span id="mail_unfollow"/>',
@@ -4171,14 +4171,14 @@ class TestMailMailBodyIsBuiltOncePerMail(MailCommon):
             }
         )
         MailMail = self.registry["mail.mail"]
-        origin = MailMail._find_unfollow_block
+        origin = MailMail._resolve_unfollow_span
         scans = []
 
         def counted(records, body):
             scans.append(body)
             return origin(records, body)
 
-        self.patch(MailMail, "_find_unfollow_block", counted)
+        self.patch(MailMail, "_resolve_unfollow_span", counted)
         results = mail._prepare_outgoing_list()
 
         self.assertEqual(len(results), 20, "one message per recipient")

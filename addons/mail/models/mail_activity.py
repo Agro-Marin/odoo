@@ -83,7 +83,11 @@ class MailActivity(models.Model):
         )
 
     res_model_id: IrModel = fields.Many2one(
-        "ir.model", "Document Model", index=True, ondelete="cascade", required=False
+        "ir.model",
+        "Document Model",
+        index=True,
+        ondelete="cascade",
+        required=False,
     )
     res_model = fields.Char(
         "Related Document Model",
@@ -93,7 +97,8 @@ class MailActivity(models.Model):
         readonly=True,
     )
     res_id = fields.Many2oneReference(
-        string="Related Document ID", model_field="res_model"
+        string="Related Document ID",
+        model_field="res_model",
     )
     res_name = fields.Char(
         "Document Name",
@@ -110,18 +115,27 @@ class MailActivity(models.Model):
         default=_default_activity_type_id,
     )
     activity_category = fields.Selection(
-        related="activity_type_id.category", readonly=True
+        related="activity_type_id.category",
+        readonly=True,
     )
     activity_decoration = fields.Selection(
-        related="activity_type_id.decoration_type", readonly=True
+        related="activity_type_id.decoration_type",
+        readonly=True,
     )
     icon = fields.Char("Icon", related="activity_type_id.icon", readonly=True)
     summary = fields.Char("Summary")
     note = fields.Html("Note", sanitize_style=True)
     date_deadline = fields.Date(
-        "Due Date", index=True, required=True, default=_default_date_deadline
+        "Due Date",
+        index=True,
+        required=True,
+        default=_default_date_deadline,
     )
-    date_done = fields.Date("Done Date", compute="_compute_date_done", store=True)
+    date_done = fields.Date(
+        "Done Date",
+        compute="_compute_date_done",
+        store=True,
+    )
     feedback = fields.Text("Feedback")
     automated = fields.Boolean(
         "Automated activity",
@@ -137,9 +151,17 @@ class MailActivity(models.Model):
         bypass_search_access=True,
     )
     user_id: ResUsers = fields.Many2one(
-        "res.users", "Assigned to", index=True, required=False, ondelete="cascade"
+        "res.users",
+        "Assigned to",
+        index=True,
+        required=False,
+        ondelete="cascade",
     )
-    user_tz = fields.Selection(string="Timezone", related="user_id.tz", store=True)
+    user_tz = fields.Selection(
+        string="Timezone",
+        related="user_id.tz",
+        store=True,
+    )
     state = fields.Selection(
         [
             ("overdue", "Overdue"),
@@ -152,16 +174,21 @@ class MailActivity(models.Model):
         search="_search_state",
     )
     recommended_activity_type_id: MailActivityType = fields.Many2one(
-        "mail.activity.type", string="Recommended Activity Type"
+        "mail.activity.type",
+        string="Recommended Activity Type",
     )
     previous_activity_type_id: MailActivityType = fields.Many2one(
-        "mail.activity.type", string="Previous Activity Type", readonly=True
+        "mail.activity.type",
+        string="Previous Activity Type",
+        readonly=True,
     )
     has_recommended_activities = fields.Boolean(
-        "Next activities available", compute="_compute_has_recommended_activities"
+        "Next activities available",
+        compute="_compute_has_recommended_activities",
     )
     mail_template_ids: MailTemplate = fields.Many2many(
-        related="activity_type_id.mail_template_ids", readonly=True
+        related="activity_type_id.mail_template_ids",
+        readonly=True,
     )
     chaining_type = fields.Selection(
         related="activity_type_id.chaining_type", readonly=True
@@ -226,7 +253,7 @@ class MailActivity(models.Model):
 
     @api.depends("res_model", "res_id")
     def _compute_res_name(self) -> None:
-        linked = self._document_backed()
+        linked = self._filtered_document_backed()
         (self - linked).res_name = False
         if not linked:
             return
@@ -653,7 +680,7 @@ class MailActivity(models.Model):
         }
 
     def _filtered_postable(self) -> Self:
-        backed = self._document_backed()
+        backed = self._filtered_document_backed()
         postable = backed._accessible_ids(backed._access_rows(), "create")
         return backed.filtered(lambda activity: activity.id in postable)
 
@@ -1408,19 +1435,21 @@ class MailActivity(models.Model):
         ]
         return ongoing_res_ids + completed_res_ids
 
-    def _document_backed(self) -> Self:
+    def _filtered_document_backed(self) -> Self:
         return self.filtered(
             lambda act: act.res_model and act.res_id and act.res_model in self.env
         )
 
     def _thread_backed(self) -> Self:
         thread = self.pool["mixin.mail.thread"]
-        return self._document_backed().filtered(
+        return self._filtered_document_backed().filtered(
             lambda act: isinstance(self.env[act.res_model], thread)
         )
 
     def _activities_with_records(self) -> Iterator[tuple[str, Self, list[int]]]:
-        for model, activities in self._document_backed().grouped("res_model").items():
+        for model, activities in (
+            self._filtered_document_backed().grouped("res_model").items()
+        ):
             yield model, activities, activities.mapped("res_id")
 
     def _prepare_next_activity_values(self) -> ValuesType:

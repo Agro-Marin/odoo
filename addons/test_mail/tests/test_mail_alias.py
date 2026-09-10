@@ -2262,12 +2262,12 @@ class TestMailAliasDomainConfigCache(TestMailAliasCommon):
         domain = self.mail_alias_domain.with_env(self.env)
         domain.write({"catchall_alias": "catchall.rerouted"})
         self.assertTrue(
-            Thread._detect_write_to_catchall(
+            Thread._is_write_to_catchall(
                 {"to_normalized": [f"catchall.rerouted@{domain.name}"]}
             )
         )
         self.assertFalse(
-            Thread._detect_write_to_catchall(
+            Thread._is_write_to_catchall(
                 {"to_normalized": [f"catchall.test@{domain.name}"]}
             ),
             "the pre-rename address must stop being the catchall",
@@ -2308,7 +2308,7 @@ class TestMailAliasDomainName(TestMailAliasCommon):
             }
         )
         self.assertTrue(
-            self.env["mixin.mail.thread"]._detect_write_to_catchall(
+            self.env["mixin.mail.thread"]._is_write_to_catchall(
                 {"to_normalized": ["catchall@mixed.example.com"]}
             )
         )
@@ -2346,7 +2346,7 @@ class TestMailAliasDomainReservedAddresses(TestMailAliasCommon):
 
     @users("admin")
     def test_one_domain_cannot_use_one_local_part_for_both_roles(self):
-        """`_detect_is_bounce` runs first, so the catchall half would be unreachable."""
+        """`_is_bounce` runs first, so the catchall half would be unreachable."""
         with self.assertRaises(exceptions.ValidationError):
             self.env["mail.alias.domain"].create(
                 {

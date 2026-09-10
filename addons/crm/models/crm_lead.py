@@ -796,7 +796,7 @@ class CrmLead(models.Model):
             if lead.email_from:
                 email_state = "incorrect"
                 for email in email_normalize_all(lead.email_from):
-                    if mail_validation.mail_validate(email):
+                    if mail_validation.is_valid_email(email):
                         email_state = "correct"
                         break
             lead.email_state = email_state

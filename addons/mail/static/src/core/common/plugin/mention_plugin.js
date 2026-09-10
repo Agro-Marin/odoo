@@ -20,7 +20,7 @@ export class MentionPlugin extends Plugin {
             }
         },
         select_all_overrides: this.selectAll.bind(this),
-        selectionchange_handlers: this.detectMentions.bind(this),
+        selectionchange_handlers: this.updateMentionLinks.bind(this),
         selectors_for_feff_providers: () =>
             this.MENTION_SELECTORS.map(({ selector }) => selector).join(", "),
     };
@@ -90,7 +90,7 @@ export class MentionPlugin extends Plugin {
     }
 
     /** @param {Event} ev */
-    async detectMentions(ev) {
+    async updateMentionLinks(ev) {
         for (const { selector, checker, validMentionsHandler } of this
             .MENTION_SELECTORS) {
             const mentionLinks =
@@ -105,13 +105,13 @@ export class MentionPlugin extends Plugin {
             )
                 .filter(({ isValid }) => isValid)
                 .map(({ el }) => el);
-            this.prepareValidMentionLinks(validMentionLinks);
+            this.wrapValidMentionLinks(validMentionLinks);
             validMentionsHandler?.(validMentionLinks);
         }
     }
 
     /** @param {HTMLAnchorElement[]} validMentionLinks */
-    prepareValidMentionLinks(validMentionLinks) {
+    wrapValidMentionLinks(validMentionLinks) {
         for (const el of validMentionLinks) {
             if (el.parentElement === this.editable) {
                 const baseContainer =

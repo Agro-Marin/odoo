@@ -672,7 +672,7 @@ class DiscussChannel(models.Model):
         previous_message_author = None
         messages = (
             self.message_ids.sudo().filtered(lambda m: m.message_type != "notification")
-            - self.message_ids.sudo()._filter_empty()
+            - self.message_ids.sudo()._filtered_empty()
         )
         for message in messages.sorted("id"):
             message_author = message.author_id.sudo() or message.author_guest_id

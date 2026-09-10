@@ -61,7 +61,7 @@ class RoutingRecipients(NamedTuple):
 _logger = logging.getLogger(__name__)
 
 
-def _dedup_ordered(emails: Iterable[str]) -> list[str]:
+def _dedupe_ordered(emails: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(emails))
 
 
@@ -454,7 +454,7 @@ class MixinMailGateway(models.AbstractModel):
                 )._message_reset_bounce(normalized_from)
 
     @api.model
-    def _detect_is_bounce(self, message: EmailMessage, message_dict: dict) -> bool:
+    def _is_bounce(self, message: EmailMessage, message_dict: dict) -> bool:
         bounce_aliases = self.env["mail.alias.domain"]._get_bounce_emails()
         if bounce_aliases and any(
             email in bounce_aliases for email in message_dict["to_normalized"]
@@ -504,7 +504,7 @@ class MixinMailGateway(models.AbstractModel):
         return None
 
     @api.model
-    def _detect_loop_sender_created_too_many(
+    def _has_loop_sender_created_too_many(
         self,
         thread_ids: list,
         email_from_normalized: str | Literal[False],
@@ -525,7 +525,7 @@ class MixinMailGateway(models.AbstractModel):
         )
 
     @api.model
-    def _detect_loop_sender_replied_too_often(
+    def _has_loop_sender_replied_too_often(
         self,
         thread_ids: list,
         email_from: str,
@@ -562,7 +562,7 @@ class MixinMailGateway(models.AbstractModel):
         )
 
     @api.model
-    def _detect_loop_sender(
+    def _is_loop_sender(
         self, message: EmailMessage, message_dict: dict, routes: list[Route]
     ) -> bool:
         email_from = message_dict.get("email_from")
@@ -602,10 +602,10 @@ class MixinMailGateway(models.AbstractModel):
             if not self._mail_is_thread(model):
                 continue
 
-            loop_new = model._detect_loop_sender_created_too_many(
+            loop_new = model._has_loop_sender_created_too_many(
                 thread_ids, email_from_normalized, create_date_limit, LOOP_THRESHOLD
             )
-            loop_update = not loop_new and model._detect_loop_sender_replied_too_often(
+            loop_update = not loop_new and model._has_loop_sender_replied_too_often(
                 thread_ids,
                 email_from,
                 email_from_normalized,
@@ -689,7 +689,7 @@ class MixinMailGateway(models.AbstractModel):
         )
 
     @api.model
-    def _detect_loop_headers(self, msg_dict: dict) -> bool:
+    def _has_loop_headers(self, msg_dict: dict) -> bool:
         references = unfold_references(msg_dict["references"]) + [
             msg_dict["in_reply_to"]
         ]
@@ -702,7 +702,7 @@ class MixinMailGateway(models.AbstractModel):
         return False
 
     @api.model
-    def _detect_write_to_catchall(
+    def _is_write_to_catchall(
         self,
         msg_dict: dict,
         catchall_aliases: list[str] | None = None,
@@ -1045,9 +1045,7 @@ class MixinMailGateway(models.AbstractModel):
         email_from: str,
     ) -> list[Route] | None:
         message_dict.pop("parent_id", None)
-        if self._detect_write_to_catchall(
-            message_dict, catchall_aliases=catchall_aliases
-        ):
+        if self._is_write_to_catchall(message_dict, catchall_aliases=catchall_aliases):
             _logger.info(
                 "Routing mail from %s to %s with Message-Id %s: direct write to catchall, bounce",
                 email_from,
@@ -1193,7 +1191,7 @@ class MixinMailGateway(models.AbstractModel):
     ) -> list[Route]:
         email_from = message_dict["email_from"]
         message_id = message_dict["message_id"]
-        if recipients.rcpt_tos and self._detect_write_to_catchall(
+        if recipients.rcpt_tos and self._is_write_to_catchall(
             message_dict, catchall_aliases=catchall_aliases, match_any=True
         ):
             _logger.info(
@@ -1435,7 +1433,7 @@ class MixinMailGateway(models.AbstractModel):
             )
             return False
 
-        if self._detect_loop_headers(msg_dict):
+        if self._has_loop_headers(msg_dict):
             _logger.info(
                 "Ignored mail from %s to %s with Message-Id %s: reply to a bounce notification detected by headers",
                 msg_dict.get("email_from"),
@@ -1445,7 +1443,7 @@ class MixinMailGateway(models.AbstractModel):
             return None
 
         routes = self.message_route(message, msg_dict, model, thread_id, custom_values)
-        if self._detect_loop_sender(message, msg_dict, routes):
+        if self._is_loop_sender(message, msg_dict, routes):
             return None
 
         msg_dict.update(**self._message_parse_post_process(message, msg_dict, routes))
@@ -1509,7 +1507,7 @@ class MixinMailGateway(models.AbstractModel):
                 "message must be an email.message.EmailMessage at this point"
             )
 
-        is_bounce = self._detect_is_bounce(email_message, message_dict)
+        is_bounce = self._is_bounce(email_message, message_dict)
         if not is_bounce:
             return {"is_bounce": False}
 
@@ -1581,11 +1579,11 @@ class MixinMailGateway(models.AbstractModel):
         msg_dict["email_from"] = email_from_list[0] if email_from_list else email_from
         msg_dict["from"] = msg_dict["email_from"]
         msg_dict["cc"] = ",".join(email_cc_list) if email_cc_list else email_cc
-        email_to_list = _dedup_ordered(
+        email_to_list = _dedupe_ordered(
             _headers_to_emails(message, ("Delivered-To", "To"))
         )
         msg_dict["recipients"] = ",".join(
-            _dedup_ordered(
+            _dedupe_ordered(
                 email_to_list
                 + _headers_to_emails(message, ("Cc", "Resent-To", "Resent-Cc"))
             )

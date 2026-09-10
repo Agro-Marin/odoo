@@ -3797,7 +3797,7 @@ class TestMailGatewayHelpers(MailGatewayCommon):
         for record in records:
             self._mails_on(record, 4, author=author)
         self.assertFalse(
-            records._detect_loop_sender_replied_too_often(
+            records._has_loop_sender_replied_too_often(
                 records.ids, "a@b.example.com", "a@b.example.com", author.id, limit, 5
             ),
             "sixteen mails spread over four documents is not a loop",
@@ -3806,7 +3806,7 @@ class TestMailGatewayHelpers(MailGatewayCommon):
         # one more on a single document tips only that one over
         self._mails_on(records[0], 1, author=author)
         self.assertTrue(
-            records._detect_loop_sender_replied_too_often(
+            records._has_loop_sender_replied_too_often(
                 records.ids, "a@b.example.com", "a@b.example.com", author.id, limit, 5
             ),
             "five on one document is a loop even when the others are quiet",
@@ -3819,7 +3819,7 @@ class TestMailGatewayHelpers(MailGatewayCommon):
         limit = self.env.cr.now() - timedelta(minutes=120)
         self._mails_on(record, 3, email_from="stranger@remote.example.org")
         self.assertTrue(
-            record._detect_loop_sender_replied_too_often(
+            record._has_loop_sender_replied_too_often(
                 record.ids,
                 "stranger@remote.example.org",
                 "stranger@remote.example.org",
@@ -3829,7 +3829,7 @@ class TestMailGatewayHelpers(MailGatewayCommon):
             )
         )
         self.assertFalse(
-            record._detect_loop_sender_replied_too_often(
+            record._has_loop_sender_replied_too_often(
                 record.ids,
                 "someone.else@remote.example.org",
                 "someone.else@remote.example.org",
@@ -3846,7 +3846,7 @@ class TestMailGatewayHelpers(MailGatewayCommon):
         record = self.env["mail.test.gateway"].create({"name": "Existing"})
         limit = self.env.cr.now() - timedelta(minutes=120)
         self.assertFalse(
-            record._detect_loop_sender_created_too_many(
+            record._has_loop_sender_created_too_many(
                 [record.id], "a@b.example.com", limit, 0
             ),
             "a threshold of zero still does not fire when nothing would be created",
@@ -4240,7 +4240,7 @@ class TestMailGatewayBounceSender(MailGatewayCommon):
     The middle rung of `_routing_get_bounce_from` used to take the inbound `To`
     header verbatim, guarded by a case-sensitive substring test against the
     catchall addresses. A message reaches us with a third party in `To` whenever
-    it was Bcc'd or forwarded, and `_detect_loop_sender` bounces such messages,
+    it was Bcc'd or forwarded, and `_is_loop_sender` bounces such messages,
     so the guard being wrong meant sending mail as somebody else's domain.
     """
 
@@ -5389,7 +5389,7 @@ class TestMailGatewayRegressions(MailGatewayCommon):
         for threshold, expected in ((2, True), (3, True), (4, False)):
             with self.subTest(threshold=threshold):
                 self.assertEqual(
-                    model._detect_loop_sender_created_too_many(
+                    model._has_loop_sender_created_too_many(
                         [False], sender, limit, threshold
                     ),
                     expected,
@@ -5431,15 +5431,11 @@ class TestMailGatewayRegressions(MailGatewayCommon):
         limit = self.env.cr.now() - timedelta(minutes=120)
         model = self.env["mail.test.ticket"]
         self.assertTrue(
-            model._detect_loop_sender_created_too_many(
-                [False], with_underscore, limit, 1
-            ),
+            model._has_loop_sender_created_too_many([False], with_underscore, limit, 1),
             "it still finds its own record",
         )
         self.assertFalse(
-            model._detect_loop_sender_created_too_many(
-                [False], with_underscore, limit, 2
-            ),
+            model._has_loop_sender_created_too_many([False], with_underscore, limit, 2),
             "but only its own -- `a_b@` must not also match `axb@`",
         )
 
@@ -5538,7 +5534,7 @@ class TestMailGatewayParsedMessageContract(MailGatewayCommon):
             ["groups@test.mycompany.com", "other@example.com", "cc@example.com"],
         )
         self.assertTrue(
-            self.env["mixin.mail.thread"]._detect_write_to_catchall(
+            self.env["mixin.mail.thread"]._is_write_to_catchall(
                 {"to_normalized": [f"{self.alias_catchall}@{self.alias_domain}"]}
             )
         )
@@ -5608,13 +5604,13 @@ class TestMailGatewayParsedMessageContract(MailGatewayCommon):
         self._mails_on(record, 6, email_from=False)
         limit = self.env.cr.now() - timedelta(minutes=120)
         self.assertFalse(
-            record._detect_loop_sender_replied_too_often(
+            record._has_loop_sender_replied_too_often(
                 record.ids, "not an address", False, False, limit, 5
             )
         )
         self._mails_on(record, 6, email_from="not an address")
         self.assertTrue(
-            record._detect_loop_sender_replied_too_often(
+            record._has_loop_sender_replied_too_often(
                 record.ids, "not an address", False, False, limit, 5
             ),
             "the raw address alone still identifies the sender",

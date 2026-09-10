@@ -61,7 +61,7 @@ class GoogleTranslateController(Controller):
                     )
                 }
             try:
-                source_lang = self._detect_source_lang(message)
+                source_lang = self._get_source_lang(message)
                 vals = {
                     "body": self._get_translation(
                         str(message.body), source_lang, target_lang
@@ -104,7 +104,7 @@ class GoogleTranslateController(Controller):
                 pass
         return request.env._("The translation service is unavailable.")
 
-    def _detect_source_lang(self, message: MailMessage) -> str:
+    def _get_source_lang(self, message: MailMessage) -> str:
         translation = (
             request.env["mail.message.translation"]
             .sudo()

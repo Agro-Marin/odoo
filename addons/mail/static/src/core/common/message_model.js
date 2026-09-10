@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import {
-    fillPartnersMentionToken,
     getMentionsFromText,
+    updatePartnersMentionToken,
 } from "@mail/core/common/message_post";
 import { fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
@@ -643,7 +643,7 @@ export class Message extends Record {
             partner_ids: validMentions?.partners?.map((partner) => partner.id),
             role_ids: validMentions?.roles?.map((role) => role.id),
         };
-        fillPartnersMentionToken(this.store, updateData);
+        updatePartnersMentionToken(this.store, updateData);
         const data = await rpc("/mail/message/update_content", {
             message_id: this.id,
             update_data: updateData,

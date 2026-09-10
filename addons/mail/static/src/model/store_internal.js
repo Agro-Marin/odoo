@@ -203,7 +203,7 @@ export class StoreInternal extends RecordInternal {
      * @param {string} fieldName
      * @param {any} value
      */
-    ensureIdFieldUnchanged(record, fieldName, value) {
+    checkIdFieldUnchanged(record, fieldName, value) {
         const Model = record.Model;
         if (!isRelation(Model, fieldName)) {
             const fieldType = Model._.fieldsType.get(fieldName);
@@ -285,7 +285,7 @@ export class StoreInternal extends RecordInternal {
                 typeof fieldName === "string" &&
                 record.Model._.idFields.has(fieldName)
             ) {
-                this.ensureIdFieldUnchanged(record, fieldName, value);
+                this.checkIdFieldUnchanged(record, fieldName, value);
             }
             if (isRelation(record.Model, fieldName)) {
                 this.updateRelation(record, fieldName, value);

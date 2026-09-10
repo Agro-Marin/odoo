@@ -2310,7 +2310,7 @@ class TestActivityStrandedModel(ActivityScheduleCase):
     def test_the_chatter_side_effects_skip_it(self):
         self._strand()
         activity = self.env["mail.activity"].browse(self.activity.id)
-        self.assertFalse(activity._document_backed())
+        self.assertFalse(activity._filtered_document_backed())
         self.assertFalse(activity._thread_backed())
         self.assertFalse(activity._filtered_postable())
         activity.action_notify()
@@ -3326,7 +3326,7 @@ class TestActivityDocumentModelIntegrity(ActivityScheduleCase):
 
     `readonly` does not stop a programmatic write and the field is stored, so a
     write landed in the column without ever touching `res_model_id` -- and
-    nothing recomputed it afterwards. Every reader (`_document_backed`,
+    nothing recomputed it afterwards. Every reader (`_filtered_document_backed`,
     `_thread_backed`, `_check_access`, `_search`) then worked off a model the
     activity is not actually filed on.
     """

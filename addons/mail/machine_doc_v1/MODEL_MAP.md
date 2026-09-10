@@ -191,7 +191,7 @@ The canonical messaging surface. Grouped by concern.
 - `message_process(...)`, `message_route(...)`, `_message_route_process(...)`, `_routing_check_route(...)`
 - `message_new(msg_dict, custom_values=None)` / `message_update(msg_dict, update_vals=None)` — create/update hooks
 - `message_parse(message, ...)`, `_message_parse_extract_payload(...)`, `_message_parse_extract_bounce(...)`
-- `_routing_handle_bounce(...)`, `_routing_create_bounce_email(...)`, `_detect_is_bounce(...)`, `_detect_loop_sender(...)`, `_detect_loop_headers(...)`
+- `_routing_handle_bounce(...)`, `_routing_create_bounce_email(...)`, `_is_bounce(...)`, `_is_loop_sender(...)`, `_has_loop_headers(...)`
 
 **Field tracking** (see CONVENTIONS.md gotcha on tracking):
 - `_track_prepare(fields_iter)`, `_track_finalize()`, `_track_discard()`, `_track_filter_for_display(...)`
@@ -275,7 +275,7 @@ Fields: `subject`, `date`, `body`, `preview`, `message_type`, `subtype_id`, `mod
 `message_id`, `reply_to`, `email_layout_xmlid`, `mail_ids` (O2m→`mail.mail`).
 Methods: `create`, `write`, `unlink`, `_get_with_access`, `mark_all_as_read`,
 `set_message_done`, `toggle_message_starred`, `_message_fetch(...)`, `_message_reaction(...)`,
-`_filter_empty()`, `_get_message_id(values)`.
+`_filtered_empty()`, `_get_message_id(values)`.
 
 > **`mail.message` is spread over three files** — `mail_message.py` (the model),
 > `mail_message_access.py` (`_check_access`, `_search`, `_get_forbidden_access` + its

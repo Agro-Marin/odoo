@@ -155,7 +155,7 @@ export class DiscussCommandPalette {
     }
 
     /** @param {Set<Record>} [filtered] */
-    buildResults(filtered) {
+    getResults(filtered) {
         const TOTAL_LIMIT = this.ui.isSmall ? 7 : 10;
         const remaining = TOTAL_LIMIT - (filtered ? filtered.size : 0);
         let partners = [];
@@ -313,7 +313,7 @@ commandProviderRegistry.add("find_or_start_conversation", {
     async provide(env, options) {
         const palette = new DiscussCommandPalette(env, options);
         await palette.fetch();
-        palette.buildResults();
+        palette.getResults();
         palette.commands = palette.commands.slice(0, 8);
         if (!palette.store.inPublicPage) {
             palette.commands.push(palette.makeDiscussCommand(NEW_CHANNEL));
