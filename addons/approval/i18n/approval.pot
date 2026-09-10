@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 15:28+0000\n"
-"PO-Revision-Date: 2026-09-10 15:28+0000\n"
+"POT-Creation-Date: 2026-09-10 16:03+0000\n"
+"PO-Revision-Date: 2026-09-10 16:03+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -102,6 +102,14 @@ msgid ""
 "%(method)s cannot be gated. `automation` removes that method from every "
 "model in the registry when it re-registers its own hooks, without checking "
 "who installed it, so the gate would disappear silently rather than fail."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(method)s still needs an approval that does not cover this record, so it "
+"was not run again."
 msgstr ""
 
 #. module: approval
@@ -1234,6 +1242,11 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
+msgid "Approving this request runs a gated operation, as the requester:"
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_kanban
@@ -1494,7 +1507,18 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_binding_observation__binding_id
+#: model:ir.model.fields,field_description:approval.field_approval_request__binding_id
 msgid "Binding"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_request__binding_replay_error
+msgid "Binding Replay Error"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_request__binding_snapshot
+msgid "Binding Snapshot"
 msgstr ""
 
 #. module: approval
@@ -2045,6 +2069,11 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__date_approval_granted
 msgid "Date Approval Granted"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_request__date_binding_replayed
+msgid "Date Binding Replayed"
 msgstr ""
 
 #. module: approval
@@ -5086,6 +5115,36 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "The gated operation %(method)s did not run: %(error)s"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "The gated operation %(method)s ran as %(user)s."
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
+msgid "The gated operation did not run:"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
+msgid "The gated operation ran on"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_request__binding_id
+msgid ""
+"The gated operation this request was raised for, when an approval.binding in"
+" Request mode raised it. Approving the request runs that operation once, as "
+"the requester."
+msgstr ""
+
+#. module: approval
+#. odoo-python
 #: code:addons/approval/wizard/approval_decision_wizard.py:0
 msgid ""
 "The reason '%(reason)s' is not available for the '%(category)s' category."
@@ -5097,6 +5156,12 @@ msgstr ""
 msgid ""
 "The reason '%(reason)s' is restricted to another company and cannot be used "
 "on this request."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "The record no longer exists."
 msgstr ""
 
 #. module: approval
@@ -5483,6 +5548,14 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_request__binding_snapshot
+msgid ""
+"Values the binding's condition read from the source document when the "
+"request was raised. An approval covers the record as it was approved: once "
+"one of these values moves, it no longer does."
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "View Pending"
 msgstr ""
@@ -5554,9 +5627,12 @@ msgid ""
 "          it is switched on -- turning a gate straight to Block surfaces the\n"
 "          flows that were quietly relying on not being gated, in production.\n"
 "        • Block: the operation is refused unless an approved request covers\n"
-"          the record. The document asks for its own approval separately.\n"
-"        • Request: the first call raises the approval instead of running, and\n"
-"          the operation runs once it is approved."
+"          the record. A document implementing mixin.approval asks through its\n"
+"          own button; any other record is covered by an approved request that\n"
+"          points at it in this binding's category.\n"
+"        • Request: the call raises an approval instead of running, and the\n"
+"          operation runs once the request is approved -- exactly once, and as\n"
+"          the person who called it."
 msgstr ""
 
 #. module: approval
@@ -5580,6 +5656,14 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"What was approved is no longer what is there: a value this gate reads "
+"changed after the request was raised. Ask for approval again."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_approver__decision_date
 msgid ""
 "When THIS approver personally approved or refused, stamped by the decision "
@@ -5588,6 +5672,13 @@ msgid ""
 "expiration — so the approver-performance analytics count only genuine "
 "decisions and measure each approver's own response time (cleared on withdraw"
 " and reset-to-draft)."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_request__date_binding_replayed
+msgid ""
+"When the gated operation ran after approval. Set once, so a withdrawal "
+"followed by a second approval does not run it again."
 msgstr ""
 
 #. module: approval
@@ -5729,6 +5820,13 @@ msgid ""
 "          ordinary user cannot self-elevate past the gate.\n"
 "        • Any elevated caller passes: what `web_studio` does unconditionally.\n"
 "          Every bypass is still recorded, which is the part it does not do."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_request__binding_replay_error
+msgid ""
+"Why the gated operation did not run after approval. The approval itself "
+"stands."
 msgstr ""
 
 #. module: approval

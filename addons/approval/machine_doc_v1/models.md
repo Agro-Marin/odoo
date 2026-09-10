@@ -286,6 +286,10 @@ so category names are unique per company, archived rows included.
 | `count_attachment` | Integer | No | No | compute |
 | `automation_id` | Many2one | No | No | related |
 | `automation_runtime_id` | Many2one(`automation.runtime`) | Yes | No | index=btree_not_null |
+| `binding_id` | Many2one(`approval.binding`) | Yes | No | readonly, copy=False, ondelete=set null. Set when an `approval.binding` in Request mode raised the request; approving it runs that binding's method once, as `request_owner_id` |
+| `binding_snapshot` | Json | Yes | No | readonly, copy=False. The values the binding's condition read from the source document when the request was raised. The approval covers the record only while they still match |
+| `date_binding_replayed` | Datetime | Yes | No | readonly, copy=False. When the gated operation ran after approval. Set once, so a withdrawal and a second approval do not run it again |
+| `binding_replay_error` | Text | Yes | No | readonly, copy=False. Why the gated operation did not run. The approval itself stands |
 
 Removed in 19.0.1.0.7 (or earlier): `revision_count`, `cloned_from_id`,
 `approver_compute_ms`, the quick-approve token/QR fields, the stored
@@ -373,6 +377,7 @@ requester re-submits (`action_resubmit`).
 | `_reconcile_delegation_activities()` | escalation.py | Runs first on every escalation tick: repoints an approval To-Do at the effective approver when a delegation was set (or lifted) after the round had already opened, closing the duplicate. Without it the activity stays in the principal's inbox for the life of the delegation |
 | `cron_auto_expire()` | escalation.py | **Cancel** (not refuse) requests past `auto_expire_hours` via `_force_terminal` |
 | `cron_consent_approval()` | escalation.py | Auto-approve after consent window; skips sequential categories, refused approvers, `pending_change_field`, `_can_consent_approve()` vetoes |
+| `_replay_bound_operation()` | Called from `_notify_if_terminal_transition` when a request becomes `approved`, AFTER `_notify_source_document_state_change`, so an adopter sees itself approved before the operation it gated runs. Hands off to `approval.binding._replay`; does nothing once `date_binding_replayed` is set |
 
 ### Constraints
 
@@ -508,7 +513,7 @@ so the comparison is never raw.
 | `_get_domain_approval_category()` | **Override**: domain to find category |
 | `_get_approval_required_fields()` | **Override**: required fields before approval |
 | `_get_approval_request_name()` | **Override**: customize request name |
-| `_prepare_approval_request_values()` | **Override**: customize request creation values |
+| `_prepare_approval_request_values()` | **Override**: customize request creation values. Honours `approval_binding_for` = (model, id, binding) in context, only when it names this record, so a binding-raised request knows its operation and a nested document cannot inherit the link |
 | `_on_approval_state_changed()` | **Dispatcher — do NOT override.** Routes to `_on_approval_approved` / `_on_approval_refused` / `_on_approval_cancelled` / `_on_approval_revoked` / `_on_approval_reset`. Base posts a chatter note per state; for the `pending` revocation it also schedules a To-Do for the responsible user on activity-enabled models. See conventions.md |
 | `_find_approval_category()` | The lookup that never raises: candidates by domain + company, first `_is_applicable_for`, then the fallback. What `_compute_approval_required` reads |
 | `_get_approval_category()` | Find matching category (uses domain + company). Owns the whole selection algorithm; supply `_get_domain_approval_category()`, `approval.category._is_applicable_for()`, `_get_approval_category_fallback()` and the two `_raise_*` hooks instead of overriding it |
@@ -685,7 +690,7 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `method` | Char | Yes | **Yes** | refused if `automation` claims it, if it does not exist, or if it is the binding machinery |
 | `category_id` | Many2one(`approval.category`) | Yes | No | ondelete=cascade. Required for `block` and `request` |
 | `subject_domain` | Char | Yes | No | string="Applies When"; empty means every record |
-| `mode` | Selection(advise/block/request) | Yes | **Yes** | default="advise". `advise` (labelled Observe) runs the operation and records it; `block` refuses unless an approved request covers the record; `request` raises the approval instead of running |
+| `mode` | Selection(advise/block/request) | Yes | **Yes** | default="advise". `advise` (labelled Observe) runs the operation and records it; `block` refuses unless an approved request covers the record; `request` raises the approval instead of running, then runs the operation exactly once when it is approved, as the person who called it |
 | `sudo_policy` | Selection(enforce/superuser/bypass) | Yes | **Yes** | default="superuser". Who the gate does NOT apply to. `sudo()` flips `su` and keeps `uid`, so the real superuser and an ordinary user elevated by `sudo()` are separate risks and separate settings |
 | `observation_ids` | One2many(`approval.binding.observation`) | — | No | |
 | `observation_count` | Count | — | No | |
@@ -705,11 +710,15 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 |--------|---------|
 | `_register_hook()` / `_unregister_hook()` | Wrap each gated (model, method) once; unwrap only attributes carrying the `approval_binding_origin` marker |
 | `_get_guarded_method(model, method)` | The wrapper. Measures the CALLER's elevation once, applies every binding whose domain selects the record, inserts every observation in one statement, then runs, refuses, or raises the approval |
-| `_enforce(record, elevation, observations)` | One binding on one record. `elevation` is passed in rather than read from `self.env`: the binding is read through `sudo()`, so its own env reports every caller as elevated — which, under `bypass`, let an ordinary user straight through a Block gate |
+| `_get_selected(records)` | The records the binding's domain selects, in one `filtered_domain` over the whole recordset |
+| `_get_covered_ids(records)` | The records an approval already stands for, in one pass. An adopter's own approved request is taken as it is — the mixin protects the fields approvers decide on and owns withdrawal. Any other record is covered by an approved request pointing at it in the binding's category, and, when this binding raised it, only while `binding_snapshot` still matches |
+| `_get_snapshot(record)` | The values the domain's paths read from the record now. No domain reads nothing, so its approval covers the operation whatever the record's state |
+| `_enforce(record, elevation, observations, covered_ids)` | One binding on one record. `elevation` is passed in rather than read from `self.env`: the binding is read through `sudo()`, so its own env reports every caller as elevated — which, under `bypass`, let an ordinary user straight through a Block gate |
 | `_elevation()` | `none`, `superuser` (uid is SUPERUSER_ID) or `self_elevated` |
 | `_bindings_for(model, method)` / `_get_binding_ids(model, method)` | `ormcache`d per (model, method). Runs under sudo with `active_test` forced, because neither uid nor context is part of the key |
 | `_apply_to_registry()` | On create and write. Clears the lookup cache, which is signalled to every worker; only a binding on a method nothing wraps yet re-registers and invalidates the registry |
-| `_raise_requests_for(records)` | `request` mode: asks through `mixin.approval` when the record has it, otherwise creates a request pointed at it by `res_model`/`res_id` |
+| `_raise_requests_for(records)` | `request` mode, per binding. An adopter asks through its own `action_create_approval_request` with `approval_binding_for` in context; anything else gets a request pointed at it by `res_model`/`res_id`, carrying `binding_snapshot`. A request still open for the record is shown again, never raised twice |
+| `_replay(request)` | Runs the method once after approval, as `request_owner_id` — never the approver, never under sudo, so an approval cannot lend the approver's rights (the superuser account keeps its `su`). Re-checks coverage first, so a record whose snapshot moved is not run. A `UserError` (including access, validation and missing-record errors) is recorded in `binding_replay_error` and the approval stands; anything else propagates. Runs with `approval_binding_replay` in context, under which the wrapper refuses rather than raising a new request |
 
 ---
 

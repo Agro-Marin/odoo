@@ -448,6 +448,12 @@ class MixinApproval(models.AbstractModel):
                 else:
                     vals[target_field] = value
 
+        # Keyed to this record: a document created further down the same call
+        # chain must not inherit the binding link from the context.
+        binding_for = self.env.context.get("approval_binding_for")
+        if binding_for and tuple(binding_for[:2]) == (self._name, self.id):
+            vals["binding_id"] = binding_for[2]
+
         return vals
 
     def _on_approval_state_changed(self, new_state: str) -> None:

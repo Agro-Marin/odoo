@@ -22,7 +22,10 @@ class TestApprovalBinding(common.TransactionCase):
                 "name": "Binding Approver",
                 "login": "binding_approver",
                 "email": "binding_approver@test.com",
-                "group_ids": [(4, cls.env.ref("base.group_user").id)],
+                "group_ids": [
+                    (4, cls.env.ref("base.group_user").id),
+                    (4, cls.env.ref("base.group_partner_manager").id),
+                ],
             }
         )
         cls.category = cls.env["approval.category"].create(
@@ -249,3 +252,133 @@ class TestApprovalBinding(common.TransactionCase):
                     "method": "action_archive",
                 }
             )
+
+    # -- request mode ------------------------------------------------------
+
+    def _user(self, login, *groups):
+        return self.env["res.users"].create(
+            {
+                "name": login,
+                "login": login,
+                "email": f"{login}@test.com",
+                "group_ids": [
+                    (4, self.env.ref(xmlid).id)
+                    for xmlid in ("base.group_user", *groups)
+                ],
+            }
+        )
+
+    def _request_binding(self, **kwargs):
+        return self._bind(mode="request", category_id=self.category.id, **kwargs)
+
+    def _requests_for(self, binding, partner):
+        return self.env["approval.request"].search(
+            [
+                ("binding_id", "=", binding.id),
+                ("res_model", "=", "res.partner"),
+                ("res_id", "=", partner.id),
+            ]
+        )
+
+    def _approve(self, request):
+        request.approver_ids.filtered(lambda a: a.user_id == self.approver).with_user(
+            self.approver
+        ).action_approve()
+
+    def test_request_mode_asks_for_approval_instead_of_running(self):
+        binding = self._request_binding()
+        requester = self._user("binding_req_a", "base.group_partner_manager")
+        partner = self._partner()
+        action = partner.with_user(requester).action_archive()
+        self.assertTrue(partner.active, "the operation must not have run yet")
+        request = self._requests_for(binding, partner)
+        self.assertEqual(len(request), 1)
+        self.assertEqual(request.state, "pending")
+        self.assertEqual(request.request_owner_id, requester)
+        self.assertEqual(action["res_model"], "approval.request")
+
+    def test_calling_again_while_pending_does_not_raise_a_second_request(self):
+        binding = self._request_binding()
+        requester = self._user("binding_req_b", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        partner.with_user(requester).action_archive()
+        self.assertEqual(len(self._requests_for(binding, partner)), 1)
+
+    def test_approval_runs_the_operation_once_as_the_requester(self):
+        binding = self._request_binding()
+        requester = self._user("binding_req_c", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._approve(request)
+        self.assertFalse(partner.active, "approval must run the operation")
+        self.assertEqual(partner.write_uid, requester, "as the requester")
+        self.assertTrue(request.date_binding_replayed)
+        self.assertFalse(request.binding_replay_error)
+
+    def test_a_second_approval_after_a_withdrawal_does_not_run_it_again(self):
+        binding = self._request_binding()
+        requester = self._user("binding_req_d", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._approve(request)
+        replayed = request.date_binding_replayed
+        partner.action_unarchive()
+        request.with_user(self.approver).action_withdraw()
+        self._approve(request)
+        self.assertTrue(partner.active, "a second approval must not replay")
+        self.assertEqual(request.date_binding_replayed, replayed)
+
+    def test_an_approval_does_not_lend_the_approver_their_rights(self):
+        """The requester could not archive; the approver could.
+
+        Replaying as the approver would archive the partner with rights the
+        requester never had. It must not run, and the decision must stand.
+        """
+        binding = self._request_binding()
+        requester = self._user("binding_req_e")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._approve(request)
+        self.assertTrue(partner.active, "it ran with somebody else's rights")
+        self.assertEqual(request.state, "approved", "the decision itself stands")
+        self.assertTrue(request.binding_replay_error)
+        self.assertFalse(request.date_binding_replayed)
+
+    def test_a_record_changed_since_the_request_is_not_run(self):
+        binding = self._request_binding(subject_domain="[('city', '!=', 'Nowhere')]")
+        requester = self._user("binding_req_f", "base.group_partner_manager")
+        partner = self._partner(city="Before")
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self.assertEqual(request.binding_snapshot, {"city": ["Before"]})
+        partner.city = "After"
+        self._approve(request)
+        self.assertTrue(partner.active, "approved values moved, so it must not run")
+        self.assertEqual(request.state, "approved")
+        self.assertTrue(request.binding_replay_error)
+        self.assertEqual(
+            len(self._requests_for(binding, partner)),
+            1,
+            "and the replay must not raise another request",
+        )
+
+    def test_block_mode_passes_once_an_approved_request_points_at_the_record(self):
+        self._bind(mode="block", category_id=self.category.id, sudo_policy="enforce")
+        partner = self._partner()
+        request = self.env["approval.request"].create(
+            {
+                "name": "Approved separately",
+                "category_id": self.category.id,
+                "request_owner_id": self.env.user.id,
+                "res_model": "res.partner",
+                "res_id": partner.id,
+            }
+        )
+        request.action_confirm()
+        self._approve(request)
+        partner.action_archive()
+        self.assertFalse(partner.active)

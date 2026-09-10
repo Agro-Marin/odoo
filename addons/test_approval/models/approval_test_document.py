@@ -45,6 +45,14 @@ class ApprovalTestDocument(models.Model):
         comodel_name="approval.category",
         help="Category to use for approval (for testing)",
     )
+    operation_count = fields.Integer(
+        default=0,
+        help="How many times action_record_operation actually ran",
+    )
+
+    def action_record_operation(self) -> None:
+        for document in self:
+            document.sudo().operation_count += 1
 
     def _get_domain_approval_category(self) -> list[Any]:
         if self.test_category_id:

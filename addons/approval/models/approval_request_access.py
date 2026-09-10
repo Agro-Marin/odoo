@@ -187,6 +187,10 @@ class ApprovalRequestAccess(models.Model):
             "name",
             "date_confirmed",
             "category_snapshot",
+            "binding_id",
+            "binding_snapshot",
+            "date_binding_replayed",
+            "binding_replay_error",
         },
     )
 

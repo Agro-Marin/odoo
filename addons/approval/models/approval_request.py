@@ -363,6 +363,35 @@ class ApprovalRequest(models.Model):
         help="Reference to the source document that requested this "
         "approval. Never copied (see res_model).",
     )
+    binding_id = fields.Many2one(
+        comodel_name="approval.binding",
+        readonly=True,
+        copy=False,
+        index="btree_not_null",
+        ondelete="set null",
+        help="The gated operation this request was raised for, when an "
+        "approval.binding in Request mode raised it. Approving the request "
+        "runs that operation once, as the requester.",
+    )
+    binding_snapshot = fields.Json(
+        readonly=True,
+        copy=False,
+        help="Values the binding's condition read from the source document "
+        "when the request was raised. An approval covers the record as it was "
+        "approved: once one of these values moves, it no longer does.",
+    )
+    date_binding_replayed = fields.Datetime(
+        readonly=True,
+        copy=False,
+        help="When the gated operation ran after approval. Set once, so a "
+        "withdrawal followed by a second approval does not run it again.",
+    )
+    binding_replay_error = fields.Text(
+        readonly=True,
+        copy=False,
+        help="Why the gated operation did not run after approval. The approval "
+        "itself stands.",
+    )
     res_model_id = fields.Many2one(
         comodel_name="ir.model",
         string="Source Model",

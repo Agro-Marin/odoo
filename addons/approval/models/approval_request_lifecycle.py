@@ -931,6 +931,26 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         if self.state != old_state and self.state in self._TERMINAL_STATES:
             self._notify_source_document_state_change(self.state)
+            if self.state == "approved":
+                self._replay_bound_operation()
+
+    def _replay_bound_operation(self) -> None:
+        """Run the operation an approval.binding raised this request for.
+
+        After the source document has been told, so a document implementing
+        mixin.approval sees itself approved before the operation it gated
+        runs. Once only: a withdrawal and a second approval do not run it again.
+        """
+        self.check_singleton()
+        request = self.sudo()
+        if (
+            not request.binding_id
+            or request.date_binding_replayed
+            or not request.res_model
+            or not request.res_id
+        ):
+            return
+        request.binding_id._replay(request)
 
     def _notify_source_document_state_change(self, new_state: str) -> None:
         self.check_singleton()
