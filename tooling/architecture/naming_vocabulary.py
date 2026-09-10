@@ -385,6 +385,63 @@ def fused_modality_verb(name: str) -> str | None:
     return token[4:] if _FUSED_MODALITY.fullmatch(token) else None
 
 
+# §2.4.4: a canonical verb one token behind a first token that carries no rule
+# is the shape `_push_prepare_move_copy_values` and `_log_activity_get_documents`
+# wore -- the rule's own verb, hidden from a `classify` that partitions on the
+# first token. Like the abolished-infix row it is a CANDIDATE list, not a defect
+# list: `_ubl_add_*` and `_stripe_get_*` are namespaces §2.4.4 admits, and no
+# reading of a name separates a protocol prefix from a noun parked in front of
+# the verb. The first tokens excluded are the ones that already carry a rule of
+# their own -- a verb from the abolished, canonical or execution tables, a hook or
+# predicate prefix, an ORM operation,
+# `action_`/`button_`, the four protocol namespaces §2.4.4 names, and the
+# adverbs `post_`/`pre_` §2.4.12 reads as *when*.
+_RULED_FIRST_TOKENS = frozenset(
+    {
+        "action",
+        "button",
+        "message",
+        "notify",
+        "track",
+        "portal",
+        "post",
+        "pre",
+        "unlink",
+        "create",
+        "write",
+        "read",
+        "copy",
+        "name",
+        "fields",
+        "web",
+        "view",
+        "filtered",
+        "sorted",
+        "with",
+        "selection",
+        "constrains",
+        "sync",
+    }
+)
+
+
+def infix_canonical_verb(name: str) -> str | None:
+    if classify(name) is not None:
+        return None
+    tokens = name.lstrip("_").split("_")
+    first = tokens[0]
+    if (
+        first in _RULED_FIRST_TOKENS
+        or first in CANONICAL_VERBS
+        or first in ABOLISHED
+        or first in EXEC_VERBS
+        or first in PREDICATE_PREFIXES
+        or first in HOOK_ATTRS
+    ):
+        return None
+    return next((t for t in tokens[1:-1] if t in CANONICAL_VERBS), None)
+
+
 _RENDER_DISPATCH_KEYS = ("_render_qweb_html", "_render_qweb_pdf", "_render_qweb_text")
 
 ASSEMBLE_VERBS = frozenset(
@@ -630,6 +687,7 @@ class Census:
     raise_unconditional: int
     raise_noreturn: int
     infix_abolished: int
+    infix_canonical: int
     fused_modality: int
     set_: int
     update: int
@@ -875,6 +933,7 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
         raise_unconditional=raise_unconditional,
         raise_noreturn=raise_noreturn,
         infix_abolished=sum(1 for n in names if infix_abolished_verb(n)),
+        infix_canonical=sum(1 for n in names if infix_canonical_verb(n)),
         fused_modality=sum(1 for n in names if fused_modality_verb(n)),
         set_=tally("set"),
         update=tally("update"),

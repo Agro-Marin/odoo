@@ -711,6 +711,12 @@ _CENSUS_ROWS: tuple[Row, ...] = (
         lambda: _census().infix_abolished,
     ),
     Row(
+        "infix_canonical",
+        "§2.4.4",
+        "Canonical verb behind a first token carrying no rule",
+        lambda: _census().infix_canonical,
+    ),
+    Row(
         "fused_modality",
         "§2.4.4",
         "Model methods opening with ``auto`` fused to a verb",

@@ -1226,6 +1226,7 @@ Section  Population                                                  Count
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            143
+§2.4.4   Canonical verb behind a first token carrying no rule          681
 §2.4.4   Model methods opening with ``auto`` fused to a verb            13
 §2.4.4   ``fields`` family: definitions spelled head-first             222
 §2.4.4   ``fields`` family: distinct names spelled head-first          100
@@ -1537,6 +1538,21 @@ first token and stops, so a noun in front of the verb hides the verb from the ru
 ``import``, which carries no rule. Backlog (census table): the model methods that
 put an abolished verb somewhere the ratchet cannot read it are a candidate
 population, since some of those tokens belong to a noun or a field name.
+
+**The hidden verb is as often the canonical one** ``[review]``, and that shape
+is the second candidate row. ``_push_prepare_move_copy_values``,
+``_log_activity_get_documents``, ``_delay_alert_get_documents`` and
+``_stock_picking_check_access`` all carried the row's own verb one token behind a
+first token carrying no rule, and read to the gate as correctly named -- there
+was no abolished word to see. The census counts the model methods whose first
+token is governed by nothing (no verb from any table, no hook or predicate
+prefix, no ORM operation, none of the protocol namespaces below) and that carry
+``prepare`` / ``get`` / ``check`` / ``update`` / ``add`` / ``remove`` somewhere
+after it. It is a candidate list for the same reason the abolished one is:
+``_ubl_add_*`` and ``_stripe_get_*`` sit in it and are namespaces this section
+admits, and nothing mechanical separates a protocol prefix from a noun parked in
+front of the verb. Read it grouped by first token -- a token with one member is
+almost always a noun, one with sixty is almost always a namespace.
 
 * A noun-first prefix is legitimate only where it names a **protocol several
   models implement** (``_message_*``, ``_notify_*``, ``_track_*``,

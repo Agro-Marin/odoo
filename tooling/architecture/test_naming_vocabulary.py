@@ -877,3 +877,20 @@ def test_the_producer_rule_reaches_measure_and_skips_overrides(tmp_path):
         ("_prepare_request", "prepare", "_update_"),
         ("_prepare_search_domain", "prepare", "_get_domain_"),
     ]
+
+
+def test_a_canonical_verb_behind_an_unruled_first_token_is_a_candidate():
+    from naming_vocabulary import infix_canonical_verb
+
+    assert infix_canonical_verb("_push_prepare_move_copy_values") == "prepare"
+    assert infix_canonical_verb("_log_activity_get_documents") == "get"
+    assert infix_canonical_verb("_stock_picking_check_access") == "check"
+    # the first token already carries a rule: a verb, a hook, a predicate, an action
+    assert infix_canonical_verb("_prepare_push_move_copy_values") is None
+    assert infix_canonical_verb("_compute_get_something") is None
+    assert infix_canonical_verb("is_get_worth_it") is None
+    assert infix_canonical_verb("action_get_report") is None
+    assert infix_canonical_verb("_message_get_suggested_recipients") is None
+    assert infix_canonical_verb("_post_add_documents") is None
+    # the verb is the LAST token, which is §2.4.4's trailing shape, not this one
+    assert infix_canonical_verb("_sanity_check") is None
