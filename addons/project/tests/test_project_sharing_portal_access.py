@@ -170,7 +170,10 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
                 return value
             if field.name == "id":
                 return 42
-            return task.default_get([field_name]).get(field_name, False)
+            defaults = task.default_get([field_name])
+            if field_name in defaults or not field.required:
+                return defaults.get(field_name, False)
+            return task[field_name]
 
         for field_name in self.write_protected_fields_task:
             field = task._fields[field_name]

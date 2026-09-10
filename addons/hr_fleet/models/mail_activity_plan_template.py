@@ -6,7 +6,7 @@ class MailActivityPlanTemplate(models.Model):
 
     responsible_type = fields.Selection(
         selection_add=[("fleet_manager", "Fleet Manager")],
-        ondelete={"fleet_manager": "set default"},
+        ondelete={"fleet_manager": "set on_demand"},
     )
 
     @api.constrains("plan_id", "responsible_type")

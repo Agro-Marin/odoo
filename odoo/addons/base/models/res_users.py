@@ -441,6 +441,7 @@ class ResUsers(models.Model):
         compute_sudo=True,
         string="Share User",
         store=True,
+        precompute=True,
         help="External user with limited access, created only for the purpose of sharing data.",
     )
 

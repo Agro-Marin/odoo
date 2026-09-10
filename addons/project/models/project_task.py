@@ -352,12 +352,12 @@ class ProjectTask(models.Model):
         ],
         string="State",
         copy=False,
-        default="todo",
         required=True,
         compute="_compute_state",
         inverse="_inverse_state",
         readonly=False,
         store=True,
+        precompute=True,
         index=True,
         recursive=True,
         tracking=True,
@@ -379,6 +379,7 @@ class ProjectTask(models.Model):
         string="Workflow Step",
         compute="_compute_step_id",
         store=True,
+        precompute=True,
         readonly=False,
         ondelete="restrict",
         tracking=True,
@@ -988,6 +989,8 @@ class ProjectTask(models.Model):
                     task.state = "in_progress"
             if task.step_id.task_state and task.state != "blocked":
                 task.state = task.step_id.task_state
+            elif not task.state:
+                task.state = "todo"
 
     @api.depends("state")
     def _compute_is_closed(self) -> None:

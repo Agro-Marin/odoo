@@ -341,7 +341,7 @@ class FleetVehicle(models.Model):
         compute="_compute_range_unit",
         store=True,
         readonly=False,
-        default="km",
+        precompute=True,
         required=True,
     )
 
@@ -379,6 +379,8 @@ class FleetVehicle(models.Model):
     @api.depends("model_id")
     def _compute_range_unit(self):
         self._load_fields_from_model(["range_unit"])
+        for vehicle in self:
+            vehicle.range_unit = vehicle.range_unit or "km"
 
     @api.depends("model_id")
     def _compute_trailer_hook(self):

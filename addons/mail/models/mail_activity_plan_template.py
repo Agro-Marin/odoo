@@ -59,12 +59,12 @@ class MailActivityPlanTemplate(models.Model):
             ("on_demand", "Ask at launch"),
             ("other", "Default user"),
         ],
-        default="on_demand",
         string="Assignment",
         required=True,
         compute="_compute_responsible_type",
         store=True,
         readonly=False,
+        precompute=True,
     )
     responsible_id: ResUsers = fields.Many2one(
         "res.users",

@@ -999,7 +999,11 @@ class TestActivitySystrayBusNotify(TestActivityCommon):
     def setUpClass(cls):
         super().setUpClass()
         cls.user_employee_2 = cls.user_employee.copy(
-            default={"login": "employee_2", "email": "user_employee_2@test.lan"}
+            default={
+                "login": "employee_2",
+                "email": "user_employee_2@test.lan",
+                "notification_type": "email",
+            }
         )
 
         cls.activity_vals = [

@@ -38,3 +38,5 @@ from . import test_webmanifest
 from . import test_websocket_controller
 
 from .discuss import *
+from . import test_res_users_notification_type
+from . import test_mail_activity_plan_template

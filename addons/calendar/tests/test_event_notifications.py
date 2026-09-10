@@ -749,7 +749,7 @@ class TestEventNotifications(CalendarMailCommon):
             .with_context(mail_notrack=True)
         )
         with freeze_time("2023-11-15 16:00:00"):
-            self.assertEqual(len(search_event()), 3)
+            self.assertEqual(search_event(), events[1:3])
         events.unlink()
 
     def test_recurring_meeting_reminder_notification(self):

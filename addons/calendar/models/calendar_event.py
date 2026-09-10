@@ -924,12 +924,29 @@ class CalendarEvent(models.Model):
             for vals in vals_list
         ]
 
+    def _create_prepare_stop(self, vals_list):
+        pending = [
+            vals for vals in vals_list if "stop" not in vals and vals.get("start")
+        ]
+        if not pending or "default_stop" in self.env.context:
+            return
+        default_duration = (
+            self.env.context.get("default_duration") or self.get_default_duration()
+        )
+        for vals in pending:
+            duration = vals.get("duration") or default_duration
+            stop = fields.Datetime.to_datetime(vals["start"]) + timedelta(
+                minutes=round(duration * 60)
+            )
+            vals["stop"] = stop - timedelta(seconds=1) if vals.get("allday") else stop
+
     @api.model_create_multi
     def create(self, vals_list):
         # Prevent sending update notification when _inverse_dates is called
         self = self.with_context(is_calendar_event_new=True)
         defaults = self.browse().default_get(list(self._CREATE_DEFAULT_FNAMES))
         vals_list = self._create_apply_defaults(vals_list, defaults)
+        self._create_prepare_stop(vals_list)
         self._create_prepare_activities(vals_list)
         self._set_videocall_location(vals_list)
         vals_list = self._create_prepare_attendees(vals_list, defaults)
