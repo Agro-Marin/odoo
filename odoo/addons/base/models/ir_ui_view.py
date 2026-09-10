@@ -3050,7 +3050,10 @@ class IrUiView(models.Model):
     def render_public_asset(
         self, template: int | str, values: dict[str, Any] | None = None
     ) -> Markup:
-        self._get_template_view(template)._check_view_access()
+        # The check reads the view's own groups and inheritance chain, which
+        # ir.ui.view's ACL hides from a plain user; it decides on the user's
+        # groups, which sudo leaves alone.
+        self._get_template_view(template).sudo()._check_view_access()
         return self.env["ir.qweb"].sudo()._render(template, values)
 
     def _render_template(

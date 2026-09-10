@@ -14,6 +14,7 @@ from markupsafe import Markup
 from psycopg import IntegrityError
 from psycopg.types.json import Json
 
+from odoo import Command
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tests import common, tagged
@@ -1183,6 +1184,41 @@ class TestTemplating(ViewCase):
     def setUp(self):
         super().setUp()
         self.patch(self.registry, "_init", False)
+
+    def test_render_public_asset_as_a_plain_user(self):
+        # The mailing editor and the website builder fetch their templates
+        # through this RPC as internal users who may not read ir.ui.view;
+        # the access check reads the view's groups on the user's behalf.
+        self.View.create(
+            {
+                "name": "public asset",
+                "type": "qweb",
+                "key": "base.test_public_asset",
+                "arch": "<t><div>public asset</div></t>",
+                "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+            }
+        )
+        rendered = (
+            self.View.with_user(self.user_demo)
+            .render_public_asset("base.test_public_asset")
+            .strip()
+        )
+        self.assertEqual(rendered, "<div>public asset</div>")
+
+    def test_render_public_asset_honours_the_views_groups(self):
+        self.View.create(
+            {
+                "name": "system asset",
+                "type": "qweb",
+                "key": "base.test_system_asset",
+                "arch": "<t><div>system asset</div></t>",
+                "group_ids": [Command.link(self.env.ref("base.group_system").id)],
+            }
+        )
+        with self.assertRaises(AccessError):
+            self.View.with_user(self.user_demo).render_public_asset(
+                "base.test_system_asset"
+            )
 
     def test_branding_t0(self):
         view1 = self.View.create(

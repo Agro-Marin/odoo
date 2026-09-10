@@ -205,6 +205,11 @@
                 "mass_mailing.assets_builder",
             ],
         },
+        "secondary_import_map_includes": {
+            "web.assets_frontend": [
+                "mass_mailing.mailing_assets",
+            ],
+        },
     },
     "application": True,
 }

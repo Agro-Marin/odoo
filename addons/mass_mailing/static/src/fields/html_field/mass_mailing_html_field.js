@@ -314,9 +314,15 @@ export class MassMailingHtmlField extends HtmlField {
      * @override
      */
     async _commitChanges({ urgent }) {
+        // Only a DESYNCHRONIZED pair -- an arch with no inline rendering --
+        // forces a commit. A record whose arch is empty too has nothing to
+        // render: after a discard both are "", and forcing the commit then
+        // pushed the editor's stale content back into the record, so the
+        // form could never leave a discarded new mailing.
         if (
             this.editor &&
             !this.editor.isDestroyed &&
+            this.props.record.data[this.props.name].toString() !== "" &&
             this.props.record.data[this.props.inlineField].toString() === ""
         ) {
             if (
