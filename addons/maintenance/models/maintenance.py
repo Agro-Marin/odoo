@@ -27,7 +27,7 @@ class MaintenanceEquipmentCategory(models.Model):
         # computed with a read_group(), which retrieves 'fold'!
         self.fold = False
         for category in self:
-            category.fold = False if category.equipment_count else True
+            category.fold = not category.equipment_count
 
     name = fields.Char("Category Name", required=True, translate=True)
     company_id = fields.Many2one(
@@ -300,11 +300,11 @@ class MaintenanceRequest(models.Model):
         string="Team",
         required=True,
         index=True,
-        default=_default_maintenance_team_id,
         compute="_compute_maintenance_team_id",
         store=True,
         readonly=False,
         check_company=True,
+        precompute=True,
     )
     duration = fields.Float(
         help="Duration in hours.", compute="_compute_duration", store=True
@@ -382,6 +382,13 @@ class MaintenanceRequest(models.Model):
                 and request.maintenance_team_id.company_id.id != request.company_id.id
             ):
                 request.maintenance_team_id = False
+            # The company default is the last resort of this precomputed field, not a field
+            # default: a field default is filled before the compute, so a create never took the
+            # equipment's (or an override's) team.
+            if not request.maintenance_team_id:
+                request.maintenance_team_id = request.with_company(
+                    request.company_id
+                )._get_default_team_id()
 
     @api.depends("company_id", "equipment_id")
     def _compute_user_id(self):
@@ -410,8 +417,6 @@ class MaintenanceRequest(models.Model):
         for request in maintenance_requests:
             if request.owner_user_id or request.user_id:
                 request._add_followers()
-            if request.equipment_id and not request.maintenance_team_id:
-                request.maintenance_team_id = request.maintenance_team_id
             if request.close_date and not request.stage_id.done:
                 request.close_date = False
             if not request.close_date and request.stage_id.done:

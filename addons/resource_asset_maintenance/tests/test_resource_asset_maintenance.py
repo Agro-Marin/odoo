@@ -118,8 +118,9 @@ class TestResourceAssetMaintenance(TransactionCase):
         self.press.write(
             {"maintenance_team_id": self.team.id, "technician_user_id": technician.id}
         )
-        request = self.env["maintenance.request"].create({"name": "Check"})
-        request.write({"equipment_id": equipment.id, "asset_id": self.press.id})
+        request = self.env["maintenance.request"].create(
+            {"name": "Check", "equipment_id": equipment.id, "asset_id": self.press.id}
+        )
         self.assertEqual(request.maintenance_team_id, self.team)
         self.assertEqual(request.user_id, technician)
         request.asset_id = False
@@ -135,3 +136,23 @@ class TestResourceAssetMaintenance(TransactionCase):
         )
         self.assertEqual(len(activity), 1)
         self.assertIn(self.press.name, activity.note)
+
+    def test_the_asset_outranks_the_work_centre(self):
+        Request = self.env["maintenance.request"]
+        if "workcenter_id" not in Request._fields:
+            self.skipTest("mrp_maintenance is not installed")
+        workcenter_team = self.env["maintenance.team"].create({"name": "Line crew"})
+        workcenter = self.env["mrp.workcenter"].create(
+            {"name": "Press line", "maintenance_team_id": workcenter_team.id}
+        )
+        self.press.maintenance_team_id = self.team
+        sources = {
+            "maintenance_for": "workcenter",
+            "workcenter_id": workcenter.id,
+            "asset_id": self.press.id,
+        }
+        at_create = Request.create({"name": "Check", **sources})
+        after_write = Request.create({"name": "Check", "maintenance_for": "workcenter"})
+        after_write.write(sources)
+        self.assertEqual(at_create.maintenance_team_id, self.team)
+        self.assertEqual(after_write.maintenance_team_id, self.team)
