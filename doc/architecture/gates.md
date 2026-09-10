@@ -23,7 +23,8 @@ python tooling/architecture/layer_check.py --json    # machine-readable
 `py_shadowed_member`, `naming_vocabulary`, `naming_core_vocabulary`,
 `field_hook_naming`, `field_hook_purity`, `js_service_shape`,
 `js_vacuous_assertions`, `js_duplication`, `compute_context_deps`,
-`js_eager_mock_fixture`, `py_unresolved_calls`, `order_line_qty` and `bridge_budget` — implement no
+`js_eager_mock_fixture`, `py_unresolved_calls`, `py_orphan_overrides`, `order_line_qty` and
+`bridge_budget` — implement no
 `--check` at all. They print a number under `--count` and hand it
 to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 `js_forced_render`, `js_ts_check` and `translation_catalog` also implement `--check`, but
@@ -101,6 +102,7 @@ js_ts_check        jstscheck
 js_duplication     jsduplication
 translation_catalog translations
 py_unresolved_calls unresolved_calls
+py_orphan_overrides orphan_overrides
 naming_core_vocabulary naming_core
 orphan_depends     orphandepends
 EOF
@@ -226,6 +228,7 @@ own:
 | `py_shadowed_member.py` | a second `def`, nested `class` or assignment of a name already bound in the same class body. Python keeps the last, so the earlier definition never runs and nothing in the file says so — the shape a parallel edit produces at opposite ends of a long class. `ruff`'s F811 does not see it: its default dummy-variable regex drops every leading-underscore name, and an Odoo model method is always one. `@overload` stubs and the undecorated implementation they precede are one definition, not a shadow |
 | `bridge_budget.py` | an auto-installed bridge -- two or more triggers, so every parent is already in each closure the bridge appears in -- carrying fewer than 60 lines of Python outside its manifest, tests and migrations. Such a module is a directory, a manifest and a security file for the lines it holds; folded into the parent that already depends on the others it costs the graph nothing. Ratchets the bridge count over `odoo/addons` and `addons` as one number, and prints the list bare because a fold is a decision per module: a stub for a feature still landing, or a bridge that keeps an OPL-1 dependency out of an LGPL-3 parent, stays one |
 | `py_unresolved_calls.py` | a call that resolves to nothing this checkout defines — a method renamed without its callers, or a caller written against a method that never existed. Five such defects landed in one day, each invisible to every other gate: the call is syntactically fine, imports nothing and reaches no boundary, so it is only found when the branch runs. Ratchets the offender count |
+| `py_orphan_overrides.py` | a `super()` call in a model class that no parent of that model can answer — an override whose method was renamed out from under it. It parses, imports and registers, so every other gate is blind to it, and `py_unresolved_calls` reports none of them by construction: the name *is* defined, by the very class whose `super()` has nowhere to go. Resolved per model, because a same-named method on an unrelated model is not a parent — `purchase.order`'s `_prepare_invoice` hid a family of dead `sale.order` overrides of it — and an override is never a parent either, so overrides of one vanished method cannot vouch for each other. A hard zero with no baseline file |
 
 | `js_private_access.py` | the cross-module private-access budget (`_member` reached past a module) |
 | `js_service_shape.py` | a service handing back an instance, not a literal |

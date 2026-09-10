@@ -198,6 +198,7 @@ class TestEveryToolAgrees:
         ("architecture", "py_count_as_boolean"): "ROOT",
         ("architecture", "py_shadowed_member"): "ROOT",
         ("architecture", "py_unresolved_calls"): "ROOT",
+        ("architecture", "py_orphan_overrides"): "ROOT",
         ("architecture", "js_deployment_layers"): "ROOT",
         ("architecture", "js_arch_info_surface"): "ROOT",
         ("architecture", "js_class_length"): "ROOT",
