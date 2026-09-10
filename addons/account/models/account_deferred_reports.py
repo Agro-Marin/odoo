@@ -141,7 +141,7 @@ class AccountDeferredReportHandler(models.AbstractModel):
 
     def _get_lines(self, report, options, filter_already_generated=False):
         if "report_deferred_lines" not in self.env.cr.cache:
-            self._get_lines_to_defer(report, options, filter_already_generated)
+            self._update_deferred_lines_cache(report, options, filter_already_generated)
 
         if not filter_already_generated:
             # No more filtering needed, we can reuse the cached result
@@ -155,7 +155,7 @@ class AccountDeferredReportHandler(models.AbstractModel):
                 if not cached_line["is_already_generated"]
             ]
 
-    def _get_lines_to_defer(self, report, options, filter_already_generated):
+    def _update_deferred_lines_cache(self, report, options, filter_already_generated):
         """Fetch the lines that need to be deferred from the DB and store them in the cache for later reuse"""
         domain = self._get_domain(report, options, filter_already_generated)
         query = report._get_report_query(

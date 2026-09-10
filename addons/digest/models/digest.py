@@ -149,7 +149,7 @@ class DigestDigest(models.Model):
         )
 
     def _compute_kpi_res_users_connected_value(self):
-        self._get_company_based_kpi(
+        self._update_company_based_kpi(
             "res.users",
             "kpi_res_users_connected_value",
             date_field="login_date",
@@ -406,7 +406,7 @@ class DigestDigest(models.Model):
         kpi_actions = self._get_kpi_actions(company, user)
         timeframes = self._get_timeframes(company)
         # Every KPI is asked for the same six windows. Publishing them lets
-        # `_get_company_based_kpi` answer all six from one scan instead of
+        # `_update_company_based_kpi` answer all six from one scan instead of
         # six, and the memo below is what carries that answer across the six
         # separate compute-field reads the loop still has to make.
         all_windows = tuple(
@@ -673,7 +673,7 @@ class DigestDigest(models.Model):
     # FORMATTING / TOOLS
     # ------------------------------------------------------------
 
-    def _get_company_based_kpi(
+    def _update_company_based_kpi(
         self,
         model,
         digest_kpi_field,

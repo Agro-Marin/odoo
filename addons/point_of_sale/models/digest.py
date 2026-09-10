@@ -15,7 +15,7 @@ class DigestDigest(models.Model):
                 _("Do not have access, skip this data for user's digest email")
             )
 
-        self._get_company_based_kpi(
+        self._update_company_based_kpi(
             "pos.order",
             "kpi_pos_total_value",
             date_field="date_order",
