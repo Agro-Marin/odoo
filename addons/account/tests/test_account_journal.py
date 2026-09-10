@@ -41,7 +41,7 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
         )
         self.assertIn(
             "INV",
-            invoice_valid.payment_reference,
+            invoice_valid.payment_reference.replace(" ", ""),
             "The reference should be based on the journal code.",
         )
 
@@ -55,7 +55,7 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
         )
         self.assertIn(
             str(journal.id),
-            invoice_invalid.payment_reference,
+            invoice_invalid.payment_reference.replace(" ", ""),
             "The reference should fall back to using the journal ID.",
         )
 
@@ -69,7 +69,7 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
         )
         self.assertIn(
             str(journal.id),
-            invoice_unicode.payment_reference,
+            invoice_unicode.payment_reference.replace(" ", ""),
             "The reference should fall back to using the journal ID for non-ASCII codes.",
         )
 
@@ -933,19 +933,20 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
             journal=journal_latin,
         )
 
+        def reference_body(invoice):
+            return invoice.payment_reference.replace(" ", "")[4:]
+
         expected_id = str(invoice_non_latin.journal_id.id)
-        ref_parts_non_latin = invoice_non_latin.payment_reference.split()
         self.assertEqual(
-            ref_parts_non_latin[1][: len(expected_id)],
+            reference_body(invoice_non_latin)[: len(expected_id)],
             expected_id,
             "The reference should start with " + expected_id,
         )
 
-        ref_parts_latin = invoice_latin.payment_reference.split()
         self.assertIn(
-            ref_parts_latin[1][:3],
+            reference_body(invoice_latin)[:3],
             latin_code,
-            f"Expected journal code '{latin_code}' in second part of reference",
+            f"Expected journal code '{latin_code}' at the start of the reference body",
         )
 
     def test_use_default_account_from_journal(self):
