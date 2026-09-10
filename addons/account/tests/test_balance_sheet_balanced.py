@@ -615,9 +615,9 @@ class TestBalanceSheetBalanced(TestAccountReportsCommon):
             coa_setup_data["journal"] = company_data["default_journal_misc"]
 
         # Find the available Balance Sheets for the current company.
-        generic_balance_sheet = self.env.ref(
-            "account.balance_sheet"
-        ).with_company(self.env.company)
+        generic_balance_sheet = self.env.ref("account.balance_sheet").with_company(
+            self.env.company
+        )
         generic_balance_sheet.with_context(active_test=False).variant_report_ids.write(
             {"active": True}
         )

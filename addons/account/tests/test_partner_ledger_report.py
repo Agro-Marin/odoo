@@ -582,9 +582,9 @@ class TestPartnerLedgerReport(TestAccountReportsCommon):
         )
 
         debit_line = self.move_2017_1.line_ids.filtered(
-            lambda line: line.debit == 4000.0  # noqa: RUF069
+            lambda line: line.debit == 4000.0
         )
-        credit_line = misc_move.line_ids.filtered(lambda line: line.credit == 1000.0)  # noqa: RUF069
+        credit_line = misc_move.line_ids.filtered(lambda line: line.credit == 1000.0)
         (debit_line + credit_line).reconcile()
 
         self.assertLinesValues(

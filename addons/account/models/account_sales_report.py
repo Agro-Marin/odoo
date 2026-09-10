@@ -279,7 +279,7 @@ class AccountEcSalesReportHandler(models.AbstractModel):
         groupby_partners = {}
         vat_set = set()
 
-        def assign_sum(row):
+        def _update_sum(row):
             """Assign the values of a query row to the groupby_partners dictionary: dispatch a non-zero
             balance to the operation type its tax element belongs to, then store the partner identifiers
             (vat number, country code, ...).
@@ -359,7 +359,7 @@ class AccountEcSalesReportHandler(models.AbstractModel):
 
         dictfetchall = self.env.cr.dictfetchall()
         for res in dictfetchall:
-            assign_sum(res)
+            _update_sum(res)
 
         if groupby_partners:
             partners = (

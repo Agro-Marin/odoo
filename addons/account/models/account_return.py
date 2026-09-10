@@ -2356,7 +2356,7 @@ class AccountReturn(models.Model):
         :param options: report options
         """
         self.check_singleton()
-        self._ensure_tax_group_configuration_for_tax_closing()
+        self._check_tax_group_configuration_for_tax_closing()
 
         closing_move_vals = []
         for company in self.company_ids:
@@ -2380,7 +2380,7 @@ class AccountReturn(models.Model):
         moves = self.env["account.move"].sudo().create(closing_move_vals)
         moves.action_post()
 
-    def _ensure_tax_group_configuration_for_tax_closing(self):
+    def _check_tax_group_configuration_for_tax_closing(self):
         """Raise a RedirectWarning informing the user his tax groups are missing configuration,
         redirecting him to the list view of account.tax.group filtered on the report's country.
         """

@@ -182,9 +182,9 @@ class TestReconciliationReport(TestAccountReportsCommon):
 
         # ==== Report ====
 
-        report = self.env.ref(
-            "account.bank_reconciliation_report"
-        ).with_context(active_id=bank_journal.id, active_model=bank_journal._name)
+        report = self.env.ref("account.bank_reconciliation_report").with_context(
+            active_id=bank_journal.id, active_model=bank_journal._name
+        )
 
         options = self._generate_options(report, "2016-01-02", "2016-01-02")
         options["unfold_all"] = True
@@ -401,9 +401,9 @@ class TestReconciliationReport(TestAccountReportsCommon):
 
         # ==== Report ====
 
-        report = self.env.ref(
-            "account.bank_reconciliation_report"
-        ).with_context(active_id=bank_journal.id, active_model=bank_journal._name)
+        report = self.env.ref("account.bank_reconciliation_report").with_context(
+            active_id=bank_journal.id, active_model=bank_journal._name
+        )
 
         with self.debug_mode():
             options = self._generate_options(report, "2016-01-02", "2016-01-02")
@@ -558,9 +558,9 @@ class TestReconciliationReport(TestAccountReportsCommon):
         )
         payment.action_post()
 
-        report = self.env.ref(
-            "account.bank_reconciliation_report"
-        ).with_context(active_id=bank_journal.id, active_model="account.journal")
+        report = self.env.ref("account.bank_reconciliation_report").with_context(
+            active_id=bank_journal.id, active_model="account.journal"
+        )
 
         options = self._generate_options(
             report,
@@ -712,9 +712,9 @@ class TestReconciliationReport(TestAccountReportsCommon):
 
         # ==== Report ====
 
-        report = self.env.ref(
-            "account.bank_reconciliation_report"
-        ).with_context(active_id=bank_journal.id, active_model="account.journal")
+        report = self.env.ref("account.bank_reconciliation_report").with_context(
+            active_id=bank_journal.id, active_model="account.journal"
+        )
 
         options = self._generate_options(report, "2016-01-02", "2016-01-02")
         options["unfold_all"] = True
@@ -788,9 +788,9 @@ class TestReconciliationReport(TestAccountReportsCommon):
             }
         ).action_post()
 
-        report = self.env.ref(
-            "account.bank_reconciliation_report"
-        ).with_context(active_id=bank_journal.id, active_model="account.journal")
+        report = self.env.ref("account.bank_reconciliation_report").with_context(
+            active_id=bank_journal.id, active_model="account.journal"
+        )
 
         options = self._generate_options(report, "2016-01-02", "2016-01-02")
         options["unfold_all"] = True
@@ -922,9 +922,9 @@ class TestReconciliationReport(TestAccountReportsCommon):
             }
         )
 
-        report = self.env.ref(
-            "account.bank_reconciliation_report"
-        ).with_context(active_id=bank_journal.id, active_model="account.journal")
+        report = self.env.ref("account.bank_reconciliation_report").with_context(
+            active_id=bank_journal.id, active_model="account.journal"
+        )
 
         options = self._generate_options(
             report,
@@ -1028,9 +1028,9 @@ class TestReconciliationReport(TestAccountReportsCommon):
             ]
         )
 
-        report = self.env.ref(
-            "account.bank_reconciliation_report"
-        ).with_context(active_id=bank_journal.id, active_model="account.journal")
+        report = self.env.ref("account.bank_reconciliation_report").with_context(
+            active_id=bank_journal.id, active_model="account.journal"
+        )
         options = self._generate_options(report, "2019-01-01", "2019-01-12")
         options["all_entries"] = True
         options["unfold_all"] = True
@@ -1140,9 +1140,9 @@ class TestReconciliationReport(TestAccountReportsCommon):
             }
         )
         move_a.action_post()
-        report = self.env.ref(
-            "account.bank_reconciliation_report"
-        ).with_context(active_id=bank_journal.id, active_model="account.journal")
+        report = self.env.ref("account.bank_reconciliation_report").with_context(
+            active_id=bank_journal.id, active_model="account.journal"
+        )
 
         options = self._generate_options(
             report,

@@ -234,7 +234,7 @@ class AccountReportExpressionEval(models.Model):
                                    This is used to know whether an unfoldable line has results to unfold in the UI.
         """
 
-        def inject_formula_results(
+        def _update_formula_results(
             formula_results,
             column_group_expression_totals,
             cross_report_expression_totals=None,
@@ -368,7 +368,7 @@ class AccountReportExpressionEval(models.Model):
                     warnings=warnings,
                     batch_ids_cache=batch_ids_cache,
                 )
-                inject_formula_results(
+                _update_formula_results(
                     formula_results,
                     column_group_expression_totals,
                     cross_report_expression_totals=cross_report_expr_totals_by_scope.setdefault(
@@ -411,7 +411,7 @@ class AccountReportExpressionEval(models.Model):
                 column_group_expression_totals,
                 cross_report_expr_totals_by_scope,
             )
-            inject_formula_results(
+            _update_formula_results(
                 aggregation_formula_results, column_group_expression_totals
             )
 

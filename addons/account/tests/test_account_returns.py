@@ -62,9 +62,7 @@ class TestAccountReturn(TestAccountReportsCommon):
 
         cls.basic_ec_sales_report = cls.env["account.report"].create(
             {
-                "root_report_id": cls.env.ref(
-                    "account.generic_ec_sales_report"
-                ).id,
+                "root_report_id": cls.env.ref("account.generic_ec_sales_report").id,
                 "name": "Account Returns Test EC Sales Report",
             }
         )
@@ -77,9 +75,7 @@ class TestAccountReturn(TestAccountReportsCommon):
             }
         )
 
-        cls.annual_return_type = cls.env.ref(
-            "account.annual_corporate_tax_return_type"
-        )
+        cls.annual_return_type = cls.env.ref("account.annual_corporate_tax_return_type")
 
         cls.audit_return_type = cls.env.ref("account.default_audit_return_type")
 

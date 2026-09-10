@@ -530,7 +530,7 @@ class TestPaymentWizardBankExposure(TestAccountReportsCommon):
             self.bank_b.with_user(self.accountant_a).read(["acc_number"])
         self.env.invalidate_all()
         with self.assertRaises(AccessError):
-            self._wizard_on(self.bank_b).acc_number  # noqa: B018
+            self._wizard_on(self.bank_b).acc_number
 
     def test_the_wizard_still_shows_a_bank_account_the_reader_can_read(self):
         self.env.invalidate_all()

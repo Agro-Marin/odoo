@@ -185,7 +185,7 @@ class AccountTaxUnit(models.Model):
         return super().unlink()
 
     @api.constrains("country_id", "company_ids")
-    def _validate_companies_country(self):
+    def _check_companies_country(self):
         for record in self:
             currencies = set()
             for company in record.company_ids:
@@ -211,7 +211,7 @@ class AccountTaxUnit(models.Model):
                 )
 
     @api.constrains("company_ids", "main_company_id")
-    def _validate_main_company(self):
+    def _check_main_company(self):
         for record in self:
             if record.main_company_id not in record.company_ids:
                 raise ValidationError(
@@ -219,7 +219,7 @@ class AccountTaxUnit(models.Model):
                 )
 
     @api.constrains("company_ids")
-    def _validate_companies(self):
+    def _check_companies(self):
         for record in self:
             if len(record.company_ids) < 2:
                 raise ValidationError(

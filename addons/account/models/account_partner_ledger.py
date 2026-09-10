@@ -336,7 +336,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                                 - debit, credit, amount, balance:  float, set directly on the dict (not nested)
         """
 
-        def assign_sum(row):
+        def _update_sum(row):
             fields_to_assign = ["balance", "debit", "credit", "amount"]
             if any(
                 not company_currency.is_zero(row[field]) for field in fields_to_assign
@@ -367,7 +367,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
 
         self.env.cr.execute(query)
         for res in self.env.cr.dictfetchall():
-            assign_sum(res)
+            _update_sum(res)
 
         # Correct the sums per partner, for the lines without partner reconciled with a line having a partner
         self._add_sums_of_lines_without_partners(options, groupby_partners)

@@ -13,12 +13,8 @@ class TestDeferredReports(TestAccountReportsCommon, HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.deferred_expense_report = cls.env.ref(
-            "account.deferred_expense_report"
-        )
-        cls.deferred_revenue_report = cls.env.ref(
-            "account.deferred_revenue_report"
-        )
+        cls.deferred_expense_report = cls.env.ref("account.deferred_expense_report")
+        cls.deferred_revenue_report = cls.env.ref("account.deferred_revenue_report")
         cls.handler = cls.env["account.deferred.expense.report.handler"]
 
         cls.expense_accounts = [

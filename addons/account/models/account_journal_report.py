@@ -67,7 +67,7 @@ class AccountJournalReportHandler(models.AbstractModel):
         warnings=None,
     ):
 
-        def build_result_dict(current_groupby, query_line):
+        def _prepare_result_dict(current_groupby, query_line):
             """Create a line entry used by the custom engine."""
             if current_groupby == "account_id":
                 code = query_line["account_code"][0]
@@ -161,7 +161,7 @@ class AccountJournalReportHandler(models.AbstractModel):
         result_lines = []
 
         for query_line in query_lines:
-            result_lines.append(build_result_dict(current_groupby, query_line))  # noqa: PERF401
+            result_lines.append(_prepare_result_dict(current_groupby, query_line))  # noqa: PERF401
 
         return result_lines
 
@@ -395,7 +395,7 @@ class AccountJournalReportHandler(models.AbstractModel):
     # XLSX Export
     ##########################################################################
 
-    def _inject_report_into_xlsx_sheet(self, options, workbook):
+    def _update_report_in_xlsx_sheet(self, options, workbook):
         """Override to handle the journal report XLSX export when used in composite reports."""
         report = self.env["account.report"].browse(options["report_id"])
         # We need to use fonts to calculate column width otherwise column width would be ugly
@@ -593,7 +593,7 @@ class AccountJournalReportHandler(models.AbstractModel):
                 "strings_to_formulas": False,
             },
         ) as workbook:
-            workbook = self._inject_report_into_xlsx_sheet(options, workbook)
+            workbook = self._update_report_in_xlsx_sheet(options, workbook)
             report._add_options_xlsx_sheet(workbook, [print_options])
         output.seek(0)
         generated_file = output.read()
@@ -2053,14 +2053,10 @@ class AccountJournalReportHandler(models.AbstractModel):
                 context_update["search_default_to_check_draft"] = 1
 
         if journal.type in ("bank", "credit"):
-            params["view_ref"] = (
-                "account.view_journal_report_audit_bank_move_line_tree"
-            )
+            params["view_ref"] = "account.view_journal_report_audit_bank_move_line_tree"
             context_update["search_default_exclude_bank_lines"] = 1
         else:
-            params["view_ref"] = (
-                "account.view_journal_report_audit_move_line_tree"
-            )
+            params["view_ref"] = "account.view_journal_report_audit_move_line_tree"
             context_update.update(
                 {
                     "search_default_group_by_move": 1,

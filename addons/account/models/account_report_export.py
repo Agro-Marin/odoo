@@ -407,13 +407,13 @@ class AccountReportExport(models.Model):
                 # Use custom handler's XLSX export method if available
                 custom_handler_model = report._get_custom_handler_model()
                 if custom_handler_model and hasattr(
-                    self.env[custom_handler_model], "_inject_report_into_xlsx_sheet"
+                    self.env[custom_handler_model], "_update_report_in_xlsx_sheet"
                 ):
-                    self.env[custom_handler_model]._inject_report_into_xlsx_sheet(
+                    self.env[custom_handler_model]._update_report_in_xlsx_sheet(
                         report_options, workbook
                     )
                 else:
-                    report._inject_report_into_xlsx_sheet(
+                    report._update_report_in_xlsx_sheet(
                         report_options,
                         workbook,
                         add_worksheet_unique_name(workbook, report.name),
@@ -491,7 +491,7 @@ class AccountReportExport(models.Model):
                 fonts[font_type] = ImageFont.load_default()
         return fonts
 
-    def _inject_report_into_xlsx_sheet(self, options, workbook, sheet):
+    def _update_report_in_xlsx_sheet(self, options, workbook, sheet):
         fonts = self._get_xlsx_export_fonts()
 
         def write_cell(sheet, x, y, value, style, colspan=1, rowspan=1, datetime=False):
@@ -980,7 +980,7 @@ class AccountReportExport(models.Model):
         if len(options_list) == 1:
             self.env["account.report"].browse(
                 options_list[0]["report_id"]
-            )._inject_report_options_into_xlsx_sheet(
+            )._update_report_options_in_xlsx_sheet(
                 options_list[0], filters_sheet, y_offset
             )
             return
@@ -1002,7 +1002,7 @@ class AccountReportExport(models.Model):
         # Write common options to the sheet.
         filters_sheet.write(y_offset, 0, _("All"), name_style)
         y_offset += 1
-        y_offset = self._inject_report_options_into_xlsx_sheet(
+        y_offset = self._update_report_options_in_xlsx_sheet(
             common_options_values, filters_sheet, y_offset
         )
 
@@ -1011,7 +1011,7 @@ class AccountReportExport(models.Model):
 
             filters_sheet.write(y_offset, 0, report.name, name_style)
             y_offset += 1
-            new_offset = report._inject_report_options_into_xlsx_sheet(
+            new_offset = report._update_report_options_in_xlsx_sheet(
                 report_options, filters_sheet, y_offset, uncommon_options_keys
             )
 
@@ -1022,7 +1022,7 @@ class AccountReportExport(models.Model):
             else:
                 y_offset = new_offset
 
-    def _inject_report_options_into_xlsx_sheet(
+    def _update_report_options_in_xlsx_sheet(
         self, options, sheet, y_offset, options_to_print=None
     ):
         """Inject the report options into the filters sheet.

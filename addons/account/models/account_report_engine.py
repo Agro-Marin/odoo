@@ -84,7 +84,7 @@ class AccountReport(models.Model):
     )
 
     @api.constrains("custom_handler_model_id")
-    def _validate_custom_handler_model(self):
+    def _check_custom_handler_model(self):
         for report in self:
             if report.custom_handler_model_id:
                 custom_handler_model = self.env.registry[
@@ -491,7 +491,7 @@ class AccountReport(models.Model):
 
         return lines
 
-    def _inject_account_names_for_consolidation(self, lines):
+    def _update_account_names_for_consolidation(self, lines):
         """When grouping by account_code, in order to make the consolidation clearer, we add the account name in the context
         of the current company next to the account_code.
         """

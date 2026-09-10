@@ -179,7 +179,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             )
             periods.append((start_date, end_date))
 
-        def build_result_dict(report, query_res_lines):
+        def _prepare_result_dict(report, query_res_lines):
             rslt = {f"period{i}": 0 for i in range(len(periods))}
 
             for query_res in query_res_lines:
@@ -395,7 +395,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
         query_res_lines = self.env.cr.dictfetchall()
 
         if not current_groupby:
-            return build_result_dict(report, query_res_lines)
+            return _prepare_result_dict(report, query_res_lines)
         else:
             rslt = []
 
@@ -405,7 +405,9 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                 all_res_per_grouping_key.setdefault(grouping_key, []).append(query_res)
 
             for grouping_key, query_res_lines in all_res_per_grouping_key.items():
-                rslt.append((grouping_key, build_result_dict(report, query_res_lines)))
+                rslt.append(
+                    (grouping_key, _prepare_result_dict(report, query_res_lines))
+                )
 
             return rslt
 
