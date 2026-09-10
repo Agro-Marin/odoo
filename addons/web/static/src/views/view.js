@@ -84,7 +84,12 @@ import {
 const viewRegistry = registry.category("views");
 
 viewRegistry.addValidation({
-    type: { validate: (/** @type {any} */ t) => t in session.view_info },
+    // a page without view_info (the login page, a frontend bundle) still
+    // registers views; a validator that throws there drops the view instead
+    type: {
+        validate: (/** @type {any} */ t) =>
+            typeof t === "string" && (!session.view_info || t in session.view_info),
+    },
 
     Controller: {
         validate: (/** @type {any} */ c) => c.prototype instanceof Component,
