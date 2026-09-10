@@ -296,9 +296,9 @@ vCard export for contact data.
 - `_prepare_vcard()` — Constructs vobject vCard from partner. Sets: `n` (structured name), `fn` (formatted name), `adr` (with optional `region`/`country`), `email` (`type_param="INTERNET"`), `tel` (`type_param="work"`), `url` (website), `org`, `title`, `photo` (base64 with `encoding_param="B"`).
 - `_get_vcard_file()` — Returns serialized vCard bytes.
 
-> **`vobject` is imported lazily, not at module top.** `_vobject()` (`res_partner.py`, `functools.cache`d) performs the `import vobject.vcard` and builds the `Proxy` classes on first use, because the proxy class bodies reference `vobject.base` at *definition* time. A top-level import would make the whole `web` addon fail to import when the library is absent. `controllers/vcard.py` guards the route with `importlib.util.find_spec("vobject")` and raises a clean `UserError` when it is missing — so the failure mode is a user-facing error on the vcard request, **not** an import-time crash.
+> **`vobject` is imported lazily, not at module top.** `_get_vobject()` (`res_partner.py`, `functools.cache`d) performs the `import vobject.vcard` and builds the `Proxy` classes on first use, because the proxy class bodies reference `vobject.base` at *definition* time. A top-level import would make the whole `web` addon fail to import when the library is absent. `controllers/vcard.py` guards the route with `importlib.util.find_spec("vobject")` and raises a clean `UserError` when it is missing — so the failure mode is a user-facing error on the vcard request, **not** an import-time crash.
 >
-> `vobject` is **not** declared in `__manifest__.py` — the manifest has no `external_dependencies` key at all. The docstring on `_vobject()` claims it is declared; that docstring is wrong, and the guard in `vcard.py` is what actually makes the dependency optional. Declaring it would be the tidier fix, but it changes installability, so it is called out here rather than assumed.
+> `vobject` is **not** declared in `__manifest__.py` — the manifest has no `external_dependencies` key at all. The docstring on `_get_vobject()` claims it is declared; that docstring is wrong, and the guard in `vcard.py` is what actually makes the dependency optional. Declaring it would be the tidier fix, but it changes installability, so it is called out here rather than assumed.
 
 ## Observability
 
