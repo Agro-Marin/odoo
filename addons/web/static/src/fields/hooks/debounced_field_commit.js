@@ -24,9 +24,17 @@ export function useDebouncedFieldCommit(commit, delay) {
         }
     };
 
-    const { bus } = component.props.record.model;
-    useBus(bus, ModelEvent.NEED_LOCAL_CHANGES, flush);
-    useBus(bus, ModelEvent.WILL_SAVE_URGENTLY, flush);
+    useFieldFlush(component.props.record.model.bus, flush);
 
     return debounced;
+}
+
+/**
+ * @param {import("@odoo/owl").EventBus} bus the record's model bus
+ * @param {(ev: CustomEvent, urgent: boolean) => void} onFlush pushes its promise
+ *  into ev.detail.proms when it has one
+ */
+export function useFieldFlush(bus, onFlush) {
+    useBus(bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) => onFlush(ev, false));
+    useBus(bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) => onFlush(ev, true));
 }

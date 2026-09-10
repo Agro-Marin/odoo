@@ -25,7 +25,6 @@ export class ContactImageField extends ImageField {
                     field: imageFieldName,
                     unique: this.rawCacheKey,
                 });
-                this.lastURL = { field: imageFieldName, url };
                 return url;
             }
         }

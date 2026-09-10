@@ -10,6 +10,7 @@ import { fieldHandleFor } from "@web/fields/field_handle";
 import { imageDimensionAttributes, imageSizeOption } from "@web/fields/field_options";
 import { parseDimensionAttr } from "@web/fields/field_utils";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { IMAGE_PLACEHOLDER } from "@web/fields/media/image/image_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class ImageUrlField extends FieldComponent {
@@ -20,7 +21,7 @@ export class ImageUrlField extends FieldComponent {
         height: { type: Number, optional: true },
     };
 
-    static fallbackSrc = "/web/static/img/placeholder.png";
+    static fallbackSrc = IMAGE_PLACEHOLDER;
 
     /** @type {{ src: any }} */
     state;

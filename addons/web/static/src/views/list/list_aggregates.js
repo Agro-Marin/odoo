@@ -113,14 +113,10 @@ function collectFieldEntries(rows, fieldName) {
 /**
  * @param {any} column
  * @param {Record<string, any>} fields
- * @param {Record<string, boolean>} optionalActiveFields
  * @returns {Record<string, any> | null}
  */
-function aggregatableField(column, fields, optionalActiveFields) {
+function aggregatableField(column, fields) {
     if (column.type !== "field") {
-        return null;
-    }
-    if (column.name in optionalActiveFields && !optionalActiveFields[column.name]) {
         return null;
     }
     const field = fields[column.name];
@@ -194,7 +190,7 @@ function convertEntriesToCompanyCurrency(
     return true;
 }
 
-/** @typedef {Pick<import("./list_renderer").ListGridContext, "getColumns" | "getFields" | "getProps" | "getOptionalActiveFields">} ListAggregatesContext */
+/** @typedef {Pick<import("./list_renderer").ListGridContext, "getColumns" | "getFields" | "getProps">} ListAggregatesContext */
 
 export class ListAggregates {
     /**
@@ -349,7 +345,6 @@ export class ListAggregates {
     computeAggregates() {
         const columns = this.ctx.getColumns();
         const fields = this.ctx.getFields();
-        const optionalActiveFields = this.ctx.getOptionalActiveFields();
         const { list } = this.ctx.getProps();
         const isGroupedAggregation =
             Boolean(/** @type {any} */ (list).isGrouped) && !list.selection.length;
@@ -359,7 +354,7 @@ export class ListAggregates {
         let values = null;
 
         for (const column of columns) {
-            const field = aggregatableField(column, fields, optionalActiveFields);
+            const field = aggregatableField(column, fields);
             if (!field) {
                 continue;
             }

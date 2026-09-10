@@ -544,10 +544,7 @@ export class AutoComplete extends Component {
         if (this.ignoreBlur) {
             ev.stopImmediatePropagation();
         }
-        this.props.onChange({
-            inputValue: this.inputRef.el.value,
-            isOptionSelected: this.ignoreBlur,
-        });
+        this.props.onChange({ inputValue: this.inputRef.el.value });
     }
     onInput() {
         this.inEdition = true;

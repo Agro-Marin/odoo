@@ -85,21 +85,3 @@ export function getGroupPagerCellColspan(
     }
     return colspan;
 }
-
-/**
- * @param {Group} group
- * @returns {number}
- */
-export function countRecordsInGroup(group) {
-    if (group.isFolded) {
-        return 0;
-    } else if (group.list.isGrouped) {
-        let count = 0;
-        for (const gr of group.list.groups) {
-            count += countRecordsInGroup(gr);
-        }
-        return count;
-    } else {
-        return group.list.records.length;
-    }
-}

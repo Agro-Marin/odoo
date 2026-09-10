@@ -10,7 +10,6 @@ import { TagsList } from "@web/components/tags_list/tags_list";
 import { useAction } from "@web/core/action_port";
 import { getCurrency } from "@web/core/currency";
 import { Domain } from "@web/core/domain";
-import { ModelEvent } from "@web/core/events";
 import { formatInteger, formatMany2one, formatMonetary } from "@web/core/formatters";
 import {
     deserializeDate,
@@ -25,8 +24,9 @@ import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
+import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 import { extractData } from "@web/fields/relational/many2one/many2one";
 import {
     Many2XAutocomplete,
@@ -82,8 +82,7 @@ export class PropertyValue extends Component {
                     ev.detail?.proms?.push(this.onValueChange(el.value));
                 }
             };
-            useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, flush);
-            useBus(this.props.record.model.bus, ModelEvent.WILL_SAVE_URGENTLY, flush);
+            useFieldFlush(this.props.record.model.bus, flush);
         }
 
         this.openMany2X = useOpenMany2XRecord(

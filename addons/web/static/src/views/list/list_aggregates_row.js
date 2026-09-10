@@ -22,8 +22,6 @@ export class ListAggregatesRow extends Component {
         archInfo: Object,
         /** @type {any} */
         columns: Array,
-        /** @type {any} */
-        optionalActiveFields: Object,
         hasSelectors: Boolean,
         hasOpenFormViewColumn: Boolean,
         displayOptionalFields: Boolean,

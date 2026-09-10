@@ -307,8 +307,6 @@ export class MagicColumnWidths {
     /** @type {string | undefined} */
     hash;
     /** @type {boolean} */
-    _resizing = false;
-    /** @type {boolean} */
     _justResized = false;
     /** @type {number | undefined} */
     parentWidth;
@@ -333,11 +331,6 @@ export class MagicColumnWidths {
     constructor(tableRef, getState) {
         this.tableRef = tableRef;
         this.getState = getState;
-    }
-
-    /** @returns {boolean} */
-    get resizing() {
-        return this._resizing;
     }
 
     /** @returns {boolean} */
@@ -460,12 +453,10 @@ export class MagicColumnWidths {
 
     /** @param {MouseEvent} ev */
     onStartResize(ev) {
-        this._resizing = true;
         const table = this.tableRef.el;
         const th = /** @type {HTMLElement} */ (ev.target).closest("th");
         const thRow = th?.parentNode;
         if (!th || !thRow) {
-            this._resizing = false;
             return;
         }
         table.style.width = `${Math.floor(table.getBoundingClientRect().width)}px`;
@@ -501,7 +492,6 @@ export class MagicColumnWidths {
         browser.addEventListener("pointermove", resizeHeader);
 
         const cleanup = () => {
-            this._resizing = false;
             for (const el of resizingColumnElements) {
                 el.classList.remove("o_column_resizing");
             }
@@ -517,7 +507,6 @@ export class MagicColumnWidths {
             if (ev.type === "pointerdown" && ev.button === 0) {
                 return;
             }
-            this._resizing = false;
             this._justResized = true;
 
             const headers = [...table.querySelectorAll("thead th")];

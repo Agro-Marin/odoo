@@ -3,7 +3,6 @@
 
 import { onWillRender, useEffect, useRef, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
-import { ModelEvent } from "@web/core/events";
 import { formatFieldDate, formatFieldDateTime } from "@web/core/formatters";
 import {
     areDatesEqual,
@@ -17,7 +16,6 @@ import { _t } from "@web/core/translation";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { pick } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { useBus } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
@@ -26,6 +24,7 @@ import {
     placeholderFieldOption,
 } from "@web/fields/field_options";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
+import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 function getFormattedPlaceholder(value, type, options) {
@@ -120,12 +119,8 @@ export class DateTimeField extends FieldComponent {
         this.picker = useState({ activeInput: "" });
         this.openPicker = dateTimePicker.open;
 
-        const { model } = this.props.record;
-        useBus(model.bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) =>
+        useFieldFlush(this.props.record.model.bus, (ev) =>
             ev.detail?.proms?.push(dateTimePicker.commitInputs()),
-        );
-        useBus(model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) =>
-            ev.detail.proms.push(dateTimePicker.commitInputs()),
         );
 
         this.startDate = useRef("start-date");

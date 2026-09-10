@@ -3,10 +3,9 @@
 
 import { useComponent, useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { ModelEvent } from "@web/core/events";
 import { ParseError } from "@web/core/parse_error";
-import { useBus } from "@web/core/utils/hooks";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
+import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 
 /**
  * @typedef InputFieldContext
@@ -207,12 +206,8 @@ export function useInputField(params) {
         ctx.edit.lastSetValue = el.value;
     });
 
-    const { model } = component.props.record;
-    useBus(model.bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) => {
-        ev.detail?.proms?.push(commitInputChanges(ctx, true));
-    });
-    useBus(model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) => {
-        ev.detail.proms.push(commitInputChanges(ctx));
+    useFieldFlush(component.props.record.model.bus, (ev, urgent) => {
+        ev.detail?.proms?.push(commitInputChanges(ctx, urgent));
     });
 
     return inputRef;

@@ -6,16 +6,16 @@ import { DomainSelector } from "@web/components/domain_selector/domain_selector"
 import { useGetDefaultLeafDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import { Domain, InvalidDomainError } from "@web/core/domain";
-import { ModelEvent } from "@web/core/events";
 import { rpc } from "@web/core/network/rpc";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
 import { _t } from "@web/core/translation";
 import { domainContainsExpressions } from "@web/core/tree/domain_contains_expressions";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
-import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
+import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -98,16 +98,7 @@ export class DomainField extends FieldComponent {
             };
             ev.detail?.proms?.push(handleChanges());
         };
-        useBus(
-            this.props.record.model.bus,
-            ModelEvent.NEED_LOCAL_CHANGES,
-            flushDebugDomain,
-        );
-        useBus(
-            this.props.record.model.bus,
-            ModelEvent.WILL_SAVE_URGENTLY,
-            flushDebugDomain,
-        );
+        useFieldFlush(this.props.record.model.bus, flushDebugDomain);
 
         this.setFieldDirty = useFieldDirtySignal();
     }

@@ -2,7 +2,6 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
-    countRecordsInGroup,
     getAggregateColumns,
     getGroupNameCellColSpan,
     getGroupPagerCellColspan,
@@ -101,39 +100,5 @@ describe("getGroupPagerCellColspan", () => {
                 { hasOpenFormViewColumn: true },
             ),
         ).toBe(2);
-    });
-});
-
-describe("countRecordsInGroup", () => {
-    const leaf = (n) => ({
-        isFolded: false,
-        list: { isGrouped: false, records: new Array(n).fill(0) },
-    });
-
-    test("counts a flat group's loaded records", () => {
-        expect(countRecordsInGroup(leaf(3))).toBe(3);
-    });
-
-    test("a folded group counts as empty", () => {
-        expect(countRecordsInGroup({ ...leaf(3), isFolded: true })).toBe(0);
-    });
-
-    test("recurses into nested groups", () => {
-        const group = {
-            isFolded: false,
-            list: { isGrouped: true, groups: [leaf(2), leaf(5)] },
-        };
-        expect(countRecordsInGroup(group)).toBe(7);
-    });
-
-    test("a folded nested group contributes nothing", () => {
-        const group = {
-            isFolded: false,
-            list: {
-                isGrouped: true,
-                groups: [leaf(2), { ...leaf(5), isFolded: true }],
-            },
-        };
-        expect(countRecordsInGroup(group)).toBe(2);
     });
 });

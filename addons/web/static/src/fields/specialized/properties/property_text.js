@@ -2,9 +2,8 @@
 /** @odoo-module native */
 
 import { Component, useRef } from "@odoo/owl";
-import { ModelEvent } from "@web/core/events";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
-import { useBus } from "@web/core/utils/hooks";
+import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 export class PropertyText extends Component {
     static template = "web.PropertyText";
     static props = {
@@ -29,8 +28,7 @@ export class PropertyText extends Component {
                     );
                 }
             };
-            useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, flush);
-            useBus(this.props.record.model.bus, ModelEvent.WILL_SAVE_URGENTLY, flush);
+            useFieldFlush(this.props.record.model.bus, flush);
         }
     }
 }

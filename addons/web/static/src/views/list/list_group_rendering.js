@@ -2,7 +2,6 @@
 /** @odoo-module native */
 
 import {
-    countRecordsInGroup,
     getAggregateColumns as getAggregateColumnsUtil,
     getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
     getGroupPagerCellColspan as getGroupPagerCellColspanUtil,
@@ -31,14 +30,6 @@ export const listGroupRenderingMixin = {
             type: "ir.actions.act_window",
             views: [[false, "form"]],
         });
-    },
-
-    /**
-     * @param {Object} group
-     * @returns {number}
-     */
-    nbRecordsInGroup(group) {
-        return countRecordsInGroup(group);
     },
 
     /** @param {Object} group */
