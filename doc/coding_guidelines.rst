@@ -941,6 +941,38 @@ field: ``_<attr>_<field>``, spelled in full -- ``_default_category_id``, not
 exempt -- a domain is a search hook's contract. The object leads and the family
 marker sits next to the verb; an earlier rule asked only for a ``_domain`` suffix.
 
+**The tail-marked spelling is gated, and the exemption is read off the
+annotation, never off the name** ``[gate naming]``. ``base`` was read by hand
+and ``_get_eval_domain``, ``_get_action_domain``,
+``_get_inheriting_views_domain`` and ``_get_name_search_domain`` all returned a
+``Domain`` under the spelling this rule retired -- while ``fieldhooks``'
+``unmarked`` kind sees only a body whose every return is a literal, so a domain
+assembled in a variable or through ``Domain.AND`` escaped it, and
+``naming_vocabulary`` read the addon as clean. ``domain_tail_under_get`` now
+reports every ``_get_<what>_domain`` in ``measure()``: the name is the claim,
+and a ``_domain`` tail promises a ``Domain``. It is in ``measure()`` and
+**not** in ``classify`` on purpose -- ``naming_core_vocabulary`` reads
+``classify`` as its ``leading`` kind and pins ``_get_x_domain`` as accepted
+there, because its question is whether ``domain`` is a trailing *verb*, which it
+is not; widening the shared name test would have moved twenty of ``stock``'s
+hard-zero names through a file this rule does not own. *Frozen reading* (§1.4)
+at the commit that landed it: **158** in ``addons/``, **78** in ``enterprise``,
+**8** in ``agromarin``, **0** in ``design-themes``, and **0** left in ``base``.
+
+* **Two honest exceptions share one test.** A hostname (``website``'s
+  ``_get_http_domain -> str``) and a record of a model whose own noun is
+  *domain* (``mail.alias.domain``'s ``_get_default_domain -> Self``) both wear
+  the word for something that is not a search domain. The gate exempts a
+  definition whose **return annotation** names a type that is not a domain, and
+  holds an unannotated body to its name -- because the name cannot say which
+  ``domain`` it means and the annotation can. An unannotated
+  ``_get_company_domain`` returning a URL's host is reported, and the repair is
+  to say what comes back (``_get_company_host``) or to annotate it; either
+  makes the claim checkable.
+* **The printed canonical is a hypothesis** (§2.4.8). ``_get_domain_*`` is
+  right for the body that returns one; the converse below says what the other
+  body is owed.
+
 **And the converse: a ``_get_domain_*`` returns a ``Domain``** ``[review]``. The
 free-standing form is a promise about the **return**, not a topic label, so a
 method named for what a domain *reads* is named for that instead. ``ir.rule``
@@ -1222,25 +1254,25 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   321
 §2.4.2   … of those, spelled ``_check_<field>``                        144
 §2.4.2   Multi-field constraints named for one trigger                  61
-§2.4.3   Non-test methods declared on a model class                 27,053
+§2.4.3   Non-test methods declared on a model class                 27,049
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
-§2.4.4   Model methods with an abolished verb behind a noun            143
-§2.4.4   Canonical verb behind a first token carrying no rule          681
+§2.4.4   Model methods with an abolished verb behind a noun            171
+§2.4.4   Canonical verb behind a first token carrying no rule          675
 §2.4.4   Model methods opening with ``auto`` fused to a verb            13
 §2.4.4   ``fields`` family: definitions spelled head-first             222
 §2.4.4   ``fields`` family: distinct names spelled head-first          100
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
-§2.4.4   Other heads: definitions spelled head-first                   153
-§2.4.4   Other heads: definitions spelled tail-first                   190
+§2.4.4   Other heads: definitions spelled head-first                   151
+§2.4.4   Other heads: definitions spelled tail-first                   192
 §2.4.5   ``X_to_Y`` converter definitions                              103
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,420
+§2.4.7   ``_get_*`` definitions                                      6,440
 §2.4.7   Abolished payload verbs, the four between them                  0
-§2.4.7   ``_generate_*`` definitions                                   141
+§2.4.7   ``_generate_*`` definitions                                   139
 §2.4.7   ``_calculate_*`` model methods                                  0
-§2.4.7   ``_prepare_*`` definitions                                    897
+§2.4.7   ``_prepare_*`` definitions                                    900
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            36
 §2.4.8   ``_check_*`` definitions                                    1,231
 §2.4.8   ``_validate_*`` definitions                                     0
@@ -1253,12 +1285,12 @@ Section  Population                                                  Count
 §2.4.11  … doing something else entirely                                15
 §2.4.11  ``_find_or_create_*`` methods                                   1
 §2.4.11  ``_get_or_create_*`` methods                                   32
-§2.4.11  ``_resolve_*`` definitions                                     28
+§2.4.11  ``_resolve_*`` definitions                                     29
 §2.4.12  ``_set_*`` definitions                                        127
-§2.4.12  ``_update_*`` definitions                                     419
+§2.4.12  ``_update_*`` definitions                                     422
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             262
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
-§2.4.12  ``_sync_*`` definitions                                        84
+§2.4.12  ``_sync_*`` definitions                                        88
 §2.4.12  ``_synchronize_*`` definitions                                  0
 §2.4.12  ``_post_*`` definitions                                       144
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      359
@@ -2079,12 +2111,12 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.7 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.8 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
 deriving and computing. The split that matters is against ``_prepare_``: 692
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 897 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 900 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -2180,7 +2212,11 @@ measurement, and a gap between them is the defect this paragraph used to record.
   branch unreachable.
 * **A bare assemble verb is still out of scope for this gate.** ``classify``
   partitions on the first token and returns nothing when there is no remainder,
-  so ``make()`` and ``_build()`` are reported by the core gate alone (§2.4.6).
+  so ``make()`` and ``_build()`` are reported by the core gate alone (§2.4.6) --
+  and, since ``5b01cd9535ac``, so is every other bare verb the core gate's body
+  rules reach: ``classify_definition`` used to return on a bare name before any
+  body rule ran, so ``def _resolve(settings)`` that always produced one passed a
+  gate whose own ``resolve-total`` rule names it.
 
 **``_calculate_`` is the read family's ``_generate_``**
 ``[gate doc_restated_counts]``. It names the arithmetic where ``_generate_`` names
@@ -2260,8 +2296,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **352** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **279**
+**A ``bool`` return does not make a predicate** ``[review]``. **343** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **287**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -2407,13 +2443,31 @@ this one is not gated, so any figure written here would drift unchecked.
   there is deletion rather than either branch above.
 
 **``_should_`` is a fourth predicate prefix, and the row does not list it**
-``[review]``. *Frozen reading* (§1.4) at ``216b5a03021``: ``_is_`` **363**,
+``[gate naming]``. *Frozen reading* (§1.4) at ``216b5a03021``: ``_is_`` **363**,
 ``_has_`` **70**, ``_can_`` **69**, against ``_should_`` **58**, ``_must_`` **8**,
 ``_needs_`` **6** and ``_requires_`` **1**. The canonical is the three: ask the
 question in the tense the caller asks it and put the modality in the tail
-(``_should_stream_upload`` → ``_is_stream_upload_required``). It is not in
-``ABOLISHED`` because every entry there prints **one** canonical target and this
-family has three. Owed its own record.
+(``_should_stream_upload`` → ``_is_stream_upload_required``).
+
+* **The necessity modals are in ``ABOLISHED`` now** -- ``should``, ``need``,
+  ``needs``, ``must``, ``want``, ``wants``, ``requires`` -- and the entry prints
+  ``_is_`` because a table entry prints one canonical, not because the family
+  has one. The printed target is the hypothesis §2.4.8 already says every
+  canonical is: ``_need_special_rules`` is ``_has_special_rules``, and
+  ``_wants_multi_company_group``, which returned ``True``, ``False`` or ``None``
+  meaning *no change*, is §2.4.11's ``_resolve_multi_company_group_membership``
+  -- a name no predicate prefix could carry honestly. What the entry settles is
+  that the name is reported at all: ``mrp`` drained its eight by hand while the
+  gate read the addon as clean, which is the shape the table exists to close.
+  *Frozen reading* (§1.4) at the commit that landed it: **42** in ``addons/``,
+  **11** in ``enterprise``, **7** in ``agromarin``. The shared table also
+  reaches ``naming_core_vocabulary``, and its whole core-side population was
+  three names (``web``'s ``_should_captcha_login``, ``sale``'s
+  ``_should_show_product``, ``tools/populate``'s ``field_needs_variation``),
+  renamed in the same commit so no hard zero moved.
+* **Possibility stays out of the table**, for the reason the next paragraph
+  gives: ``may`` / ``might`` / ``could`` already have ``_can_`` and the repair is
+  a reordering the gate cannot print.
 
 **A possibility modal already has a canonical prefix, and then the repair is a
 reordering rather than a rewrite** ``[review]``. The rule above is written for
@@ -2492,10 +2546,18 @@ rest in the tail: ``_is_exception_detail_hidden``,
   prefix to the front is not grammar, it is §2.4.3's: one spelling per operation,
   so that the family can be found.
 * **A predicate prefix over a body that returns nothing is not a weakened claim
-  but an inverted one** ``[review]``. The rules above keep a ``bool`` from
-  conferring the prefix and keep the prefix from surviving a degrading return
-  (``has_unaccent``); the third case is the prefix surviving where there is **no
-  return at all**, and then the caller reads a question and gets a write.
+  but an inverted one** ``[gate naming_core]``. The rules above keep a ``bool``
+  from conferring the prefix and keep the prefix from surviving a degrading
+  return (``has_unaccent``); the third case is the prefix surviving where there
+  is **no return at all**, and then the caller reads a question and gets a
+  write. ``naming_core_vocabulary``'s ``predicate-no-return`` kind reports an
+  ``_is_`` / ``_has_`` / ``_can_`` over a body with no return and no raise, and
+  its ``preposition-predicate`` kind reads the prepositional-phrase row above
+  the other way -- a first token ``in`` / ``within`` / ``on`` / ``at`` /
+  ``under`` over a body that answers a question is ``_is_`` / ``_has_``
+  (``ddl._in_code_ranges`` → ``_is_within_code_ranges``), a ``@property`` being
+  exempt. Both read 0 in core and in every governed addon scope when they
+  landed (``5b01cd9535ac``).
   ``NameManager.has_field(node, name, node_info, info) -> None`` **records** a
   field as available -- it updates ``available_fields``, assigns ``field_groups``
   and calls ``available_names.add`` -- and ``ir.ui.view``'s
@@ -2557,6 +2619,12 @@ the Validation row exactly as a ``ValidationError`` would be, and
 draws is *does control leave*, not *which statement*: a ``_check_`` that returns
 normally on failure is the defect, whatever it wrote on the way.
 
+* **A ``_check_`` that neither raises nor answers nor warns has done something
+  else, and is named for that.** ``service/db/lifecycle._check_faketime_mode``
+  installed a ``faketime`` ``now()`` function in the database and never raised;
+  it is ``_create_faketime_now_function`` (``fd9562fb53e8``). The verb was a
+  claim that control might leave, and nothing in the body could make it.
+
 **An adjective-named ``@property`` promises a ``bool``, and returning a count is
 the same lie one type over** ``[review]``. Two rules leave this hole between
 them: §2.4.4 exempts a ``@property`` from *the verb leads* and allows an
@@ -2593,6 +2661,13 @@ rewrite exists.
 * **A callback is a role, not an operation** ``[review]``. ``_callback`` names
   the fact that something calls it back, which every method in a dispatch chain
   does; it is ``_run_server_action``.
+* **A protocol member is a batch, not a rename** ``[review]``. ``ir.http``'s
+  ``_handle_error`` is this section's verb, and it is mirrored by
+  ``HttpExtension`` in ``odoo/http/_protocols.py`` and overridden across the
+  addons; the Protocol, the base, every override and the dispatcher that calls
+  it move together or not at all (§2.4.14). Left as it is by the ``odoo/http``
+  and ``base`` sweeps for that reason, and recorded so the next reader does not
+  take it as a one-liner.
 * **Where the operation is what the model is about, the verb is a domain verb.**
   ``ir.cron`` exists to run scheduled jobs; ``_eval_`` is what ``safe_eval`` does;
   rendering is a reporting engine's domain operation. The test: could the name be
@@ -2683,9 +2758,17 @@ grounds in ascending weight:
 The cost is accepted -- the call site says the verb twice, and ``B904`` fires the
 moment the raise moves into the caller's own ``except``.
 
-* **The larger half says no verb at all** ``[review]``: a builder that already
-  returns the exception is invisible to both mechanisms when its name is a noun
-  phrase. ``odoo/db``'s ``ConnectionPool._budget_exhausted`` was the shape
+* **The larger half says no verb at all** ``[gate naming_core]``: a builder
+  that already returns the exception was invisible to both mechanisms when its
+  name is a noun phrase, and is gated now -- ``naming_core_vocabulary``'s
+  ``error-builder`` kind (``5b01cd9535ac``) reports a body whose every return
+  constructs an exception (a class imported from an ``*.exceptions`` module, a
+  subclass of one, or spelled ``*Error`` / ``*Exception`` / ``*Warning`` /
+  ``*Denied`` / ``*Exit``), that raises nothing, and whose name is not
+  ``_prepare_*_error`` or ``_resolve_*_error``; the ``X_to_Y`` converter idiom
+  and a closure filling a same-named parameter slot are exempt. It found
+  ``res.config.settings.get_config_warning`` under the Read verb, now
+  ``prepare_config_warning``. ``odoo/db``'s ``ConnectionPool._budget_exhausted`` was the shape
   exactly -- it builds a ``PoolError``, its one call site already writes
   ``raise self._budget_exhausted()``, and only the name was missing; it is
   ``_prepare_budget_exhausted_error``. **Being right about the control flow is
@@ -2761,6 +2844,15 @@ outright, because it reads as *correct* -- the method does assert -- and because
 it is test vocabulary migrating into production code, which is a shape a reviewer
 can learn to see: ``_assert_dump_sql_safe`` and ``_assert_filestore_dest_free``
 both raise, and both are the Validation row.
+
+**A noun phrase that builds an error is this section's, and the paired-model
+rule finds it as surely as the body does** ``[review]``. ``fetchmail.server``
+carried ``_connection_test_error``, a name with no verb that constructed and
+returned the exception ``ir.mail.server`` had already spelled
+``_prepare_connection_test_error`` on its own model; §2.4.3's *look for the
+same operation on the other half of a paired model* reaches it from the name
+alone, and a body read reaches it from the return. Both mail-server models now
+spell it the same way (odoo ``52ede28f1c84``).
 
 2.4.11 Partial producers and the ``_find_`` family
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2952,8 +3044,9 @@ payload builder, even though no record is written; §2.4.7's parameter-list test
 is what separates the two.
 
 **A producer prefix on a body that hands nothing back is this row** ``[gate
-naming]``. ``_get_``, ``_resolve_`` and ``_prepare_`` each claim a return -- the
-Read row's value, §2.4.11's object-or-``None``, the Payload row's mapping. A body
+naming]``. ``_get_``, ``_resolve_``, ``_prepare_`` and ``_generate_`` each claim
+a return -- the Read row's value, §2.4.11's object-or-``None``, the Payload
+row's mapping, §2.4.7's manufactured artefact. A body
 under one of them that never ``return``\ s or ``yield``\ s a value, and instead
 stores into something or writes records, did this row's work under a producer's
 name: filled a dict the caller owns (``_prepare_request(url, kwargs)`` setting
@@ -2998,6 +3091,22 @@ with a note saying the scan grew and not the tree.
   double-report today because those scopes read zero under both; where they
   ever disagree, the shared gate's store-or-write test is the narrower reading
   and the one to trust.
+* **``_generate_`` joined the producer verbs, and the printed canonical splits
+  on the write.** ``res.users._generate_missing_avatars`` wrote ``image_1920``
+  on the receiver and returned nothing -- the Mutation row's work under
+  §2.4.7's largest payload verb -- and is ``_update_missing_avatars``. The rule
+  reads the writes rather than printing ``_update_`` unconditionally: a body
+  whose **only** ORM write is ``create()`` and that stores nothing took the
+  domain operation's name (§2.4.7's ``_generate_consume_moves`` →
+  ``_create_consume_moves``), and prints ``_create_``; a ``write()`` or
+  ``unlink()`` beside it makes the body a mutation again. *Frozen reading*
+  (§1.4) at the commit that landed it: **18** in ``addons/`` (15 ``_update_``,
+  3 ``_create_``), **44** in ``enterprise``, **3** in ``agromarin``. Two
+  cautions from reading those lists. A public ``generate_<x>_report`` on a
+  wizard that writes the file to a field and returns nothing is *reported*
+  correctly and *targeted* wrongly -- it is a button, and §2.4.16 owns it. And
+  the eleven Swiss payroll declarations that read this way are one shape in
+  one module, which is a family finding and not eleven.
 
 2.4.13 Scope, adoption and the ratchet
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3279,7 +3388,7 @@ alone held six with no verb at all: ``fallback_loc``, ``next_move``,
   fix: nothing outside the method can collide with the name, so nothing pushes
   back on a private spelling. The freedom and the drift are one fact.
 * **The backlog inside it is drained, and that was always the point**
-  ``[gate doc_restated_counts]``: of them, **0** open with a verb the abolished
+  ``[gate doc_restated_counts]``: of them, **3** open with a verb the abolished
   table reports and **7** with a reserved one. It was 8 and 7 when this
   bullet was written, which is what made the population worth naming as a
   discipline rather than as debt -- and the gate that could see it did not exist
@@ -3296,9 +3405,12 @@ it does see a nested one -- but the ``[review]`` rules of §2.4.4 and §2.4.9 ar
 the ones that bite here, and a closure is where they are least likely to be
 applied, because the name is visible in one screen and the author is not naming
 anything for a stranger. It is exactly the place a bare execution verb survives:
-``odoo/db/metrics.py``'s ``print_log`` defined ``def process(log_type)``, a
+``odoo/db/metrics.py``'s ``log_sql_stats`` defined ``def process(log_type)``, a
 ``_process_`` in a package whose vocabulary abolished the verb everywhere else,
-and it is ``print_direction_log``. Two readings:
+and it is ``log_direction_stats`` -- and the enclosing function was
+``print_log`` until ``d29958b31396``, a body that logs at ``DEBUG`` through a
+logger and never prints, so the verb on the outer name was a lie the inner
+one inherited. Two readings:
 
 * **A closure passed as an argument is a slot** (§2.4.10) and takes the callee's
   contract: the ``re.sub`` replacement in ``ddl.py`` was ``_sub_named`` -- named
@@ -3533,8 +3645,9 @@ first** ``[review]``. A machine doc citing a method is inside the workspace and
 greppable, so a sweep sorts it into *greppable-and-rewritable* and rewrites it.
 It must not where the citation is frozen: §1.4 makes a machine-doc figure gated
 or **frozen**, and a frozen reading must not be "corrected" to a current value.
-``job_thread`` and ``http_spawn`` are cited in
-``addons/base/machine_doc_v1/MODEL_MAP.md`` and
+``run_job_thread`` and ``spawn_http_server`` (``job_thread`` and
+``http_spawn`` until ``fd9562fb53e8``, which rewrote both citations with the
+names) are cited in ``addons/base/machine_doc_v1/MODEL_MAP.md`` and
 ``odoo/tests/machine_doc_v1/conventions.md``. **The discriminator is whether the
 document naming it may be rewritten, not whether a grep finds it** -- and the
 same phrase answers the vault: §14 makes ``research/``, ``plans/`` and
@@ -3870,6 +3983,18 @@ not a type-checker, not a test tier, not ``grep -r --include=*.py``.
   its author had run ``ls -d */`` beforehand and seen every root. **Prefer the
   check that does not depend on reading the output at all**: assert the roots
   exist, then search.
+
+**A ``default_<field>`` on ``res.config.settings`` is a binding of a FIELD name,
+and nothing in the workspace greps it** ``[review]``. ``set_values`` strips its
+own prefix and calls ``IrDefault.set(model, <field>, value)``, and this fork's
+``ir.default`` raises on an unknown field. ``a0091baeae3`` renamed
+``hr.version.mobile`` to ``mobile_subscription`` and left
+``l10n_be_hr_payroll``'s ``default_mobile`` behind, so **every** settings save
+on a Belgian-payroll database raised *Invalid field hr.version.mobile* --
+found by hand and fixed in enterprise ``1e2ff707fd2``. A field rename owes a
+search for ``default_<old>`` on every settings model, in every repository,
+beside the searches above; the binding is by *convention*, so no ``ref=``, no
+``compute=`` and no attribute access carries it.
 
 2.4.15 Signatures
 ~~~~~~~~~~~~~~~~~
@@ -4605,6 +4730,70 @@ between, and this file has no index to protect it. Read a clean copy with
 ``git show HEAD:<path> >`` somewhere outside the checkout, edit by anchored hunk,
 and re-read the anchor immediately before each write.
 
+**Twelve shapes from one package the core gate read as clean** ``[review]``.
+``odoo/db`` was swept by hand at ``d29958b31396`` while
+``naming_core_vocabulary`` reported nothing there, and the names it renamed
+fall into shapes a token gate cannot ask. Each is a finding with a rule behind
+it; the ones an AST can settle are owed to that gate, the rest are review
+questions with the instrument written down beside them.
+
+* **A bare verb skips every body rule.** ``classify_definition`` returns
+  ``None`` on a name with no remainder *before* the body-reading kinds run, so
+  ``def _resolve(settings)`` that always produced one passed a gate whose own
+  ``resolve-total`` rule names it. ``endpoints._resolve`` is
+  ``_get_settings``; the rule binds the bare verb too.
+* **An error built under a converter verb.** ``dsn._translate_connect_error``
+  returned an exception it constructed -- ``InvalidCatalogName`` or
+  ``InvalidAuthorizationSpecification`` -- or ``None`` for the caller to route,
+  and never raised: §2.4.11's ``_resolve_connect_error``. Every return an
+  exception is ``_prepare_*_error`` (§2.4.10); some returns ``None`` that the
+  caller routes is ``_resolve_``. The AST can see a returned ``Call`` to a name
+  ending ``Error`` / ``Exception`` / ``Violation``, which is the mechanical
+  form of §2.4.10's *the larger half says no verb at all*.
+* **Three verbs for writing a fact into held state.** ``mark_`` sets a flag on
+  an object (``mark_locked``, ``mark_stale_cached_plan`` = ``setattr``),
+  ``record_`` advances a counter (``stats.record_*``), and ``note_`` was used
+  for either: ``reaper.note_activity(pool)`` set an attribute and is
+  ``mark_active``; ``cursor._note_table_locked`` was one call to
+  ``mark_locked`` and is ``_mark_table_locked``;
+  ``bulk._note_binary_needs_exact_types`` was ``exc.add_note`` and is
+  ``_add_binary_types_note`` -- §2.4.10's stand-in takes the callee's verb.
+  ``note`` is a synonym and prints ``mark_`` / ``record_`` by the body.
+* **A preposition-first predicate.** ``ddl._in_code_ranges`` returned
+  ``any(...)``: a body that answers a question under a first token that is a
+  preposition (``in``, ``within``, ``on``, ``at``, ``under``) is ``_is_`` /
+  ``_has_`` -- ``_is_within_code_ranges``. A ``@property`` is exempt
+  (``cursor.in_pipeline``, ``budget.in_use`` are nouns, §2.4.4).
+* **``print_`` on a body that never prints.** ``metrics.print_log`` called a
+  logger at ``DEBUG`` and no ``print()``; it is ``log_sql_stats``.
+* **Two verbs for one classification in one package.** ``classify_statement``
+  in ``ddl.py`` beside ``categorize_query`` / ``_categorize_write`` in
+  ``metrics.py``: ``categorize`` is a synonym of ``classify`` and the pair is
+  ``classify_query``, ``_classify_write_statement`` -- ``categorize`` /
+  ``categorise`` are in the core gate's ``SYNONYMS`` now (``5b01cd9535ac``).
+* **A chain renames the operation at each frame** -- §2.4.17's rule
+  generalised. A body that is one call to a sibling with the same tail and a
+  different verb (``_note_table_locked`` → ``mark_locked``) is the reason the
+  reader has to open two frames to learn one fact. Candidate tier.
+* **The frame that decides *why* owes ``invalidate_``.**
+  ``cursor._note_stale_cached_plan(exc) -> bool`` cleared the prepared cache
+  and the catalog facts and marked the exception, under a verb that said none
+  of it; it is ``_invalidate_cached_plans_if_stale``.
+* **A verbless partial producer.** ``replica._replica_cursor``, annotated
+  ``Optional`` with the ``None`` routed by its caller, is
+  ``_resolve_replica_cursor``. Candidate tier -- the annotation is the tell.
+* **Three nouns for one thing in one file.** ``schema.get_foreign_keys``
+  returned constraint *names* beside ``_get_fk_constraints`` and
+  ``get_fk_constraints_batch`` returning rows; it is
+  ``get_fk_constraint_names``. Naming standardisation is instrumental: the
+  collision is the finding.
+* **``normalize_`` whose output type differs from its input.**
+  ``dsn._normalize_dsn_key`` took ``dict | str`` and returned a ``frozenset``:
+  it built a key and normalised nothing, and is ``_get_dsn_key``.
+* **One package, two spellings of a lossy typed conversion.**
+  ``settings._optional_int`` beside ``endpoints._coerce_port`` were one
+  operation; both are ``_coerce_optional_int`` (§2.4.5).
+
 2.4.21 A prefix is a claim, and the claim is checkable
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -4804,6 +4993,26 @@ re-enveloper is nearly always assigned back over the receiver
 * **Do not extend this to a method that also does something else.** The rule is
   for a body that is one shaping call. A method that searches, then filters,
   returns rows the caller never held, and is a read.
+
+**A producer prefix on a body that is one shaping call is gated** ``[gate
+naming]``. ``reshaped_receiver`` in ``naming_vocabulary.py`` reports a
+``_get_``, ``_check_``, ``_set_``, ``_prepare_`` or ``_resolve_`` whose body --
+docstring aside -- is a single ``return self.filtered(...)``,
+``self.filtered_domain(...)``, ``self.sorted(...)``, ``self.grouped(...)``,
+``self.sudo()`` or ``self.with_*(...)``, and prints the row's spelling. It is
+exactly the frozen reading above made repeatable, and it is narrower than the
+reading on purpose: the receiver has to be ``self`` (``lines.filtered(...)`` on
+a parameter is a read of something the caller handed in, and §2.4.22 has no
+row for it), and the body has to be that one statement, so the bullet above is
+enforced rather than merely stated. *Frozen reading* (§1.4) at the commit that
+landed it: **11** in ``addons/`` -- ten ``_get_`` and the ``_check_line_unlink``
+the bullet above already named -- **5** in ``enterprise``, **3** in
+``agromarin``. ``phone.number._primary(*types)``, which narrows to the first
+number of the given types, is the same shape without a prefix to report on;
+it is ``_filtered_primary`` by this section and is left as it is, because it
+is reached from mail templates in six modules and from shipped translation
+catalogues, and a rename there is a §2.4.14 batch with a stored-data
+migration, not a tidy-up.
 
 2.5 Docstrings and comments
 ---------------------------
