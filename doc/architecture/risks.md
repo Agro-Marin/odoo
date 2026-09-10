@@ -225,7 +225,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **235 specifiers**
+the surface can only shrink. It stands at **236 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 
@@ -249,7 +249,8 @@ mean:
 | the html expander and section renderer moved into `web` | **233** | `form_with_html_expander` and the section list renderer lived in `resource`, which has no coupling to either: the expander is reached by `project`, `project_todo` and enterprise's `helpdesk` and by nothing in `resource`. Three specifiers change module rather than appear -- the same files under `@web/`, with no `@resource/` entry surviving in either pin |
 | `three.js` behind a library facade in `agromarin` | **234** | agromarin's `95586d8fa` moved its three.js facade under `static/src/lib` and loads it through `@web/core/lib/lazy_lib` rather than a second loader, which is one new specifier; the same sync dropped `agromarin` from `@web/core/currency`'s scopes, a change of who reaches a specifier and not of how many there are |
 | `ReportController` published for the view chassis | **235** | `642771ff15e` gave the control-panel chassis a component of its own, and `web_cohort` is the first view type outside `web` to extend `ReportController` rather than retype it. `ViewLayout` and `useViewChassis` are reached through the existing `@web/views/view_components` face and add nothing: the component sits in the directory that face covers, which is where a shared view component belongs and what keeps one conversion from costing two specifiers |
-| **today** | **235 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
+| `ViewArchParser` published for the extension parsers | **236** | zero of the nine view types outside `web` extended the base parser, and `web_map` said why in a comment: `@web/views/view_arch_parser` was on no row, so the first import would fail this pin. The row is the one specifier the base class costs, and gantt, map, cohort, hierarchy and threed extend it now; `@web/views/action_helper` left the `odoo` scope in the same commit, since hierarchy was its last importer there outside `web` |
+| **today** | **236 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
 
 **A scope is not a specifier.** Recording that `agromarin`'s `geoengine` also
 enters at `@web/views/widgets` added a third scope tag to a line already pinned
@@ -474,7 +475,7 @@ register held it, so the deletion left most gates stating their reason nowhere
 — the removal commit records that cost against itself. `44abc16805b` replaced
 every dangling `ADR-NNNN` token with the decision text the record had carried,
 and wrote a docstring for each gate module that had cited a record and had none.
-Today **53** of the **88** gate modules under `tooling/architecture/` carry no
+Today **53** of the **89** gate modules under `tooling/architecture/` carry no
 module docstring — a gate module being every `.py` there that is neither a test
 nor a private helper.
 
