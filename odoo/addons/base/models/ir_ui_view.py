@@ -977,7 +977,7 @@ class IrUiView(models.Model):
         self.env.registry.clear_cache("templates")
         candidates = self._view_modes_without_default()
         res = super().unlink()
-        self._drop_orphaned_view_modes(candidates)
+        self._remove_orphaned_view_modes(candidates)
         return res
 
     def _view_modes_without_default(self) -> set[tuple[str, str]]:
@@ -993,7 +993,7 @@ class IrUiView(models.Model):
             and not hasattr(self.env[view.model], f"_get_default_{view.type}_view")
         }
 
-    def _drop_orphaned_view_modes(self, candidates: set[tuple[str, str]]) -> None:
+    def _remove_orphaned_view_modes(self, candidates: set[tuple[str, str]]) -> None:
         """Take a view type out of every window action of a model that has no
         view of that type any more. Left in, ``_get_view`` raises
         ``No default view of type '<type>' could be found!`` the next time the

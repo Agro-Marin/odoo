@@ -126,7 +126,6 @@ All extend an existing framework model; most add mail behavior.
 
 - `ir_actions_server.py` → `ir.actions.server` (**+`mixin.mail.thread`, `mixin.mail.activity`**) [M]
 - `ir_cron.py` → `ir.cron` (**+`mixin.mail.thread`, `mixin.mail.activity`**) [A]
-- `ir_action_act_window.py` → `ir.actions.act_window.view` [M]
 - `ir_attachment.py` [M] · `ir_http.py` [A] · `ir_qweb.py` [A]
 - `ir_websocket.py` [A] · `ir_ui_view.py` · `ir_ui_menu.py` · `ir_model.py`
 - `ir_model_fields.py` · `ir_config_parameter.py` · `ir_mail_server.py`

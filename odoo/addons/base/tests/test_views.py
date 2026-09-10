@@ -8631,7 +8631,7 @@ class TestViewModeScrub(ViewCase):
         self.View.search(
             [("model", "=", "res.partner"), ("type", "=", "graph")]
         ).unlink()
-        self.View._drop_orphaned_view_modes({("res.partner", "graph")})
+        self.View._remove_orphaned_view_modes({("res.partner", "graph")})
         self.assertEqual(action.view_mode, "list,form")
         self.assertEqual(
             alone.view_mode, "list", "an action of that mode alone falls back to list"
@@ -8652,5 +8652,5 @@ class TestViewModeScrub(ViewCase):
             }
         )
         action = self._action("list,graph")
-        self.View._drop_orphaned_view_modes({("res.partner", "graph")})
+        self.View._remove_orphaned_view_modes({("res.partner", "graph")})
         self.assertEqual(action.view_mode, "list,graph")

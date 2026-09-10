@@ -1,15 +1,6 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 NON_WINDOW_VIEW_TYPES = ("search", "qweb")
-
-VIEW_TYPES = [
-    ("list", "List"),
-    ("form", "Form"),
-    ("graph", "Graph"),
-    ("pivot", "Pivot"),
-    ("calendar", "Calendar"),
-    ("kanban", "Kanban"),
-]
 
 
 class IrActionsAct_WindowView(models.Model):
@@ -23,7 +14,7 @@ class IrActionsAct_WindowView(models.Model):
     sequence = fields.Integer()
     view_id = fields.Many2one("ir.ui.view", string="View")
     view_mode = fields.Selection(
-        VIEW_TYPES,
+        selection="_selection_view_mode",
         string="View Type",
         required=True,
     )
@@ -39,3 +30,17 @@ class IrActionsAct_WindowView(models.Model):
     )
 
     _unique_mode_per_action = models.UniqueIndex("(act_window_id, view_mode)")
+
+    @api.model
+    def _selection_view_mode(self):
+        # A window can show every view type but the two that are not views of
+        # records: the vocabulary is ir.ui.view's, read at call time, so a
+        # module registering a type registers a window mode with it and
+        # nothing has to say it twice.
+        return [
+            (value, label)
+            for value, label in self.env["ir.ui.view"]
+            ._fields["type"]
+            ._description_selection(self.env)
+            if value not in NON_WINDOW_VIEW_TYPES
+        ]
