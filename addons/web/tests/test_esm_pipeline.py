@@ -512,10 +512,10 @@ class TestPipelineIntegration(TransactionCase):
         fake_request = SimpleNamespace()
         with patch.object(ir_qweb_assets, "request", fake_request):
             first = ir_qweb._get_asset_nodes(
-                "web.assets_web", css=False, js=True, debug="assets"
+                "web.assets_web", css=False, js=True, debug="assets", page=True
             )
             second = ir_qweb._get_asset_nodes(
-                "web.assets_web", css=False, js=True, debug="assets"
+                "web.assets_web", css=False, js=True, debug="assets", page=True
             )
 
         self.assertEqual(

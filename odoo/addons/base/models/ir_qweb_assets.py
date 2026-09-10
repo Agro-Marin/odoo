@@ -92,7 +92,7 @@ class IrQweb(models.AbstractModel):
         lazy_load: bool = False,
         media: str | None = None,
         autoprefix: bool = False,
-        page: bool = True,
+        page: bool = False,
     ) -> list[AssetNode]:
         media = (css and media) or None
         links = self._get_asset_links(
@@ -145,9 +145,7 @@ class IrQweb(models.AbstractModel):
         debug: str | None = None,
     ) -> list[str]:
         urls = []
-        for _tag, attrs in self._get_asset_nodes(
-            bundle, css=css, js=js, debug=debug, page=False
-        ):
+        for _tag, attrs in self._get_asset_nodes(bundle, css=css, js=js, debug=debug):
             url = attrs.get("src") or attrs.get("href")
             if url and url not in urls:
                 urls.append(url)

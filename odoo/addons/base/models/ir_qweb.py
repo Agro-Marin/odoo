@@ -2726,7 +2726,8 @@ class IrQweb(models.AbstractModel):
                 defer_load={defer_load},
                 lazy_load={lazy_load},
                 media={media!r},
-                autoprefix={autoprefix}
+                autoprefix={autoprefix},
+                page=True,
             )
         """.strip(),
                 level,

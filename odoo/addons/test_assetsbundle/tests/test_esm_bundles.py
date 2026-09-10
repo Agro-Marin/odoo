@@ -455,6 +455,27 @@ class TestCollectingUrlsIsNotRenderingThem(TransactionCase):
         self.assertTrue(any(IrQweb._is_loader_shim_node(n) for n in pre))
         self.assertTrue(req._esm_import_map_rendered)
 
+    def test_the_nodes_query_leaves_the_pages_first_map_slot_free(self):
+        req = SimpleNamespace()
+        nodes = self._with_request(req, lambda q: q._get_asset_nodes(self.BUNDLE))
+        self.assertTrue(any(self.env["ir.qweb"]._is_import_map_node(n) for n in nodes))
+        self.assertFalse(getattr(req, "_esm_import_map_rendered", False))
+        self.assertEqual(getattr(req, "_esm_page_bundles", ()), ())
+
+    def test_a_template_render_after_a_nodes_query_keeps_its_map(self):
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "native esm page",
+                "type": "qweb",
+                "arch": f'<div><t t-call-assets="{self.BUNDLE}" t-css="false"/></div>',
+            }
+        )
+        req = SimpleNamespace()
+        self._with_request(req, lambda q: q._get_asset_nodes(self.BUNDLE))
+        html = self._with_request(req, lambda q: str(q._render(view.id)))
+        self.assertIn('type="importmap"', html)
+        self.assertTrue(req._esm_import_map_rendered)
+
     def test_a_second_render_on_the_page_still_drops_the_map(self):
         req = SimpleNamespace()
         first, _ = self._with_request(
