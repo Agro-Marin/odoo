@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 18:14+0000\n"
-"PO-Revision-Date: 2026-09-10 18:14+0000\n"
+"POT-Creation-Date: 2026-09-10 18:29+0000\n"
+"PO-Revision-Date: 2026-09-10 18:29+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -28,6 +28,27 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "% vs prev 15d)"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(action)s is a report, and a report cannot wait for an approval: refusing "
+"to render rolls back the request that would have asked for one. Use Block, "
+"and let the client raise the request before printing."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "%(action)s prints %(report_model)s, not %(model)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "%(action)s runs on %(action_model)s, not on %(model)s."
 msgstr ""
 
 #. module: approval
@@ -165,6 +186,12 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid "%(name)s must gate exactly one thing: a method or an action."
+msgstr ""
+
+#. module: approval
+#. odoo-python
 #: code:addons/approval/models/mixin_approval_domain.py:0
 msgid "%(name)s reads %(path)s, but %(model)s has no field %(part)s."
 msgstr ""
@@ -176,6 +203,14 @@ msgid ""
 "%(name)s was archived while this request still awaits their approval, and no"
 " successor could be reassigned automatically. As an approval manager you can"
 " delegate their approval to someone else, or reset the request to draft."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_binding.py:0
+msgid ""
+"%(name)s would run its action again once approved, but only a server action "
+"can be run again. Turn Run On Approval off for this one."
 msgstr ""
 
 #. module: approval
@@ -496,7 +531,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.constraint,message:approval.constraint_approval_binding_model_method_domain_uniq
-msgid "A binding already covers that model, method and condition."
+msgid "A binding already covers that model, operation and condition."
 msgstr ""
 
 #. module: approval
@@ -508,7 +543,7 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.actions.act_window,help:approval.action_approval_binding
 msgid ""
-"A binding intercepts a method so the approval is consulted before it\n"
+"A binding intercepts a method or an action so the approval is consulted before it\n"
 "                runs, for every caller rather than only the user interface. Start a\n"
 "                new one in Observe mode: it changes nothing and counts who reaches\n"
 "                the operation, including callers that arrive elevated."
@@ -566,6 +601,7 @@ msgid "Access Groups"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__action_id
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_rule_form
 msgid "Action"
 msgstr ""
@@ -580,6 +616,14 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_rule__action_type
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_rule_search
 msgid "Action Type"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__action_id
+msgid ""
+"Action to gate, instead of a method. A server action or a report is refused "
+"on the server; a window or client action only opens a view, so a binding on "
+"one is honoured by the client's check alone."
 msgstr ""
 
 #. module: approval
@@ -2435,6 +2479,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_rule__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_template__display_name
 #: model:ir.model.fields,field_description:approval.field_approver_performance__display_name
+#: model:ir.model.fields,field_description:approval.field_ir_actions_report__display_name
+#: model:ir.model.fields,field_description:approval.field_ir_actions_server__display_name
 #: model:ir.model.fields,field_description:approval.field_ir_attachment__display_name
 #: model:ir.model.fields,field_description:approval.field_mail_activity__display_name
 #: model:ir.model.fields,field_description:approval.field_mail_activity_type__display_name
@@ -2914,6 +2960,8 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_rule__id
 #: model:ir.model.fields,field_description:approval.field_approval_template__id
 #: model:ir.model.fields,field_description:approval.field_approver_performance__id
+#: model:ir.model.fields,field_description:approval.field_ir_actions_report__id
+#: model:ir.model.fields,field_description:approval.field_ir_actions_server__id
 #: model:ir.model.fields,field_description:approval.field_ir_attachment__id
 #: model:ir.model.fields,field_description:approval.field_mail_activity__id
 #: model:ir.model.fields,field_description:approval.field_mail_activity_type__id
@@ -3038,6 +3086,11 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__invalid_minimum_warning
 msgid "Invalid Minimum Warning"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_binding__is_enforced
+msgid "Is Enforced"
 msgstr ""
 
 #. module: approval
@@ -3266,7 +3319,8 @@ msgstr ""
 #: model:ir.model.fields,help:approval.field_approval_binding__method
 msgid ""
 "Method to gate. It is wrapped at registry load, so the gate holds for every "
-"caller, not only the user interface."
+"caller, not only the user interface. A binding gates a method or an action, "
+"never both."
 msgstr ""
 
 #. module: approval
@@ -4424,6 +4478,11 @@ msgid "Replace departed approver %(name)s"
 msgstr ""
 
 #. module: approval
+#: model:ir.model,name:approval.model_ir_actions_report
+msgid "Report Action"
+msgstr ""
+
+#. module: approval
 #: model:ir.ui.menu,name:approval.menu_approval_report
 msgid "Reporting"
 msgstr ""
@@ -4906,6 +4965,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_category.py:0
 msgid "Sequence %(code)s"
+msgstr ""
+
+#. module: approval
+#: model:ir.model,name:approval.model_ir_actions_server
+msgid "Server Action"
 msgstr ""
 
 #. module: approval
@@ -5483,6 +5547,13 @@ msgid ""
 msgstr ""
 
 #. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
+msgid ""
+"This action only opens a view, so the server has nothing to refuse: the\n"
+"                        binding is honoured by the client's check alone."
+msgstr ""
+
+#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_approver.py:0
 msgid ""
@@ -5982,6 +6053,14 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_rule__approver_required
 msgid "Whether the added approvers are mandatory"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_binding__is_enforced
+msgid ""
+"Whether the server itself refuses the operation. False for a window or "
+"client action: opening a view is nothing the server can intercept, so only "
+"the client's check stands in the way."
 msgstr ""
 
 #. module: approval

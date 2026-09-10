@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.1.5.0 (matches `__manifest__.py`) |
+| Version | 19.0.1.6.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `automation`, `mixin_report_sql`, `mail` |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -52,6 +52,8 @@ dashboards.
 | `approval_category_step.py` | `approval.category.step`, `approval.category.step.member` | Steps: a category that needs several pools, each with its own quorum, declares them. A pool is its members (each with an optional end date, so a delegation is a membership that expires) together with a group. A category without steps keeps the flat approver list and Minimum Approval exactly as before |
 | `approval_binding.py` | `approval.binding` | Gates a model's method on an approval by wrapping it at registry load: Observe, Block or Request, with a `sudo_policy` that tells the real superuser apart from an ordinary user elevated by `sudo()` |
 | `approval_binding_observation.py` | `approval.binding.observation` | Append-only record of each gated call with the caller's elevation and whether Block would have refused it — how a binding is sized before it is switched on |
+| `ir_actions_server.py` | `ir.actions.server` (extended) | `run()` consults the bindings on the action before running, on the server. web_studio gated a server action only in the browser, so any RPC caller ran it unchecked |
+| `ir_actions_report.py` | `ir.actions.report` (extended) | The PDF, HTML and text render entry points consult the bindings on the report. Checked at the entry, because a PDF stored as an attachment is returned without rendering again |
 | `approval_template.py` | `approval.template` | Request templates with smart defaults |
 | `approval_document_requirement.py` | `approval.document.requirement` | Required document types per category. A LABEL model since 19.0.1.0.23: the confirm-time check reads `ir.attachment.approval_requirement_id`, not the file name |
 | `approval_utils.py` | — (no model) | Module-level helpers shared across the split files: `is_approval_manager(env)` and `boolean_search_domain()` (the `search=` builder behind `is_overdue`, `is_delegated`, `is_pending_my_review`) |
@@ -97,6 +99,7 @@ dashboards.
 | `test_conditional_rules.py` | Rule evaluation, approver injection, live re-routing of a submitted request (`TestLiveRerouting`), routing-input lifecycle (`TestRoutingFieldLifecycle`) |
 | `test_subject_conditions.py` | Source-document conditions: `domain` and `field_selection` matching; absent, deleted and other-model source documents; configuration-time path validation; the overlap guard staying threshold-only |
 | `test_binding.py` | `approval.binding`: wrapping and unwrapping, one wrapper per method, Observe and Block, superuser vs `sudo()` elevation, the caller's elevation rather than the binding's, the kill switch, every configuration-time refusal; Request mode — no duplicate while pending, one replay as the requester, no replay after re-approval, no borrowing the approver's rights, no run once the snapshot moved, Block covered by a separately approved request; approve on invoke — an approver's call runs the operation exactly once, a non-approver's only raises the request, one step of two waits; run on approval off leaves the operation to the next call |
+| `test_binding_actions.py` | Action bindings: a blocked server action refused on the server — the call web_studio let through — request, replay as the requester and approve-on-invoke on a server action, a report refused and then rendered once covered, the PDF entry point gated too, `is_enforced`, and every constraint on what an action binding may be |
 | `test_approver_replacement.py` | Approver-replacing rules: band matching, overlap validation, minimum override, batched constraints |
 | `test_document_requirements.py` | Required document validation on confirm, through the structural attachment link |
 | `test_sla_tracking.py` | SLA status computation, compliance tracking |
@@ -183,6 +186,8 @@ approval/
 |   +-- approval_rule.py              # Conditional rules
 |   +-- approval_binding.py           # Method gates wrapped at registry load
 |   +-- approval_binding_observation.py # Observed gated calls
+|   +-- ir_actions_server.py          # Server actions consult bindings in run()
+|   +-- ir_actions_report.py          # Report render entry points consult bindings
 |   +-- approval_template.py          # Request templates
 |   +-- approval_document_requirement.py # Required documents
 |   +-- approval_utils.py             # Module-level helpers (no model)
@@ -200,7 +205,7 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 19 script directories (1.0.1 .. 1.0.26)
-+-- tests/                            # 32 test modules + common.py
++-- tests/                            # 33 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -212,14 +217,14 @@ approval/
 
 | Metric | Count |
 |--------|-------|
-| Python files (non-test, incl. `__init__`/`__manifest__`) | 35 |
-| Python test files | 32 (+ `common.py`) |
+| Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
+| Python test files | 33 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 16 |
 | SCSS files | 4 |
 | ORM models (new) | 15 in `models/` + 2 wizards + 3 report models |
-| ORM models (extended) | 5 (ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |
+| ORM models (extended) | 7 (ir.actions.report, ir.actions.server, ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |
 | Abstract models | 3 (mixin.approval, mixin.approval.threshold, mixin.approval.domain) |
 | SQL view models | 2 |
 | Transient models | 2 |

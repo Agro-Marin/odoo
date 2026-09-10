@@ -714,6 +714,8 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `self_elevated_count` | Integer | No | No | same read; callers elevated by `sudo()`, not the superuser |
 | `approve_on_invoke` | Boolean | Yes | No | `request` mode only. When somebody who may approve a pending step calls the operation, the call records their approval — the way a Studio approval button works — and the operation runs if nothing is left; otherwise the remaining approvers are asked and the call waits |
 | `run_on_approval` | Boolean | Yes | No | default=True, `request` mode only. Run the operation once, as the requester, when the request is approved. Off, approval only clears the gate and the operation runs on the next call — how Studio approvals behave. Off also lifts the zero-argument limit, since there is no replay to feed |
+| `action_id` | Many2one(`ir.actions.actions`) | Yes | No | ondelete=cascade. The action to gate instead of a method; a binding gates exactly one of the two |
+| `is_enforced` | Boolean | No | No | computed. True for a method, a server action or a report; False for a window or client action, which only opens a view — nothing the server can intercept, so only the client's check stands in the way |
 
 ### Constraints
 
@@ -722,13 +724,19 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 - `_check_method_available`: refuses `AUTOMATION_CLAIMED_METHODS` — `create`, `write`, `unlink`, `_compute_field_value`, `_onchange_methods__`, `message_post`. `automation._unregister_hook` does `delattr(Model, name)` for each across the whole registry without checking who installed it, so a gate there would disappear silently rather than fail
 - `_check_method_replayable`: with `run_on_approval` on, `request` mode only gates a method taking nothing but `self`. Replaying stored arguments would have to guess at stale recordsets and closures, so the limit is enforced up front; with it off nothing is replayed and any method may be gated
 - `approve_on_invoke` needs `request` mode: Block mode raises no request for the caller to approve
+- A binding gates exactly one of `method` and `action_id`; the uniqueness constraint covers (model_id, method, action_id, subject_domain), so two actions on one model can each be bound
+- With `run_on_approval` in `request` mode, only a method or a server action can be run again; a window, client or report action needs it off
 
 ### Key Methods
 
 | Method | Purpose |
 |--------|---------|
 | `_register_hook()` / `_unregister_hook()` | Wrap each gated (model, method) once; unwrap only attributes carrying the `approval_binding_origin` marker |
-| `_get_guarded_method(model, method)` | The wrapper. Measures the CALLER's elevation once, applies every binding whose domain selects the record, and inserts every observation in one statement. Records that need no approval — or that an invoking caller's own approval just covered — run, and are stamped; the rest wait, and the call returns their requests. A single-record call runs or waits as a whole |
+| `_get_guarded_method(model, method)` | The method wrapper. Resolves the bindings on (model, method) and hands the call to `_gate` |
+| `_gate(records, bindings, label, call)` | The one routine behind a wrapped method, a gated server action and a gated report. Measures the CALLER's elevation once, applies every binding whose domain selects the record, and inserts every observation in one statement. Records that need no approval — or that an invoking caller's own approval just covered — are passed to `call` and stamped; the rest wait, and the requests action is returned |
+| `_bindings_for_action(action_id)` / `_get_action_binding_ids(action_id)` | The bindings on one action, `ormcache`d with `active_test` forced, like the method lookup |
+| `_check_action_available()` | A server action must run on the binding's model, and a report must print it; a report cannot be in `request` mode, because refusing to render rolls back the request that would have asked |
+| `_run_action_on(records)` | Replays a server action on `records`, in their environment, with `active_model` / `active_ids` set — through `run()`, so the gate still applies |
 | `_get_selected(records)` | The records the binding's domain selects, in one `filtered_domain` over the whole recordset |
 | `_get_covered_ids(records)` | The records an approval already stands for, in one pass. An adopter's own approved request is taken as it is — the mixin protects the fields approvers decide on and owns withdrawal. Any other record is covered by an approved request pointing at it in the binding's category, and, when this binding raised it, only while `binding_snapshot` still matches |
 | `_get_snapshot(record)` | The values the domain's paths read from the record now. No domain reads nothing, so its approval covers the operation whatever the record's state |

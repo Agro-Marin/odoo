@@ -20,6 +20,8 @@ from . import (
     approval_rule,
     approval_template,
     approval_utils,
+    ir_actions_report,
+    ir_actions_server,
     ir_attachment,
     mail_activity,
     mail_activity_type,

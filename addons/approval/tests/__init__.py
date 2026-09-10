@@ -5,6 +5,7 @@ from . import (
     test_approver_replacement,
     test_attachment_lock,
     test_binding,
+    test_binding_actions,
     test_auto_action_rules,
     test_auto_expire,
     test_bulk_operations,

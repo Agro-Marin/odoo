@@ -23,6 +23,7 @@ ORIGIN_ATTR = "approval_binding_origin"
 ENABLED_PARAM = "approval.binding_enabled"
 REPLAY_CONTEXT_KEY = "approval_binding_replay"
 INVOKE_CONTEXT_KEY = "approval_binding_invoking"
+ENFORCEABLE_ACTION_TYPES = frozenset({"ir.actions.server", "ir.actions.report"})
 
 
 class ApprovalBinding(models.Model):
@@ -48,9 +49,24 @@ class ApprovalBinding(models.Model):
         index=True,
     )
     method = fields.Char(
-        required=True,
         help="Method to gate. It is wrapped at registry load, so the gate "
-        "holds for every caller, not only the user interface.",
+        "holds for every caller, not only the user interface. A binding gates "
+        "a method or an action, never both.",
+    )
+    action_id = fields.Many2one(
+        comodel_name="ir.actions.actions",
+        string="Action",
+        ondelete="cascade",
+        index="btree_not_null",
+        help="Action to gate, instead of a method. A server action or a report is "
+        "refused on the server; a window or client action only opens a view, so a "
+        "binding on one is honoured by the client's check alone.",
+    )
+    is_enforced = fields.Boolean(
+        compute="_compute_is_enforced",
+        help="Whether the server itself refuses the operation. False for a window "
+        "or client action: opening a view is nothing the server can intercept, so "
+        "only the client's check stands in the way.",
     )
     category_id = fields.Many2one(
         comodel_name="approval.category",
@@ -134,15 +150,21 @@ class ApprovalBinding(models.Model):
     )
 
     _model_method_domain_uniq = models.Constraint(
-        "unique nulls not distinct (model_id, method, subject_domain)",
-        "A binding already covers that model, method and condition.",
+        "unique nulls not distinct (model_id, method, action_id, subject_domain)",
+        "A binding already covers that model, operation and condition.",
     )
 
-    @api.depends("model_id", "method", "mode")
+    @api.depends("model_id", "method", "action_id", "mode")
     def _compute_name(self) -> None:
         for binding in self:
-            binding.name = (
-                f"{binding.model_name or '?'}.{binding.method or '?'} ({binding.mode})"
+            target = binding.method or binding.action_id.name or "?"
+            binding.name = f"{binding.model_name or '?'}.{target} ({binding.mode})"
+
+    @api.depends("method", "action_id", "action_id.type")
+    def _compute_is_enforced(self) -> None:
+        for binding in self:
+            binding.is_enforced = bool(binding.method) or (
+                binding.action_id.type in ENFORCEABLE_ACTION_TYPES
             )
 
     def _compute_elevation_counts(self) -> None:
@@ -176,6 +198,7 @@ class ApprovalBinding(models.Model):
         "category_id",
         "approve_on_invoke",
         "run_on_approval",
+        "action_id",
     )
     def _check_binding(self) -> None:
         for binding in self:
@@ -187,7 +210,17 @@ class ApprovalBinding(models.Model):
                         model=binding.model_id.model,
                     ),
                 )
-            binding._check_method_available(model)
+            if bool(binding.method) == bool(binding.action_id):
+                raise ValidationError(
+                    self.env._(
+                        "%(name)s must gate exactly one thing: a method or an action.",
+                        name=binding.name,
+                    ),
+                )
+            if binding.method:
+                binding._check_method_available(model)
+            else:
+                binding._check_action_available()
             if binding.subject_domain:
                 binding._check_domain_against_model(model)
             if binding.mode != "advise" and not binding.category_id:
@@ -208,7 +241,57 @@ class ApprovalBinding(models.Model):
                     ),
                 )
             if binding.mode == "request" and binding.run_on_approval:
-                binding._check_method_replayable(model)
+                if binding.method:
+                    binding._check_method_replayable(model)
+                elif binding.action_id.type != "ir.actions.server":
+                    raise ValidationError(
+                        self.env._(
+                            "%(name)s would run its action again once approved, "
+                            "but only a server action can be run again. Turn Run "
+                            "On Approval off for this one.",
+                            name=binding.name,
+                        ),
+                    )
+
+    def _check_action_available(self) -> None:
+        self.check_singleton()
+        action_type = self.action_id.type
+        if action_type == "ir.actions.server":
+            action_model = (
+                self.env["ir.actions.server"].sudo().browse(self.action_id.id).model_id
+            )
+            if action_model != self.model_id:
+                raise ValidationError(
+                    self.env._(
+                        "%(action)s runs on %(action_model)s, not on %(model)s.",
+                        action=self.action_id.name,
+                        action_model=action_model.model,
+                        model=self.model_id.model,
+                    ),
+                )
+        elif action_type == "ir.actions.report":
+            report_model = (
+                self.env["ir.actions.report"].sudo().browse(self.action_id.id).model
+            )
+            if report_model != self.model_id.model:
+                raise ValidationError(
+                    self.env._(
+                        "%(action)s prints %(report_model)s, not %(model)s.",
+                        action=self.action_id.name,
+                        report_model=report_model,
+                        model=self.model_id.model,
+                    ),
+                )
+            if self.mode == "request":
+                raise ValidationError(
+                    self.env._(
+                        "%(action)s is a report, and a report cannot wait for an "
+                        "approval: refusing to render rolls back the request that "
+                        "would have asked for one. Use Block, and let the client "
+                        "raise the request before printing.",
+                        action=self.action_id.name,
+                    ),
+                )
 
     def _check_method_available(self, model) -> None:
         self.check_singleton()
@@ -428,17 +511,6 @@ class ApprovalBinding(models.Model):
         return requests
 
     def _approve_on_invoke(self, requests) -> None:
-        """Record the caller's approval on every step they may decide, as a Studio button does.
-
-        The replay is suppressed while it happens. If this approval completes a
-        request, the call running now performs the operation, and a replay would
-        perform it a second time.
-
-        A refusal to record the approval -- a pending change, an exclusive step
-        the caller already spent -- leaves the request pending with its
-        approvers asked, the way Studio falls back to asking when it cannot
-        approve.
-        """
         self.check_singleton()
         user = self.env.user
         for request in requests.filtered(lambda r: r.state == "pending"):
@@ -461,12 +533,6 @@ class ApprovalBinding(models.Model):
                 )
 
     def _mark_invoked_run(self, records) -> None:
-        """Stamp the one-shot on requests an invoking call just completed and ran.
-
-        The replay was suppressed while the caller approved, so the operation ran
-        once, in the call itself. The stamp keeps a later withdrawal and
-        re-approval from running it again.
-        """
         self.check_singleton()
         if not records:
             return
@@ -507,19 +573,6 @@ class ApprovalBinding(models.Model):
         return action
 
     def _replay(self, request) -> None:
-        """Run the gated operation once, as the person who asked for it.
-
-        As the requester -- never as the approver, and never under sudo. An
-        approval lifts the gate; it does not lend the approver's rights, so a
-        requester who could not have performed the operation still cannot.
-        The superuser account is the one exception, because `with_user` would
-        otherwise strip it of the `su` it acted with.
-
-        A business or access refusal is recorded on the request instead of
-        raised: the approver's decision stands whether or not the operation
-        can still run. Anything else propagates, so a defect or a concurrency
-        failure fails the approval visibly rather than reading as "not run".
-        """
         self.check_singleton()
         owner = request.request_owner_id
         record = self.env[request.res_model].browse(request.res_id).with_user(owner)
@@ -541,10 +594,11 @@ class ApprovalBinding(models.Model):
                             "raised. Ask for approval again."
                         )
                     )
-                getattr(
-                    record.with_context(**{REPLAY_CONTEXT_KEY: request.id}),
-                    self.method,
-                )()
+                replaying = record.with_context(**{REPLAY_CONTEXT_KEY: request.id})
+                if self.action_id:
+                    self._run_action_on(replaying)
+                else:
+                    getattr(replaying, self.method)()
         except UserError as exc:
             error = str(exc) or type(exc).__name__
             _logger.info(
@@ -583,19 +637,37 @@ class ApprovalBinding(models.Model):
     @api.model
     @ormcache("model_name", "method")
     def _get_binding_ids(self, model_name: str, method: str) -> tuple[int, ...]:
-        """Every gated call consults this, so it is cached per (model, method).
-
-        The key carries neither uid nor context, so the lookup must not depend
-        on either: it runs under sudo, and `active_test` is forced rather than
-        inherited -- a first caller with `active_test=False` would otherwise
-        cache archived bindings for everyone.
-        """
         return tuple(
             self.sudo()
             .with_context(active_test=True)
             .search([("model_name", "=", model_name), ("method", "=", method)])
             .ids
         )
+
+    @api.model
+    def _bindings_for_action(self, action_id: int):
+        return self.sudo().browse(self._get_action_binding_ids(action_id))
+
+    @api.model
+    @ormcache("action_id")
+    def _get_action_binding_ids(self, action_id: int) -> tuple[int, ...]:
+        """The bindings on one action, cached like the method lookup and for the same reason."""
+        return tuple(
+            self.sudo()
+            .with_context(active_test=True)
+            .search([("action_id", "=", action_id)])
+            .ids
+        )
+
+    def _run_action_on(self, records):
+        """Run this binding's server action on `records`, in their environment."""
+        self.check_singleton()
+        action = records.env["ir.actions.server"].browse(self.action_id.id)
+        return action.with_context(
+            active_model=records._name,
+            active_ids=records.ids,
+            active_id=records[:1].id,
+        ).run()
 
     # -- keeping the registry in step with the configuration ---------------
 
@@ -616,18 +688,11 @@ class ApprovalBinding(models.Model):
         return result
 
     def _apply_to_registry(self) -> None:
-        """Make a binding change take effect without a restart.
-
-        The wrapper resolves its bindings at call time, so editing, archiving
-        or re-moding a binding on an already-wrapped method only needs the
-        lookup cache dropped -- and Odoo signals a cache clear to every worker.
-        Only a binding on a method nothing wraps yet needs a new patch, and
-        that is the one change another worker cannot see without reloading
-        its registry, so it is the only one that asks for a reload.
-        """
         self.env.registry.clear_cache()
         unwrapped = False
         for binding in self:
+            if not binding.method:
+                continue
             ModelClass = self.env.registry.get(binding.model_name)
             if ModelClass is None:
                 continue
@@ -641,13 +706,6 @@ class ApprovalBinding(models.Model):
     # -- registry patching -------------------------------------------------
 
     def _register_hook(self):
-        """Wrap each gated method once, with every binding on it consulted.
-
-        One patch per (model, method), never one per binding: a second patch
-        over the first would make removal order-dependent, and `automation`
-        already demonstrates what an indiscriminate `delattr` does to somebody
-        else's wrapper.
-        """
         super()._register_hook()
         pairs = {}
         for binding in self.sudo().with_context(active_test=True).search([]):
@@ -660,7 +718,7 @@ class ApprovalBinding(models.Model):
                     binding.model_name,
                 )
                 continue
-            if binding.method in AUTOMATION_CLAIMED_METHODS:
+            if not binding.method or binding.method in AUTOMATION_CLAIMED_METHODS:
                 continue
             pairs.setdefault(binding.model_name, set()).add(binding.method)
 
@@ -681,6 +739,55 @@ class ApprovalBinding(models.Model):
                 if getattr(function, ORIGIN_ATTR, None) is not None:
                     setattr(ModelClass, name, getattr(function, ORIGIN_ATTR))
 
+    @api.model
+    def _gate(self, records, bindings, label: str, call):
+        elevation = self._elevation()
+        observations = []
+        wanting = {}
+        for binding in bindings:
+            selected = binding._get_selected(records)
+            if not selected:
+                continue
+            covered_ids = binding._get_covered_ids(selected)
+            for record in selected:
+                if binding._enforce(record, elevation, observations, covered_ids):
+                    wanting[binding] = wanting.get(binding, records.browse()) | record
+
+        if observations:
+            records.env["approval.binding.observation"].sudo().create(observations)
+        if not wanting:
+            return call(records)
+        if records.env.context.get(REPLAY_CONTEXT_KEY):
+            raise UserError(
+                records.env._(
+                    "%(method)s still needs an approval that does not cover "
+                    "this record, so it was not run again.",
+                    method=label,
+                ),
+            )
+        waiting = records.browse()
+        shown = records.env["approval.request"]
+        for binding, pending in wanting.items():
+            requests = binding._raise_requests_for(pending)
+            if binding.approve_on_invoke:
+                binding._approve_on_invoke(requests)
+            covered_ids = binding._get_covered_ids(pending)
+            still = pending.filtered(
+                lambda record, ids=covered_ids: record.id not in ids,
+            )
+            if still:
+                waiting |= still
+                shown |= requests
+        runnable = records - waiting
+        result = False
+        if runnable:
+            result = call(runnable)
+            for binding, pending in wanting.items():
+                binding._mark_invoked_run(pending & runnable)
+        if waiting:
+            return self._get_requests_action(shown)
+        return result
+
     def _get_guarded_method(self, model_name: str, method_name: str):
         def guarded(records, *args, **kwargs):
             origin = getattr(guarded, ORIGIN_ATTR)
@@ -692,54 +799,12 @@ class ApprovalBinding(models.Model):
             if not bindings:
                 return origin(records, *args, **kwargs)
 
-            elevation = Binding._elevation()
-            observations = []
-            wanting = {}
-            for binding in bindings:
-                selected = binding._get_selected(records)
-                if not selected:
-                    continue
-                covered_ids = binding._get_covered_ids(selected)
-                for record in selected:
-                    if binding._enforce(record, elevation, observations, covered_ids):
-                        wanting[binding] = (
-                            wanting.get(binding, records.browse()) | record
-                        )
-
-            if observations:
-                records.env["approval.binding.observation"].sudo().create(observations)
-            if not wanting:
-                return origin(records, *args, **kwargs)
-            if records.env.context.get(REPLAY_CONTEXT_KEY):
-                raise UserError(
-                    records.env._(
-                        "%(method)s still needs an approval that does not cover "
-                        "this record, so it was not run again.",
-                        method=method_name,
-                    ),
-                )
-            waiting = records.browse()
-            shown = records.env["approval.request"]
-            for binding, pending in wanting.items():
-                requests = binding._raise_requests_for(pending)
-                if binding.approve_on_invoke:
-                    binding._approve_on_invoke(requests)
-                covered_ids = binding._get_covered_ids(pending)
-                still = pending.filtered(
-                    lambda record, ids=covered_ids: record.id not in ids,
-                )
-                if still:
-                    waiting |= still
-                    shown |= requests
-            runnable = records - waiting
-            result = False
-            if runnable:
-                result = origin(runnable, *args, **kwargs)
-                for binding, pending in wanting.items():
-                    binding._mark_invoked_run(pending & runnable)
-            if waiting:
-                return Binding._get_requests_action(shown)
-            return result
+            return Binding._gate(
+                records,
+                bindings,
+                method_name,
+                lambda runnable: origin(runnable, *args, **kwargs),
+            )
 
         guarded.__name__ = method_name
         guarded.__qualname__ = f"{model_name}.{method_name}"
