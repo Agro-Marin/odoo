@@ -15394,3 +15394,28 @@ test("archiving a single card removes it and refreshes counters", async () => {
     const after = queryAll(".o_kanban_record", { root: getKanbanColumn(0) }).length;
     expect(after).toBe(1, { message: "archived card must be removed from its column" });
 });
+
+test("header button modifiers see the same names as in a list: uid, today and context", async () => {
+    await mountView({
+        resModel: "partner",
+        type: "kanban",
+        arch: `
+            <kanban>
+                <header>
+                    <button name="a" type="object" display="always" string="Hidden by uid" invisible="uid == ${serverState.userId}"/>
+                    <button name="b" type="object" display="always" string="Shown by context" invisible="context.get('hide_b')"/>
+                    <button name="c" type="object" display="always" string="Hidden by today" invisible="today"/>
+                </header>
+                <templates><t t-name="card"><field name="foo"/></t></templates>
+            </kanban>`,
+    });
+    expect(
+        ".o_control_panel_main_buttons button:contains('Hidden by uid')",
+    ).toHaveCount(0);
+    expect(
+        ".o_control_panel_main_buttons button:contains('Shown by context')",
+    ).toHaveCount(1);
+    expect(
+        ".o_control_panel_main_buttons button:contains('Hidden by today')",
+    ).toHaveCount(0);
+});

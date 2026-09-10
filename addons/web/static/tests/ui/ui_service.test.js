@@ -570,3 +570,12 @@ test("isBlocked is its own reactive key, so a nested block does not invalidate i
     await animationFrame();
     expect.verifySteps(["render false"]);
 });
+
+test("destroy() restores the uninitialised isSmall guard makeEnv installs", async () => {
+    const env = await makeMockEnv();
+    expect(typeof env.isSmall).toBe("boolean");
+
+    env.services.ui.destroy();
+
+    expect(() => env.isSmall).toThrow(/UI service not initialized/);
+});

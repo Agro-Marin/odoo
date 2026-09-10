@@ -4,7 +4,6 @@
 import { reactive, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
-import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
@@ -346,14 +345,6 @@ export class KanbanController extends MultiRecordController {
 
     async beforeLeave() {
         return this.model.mutex.getUnlockedDef();
-    }
-
-    /**
-     * @param {string} modifier
-     * @returns {boolean}
-     */
-    evalViewModifier(modifier) {
-        return evaluateBooleanExpr(modifier, { context: this.props.context });
     }
 
     /** @param {Object} record */

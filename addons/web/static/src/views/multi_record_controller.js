@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { onMounted, onWillStart, useEffect, useSubEnv } from "@odoo/owl";
+import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
@@ -15,6 +16,14 @@ import {
 } from "@web/views/view_utils";
 
 export class MultiRecordController extends ViewController {
+    /**
+     * @param {string} modifier
+     * @returns {boolean}
+     */
+    evalViewModifier(modifier) {
+        return evaluateBooleanExpr(modifier, this.model.root.evalContext);
+    }
+
     /** @type {any} */
     model;
 

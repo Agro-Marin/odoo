@@ -362,14 +362,6 @@ export class ListController extends MultiRecordController {
         return ".o_content .o_list_renderer";
     }
 
-    /**
-     * @param {string} modifier
-     * @returns {boolean}
-     */
-    evalViewModifier(modifier) {
-        return evaluateBooleanExpr(modifier, this.model.root.evalContext);
-    }
-
     discardSelection() {
         this.model.root.records.forEach((record) => {
             record.toggleSelection(false);
