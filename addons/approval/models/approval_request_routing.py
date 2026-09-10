@@ -149,12 +149,12 @@ class ApprovalRequestRouting(models.Model):
 
         negative_fields = set()
         for rule in candidates.sorted(lambda r: (r.sequence, r.id)):
-            value = rule._get_field_value(self)
-            if value is None:
-                continue
-            if rule._compare(value, rule.threshold):
+            if rule._evaluate(self):
                 return rule
-            if value < 0:
+            if rule.condition_type != "threshold":
+                continue
+            value = rule._get_field_value(self)
+            if value is not None and value < 0:
                 negative_fields.add(rule.condition_field)
 
         if negative_fields:

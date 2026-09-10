@@ -1,6 +1,6 @@
 {
     "name": "Base Approval",
-    "version": "19.0.1.0.27",
+    "version": "19.0.1.1.0",
     "category": "Human Resources/Approvals",
     "sequence": 190,
     "summary": "Create and validate approval requests with delegation and escalation",

@@ -1,7 +1,12 @@
+import ast
+import logging
 import math
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
+
+_logger = logging.getLogger(__name__)
 
 _FLOAT_EQ_ABS_TOL = 1e-6
 _FLOAT_EQ_REL_TOL = 1e-9
@@ -23,6 +28,30 @@ class ApprovalRule(models.Model):
         index=True,
     )
 
+    condition_type = fields.Selection(
+        selection=[
+            ("threshold", "Numeric threshold"),
+            ("domain", "Source document domain"),
+            ("field_selection", "Source document field"),
+        ],
+        required=True,
+        default="threshold",
+        help="""What this rule tests:
+
+        • Numeric threshold: a normalized figure on the request itself
+          (amount, quantity, date range, priority). Amounts are converted into
+          the rule's currency before comparison, and overlapping bands of
+          'Replace Approvers' rules are rejected outright.
+        • Source document domain: a domain evaluated against the document the
+          request was raised for. Bands cannot be checked for overlap, so the
+          first match by sequence wins.
+        • Source document field: a field on the source document equals a
+          value.
+
+        Only 'Numeric threshold' can be range-checked. The other two read the
+        source document, so a request with no source document, or one of
+        another model, never matches them.""",
+    )
     condition_field = fields.Selection(
         selection=[
             ("amount", "Amount"),
@@ -30,8 +59,30 @@ class ApprovalRule(models.Model):
             ("date_range_days", "Date Range (Days)"),
             ("priority", "Priority"),
         ],
-        required=True,
-        help="Request field to evaluate",
+        help="Request field to evaluate. Required for the 'Numeric threshold' "
+        "condition type and ignored by the others.",
+    )
+    subject_model_id = fields.Many2one(
+        comodel_name="ir.model",
+        string="Source Model",
+        ondelete="cascade",
+        help="Model whose records this rule reads. Required for every "
+        "condition type except 'Numeric threshold', which reads the request. "
+        "A request whose source document is another model never matches.",
+    )
+    subject_domain = fields.Char(
+        string="Source Domain",
+        help="Domain evaluated against the source document.",
+    )
+    subject_field = fields.Char(
+        string="Source Field",
+        help="Field on the source model to compare.",
+    )
+    subject_value = fields.Char(
+        string="Source Value",
+        help="Value the source field must equal. Compared as text against the "
+        "field's raw value, so a Selection is matched on its stored key and a "
+        "Many2one on its id.",
     )
     operator = fields.Selection(
         selection=[
@@ -43,11 +94,11 @@ class ApprovalRule(models.Model):
             ("neq", "Not equal to"),
             ("between", "Between"),
         ],
-        required=True,
         string="Comparison",
+        help="Required for the 'Numeric threshold' condition type and ignored "
+        "by the others.",
     )
     threshold = fields.Float(
-        required=True,
         help="Numeric threshold to compare against, and the lower bound "
         "(inclusive) when the comparison is 'Between'. "
         "For priority: 0=Low, 1=Normal, 2=High, 3=Urgent.",
@@ -187,7 +238,7 @@ class ApprovalRule(models.Model):
     @api.constrains("operator", "threshold", "threshold_max")
     def _check_range_bounds(self):
         for rule in self:
-            if rule.operator != "between":
+            if rule.condition_type != "threshold" or rule.operator != "between":
                 continue
             if rule.threshold_max and rule.threshold_max <= rule.threshold:
                 raise ValidationError(
@@ -200,6 +251,7 @@ class ApprovalRule(models.Model):
     @api.constrains(
         "category_id",
         "company_id",
+        "condition_type",
         "condition_field",
         "operator",
         "threshold",
@@ -208,7 +260,11 @@ class ApprovalRule(models.Model):
         "active",
     )
     def _check_replacement_overlap(self):
-        replacements = self.filtered(lambda r: r.action_type == "set_approvers")
+        replacements = self.filtered(
+            lambda r: (
+                r.action_type == "set_approvers" and r.condition_type == "threshold"
+            ),
+        )
         if not replacements:
             return
         stored_peers = self.sudo().search(
@@ -220,6 +276,7 @@ class ApprovalRule(models.Model):
                     list(set(replacements.mapped("condition_field"))),
                 ),
                 ("action_type", "=", "set_approvers"),
+                ("condition_type", "=", "threshold"),
                 ("active", "=", True),
             ],
         )
@@ -230,6 +287,7 @@ class ApprovalRule(models.Model):
                 lambda r, cur=rule: (
                     r.id != cur.id
                     and r.category_id == cur.category_id
+                    and r.condition_type == "threshold"
                     and r.condition_field == cur.condition_field
                     and r.action_type == "set_approvers"
                     and r.active
@@ -323,6 +381,8 @@ class ApprovalRule(models.Model):
     @api.constrains("threshold", "condition_field")
     def _check_threshold(self):
         for rule in self:
+            if rule.condition_type != "threshold":
+                continue
             if rule.condition_field == "priority" and rule.threshold not in (
                 0,
                 1,
@@ -335,6 +395,107 @@ class ApprovalRule(models.Model):
                         "2 (High), or 3 (Urgent)."
                     )
                 )
+
+    @api.constrains(
+        "condition_type",
+        "condition_field",
+        "operator",
+        "subject_model_id",
+        "subject_domain",
+        "subject_field",
+        "subject_value",
+    )
+    def _check_condition_shape(self):
+        for rule in self:
+            if rule.condition_type == "threshold":
+                if not rule.condition_field or not rule.operator:
+                    raise ValidationError(
+                        self.env._(
+                            "Rule %(name)s compares a numeric threshold, so it "
+                            "needs both a request field and a comparison.",
+                            name=rule.name,
+                        ),
+                    )
+                continue
+
+            if not rule.subject_model_id:
+                raise ValidationError(
+                    self.env._(
+                        "Rule %(name)s reads the source document, so it needs "
+                        "a source model. Without one it could never match.",
+                        name=rule.name,
+                    ),
+                )
+            model = self.env.get(rule.subject_model_id.model)
+            if model is None:
+                raise ValidationError(
+                    self.env._(
+                        "Rule %(name)s names the model %(model)s, which is not "
+                        "in the registry.",
+                        name=rule.name,
+                        model=rule.subject_model_id.model,
+                    ),
+                )
+            if rule.condition_type == "domain":
+                rule._check_subject_domain(model)
+            else:
+                rule._check_subject_field(model)
+
+    def _check_subject_domain(self, model) -> None:
+        self.check_singleton()
+        domain = self._parse_subject_domain()
+        if domain is None:
+            raise ValidationError(
+                self.env._(
+                    "Rule %(name)s has a source domain that is not a valid "
+                    "Python literal: %(domain)s",
+                    name=self.name,
+                    domain=self.subject_domain,
+                ),
+            )
+        for field_path in self._domain_field_paths(domain):
+            self._check_field_path(model, field_path)
+
+    def _check_subject_field(self, model) -> None:
+        self.check_singleton()
+        if not self.subject_field:
+            raise ValidationError(
+                self.env._(
+                    "Rule %(name)s compares a source field, so it needs a "
+                    "field name.",
+                    name=self.name,
+                ),
+            )
+        self._check_field_path(model, self.subject_field)
+
+    def _check_field_path(self, model, field_path: str) -> None:
+        """Walk a dotted path so a typo is rejected here, not at approval time.
+
+        A rule that names a field nobody has silently never matches, which
+        reads as "approval was not required" rather than as a broken rule.
+        """
+        self.check_singleton()
+        current = model
+        for part in field_path.split("."):
+            field = current._fields.get(part)
+            if field is None:
+                raise ValidationError(
+                    self.env._(
+                        "Rule %(name)s reads %(path)s, but %(model)s has no "
+                        "field %(part)s.",
+                        name=self.name,
+                        path=field_path,
+                        model=current._name,
+                        part=part,
+                    ),
+                )
+            if not field.relational:
+                break
+            current = self.env[field.comodel_name]
+
+    @api.model
+    def _domain_field_paths(self, domain) -> set[str]:
+        return {condition.field_expr for condition in domain.iter_conditions()}
 
     _CONDITION_FIELD_DEPENDS = {
         "amount": ("amount", "currency_id", "date"),
@@ -353,10 +514,56 @@ class ApprovalRule(models.Model):
 
     def _evaluate(self, request) -> bool:
         self.check_singleton()
-        value = self._get_field_value(request)
-        if value is None:
+        match self.condition_type:
+            case "domain":
+                return self._evaluate_domain(request)
+            case "field_selection":
+                return self._evaluate_field_selection(request)
+            case _:
+                value = self._get_field_value(request)
+                if value is None:
+                    return False
+                return self._compare(value, self.threshold)
+
+    def _get_subject(self, request):
+        self.check_singleton()
+        if not self.subject_model_id:
             return False
-        return self._compare(value, self.threshold)
+        document = request.get_source_document()
+        if not document or document._name != self.subject_model_id.model:
+            return False
+        return document.exists()
+
+    def _parse_subject_domain(self) -> Domain | None:
+        self.check_singleton()
+        try:
+            return Domain(ast.literal_eval(self.subject_domain or "[]"))
+        except (ValueError, SyntaxError, TypeError):
+            return None
+
+    def _evaluate_domain(self, request) -> bool:
+        subject = self._get_subject(request)
+        if not subject:
+            return False
+        domain = self._parse_subject_domain()
+        if domain is None:
+            _logger.warning(
+                "Approval rule %s: unparseable source domain %r, treated as "
+                "no match.",
+                self.id,
+                self.subject_domain,
+            )
+            return False
+        return bool(subject.filtered_domain(domain))
+
+    def _evaluate_field_selection(self, request) -> bool:
+        subject = self._get_subject(request)
+        if not subject or self.subject_field not in subject._fields:
+            return False
+        value = subject[self.subject_field]
+        if hasattr(value, "ids"):
+            value = value.id
+        return str(value) == (self.subject_value or "")
 
     def _get_field_value(self, request) -> float | None:
         match self.condition_field:
@@ -413,6 +620,8 @@ class ApprovalRule(models.Model):
 
     def _condition_bounds(self) -> tuple[float, bool, float, bool] | None:
         self.check_singleton()
+        if self.condition_type != "threshold":
+            return None
         t = self.threshold
         if self.operator == "gt":
             return (t, False, math.inf, True)

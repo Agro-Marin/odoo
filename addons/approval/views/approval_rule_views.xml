@@ -9,10 +9,15 @@
                 <field name="sequence" widget="handle" />
                 <field name="name" />
                 <field name="category_id" />
-                <field name="condition_field" />
-                <field name="operator" />
-                <field name="threshold" />
-                <field name="threshold_max" invisible="operator != 'between'" />
+                <field name="condition_type" />
+                <field name="condition_field" optional="show" />
+                <field name="operator" optional="show" />
+                <field name="threshold" optional="show" />
+                <field
+                    name="threshold_max"
+                    invisible="condition_type != 'threshold' or operator != 'between'" />
+                <field name="subject_model_id" optional="hide" />
+                <field name="subject_domain" optional="hide" />
                 <field name="action_type" />
                 <field
                     name="approver_ids"
@@ -58,17 +63,44 @@
                                 groups="base.group_multi_company" />
                         </group>
                         <group string="Condition">
-                            <field name="condition_field" />
-                            <field name="operator" />
-                            <field name="threshold" />
+                            <field name="condition_type" />
+                            <field
+                                name="condition_field"
+                                invisible="condition_type != 'threshold'"
+                                required="condition_type == 'threshold'" />
+                            <field
+                                name="operator"
+                                invisible="condition_type != 'threshold'"
+                                required="condition_type == 'threshold'" />
+                            <field
+                                name="threshold"
+                                invisible="condition_type != 'threshold'" />
                             <field
                                 name="threshold_max"
-                                invisible="operator != 'between'" />
+                                invisible="condition_type != 'threshold' or operator != 'between'" />
                             <field
                                 name="currency_id"
-                                invisible="condition_field != 'amount'"
+                                invisible="condition_type != 'threshold' or condition_field != 'amount'"
                                 options="{'no_create': True, 'no_open': True}"
                                 groups="base.group_multi_currency" />
+                            <field
+                                name="subject_model_id"
+                                invisible="condition_type == 'threshold'"
+                                required="condition_type != 'threshold'"
+                                options="{'no_create': True}" />
+                            <field
+                                name="subject_domain"
+                                widget="domain"
+                                options="{'model': 'subject_model_id'}"
+                                invisible="condition_type != 'domain'"
+                                required="condition_type == 'domain'" />
+                            <field
+                                name="subject_field"
+                                invisible="condition_type != 'field_selection'"
+                                required="condition_type == 'field_selection'" />
+                            <field
+                                name="subject_value"
+                                invisible="condition_type != 'field_selection'" />
                         </group>
                     </group>
                     <group string="Action">

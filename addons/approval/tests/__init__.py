@@ -27,5 +27,6 @@ from . import (
     test_sequential_approval,
     test_sla_tracking,
     test_state_guards,
+    test_subject_conditions,
     test_ui,
 )
