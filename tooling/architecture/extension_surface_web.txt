@@ -134,7 +134,7 @@ Dropdown.popoverCloseOnClickAway  enterprise  :triage
 Dropdown.setup  odoo  :triage
 DynamicRecordList.addNewRecord  odoo  :triage
 ErrorDialog.setup  odoo  :keep
-ExportDataDialog.fetchFields  enterprise  :triage
+ExportDataDialog.fetchFields  odoo  :triage
 Field.classNames  enterprise  :triage
 Field.fieldComponentProps  enterprise  :keep
 Field.setup  enterprise  :keep
@@ -229,25 +229,25 @@ KanbanController.canCreate  odoo  :keep
 KanbanController.className  odoo  :triage
 KanbanController.createRecord  odoo enterprise  :keep
 KanbanController.deleteRecord  enterprise  :triage
-KanbanController.modelParams  enterprise  :keep
+KanbanController.modelParams  odoo enterprise  :keep
 KanbanController.openRecord  odoo enterprise  :keep
 KanbanController.progressBarAggregateFields  odoo  :triage
 KanbanDropdownMenuWrapper.onClick  odoo  :triage
 KanbanMany2ManyTagsAvatarField.tags  odoo  :triage
-KanbanQuickCreateController.showFormDialogInError  enterprise  :triage
-KanbanRecord.getRecordClasses  odoo enterprise  :keep
+KanbanQuickCreateController.showFormDialogInError  odoo  :triage
+KanbanRecord.getRecordClasses  odoo  :keep
 KanbanRecord.menuTemplate  odoo enterprise  :keep
 KanbanRecord.onGlobalClick  odoo enterprise  :keep
-KanbanRecord.record  enterprise  :triage
+KanbanRecord.record  odoo  :triage
 KanbanRecord.renderingContext  odoo  :triage
 KanbanRecord.setup  odoo enterprise  :keep
-KanbanRecordQuickCreate.getQuickCreateProps  enterprise  :triage
+KanbanRecordQuickCreate.getQuickCreateProps  odoo  :triage
 KanbanRenderer.archiveRecord  odoo  :keep
 KanbanRenderer.canCreateGroup  odoo enterprise  :keep
 KanbanRenderer.canMoveRecords  enterprise  :triage
 KanbanRenderer.canResequenceGroups  enterprise  :keep
 KanbanRenderer.canUseSortable  enterprise  :triage
-KanbanRenderer.cancelQuickCreate  enterprise  :triage
+KanbanRenderer.cancelQuickCreate  odoo  :triage
 KanbanRenderer.focusNextCard  odoo  :triage
 KanbanRenderer.getGroupClasses  odoo  :triage
 KanbanRenderer.getGroupUnloadedCount  enterprise  :triage
@@ -257,7 +257,7 @@ KanbanRenderer.setup  odoo enterprise  :keep
 KanbanRenderer.showNoContentHelper  odoo enterprise  :keep
 KanbanRenderer.toggleRangeSelection  odoo  :triage
 KanbanRenderer.toggleSelection  odoo  :triage
-KanbanRenderer.validateQuickCreate  enterprise  :triage
+KanbanRenderer.validateQuickCreate  odoo  :triage
 ListArchParser.parse  enterprise  :triage
 ListArchParser.parseFieldNode  enterprise  :triage
 ListController.beforeExecuteActionButton  odoo enterprise  :keep
@@ -265,31 +265,31 @@ ListController.beforeLeave  enterprise  :triage
 ListController.beforeUnload  enterprise  :triage
 ListController.className  odoo  :triage
 ListController.createRecord  odoo enterprise  :keep
-ListController.modelParams  enterprise  :keep
+ListController.modelParams  odoo  :keep
 ListController.onClickCreate  odoo enterprise  :keep
-ListController.onRecordSaved  enterprise  :triage
+ListController.onRecordSaved  odoo  :triage
 ListController.openRecord  odoo enterprise  :keep
 ListRenderer.add  odoo  :keep
-ListRenderer.buildRowApi  odoo enterprise  :keep
+ListRenderer.buildRowApi  odoo  :keep
 ListRenderer.canCreate  enterprise  :triage
-ListRenderer.computeOptionalActiveFields  enterprise  :keep
+ListRenderer.computeOptionalActiveFields  odoo enterprise  :keep
 ListRenderer.createControlsTemplate  odoo  :keep
 ListRenderer.createViewKey  enterprise  :triage
 ListRenderer.displayDeleteIcon  odoo  :triage
 ListRenderer.displayRowCreates  odoo  :triage
 ListRenderer.editNextRecord  odoo  :triage
 ListRenderer.fields  enterprise  :triage
-ListRenderer.findFocusFutureCell  odoo enterprise  :keep
+ListRenderer.findFocusFutureCell  odoo  :keep
 ListRenderer.focusCell  odoo  :triage
 ListRenderer.getActiveColumns  odoo enterprise  :keep
 ListRenderer.getColumns  odoo  :keep
 ListRenderer.getPropertyFieldColumns  odoo  :triage
 ListRenderer.getRowProps  odoo  :keep
-ListRenderer.groupRowTemplate  enterprise  :keep
+ListRenderer.groupRowTemplate  odoo  :keep
 ListRenderer.hasSelectors  odoo enterprise  :keep
 ListRenderer.isInlineEditable  odoo  :keep
 ListRenderer.makeTooltip  enterprise  :triage
-ListRenderer.onCellClicked  odoo enterprise  :keep
+ListRenderer.onCellClicked  odoo  :keep
 ListRenderer.onCellKeydown  odoo  :triage
 ListRenderer.onCellKeydownEditMode  odoo  :keep
 ListRenderer.onDeleteRecord  odoo enterprise  :keep
@@ -297,10 +297,10 @@ ListRenderer.onGlobalClick  odoo enterprise  :keep
 ListRenderer.processAllColumns  odoo enterprise  :keep
 ListRenderer.recordRowTemplate  odoo enterprise  :keep
 ListRenderer.rowsTemplate  odoo  :keep
-ListRenderer.saveOptionalActiveFields  enterprise  :keep
+ListRenderer.saveOptionalActiveFields  odoo enterprise  :keep
 ListRenderer.setup  odoo enterprise  :keep
 ListRenderer.showNoContentHelper  odoo  :triage
-ListRenderer.toggleOptionalField  enterprise  :triage
+ListRenderer.toggleOptionalField  odoo  :triage
 ListRenderer.toggleRecordSelection  odoo enterprise  :keep
 ListRenderer.toggleSelection  odoo  :triage
 ListRenderer.useMagicColumnWidths  odoo  :keep
@@ -346,7 +346,7 @@ MultiRecordController.actionMenuProps  odoo enterprise  :keep
 MultiRecordController.getStaticActionMenuItems  odoo enterprise  :keep
 MultiRecordController.modelOptions  odoo enterprise  :keep
 MultiRecordController.onDeleteSelectedRecords  odoo enterprise  :keep
-MultiRecordController.onSelectionChanged  enterprise  :keep
+MultiRecordController.onSelectionChanged  odoo enterprise  :keep
 MultiRecordController.setup  odoo enterprise  :keep
 MultiSelectionButtons.getMultiCreatePopoverProps  odoo  :triage
 MultiSelectionButtons.loadMultiCreateView  odoo  :triage
@@ -389,8 +389,8 @@ PivotRenderer.setup  enterprise  :keep
 Popover.setup  enterprise  :triage
 PriorityField.commands  odoo  :triage
 ProgressBarField.currentValue  odoo  :triage
-ProgressBarField.maxValue  enterprise  :triage
-ProgressBarField.progressBarColorClass  odoo enterprise  :keep
+ProgressBarField.maxValue  odoo  :triage
+ProgressBarField.progressBarColorClass  odoo  :keep
 ProgressBarField.setup  enterprise  :triage
 PropertiesField._getPropertyEditWarningText  enterprise  :promote
 PropertiesField.additionalPropertyDefinitionProps  enterprise  :triage
@@ -428,7 +428,7 @@ SearchBar.removeFacet  enterprise  :triage
 SearchBar.setup  enterprise  :keep
 SearchBarMenu.setup  enterprise  :triage
 SearchModel._getCategoryDomain  odoo  :promote
-SearchModel._getContext  enterprise  :promote
+SearchModel._getContext  odoo  :promote
 SearchModel._getDomain  odoo  :promote
 SearchModel._getFieldDomain  enterprise  :promote
 SearchModel._importState  odoo enterprise  :promote

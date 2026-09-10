@@ -31,7 +31,7 @@
 @web/components/user_switch  odoo
 @web/core/action_hook  odoo enterprise
 @web/core/assets  odoo enterprise
-@web/core/browser/browser  odoo enterprise
+@web/core/browser/browser  odoo enterprise agromarin
 @web/core/browser/cookie  odoo enterprise
 @web/core/browser/feature_detection  odoo enterprise
 @web/core/browser/hotkeys  odoo enterprise
@@ -39,7 +39,7 @@
 @web/core/color_scheme  odoo enterprise
 @web/core/colors/colors  odoo enterprise
 @web/core/context  odoo enterprise
-@web/core/currency  odoo enterprise
+@web/core/currency  odoo
 @web/core/debug/debug_context  odoo enterprise
 @web/core/domain  odoo enterprise agromarin
 @web/core/errors/error_service  odoo
@@ -222,7 +222,7 @@
 @web/views/view_hook  odoo enterprise
 @web/views/view_measurements  enterprise
 @web/views/view_utils  odoo enterprise agromarin
-@web/views/widgets  odoo enterprise
+@web/views/widgets  odoo enterprise agromarin
 @web/webclient/actions  odoo enterprise agromarin
 @web/webclient/burger_menu/burger_menu  odoo
 @web/webclient/clickbot/clickbot  enterprise

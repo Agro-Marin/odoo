@@ -8,7 +8,7 @@
 @mail/core/common/attachment_model  odoo enterprise
 @mail/core/common/attachment_upload_service  odoo
 @mail/core/common/attachment_uploader_hook  odoo enterprise
-@mail/core/common/attachment_view  odoo enterprise
+@mail/core/common/attachment_view  odoo
 @mail/core/common/chat_bubble  odoo
 @mail/core/common/chat_hub  odoo
 @mail/core/common/chat_window  odoo enterprise
@@ -88,7 +88,7 @@
 @mail/views/web/fields/html_mail_field/convert_inline  odoo
 @mail/views/web/fields/html_mail_field/html_mail_field  enterprise
 @mail/views/web/fields/kanban_activity/kanban_activity  odoo
-@mail/views/web/fields/many2many_avatar_user_field/many2many_avatar_user_field  odoo enterprise
+@mail/views/web/fields/many2many_avatar_user_field/many2many_avatar_user_field  odoo
 @mail/views/web/fields/many2one_avatar_user_field/many2one_avatar_user_field  odoo
 @mail/views/web/fields/onchange_on_keydown  odoo
 @mail/views/web/rotting/rotting_column_progress  odoo
