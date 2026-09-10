@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { useRef } from "@odoo/owl";
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
@@ -16,7 +15,6 @@ export class ProjectTaskCalendarController extends CalendarController {
 
     setup() {
         super.setup();
-        this.rootRef = useRef("root");
         if (this.canDragAndDropRecord) {
             useCalendarTaskToPlanDraggable({
                 ref: this.rootRef,

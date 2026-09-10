@@ -56,8 +56,9 @@
     </t>
 
     <t t-name="web.GraphView">
+        <t t-set="rendererReady" t-value="model.isReady"/>
         <ViewLayout t-props="chassis.props">
-            <t t-if="model.isReady and model.data" t-component="props.Renderer" model="model" buttonTemplate="props.buttonTemplate"/>
+            <t t-if="rendererReady and model.data" t-component="props.Renderer" model="model" buttonTemplate="props.buttonTemplate"/>
         </ViewLayout>
     </t>
 

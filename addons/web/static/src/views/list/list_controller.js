@@ -9,15 +9,14 @@ import { useModelWithSampleData } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
-import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
-import { SearchBar } from "@web/search/search_bar/search_bar";
 import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { executeButtonCallback } from "@web/views/view_button/view_button_hook";
 import { SelectionBox } from "@web/views/view_components/selection_box";
+import { ViewLayout } from "@web/views/view_components/view_layout";
 import {
     exportableFields,
     getMultiRecordModelParams,
@@ -32,10 +31,9 @@ export class ListController extends MultiRecordController {
     static template = `web.ListView`;
     static components = {
         ActionMenus,
-        Layout,
+        ViewLayout,
         ViewButton,
         MultiRecordViewButton,
-        SearchBar,
         CogMenu: ListCogMenu,
         DropdownItem,
         SelectionBox,

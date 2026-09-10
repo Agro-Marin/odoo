@@ -17,13 +17,17 @@
                     <t t-if="hasSlot('control-panel-always-buttons')" t-slot="control-panel-always-buttons"/>
                 </t>
 
+                <t t-set-slot="control-panel-selection-actions">
+                    <t t-if="hasSlot('control-panel-selection-actions')" t-slot="control-panel-selection-actions"/>
+                </t>
+
                 <t t-set-slot="layout-actions">
                     <SearchBar t-if="props.searchBar" toggler="props.searchBarToggler" autofocus="props.autofocusSearchBar"/>
                     <t t-if="hasSlot('layout-actions')" t-slot="layout-actions"/>
                 </t>
 
                 <t t-set-slot="control-panel-navigation-additional">
-                    <t t-if="props.searchBar and props.searchBarToggler"
+                    <t t-if="props.searchBar and props.searchBarToggler and props.showSearchBarToggler"
                        t-component="props.searchBarToggler.component"
                        t-props="props.searchBarToggler.props"/>
                     <t t-if="hasSlot('control-panel-navigation-additional')" t-slot="control-panel-navigation-additional"/>

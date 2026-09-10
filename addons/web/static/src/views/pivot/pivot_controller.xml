@@ -20,8 +20,9 @@
     </t>
 
     <t t-name="web.PivotView">
+        <t t-set="rendererReady" t-value="model.isReady"/>
         <ViewLayout t-props="chassis.props">
-            <t t-if="model.isReady" t-component="props.Renderer" model="model" buttonTemplate="props.buttonTemplate"/>
+            <t t-if="rendererReady" t-component="props.Renderer" model="model" buttonTemplate="props.buttonTemplate"/>
         </ViewLayout>
     </t>
 

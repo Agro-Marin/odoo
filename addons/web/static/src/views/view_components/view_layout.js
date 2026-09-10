@@ -18,6 +18,7 @@ import { ActionHelper } from "@web/views/action_helper";
  * @property {Record<string, any>} [display]
  * @property {Record<string, any>} [searchBarToggler]
  * @property {boolean} [searchBar]
+ * @property {boolean} [showSearchBarToggler]
  * @property {boolean} [autofocusSearchBar]
  * @property {boolean} [cogMenu]
  * @property {boolean} [useSampleModel]
@@ -37,6 +38,7 @@ export class ViewLayout extends Component {
         display: { type: Object, optional: true },
         searchBarToggler: { type: Object, optional: true },
         searchBar: { type: Boolean, optional: true },
+        showSearchBarToggler: { type: Boolean, optional: true },
         autofocusSearchBar: { type: Boolean, optional: true },
         cogMenu: { type: Boolean, optional: true },
         useSampleModel: { type: Boolean, optional: true },
@@ -47,6 +49,7 @@ export class ViewLayout extends Component {
         className: "",
         display: {},
         searchBar: true,
+        showSearchBarToggler: true,
         cogMenu: true,
         autofocusSearchBar: false,
         useSampleModel: false,
@@ -84,7 +87,12 @@ export class ViewLayout extends Component {
 export function useViewChassis(hooks = {}) {
     const component = /** @type {any} */ (useComponent());
     const searchBarToggler = useSearchBarToggler();
-    const rootRef = useChildRef();
+    const forwardRootRef = useChildRef();
+    const rootRef = {
+        get el() {
+            return forwardRootRef.el;
+        },
+    };
 
     const getModel = () => (hooks.model ? hooks.model() : component.model);
 
@@ -110,7 +118,7 @@ export function useViewChassis(hooks = {}) {
             const model = getModel();
             const noContentHelp = component.props.info?.noContentHelp;
             return {
-                rootRef,
+                rootRef: forwardRootRef,
                 className: component.props.className,
                 display: hooks.display ? hooks.display() : component.props.display,
                 searchBarToggler,

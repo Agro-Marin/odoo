@@ -102,6 +102,7 @@ export class CalendarController extends Component {
 
         this.chassis = useViewChassis();
         this.searchBarToggler = this.chassis.searchBarToggler;
+        this.rootRef = this.chassis.rootRef;
 
         this._baseRendererProps = {
             createRecord: this.createRecord.bind(this),

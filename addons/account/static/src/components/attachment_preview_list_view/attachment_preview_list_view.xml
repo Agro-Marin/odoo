@@ -2,13 +2,10 @@
 
 <templates xml:space="preserve">
     <t t-name="account.AttachmentPreviewListView" t-inherit="web.ListView">
-        <xpath expr="//div[@t-ref='root']" position="attributes" type="add">
-            <attribute name="class" add="o_move_line_list_view" separator=" "/>
-        </xpath>
         <xpath expr="//t[@t-component='props.Renderer']" position="attributes">
             <attribute name="setSelectedRecord.bind">this.setSelectedRecord</attribute>
         </xpath>
-        <xpath expr="//Layout" position="inside">
+        <xpath expr="//ViewLayout" position="inside">
             <t t-call="account.AttachmentPreview"/>
         </xpath>
     </t>

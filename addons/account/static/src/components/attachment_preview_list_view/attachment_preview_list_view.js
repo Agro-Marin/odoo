@@ -13,6 +13,10 @@ export class AttachmentPreviewListController extends ListController {
         ...ListController.components,
         AccountAttachmentView,
     };
+
+    get className() {
+        return [super.className, "o_move_line_list_view"].filter(Boolean).join(" ");
+    }
     setup() {
         super.setup();
         /** @type {import("@mail/core/common/store_service").Store} */

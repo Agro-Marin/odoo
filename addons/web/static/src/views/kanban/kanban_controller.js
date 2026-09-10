@@ -10,13 +10,12 @@ import {
     extractFieldsFromArchInfo,
 } from "@web/model/relational_model";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
-import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
-import { SearchBar } from "@web/search/search_bar/search_bar";
 import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
 import { SelectionBox } from "@web/views/view_components/selection_box";
+import { ViewLayout } from "@web/views/view_components/view_layout";
 import { exportableFields, getMultiRecordModelParams } from "@web/views/view_utils";
 
 import { KanbanCogMenu } from "./kanban_cog_menu.js";
@@ -68,10 +67,9 @@ export class KanbanController extends MultiRecordController {
     static components = {
         ActionMenus,
         DropdownItem,
-        Layout,
+        ViewLayout,
         KanbanRenderer,
         MultiRecordViewButton,
-        SearchBar,
         CogMenu: KanbanCogMenu,
         SelectionBox,
     };
@@ -297,6 +295,13 @@ export class KanbanController extends MultiRecordController {
             return classList.join(" ");
         }
         return this.props.className;
+    }
+
+    get chassisProps() {
+        const selection = this.hasSelectedRecords
+            ? "o_kanban_selection_active"
+            : "o_kanban_selection_available";
+        return { ...super.chassisProps, className: `${this.className} ${selection}` };
     }
 
     /** @returns {boolean} */

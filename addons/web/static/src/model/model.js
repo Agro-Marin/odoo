@@ -6,6 +6,7 @@ import {
     onWillRender,
     onWillStart,
     onWillUpdateProps,
+    reactive,
     status,
     useComponent,
     useState,
@@ -54,7 +55,10 @@ export class Model extends SignalStore {
         /** @type {Deferred} */
         this.whenReady = new Deferred();
         this.whenReady.then(() => {
-            this.isReady = true;
+            // Through a proxy of this model, so a component that read
+            // `isReady` through its own useState proxy is notified; a bare
+            // write on the raw model reaches no subscriber.
+            reactive(this).isReady = true;
         });
         this.setup(params, services);
     }

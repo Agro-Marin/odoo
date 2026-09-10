@@ -5,8 +5,8 @@ import { onMounted, onWillStart, useEffect, useSubEnv } from "@odoo/owl";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
-import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
+import { useViewChassis } from "@web/views/view_components/view_layout";
 import { ViewController } from "@web/views/view_controller";
 import { useDeleteRecords, useExportRecords } from "@web/views/view_hook";
 import {
@@ -56,7 +56,13 @@ export class MultiRecordController extends ViewController {
         super.setupControllerServices();
 
         this.archiveEnabled = computeArchiveEnabled(this.props.fields);
-        this.searchBarToggler = useSearchBarToggler();
+        this.chassis = useViewChassis({
+            display: () => this.display,
+            // list and kanban renderers own their no-content helper
+            displayNoContent: () => false,
+        });
+        this.searchBarToggler = this.chassis.searchBarToggler;
+        this.rootRef = this.chassis.rootRef;
         this.firstLoad = true;
         onMounted(() => {
             this.firstLoad = false;
@@ -117,6 +123,15 @@ export class MultiRecordController extends ViewController {
                     return this.model.load();
                 }
             },
+        };
+    }
+
+    get chassisProps() {
+        return {
+            ...this.chassis.props,
+            className: this.className,
+            autofocusSearchBar: this.firstLoad,
+            showSearchBarToggler: !this.hasSelectedRecords,
         };
     }
 
