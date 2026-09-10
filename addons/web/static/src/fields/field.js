@@ -102,6 +102,7 @@ fieldRegistry.addValidation({
     listViewWidth: {
         type: [
             Number,
+            { value: "content" },
             {
                 type: Array,
                 element: Number,

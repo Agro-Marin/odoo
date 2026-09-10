@@ -303,6 +303,7 @@ export class ListRenderer extends Component {
 
         this.columnWidths = useMagicColumnWidths(this.tableRef, () => ({
             columns: this.columns,
+            isEditing: this.props.list.isEditing,
             isEmpty:
                 !this.props.list.records.length || this.props.list.model.useSampleModel,
             hasSelectors: this.hasSelectors,

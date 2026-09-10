@@ -105,6 +105,11 @@ export function buildM2OFieldDescription(component) {
         supportedOptions: m2oSupportedOptions,
         supportedAttributes: m2oSupportedAttributes,
         supportedTypes: m2oSupportedTypes,
+        listViewWidth: ({ fieldDefinition }) =>
+            fieldDefinition?.type === "many2one" &&
+            fieldDefinition.relation === "res.company"
+                ? "content"
+                : undefined,
     };
 }
 

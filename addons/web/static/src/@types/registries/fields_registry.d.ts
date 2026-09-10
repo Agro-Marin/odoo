@@ -125,6 +125,7 @@ declare module "registries" {
          * "use the default minimum column width".
          */
         listViewWidth?:
+            | "content"
             | number
             | number[]
             | ((param: {
@@ -132,7 +133,7 @@ declare module "registries" {
                   fieldDefinition?: FieldDefinition;
                   hasLabel: boolean;
                   options: Record<string, any>;
-              }) => number | number[] | false | undefined);
+              }) => "content" | number | number[] | false | undefined);
         relatedFields?:
             | Partial<StaticFieldInfo>[]
             | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);

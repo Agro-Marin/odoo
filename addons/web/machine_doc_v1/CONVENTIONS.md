@@ -103,6 +103,28 @@ route to route to a replica.
 
 ## JavaScript Patterns
 
+### List column sizing
+
+Field definitions declare sizing through `listViewWidth`: a fixed number, a
+minimum/maximum array, or `"content"` to fit the rendered column rather than
+share spare table width. The existing callback form can choose from these using
+field metadata. An explicit view `width` takes precedence.
+
+The many2one field-description builder selects `"content"` for relations to
+`res.company`, whose display label can be a short code or a full name. This also
+applies when a view explicitly names the many2one widget; derived widgets can
+override the sizing declaration. The list sizing algorithm consumes the policy
+without knowing the relation or field name. It retains the usual minimum width
+and empty-list fallback. Intrinsic widths exclude cell padding and survive a
+container shrink, so expanding the container can restore the full label. Other
+columns yield spare width before content-sized labels are truncated.
+
+Displayed text changes (paging, filters, or opening groups) invalidate automatic
+content widths. Editing freezes widths; a manual drag keeps them frozen until a
+reset, column-layout change, or window resize. If every visible column requests
+content sizing, the table still fills its container, so those columns share the
+otherwise unused space.
+
 ### Service Injection
 ```javascript
 setup() {

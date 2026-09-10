@@ -25,7 +25,9 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { charField } from "@web/fields/basic/char/char_field";
 import { resetDateFieldWidths } from "@web/fields/field_widths";
+import { many2OneField } from "@web/fields/relational/many2one/many2one_field";
 
 describe.current.tags("desktop");
 
@@ -39,6 +41,7 @@ class Foo extends models.Model {
     int_field = fields.Integer();
     qux = fields.Float();
     m2o = fields.Many2one({ relation: "bar" });
+    company_id = fields.Many2one({ relation: "res.company", string: "Company" });
     o2m = fields.One2many({ relation: "bar" });
     foo_o2m = fields.One2many({ relation: "foo" });
     m2m = fields.Many2many({ relation: "bar" });
@@ -469,6 +472,208 @@ test(`width computation: list with width attribute in arch`, async () => {
     });
     expect(getColumnWidths()).toEqual([40, 61, 72, 210, 417]);
 });
+
+for (const [label, widget] of [
+    ["AGM", ""],
+    ["Agro Marin Agricultural Operations", ""],
+    ["AGM", 'widget="many2one"'],
+    ["Agro Marin Agricultural Operations", 'widget="many2one"'],
+]) {
+    test(`company column fits displayed label: ${label} ${widget}`, async () => {
+        ResCompany._records = [{ id: 1, name: label, display_name: label }];
+        Foo._records = [{ id: 1, foo: "Transfer", company_id: 1 }];
+        await mountView({
+            type: "list",
+            resModel: "foo",
+            arch: `<list><field name="foo"/><field name="company_id" ${widget}/></list>`,
+        });
+        expect('.o_data_cell[name="company_id"]').toHaveText(label);
+        const cell = queryOne('.o_data_cell[name="company_id"]');
+        const text = cell.querySelector(".text-truncate") || cell;
+        expect(text.scrollWidth).toBeLessThan(text.clientWidth + 2);
+        const width = queryRect('th[data-name="company_id"]').width;
+        expect(width).toBeLessThan(label === "AGM" ? 150 : 350);
+        if (label !== "AGM") {
+            expect(width).toBeGreaterThan(200);
+        }
+        await resize({ width: 1200 });
+        await animationFrame();
+        expect(queryRect('th[data-name="company_id"]').width).toBeCloseTo(width, {
+            margin: 3,
+        });
+    });
+}
+
+test("any field widget can request content sizing", async () => {
+    registry.category("fields").add("compact_char", {
+        ...charField,
+        listViewWidth: "content",
+    });
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        arch: `<list><field name="foo" widget="compact_char"/><field name="m2o"/></list>`,
+    });
+    expect(queryRect('th[data-name="foo"]').width).toBeLessThan(150);
+    expect(queryRect('th[data-name="m2o"]').width).toBeGreaterThan(400);
+});
+
+test("content sizing keeps a long column heading readable", async () => {
+    ResCompany._records = [{ id: 1, name: "AGM" }];
+    Foo._records = [{ id: 1, foo: "Transfer", company_id: 1 }];
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        arch: `<list><field name="foo"/><field name="company_id" string="Responsible operating company"/></list>`,
+    });
+    const label = queryOne('th[data-name="company_id"] div > span');
+    expect(label.scrollWidth).toBeLessThan(label.clientWidth + 2);
+});
+
+test("content sizing adapts when the next page uses a full company name", async () => {
+    ResCompany._records = [
+        { id: 1, name: "AGM" },
+        { id: 2, name: "Agro Marin Agricultural Operations" },
+    ];
+    Foo._records = [
+        { id: 1, foo: "Transfer 1", company_id: 1 },
+        { id: 2, foo: "Transfer 2", company_id: 2 },
+    ];
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        limit: 1,
+        arch: `<list><field name="foo"/><field name="company_id"/></list>`,
+    });
+    const initialWidth = queryRect('th[data-name="company_id"]').width;
+    await pagerNext();
+    expect(queryRect('th[data-name="company_id"]').width).toBeGreaterThan(
+        initialWidth + 100,
+    );
+    const cell = queryOne('.o_data_cell[name="company_id"]');
+    expect(cell.scrollWidth).toBeLessThan(cell.clientWidth + 2);
+});
+
+test("content sizing recovers after its parent shrinks and expands", async () => {
+    ResCompany._records = [{ id: 1, name: "Agro Marin Agricultural Operations" }];
+    Foo._records = [{ id: 1, foo: "Transfer", company_id: 1 }];
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        arch: `<list><field name="foo"/><field name="company_id"/></list>`,
+    });
+    const initialWidth = queryRect('th[data-name="company_id"]').width;
+    queryOne(".o_list_renderer").style.width = "250px";
+    await runAllTimers();
+    expect(queryRect('th[data-name="company_id"]').width).toBeLessThan(initialWidth);
+    queryOne(".o_list_renderer").style.width = "800px";
+    await runAllTimers();
+    expect(queryRect('th[data-name="company_id"]').width).toBeCloseTo(initialWidth, {
+        margin: 3,
+    });
+});
+
+test("manually resized company widths survive paging until reset", async () => {
+    ResCompany._records = [
+        { id: 1, name: "AGM" },
+        { id: 2, name: "Agro Marin Agricultural Operations" },
+    ];
+    Foo._records = [
+        { id: 1, foo: "Transfer 1", company_id: 1 },
+        { id: 2, foo: "Transfer 2", company_id: 2 },
+    ];
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        limit: 1,
+        arch: `<list><field name="company_id"/><field name="foo"/></list>`,
+    });
+    const handle = 'th[data-name="company_id"] .o_resize';
+    const before = queryRect('th[data-name="company_id"]').width;
+    await contains(handle, { visible: false }).dragAndDrop('th[data-name="foo"]');
+    const dragged = queryRect('th[data-name="company_id"]').width;
+    expect(dragged).toBeGreaterThan(before + 50);
+    await pagerNext();
+    expect(queryRect('th[data-name="company_id"]').width).toBeCloseTo(dragged, {
+        margin: 2,
+    });
+    await contains(handle, { visible: false }).dblclick();
+    expect(queryRect('th[data-name="company_id"]').width).toBeLessThan(dragged - 50);
+    const cell = queryOne('.o_data_cell[name="company_id"]');
+    expect(cell.scrollWidth).toBeLessThan(cell.clientWidth + 2);
+});
+
+test("opening a group measures its company labels", async () => {
+    ResCompany._records = [{ id: 1, name: "AGM" }];
+    Foo._records = [{ id: 1, foo: "Transfer", company_id: 1 }];
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        groupBy: ["foo"],
+        arch: `<list><field name="foo"/><field name="company_id"/></list>`,
+    });
+    expect(".o_data_row").toHaveCount(0);
+    await contains(".o_group_header").click();
+    expect(".o_data_row").toHaveCount(1);
+    expect(queryRect('th[data-name="company_id"]').width).toBeLessThan(150);
+});
+
+test("content sizing keeps widths stable while editing", async () => {
+    ResCompany._records = [{ id: 1, name: "AGM" }];
+    Foo._records = [{ id: 1, foo: "Transfer", company_id: 1 }];
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        arch: `<list editable="bottom"><field name="foo"/><field name="company_id"/></list>`,
+    });
+    const before = getColumnWidths();
+    await contains('.o_data_cell[name="company_id"]').click();
+    expect(getColumnWidths()).toEqual(before);
+    await contains('.o_field_widget[name="foo"] input').edit("Edited transfer");
+    expect(getColumnWidths()).toEqual(before);
+    await contains(".o_list_button_save").click();
+    expect(getColumnWidths()).toEqual(before);
+});
+
+test("company stays compact when the other columns have maximum widths", async () => {
+    ResCompany._records = [{ id: 1, name: "AGM" }];
+    Foo._records = [{ id: 1, int_field: 1, company_id: 1 }];
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        arch: `<list><field name="company_id"/><field name="int_field"/></list>`,
+    });
+    expect(queryRect('th[data-name="company_id"]').width).toBeLessThan(150);
+    expect(queryRect(".o_list_table").width).toBeCloseTo(800, { margin: 2 });
+});
+
+for (const [attributes, customWidth] of [
+    ['width="220px"', false],
+    ['widget="wide_company"', true],
+]) {
+    test(`company sizing respects overrides: ${attributes}`, async () => {
+        if (customWidth) {
+            registry.category("fields").add("wide_company", {
+                ...many2OneField,
+                listViewWidth: 220,
+            });
+        }
+        ResCompany._records = [{ id: 1, name: "AGM" }];
+        Foo._records = [{ id: 1, foo: "Transfer", company_id: 1 }];
+        await mountView({
+            type: "list",
+            resModel: "foo",
+            arch: `<list><field name="foo"/><field name="company_id" ${attributes}/></list>`,
+        });
+        const header = queryOne('th[data-name="company_id"]');
+        const { paddingLeft, paddingRight } = getComputedStyle(header);
+        const contentWidth =
+            header.getBoundingClientRect().width -
+            Number.parseFloat(paddingLeft) -
+            Number.parseFloat(paddingRight);
+        expect(contentWidth).toBeCloseTo(220, { margin: 2 });
+    });
+}
 
 test(`width computation: datetime in numeric, am/pm format`, async () => {
     defineParams({

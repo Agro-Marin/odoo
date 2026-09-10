@@ -30,12 +30,16 @@ const DELETE_BUTTON_WIDTH = 12;
  * }} state
  * @param {number} allowedWidth
  * @param {number[] | null} [startingWidths]
+ * @param {number[]} [contentWidths]
  * @returns {Number[]}
  */
-function computeWidths(table, state, allowedWidth, startingWidths) {
+function computeWidths(table, state, allowedWidth, startingWidths, contentWidths = []) {
     let _columnWidths;
     const headers = [...table.querySelectorAll("thead th")];
     const columns = state.columns;
+    const columnOffset = state.hasSelectors ? 1 : 0;
+    const columnWidthSpecs = getWidthSpecs(columns, allowedWidth);
+    const contentSized = columnWidthSpecs.map((spec) => spec.contentSized);
 
     if (startingWidths) {
         _columnWidths = startingWidths.slice();
@@ -45,6 +49,11 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
         table.style.tableLayout = "auto";
         headers.forEach((th) => {
             th.style.width = "";
+        });
+        contentSized.forEach((fit, index) => {
+            if (fit) {
+                headers[index + columnOffset].style.width = "1px";
+            }
         });
         table.classList.add("o_list_computing_widths");
         _columnWidths = headers.map((th) => th.getBoundingClientRect().width);
@@ -61,8 +70,17 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
     if (state.hasActionsColumn) {
         _columnWidths[_columnWidths.length - 1] = DELETE_BUTTON_WIDTH;
     }
-    const columnWidthSpecs = getWidthSpecs(columns, allowedWidth);
-    const columnOffset = state.hasSelectors ? 1 : 0;
+    contentSized.forEach((fit, index) => {
+        if (fit && !state.isEmpty) {
+            const thIndex = index + columnOffset;
+            contentWidths[index] ??= Math.max(
+                columnWidthSpecs[index].minWidth,
+                _columnWidths[thIndex] -
+                    (startingWidths ? 0 : getHorizontalPadding(headers[thIndex])),
+            );
+            columnWidthSpecs[index].maxWidth = contentWidths[index];
+        }
+    });
     for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
         const thIndex = columnIndex + columnOffset;
         const { minWidth, maxWidth } = columnWidthSpecs[columnIndex];
@@ -76,7 +94,27 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
     const totalWidth = _columnWidths.reduce((tot, width) => tot + width, 0);
     const diff = totalWidth - allowedWidth;
     if (diff >= 1) {
-        shrinkColumns(_columnWidths, columns, columnWidthSpecs, columnOffset, diff);
+        const preferredSpecs = columnWidthSpecs.map((spec) =>
+            spec.contentSized && spec.maxWidth
+                ? { ...spec, minWidth: spec.maxWidth }
+                : spec,
+        );
+        const remaining = shrinkColumns(
+            _columnWidths,
+            columns,
+            preferredSpecs,
+            columnOffset,
+            diff,
+        );
+        if (remaining >= 1) {
+            shrinkColumns(
+                _columnWidths,
+                columns,
+                columnWidthSpecs,
+                columnOffset,
+                remaining,
+            );
+        }
     } else if (diff <= -1) {
         expandColumns(_columnWidths, columns, columnWidthSpecs, columnOffset, -diff);
     }
@@ -86,9 +124,10 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
 /**
  * @param {number[]} widths
  * @param {any[]} columns
- * @param {{ minWidth: number, maxWidth?: number, canShrink: boolean }[]} specs
+ * @param {{ minWidth: number, maxWidth?: number, canShrink: boolean, contentSized?: boolean }[]} specs
  * @param {number} columnOffset
  * @param {number} diff
+ * @returns {number} Unallocated overflow after shrinking eligible columns.
  */
 function shrinkColumns(widths, columns, specs, columnOffset, diff) {
     const shrinkableColumns = [];
@@ -105,7 +144,7 @@ function shrinkColumns(widths, columns, specs, columnOffset, diff) {
         for (const { thIndex, minWidth } of shrinkableColumns) {
             widths[thIndex] = minWidth;
         }
-        return;
+        return diff - totalAvailableSpace;
     }
     let remainingColumnsToShrink = shrinkableColumns.length;
     while (diff >= 1 && remainingColumnsToShrink > 0) {
@@ -123,12 +162,13 @@ function shrinkColumns(widths, columns, specs, columnOffset, diff) {
             }
         }
     }
+    return diff;
 }
 
 /**
  * @param {number[]} widths
  * @param {any[]} columns
- * @param {{ minWidth: number, maxWidth?: number, canShrink: boolean }[]} specs
+ * @param {{ minWidth: number, maxWidth?: number, canShrink: boolean, contentSized?: boolean }[]} specs
  * @param {number} columnOffset
  * @param {number} diff
  */
@@ -169,9 +209,14 @@ function expandColumns(widths, columns, specs, columnOffset, diff) {
             flexible.push(columnIndex + columnOffset);
         }
     }
+    const nonContent = columns.flatMap((_, index) =>
+        specs[index].contentSized ? [] : [index + columnOffset],
+    );
     const targets = flexible.length
         ? flexible
-        : columns.map((_, columnIndex) => columnIndex + columnOffset);
+        : nonContent.length
+          ? nonContent
+          : columns.map((_, columnIndex) => columnIndex + columnOffset);
     for (const thIndex of targets) {
         widths[thIndex] += diff / targets.length;
     }
@@ -202,6 +247,7 @@ function getWidthSpecs(columns, allowedWidth) {
     return columns.map((column) => {
         let minWidth;
         let maxWidth;
+        let contentSized = false;
         const declaredWidth = column.attrs?.width
             ? parseWidthAttribute(column.attrs.width, allowedWidth)
             : null;
@@ -226,14 +272,17 @@ function getWidthSpecs(columns, allowedWidth) {
             } else if (column.type === "widget") {
                 width = column.widget.listViewWidth;
             }
-            if (width) {
+            if (width === "content") {
+                minWidth = DEFAULT_MIN_WIDTH;
+                contentSized = true;
+            } else if (width) {
                 minWidth = Array.isArray(width) ? width[0] : width;
                 maxWidth = Array.isArray(width) ? width[1] : width;
             } else {
                 minWidth = DEFAULT_MIN_WIDTH;
             }
         }
-        return { minWidth, maxWidth, canShrink: column.type === "field" };
+        return { minWidth, maxWidth, contentSized, canShrink: column.type === "field" };
     });
 }
 
@@ -269,6 +318,13 @@ export class MagicColumnWidths {
     cellPaddings = null;
     /** @type {(() => void) | null} */
     cleanupResize = null;
+    /** @type {number[]} */
+    contentWidths = [];
+    /** @type {number[]} */
+    contentColumns = [];
+    /** @type {string | undefined} */
+    contentSignature;
+    hasManualWidths = false;
 
     /**
      * @param {any} tableRef
@@ -299,6 +355,12 @@ export class MagicColumnWidths {
         if (nextHash !== this.hash) {
             this.hash = nextHash;
             this.unsetWidths();
+            this.contentColumns = getWidthSpecs(
+                columns,
+                table.parentNode.clientWidth,
+            ).flatMap((spec, index) =>
+                spec.contentSized ? [index + (state.hasSelectors ? 1 : 0)] : [],
+            );
         }
         if (this.hasAlwaysBeenEmpty && !state.isEmpty) {
             this.hasAlwaysBeenEmpty = false;
@@ -307,6 +369,8 @@ export class MagicColumnWidths {
                 this.unsetWidths();
             }
         }
+
+        this.updateContentWidths(table, state.isEditing);
 
         if (
             this.columnWidths &&
@@ -334,7 +398,13 @@ export class MagicColumnWidths {
 
         const columnWidths =
             !this.columnWidths || allowedWidthDiff > 0
-                ? computeWidths(table, state, this.allowedWidth, this.columnWidths)
+                ? computeWidths(
+                      table,
+                      state,
+                      this.allowedWidth,
+                      this.columnWidths,
+                      this.contentWidths,
+                  )
                 : this.columnWidths;
         this.columnWidths = columnWidths;
 
@@ -350,12 +420,36 @@ export class MagicColumnWidths {
 
     unsetWidths() {
         this.columnWidths = null;
+        this.contentWidths = [];
+        this.contentSignature = undefined;
+        this.hasManualWidths = false;
         this.lastAppliedParentWidth = null;
         this.cellPaddings = null;
         this.tableRef.el.style.width = null;
         if (this.parentWidthFixed) {
             this.tableRef.el.parentElement.style.width = null;
             this.parentWidthFixed = false;
+        }
+    }
+
+    /**
+     * @param {HTMLTableElement} table
+     * @param {boolean} isEditing
+     */
+    updateContentWidths(table, isEditing) {
+        if (!this.contentColumns.length || isEditing || this.hasManualWidths) {
+            return;
+        }
+        const rows = [...table.querySelectorAll(".o_data_row")];
+        const signature = JSON.stringify(
+            this.contentColumns.map((index) =>
+                rows.map((row) => row.children[index]?.textContent || "").sort(),
+            ),
+        );
+        if (signature !== this.contentSignature) {
+            this.contentSignature = signature;
+            this.contentWidths = [];
+            this.columnWidths = null;
         }
     }
 
@@ -430,6 +524,8 @@ export class MagicColumnWidths {
             this.columnWidths = headers.map(
                 (th) => th.getBoundingClientRect().width - getHorizontalPadding(th),
             );
+            this.hasManualWidths = true;
+            this.contentWidths = [];
 
             ev.preventDefault();
             ev.stopPropagation();
