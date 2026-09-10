@@ -1,9 +1,9 @@
 import datetime
 
 from odoo import fields
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command
-from odoo.tests import Form, TransactionCase, tagged
+from odoo.tests import Form, TransactionCase, new_test_user, tagged
 
 
 @tagged("post_install", "-at_install")
@@ -256,6 +256,31 @@ class TestExpiryConfirmation(ExpiryAuditCommon):
             stale, picking.move_line_ids.lot_id, "the expired lot must be dropped"
         )
         self.assertIn(fresh, picking.move_line_ids.lot_id, "the fresh lot must survive")
+
+    def test_confirming_with_expired_lots_is_a_manager_act_and_is_logged(self):
+        lot = self._lot("AUDIT-GATE", -2)
+        self.env.flush_all()
+        lot.write({"removal_date": False})
+        self.env.flush_all()
+        picking = self._delivery(lot)
+        action = picking.button_validate()
+        wizard = self._wizard_for(picking, action)
+        stock_user = new_test_user(
+            self.env, login="expiry_stock_user", groups="stock.group_stock_user"
+        )
+        with self.assertRaises(AccessError):
+            wizard.with_user(stock_user).process()
+        self.assertNotEqual(picking.state, "done")
+        messages_before = self.env["mail.message"].search_count(
+            [("model", "=", "stock.picking"), ("res_id", "=", picking.id)]
+        )
+        wizard.process()
+        self.assertEqual(picking.state, "done")
+        messages = self.env["mail.message"].search(
+            [("model", "=", "stock.picking"), ("res_id", "=", picking.id)]
+        )
+        self.assertEqual(len(messages) - messages_before, 1)
+        self.assertIn(lot.name, messages[0].body)
 
     def test_process_survives_a_context_without_the_wizard_defaults(self):
         lot = self._lot("AUDIT-CTX", -2)

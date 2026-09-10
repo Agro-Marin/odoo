@@ -26,6 +26,7 @@
                     string="Confirm"
                     type="object"
                     invisible="not production_ids"
+                    groups="mrp.group_mrp_manager"
                     class="btn-primary" />
                 <button
                     special="cancel"

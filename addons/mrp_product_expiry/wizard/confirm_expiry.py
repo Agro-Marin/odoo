@@ -24,7 +24,12 @@ class ExpiryPickingConfirmation(models.TransientModel):
                 )
         super(ExpiryPickingConfirmation, self - manufacturing)._compute_description()
 
+    def _get_records_to_confirm(self):
+        return self.production_ids or super()._get_records_to_confirm()
+
     def action_confirm_produce(self):
+        self._check_confirm_access("mrp.group_mrp_manager")
+        self._log_confirmation_with_expired_lots(self.production_ids)
         return self.production_ids.with_context(
             **self._get_validation_context()
         ).button_mark_done()

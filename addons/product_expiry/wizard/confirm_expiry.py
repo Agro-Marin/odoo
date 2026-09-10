@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 
 class ExpiryPickingConfirmation(models.TransientModel):
@@ -44,10 +44,32 @@ class ExpiryPickingConfirmation(models.TransientModel):
             if not key.startswith("default_")
         } | {"skip_expired": True}
 
+    def _check_confirm_access(self, group_xmlid):
+        if not self.env.user.has_group(group_xmlid):
+            raise AccessError(
+                self.env._(
+                    "Only a manager can confirm %(records)s with expired lots.",
+                    records=", ".join(self._get_records_to_confirm().mapped("name")),
+                )
+            )
+
+    def _get_records_to_confirm(self):
+        return self._get_pickings_to_validate()
+
+    def _log_confirmation_with_expired_lots(self, records):
+        body = self.env._(
+            "%(user)s confirmed using expired lot(s): %(lots)s.",
+            user=self.env.user.name,
+            lots=", ".join(self.lot_ids.mapped("name")),
+        )
+        records._message_log_batch(bodies=dict.fromkeys(records.ids, body))
+
     def process(self):
         pickings = self._get_pickings_to_validate()
         if not pickings:
             return True
+        self._check_confirm_access("stock.group_stock_manager")
+        self._log_confirmation_with_expired_lots(pickings)
         return pickings.with_context(**self._get_validation_context()).button_validate()
 
     def process_no_expired(self):

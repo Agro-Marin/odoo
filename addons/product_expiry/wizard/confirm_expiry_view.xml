@@ -22,6 +22,7 @@
                         string="Confirm"
                         type="object"
                         data-hotkey="q"
+                        groups="stock.group_stock_manager"
                         class="btn-primary" />
                     <button
                         name="process_no_expired"
