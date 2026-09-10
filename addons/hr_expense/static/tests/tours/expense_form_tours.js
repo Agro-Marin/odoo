@@ -10,7 +10,7 @@ registry.category("web_tour.tours").add("create_expense_no_employee_access_tour"
         ),
         {
             content: "Remove filter for own expenses",
-            trigger: '.o_facet_value:contains(My Expenses) + button[title="Remove"]',
+            trigger: ".o_facet_value:contains(My Expenses) + .o_facet_remove",
             run: "click",
         },
         {
@@ -64,7 +64,7 @@ registry.category("web_tour.tours").add("do_not_create_zero_amount_expense", {
         ),
         {
             content: "Remove filter for own expenses",
-            trigger: '.o_facet_value:contains(My Expenses) + button[title="Remove"]',
+            trigger: ".o_facet_value:contains(My Expenses) + .o_facet_remove",
             run: "click",
         },
         {

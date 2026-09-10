@@ -27,7 +27,9 @@ class HrEmployee(models.Model):
     )
 
     filter_for_expense = fields.Boolean(
-        store=False, search="_search_filter_for_expense", groups="hr.group_hr_user"
+        store=False,
+        search="_search_filter_for_expense",
+        groups="hr.group_hr_user,hr_expense.group_hr_expense_manager",
     )
 
     def _search_filter_for_expense(self, operator, value):
