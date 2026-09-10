@@ -1215,7 +1215,7 @@ Section  Population                                                  Count
 §2.4.2   Single-field ``@api.onchange`` hooks                          389
 §2.4.2   … spelled ``_onchange_<field>``                               283
 §2.4.2   ``@api.ondelete`` hooks                                       170
-§2.4.2   … spelled ``_unlink_except_*``                                110
+§2.4.2   … spelled ``_unlink_except_*``                                111
 §2.4.2   ``@api.constrains`` hooks                                     695
 §2.4.2   … spelled ``_check_*``                                        637
 §2.4.2   … with a first token carrying no rule                          49
@@ -1235,7 +1235,7 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   189
 §2.4.5   ``X_to_Y`` converter definitions                              103
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,376
+§2.4.7   ``_get_*`` definitions                                      6,379
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   142
 §2.4.7   ``_calculate_*`` model methods                                  6
