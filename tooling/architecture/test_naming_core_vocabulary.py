@@ -465,6 +465,168 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
             ("synchronize", "_sync_* or _prepare_*"),
         )
 
+    def test_an_error_builder_under_a_noun_phrase_is_reported(self):
+        # §2.4.10's "the larger half says no verb at all": the body returns an
+        # exception it constructed, the raise is written at the call site, and
+        # nothing in the name says so.
+        node = self.parse(
+            "def not_found(self, description=None):\n    return NotFound(description)\n"
+        )
+        hit = ncv.classify_definition(node, exception_names=frozenset({"NotFound"}))
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "error-builder")
+
+    def test_an_error_builder_under_get_is_reported(self):
+        # §2.4.11: "_get_ is not always where it lands" -- the constructor sense.
+        node = self.parse(
+            "def get_config_warning(self, msg):\n"
+            "    if msg:\n"
+            "        return RedirectWarning(msg)\n"
+            "    return UserError(msg)\n"
+        )
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "error-builder")
+
+    def test_the_stdlib_spelling_needs_no_import_evidence(self):
+        node = self.parse("def _unlocatable(spec):\n    return ValueError(spec)\n")
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "error-builder")
+
+    def test_a_werkzeug_noun_needs_the_import_evidence(self):
+        # `NotFound` carries none of the stdlib suffixes; without the module's
+        # import list the gate cannot know it is a class of exception, and must
+        # not guess from a CapWords call.
+        node = self.parse("def not_found(self):\n    return NotFound()\n")
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_the_canonical_error_builder_is_not_reported(self):
+        node = self.parse(
+            "def _prepare_bad_request_error(self, m):\n    return ValueError(m)\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+        # The partial spelling keeps `resolve-total` honest too: it earns the
+        # verb by having a not-applicable path.
+        node = self.parse(
+            "def _resolve_alias_error(self, m):\n"
+            "    if not m:\n"
+            "        return None\n"
+            "    return ValueError(m)\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_converter_between_exceptions_is_not_an_error_builder(self):
+        node = self.parse(
+            "def _integrity_error_to_validation_error(exc):\n"
+            "    return ValidationError(str(exc))\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_body_that_also_raises_is_not_an_error_builder(self):
+        node = self.parse(
+            "def _get_error(self, code):\n"
+            "    if code is None:\n"
+            "        raise ValueError(code)\n"
+            "    return LookupError(code)\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_exception_names_are_read_from_imports_and_subclasses(self):
+        import ast
+
+        tree = ast.parse(
+            "from werkzeug.exceptions import NotFound, Forbidden as Denied\n"
+            "from odoo.exceptions import UserError\n"
+            "class Missing(NotFound):\n    pass\n"
+            "class Plain:\n    pass\n"
+            "class Boom(RuntimeError):\n    pass\n"
+        )
+        self.assertEqual(
+            ncv.exception_class_names(tree),
+            frozenset({"NotFound", "Denied", "UserError", "Missing", "Boom"}),
+        )
+
+    def test_a_nested_definition_filling_a_slot_is_exempt(self):
+        # §2.4.10: a slot and the method that fills it are one contract under
+        # two names. The filler takes the slot's spelling whether the slot is a
+        # parameter or a local the enclosing function also binds.
+        import ast
+
+        tree = ast.parse(
+            "def _check_access(self, error_func=None):\n"
+            "    if error_func is None:\n"
+            "        def error_func():\n"
+            "            return AccessError('no')\n"
+            "    return error_func\n"
+            "def outer(self):\n"
+            "    handler = None\n"
+            "    if self.x:\n"
+            "        def handler():\n"
+            "            return ValueError('x')\n"
+            "    return handler\n"
+            "def free(self):\n"
+            "    def orphan():\n"
+            "        return ValueError('x')\n"
+            "    return orphan\n"
+        )
+        fillers = ncv.slot_fillers(tree)
+        nested = {
+            node.name: id(node) in fillers
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.col_offset > 0
+        }
+        self.assertEqual(nested, {"error_func": True, "handler": True, "orphan": False})
+
+    def test_a_prepositional_phrase_that_answers_is_a_predicate(self):
+        node = self.parse("def _in_scope(self, path):\n    return self.root in path\n")
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "preposition-predicate")
+
+    def test_a_prepositional_name_that_does_not_answer_is_left_alone(self):
+        node = self.parse("def _on_rollback(self, exc):\n    self.reset()\n")
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_from_is_the_converter_idiom_and_not_a_preposition_here(self):
+        node = self.parse("def from_config(cls, config):\n    return cls(config)\n")
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_predicate_that_returns_nothing_is_reported(self):
+        # §2.4.8's inverted claim: `has_field` recorded the field as available
+        # and answered nothing, so the caller read a question and got a write.
+        node = self.parse(
+            "def has_field(self, name):\n    self.available_fields.add(name)\n"
+        )
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "predicate-no-return")
+
+    def test_a_predicate_stub_is_a_declaration_and_not_a_finding(self):
+        for body in ("    ...\n", "    pass\n", "    return\n"):
+            node = self.parse(f"def _is_ready(self):\n{body}")
+            self.assertIsNone(ncv.classify_definition(node), body)
+
+    def test_a_bare_verb_no_longer_skips_the_body_rules(self):
+        # `def _resolve(settings)` always answered and was never asked, because
+        # the classifier returned on "no remainder" before any rule that reads a
+        # body. The spelling rules need a remainder; the body rules do not.
+        node = self.parse("def _resolve(settings):\n    return settings.dsn\n")
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "resolve-total")
+        node = self.parse("def check(self, test):\n    return self._match(test)\n")
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "check-returns")
+
+    def test_a_synonym_of_classify_is_reported(self):
+        for name in ("_categorize_statement", "categorise_rows"):
+            hit = ncv.classify_name(name)
+            self.assertIsNotNone(hit, name)
+            self.assertEqual(hit[0], "synonym")
+            self.assertIn("_classify_", hit[1])
+
     def test_a_dunder_is_not_a_naming_choice(self):
         self.assertIsNone(ncv.classify_name("__init__"))
 

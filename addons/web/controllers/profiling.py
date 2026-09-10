@@ -1,7 +1,13 @@
 import base64
 
 from odoo.exceptions import UserError
-from odoo.http import Controller, Response, content_disposition, request, route
+from odoo.http import (
+    Controller,
+    Response,
+    prepare_content_disposition_header,
+    request,
+    route,
+)
 from odoo.libs.documents import extension_for, mimetype_for
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import dumps_bytes as json_dumps_bytes
@@ -45,11 +51,11 @@ class Profiling(Controller):
         try:
             profile_ids = [int(p) for p in profile.split(",")]
         except ValueError, AttributeError:
-            raise request.not_found() from None
+            raise request.prepare_not_found_error() from None
         profiles = request.env["ir.profile"].browse(profile_ids).exists()
         profile_str = profile
         if not profiles:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         params = kwargs or profiles._prepare_profile_params_default()
         speedscope_result = profiles._generate_speedscope(
             profiles._parse_params(params)
@@ -60,7 +66,7 @@ class Profiling(Controller):
                 ("X-Content-Type-Options", "nosniff"),
                 (
                     "Content-Disposition",
-                    content_disposition(
+                    prepare_content_disposition_header(
                         f"profile_{profile_str}.{extension_for(JSON_MIMETYPE)}"
                     ),
                 ),
@@ -78,8 +84,8 @@ class Profiling(Controller):
         }
         response = request.render("web.view_speedscope_index", context)
         if action == "speedscope_download_html":
-            response.headers["Content-Disposition"] = content_disposition(
-                f"profile_{profile_str}.html"
+            response.headers["Content-Disposition"] = (
+                prepare_content_disposition_header(f"profile_{profile_str}.html")
             )
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["Content-Type"] = "text/html"
@@ -101,10 +107,10 @@ class Profiling(Controller):
         try:
             profile_ids = [int(p) for p in profile_str.split(",")]
         except ValueError, AttributeError:
-            raise request.not_found() from None
+            raise request.prepare_not_found_error() from None
         profiles = request.env["ir.profile"].browse(profile_ids).exists()
         if not profiles:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
 
         if action == "memory_open":
             memory_profile = profiles._generate_memory_profile(

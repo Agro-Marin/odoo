@@ -7,7 +7,7 @@ from odoo.http import (
     BadRequest,
     InternalServerError,
     Response,
-    content_disposition,
+    prepare_content_disposition_header,
     request,
 )
 from odoo.libs.json import dumps as json_dumps
@@ -178,7 +178,7 @@ class ReportController(http.Controller):
                         )
                         filename = f"{report_name}.{extension}"
                 response.headers.add(
-                    "Content-Disposition", content_disposition(filename)
+                    "Content-Disposition", prepare_content_disposition_header(filename)
                 )
                 return response
             else:

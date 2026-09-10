@@ -137,4 +137,4 @@ class DriverController(http.Controller):
             last_modified=stat.st_mtime,
             size=stat.st_size,
             mimetype="text/plain",
-        ).get_response(mimetype="text/plain", as_attachment=True)
+        ).prepare_response(mimetype="text/plain", as_attachment=True)

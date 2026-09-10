@@ -57,7 +57,7 @@ def test_x_sendfile_is_removed_when_x_accel_redirect_is_added(filestore):
     tmp_path, target = filestore
     stream = _stream_for(target)
     with _serving(tmp_path, x_sendfile=True):
-        res = stream.get_response(as_attachment=False)
+        res = stream.prepare_response(as_attachment=False)
 
     if "X-Accel-Redirect" not in res.headers:
         pytest.skip("werkzeug did not take the x-sendfile path in this environment")
@@ -73,7 +73,7 @@ def test_x_accel_redirect_is_relative_to_the_filestore_not_absolute(filestore):
     tmp_path, target = filestore
     stream = _stream_for(target)
     with _serving(tmp_path, x_sendfile=True):
-        res = stream.get_response(as_attachment=False)
+        res = stream.prepare_response(as_attachment=False)
 
     redirect = res.headers.get("X-Accel-Redirect")
     if redirect is None:
@@ -89,7 +89,7 @@ def test_no_absolute_server_path_leaks_in_any_response_header(filestore):
     tmp_path, target = filestore
     stream = _stream_for(target)
     with _serving(tmp_path, x_sendfile=True):
-        res = stream.get_response(as_attachment=False)
+        res = stream.prepare_response(as_attachment=False)
 
     leaked = {
         name: value
@@ -103,7 +103,7 @@ def test_x_sendfile_disabled_leaves_no_accel_redirect(filestore):
     tmp_path, target = filestore
     stream = _stream_for(target)
     with _serving(tmp_path, x_sendfile=False):
-        res = stream.get_response(as_attachment=False)
+        res = stream.prepare_response(as_attachment=False)
     assert "X-Accel-Redirect" not in res.headers
 
 
@@ -114,7 +114,7 @@ def test_a_path_outside_the_filestore_gets_no_accel_redirect(filestore):
         target.write_bytes(b"payload")
         stream = _stream_for(target)
         with _serving(tmp_path, x_sendfile=True):
-            res = stream.get_response(as_attachment=False)
+            res = stream.prepare_response(as_attachment=False)
         assert "X-Accel-Redirect" not in res.headers
 
 

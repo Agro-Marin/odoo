@@ -65,7 +65,7 @@ depending on the request path and the presence of a database. Also responsible
 for logging any error and encapsulating it in an HTTP error response.
 
 **`Request._serve_static`** — streams an already-resolved file via
-`Stream.get_response`. It does **not** resolve the path: `Application.get_static_file`
+`Stream.prepare_response`. It does **not** resolve the path: `Application.get_static_file_path`
 does, before the request reaches here, with `file_path()` plus a
 `Path.resolve().is_relative_to()` containment check. There is one resolver on
 purpose — a second one lived in this method until it was found to be unreachable.
@@ -156,7 +156,7 @@ the `http-features-below-serving` contract, which holds `[foundation]` below
 | `stream.py` | serving | `Stream`: file/attachment streaming and conditional responses |
 | `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl`, `prepare_no_content_response` — the werkzeug wrappers, cookie defaults, and the `HTTPException.get_response` override that keeps a status-less exception from answering 200. **`HTTPRequest.environ` is a filtered copy**: every `werkzeug.*`, `wsgi.*` and `socket*` key is dropped except `wsgi.url_scheme` and `werkzeug.proxy_fix.orig`, so `environ["wsgi.input"]` raises `KeyError` — `raw_environ` is the unfiltered one |
 | `core.py` | serving | `_request_stack` (a werkzeug `LocalStack`), the `request` proxy bound to it, and `borrow_request` |
-| `helpers.py` | serving | `content_disposition`, `rewind_uploaded_files`, `db_list` — the package's one database-listing entry point, cached and read by both the selector and `Request._get_session_and_dbname` — and the `dbfilter` machinery |
+| `helpers.py` | serving | `prepare_content_disposition_header`, `rewind_uploaded_files`, `get_dbs_served` — the package's one database-listing entry point, cached and read by both the selector and `Request._select_session_and_dbname` — and the `dbfilter` machinery |
 | `_retry.py` | serving | `RequestRetryParticipant`: restores the session and rewinds uploads when `retrying()` replays a handler, installed on `service.transaction` at import |
 | `openapi.py` | features | `prepare_openapi_document`: an OpenAPI `3.1.0` document generated from the routing map |
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |

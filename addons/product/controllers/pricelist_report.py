@@ -5,7 +5,7 @@ import json
 from werkzeug.exceptions import BadRequest
 
 from odoo import _
-from odoo.http import Controller, content_disposition, request, route
+from odoo.http import Controller, prepare_content_disposition_header, request, route
 from odoo.libs.documents import Document, extension_for, mimetype_for
 
 CSV_MIMETYPE = mimetype_for("csv")
@@ -61,7 +61,7 @@ class ProductPricelistExportController(Controller):
             ("Content-Type", CSV_MIMETYPE),
             (
                 "Content-Disposition",
-                content_disposition(
+                prepare_content_disposition_header(
                     f"Pricelist - {pricelist_name}.{extension_for(CSV_MIMETYPE)}"
                 ),
             ),
@@ -81,7 +81,7 @@ class ProductPricelistExportController(Controller):
                 ("Content-Type", XLSX_MIMETYPE),
                 (
                     "Content-Disposition",
-                    content_disposition(
+                    prepare_content_disposition_header(
                         f"Pricelist - {pricelist_name}.{extension_for(XLSX_MIMETYPE)}"
                     ),
                 ),

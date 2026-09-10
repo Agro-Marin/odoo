@@ -177,7 +177,7 @@ class TestErrorStatusEndToEnd(HttpCase):
         # nodb, db -- do not share an error path: only the last two funnel a
         # code-less HTTPException through _serve_aborted. Measured on the tree
         # before the guard moved into HTTPException.get_response, a status-less
-        # exception raised from get_static_file, from Request._post_init or
+        # exception raised from get_static_file_path, from Request._post_init or
         # from _serve_static each answered *200 OK*; one raised from a handler
         # answered 500. _serve_static is not a corner: it is how every asset on
         # the server is delivered.
@@ -187,7 +187,7 @@ class TestErrorStatusEndToEnd(HttpCase):
             raise blank
 
         for target, attr in (
-            (odoo.http.root, "get_static_file"),
+            (odoo.http.root, "get_static_file_path"),
             (odoo.http.Request, "_post_init"),
             (odoo.http.Request, "_serve_static"),
         ):

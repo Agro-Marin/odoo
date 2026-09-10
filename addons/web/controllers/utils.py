@@ -68,7 +68,7 @@ def select_db(redirect: str = "/web/database/selector", db: str | None = None) -
     if db is None:
         db = (raw_db := request.params.get("db")) and raw_db.strip()
 
-    if db and db not in http.db_filter([db]):
+    if db and db not in http.filter_dbs_served([db]):
         db = None
 
     if db and not request.session.db:
@@ -80,11 +80,11 @@ def select_db(redirect: str = "/web/database/selector", db: str | None = None) -
         request.session.db = db
         abort(request.redirect(urlunsplit(url_redirect), 302))
 
-    if not db and request.session.db and http.db_filter([request.session.db]):
+    if not db and request.session.db and http.filter_dbs_served([request.session.db]):
         db = request.session.db
 
     if not db:
-        all_dbs = http.db_list(force=True)
+        all_dbs = http.get_dbs_served(force=True)
         if len(all_dbs) == 1:
             db = all_dbs[0]
 

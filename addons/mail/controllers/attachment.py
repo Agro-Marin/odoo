@@ -11,7 +11,7 @@ from odoo.http import (
     NotFound,
     Response,
     UnsupportedMediaType,
-    content_disposition,
+    prepare_content_disposition_header,
     request,
 )
 from odoo.tools.misc import file_open
@@ -69,7 +69,7 @@ class AttachmentController(ThreadController):
             ("Content-Type", "application/zip"),
             ("X-Content-Type-Options", "nosniff"),
             ("Content-Length", len(content)),
-            ("Content-Disposition", content_disposition(name)),
+            ("Content-Disposition", prepare_content_disposition_header(name)),
         ]
         return request.prepare_response(content, headers)
 
@@ -255,6 +255,9 @@ class AttachmentController(ThreadController):
         ]
         if attachment.name:
             headers.append(
-                ("Content-Disposition", content_disposition(attachment.name))
+                (
+                    "Content-Disposition",
+                    prepare_content_disposition_header(attachment.name),
+                )
             )
         return request.prepare_response(content, headers)

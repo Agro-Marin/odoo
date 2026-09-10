@@ -47,7 +47,7 @@ class WebJson2Controller(http.Controller):
     )
     def web_json_2_404(self, subpath=None):
         e = "Did you mean POST /json/2/<model>/<method>?"
-        raise request.not_found(e)
+        raise request.prepare_not_found_error(e)
 
     @http.route(
         "/json/2/<__model__>/<__method__>",

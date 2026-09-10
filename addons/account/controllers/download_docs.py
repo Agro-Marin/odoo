@@ -4,14 +4,14 @@ from itertools import chain
 
 from odoo import _, http
 from odoo.exceptions import UserError
-from odoo.http import content_disposition, request
+from odoo.http import prepare_content_disposition_header, request
 
 
 def _get_headers(filename, filetype, content):
     return [
         ("Content-Type", filetype),
         ("Content-Length", len(content)),
-        ("Content-Disposition", content_disposition(filename)),
+        ("Content-Disposition", prepare_content_disposition_header(filename)),
         ("X-Content-Type-Options", "nosniff"),
     ]
 

@@ -343,7 +343,7 @@ class ResConfigSettings(models.TransientModel):
         return self.env[model_name].fields_get([field_name])[field_name]["string"]
 
     @api.model
-    def get_config_warning(self, msg: str) -> RedirectWarning | UserError:
+    def prepare_config_warning(self, msg: str) -> RedirectWarning | UserError:
         self = self.sudo()
 
         regex_path = r"%\(((?:menu|field):[a-z_\.]*)\)s"

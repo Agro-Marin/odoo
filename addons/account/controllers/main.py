@@ -4,7 +4,7 @@ from types import GeneratorType
 from werkzeug.exceptions import InternalServerError
 
 from odoo import http
-from odoo.http import content_disposition, request
+from odoo.http import prepare_content_disposition_header, request
 from odoo.tools.misc import html_escape
 
 from odoo.addons.account.controllers.download_docs import _get_headers
@@ -89,7 +89,7 @@ class AccountReportController(http.Controller):
                 "Content-Type",
                 request.env["account.report"].get_export_mime_type(file_type),
             ),
-            ("Content-Disposition", content_disposition(file_name)),
+            ("Content-Disposition", prepare_content_disposition_header(file_name)),
         ]
 
         if file_type in ("xml", "txt", "csv", "kvr", "csv") and not isinstance(

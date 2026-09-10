@@ -17,14 +17,14 @@ class SpeechController(http.Controller):
     """
 
     def _speech_attachment(self, attachment_id: int, access_token: str | None):
-        with replace_exceptions(UserError, by=request.not_found()):
+        with replace_exceptions(UserError, by=request.prepare_not_found_error()):
             return request.env["ir.binary"]._get_record(
                 None, "ir.attachment", attachment_id, access_token, field_name="raw"
             )
 
     def _speech_text_response(self, body: str, mimetype: str) -> Response:
         if not body:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         return request.prepare_response(
             body.encode(),
             headers=[

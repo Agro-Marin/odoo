@@ -275,7 +275,7 @@ class ProjectCustomerPortal(CustomerPortal):
             project.exists()
             and project.with_user(request.env.user)._is_project_sharing_accessible()
         ):
-            return request.not_found()
+            return request.prepare_not_found_error()
         return request.render(
             "project.project_sharing_portal",
             {"session_info": self._prepare_project_sharing_session_info(project)},
@@ -386,7 +386,7 @@ class ProjectCustomerPortal(CustomerPortal):
             )
             return request.render("project.portal_my_tasks", values)
         except AccessError, MissingError:
-            return request.not_found()
+            return request.prepare_not_found_error()
 
     @http.route(
         "/my/projects/<int:project_id>/task/<int:task_id>/recurrent_tasks",
@@ -456,7 +456,7 @@ class ProjectCustomerPortal(CustomerPortal):
             )
             return request.render("project.portal_my_tasks", values)
         except AccessError, MissingError:
-            return request.not_found()
+            return request.prepare_not_found_error()
 
     def _task_get_page_view_values(
         self, task: Any, access_token: str | None, /, **kwargs: Any
@@ -1024,7 +1024,7 @@ class ProjectCustomerPortal(CustomerPortal):
             if not task_sudo.with_user(
                 request.env.uid
             ).project_id._is_project_sharing_accessible():
-                return request.not_found()
+                return request.prepare_not_found_error()
         except AccessError, MissingError:
             raise UserError(
                 _(

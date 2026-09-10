@@ -683,7 +683,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             ._get_stream_from_record(
                 document.attachment_id,
             )
-            .get_response(as_attachment=True)
+            .prepare_response(as_attachment=True)
         )
 
     @route(

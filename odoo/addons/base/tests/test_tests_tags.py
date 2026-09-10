@@ -446,127 +446,127 @@ class TestSelectorSelection(TransactionCase):
         post_install_obj = Test_E()
 
         tags = TagsSelector("")
-        self.assertFalse(tags.check(no_tags_obj))
+        self.assertFalse(tags.selects(no_tags_obj))
 
         tags = TagsSelector("+slow")
-        self.assertFalse(tags.check(no_tags_obj))
+        self.assertFalse(tags.selects(no_tags_obj))
 
         tags = TagsSelector("+slow,fake")
-        self.assertFalse(tags.check(no_tags_obj))
+        self.assertFalse(tags.selects(no_tags_obj))
 
         tags = TagsSelector("slow,standard")
         self.assertTrue(no_tags_obj)
 
         tags = TagsSelector("slow,-standard")
-        self.assertFalse(tags.check(no_tags_obj))
+        self.assertFalse(tags.selects(no_tags_obj))
 
         tags = TagsSelector("-slow,-standard")
-        self.assertFalse(tags.check(no_tags_obj))
+        self.assertFalse(tags.selects(no_tags_obj))
 
         tags = TagsSelector("-slow,+standard")
-        self.assertTrue(tags.check(no_tags_obj))
+        self.assertTrue(tags.selects(no_tags_obj))
 
         tags = TagsSelector("")
-        self.assertFalse(tags.check(stock_tag_obj))
+        self.assertFalse(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("slow")
-        self.assertFalse(tags.check(stock_tag_obj))
+        self.assertFalse(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("standard")
-        self.assertTrue(tags.check(stock_tag_obj))
+        self.assertTrue(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("slow,standard")
-        self.assertTrue(tags.check(stock_tag_obj))
+        self.assertTrue(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("slow,-standard")
-        self.assertFalse(tags.check(stock_tag_obj))
+        self.assertFalse(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("+stock")
-        self.assertTrue(tags.check(stock_tag_obj))
+        self.assertTrue(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("stock,fake")
-        self.assertTrue(tags.check(stock_tag_obj))
+        self.assertTrue(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("stock,standard")
-        self.assertTrue(tags.check(stock_tag_obj))
+        self.assertTrue(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("-stock")
-        self.assertFalse(tags.check(stock_tag_obj))
+        self.assertFalse(tags.selects(stock_tag_obj))
 
         tags = TagsSelector("")
-        self.assertFalse(tags.check(multiple_tags_obj))
+        self.assertFalse(tags.selects(multiple_tags_obj))
 
         tags = TagsSelector("-stock")
-        self.assertFalse(tags.check(multiple_tags_obj))
+        self.assertFalse(tags.selects(multiple_tags_obj))
 
         tags = TagsSelector("-slow")
-        self.assertFalse(tags.check(multiple_tags_obj))
+        self.assertFalse(tags.selects(multiple_tags_obj))
 
         tags = TagsSelector("slow")
-        self.assertTrue(tags.check(multiple_tags_obj))
+        self.assertTrue(tags.selects(multiple_tags_obj))
 
         tags = TagsSelector("slow,stock")
-        self.assertTrue(tags.check(multiple_tags_obj))
+        self.assertTrue(tags.selects(multiple_tags_obj))
 
         tags = TagsSelector("-slow,stock")
-        self.assertFalse(tags.check(multiple_tags_obj))
+        self.assertFalse(tags.selects(multiple_tags_obj))
 
         tags = TagsSelector("slow,stock,-slow")
-        self.assertFalse(tags.check(multiple_tags_obj))
+        self.assertFalse(tags.selects(multiple_tags_obj))
 
         tags = TagsSelector("")
-        self.assertFalse(tags.check(multiple_tags_standard_obj))
+        self.assertFalse(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("standard")
-        self.assertTrue(tags.check(multiple_tags_standard_obj))
+        self.assertTrue(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("slow")
-        self.assertTrue(tags.check(multiple_tags_standard_obj))
+        self.assertTrue(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("slow,fake")
-        self.assertTrue(tags.check(multiple_tags_standard_obj))
+        self.assertTrue(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("-slow")
-        self.assertFalse(tags.check(multiple_tags_standard_obj))
+        self.assertFalse(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("-standard")
-        self.assertFalse(tags.check(multiple_tags_standard_obj))
+        self.assertFalse(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("-slow,-standard")
-        self.assertFalse(tags.check(multiple_tags_standard_obj))
+        self.assertFalse(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("standard,-slow")
-        self.assertFalse(tags.check(multiple_tags_standard_obj))
+        self.assertFalse(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("slow,-standard")
-        self.assertFalse(tags.check(multiple_tags_standard_obj))
+        self.assertFalse(tags.selects(multiple_tags_standard_obj))
 
         tags = TagsSelector("standard")
         position = TagsSelector("post_install")
         self.assertTrue(
-            tags.check(post_install_obj) and position.check(post_install_obj)
+            tags.selects(post_install_obj) and position.selects(post_install_obj)
         )
 
         tags = TagsSelector("/base")
-        self.assertTrue(tags.check(no_tags_obj), "Test should match is module path")
+        self.assertTrue(tags.selects(no_tags_obj), "Test should match is module path")
         tags = TagsSelector("/base/tests/test_tests_tags.py")
         self.assertTrue(
-            tags.check(no_tags_obj),
+            tags.selects(no_tags_obj),
             "Test should match is module path with file",
         )
 
         tags = TagsSelector("/account/tests/test_tests_tags.py")
         self.assertFalse(
-            tags.check(no_tags_obj),
+            tags.selects(no_tags_obj),
             "Test should not match another module path with file",
         )
 
         tags = TagsSelector(__file__)
         self.assertTrue(
-            tags.check(no_tags_obj), "Test should match its absolute file path"
+            tags.selects(no_tags_obj), "Test should match its absolute file path"
         )
         tags = TagsSelector(__file__)
-        self.assertTrue(tags.check(no_tags_obj), "Test should its absolute file path")
+        self.assertTrue(tags.selects(no_tags_obj), "Test should its absolute file path")
 
     def test_selector_parser_parameters(self):
         tags = "/base:FakeClassA[failfast=0,filter=-livechat],/other[notForThisClass],-/base:FakeClassA[arg1,arg2]"
@@ -584,14 +584,14 @@ class TestSelectorSelection(TransactionCase):
 
     def test_negative_parameters_translate(self):
         tags = TagsSelector(".test_negative_parameters_translate")
-        self.assertTrue(tags.check(self), "Sanity check")
+        self.assertTrue(tags.selects(self), "Sanity check")
         self.assertEqual(tags.select_params(self), [])
 
         tags = TagsSelector(
             "/other_module,-.test_negative_parameters_translate[someparam]"
         )
         self.assertFalse(
-            tags.check(self),
+            tags.selects(self),
             "we don't expect a negative parameter to enable the test if not enabled in other tags",
         )
         self.assertEqual(
@@ -602,27 +602,27 @@ class TestSelectorSelection(TransactionCase):
 
         tags = TagsSelector("/base,-.test_negative_parameters_translate[someparam]")
         self.assertTrue(
-            tags.check(self),
+            tags.selects(self),
             "A negative parametric tag should not disable the test",
         )
         self.assertEqual(tags.select_params(self), [("-", "someparam")])
 
         tags = TagsSelector("-.test_negative_parameters_translate[someparam]")
         self.assertTrue(
-            tags.check(self),
+            tags.selects(self),
             "we don't expect a single negative parameter to disable the test that should run by edfault",
         )
         self.assertEqual(tags.select_params(self), [("-", "someparam")])
 
         tags = TagsSelector("/base,-.test_negative_parameters_translate")
         self.assertFalse(
-            tags.check(self),
+            tags.selects(self),
             "Sanity check, a negative parametric tag without params still disable the test",
         )
         self.assertEqual(tags.select_params(self), [])
 
         tags = TagsSelector(".test_negative_parameters_translate[-someparam]")
-        self.assertTrue(tags.check(self), "A parametric tag should enable test")
+        self.assertTrue(tags.selects(self), "A parametric tag should enable test")
         self.assertEqual(tags.select_params(self), [("+", "-someparam")])
 
 

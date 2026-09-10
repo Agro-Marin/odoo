@@ -146,7 +146,7 @@ class TestHttpStatic(TestHttpStaticCommon):
         ):
             with self.subTest(resource=resource):
                 self.assertIsNone(
-                    root.get_static_file(f"/test_http/static/{resource}"),
+                    root.get_static_file_path(f"/test_http/static/{resource}"),
                     f"{resource!r} escaped the static/ directory",
                 )
 

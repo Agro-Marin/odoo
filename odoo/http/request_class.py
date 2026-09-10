@@ -16,7 +16,7 @@ from odoo.modules.registry import Registry
 from odoo.tools import profiler
 
 from ._csrf import _RequestCsrfMixin
-from ._protocols import ir_http
+from ._protocols import get_ir_http
 from ._response import _RequestResponseMixin
 from ._serve import _RequestServeMixin
 from .constants import (
@@ -74,10 +74,10 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     def _post_init(self) -> None:
         if self._post_init_done:
             return
-        self.session, self.db = self._get_session_and_dbname()
+        self.session, self.db = self._select_session_and_dbname()
         self._post_init_done = True
 
-    def _get_session_and_dbname(
+    def _select_session_and_dbname(
         self, sid: str | None = None
     ) -> tuple[Session, str | None]:
         from odoo import http
@@ -103,7 +103,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         dbname = None
         host = self.httprequest.environ.get("HTTP_HOST", "")
         header_dbname = self.httprequest.headers.get("X-Odoo-Database")
-        if session.db and http.db_filter([session.db], host=host):
+        if session.db and http.filter_dbs_served([session.db], host=host):
             dbname = session.db
             if header_dbname and header_dbname != dbname:
                 e = (
@@ -114,10 +114,10 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 raise werkzeug.exceptions.Forbidden(e)
         elif header_dbname:
             session.can_save = False
-            if http.db_filter([header_dbname], host=host):
+            if http.filter_dbs_served([header_dbname], host=host):
                 dbname = header_dbname
         else:
-            all_dbs = http.db_list(force=True, host=host)
+            all_dbs = http.get_dbs_served(force=True, host=host)
             if len(all_dbs) == 1:
                 dbname = all_dbs[0]
 
@@ -189,7 +189,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         cookies = werkzeug.datastructures.MultiDict(self.httprequest.cookies)
         if registry is not None:
-            ir_http(registry)._sanitize_cookies(cookies)
+            get_ir_http(registry)._sanitize_cookies(cookies)
         result = werkzeug.datastructures.ImmutableMultiDict(cookies)
         self._cookies_memo = (sanitized, result)
         return result

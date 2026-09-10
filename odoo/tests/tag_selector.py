@@ -67,7 +67,7 @@ class TagsSelector:
         if (self.exclude or self.parameters) and not self.include:
             self.include.add(("standard", None, None, None, None))
 
-    def check(self, test: Any) -> bool:
+    def selects(self, test: Any) -> bool:
         matches = self._matcher(test)
         return matches is not None and self._selects(matches)
 

@@ -370,10 +370,24 @@ ASSEMBLE = nv.ASSEMBLE_VERBS
 #   canonical it printed would be wrong for at least three of them -- a synonym
 #   entry whose canonical is a coin flip is a word list again, which is what the
 #   paragraph above this list exists to refuse.
+#
+# `categorize` and `categorise` are here on the opposite terms from `complete`:
+# ONE canonical, and a population that was read to zero before the entry landed.
+# `db/metrics.py` spelled the operation `categorize` beside `ddl.classify_statement`
+# in the same package -- two verbs, one operation, §2.4.3's own duplicate report --
+# and was renamed; the entry keeps the second spelling from coming back.
 SYNONYMS: dict[str, tuple[str, str]] = {
     "refresh": (
         "_reset_ / _invalidate_ / _rebuild_",
         "names neither the drop nor the rebuild, which is what §2.4.17 exists to say",
+    ),
+    "categorize": (
+        "_classify_",
+        "one operation, and the tree already spells it classify",
+    ),
+    "categorise": (
+        "_classify_",
+        "one operation, and the tree already spells it classify",
     ),
 }
 
@@ -808,6 +822,158 @@ def has_not_applicable_path(node: ast.FunctionDef | ast.AsyncFunctionDef) -> boo
         )
     ]
     return bool(body) and not isinstance(body[-1], ast.Return | ast.Raise)
+
+
+# §2.4.10: an error is BUILT here and RAISED there. A method whose every return
+# is a freshly constructed exception is that builder, and the section prints its
+# canonical -- `_prepare_*_error`, or `_resolve_*_error` where a `None` return
+# says the failure is not applicable. Both halves of the section's own argument
+# are mechanical: "the larger half says no verb at all" is a body whose returns
+# are all exception constructions under a noun phrase (`_budget_exhausted`,
+# `not_found`), and "`_get_` is not always where it lands" (§2.4.11) is the same
+# body under the Read verb (`get_config_warning`). Neither name says an exception
+# comes back, and a caller who reads `raise request.not_found()` as a call that
+# raises has the control flow backwards.
+#
+# What counts as an exception class is decided three ways, none of them a word
+# list of our own: a name imported from a module called `exceptions`
+# (`werkzeug.exceptions`, `odoo.exceptions`), a class in the same module that
+# derives from one of those, or the spelling every exception in the stdlib
+# already uses -- `*Error`, `*Exception`, `*Warning`, plus `*Denied` and `*Exit`
+# for `AccessDenied` and `SystemExit`. `NotFound` and `Forbidden` are the reason
+# the import test exists: werkzeug spells its HTTP exceptions as nouns.
+#
+# Two shapes are exempt, and both are named in §2.4.10 already. The `X_to_Y`
+# converter (§2.4.5) -- `_integrity_error_to_validation_error` builds an
+# exception FROM an exception, and the converter idiom is the honest name for
+# that. And a nested definition filling a same-named parameter slot -- the
+# `error_func` closure inside `ir.attachment._check_access` takes the name of
+# the `error_func` parameter it stands in for, because "a slot and the method
+# that fills it are one contract under two names"; the slot is the name to
+# argue, and it is `_check_access`'s, which the allowlist already carries.
+_EXCEPTION_SUFFIXES = ("Error", "Exception", "Warning", "Denied", "Exit")
+_ERROR_BUILDER_VERBS = frozenset({"prepare", "resolve"})
+_ERROR_BUILDER_TAILS = frozenset({"error", "exception", "warning"})
+
+
+def exception_class_names(tree: ast.Module) -> frozenset[str]:
+    """The names a module binds to exception classes, by import or by subclass."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module is not None
+            and node.module.rpartition(".")[2] == "exceptions"
+        ):
+            names.update(alias.asname or alias.name for alias in node.names)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            for base in node.bases:
+                base_name = _callee_name(base)
+                if base_name is not None and (
+                    base_name in names or base_name.endswith(_EXCEPTION_SUFFIXES)
+                ):
+                    names.add(node.name)
+    return frozenset(names)
+
+
+def _callee_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Call):
+        node = node.func
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Name):
+        return node.id
+    return None
+
+
+def _own_returns(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.expr]:
+    """Every `return <value>` of this body, not of a closure nested in it."""
+    found: list[ast.expr] = []
+    stack: list[ast.AST] = list(ast.iter_child_nodes(node))
+    while stack:
+        child = stack.pop()
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+            continue
+        if isinstance(child, ast.Return):
+            if child.value is not None and not (
+                isinstance(child.value, ast.Constant) and child.value.value is None
+            ):
+                found.append(child.value)
+            continue
+        stack.extend(ast.iter_child_nodes(child))
+    return found
+
+
+def _constructs_exception(expr: ast.expr, exception_names: frozenset[str]) -> bool:
+    if not isinstance(expr, ast.Call):
+        return False
+    name = _callee_name(expr)
+    return name is not None and (
+        name in exception_names or name.endswith(_EXCEPTION_SUFFIXES)
+    )
+
+
+def builds_an_error(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    exception_names: frozenset[str] = frozenset(),
+) -> bool:
+    """Every value this returns is an exception it constructed, and it raises none."""
+    returns = _own_returns(node)
+    return (
+        bool(returns)
+        and all(_constructs_exception(value, exception_names) for value in returns)
+        and not raises(node)
+    )
+
+
+def slot_fillers(tree: ast.Module) -> frozenset[int]:
+    """`id()` of every nested definition named for a slot it fills.
+
+    §2.4.10: "a slot and the method that fills it are one contract under two
+    names", so the filler takes the slot's spelling and the slot is where the
+    name is argued. A slot is a parameter of the enclosing function, or a local
+    the enclosing function also binds some other way -- `error_func = None` and
+    `forbidden, error_func = res` beside `def error_func()` are three fillers of
+    one local. Keyed by identity because a name is not unique in a tree.
+    """
+    found: set[int] = set()
+
+    def slots_of(func: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[str]:
+        args = func.args
+        names = {a.arg for a in (*args.posonlyargs, *args.args, *args.kwonlyargs)}
+        for extra in (args.vararg, args.kwarg):
+            if extra is not None:
+                names.add(extra.arg)
+        stack: list[ast.AST] = list(ast.iter_child_nodes(func))
+        while stack:
+            child = stack.pop()
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+                continue
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+                names.add(child.id)
+            stack.extend(ast.iter_child_nodes(child))
+        return frozenset(names)
+
+    def walk(node: ast.AST, slots: frozenset[str]) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                if child.name in slots:
+                    found.add(id(child))
+                walk(child, slots_of(child))
+            else:
+                walk(child, slots)
+
+    walk(tree, frozenset())
+    return frozenset(found)
+
+
+# §2.4.8's fourth family after the modal one: a predicate spelled as a
+# PREPOSITIONAL PHRASE. `_in_scope`, `_on_login_cooldown`, `_within_code_ranges`
+# have no part of speech a verb grep can reach, and they answer a question all
+# the same. `from` is deliberately absent: `Y_from_X` is §2.4.5's converter idiom
+# and a classmethod constructor, and neither is a question.
+PREPOSITION_TOKENS = frozenset({"in", "within", "on", "at", "under"})
 
 
 # The ORM write calls that are evidence a producer performs what it claims only
@@ -1380,6 +1546,7 @@ def classify_definition(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
     cls: ast.ClassDef | None = None,
     namespaces: frozenset[str | tuple[str, str]] = frozenset(),
+    exception_names: frozenset[str] = frozenset(),
 ) -> tuple[str, str] | None:
     """Return (kind, why) for a definition the vocabulary refuses, else None.
 
@@ -1406,7 +1573,7 @@ def classify_definition(
         return hit
     weak_name_hit = hit
     stem = node.name.lstrip("_")
-    verb, _, rest = stem.partition("_")
+    verb = stem.partition("_")[0]
     if (prefix := shaping_prefix(node)) is not None and leading_token(stem) != prefix:
         why = (
             f"the body is one ORM shaping call and produces nothing -- §2.4.22; "
@@ -1421,8 +1588,12 @@ def classify_definition(
             f"row the body satisfies, with the model's word dropped"
         )
         return ("model-noun", why)
-    if not rest:
-        return None
+    # A bare name used to return here, before any rule that reads a body. That
+    # was a hole and not a tier: `def _resolve(settings)` in `db/endpoints.py`
+    # always answered and was never asked, because `resolve-total` sat below
+    # this line. The body rules ask about behaviour, and a body has behaviour
+    # whether or not a noun follows the verb; only the spelling rules need the
+    # remainder, and `classify_name` has already declined it.
     if verb in ACCUMULATE_VERBS and owns_its_return(node):
         why = (
             f"{verb} -> _get_ -- it returns the value it made, which is the "
@@ -1448,6 +1619,40 @@ def classify_definition(
             "row: `_is_` / `_has_` / `_can_`, with the question in the tail"
         )
         return ("bool-under-get", why)
+    if (
+        builds_an_error(node, exception_names)
+        and not _CONVERTER_IDIOM.fullmatch(node.name)
+        and not (
+            verb in _ERROR_BUILDER_VERBS
+            and stem.rpartition("_")[2] in _ERROR_BUILDER_TAILS
+        )
+    ):
+        why = (
+            "every return is an exception it builds -- §2.4.10: the error is "
+            "built here and raised there, and the builder is `_prepare_*_error` "
+            "(or `_resolve_*_error` where a None return means not applicable)"
+        )
+        return ("error-builder", why)
+    if verb in PREPOSITION_TOKENS and answers_a_question(node):
+        why = (
+            f"`{verb}` opens a prepositional phrase that answers a question -- "
+            "§2.4.8: a predicate with no part of speech is the same defect as one "
+            "with no prefix; take `_is_` / `_has_` / `_can_`"
+        )
+        return ("preposition-predicate", why)
+    if (
+        verb in PREDICATE_PREFIXES
+        and not returns_a_value(node)
+        and not raises(node)
+        and not _is_abstract_raise(node)
+        and not is_declaration_only(node)
+    ):
+        why = (
+            "a predicate prefix over a body that returns nothing -- §2.4.8's "
+            "inverted claim: the caller reads a question and gets a write; take "
+            "the row the body satisfies"
+        )
+        return ("predicate-no-return", why)
     if verb == SHOW_VERB and answers_a_question(node):
         why = (
             "`show_` answers a question about the subject and returns a bool -- "
@@ -1560,10 +1765,15 @@ def measure(
     found: list[Violation] = []
     for path in files:
         tree = _ast_cache.parse_file(path)
+        exception_names = exception_class_names(tree)
+        fillers = slot_fillers(tree)
         for node, cls in definitions(tree):
             if node.name in allowed or nv._overrides_same_name(node):
                 continue
-            if (hit := classify_definition(node, cls, namespaces)) is None:
+            if id(node) in fillers:
+                continue
+            hit = classify_definition(node, cls, namespaces, exception_names)
+            if hit is None:
                 continue
             if addon != "core" and hit[0] in CORE_ONLY_KINDS:
                 continue
@@ -1617,7 +1827,9 @@ def candidates(root: Path | None = None, addon: str = "core") -> list[Violation]
             # which is the whole content of holding them back. A rule that is
             # neither blocking nor printed has been dropped, not deferred.
             unswept = UNSWEPT_IN_CORE_KINDS if addon == "core" else CORE_ONLY_KINDS
-            hit = classify_definition(node, cls, namespaces)
+            hit = classify_definition(
+                node, cls, namespaces, exception_class_names(tree)
+            )
             if hit is not None and hit[0] in unswept:
                 found.append(
                     Violation(

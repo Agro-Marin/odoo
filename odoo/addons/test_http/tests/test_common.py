@@ -37,28 +37,28 @@ class TestHttpBase(HttpCaseWithUserDemo):
     def setUp(self):
         super().setUp()
         odoo.http.root.session_store.store.clear()
-        odoo.http.invalidate_db_list_cache()
-        self.addCleanup(odoo.http.invalidate_db_list_cache)
+        odoo.http.invalidate_db_catalog_cache()
+        self.addCleanup(odoo.http.invalidate_db_catalog_cache)
 
     def db_url_open(self, url, *args, allow_redirects=False, **kwargs):
-        odoo.http.invalidate_db_list_cache()
+        odoo.http.invalidate_db_catalog_cache()
         return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
     def nodb_url_open(self, url, *args, allow_redirects=False, **kwargs):
         with (
-            patch("odoo.http.db_list", return_value=[]),
-            patch("odoo.http.db_filter", return_value=[]),
+            patch("odoo.http.get_dbs_served", return_value=[]),
+            patch("odoo.http.filter_dbs_served", return_value=[]),
         ):
-            odoo.http.invalidate_db_list_cache()
+            odoo.http.invalidate_db_catalog_cache()
             return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
     def multidb_url_open(self, url, *args, allow_redirects=False, dblist=(), **kwargs):
-        dblist = dblist or self.db_list
+        dblist = dblist or self.dbs_served
         assert len(dblist) >= 2, "There should be at least 2 databases"
         with (
-            patch("odoo.http.db_list", return_value=list(dblist)),
+            patch("odoo.http.get_dbs_served", return_value=list(dblist)),
             patch(
-                "odoo.http.db_filter",
+                "odoo.http.filter_dbs_served",
                 side_effect=lambda dbs, host=None: [db for db in dbs if db in dblist],
             ),
             patch("odoo.http.request_class.Registry") as Registry,
@@ -66,7 +66,7 @@ class TestHttpBase(HttpCaseWithUserDemo):
         ):
             Registry.return_value = self.registry
             ServeRegistry.return_value = self.registry
-            odoo.http.invalidate_db_list_cache()
+            odoo.http.invalidate_db_catalog_cache()
             return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
     def parse_http_cache_control(self, cache_control):

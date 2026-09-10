@@ -14,7 +14,7 @@ class RequestRetryParticipant:
     def on_rollback(self, exc: BaseException) -> None:
         request = self._request
         current_sid = getattr(request.session, "sid", None)
-        request.session = request._get_session_and_dbname(sid=current_sid)[0]
+        request.session = request._select_session_and_dbname(sid=current_sid)[0]
 
     def on_retry(self, exc: BaseException) -> None:
         request = self._request

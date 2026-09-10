@@ -3,7 +3,7 @@ import json
 from werkzeug.exceptions import NotFound
 
 from odoo import _, http
-from odoo.http import Controller, content_disposition, request, route
+from odoo.http import Controller, prepare_content_disposition_header, request, route
 from odoo.tools import consteq, format_datetime
 
 
@@ -29,7 +29,10 @@ class EventController(Controller):
             [
                 ("Content-Type", "application/octet-stream"),
                 ("Content-Length", len(content)),
-                ("Content-Disposition", content_disposition("%s.ics" % event.name)),
+                (
+                    "Content-Disposition",
+                    prepare_content_disposition_header("%s.ics" % event.name),
+                ),
             ],
         )
 
@@ -113,7 +116,10 @@ class EventController(Controller):
         pdfhttpheaders = [
             ("Content-Type", "application/pdf"),
             ("Content-Length", len(pdf)),
-            ("Content-Disposition", content_disposition(f"{report_name}.pdf")),
+            (
+                "Content-Disposition",
+                prepare_content_disposition_header(f"{report_name}.pdf"),
+            ),
         ]
         return request.prepare_response(pdf, headers=pdfhttpheaders)
 

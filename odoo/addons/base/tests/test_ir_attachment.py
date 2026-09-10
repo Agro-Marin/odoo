@@ -1124,11 +1124,13 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         att.db_datas = False
         self.assertFalse(_request_stack(), "test must run with no request bound")
         with patch("odoo.addons.base.models.ir_attachment.root") as mock_root:
-            mock_root.get_static_file.return_value = None
+            mock_root.get_static_file_path.return_value = None
             stream = att._to_http_stream()
         self.assertEqual(stream.type, "url")
         self.assertEqual(stream.url, att.url)
-        self.assertEqual(mock_root.get_static_file.call_args.kwargs.get("host"), "")
+        self.assertEqual(
+            mock_root.get_static_file_path.call_args.kwargs.get("host"), ""
+        )
 
     def test_compute_res_name_orphaned_res_id(self):
         att = self.Attachment.create(

@@ -1,6 +1,6 @@
 import re
 
-from odoo.http import Controller, content_disposition, request, route
+from odoo.http import Controller, prepare_content_disposition_header, request, route
 
 EMPLOYEE_IDS_RE = re.compile(r"^[0-9]+(,[0-9]+)*$")
 
@@ -36,7 +36,7 @@ class HrEmployeeCV(Controller):
     ):
         employees = self._printable_employees(employee_ids)
         if not employees:
-            return request.not_found()
+            return request.prepare_not_found_error()
 
         resume_type_education = request.env.ref(
             "hr_skills.resume_type_education", raise_if_not_found=False
@@ -73,7 +73,10 @@ class HrEmployeeCV(Controller):
         pdfhttpheaders = [
             ("Content-Type", "application/pdf"),
             ("Content-Length", len(pdf_content)),
-            ("Content-Disposition", content_disposition(report_name + ".pdf")),
+            (
+                "Content-Disposition",
+                prepare_content_disposition_header(report_name + ".pdf"),
+            ),
         ]
 
         return request.prepare_response(pdf_content, headers=pdfhttpheaders)

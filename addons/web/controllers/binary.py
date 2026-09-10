@@ -74,7 +74,7 @@ class Binary(http.Controller):
             _logger.error(
                 BAD_X_SENDFILE_ERROR.format(data_dir=odoo.tools.config["data_dir"])
             )
-        raise http.request.not_found()
+        raise http.request.prepare_not_found_error()
 
     @http.route(
         [
@@ -104,7 +104,7 @@ class Binary(http.Controller):
         access_token: str | None = None,
         nocache: str | bool = False,
     ) -> Response:
-        with replace_exceptions(UserError, by=request.not_found()):
+        with replace_exceptions(UserError, by=request.prepare_not_found_error()):
             record = request.env["ir.binary"]._get_record(
                 xmlid, model, _resolve_res_id(id), access_token, field_name=field
             )
@@ -121,7 +121,7 @@ class Binary(http.Controller):
         if str2bool(nocache, False):
             send_file_kwargs["max_age"] = None
 
-        return stream.get_response(**send_file_kwargs)
+        return stream.prepare_response(**send_file_kwargs)
 
     @http.route(
         ["/web/assets/scope/<string:scope>/<string:unique>/<string:filename>"],
@@ -131,7 +131,7 @@ class Binary(http.Controller):
     )
     def content_assets_scoped(self, scope: str, **kwargs: Any) -> Response:
         if scope not in request.env["ir.asset"]._get_addons_installed():
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         return self.content_assets(**kwargs, assets_params={"unit_test_scope": scope})
 
     @http.route(
@@ -150,7 +150,7 @@ class Binary(http.Controller):
         env = request.env
         assets_params = assets_params or {}
         if not isinstance(assets_params, dict):
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         debug_assets = unique == "debug"
         stream = None
         if unique in ("any", "%"):
@@ -160,7 +160,7 @@ class Binary(http.Controller):
                 filename, unique, assets_params
             )
             if "%" in url:
-                raise request.not_found()
+                raise request.prepare_not_found_error()
             IrAttachment = env["ir.attachment"].sudo()
             attachment = IrAttachment.search(
                 IrAttachment._get_domain_generated_assets(url_pattern=url), limit=1
@@ -176,7 +176,7 @@ class Binary(http.Controller):
             if redirect is not None:
                 return redirect
         if stream is None:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         if stream.type == "url":
             stream.type = "data"
             stream.data = b""
@@ -192,7 +192,7 @@ class Binary(http.Controller):
             send_file_kwargs["immutable"] = True
             send_file_kwargs["max_age"] = http.STATIC_CACHE_LONG
 
-        return stream.get_response(**send_file_kwargs)
+        return stream.prepare_response(**send_file_kwargs)
 
     def _get_generated_asset_stream(
         self,
@@ -221,7 +221,7 @@ class Binary(http.Controller):
                         ".map should have been generated through debug assets, (version %s most likely outdated)",
                         unique,
                     )
-                    raise request.not_found()
+                    raise request.prepare_not_found_error()
                 bundle_name, rtl, asset_type, autoprefix = rw_env[
                     "ir.asset"
                 ]._parse_bundle_name(filename, debug_assets)
@@ -253,7 +253,7 @@ class Binary(http.Controller):
                     )
             except ValueError as e:
                 _logger.warning("Parsing asset bundle %s has failed: %s", filename, e)
-                raise request.not_found() from e
+                raise request.prepare_not_found_error() from e
         return stream, None
 
     @http.route(
@@ -283,13 +283,13 @@ class Binary(http.Controller):
             order="id desc",
         )
         if not attachment:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         stream = request.env["ir.binary"]._get_stream_from_record(
             attachment,
             "raw",
             url.rsplit("/", 1)[-1],
         )
-        return stream.get_response(
+        return stream.prepare_response(
             as_attachment=False,
             content_security_policy=None,
             immutable=True,
@@ -359,7 +359,7 @@ class Binary(http.Controller):
                 stream.public = True
         except UserError as exc:
             if str2bool(download, False):
-                raise request.not_found() from exc
+                raise request.prepare_not_found_error() from exc
             if (width, height) == (0, 0):
                 width, height = image_guess_size_from_field_name(field)
             record = request.env.ref("web.image_placeholder").sudo()
@@ -379,7 +379,7 @@ class Binary(http.Controller):
         if str2bool(nocache, False):
             send_file_kwargs["max_age"] = None
 
-        return stream.get_response(**send_file_kwargs)
+        return stream.prepare_response(**send_file_kwargs)
 
     @http.route("/web/binary/upload_attachment", type="http", auth="user")
     def upload_attachment(
@@ -444,7 +444,7 @@ class Binary(http.Controller):
         if not dbname:
             response = http.Stream.from_path(
                 file_path("web/static/img/logo.png")
-            ).get_response()
+            ).prepare_response()
         else:
             try:
                 try:
@@ -490,7 +490,7 @@ class Binary(http.Controller):
                 else:
                     response = http.Stream.from_path(
                         file_path("web/static/img/nologo.png")
-                    ).get_response()
+                    ).prepare_response()
             except Exception:
                 _logger.warning(
                     "While retrieving the company logo, using the Odoo logo instead",
@@ -498,7 +498,7 @@ class Binary(http.Controller):
                 )
                 response = http.Stream.from_path(
                     file_path("web/static/img/logo.png")
-                ).get_response()
+                ).prepare_response()
 
         return response
 
@@ -517,7 +517,7 @@ class Binary(http.Controller):
         fonts_dir = Path(file_path("web/static/fonts/sign"))
         if fontname:
             if Path(fontname).name != fontname:
-                raise request.not_found()
+                raise request.prepare_not_found_error()
             with file_open(
                 str(fonts_dir / fontname), "rb", filter_ext=supported_exts
             ) as font_file:

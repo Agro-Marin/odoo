@@ -42,14 +42,14 @@ class PosController(PortalAccount):
         is_internal_user = request.env.user._is_internal()
         pos_config = False
         if not is_internal_user:
-            return request.not_found()
+            return request.prepare_not_found_error()
         if not request.env.user.has_group("point_of_sale.group_pos_user"):
             return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
         if config_id:
             try:
                 config_id = int(config_id)
             except TypeError, ValueError:
-                return request.not_found()
+                return request.prepare_not_found_error()
         domain = [
             ("state", "in", ["opening_control", "opened"]),
             ("user_id", "=", request.session.uid),
@@ -131,7 +131,7 @@ class PosController(PortalAccount):
     @http.route("/pos/sale_details_report", type="http", auth="user")
     def print_sale_details(self, date_start=False, date_stop=False, **kw):
         if not request.env.user.has_group("point_of_sale.group_pos_manager"):
-            return request.not_found()
+            return request.prepare_not_found_error()
         pdf, _ = request.env["ir.actions.report"]._render_qweb_pdf(
             "point_of_sale.sale_details_report",
             data={"date_start": date_start, "date_stop": date_stop},
@@ -245,17 +245,17 @@ class PosController(PortalAccount):
             return res, res_prefixed
 
         if not access_token:
-            return request.not_found()
+            return request.prepare_not_found_error()
         pos_order = (
             request.env["pos.order"]
             .sudo()
             .search([("access_token", "=", access_token)], limit=1)
         )
         if not pos_order:
-            return request.not_found()
+            return request.prepare_not_found_error()
 
         if pos_order.state not in ("paid", "done"):
-            return request.not_found()
+            return request.prepare_not_found_error()
 
         pos_order = pos_order.with_company(pos_order.company_id).with_context(
             allowed_company_ids=pos_order.company_id.ids

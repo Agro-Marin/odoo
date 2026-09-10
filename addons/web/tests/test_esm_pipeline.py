@@ -1735,6 +1735,7 @@ class TestImportMapMergeHelpers(TransactionCase):
             import_map_includes={},
             secondary_import_map_includes={},
             runtime_bundle_names=set(),
+            exports=frozenset(),
         )
         for key, value in overrides.items():
             setattr(reg, key, value)

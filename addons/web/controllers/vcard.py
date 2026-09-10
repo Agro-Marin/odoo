@@ -4,7 +4,7 @@ import zipfile
 
 from odoo import _, http
 from odoo.exceptions import UserError
-from odoo.http import content_disposition, request
+from odoo.http import prepare_content_disposition_header, request
 from odoo.libs.filesystem import osutil
 
 
@@ -50,7 +50,7 @@ class Partner(http.Controller):
                         ("Content-Length", len(zip_data)),
                         (
                             "Content-Disposition",
-                            content_disposition("Contacts.zip"),
+                            prepare_content_disposition_header("Contacts.zip"),
                         ),
                     ],
                 )
@@ -65,11 +65,11 @@ class Partner(http.Controller):
                     ("Content-Length", len(content)),
                     (
                         "Content-Disposition",
-                        content_disposition(
+                        prepare_content_disposition_header(
                             f"{partner.name or partner.email or f'contact_{partner.id}'}.vcf"
                         ),
                     ),
                 ],
             )
 
-        raise request.not_found()
+        raise request.prepare_not_found_error()

@@ -811,7 +811,7 @@ class IrAttachment(models.Model):
         if not self.url:
             return None
         host = request.httprequest.environ.get("HTTP_HOST", "") if request else ""
-        return root.get_static_file(self.url, host=host)
+        return root.get_static_file_path(self.url, host=host)
 
     @api.model
     def _is_same_stream(self, stream_a: Any, stream_b: Any) -> bool:

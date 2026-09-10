@@ -14,7 +14,7 @@ class PosCustomerDisplay(http.Controller):
         try:
             config_id = int(id_)
         except TypeError, ValueError:
-            return request.not_found()
+            return request.prepare_not_found_error()
         pos_config_sudo = request.env["pos.config"].sudo().browse(config_id)
         if (
             not pos_config_sudo.exists()
@@ -22,7 +22,7 @@ class PosCustomerDisplay(http.Controller):
             or not access_token
             or not consteq(access_token, pos_config_sudo.access_token or "")
         ):
-            return request.not_found()
+            return request.prepare_not_found_error()
         return request.render(
             "point_of_sale.customer_display_index",
             {

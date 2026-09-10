@@ -457,7 +457,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
             ._get_stream_from_record(
                 document.attachment_id,
             )
-            .get_response(as_attachment=True)
+            .prepare_response(as_attachment=True)
         )
 
     @http.route(

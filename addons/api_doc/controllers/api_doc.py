@@ -89,7 +89,7 @@ class DocController(http.Controller):
                 filename, generation, refresh=not use_cache
             )
 
-        response = index_attach._to_http_stream().get_response(etag=unique)
+        response = index_attach._to_http_stream().prepare_response(etag=unique)
         response.headers["Content-Language"] = py_to_js_locale(self.env.lang)
         return response
 

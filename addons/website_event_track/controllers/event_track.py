@@ -9,7 +9,7 @@ from werkzeug.exceptions import Forbidden, NotFound
 
 from odoo import Command, _, fields, http, tools
 from odoo.fields import Domain
-from odoo.http import content_disposition, request
+from odoo.http import prepare_content_disposition_header, request
 from odoo.libs.datetime import timezone
 from odoo.tools import is_html_empty, plaintext2html
 from odoo.tools.misc import babel_locale_parse
@@ -743,7 +743,9 @@ class EventTrackController(http.Controller):
                 ("Content-Length", len(content)),
                 (
                     "Content-Disposition",
-                    content_disposition(f"{event.name}-{track.name}.ics"),
+                    prepare_content_disposition_header(
+                        f"{event.name}-{track.name}.ics"
+                    ),
                 ),
             ],
         )

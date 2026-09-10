@@ -336,7 +336,7 @@ class IrHttp(models.AbstractModel):
             request.httprequest.path, extra_domain=[("public", "=", True)]
         )
         if attach and (attach.store_fname or attach.db_datas):
-            return attach._to_http_stream().get_response()
+            return attach._to_http_stream().prepare_response()
         return None
 
     @classmethod

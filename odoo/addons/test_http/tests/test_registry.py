@@ -70,21 +70,23 @@ class TestHttpRegistry(BaseCase):
             odoo.http.constants.SELECT_DB_PATHS | {"/test_http/ensure_db"},
         )
 
-        cls._db_list = cls.startClassPatcher(patch("odoo.http.db_list"))
+        cls._db_list = cls.startClassPatcher(patch("odoo.http.get_dbs_served"))
         cls._db_list.return_value = ["postgres", get_db_name()]
 
         def fake_db_filter(dbs, host=None):
             return [db for db in dbs if db in cls._db_list()]
 
-        cls.startClassPatcher(patch("odoo.http.db_filter", side_effect=fake_db_filter))
+        cls.startClassPatcher(
+            patch("odoo.http.filter_dbs_served", side_effect=fake_db_filter)
+        )
 
     def setUp(self):
         super().setUp()
         self.opener = requests.Session()
         Registry.delete(get_db_name())
         close_db(get_db_name())
-        odoo.http.invalidate_db_list_cache()
-        self.addCleanup(odoo.http.invalidate_db_list_cache)
+        odoo.http.invalidate_db_catalog_cache()
+        self.addCleanup(odoo.http.invalidate_db_catalog_cache)
 
     def duplicate_current_db(self, db_suffix):
         db_duplicate = f"{get_db_name()}-test-http-registry-{db_suffix}"

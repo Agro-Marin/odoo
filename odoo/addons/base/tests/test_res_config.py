@@ -58,7 +58,7 @@ class TestResConfig(TransactionCase):
         self.assertEqual(res, self.expected_name)
 
     def test_20_get_config_warning(self):
-        res = self.ResConfig.get_config_warning(self.error_msg)
+        res = self.ResConfig.prepare_config_warning(self.error_msg)
 
         self.assertIsInstance(res, exceptions.RedirectWarning)
 
@@ -66,7 +66,7 @@ class TestResConfig(TransactionCase):
         self.assertEqual(res.args[1], self.expected_action_id)
 
     def test_30_get_config_warning_wo_menu(self):
-        res = self.ResConfig.get_config_warning(self.error_msg_wo_menu)
+        res = self.ResConfig.prepare_config_warning(self.error_msg_wo_menu)
 
         self.assertIsInstance(res, exceptions.UserError)
 

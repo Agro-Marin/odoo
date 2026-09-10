@@ -23,8 +23,8 @@ from odoo.tools.translate import LazyTranslate, _
 from .utils import (
     _get_login_redirect_url,
     _is_local_url,
-    select_db,
     is_user_internal,
+    select_db,
 )
 
 _lt = LazyTranslate(__name__)
@@ -172,7 +172,7 @@ class Home(http.Controller):
             k: v for k, v in request.params.items() if k in SIGN_UP_REQUEST_PARAMS
         }
         try:
-            values["databases"] = http.db_list()
+            values["databases"] = http.get_dbs_served()
         except odoo.exceptions.AccessDenied:
             values["databases"] = None
 
@@ -280,7 +280,7 @@ class Home(http.Controller):
     def metrics(self) -> Response:
         token = get_metrics_token()
         if not token:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         presented = request.httprequest.headers.get("Authorization", "")
         scheme, _, offered = presented.partition(" ")
         if scheme.lower() != "bearer" or not consteq(offered.strip(), token):

@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from odoo.http.application import _get_proxy_fix
+from odoo.http.application import _prepare_proxy_fix
 from odoo.http.dispatcher import Dispatcher, HttpDispatcher
 from odoo.http.wrappers import FutureResponse, prepare_no_content_response
 
@@ -40,25 +40,25 @@ def _noop(status, headers):
 )
 def test_the_trusted_hop_count_decides_the_client_address(hops, expected):
     environ = _environ("198.51.100.4, 203.0.113.7, 10.9.9.9")
-    _get_proxy_fix(hops)(environ, _noop)
+    _prepare_proxy_fix(hops)(environ, _noop)
     assert environ["REMOTE_ADDR"] == expected
 
 
 def test_asking_for_more_hops_than_the_header_holds_keeps_the_direct_peer():
     environ = _environ("203.0.113.7, 10.9.9.9")
-    _get_proxy_fix(9)(environ, _noop)
+    _prepare_proxy_fix(9)(environ, _noop)
     assert environ["REMOTE_ADDR"] == "10.0.0.1"
 
 
 def test_over_counting_the_chain_is_still_forgeable_and_that_is_the_hazard():
     environ = _environ("192.0.2.1, 192.0.2.2")
     environ["HTTP_X_FORWARDED_FOR"] += ", 10.9.9.9"
-    _get_proxy_fix(3)(environ, _noop)
+    _prepare_proxy_fix(3)(environ, _noop)
     assert environ["REMOTE_ADDR"] == "192.0.2.1"
 
     honest = _environ("192.0.2.1, 192.0.2.2")
     honest["HTTP_X_FORWARDED_FOR"] += ", 10.9.9.9"
-    _get_proxy_fix(1)(honest, _noop)
+    _prepare_proxy_fix(1)(honest, _noop)
     assert honest["REMOTE_ADDR"] == "10.9.9.9"
 
 
@@ -68,14 +68,14 @@ def test_the_hop_count_applies_to_host_and_proto_too():
         forwarded_host="outer.example, inner.example",
         forwarded_proto="https, http",
     )
-    _get_proxy_fix(2)(environ, _noop)
+    _prepare_proxy_fix(2)(environ, _noop)
     assert environ["HTTP_HOST"] == "outer.example"
     assert environ["wsgi.url_scheme"] == "https"
 
 
 def test_the_same_hop_count_reuses_one_wrapper():
-    assert _get_proxy_fix(2) is _get_proxy_fix(2)
-    assert _get_proxy_fix(2) is not _get_proxy_fix(3)
+    assert _prepare_proxy_fix(2) is _prepare_proxy_fix(2)
+    assert _prepare_proxy_fix(2) is not _prepare_proxy_fix(3)
 
 
 class _Session(dict):

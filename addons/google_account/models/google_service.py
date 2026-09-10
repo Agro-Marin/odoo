@@ -106,7 +106,7 @@ class GoogleService(models.AbstractModel):
             error_msg = _(
                 "Something went wrong during your token generation. Maybe your Authorization Code is invalid or already expired"
             )
-            raise self.env["res.config.settings"].get_config_warning(error_msg) from e
+            raise self.env["res.config.settings"].prepare_config_warning(error_msg) from e
 
     def _refresh_google_token(self, service, rtoken):
         ICP = self.env["ir.config_parameter"].sudo()

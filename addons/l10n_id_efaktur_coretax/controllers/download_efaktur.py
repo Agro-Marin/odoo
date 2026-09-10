@@ -2,7 +2,7 @@ import io
 import zipfile
 
 from odoo import _, http
-from odoo.http import content_disposition, request
+from odoo.http import prepare_content_disposition_header, request
 
 # from odoo.addons.account.controllers.download_docs import _get_headers
 
@@ -11,7 +11,7 @@ def _get_headers(filename, filetype, content):
     return [
         ("Content-Type", filetype),
         ("Content-Length", len(content)),
-        ("Content-Disposition", content_disposition(filename)),
+        ("Content-Disposition", prepare_content_disposition_header(filename)),
         ("X-Content-Type-Options", "nosniff"),
     ]
 

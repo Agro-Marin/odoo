@@ -114,7 +114,7 @@ class Website(Home):
         if reachable_menus:
             return request.redirect(reachable_menus[0].url)
 
-        raise request.not_found()
+        raise request.prepare_not_found_error()
 
     @http.route(
         "/website/force/<int:website_id>",
@@ -323,7 +323,7 @@ class Website(Home):
                     break
 
             if not pages:
-                return request.not_found()
+                return request.prepare_not_found_error()
             elif pages == 1:
                 last_sitemap.write(
                     {

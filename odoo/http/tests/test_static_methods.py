@@ -94,4 +94,4 @@ def test_get_static_file_answers_none_and_never_raises(resource):
     if app.get_static_path("web") is None:
         pytest.skip("addons path not initialised in this environment")
 
-    assert app.get_static_file(f"/web/static/{resource}") is None
+    assert app.get_static_file_path(f"/web/static/{resource}") is None

@@ -5,7 +5,12 @@ import xlsxwriter
 from werkzeug.datastructures import FileStorage
 
 from odoo import _, http
-from odoo.http import Response, UnprocessableEntity, content_disposition, request
+from odoo.http import (
+    Response,
+    UnprocessableEntity,
+    prepare_content_disposition_header,
+    request,
+)
 from odoo.libs.documents import extension_for
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import loads as json_loads
@@ -91,7 +96,9 @@ class TableExporter(http.Controller):
                 ("Content-Type", XLSX_MIMETYPE),
                 (
                     "Content-Disposition",
-                    content_disposition(f"{filename}.{extension_for(XLSX_MIMETYPE)}"),
+                    prepare_content_disposition_header(
+                        f"{filename}.{extension_for(XLSX_MIMETYPE)}"
+                    ),
                 ),
             ],
         )

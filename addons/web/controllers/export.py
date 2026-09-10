@@ -7,7 +7,12 @@ from typing import Any
 
 from odoo import http
 from odoo.exceptions import UserError
-from odoo.http import InternalServerError, Response, content_disposition, request
+from odoo.http import (
+    InternalServerError,
+    Response,
+    prepare_content_disposition_header,
+    request,
+)
 from odoo.libs.accel import csv_export as _rust_csv_export
 from odoo.libs.documents import mimetype_for
 from odoo.libs.filesystem import osutil
@@ -503,7 +508,7 @@ class ExportFormat:
             headers=[
                 (
                     "Content-Disposition",
-                    content_disposition(
+                    prepare_content_disposition_header(
                         osutil.clean_filename(self.filename(model) + self.extension)
                     ),
                 ),

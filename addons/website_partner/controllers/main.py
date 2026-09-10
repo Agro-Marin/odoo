@@ -25,4 +25,4 @@ class WebsitePartnerPage(http.Controller):
                     "edit_page": False,
                 }
                 return request.render("website_partner.partner_page", values)
-        raise request.not_found()
+        raise request.prepare_not_found_error()

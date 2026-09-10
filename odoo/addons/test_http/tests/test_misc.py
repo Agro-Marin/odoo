@@ -10,7 +10,7 @@ from werkzeug.wrappers import Request
 
 import odoo
 from odoo import http
-from odoo.http import content_disposition, rewind_uploaded_files, root
+from odoo.http import prepare_content_disposition_header, rewind_uploaded_files, root
 from odoo.tests import tagged
 from odoo.tests.common import HOST, BaseCase, get_db_name, new_test_user
 from odoo.tools import config, file_path, mute_logger
@@ -111,39 +111,41 @@ class TestHttpMisc(TestHttpBase):
         uri = "test_http/static/src/img/gizeh.png"
         path = file_path(uri)
 
-        self.assertEqual(root.get_static_file(f"/{uri}"), path, "Valid file")
+        self.assertEqual(root.get_static_file_path(f"/{uri}"), path, "Valid file")
         self.assertEqual(
-            root.get_static_file(f"odoo.com/{uri}", host="odoo.com"),
+            root.get_static_file_path(f"odoo.com/{uri}", host="odoo.com"),
             path,
             "Valid file with valid host",
         )
         self.assertEqual(
-            root.get_static_file(f"http://odoo.com/{uri}", host="odoo.com"),
+            root.get_static_file_path(f"http://odoo.com/{uri}", host="odoo.com"),
             path,
             "Valid file with valid host",
         )
         self.assertEqual(
-            root.get_static_file(f"http://ODOO.com/{uri}", host="odoo.com"),
+            root.get_static_file_path(f"http://ODOO.com/{uri}", host="odoo.com"),
             path,
             "Valid file with case-mismatched host in URL",
         )
         self.assertEqual(
-            root.get_static_file(f"odoo.com/{uri}", host="Odoo.COM"),
+            root.get_static_file_path(f"odoo.com/{uri}", host="Odoo.COM"),
             path,
             "Valid file with case-mismatched expected host",
         )
 
         self.assertIsNone(
-            root.get_static_file("/test_http/i-dont-exist"),
+            root.get_static_file_path("/test_http/i-dont-exist"),
             "File doesn't exist",
         )
         self.assertIsNone(
-            root.get_static_file("/test_http/__manifest__.py"),
+            root.get_static_file_path("/test_http/__manifest__.py"),
             "File is not static",
         )
-        self.assertIsNone(root.get_static_file(f"odoo.com/{uri}"), "No host allowed")
         self.assertIsNone(
-            root.get_static_file(f"http://odoo.com/{uri}"), "No host allowed"
+            root.get_static_file_path(f"odoo.com/{uri}"), "No host allowed"
+        )
+        self.assertIsNone(
+            root.get_static_file_path(f"http://odoo.com/{uri}"), "No host allowed"
         )
 
     def test_misc4_rpc_qweb(self):
@@ -412,7 +414,7 @@ class TestHttpMethodsAllowList(TestHttpBase):
 class TestHttpEnsureDb(TestHttpBase):
     def setUp(self):
         super().setUp()
-        self.db_list = ["db0", "db1"]
+        self.dbs_served = ["db0", "db1"]
 
     def test_ensure_db0_db_selector(self):
         for url in ("/web", "/test_http/ensure_db"):
@@ -471,7 +473,7 @@ class TestHttpEnsureDb(TestHttpBase):
         self.assertEqual(res.text, "db1")
 
     def test_ensure_db4_unicode(self):
-        self.db_list = ["basededonnée1", "basededonnée2"]
+        self.dbs_served = ["basededonnée1", "basededonnée2"]
 
         res = self.multidb_url_open("/test_http/ensure_db?db=basededonnée1")
         res.raise_for_status()
@@ -513,7 +515,7 @@ class TestContentDisposition(BaseCase):
         ]
         for filename, pct_encoded, hint in assertions:
             self.assertEqual(
-                content_disposition(filename),
+                prepare_content_disposition_header(filename),
                 f"attachment; filename*=UTF-8''{pct_encoded}",
                 f"{hint} should be percent encoded",
             )

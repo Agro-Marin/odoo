@@ -45,7 +45,7 @@ ENV_MODEL_ACCESSORS: dict[str, str] = {
 }
 
 MODEL_ACCESSOR_FUNCTIONS: dict[str, str] = {
-    "ir_http": "ir.http",
+    "get_ir_http": "ir.http",
 }
 
 ENV_INTERNAL_MODEL_LOOKUPS: frozenset[str] = frozenset({"ir.model.data"})

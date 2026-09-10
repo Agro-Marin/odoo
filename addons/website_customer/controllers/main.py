@@ -219,4 +219,4 @@ class WebsiteCustomer(GoogleMap):
                 values = {}
                 values["main_object"] = values["partner"] = partner
                 return request.render("website_customer.details", values)
-        raise request.not_found()
+        raise request.prepare_not_found_error()

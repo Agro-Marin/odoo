@@ -15,7 +15,7 @@ from werkzeug.wrappers import Response
 from odoo import _, fields, http
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
-from odoo.http import content_disposition, request
+from odoo.http import prepare_content_disposition_header, request
 from odoo.libs.documents import mimetype_for
 from odoo.tools import format_date, format_datetime, is_html_empty
 from odoo.tools.urls import keep_query
@@ -721,7 +721,7 @@ class Survey(http.Controller):
         return (
             request.env["ir.binary"]
             ._get_stream_image_from_record(survey_sudo, "background_image")
-            .get_response()
+            .prepare_response()
         )
 
     @http.route(
@@ -749,7 +749,7 @@ class Survey(http.Controller):
         return (
             request.env["ir.binary"]
             ._get_stream_image_from_record(section, "background_image")
-            .get_response()
+            .prepare_response()
         )
 
     @http.route(
@@ -794,7 +794,7 @@ class Survey(http.Controller):
         return (
             request.env["ir.binary"]
             ._get_stream_image_from_record(suggested_answer, "value_image")
-            .get_response()
+            .prepare_response()
         )
 
     @http.route(
@@ -1451,7 +1451,9 @@ class Survey(http.Controller):
             )[0]
         )
 
-        report_content_disposition = content_disposition("Certification.pdf")
+        report_content_disposition = prepare_content_disposition_header(
+            "Certification.pdf"
+        )
         if not download:
             content_split = report_content_disposition.split(";")
             content_split[0] = "inline"
@@ -1671,7 +1673,7 @@ class Survey(http.Controller):
             output.getvalue(),
             headers=[
                 ("Content-Type", "text/csv;charset=utf-8"),
-                ("Content-Disposition", content_disposition(filename)),
+                ("Content-Disposition", prepare_content_disposition_header(filename)),
             ],
         )
 
@@ -1724,7 +1726,7 @@ class Survey(http.Controller):
             output.getvalue(),
             headers=[
                 ("Content-Type", mimetype_for("xlsx")),
-                ("Content-Disposition", content_disposition(filename)),
+                ("Content-Disposition", prepare_content_disposition_header(filename)),
             ],
         )
 

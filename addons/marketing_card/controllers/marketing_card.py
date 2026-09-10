@@ -3,7 +3,7 @@ from urllib.parse import quote
 
 from werkzeug.exceptions import BadRequest
 
-from odoo.http import Controller, content_disposition, request, route
+from odoo.http import Controller, prepare_content_disposition_header, request, route
 
 # from https://github.com/monperrus/crawler-user-agents
 SOCIAL_NETWORK_USER_AGENTS = (
@@ -35,7 +35,7 @@ def _get_card_from_url(card_id, card_slug):
     if card_slug:
         card_id = request.env["ir.http"]._unslug(card_slug)[1]
     if not card_id:
-        raise request.not_found()
+        raise request.prepare_not_found_error()
     card = request.env["card.card"].browse(card_id).exists()
     if not card:
         raise BadRequest()
@@ -58,7 +58,7 @@ class MarketingCardController(Controller):
         if _is_crawler(request) and card.share_status != "shared":
             card.sudo().share_status = "shared"
         if not card.image:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
 
         image_bytes = base64.b64decode(card.image)
         return request.prepare_response(
@@ -66,7 +66,7 @@ class MarketingCardController(Controller):
             [
                 ("Content-Type", " image/jpeg"),
                 ("Content-Length", len(image_bytes)),
-                ("Content-Disposition", content_disposition("card.jpg")),
+                ("Content-Disposition", prepare_content_disposition_header("card.jpg")),
             ],
         )
 

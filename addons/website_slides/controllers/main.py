@@ -1623,7 +1623,7 @@ class WebsiteSlides(WebsiteProfile):
             ._get_stream_image_from_record(
                 slide, field, width=int(width), height=int(height), crop=int(crop)
             )
-            .get_response()
+            .prepare_response()
         )
 
     # SLIDE.SLIDE UTILS

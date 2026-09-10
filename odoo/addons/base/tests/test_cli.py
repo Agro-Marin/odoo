@@ -630,20 +630,22 @@ class TestCommand(BaseCase):
         )
 
     def test_db_filter_database_constrains_permissive_dbfilter(self):
-        from odoo.http import db_filter
+        from odoo.http import filter_dbs_served
 
         dbs = ["alpha", "beta", "prod", "test_db"]
         with config.patch(dbfilter=".*", db_name=["test_db"]):
-            self.assertEqual(db_filter(dbs, host="localhost"), ["test_db"])
+            self.assertEqual(filter_dbs_served(dbs, host="localhost"), ["test_db"])
         with config.patch(dbfilter="^al", db_name=[]):
-            self.assertEqual(db_filter(dbs, host="localhost"), ["alpha"])
+            self.assertEqual(filter_dbs_served(dbs, host="localhost"), ["alpha"])
         with config.patch(dbfilter="", db_name=["beta", "alpha"]):
-            self.assertEqual(db_filter(dbs, host="localhost"), ["alpha", "beta"])
+            self.assertEqual(
+                filter_dbs_served(dbs, host="localhost"), ["alpha", "beta"]
+            )
         with config.patch(dbfilter="^(alpha|prod)$", db_name=["prod", "beta"]):
-            self.assertEqual(db_filter(dbs, host="localhost"), ["prod"])
+            self.assertEqual(filter_dbs_served(dbs, host="localhost"), ["prod"])
 
     def test_db_filter_strips_system_databases(self):
-        from odoo.http import db_filter
+        from odoo.http import filter_dbs_served
 
         dbs = ["postgres", "template0", "template1", config["db_template"], "mydb"]
         for options in (
@@ -654,7 +656,7 @@ class TestCommand(BaseCase):
         ):
             with config.patch(**options):
                 self.assertEqual(
-                    db_filter(dbs, host="localhost"),
+                    filter_dbs_served(dbs, host="localhost"),
                     ["mydb"],
                     msg=f"system dbs not stripped with {options}",
                 )

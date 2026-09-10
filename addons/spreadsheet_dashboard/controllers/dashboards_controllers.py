@@ -12,7 +12,7 @@ class DashboardDataRoute(http.Controller):
     def get_dashboard_data(self, dashboard):
         dashboard = dashboard.exists()
         if not dashboard:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         cids_str = request.cookies.get("cids", str(request.env.user.company_id.id))
         cids = [int(cid) for cid in cids_str.split("-") if cid.isdigit()]
         if not cids:

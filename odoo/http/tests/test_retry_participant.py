@@ -7,7 +7,7 @@ from odoo.http._retry import RequestRetryParticipant
 
 def _request(**kwargs):
     request = MagicMock(**kwargs)
-    request._get_session_and_dbname.return_value = (MagicMock(), "testdb")
+    request._select_session_and_dbname.return_value = (MagicMock(), "testdb")
     return request
 
 
@@ -16,18 +16,18 @@ class TestOnRollback:
         request = _request()
         request.session.sid = "abc123"
         new_session = MagicMock()
-        request._get_session_and_dbname.return_value = (new_session, "testdb")
+        request._select_session_and_dbname.return_value = (new_session, "testdb")
 
         RequestRetryParticipant(request).on_rollback(Exception("boom"))
 
-        request._get_session_and_dbname.assert_called_once_with(sid="abc123")
+        request._select_session_and_dbname.assert_called_once_with(sid="abc123")
         assert request.session is new_session
 
     def test_a_request_with_no_sid_still_refetches(self):
         request = _request()
         del request.session.sid
         RequestRetryParticipant(request).on_rollback(Exception("boom"))
-        request._get_session_and_dbname.assert_called_once_with(sid=None)
+        request._select_session_and_dbname.assert_called_once_with(sid=None)
 
 
 class TestOnRetry:
@@ -59,7 +59,9 @@ class TestOnRetry:
         request._reset_for_replay.assert_called_once_with()
 
     def test_a_request_without_the_replay_hook_does_not_crash(self):
-        request = MagicMock(spec=["_get_session_and_dbname", "httprequest", "session"])
+        request = MagicMock(
+            spec=["_select_session_and_dbname", "httprequest", "session"]
+        )
         request.httprequest.files.items.return_value = []
         assert not hasattr(request, "_reset_for_replay")
         RequestRetryParticipant(request).on_retry(Exception("boom"))
@@ -75,7 +77,9 @@ class TestUncommittedWarningSuppression:
         assert not RequestRetryParticipant(request).is_uncommitted_warning_suppressed()
 
     def test_a_stand_in_request_without_the_attribute_does_not(self):
-        request = MagicMock(spec=["_get_session_and_dbname", "httprequest", "session"])
+        request = MagicMock(
+            spec=["_select_session_and_dbname", "httprequest", "session"]
+        )
         assert not RequestRetryParticipant(request).is_uncommitted_warning_suppressed()
 
 

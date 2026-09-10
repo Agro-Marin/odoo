@@ -104,7 +104,7 @@ class HrAttendance(http.Controller):
                 request.env["res.company"].browse(company_id).attendance_kiosk_url
             )
         else:
-            return request.not_found()
+            return request.prepare_not_found_error()
 
     @http.route(
         "/hr_attendance/get_employees_without_badge", type="jsonrpc", auth="public"
@@ -173,7 +173,7 @@ class HrAttendance(http.Controller):
     def open_kiosk_mode(self, token, from_trial_mode=False):
         company = self._get_company(token)
         if not company:
-            return request.not_found()
+            return request.prepare_not_found_error()
         else:
             department_list = [
                 {"id": dep["id"], "name": dep["name"], "count": dep["total_employee"]}

@@ -37,7 +37,7 @@ class Session(http.Controller):
         password: str,
         base_location: str | None = None,
     ) -> dict[str, Any]:
-        if not http.db_filter([db]):
+        if not http.filter_dbs_served([db]):
             msg = "Database not found."  # pylint: disable=missing-gettext
             raise AccessError(msg)
 

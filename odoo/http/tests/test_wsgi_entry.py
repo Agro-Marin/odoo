@@ -92,7 +92,7 @@ def test_a_request_with_a_database_is_served_by_serve_db():
     app = application.Application()
     hr = None
     req = _FakeRequest(hr, app, db="db")
-    with mock.patch.object(app, "get_static_file", return_value=None):
+    with mock.patch.object(app, "get_static_file_path", return_value=None):
         out = _run(app, _environ(), req)
     assert req.calls == ["db"] and out["served"] == "db"
 
@@ -100,7 +100,7 @@ def test_a_request_with_a_database_is_served_by_serve_db():
 def test_a_request_without_a_database_is_served_by_serve_nodb():
     app = application.Application()
     req = _FakeRequest(None, app, db=None)
-    with mock.patch.object(app, "get_static_file", return_value=None):
+    with mock.patch.object(app, "get_static_file_path", return_value=None):
         _run(app, _environ(), req)
     assert req.calls == ["nodb"]
 
@@ -109,7 +109,7 @@ def test_a_static_path_never_reaches_the_router():
     app = application.Application()
     req = _FakeRequest(None, app, db="db")
     with (
-        mock.patch.object(app, "get_static_file", return_value="/tmp/asset.js"),
+        mock.patch.object(app, "get_static_file_path", return_value="/tmp/asset.js"),
         mock.patch.object(app, "_serve_static_file") as served,
     ):
         served.return_value = lambda env, sr: (sr("200 OK", []), [b""])[1]
@@ -121,7 +121,7 @@ def test_a_static_path_never_reaches_the_router():
 def test_trace_is_refused_before_anything_else_runs():
     app = application.Application()
     req = _FakeRequest(None, app, db="db")
-    with mock.patch.object(app, "get_static_file") as static:
+    with mock.patch.object(app, "get_static_file_path") as static:
         out = _run(app, _environ(method="TRACE"), req)
     assert out["status"].startswith("405")
     assert req.calls == []
@@ -131,10 +131,10 @@ def test_trace_is_refused_before_anything_else_runs():
 def test_a_nul_in_the_path_is_a_404_and_never_reaches_the_resolver():
     app = application.Application()
     req = _FakeRequest(None, app, db="db")
-    with mock.patch.object(app, "get_static_file") as static:
+    with mock.patch.object(app, "get_static_file_path") as static:
         out = _run(app, _environ("/web/static/\x00.js"), req)
     assert out["status"].startswith("404")
-    static.assert_not_called(), "get_static_file must not be handed a NUL path"
+    static.assert_not_called(), "get_static_file_path must not be handed a NUL path"
 
 
 def test_a_registry_error_falls_back_to_serving_without_a_database():
@@ -147,7 +147,7 @@ def test_a_registry_error_falls_back_to_serving_without_a_database():
 
     req._serve_db = boom
     with (
-        mock.patch.object(app, "get_static_file", return_value=None),
+        mock.patch.object(app, "get_static_file_path", return_value=None),
         mock.patch.object(app, "_recover_from_registry_error") as recover,
     ):
         recover.return_value = lambda env, sr: (sr("200 OK", []), [b""])[1]
@@ -165,7 +165,7 @@ def test_a_failure_still_answers_and_empties_the_stack():
     )
     req.dispatcher.post_dispatch.side_effect = None
 
-    with mock.patch.object(app, "get_static_file", return_value=None):
+    with mock.patch.object(app, "get_static_file_path", return_value=None):
         out = _run(app, _environ(), req)
     assert out["status"].startswith("500")
 
@@ -180,7 +180,7 @@ def test_a_rerouted_request_has_its_second_httprequest_closed():
         return lambda env, sr: (sr("200 OK", []), [b""])[1]
 
     req._serve_nodb = serve_nodb
-    with mock.patch.object(app, "get_static_file", return_value=None):
+    with mock.patch.object(app, "get_static_file_path", return_value=None):
         _run(app, _environ(), req)
     rerouted.close.assert_called_once()
 

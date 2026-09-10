@@ -21,7 +21,7 @@ from werkzeug.exceptions import (
 from odoo.exceptions import UserError
 
 from ._params import coerce_params
-from ._protocols import ir_http
+from ._protocols import get_ir_http
 from .constants import (
     CORS_DEFAULT_ALLOWED_HEADERS,
     CORS_DEFAULT_ALLOWED_METHODS,
@@ -216,7 +216,7 @@ class Dispatcher(ABC):
         if self.request.db:
             registry = self.request.registry
             assert registry is not None, "a database-bound request has a registry"
-            return ir_http(registry)._dispatch(endpoint)
+            return get_ir_http(registry)._dispatch(endpoint)
         return endpoint(**self.request.params)
 
     @abstractmethod

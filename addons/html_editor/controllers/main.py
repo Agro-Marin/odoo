@@ -658,7 +658,7 @@ class HTML_Editor(http.Controller):
         record = request.env["ir.binary"]._get_record(img_key)
         stream = request.env["ir.binary"]._get_stream_image_from_record(record)
         if stream.type == "url":
-            return stream.get_response()
+            return stream.prepare_response()
 
         image = stream.read()
         if record.mimetype == "image/webp":

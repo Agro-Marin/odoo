@@ -411,7 +411,11 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
             base_partner_domain += [("country_id", "=", country.id)]
         if current_industry:
             base_partner_domain += [
-                ("implemented_partner_ids.primary_industry_id", "in", current_industry.id)
+                (
+                    "implemented_partner_ids.primary_industry_id",
+                    "in",
+                    current_industry.id,
+                )
             ]
 
         slug = request.env["ir.http"]._slug
@@ -533,4 +537,4 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
                     "current_country": current_country,
                 }
                 return request.render("website_crm_partner_assign.partner", values)
-        raise request.not_found()
+        raise request.prepare_not_found_error()

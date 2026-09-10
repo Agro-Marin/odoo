@@ -311,7 +311,7 @@ def _apply_around(
     remove_element(sentinel)
 
 
-def _unlocatable(spec: etree._Element) -> ValueError:
+def _prepare_unlocatable_error(spec: etree._Element) -> ValueError:
     attrs = "".join(
         f' {attr}="{html_escape(spec.get(attr))}"'
         for attr in spec.attrib
@@ -356,7 +356,7 @@ def apply_inheritance_specs(
         pre_locate(spec)
         node = locate_node(source, spec)
         if node is None:
-            raise _unlocatable(spec)
+            raise _prepare_unlocatable_error(spec)
 
         pos = spec.get("position", "inside")
         if pos == "replace":

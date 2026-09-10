@@ -1268,7 +1268,7 @@ class TestAddonRelativePath(BaseCase):
 
     def test_canonical_tag_and_tag_selector_agree(self):
         selector = TagsSelector("/base/tests/test_test_suite.py")
-        self.assertTrue(selector.check(self))
+        self.assertTrue(selector.selects(self))
         self.assertTrue(
             self.canonical_tag.startswith("/base/tests/test_test_suite.py:")
         )
@@ -1430,7 +1430,7 @@ class TestTagSelectorCheckIsPure(BaseCase):
 
     def test_check_does_not_write_to_the_test(self):
         probe = self._probe()
-        self.assertTrue(TagsSelector("standard[someparam]").check(probe))
+        self.assertTrue(TagsSelector("standard[someparam]").selects(probe))
         self.assertEqual(
             probe._test_params,
             ["sentinel"],
@@ -1444,7 +1444,7 @@ class TestTagSelectorCheckIsPure(BaseCase):
 
         for first, second in ((position, config), (config, position)):
             probe = self._probe()
-            self.assertTrue(first.check(probe) and second.check(probe))
+            self.assertTrue(first.selects(probe) and second.selects(probe))
             config.select_params(probe)
             self.assertEqual(
                 probe._test_params,

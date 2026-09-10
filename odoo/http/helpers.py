@@ -24,7 +24,9 @@ from .settings import current as current_settings
 _logger = logging.getLogger(__name__)
 
 
-def content_disposition(filename: str, disposition_type: str = "attachment") -> str:
+def prepare_content_disposition_header(
+    filename: str, disposition_type: str = "attachment"
+) -> str:
     if disposition_type not in ("attachment", "inline"):
         e = f"Invalid disposition_type: {disposition_type!r}"
         raise ValueError(e)
@@ -44,11 +46,11 @@ def rewind_uploaded_files(
             ) from cause
 
 
-def invalidate_db_list_cache() -> None:
+def invalidate_db_catalog_cache() -> None:
     odoo.service.db.invalidate_catalog_caches()
 
 
-def db_list(force: bool = False, host: str | None = None) -> list[str]:
+def get_dbs_served(force: bool = False, host: str | None = None) -> list[str]:
     try:
         dbs = odoo.service.db.list_dbs(force)
     except psycopg.Error:
@@ -57,7 +59,7 @@ def db_list(force: bool = False, host: str | None = None) -> list[str]:
             exc_info=True,
         )
         return []
-    return db_filter(dbs, host)
+    return filter_dbs_served(dbs, host)
 
 
 def _normalize_dbfilter_host(host: str) -> str:
@@ -82,7 +84,7 @@ def _compile_dbfilter(pattern: str, host: str) -> re.Pattern[str]:
     )
 
 
-def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
+def filter_dbs_served(dbs: Iterable[str], host: str | None = None) -> list[str]:
     settings = current_settings()
     pool = pool_settings.current()
     names = [db for db in dbs if not is_maintenance_db(db, pool)]

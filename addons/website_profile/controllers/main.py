@@ -41,7 +41,7 @@ class WebsiteProfile(http.Controller):
         """
         user_sudo = request.env["res.users"].sudo().browse(user_id)
         if not user_sudo.exists():
-            raise request.not_found()
+            raise request.prepare_not_found_error()
 
         # User can access - no matter what - his own profile
         if user_sudo.id == request.env.user.id:
@@ -107,7 +107,7 @@ class WebsiteProfile(http.Controller):
                 height=int(height),
                 crop=crop,
             )
-            .get_response()
+            .prepare_response()
         )
 
     def _prepare_url_from_info(self):

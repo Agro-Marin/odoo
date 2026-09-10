@@ -154,7 +154,7 @@ class MicrosoftService(models.AbstractModel):
             error_msg = _(
                 "Something went wrong during your token generation. Maybe your Authorization Code is invalid"
             )
-            raise self.env["res.config.settings"].get_config_warning(error_msg)
+            raise self.env["res.config.settings"].prepare_config_warning(error_msg)
 
     @api.model
     def _do_request(

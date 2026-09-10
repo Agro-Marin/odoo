@@ -20,7 +20,7 @@ from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.service.transaction import retrying
 
-from ._protocols import RequestState, ir_http
+from ._protocols import RequestState, get_ir_http
 from ._retry import RequestRetryParticipant
 from .constants import NOT_FOUND_NODB, NOT_FOUND_NODB_TEXT, STATIC_CACHE
 from .core import borrow_request
@@ -65,7 +65,7 @@ class _RequestServeMixin(RequestState):
         try:
             stream = Stream._from_trusted_path(filepath, public=True)
             debug = "assets" in self.session.debug
-            res = stream.get_response(
+            res = stream.prepare_response(
                 max_age=0 if debug else STATIC_CACHE,
                 content_security_policy=None,
             )
@@ -169,7 +169,7 @@ class _RequestServeMixin(RequestState):
 
     def _select_serve_target_and_mode(self, registry: Registry) -> tuple[Any, bool]:
         try:
-            rule, args = ir_http(registry)._match(self.httprequest.path)
+            rule, args = get_ir_http(registry)._match(self.httprequest.path)
         except NotFound as not_found_exc:
             self.dispatcher = get_dispatcher_for_unmatched_route(self)(self)
             return functools.partial(self._serve_ir_http_fallback, not_found_exc), True
@@ -292,7 +292,7 @@ class _RequestServeMixin(RequestState):
             if isinstance(exc, AccessDenied):
                 exc.suppress_traceback()
             registry = self._get_bound_registry()
-            set_error_response(exc, ir_http(registry)._handle_error(exc))
+            set_error_response(exc, get_ir_http(registry)._handle_error(exc))
 
     def _get_bound_registry(self) -> Registry:
         registry = self.registry
@@ -308,24 +308,26 @@ class _RequestServeMixin(RequestState):
 
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
         registry = self._get_bound_registry()
-        ir_http(registry)._apply_max_upload_size()
+        get_ir_http(registry)._apply_max_upload_size()
         self._check_body_size()
         self._params_source = self.get_http_params
-        ir_http(registry)._auth_method_public()
-        response = ir_http(registry)._serve_fallback()
+        get_ir_http(registry)._auth_method_public()
+        response = get_ir_http(registry)._serve_fallback()
         if response:
-            ir_http(registry)._post_dispatch(response)
+            get_ir_http(registry)._post_dispatch(response)
             return response
 
         no_fallback = NotFound()
         no_fallback.__context__ = not_found
-        set_error_response(no_fallback, ir_http(registry)._handle_error(no_fallback))
+        set_error_response(
+            no_fallback, get_ir_http(registry)._handle_error(no_fallback)
+        )
         raise no_fallback
 
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
         registry = self._get_bound_registry()
-        ir_http(registry)._authenticate(rule.endpoint)
-        ir_http(registry)._pre_dispatch(rule, args)
+        get_ir_http(registry)._authenticate(rule.endpoint)
+        get_ir_http(registry)._pre_dispatch(rule, args)
         response = self.dispatcher.dispatch(rule.endpoint, args)
-        ir_http(registry)._post_dispatch(response)
+        get_ir_http(registry)._post_dispatch(response)
         return response

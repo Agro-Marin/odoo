@@ -46,7 +46,7 @@ class SmsTwilioController(Controller):
             _logger.warning(
                 "Twilio SMS: update_sms_status received a non-valid uuid='%s'", uuid
             )
-            raise request.not_found()
+            raise request.prepare_not_found_error()
 
         # Verify Twilio Status
         if SmsStatus not in TWILIO_TO_SMS_STATE:
@@ -54,7 +54,7 @@ class SmsTwilioController(Controller):
                 "Twilio SMS: update_sms_status received unknown twilio_status='%s'",
                 SmsStatus,
             )
-            raise request.not_found()
+            raise request.prepare_not_found_error()
 
         # Verify Twilio Signature
         if not self._is_twilio_signature_valid(request, uuid):
@@ -62,7 +62,7 @@ class SmsTwilioController(Controller):
                 "Twilio SMS: update_sms_status could not validate Twilio signature with uuid='%s'",
                 uuid,
             )
-            raise request.not_found()
+            raise request.prepare_not_found_error()
 
         # Update the tracker with the state
         sms_tracker_sudo = (

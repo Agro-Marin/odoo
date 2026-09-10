@@ -24,7 +24,7 @@ def _response(payload, **kwargs):
         **{k: v for k, v in kwargs.items() if k in Stream._ALLOWED_KWARGS},
     )
     call = {k: v for k, v in kwargs.items() if k not in Stream._ALLOWED_KWARGS}
-    return stream.get_response(
+    return stream.prepare_response(
         environ=EnvironBuilder(method="GET", path="/web/content/1").get_environ(),
         **call,
     )

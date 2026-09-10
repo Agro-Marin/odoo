@@ -12,7 +12,7 @@ from odoo.exceptions import (
     UserError,
     ValidationError,
 )
-from odoo.http import Controller, content_disposition, request, route
+from odoo.http import Controller, prepare_content_disposition_header, request, route
 from odoo.tools import clean_context, consteq, single_email_re, str2bool
 from odoo.tools.translate import LazyTranslate
 
@@ -1124,7 +1124,7 @@ class CustomerPortal(Controller):
         }
         if report_type == "pdf":
             filename = f"{re.sub(r'\W+', '_', model._get_report_base_filename())}.pdf"
-            headers["Content-Disposition"] = content_disposition(
+            headers["Content-Disposition"] = prepare_content_disposition_header(
                 filename, disposition_type="attachment" if download else "inline"
             )
         return headers

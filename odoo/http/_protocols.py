@@ -33,7 +33,7 @@ if TYPE_CHECKING:
         registry: Registry | None
         session: Session
 
-        def _get_session_and_dbname(
+        def _select_session_and_dbname(
             self, sid: str | None = None
         ) -> tuple[Session, str | None]: ...
 
@@ -146,5 +146,5 @@ class HttpExtension(Protocol):
         pass
 
 
-def ir_http(source: Registry | odoo.api.Environment) -> HttpExtension:
+def get_ir_http(source: Registry | odoo.api.Environment) -> HttpExtension:
     return cast("HttpExtension", source["ir.http"])

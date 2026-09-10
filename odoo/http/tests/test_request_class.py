@@ -13,9 +13,9 @@ from odoo.http.request_class import Request
 
 @pytest.fixture
 def fresh_monodb_cache():
-    helpers.invalidate_db_list_cache()
+    helpers.invalidate_db_catalog_cache()
     yield
-    helpers.invalidate_db_list_cache()
+    helpers.invalidate_db_catalog_cache()
 
 
 def _catalog(dbs):
@@ -24,23 +24,23 @@ def _catalog(dbs):
 
 def _passthrough_filter():
     return patch.object(
-        helpers, "db_filter", side_effect=lambda dbs, host=None: list(dbs)
+        helpers, "filter_dbs_served", side_effect=lambda dbs, host=None: list(dbs)
     )
 
 
 def test_monodb_dblist_filters_the_catalog(fresh_monodb_cache):
     with _catalog(["a", "b"]), _passthrough_filter():
-        assert odoo.http.db_list(force=True, host="h") == ["a", "b"]
-        assert odoo.http.db_list(force=True, host="h") == ["a", "b"]
+        assert odoo.http.get_dbs_served(force=True, host="h") == ["a", "b"]
+        assert odoo.http.get_dbs_served(force=True, host="h") == ["a", "b"]
 
 
 def test_monodb_dblist_degrades_when_postgres_unreachable(fresh_monodb_cache):
     boom = psycopg.OperationalError("connection refused")
     with patch.object(helpers.odoo.service.db, "list_dbs", side_effect=boom):
-        assert odoo.http.db_list(force=True, host="h") == []
+        assert odoo.http.get_dbs_served(force=True, host="h") == []
 
     with _catalog(["only"]), _passthrough_filter():
-        assert odoo.http.db_list(force=True, host="h") == ["only"]
+        assert odoo.http.get_dbs_served(force=True, host="h") == ["only"]
 
 
 def test_monodb_dblist_degrades_on_any_psycopg_error(fresh_monodb_cache):
@@ -49,26 +49,26 @@ def test_monodb_dblist_degrades_on_any_psycopg_error(fresh_monodb_cache):
         psycopg.OperationalError("refused"),
         psycopg.errors.InsufficientPrivilege("denied"),
     ):
-        helpers.invalidate_db_list_cache()
+        helpers.invalidate_db_catalog_cache()
         with patch.object(helpers.odoo.service.db, "list_dbs", side_effect=exc):
-            assert odoo.http.db_list(force=True, host="h") == []
+            assert odoo.http.get_dbs_served(force=True, host="h") == []
 
 
 def test_db_list_degrades_on_any_psycopg_error(fresh_monodb_cache):
     with patch.object(
         helpers.odoo.service.db, "list_dbs", side_effect=psycopg.Error("boom")
     ):
-        assert helpers.db_list(force=True, host="h") == []
+        assert helpers.get_dbs_served(force=True, host="h") == []
 
 
 def test_resolution_goes_through_the_public_db_list():
     import odoo.http.request_class as rc
 
     source = pathlib.Path(rc.__file__).read_text(encoding="utf-8")
-    assert "http.db_list(force=True, host=host)" in source
-    assert "\n    db_list,\n" not in source, (
-        "request_class must not bind db_list at import time, or patching "
-        "odoo.http.db_list stops reaching the mono-db resolution path"
+    assert "http.get_dbs_served(force=True, host=host)" in source
+    assert "\n    get_dbs_served,\n" not in source, (
+        "request_class must not bind get_dbs_served at import time, or patching "
+        "odoo.http.get_dbs_served stops reaching the mono-db resolution path"
     )
 
 
@@ -76,24 +76,24 @@ def test_resolution_goes_through_the_public_db_filter():
     import odoo.http.request_class as rc
 
     source = pathlib.Path(rc.__file__).read_text(encoding="utf-8")
-    assert "http.db_filter(" in source
-    assert "\n    db_filter,\n" not in source, (
-        "request_class must not bind db_filter at import time, or patching "
-        "odoo.http.db_filter stops reaching the resolution path"
+    assert "http.filter_dbs_served(" in source
+    assert "\n    filter_dbs_served,\n" not in source, (
+        "request_class must not bind filter_dbs_served at import time, or patching "
+        "odoo.http.filter_dbs_served stops reaching the resolution path"
     )
 
 
 def test_http_adds_no_second_cache_over_the_catalogue(fresh_monodb_cache):
     with _catalog(["a", "b"]) as lister, _passthrough_filter():
         for _ in range(5):
-            assert odoo.http.db_list(force=True, host="h") == ["a", "b"]
+            assert odoo.http.get_dbs_served(force=True, host="h") == ["a", "b"]
     assert lister.call_count == 5, "every call reaches the one cache that exists"
 
 
 def test_force_reaches_list_dbs_rather_than_a_cached_answer(fresh_monodb_cache):
     with _catalog(["a"]) as lister, _passthrough_filter():
-        odoo.http.db_list(force=True)
-        odoo.http.db_list(force=True)
+        odoo.http.get_dbs_served(force=True)
+        odoo.http.get_dbs_served(force=True)
 
     assert [c.args for c in lister.call_args_list] == [(True,), (True,)]
 
@@ -103,29 +103,29 @@ def test_each_host_gets_its_own_filtered_answer(fresh_monodb_cache):
         _catalog(["a_one", "b_two"]),
         patch.object(
             helpers,
-            "db_filter",
+            "filter_dbs_served",
             side_effect=lambda dbs, host=None: [
                 db for db in dbs if db.startswith(host)
             ],
         ),
     ):
-        assert odoo.http.db_list(force=True, host="a") == ["a_one"]
-        assert odoo.http.db_list(force=True, host="b") == ["b_two"]
-        assert odoo.http.db_list(force=True, host="a") == ["a_one"]
+        assert odoo.http.get_dbs_served(force=True, host="a") == ["a_one"]
+        assert odoo.http.get_dbs_served(force=True, host="b") == ["b_two"]
+        assert odoo.http.get_dbs_served(force=True, host="a") == ["a_one"]
 
 
 def test_the_caller_cannot_mutate_what_the_next_caller_sees(fresh_monodb_cache):
     with _catalog(["a"]):
-        first = odoo.http.db_list()
+        first = odoo.http.get_dbs_served()
         first.append("smuggled")
-        assert odoo.http.db_list() == ["a"]
+        assert odoo.http.get_dbs_served() == ["a"]
 
 
 def test_invalidate_db_list_cache_drops_the_catalogue_service_db_holds():
     from odoo.service.db import listing
 
     listing._catalog_cache = (float("inf"), ["stale"])
-    helpers.invalidate_db_list_cache()
+    helpers.invalidate_db_catalog_cache()
     assert listing._catalog_cache is None
 
 

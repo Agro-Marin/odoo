@@ -58,7 +58,7 @@ def test_refresh_after_rotation_keys_on_the_current_sid(store):
         def __init__(self):
             self.session = sess
 
-        def _get_session_and_dbname(self, sid=None):
+        def _select_session_and_dbname(self, sid=None):
             key = sid if sid is not None else cookie_sid
             return store.get(key), None
 

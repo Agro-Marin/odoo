@@ -11,7 +11,7 @@ from werkzeug.exceptions import HTTPException
 from odoo.libs._vendor.useragents import UserAgent
 from odoo.libs.facade import Proxy, ProxyAttr, ProxyFunc
 
-from ._protocols import ir_http
+from ._protocols import get_ir_http
 from .constants import DEFAULT_MAX_CONTENT_LENGTH
 from .core import request
 
@@ -42,7 +42,7 @@ def _prepare_set_cookie_args(
     if (
         request
         and request.env is not None
-        and not ir_http(request.env)._is_allowed_cookie(cookie_type)
+        and not get_ir_http(request.env)._is_allowed_cookie(cookie_type)
     ):
         max_age = 0
         expires = None

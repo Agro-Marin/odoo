@@ -108,7 +108,7 @@ class IoTController(IoTBoxLookup, http.Controller):
             etag=etag,
             size=fobj.tell(),
             public=True,
-        ).get_response()
+        ).prepare_response()
 
     @http.route("/iot/keyboard_layouts", type="http", auth="public", csrf=False)
     def load_keyboard_layouts(self, available_layouts):

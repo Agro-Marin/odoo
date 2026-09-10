@@ -168,7 +168,7 @@ class TestHttpSession(TestHttpBase):
         self.assertURLEqual(res.headers.get("Location"), "/web/database/selector")
 
     def test_session04_web_authenticate_multidb(self):
-        self.db_list = [get_db_name(), "another_database"]
+        self.dbs_served = [get_db_name(), "another_database"]
 
         payload = json.dumps(
             {

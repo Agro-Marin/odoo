@@ -4,7 +4,7 @@ from markupsafe import Markup
 from werkzeug.exceptions import NotFound, ServiceUnavailable
 
 from odoo import _, http
-from odoo.http import content_disposition, request
+from odoo.http import prepare_content_disposition_header, request
 from odoo.libs.datetime import timezone
 from odoo.libs.text import nl2br
 
@@ -20,7 +20,7 @@ class LivechatController(http.Controller):
     )
     def external_lib(self, ext, **kwargs):
         if ext == "css":
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         return self.assets_embed(ext, **kwargs)
 
     def _is_cors_request(self):
@@ -44,12 +44,12 @@ class LivechatController(http.Controller):
             else "im_livechat.assets_embed_external"
         )
         if ext not in ("css", "js"):
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         if ext == "js":
             return self._assets_embed_js_response(bundle)
         asset = request.env["ir.qweb"]._get_asset_bundle(bundle)
         stream = request.env["ir.binary"]._get_stream_from_record(asset.css())
-        return stream.get_response()
+        return stream.prepare_response()
 
     def _assets_embed_js_response(self, bundle):
         built = request.env["ir.qweb"]._get_standalone_bundle(bundle)
@@ -71,13 +71,13 @@ class LivechatController(http.Controller):
     def fontawesome(self, **kwargs):
         return http.Stream.from_path(
             "web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2"
-        ).get_response()
+        ).prepare_response()
 
     @http.route("/im_livechat/odoo_ui_icons", type="http", auth="none", cors="*")
     def odoo_ui_icons(self, **kwargs):
         return http.Stream.from_path(
             "web/static/lib/odoo_ui_icons/fonts/odoo_ui_icons.woff2"
-        ).get_response()
+        ).prepare_response()
 
     @http.route("/im_livechat/emoji_bundle", type="http", auth="public", cors="*")
     def get_emoji_bundle(self):
@@ -322,7 +322,9 @@ class LivechatController(http.Controller):
         headers = [
             (
                 "Content-Disposition",
-                content_disposition(f"transcript_{channel.id}.pdf", "inline"),
+                prepare_content_disposition_header(
+                    f"transcript_{channel.id}.pdf", "inline"
+                ),
             ),
             ("Content-Length", len(pdf)),
             ("Content-Type", "application/pdf"),

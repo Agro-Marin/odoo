@@ -12,7 +12,7 @@ from odoo.libs.json import dumps_bytes as _fast_dumps_bytes
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools.json import orjson_default
 
-from ._protocols import RequestState, ir_http
+from ._protocols import RequestState, get_ir_http
 from .wrappers import HTTPRequest, Response
 
 
@@ -45,7 +45,7 @@ class _RequestResponseMixin(RequestState):
 
         return self.prepare_response(payload, json_headers, cookies, status)
 
-    def not_found(self, description: str | None = None) -> NotFound:
+    def prepare_not_found_error(self, description: str | None = None) -> NotFound:
         return NotFound(description)
 
     def redirect(self, location: str, code: int = 303, local: bool = True) -> Response:
@@ -57,7 +57,7 @@ class _RequestResponseMixin(RequestState):
             else:
                 location = "/" + urlunsplit(stripped).lstrip("/\\")
         if self.db and self.env is not None:
-            return ir_http(self.env)._redirect(location, code)
+            return get_ir_http(self.env)._redirect(location, code)
         return werkzeug.utils.redirect(location, code, Response=Response)
 
     def redirect_query(

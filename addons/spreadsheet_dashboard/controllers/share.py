@@ -9,7 +9,7 @@ class DashboardShareRoute(http.Controller):
             request.env["spreadsheet.dashboard.share"].sudo().browse(share_id).exists()
         )
         if not share:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         share._check_dashboard_access(token)
         return request.render(
             "spreadsheet.public_spreadsheet_layout",
@@ -37,12 +37,12 @@ class DashboardShareRoute(http.Controller):
             request.env["spreadsheet.dashboard.share"].sudo().browse(share_id).exists()
         )
         if not share:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         share._check_dashboard_access(token)
         stream = request.env["ir.binary"]._get_stream_from_record(
             share, "excel_export", filename=share.name
         )
-        return stream.get_response()
+        return stream.prepare_response()
 
     @http.route(
         ["/dashboard/data/<int:share_id>/<token>"],
@@ -56,10 +56,10 @@ class DashboardShareRoute(http.Controller):
             request.env["spreadsheet.dashboard.share"].sudo().browse(share_id).exists()
         )
         if not share:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
 
         share._check_dashboard_access(token)
         stream = request.env["ir.binary"]._get_stream_from_record(
             share, "spreadsheet_binary_data"
         )
-        return stream.get_response()
+        return stream.prepare_response()

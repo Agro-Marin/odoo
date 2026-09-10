@@ -15,7 +15,7 @@ from werkzeug.exceptions import BadRequest, Forbidden, RequestEntityTooLarge
 from odoo import SUPERUSER_ID, Command, _, fields, http
 from odoo.exceptions import MissingError
 from odoo.fields import Domain
-from odoo.http import content_disposition, request
+from odoo.http import prepare_content_disposition_header, request
 from odoo.tools import SQL, consteq, replace_exceptions, str2bool
 from odoo.tools.image import base64_to_image
 from odoo.tools.urls import keep_query
@@ -280,7 +280,7 @@ class ShareRoute(http.Controller):
         headers = [
             ("Content-Type", "application/zip"),
             ("X-Content-Type-Options", "nosniff"),
-            ("Content-Disposition", content_disposition(name)),
+            ("Content-Disposition", prepare_content_disposition_header(name)),
         ]
         return request.prepare_response(self._stream_zip(name, entries), headers)
 
@@ -649,7 +649,7 @@ class ShareRoute(http.Controller):
                 "avatar_128",
                 placeholder=partner_sudo._get_avatar_placeholder_path(),
             )
-            .get_response(as_attachment=False)
+            .prepare_response(as_attachment=False)
         )
 
     def _documents_content_readonly(self, rule: Any, args: dict) -> bool:
@@ -685,10 +685,10 @@ class ShareRoute(http.Controller):
     def documents_content(self, access_token: str, download: Any = True) -> Any:
         document_sudo = self._from_access_token(access_token, skip_log=True)
         if not document_sudo:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         if document_sudo.type == "url":
             if not _is_safe_redirect_url(document_sudo.url):
-                raise request.not_found()
+                raise request.prepare_not_found_error()
             return request.redirect(
                 document_sudo.url, code=HTTPStatus.TEMPORARY_REDIRECT, local=False
             )
@@ -702,16 +702,18 @@ class ShareRoute(http.Controller):
             )
         if document_sudo.type == "binary":
             if not document_sudo.attachment_id:
-                raise request.not_found()
+                raise request.prepare_not_found_error()
             with replace_exceptions(ValueError, by=BadRequest):
                 download = str2bool(download)
             if download:
                 if not document_sudo._is_download_allowed():
                     raise Forbidden("downloading this document is not allowed")
                 self._log_download(document_sudo)
-            with replace_exceptions(ValueError, MissingError, by=request.not_found()):
+            with replace_exceptions(
+                ValueError, MissingError, by=request.prepare_not_found_error()
+            ):
                 stream = self._documents_content_stream(document_sudo)
-            return stream.get_response(as_attachment=download)
+            return stream.prepare_response(as_attachment=download)
         e = f"unknown document type {document_sudo.type!r}"
         raise NotImplementedError(e)
 
@@ -767,7 +769,7 @@ class ShareRoute(http.Controller):
             ._get_stream_image_from_record(
                 document_sudo, "thumbnail", width=width, height=height
             )
-            .get_response(as_attachment=False, **send_file_kwargs)
+            .prepare_response(as_attachment=False, **send_file_kwargs)
         )
 
     @http.route(
@@ -779,22 +781,24 @@ class ShareRoute(http.Controller):
     def documents_thumbnail_textual(self, access_token: str) -> Any:
         document_sudo = self._from_access_token(access_token, skip_log=True)
         if not document_sudo:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         if document_sudo.type != "binary":
             e = f"bad document type: expected a file (binary) document, found a {document_sudo.type} document"
             raise BadRequest(e)
         attachment_sudo = document_sudo.attachment_id.sudo()
         if not attachment_sudo:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         if not is_mimetype_textual(document_sudo.mimetype):
             e = f"bad document mimetype: expect text/* or a recognized application/, got {document_sudo.mimetype}"
             raise BadRequest(e)
         if document_sudo.mimetype == "text/html" or not (
             head := attachment_sudo._get_content_prefix(self.TEXTUAL_THUMBNAIL_SIZE)
         ):
-            with replace_exceptions(ValueError, MissingError, by=request.not_found()):
+            with replace_exceptions(
+                ValueError, MissingError, by=request.prepare_not_found_error()
+            ):
                 stream = self._documents_content_stream(document_sudo)
-            return stream.get_response(as_attachment=False)
+            return stream.prepare_response(as_attachment=False)
         return request.render(
             "document.thumbnails_textual",
             {
@@ -881,7 +885,7 @@ class ShareRoute(http.Controller):
                 )
                 or document_sudo.type not in ("binary", "folder")
             ):
-                raise request.not_found()
+                raise request.prepare_not_found_error()
 
         files = request.httprequest.files.getlist("ufile")
         if not files:
@@ -1137,7 +1141,7 @@ class DocumentsAttachmentController(AttachmentController):
     ) -> Any:
         document_sudo = ShareRoute._from_access_token(access_token, skip_log=True)
         if not document_sudo.attachment_id:
-            raise request.not_found()
+            raise request.prepare_not_found_error()
         if (document_sudo.mimetype or "") != "application/pdf":
             raise BadRequest("document is not a PDF")
         return self._get_pdf_first_page_response(document_sudo.attachment_id)

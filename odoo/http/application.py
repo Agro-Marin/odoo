@@ -23,7 +23,7 @@ from odoo.modules import module as module_manager
 from odoo.tools import file_path
 from odoo.tools.misc import real_time
 
-from ._protocols import ir_http
+from ._protocols import get_ir_http
 from .constants import (
     REJECTED_HTTP_METHODS,
     STATIC_ALLOWED_METHODS,
@@ -52,7 +52,7 @@ def _noop_start_response(status: str, headers: list[tuple[str, str]]) -> None:
 
 
 @functools.lru_cache(maxsize=4)
-def _get_proxy_fix(hops: int) -> ProxyFix_:
+def _prepare_proxy_fix(hops: int) -> ProxyFix_:
     return ProxyFix_(
         lambda environ, start_response: [],
         x_for=hops,
@@ -115,7 +115,7 @@ class Application:
         manifest = module_manager.Manifest.for_addon(module_name, display_warning=False)
         return manifest.static_path if manifest is not None else None
 
-    def get_static_file(self, url: str, host: str = "") -> str | None:
+    def get_static_file_path(self, url: str, host: str = "") -> str | None:
 
         try:
             netloc, path = urlparse(url)[1:3]
@@ -165,7 +165,7 @@ class Application:
         router_env = env if env is not None else request.env
         if router_env is None:
             raise RuntimeError("a database router needs a bound environment")
-        return ir_http(router_env).routing_map()
+        return get_ir_http(router_env).routing_map()
 
     @_locked_cached_property
     def geoip_city_db(self):
@@ -229,7 +229,7 @@ class Application:
             or environ.get("HTTP_X_FORWARDED_HOST")
         ):
             hops = settings.proxy_hops
-            _get_proxy_fix(hops)(environ, _noop_start_response)
+            _prepare_proxy_fix(hops)(environ, _noop_start_response)
 
     def _recover_from_registry_error(
         self, request: Request, httprequest: HTTPRequest, exc: RegistryError
@@ -346,7 +346,7 @@ class Application:
                 if "\x00" in httprequest.path:
                     raise NotFound
 
-                static_file = self.get_static_file(httprequest.path)
+                static_file = self.get_static_file_path(httprequest.path)
                 if static_file:
                     response = self._serve_static_file(request, static_file)
                 elif request.db:

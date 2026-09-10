@@ -8,28 +8,28 @@ from odoo.http import helpers
 from odoo.http.helpers import (
     _normalize_dbfilter_host,
     _restore_thread_attr,
-    content_disposition,
     is_cors_preflight,
+    prepare_content_disposition_header,
 )
 from odoo.tools import config
 
 
 def test_content_disposition_encodes_unicode_and_quotes():
-    header = content_disposition('résumé "x".pdf')
+    header = prepare_content_disposition_header('résumé "x".pdf')
     assert header.startswith("attachment; filename*=UTF-8''")
     assert "r%C3%A9sum%C3%A9" in header
     assert '"' not in header
 
 
 def test_content_disposition_inline():
-    assert content_disposition("a.pdf", "inline").startswith("inline; ")
+    assert prepare_content_disposition_header("a.pdf", "inline").startswith("inline; ")
 
 
 def test_content_disposition_rejects_bad_type():
     import pytest
 
     with pytest.raises(ValueError, match="Invalid disposition_type"):
-        content_disposition("a.pdf", "bogus")
+        prepare_content_disposition_header("a.pdf", "bogus")
 
 
 def test_normalize_dbfilter_host_strips_port_www_and_lowercases():
@@ -39,17 +39,17 @@ def test_normalize_dbfilter_host_strips_port_www_and_lowercases():
 
 
 def test_dbfilter_host_normalized_exactly_once():
-    from odoo.http.helpers import _compile_dbfilter, db_filter
+    from odoo.http.helpers import _compile_dbfilter, filter_dbs_served
     from odoo.tools import config
 
     saved = config["dbfilter"]
     config["dbfilter"] = "^%h$"
     _compile_dbfilter.cache_clear()
     try:
-        assert db_filter(["www.example.com"], host="www.www.example.com") == [
+        assert filter_dbs_served(["www.example.com"], host="www.www.example.com") == [
             "www.example.com"
         ]
-        assert db_filter(["example.com"], host="www.www.example.com") == []
+        assert filter_dbs_served(["example.com"], host="www.www.example.com") == []
     finally:
         config["dbfilter"] = saved
         _compile_dbfilter.cache_clear()
@@ -71,13 +71,13 @@ def test_is_cors_preflight_returns_real_bool():
 
 
 def test_db_filter_without_request_uses_empty_host():
-    from odoo.http.helpers import db_filter
+    from odoo.http.helpers import filter_dbs_served
     from odoo.tools import config
 
     saved = config["dbfilter"]
     config["dbfilter"] = "^%d$"
     try:
-        assert db_filter(["somedb"]) == []
+        assert filter_dbs_served(["somedb"]) == []
     finally:
         config["dbfilter"] = saved
 
@@ -160,7 +160,7 @@ def test_a_dbfilter_that_ignores_the_host_caches_one_regex_for_every_host():
     helpers._compile_dbfilter.cache_clear()
     with config.patch(dbfilter=".*", db_name=[]):
         for i in range(600):
-            helpers.db_filter(["somedb"], host=f"attacker-{i}.example.com")
+            helpers.filter_dbs_served(["somedb"], host=f"attacker-{i}.example.com")
 
     assert helpers._compile_dbfilter.cache_info().currsize == 1
 
@@ -168,8 +168,10 @@ def test_a_dbfilter_that_ignores_the_host_caches_one_regex_for_every_host():
 def test_a_dbfilter_that_reads_the_host_still_gets_a_regex_per_host():
     helpers._compile_dbfilter.cache_clear()
     with config.patch(dbfilter="^%d_", db_name=[]):
-        assert helpers.db_filter(["alpha_x"], host="alpha.example.com") == ["alpha_x"]
-        assert helpers.db_filter(["alpha_x"], host="beta.example.com") == []
+        assert helpers.filter_dbs_served(["alpha_x"], host="alpha.example.com") == [
+            "alpha_x"
+        ]
+        assert helpers.filter_dbs_served(["alpha_x"], host="beta.example.com") == []
 
     assert helpers._compile_dbfilter.cache_info().currsize == 2
 
@@ -179,13 +181,13 @@ def test_db_filter_orders_the_same_way_through_both_of_its_filters():
 
     with config.patch(dbfilter=".*", db_name=[]):
         _reset_dbfilter_caches()
-        by_pattern = helpers.db_filter(catalogue, host="x.example")
+        by_pattern = helpers.filter_dbs_served(catalogue, host="x.example")
     with config.patch(dbfilter="", db_name=list(catalogue)):
         _reset_dbfilter_caches()
-        by_name = helpers.db_filter(catalogue, host="x.example")
+        by_name = helpers.filter_dbs_served(catalogue, host="x.example")
     with config.patch(dbfilter=".*", db_name=list(catalogue)):
         _reset_dbfilter_caches()
-        by_both = helpers.db_filter(catalogue, host="x.example")
+        by_both = helpers.filter_dbs_served(catalogue, host="x.example")
 
     assert by_pattern == catalogue
     assert by_name == catalogue
@@ -195,9 +197,9 @@ def test_db_filter_orders_the_same_way_through_both_of_its_filters():
 def test_db_filter_applies_both_filters_when_both_are_set():
     with config.patch(dbfilter="a.*", db_name=["alpha", "zeta"]):
         _reset_dbfilter_caches()
-        assert helpers.db_filter(["zeta", "alpha", "abc"], host="x.example") == [
-            "alpha"
-        ]
+        assert helpers.filter_dbs_served(
+            ["zeta", "alpha", "abc"], host="x.example"
+        ) == ["alpha"]
 
 
 def _reset_dbfilter_caches():
@@ -272,7 +274,7 @@ def _hostile_probe(fn):
 
 def test_no_hostile_host_header_escapes_the_dbfilter_path():
     assert _hostile_probe(_normalize_dbfilter_host) == []
-    assert _hostile_probe(lambda h: helpers.db_filter(["a", "b"], host=h)) == []
+    assert _hostile_probe(lambda h: helpers.filter_dbs_served(["a", "b"], host=h)) == []
 
 
 def test_no_hostile_origin_escapes_cors_same_host():
@@ -295,12 +297,12 @@ def test_no_hostile_origin_escapes_cors_same_host():
 def test_no_hostile_url_escapes_get_static_file():
     from odoo.http.application import Application
 
-    assert _hostile_probe(Application().get_static_file) == []
-    assert Application().get_static_file("//[/static/x") is None
+    assert _hostile_probe(Application().get_static_file_path) == []
+    assert Application().get_static_file_path("//[/static/x") is None
 
 
 def test_no_hostile_cookie_or_filename_escapes():
     from odoo.http.wrappers import get_cookie_name
 
     assert _hostile_probe(get_cookie_name) == []
-    assert _hostile_probe(content_disposition) == []
+    assert _hostile_probe(prepare_content_disposition_header) == []

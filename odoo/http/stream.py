@@ -159,7 +159,7 @@ class Stream:
             res.headers["Content-Length"] = "0"
         return res
 
-    def get_response(
+    def prepare_response(
         self,
         as_attachment: bool | None = None,
         immutable: bool | None = None,

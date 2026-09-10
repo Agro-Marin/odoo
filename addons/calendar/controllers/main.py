@@ -103,10 +103,10 @@ class CalendarController(http.Controller):
         try:
             event_id = int(id)
         except ValueError:
-            return request.not_found()
+            return request.prepare_not_found_error()
         attendee = self._attendee_from_token(token, [("event_id", "=", event_id)])
         if not attendee:
-            return request.not_found()
+            return request.prepare_not_found_error()
         timezone = attendee.partner_id.tz
         lang = attendee.partner_id.lang or get_lang(request.env).code
         event = (
@@ -150,7 +150,7 @@ class CalendarController(http.Controller):
     def calendar_join_meeting(self, token, **kwargs):
         event = self._event_from_token(token)
         if not event:
-            return request.not_found()
+            return request.prepare_not_found_error()
         event.action_join_meeting(request.env.user.partner_id.id)
         attendee = (
             request.env["calendar.attendee"]
@@ -185,7 +185,7 @@ class CalendarController(http.Controller):
     def calendar_join_videocall(self, access_token):
         event = self._event_from_token(access_token)
         if not event:
-            return request.not_found()
+            return request.prepare_not_found_error()
 
         # if channel doesn't exist
         if not event.videocall_channel_id:

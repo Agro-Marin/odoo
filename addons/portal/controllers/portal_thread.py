@@ -40,7 +40,7 @@ class PortalChatter(ThreadController):
             width=width,
             height=height,
         )
-        return stream.get_response()
+        return stream.prepare_response()
 
     @http.route("/portal/chatter_init", type="jsonrpc", auth="public", website=True)
     def portal_chatter_init(self, thread_model, thread_id, **kwargs):

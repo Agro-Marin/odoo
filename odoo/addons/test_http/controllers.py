@@ -325,7 +325,7 @@ class TestHttp(http.Controller):
             "The /test_http/fail route should never be called, referrer: %s",
             http.request.httprequest.headers.get("referer"),
         )
-        raise request.not_found()
+        raise request.prepare_not_found_error()
 
     @http.route("/test_http/json_value_error", type="jsonrpc", auth="none")
     def json_value_error(self):

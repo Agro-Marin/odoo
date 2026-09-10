@@ -16,7 +16,12 @@ import odoo
 import odoo.modules.registry
 from odoo import http
 from odoo.exceptions import UserError
-from odoo.http import Response, content_disposition, dispatch_rpc, request
+from odoo.http import (
+    Response,
+    dispatch_rpc,
+    prepare_content_disposition_header,
+    request,
+)
 from odoo.service import db
 from odoo.service.db import DBNAME_PATTERN
 from odoo.tools.misc import file_open, str2bool
@@ -97,7 +102,7 @@ class Database(http.Controller):
         d["countries"] = odoo.service.db.exp_list_countries()
         d["pattern"] = DBNAME_PATTERN
         try:
-            d["databases"] = http.db_list()
+            d["databases"] = http.get_dbs_served()
             d["incompatible_databases"] = odoo.service.db.list_db_incompatible(
                 d["databases"]
             )
@@ -248,7 +253,7 @@ class Database(http.Controller):
                     f"Invalid backup format {backup_format!r}; expected {expected}"
                 )
             odoo.service.db.check_super(master_pwd)
-            if name not in http.db_list():
+            if name not in http.get_dbs_served():
                 raise ValueError(f"Database {name!r} is not known")
             ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d_%H-%M-%S")
             filename = f"{name}_{ts}.{backup_format}"
@@ -257,7 +262,7 @@ class Database(http.Controller):
             dump_stream.seek(0)
             headers = [
                 ("Content-Type", "application/octet-stream; charset=binary"),
-                ("Content-Disposition", content_disposition(filename)),
+                ("Content-Disposition", prepare_content_disposition_header(filename)),
                 ("Content-Length", str(dump_size)),
             ]
             return Response(dump_stream, headers=headers, direct_passthrough=True)
@@ -342,4 +347,4 @@ class Database(http.Controller):
 
     @http.route("/web/database/list", type="jsonrpc", auth="none")
     def list(self) -> list[str]:
-        return http.db_list()
+        return http.get_dbs_served()
