@@ -121,7 +121,7 @@ dashboards.
 | `test_attachment_lock.py` | Attachments of a decided request are frozen: create, write, unlink, forged `res_field` |
 | `test_category.py` | Category configuration: approver-list domain helper, sequence-code derivation |
 | `test_category_steps.py` | Steps: two one-of-two steps need one approval from each, per-step quorum, one row per user counting toward every step, exclusivity in both directions, group and expired members, step conditions, refusal, asking steps in order while deciding freely, notify lists, configuration that could never be met, and a category without steps untouched |
-| `test_ui.py` | Tour-based UI tests |
+| `test_ui.py` | Tour-based UI tests; `approval_button_tour`: a gated partner button draws its approvals, is approved from the popover, and the request is approved on the server |
 
 Former `test_audit_regressions.py` and `test_audit_round3_regressions.py`
 (incident-named regression dumps, C1..M9 / A3-1..A3-19) were fully
@@ -156,6 +156,12 @@ into `test_approvals.py`).
 | `web/approval.js` | Approval form component |
 | `views/kanban/approvals_category_kanban_controller.js` | Category kanban controller |
 | `views/kanban/approvals_category_kanban_view.js` | Category kanban view registration |
+| `views/view_button/approval_button_service.js` | Batches every gated button asked in one tick into one `approval.binding.get_button_approvals` call |
+| `views/view_button/approval_button_hook.js` | One button's approval state: loads, and reloads through the model's `onRootLoaded` / `onRecordSaved` lifecycle subscriptions; check, decide, withdraw |
+| `views/view_button/approval_button.js` | The avatars beside a gated button: decisions, and a placeholder while a step is short of its minimum |
+| `views/view_button/approval_button_popover.js` | Steps, who decided and when; Approve / Refuse / Withdraw / Reopen exactly where the server says the caller may |
+| `views/view_button/view_button_patch.js` | Gives gated object and action buttons the widget, and chains an action button's `beforeExecute` into the server check |
+| `views/view_button/form_controller_patch.js` | Reads `has_approval_bindings` from the view's related models |
 | `scss/approval.scss` + `approval.dark.scss` | Approval styles |
 | `scss/approval_dashboard.scss` + `approval_dashboard.dark.scss` | Dashboard styles |
 

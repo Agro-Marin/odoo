@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="approval.ApprovalButton">
+        <span class="o_approval_button d-inline-flex align-items-center ms-2" t-ref="root" t-on-click.stop="toggle">
+            <i t-if="!props.gate.result" class="fa-solid fa-circle-notch fa-spin"/>
+            <t t-elif="props.gate.result.gated">
+                <t t-foreach="decisions.slice(0, 3)" t-as="decision" t-key="decision.approver_id">
+                    <img
+                        t-attf-src="/web/image/res.users/{{decision.user_id}}/avatar_128"
+                        t-att-title="decision.user_name"
+                        t-att-alt="decision.user_name"
+                        t-attf-class="o_approval_button_avatar rounded-circle border border-{{decision.state === 'approved' ? 'success' : 'danger'}}"/>
+                </t>
+                <img
+                    t-if="isWaiting and decisions.length lt 3"
+                    src="/web/static/img/user_menu_avatar.png"
+                    title="Waiting for approval"
+                    alt="Waiting for approval"
+                    class="o_approval_button_avatar o_approval_button_waiting rounded-circle border"/>
+                <span t-if="decisions.length gt 3" class="o_approval_button_more badge rounded-pill text-bg-secondary" t-esc="'+' + (decisions.length - 3)"/>
+            </t>
+        </span>
+    </t>
+
+</templates>

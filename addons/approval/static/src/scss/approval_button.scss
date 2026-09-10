@@ -1,0 +1,13 @@
+.o_approval_button_avatar {
+    width: 1.5rem;
+    height: 1.5rem;
+    object-fit: cover;
+}
+
+.o_approval_button .o_approval_button_avatar + .o_approval_button_avatar {
+    margin-inline-start: -0.35rem;
+}
+
+.o_approval_button_popover {
+    min-width: 16rem;
+}
