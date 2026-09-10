@@ -75,6 +75,7 @@ def loader(tmp_path):
         mode="update",
         kind="data",
         written=(),
+        missing=(),
     ):
         converted, recorded_xmlids = [], {"mymod.a", "mymod.b"}
 
@@ -85,6 +86,7 @@ def loader(tmp_path):
 
         env = MagicMock()
         env.cr.fetchone.return_value = (stored,)
+        env.cr.fetchall.return_value = [[xmlid] for xmlid in missing]
         registry = env.registry
         registry.loaded_xmlids = set()
         registry._xmlids_written = set(written)
@@ -368,6 +370,103 @@ class TestAFileThatOverridesAnotherModule:
             stored=self._stored(
                 {"data/x.xml": _entry(_digest(), xmlids=["other.menu_root"])}
             ),
+        )
+        entry = stored_json["files"]["data/x.xml"]
+        assert entry["sha"] == _digest()
+        assert entry["xmlids"] == ["mymod.a", "mymod.b"]
+
+
+class _RecordCursor:
+    def __init__(self, absent):
+        self.absent = set(absent)
+        self.asked = None
+        self.queries = []
+
+    def execute(self, query, params=None):
+        self.queries.append(query)
+        [asked] = params
+        self.asked = list(asked)
+        self._rows = [[xmlid] for xmlid in self.asked if xmlid in self.absent]
+
+    def fetchall(self):
+        return self._rows
+
+
+class TestFilesMissingRecords:
+    def test_a_file_whose_records_are_all_present_is_not_named(self):
+        cr = _RecordCursor(absent=[])
+        stale = loading._files_missing_records(
+            cr, {"data/x.xml": _entry(_digest(), xmlids=["mymod.a", "mymod.b"])}
+        )
+        assert stale == set()
+        assert sorted(cr.asked) == ["mymod.a", "mymod.b"]
+
+    def test_one_absent_record_names_the_file_that_declares_it(self):
+        cr = _RecordCursor(absent=["mymod.b"])
+        stale = loading._files_missing_records(
+            cr,
+            {
+                "data/x.xml": _entry(_digest(), xmlids=["mymod.a"]),
+                "data/y.xml": _entry(_digest(), xmlids=["mymod.b"]),
+            },
+        )
+        assert stale == {"data/y.xml"}, "only the file that would rebuild it"
+
+    def test_a_record_declared_by_two_files_names_both(self):
+        cr = _RecordCursor(absent=["mymod.a"])
+        stale = loading._files_missing_records(
+            cr,
+            {
+                "data/x.xml": _entry(_digest(), xmlids=["mymod.a"]),
+                "data/y.xml": _entry(_digest(), xmlids=["mymod.a"]),
+            },
+        )
+        assert stale == {"data/x.xml", "data/y.xml"}, (
+            "which of the two put the record there is not knowable from the "
+            "entries, and re-applying the wrong one alone would not rebuild it"
+        )
+
+    def test_entries_carrying_no_xmlid_list_are_ignored(self):
+        cr = _RecordCursor(absent=[])
+        stale = loading._files_missing_records(
+            cr, {"data/x.xml": "not-a-dict", "data/y.xml": {"sha": "s", "dyn": False}}
+        )
+        assert stale == set()
+        assert cr.queries == [], "nothing recorded, nothing to ask about"
+
+    def test_nothing_stored_asks_the_database_nothing(self):
+        cr = _RecordCursor(absent=[])
+        assert loading._files_missing_records(cr, {}) == set()
+        assert cr.queries == []
+
+
+class TestARecordGoneFromTheDatabase:
+    def _stored(self, files):
+        return {"v": loading._DATA_FILE_CHECKSUM_VERSION, "files": files}
+
+    def test_an_unchanged_file_is_re_applied_when_its_record_is_gone(self, loader):
+        converted, _, _ = loader(
+            stored=self._stored({"data/x.xml": _entry(_digest())}),
+            missing=["mymod.a"],
+        )
+        assert converted == ["data/x.xml"], (
+            "the digest witnesses that the FILE has not changed, never that "
+            "its records are still there; a migration that drops a view leaves "
+            "the entry claiming a load that no longer holds, and skipping on it "
+            "means nothing ever rebuilds the view"
+        )
+
+    def test_an_unchanged_file_whose_records_are_present_is_still_skipped(self, loader):
+        converted, xmlids, _ = loader(
+            stored=self._stored({"data/x.xml": _entry(_digest())}),
+        )
+        assert converted == [], "the check must not cost the skip its purpose"
+        assert xmlids == {"mymod.a"}
+
+    def test_re_application_refreshes_the_stored_entry(self, loader):
+        _, _, stored_json = loader(
+            stored=self._stored({"data/x.xml": _entry(_digest())}),
+            missing=["mymod.a"],
         )
         entry = stored_json["files"]["data/x.xml"]
         assert entry["sha"] == _digest()

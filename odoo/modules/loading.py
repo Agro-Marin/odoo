@@ -110,6 +110,32 @@ def _has_xmlids_of_another_module(entry: dict, module: str) -> bool:
     return any(xmlid.split(".", 1)[0] != module for xmlid in entry["xmlids"])
 
 
+def _files_missing_records(cr: BaseCursor, stored_files: dict) -> set[str]:
+    files_by_xmlid: dict[str, list[str]] = {}
+    for filename, entry in stored_files.items():
+        if isinstance(entry, dict) and isinstance(entry.get("xmlids"), list):
+            for xmlid in entry["xmlids"]:
+                files_by_xmlid.setdefault(xmlid, []).append(filename)
+    if not files_by_xmlid:
+        return set()
+    cr.execute(
+        """
+        SELECT x.xmlid
+          FROM unnest(%s::text[]) AS x(xmlid)
+         WHERE NOT EXISTS (
+               SELECT 1 FROM ir_model_data d
+                WHERE d.module = split_part(x.xmlid, '.', 1)
+                  AND d.name = substr(x.xmlid, strpos(x.xmlid, '.') + 1)
+         )
+    """,
+        [list(files_by_xmlid)],
+    )
+    stale: set[str] = set()
+    for [xmlid] in cr.fetchall():
+        stale.update(files_by_xmlid[xmlid])
+    return stale
+
+
 def _convert_and_record(
     env: Environment,
     package: ModuleNode,
@@ -145,6 +171,7 @@ def _load_tracked_file(
     mode: LoadMode,
     kind: LoadKind,
     stored_files: dict,
+    stale_files: set[str],
 ) -> dict:
     with tools.file_open(f"{package.name}/{filename}", "rb", env=env) as fp:
         content = fp.read()
@@ -153,7 +180,14 @@ def _load_tracked_file(
     entry = stored_files.get(filename)
     if not dynamic and _is_reusable_checksum_entry(entry, digest):
         contended = registry._xmlids_written.intersection(entry["xmlids"])
-        if _has_xmlids_of_another_module(entry, package.name):
+        if filename in stale_files:
+            _logger.info(
+                "re-applying unchanged %s/%s: records it declares are gone from "
+                "the database, so its digest no longer witnesses their presence",
+                package.name,
+                filename,
+            )
+        elif _has_xmlids_of_another_module(entry, package.name):
             _logger.info(
                 "re-applying unchanged %s/%s: it writes records another "
                 "module declares, so its effect is its place in the load "
@@ -196,6 +230,9 @@ def load_data(
         and schema.column_exists(env.cr, "ir_module_module", "data_file_checksums")
     )
     stored_files = _read_stored_checksums(env, package) if track else {}
+    stale_files = (
+        _files_missing_records(env.cr, stored_files) if stored_files else set()
+    )
     new_files: dict = {}
 
     files: set[str] = set()
@@ -219,7 +256,7 @@ def load_data(
                 continue
 
             new_files[filename] = _load_tracked_file(
-                env, package, filename, idref, mode, kind, stored_files
+                env, package, filename, idref, mode, kind, stored_files, stale_files
             )
 
     if track:
