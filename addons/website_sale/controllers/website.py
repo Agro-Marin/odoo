@@ -41,7 +41,7 @@ class WebsiteSaleForm(WebsiteForm):
             )
 
         if data["attachments"]:
-            self.insert_attachment(model_record, order_sudo.id, data["attachments"])
+            self.create_attachments(model_record, order_sudo.id, data["attachments"])
 
         return request.prepare_json_response({"id": order_sudo.id})
 

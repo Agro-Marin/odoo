@@ -227,7 +227,7 @@ class TestWebsiteFormIntegrityError(TransactionCase):
         self.env.ref("base.model_res_partner").website_form_access = True
         self.env["ir.model.fields"].formbuilder_whitelist("res.partner", ["name"])
         controller = WebsiteForm()
-        original_insert_record = controller.insert_record
+        original_insert_record = controller.create_record
 
         def failing_insert_record(*args, **kwargs):
             original_insert_record(*args, **kwargs)
@@ -236,7 +236,7 @@ class TestWebsiteFormIntegrityError(TransactionCase):
                 (2147483000, 2147483001),
             )
 
-        controller.insert_record = failing_insert_record
+        controller.create_record = failing_insert_record
         with MockRequest(self.env):
             request.params = {"model_name": "res.partner", "name": "audit partner"}
             response = controller.website_form(**request.params)

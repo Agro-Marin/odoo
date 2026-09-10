@@ -113,7 +113,7 @@ class TestWebsiteForm(TransactionCase):
         website = self.env["website"].browse(1)
         WebsiteFormController = WebsiteForm()
         with MockRequest(self.env, website=website):
-            WebsiteFormController.insert_record(
+            WebsiteFormController.create_record(
                 request,
                 self.env["ir.model"].search([("model", "=", "mail.mail")]),
                 {
@@ -169,7 +169,7 @@ class TestWebsiteForm(TransactionCase):
         self.env.ref("base.model_res_partner").website_form_access = True
         self.env["ir.model.fields"].formbuilder_whitelist("res.partner", ["name"])
         WebsiteFormController = WebsiteForm()
-        original_insert_record = WebsiteFormController.insert_record
+        original_insert_record = WebsiteFormController.create_record
         test_sp = self.env.cr.savepoint()
 
         def dummy_insert_record(*args, **kwargs):
@@ -177,7 +177,7 @@ class TestWebsiteForm(TransactionCase):
             self.env.cr.execute('ROLLBACK TO SAVEPOINT "%s"' % test_sp.name)
             return res
 
-        WebsiteFormController.insert_record = dummy_insert_record
+        WebsiteFormController.create_record = dummy_insert_record
         with MockRequest(self.env):
             request.params = {
                 "model_name": "res.partner",

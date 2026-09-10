@@ -78,7 +78,7 @@ class WebsiteForm(form.WebsiteForm):
     def _phone_param_name(phone_field):
         return phone_field.removesuffix("_ids")
 
-    def insert_record(self, request, model_sudo, values, custom, meta=None):
+    def create_record(self, request, model_sudo, values, custom, meta=None):
         is_lead_model = model_sudo.model == "crm.lead"
         if is_lead_model:
             for phone_field in model_sudo._get_phone_number_fields():
@@ -113,7 +113,7 @@ class WebsiteForm(form.WebsiteForm):
                 values.get("lang_id") or request.env["res.lang"]._get_data(code=lang).id
             )
 
-        result = super().insert_record(request, model_sudo, values, custom, meta=meta)
+        result = super().create_record(request, model_sudo, values, custom, meta=meta)
 
         if is_lead_model and visitor_sudo and result:
             lead_sudo = request.env["crm.lead"].browse(result).sudo()

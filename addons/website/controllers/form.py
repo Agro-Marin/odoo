@@ -80,7 +80,7 @@ class WebsiteForm(http.Controller):
         except ValidationError as e:
             return request.prepare_json_response({"error_fields": e.args[0]})
 
-        id_record = self.insert_record(
+        id_record = self.create_record(
             request,
             model_record,
             data["record"],
@@ -88,7 +88,7 @@ class WebsiteForm(http.Controller):
             data.get("meta"),
         )
         if id_record:
-            self.insert_attachment(model_record, id_record, data["attachments"])
+            self.create_attachments(model_record, id_record, data["attachments"])
 
             if model_name == "mail.mail":
                 signature = kwargs.get("website_form_signature", "")
@@ -277,7 +277,7 @@ class WebsiteForm(http.Controller):
 
         return data
 
-    def insert_record(self, request, model_sudo, values, custom, meta=None):
+    def create_record(self, request, model_sudo, values, custom, meta=None):
         if not model_sudo.env.su:
             raise ValueError("model_sudo should get passed with sudo")
         model_name = model_sudo.model
@@ -325,7 +325,7 @@ class WebsiteForm(http.Controller):
 
         return record.id
 
-    def insert_attachment(self, model_sudo, id_record, files):
+    def create_attachments(self, model_sudo, id_record, files):
         if not model_sudo.env.su:
             raise ValueError("model_sudo should get passed with sudo")
         model_name = model_sudo.model

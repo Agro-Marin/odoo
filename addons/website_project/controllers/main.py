@@ -7,7 +7,7 @@ from odoo.addons.website.controllers import form
 
 
 class WebsiteForm(form.WebsiteForm):
-    def insert_record(self, request, model_sudo, values, custom, meta=None):
+    def create_record(self, request, model_sudo, values, custom, meta=None):
         model_name = model_sudo.model
         if model_name == "project.task":
             visitor_sudo = request.env["website.visitor"]._get_visitor_from_request()
@@ -17,7 +17,7 @@ class WebsiteForm(form.WebsiteForm):
             # When a task is created from the web editor, if the key 'user_ids' is not present, the user_ids is filled with the odoo bot. We set it to False to ensure it is not.
             values.setdefault("user_ids", False)
 
-        res = super().insert_record(request, model_sudo, values, custom, meta=meta)
+        res = super().create_record(request, model_sudo, values, custom, meta=meta)
         if model_name != "project.task":
             return res
         task = request.env["project.task"].sudo().browse(res)
