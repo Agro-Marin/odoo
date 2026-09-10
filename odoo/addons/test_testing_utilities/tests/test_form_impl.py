@@ -88,6 +88,52 @@ class TestBasic(TransactionCase):
             f.f2 = 6
 
 
+class TestDaterange(TransactionCase):
+    def _view(self, end_node):
+        return self.env["ir.ui.view"].create(
+            {
+                "name": "daterange",
+                "model": "test_testing_utilities.daterange",
+                "arch": f"""
+                    <form>
+                        <field name="hidden"/>
+                        <field name="date_from" widget="daterange"
+                               invisible="hidden"
+                               options="{{'end_date_field': 'date_to'}}"/>
+                        {end_node}
+                    </form>
+                """,
+            }
+        )
+
+    def test_end_date_takes_the_widgets_visibility(self):
+        # hr_holidays, sale and 25 more views declare the end field
+        # `invisible="1"` beside the widget so the view loads it without
+        # drawing it twice; the widget draws both ends, so the harness lets the
+        # test write it exactly when it lets it write the start.
+        view = self._view('<field name="date_to" invisible="1"/>')
+        with Form(self.env["test_testing_utilities.daterange"], view=view) as f:
+            f.date_from = "2024-01-02"
+            f.date_to = "2024-01-05"
+        self.assertEqual(str(f.record.date_to), "2024-01-05")
+
+    def test_end_date_follows_the_widget_when_hidden(self):
+        view = self._view('<field name="date_to" invisible="1"/>')
+        with Form(self.env["test_testing_utilities.daterange"], view=view) as f:
+            f.hidden = True
+            with self.assertRaisesRegex(AssertionError, "invisible"):
+                f.date_from = "2024-01-02"
+            with self.assertRaisesRegex(AssertionError, "invisible"):
+                f.date_to = "2024-01-05"
+
+    def test_end_date_absent_from_the_view_is_still_reachable(self):
+        view = self._view("")
+        with Form(self.env["test_testing_utilities.daterange"], view=view) as f:
+            f.date_from = "2024-01-02"
+            f.date_to = "2024-01-05"
+        self.assertEqual(str(f.record.date_from), "2024-01-02")
+
+
 class TestM2O(TransactionCase):
     def test_default_and_onchange(self):
         Sub = self.env["test_testing_utilities.m2o"]

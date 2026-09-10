@@ -186,10 +186,11 @@ class Form:
                     "required": field_info.get("required", False),
                     "readonly": field_info.get("readonly", False),
                 }
-            modifiers[related_field]["invisible"] = _combine_bool_exprs(
-                "or",
-                modifiers[related_field].get("invisible", False),
-                modifiers[start_field].get("invisible", False),
+            # The daterange widget renders both ends, so the related field's own
+            # node is conventionally `invisible="1"` to put it in the view's field
+            # set without drawing it twice; its visibility is the widget's.
+            modifiers[related_field]["invisible"] = modifiers[start_field].get(
+                "invisible", False
             )
 
         return {

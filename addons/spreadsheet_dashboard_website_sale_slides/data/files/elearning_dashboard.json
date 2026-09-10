@@ -25,7 +25,7 @@
       },
       "merges": [],
       "cells": {
-        "A7": "[Revenues](odoo://view/{\"viewType\":\"graph\",\"action\":{\"domain\":[[\"product_id.channel_ids\",\"!=\",false]],\"context\":{\"group_by\":[\"date:month\"],\"graph_measure\":\"price_subtotal\",\"graph_mode\":\"line\",\"graph_groupbys\":[\"date:month\"]},\"modelName\":\"sale.report\",\"views\":[[false,\"graph\"],[false,\"pivot\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"eLearning Revenues\"})",
+        "A7": "[Revenues](odoo://view/{\"viewType\":\"graph\",\"action\":{\"domain\":[[\"product_id.channel_ids\",\"!=\",false]],\"context\":{\"group_by\":[\"date_order:month\"],\"graph_measure\":\"price_subtotal\",\"graph_mode\":\"line\",\"graph_groupbys\":[\"date_order:month\"]},\"modelName\":\"sale.report\",\"views\":[[false,\"graph\"],[false,\"pivot\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"eLearning Revenues\"})",
         "A23": "[Attendees by Course](odoo://view/{\"viewType\":\"graph\",\"action\":{\"domain\":[],\"context\":{\"group_by\":[\"channel_id\"],\"graph_measure\":\"__count\",\"graph_mode\":\"bar\",\"graph_groupbys\":[\"channel_id\"]},\"modelName\":\"slide.channel.partner\",\"views\":[[false,\"list\"],[false,\"form\"],[false,\"kanban\"],[false,\"pivot\"],[false,\"graph\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"Attendees by Course\"})",
         "G23": "[Views by Course](odoo://view/{\"viewType\":\"graph\",\"action\":{\"domain\":[[\"is_category\",\"=\",false]],\"context\":{\"group_by\":[\"channel_id\",\"slide_category\"],\"graph_measure\":\"total_views\",\"graph_mode\":\"bar\",\"graph_groupbys\":[\"channel_id\",\"slide_category\"]},\"modelName\":\"slide.slide\",\"views\":[[false,\"graph\"],[false,\"list\"],[false,\"form\"],[false,\"pivot\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"Views by Course\"})"
       },
@@ -62,7 +62,7 @@
             "searchParams": {
               "comparison": null,
               "context": {
-                "group_by": ["date", "product_id"],
+                "group_by": ["date_order", "product_id"],
                 "pivot_measures": ["price_total"]
               },
               "domain": [
@@ -78,7 +78,7 @@
             "cumulatedStart": false,
             "fillArea": true,
             "fieldMatching": {
-              "46b74887-ff98-4c97-9629-4a5a14084321": { "chain": "date", "type": "datetime", "offset": 0 }
+              "46b74887-ff98-4c97-9629-4a5a14084321": { "chain": "date_order", "type": "datetime", "offset": 0 }
             }
           },
           "offset": { "x": 0, "y": 178 },
@@ -450,10 +450,10 @@
     "10": {
       "type": "ODOO",
       "fieldMatching": {
-        "46b74887-ff98-4c97-9629-4a5a14084321": { "chain": "date", "type": "datetime", "offset": 0 }
+        "46b74887-ff98-4c97-9629-4a5a14084321": { "chain": "date_order", "type": "datetime", "offset": 0 }
       },
       "context": {
-        "group_by": ["date", "product_id"],
+        "group_by": ["date_order", "product_id"],
         "pivot_measures": ["price_total"]
       },
       "domain": [
@@ -479,10 +479,10 @@
     "11": {
       "type": "ODOO",
       "fieldMatching": {
-        "46b74887-ff98-4c97-9629-4a5a14084321": { "chain": "date", "type": "datetime", "offset": -1 }
+        "46b74887-ff98-4c97-9629-4a5a14084321": { "chain": "date_order", "type": "datetime", "offset": -1 }
       },
       "context": {
-        "group_by": ["date", "product_id"],
+        "group_by": ["date_order", "product_id"],
         "pivot_measures": ["price_total"]
       },
       "domain": [

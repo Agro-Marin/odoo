@@ -137,6 +137,15 @@ class Test_Testing_UtilitiesG(models.Model):
     m2m = fields.Many2many("test_testing_utilities.sub3", readonly=True)
 
 
+class Test_Testing_UtilitiesDaterange(models.Model):
+    _name = "test_testing_utilities.daterange"
+    _description = "Testing Utilities Daterange"
+
+    date_from = fields.Date()
+    date_to = fields.Date()
+    hidden = fields.Boolean()
+
+
 class Test_Testing_UtilitiesParent(models.Model):
     _name = "test_testing_utilities.parent"
     _description = "Testing Utilities Parent"
