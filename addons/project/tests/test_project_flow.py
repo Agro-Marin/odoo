@@ -277,7 +277,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 "user_ids": [Command.link(self.env.user.id)],
             }
         )
-        triage_vals = task._get_default_triage_vals(self.env.user.id)
+        triage_vals = task._prepare_default_triage_vals(self.env.user.id)
         self.assertEqual(
             task.personal_triage_id.triage_id.name,
             triage_vals[0].get("name"),

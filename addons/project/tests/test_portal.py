@@ -261,15 +261,15 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
         self.env.flush_all()
 
         self.assertEqual(
-            Project.search_count(portal._prepare_project_domain()),
+            Project.search_count(portal._get_domain_project()),
             Project.search_count([("is_template", "=", False)]),
         )
         self.assertNotIn(
             template_project,
-            Project.search(portal._prepare_project_domain()),
+            Project.search(portal._get_domain_project()),
             "a template project is not listed, so it must not be counted",
         )
-        counted = Task.search(portal._prepare_task_domain())
+        counted = Task.search(portal._get_domain_task())
         self.assertFalse(
             counted.filtered(lambda t: t.is_template or t.has_template_ancestor),
             "a template task is not listed, so it must not be counted",

@@ -111,8 +111,8 @@ class ProjectProject(models.Model):
         return defaults
 
     @api.model
-    def _map_tasks_default_values(self, project):
-        defaults = super()._map_tasks_default_values(project)
+    def _prepare_map_tasks_defaults(self, project):
+        defaults = super()._prepare_map_tasks_defaults(project)
         defaults["sale_line_id"] = False
         return defaults
 
@@ -1245,8 +1245,8 @@ class ProjectProject(models.Model):
             [("project_template_id", "=", self.id)], limit=limit
         )
 
-    def template_to_project_confirmation_callback(self, callbacks):
-        super().template_to_project_confirmation_callback(callbacks)
+    def action_confirm_template_to_project(self, callbacks):
+        super().action_confirm_template_to_project(callbacks)
         if callbacks.get("unlink_template_products"):
             self._get_products_linked_to_template().project_template_id = False
 

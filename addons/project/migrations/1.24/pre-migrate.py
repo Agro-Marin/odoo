@@ -77,8 +77,11 @@ def _rename_field_row(cr, model, old, new):
 
 
 def _rewrite_stored_references(cr, model, old, new):
-    rewrite = lambda expr: rf"regexp_replace({expr}, '\y{old}\y', '{new}', 'g')"
-    matches = lambda expr: rf"{expr} ~ '\y{old}\y'"
+    def rewrite(expr):
+        return rf"regexp_replace({expr}, '\y{old}\y', '{new}', 'g')"
+
+    def matches(expr):
+        return rf"{expr} ~ '\y{old}\y'"
 
     cr.execute(
         f"""

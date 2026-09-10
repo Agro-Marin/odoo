@@ -13,7 +13,7 @@ class TestPersonalStages(TestProjectCommon):
         for user in (cls.user_projectuser, cls.user_projectmanager):
             if not cls.env["project.triage"].search_count([("user_id", "=", user.id)]):
                 cls.env["project.triage"].create(
-                    cls.env["project.task"]._get_default_triage_vals(user.id)
+                    cls.env["project.task"]._prepare_default_triage_vals(user.id)
                 )
         cls.user_stages = cls.env["project.triage"].search(
             [("user_id", "=", cls.user_projectuser.id)]

@@ -1551,7 +1551,7 @@ class ProjectProject(models.Model):
         )
 
     @api.model
-    def _map_tasks_default_values(self, project: Self) -> dict:
+    def _prepare_map_tasks_defaults(self, project: Self) -> dict:
         return {
             "state": "in_progress",
             "company_id": project.company_id.id,
@@ -1567,7 +1567,7 @@ class ProjectProject(models.Model):
         )
         if self.allow_dependencies and "task_mapping" not in self.env.context:
             self = self.with_context(task_mapping={})
-        defaults = self._map_tasks_default_values(project)
+        defaults = self._prepare_map_tasks_defaults(project)
         new_tasks = tasks.with_context(copy_project=True).copy(defaults)
         all_subtasks = new_tasks._get_all_subtasks()
         all_subtasks.filtered(lambda child: child.project_id == self).write(
@@ -2713,9 +2713,7 @@ class ProjectProject(models.Model):
         self.check_singleton()
         return []
 
-    def template_to_project_confirmation_callback(
-        self, callbacks: dict[str, Any]
-    ) -> None:
+    def action_confirm_template_to_project(self, callbacks: dict[str, Any]) -> None:
         self.check_singleton()
         pass
 
@@ -2734,7 +2732,7 @@ class ProjectProject(models.Model):
             config["tag"] = "project_template_show_undo_confirmation_dialog"
             if callbacks := self._get_template_to_project_confirmation_callbacks():
                 config["params"]["callback_data"] = {
-                    "method": "template_to_project_confirmation_callback",
+                    "method": "action_confirm_template_to_project",
                     "args": [self.id, callbacks],
                 }
             if warning_messages := self._get_template_to_project_warnings():
@@ -2753,7 +2751,7 @@ class ProjectProject(models.Model):
             **config,
         }
 
-    def create_template_from_project_undo_callback(
+    def action_undo_create_template_from_project(
         self, callbacks: dict[str, Any]
     ) -> None:
         self.check_singleton()
@@ -2782,7 +2780,7 @@ class ProjectProject(models.Model):
         }
         if callbacks := self._get_template_from_project_undo_callbacks():
             config["params"]["callback_data"] = {
-                "method": "create_template_from_project_undo_callback",
+                "method": "action_undo_create_template_from_project",
                 "args": [self.id, callbacks],
                 "post_action": {
                     "type": "ir.actions.client",
@@ -2881,7 +2879,7 @@ class ProjectProject(models.Model):
             project_end_datetime = datetime.combine(
                 project.date + timedelta(days=1), time.min
             )
-            for original_task, copied_task in self._pair_template_tasks(project):
+            for original_task, copied_task in self._get_template_task_pairs(project):
                 if original_task.date_start:
                     first_possible_date_per_task[copied_task.id] = (
                         original_task.date_start + delta
@@ -2892,7 +2890,7 @@ class ProjectProject(models.Model):
                 project.date_start or fields.Date.today(), time.min
             )
             project_end_datetime = project_start_datetime + timedelta(days=365)
-            for original_task, copied_task in self._pair_template_tasks(project):
+            for original_task, copied_task in self._get_template_task_pairs(project):
                 if original_task.date_start:
                     tasks_to_schedule += copied_task
         tasks_to_schedule._schedule_tasks(
@@ -2909,7 +2907,7 @@ class ProjectProject(models.Model):
         )
         return project
 
-    def _pair_template_tasks(self, project):
+    def _get_template_task_pairs(self, project):
 
         def pair(originals, copies):
             if len(originals) != len(copies):

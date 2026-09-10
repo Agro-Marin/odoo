@@ -20,15 +20,13 @@ class ProjectCustomerPortal(CustomerPortal):
         values = super()._prepare_home_portal_values(counters)
         if "project_count" in counters:
             values["project_count"] = (
-                request.env["project.project"].search_count(
-                    self._prepare_project_domain()
-                )
+                request.env["project.project"].search_count(self._get_domain_project())
                 if request.env["project.project"].has_access("read")
                 else 0
             )
         if "task_count" in counters:
             values["task_count"] = (
-                request.env["project.task"].search_count(self._prepare_task_domain())
+                request.env["project.task"].search_count(self._get_domain_task())
                 if request.env["project.task"].has_access("read")
                 else 0
             )
@@ -87,10 +85,10 @@ class ProjectCustomerPortal(CustomerPortal):
             **kwargs,
         )
 
-    def _prepare_project_domain(self) -> list:
+    def _get_domain_project(self) -> list:
         return [("is_template", "=", False)]
 
-    def _prepare_task_domain(self) -> list:
+    def _get_domain_task(self) -> list:
         return [
             ("project_id", "!=", False),
             ("is_template", "=", False),
@@ -119,7 +117,7 @@ class ProjectCustomerPortal(CustomerPortal):
     ) -> Response:
         values = self._prepare_portal_layout_values()
         Project = request.env["project.project"]
-        domain = self._prepare_project_domain()
+        domain = self._get_domain_project()
 
         searchbar_sortings = self._prepare_searchbar_sortings()
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "name")
@@ -877,7 +875,7 @@ class ProjectCustomerPortal(CustomerPortal):
         searchbar_filters = {
             "all": {
                 "label": _("All"),
-                "domain": self._prepare_task_domain(),
+                "domain": self._get_domain_task(),
             },
         }
 

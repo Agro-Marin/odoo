@@ -5,7 +5,7 @@ from . import wizard
 
 from odoo import fields
 
-from odoo.addons.project import _check_exists_collaborators_for_project_sharing
+from odoo.addons.project import _update_project_sharing_rules_if_collaborators
 from odoo.libs.sql import SQL
 
 
@@ -32,7 +32,7 @@ def create_internal_project(env):
         ]
     )
 
-    _check_exists_collaborators_for_project_sharing(env)
+    _update_project_sharing_rules_if_collaborators(env)
 
 
 def _uninstall_hook(env):

@@ -1104,7 +1104,7 @@ class ProjectTask(models.Model):
         return Domain("id", "in", personal_triages.subselect("task_id"))
 
     @api.model
-    def _get_default_triage_vals(self, user_id: int) -> list[dict]:
+    def _prepare_default_triage_vals(self, user_id: int) -> list[dict]:
         return [
             {
                 "sequence": 1,
@@ -1191,7 +1191,7 @@ class ProjectTask(models.Model):
                 bucket = Triage.with_context(lang=user_id.partner_id.lang).create(
                     self.with_context(
                         lang=user_id.partner_id.lang
-                    )._get_default_triage_vals(user_id.id)
+                    )._prepare_default_triage_vals(user_id.id)
                 )[0]
                 bucket_by_user[user_id.id] = bucket
             triages_by_bucket[bucket] |= user_triages
@@ -1926,7 +1926,9 @@ class ProjectTask(models.Model):
                     del vals[field]
         return vals_list
 
-    def _create_task_mapping(self, copied_tasks: Self) -> tuple[dict, dict]:
+    def _get_task_mapping_and_dependencies(
+        self, copied_tasks: Self
+    ) -> tuple[dict, dict]:
         task_mapping, task_dependencies = {}, {}
         copied_tasks = copied_tasks.sorted("id")
         for original_task, copied_task in zip(self, copied_tasks, strict=True):
@@ -1941,7 +1943,9 @@ class ProjectTask(models.Model):
             active_children = original_task.child_ids.filtered("active")
             if active_children:
                 children_mapping, children_dependencies = (
-                    active_children._create_task_mapping(copied_task.child_ids)
+                    active_children._get_task_mapping_and_dependencies(
+                        copied_task.child_ids
+                    )
                 )
                 task_mapping.update(children_mapping)
                 task_dependencies.update(children_dependencies)
@@ -1950,8 +1954,10 @@ class ProjectTask(models.Model):
     def _portal_get_parent_hash_token(self, pid: int) -> str:
         return self.project_id._sign_token(pid)
 
-    def _resolve_copied_dependencies(self, copied_tasks: Self) -> None:
-        task_mapping, task_dependencies = self._create_task_mapping(copied_tasks)
+    def _update_copied_dependencies(self, copied_tasks: Self) -> None:
+        task_mapping, task_dependencies = self._get_task_mapping_and_dependencies(
+            copied_tasks
+        )
 
         for original_task_id, (
             predecessor_ids,
@@ -2013,7 +2019,7 @@ class ProjectTask(models.Model):
             ),
         ).copy(default=default)
 
-        self._resolve_copied_dependencies(copied_tasks)
+        self._update_copied_dependencies(copied_tasks)
         if not self.env.context.get("copy_from_template"):
             log_message = _("Task Created")
             copied_tasks._message_log_batch(
@@ -2257,10 +2263,10 @@ class ProjectTask(models.Model):
 
         if tasks.project_id:
             tasks.sudo()._update_project_workflow_steps()
-        self_ctx._create_subscribe_followers(tasks, current_partner)
+        self_ctx._subscribe_followers(tasks, current_partner)
         return tasks
 
-    def _create_subscribe_followers(self, tasks: Self, current_partner: Any) -> None:
+    def _subscribe_followers(self, tasks: Self, current_partner: Any) -> None:
         all_partner_emails = []
         for task in tasks.sudo():
             all_partner_emails += tools.email_normalize_all(task.email_cc)

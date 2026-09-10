@@ -94,7 +94,7 @@ class ProjectShareWizard(models.TransientModel):
         for wizard in self:
             wizard.existing_partner_ids = wizard.collaborator_ids.partner_id
 
-    def _apply_collaborators(self) -> None:
+    def _sync_collaborators(self) -> None:
         for wizard in self:
             collaborator_ids_to_add = []
             collaborator_ids_to_add_with_limited_access = []
@@ -205,7 +205,7 @@ class ProjectShareWizard(models.TransientModel):
         }
 
     def action_send_mail(self) -> dict[str, Any]:
-        self._apply_collaborators()
+        self._sync_collaborators()
         result = {
             "type": "ir.actions.client",
             "tag": "display_notification",

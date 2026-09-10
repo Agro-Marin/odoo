@@ -84,7 +84,7 @@ class ProjectTaskRecurrence(models.Model):
                 .create(self._prepare_next_occurrence_vals_list(recurrence_by_task))
                 .sudo(False)
             )
-            occurrences_from._resolve_copied_dependencies(tasks_copy)
+            occurrences_from._update_copied_dependencies(tasks_copy)
         return tasks_copy
 
     @api.model
