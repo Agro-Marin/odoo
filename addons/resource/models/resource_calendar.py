@@ -1246,8 +1246,12 @@ class ResourceCalendar(models.Model):
         compute_leaves: bool = True,
         domain: list | None = None,
     ) -> dict[str, float]:
-        # domain filters resource.calendar.leaves; it only applies when
-        # compute_leaves=True, since compute_leaves=False never reads leaves.
+        # `domain` filters the records the chosen path reads: the leaves when
+        # compute_leaves=True, the ATTENDANCES when it is False. hr_payroll's
+        # out-of-contract count relies on the second -- it passes
+        # `work_entry_type_id.is_leave`, a field both models carry, to split a
+        # calendar's attendances by their work entry type -- and dropping it
+        # there (8a2d944339b5) made every such count read the whole calendar.
         from_datetime = localized(from_datetime)
         to_datetime = localized(to_datetime)
 
@@ -1256,9 +1260,9 @@ class ResourceCalendar(models.Model):
                 from_datetime, to_datetime, domain=domain
             )[False]
         else:
-            intervals = self._attendance_intervals_batch(from_datetime, to_datetime)[
-                False
-            ]
+            intervals = self._attendance_intervals_batch(
+                from_datetime, to_datetime, domain=domain
+            )[False]
 
         return self._get_attendance_intervals_days_data(intervals)
 

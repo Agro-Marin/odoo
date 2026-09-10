@@ -118,7 +118,7 @@ class TestResourceCalendar(TransactionCase):
         self.assertGreater(data["hours"], 0.0)
         self.assertGreater(data["days"], 0.0)
 
-    def test_domain_is_ignored_without_compute_leaves(self):
+    def test_domain_filters_the_records_the_path_reads(self):
         calendar = self.env["resource.calendar"].create(
             {
                 "name": "9-to-5",
@@ -164,17 +164,24 @@ class TestResourceCalendar(TransactionCase):
             compute_leaves=False,
             domain=[("day_period", "=", "morning")],
         )
-        self.assertEqual(without_domain, with_domain)
+        self.assertEqual(
+            without_domain,
+            with_domain,
+            "get_work_hours_count reads leaves only, so its domain has nothing"
+            " to filter when compute_leaves=False.",
+        )
+        # get_work_duration_data's domain filters the ATTENDANCES on that path:
+        # hr_payroll splits a calendar by `work_entry_type_id` through it to
+        # count out-of-contract days, so dropping it here reads the whole
+        # calendar into every such count.
         self.assertEqual(
             calendar.get_work_duration_data(
                 start_dt,
                 end_dt,
                 compute_leaves=False,
-                domain=[("time_type", "=", "leave")],
+                domain=[("day_period", "=", "morning")],
             )["hours"],
-            without_domain,
-            "A leave-shaped domain must not raise or silently filter"
-            " resource.calendar.attendance when compute_leaves=False.",
+            without_domain / 2,
         )
 
     def test_flexible_self_does_not_override_a_fixed_resource_calendar(self):
