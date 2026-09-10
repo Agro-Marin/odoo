@@ -32,15 +32,15 @@ on `_ModuleLoader` and run in this order:
 | 12 | `uninstall_removed_modules()` | data + module |
 | 13 | `reinit_models_to_check()` | runtime |
 
-Thirteen of `load_modules`' 22 calls, in call order. The numbering is this
+Thirteen of `load_modules`' 23 calls, in call order. The numbering is this
 table's, not the loader's; what is pinned is the *order*, by
-`test_scenario_a_phase_table_is_ordered_and_says_it_is_partial`. The nine left
+`test_scenario_a_phase_table_is_ordered_and_says_it_is_partial`. The ten left
 out split two ways, and the second group is not bookkeeping:
 
 | Left out | Why |
 |---|---|
 | `report_modules_that_never_loaded`, `report_pending_module_states`, `log_assertion_report`, `mark_database_partially_updated`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
-| `register_model_hooks`, `check_null_constraints`, `warn_invalid_custom_views`, `run_post_update_model_checks` | real work, selected out of *this* thread rather than out of the loader. Three of the four appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose |
+| `register_model_hooks`, `check_null_constraints`, `warn_invalid_custom_views`, `run_post_update_model_checks`, `run_deferred_at_install_tests` | real work, selected out of *this* thread rather than out of the loader. Three of the five appear in [`runtime.md`](runtime.md#registry-build)'s sketch, which selects fourteen for a different purpose; the fifth runs the `at_install` suites the loader held back until their installed dependents had loaded |
 
 Three things this ordering encodes that no other view states:
 

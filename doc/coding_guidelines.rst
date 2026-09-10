@@ -1210,19 +1210,19 @@ Section  Population                                                  Count
 =======  =========================================================  ======
 §2.4.1   Field hooks the declaring model also calls on ``self``         13
 §2.4.1   Field hooks exempt from the dedication test                     0
-§2.4.1   Names wearing a hook prefix with no binding                   165
-§2.4.1   … definitions under those names                               230
+§2.4.1   Names wearing a hook prefix with no binding                   166
+§2.4.1   … definitions under those names                               233
 §2.4.2   Single-field ``@api.onchange`` hooks                          389
 §2.4.2   … spelled ``_onchange_<field>``                               283
 §2.4.2   ``@api.ondelete`` hooks                                       170
 §2.4.2   … spelled ``_unlink_except_*``                                111
-§2.4.2   ``@api.constrains`` hooks                                     695
-§2.4.2   … spelled ``_check_*``                                        641
+§2.4.2   ``@api.constrains`` hooks                                     697
+§2.4.2   … spelled ``_check_*``                                        643
 §2.4.2   … with a first token carrying no rule                          49
 §2.4.2   … binding exactly one field                                   321
 §2.4.2   … of those, spelled ``_check_<field>``                        144
 §2.4.2   Multi-field constraints named for one trigger                  61
-§2.4.3   Non-test methods declared on a model class                 27,004
+§2.4.3   Non-test methods declared on a model class                 27,048
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            143
@@ -1234,19 +1234,19 @@ Section  Population                                                  Count
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   153
 §2.4.4   Other heads: definitions spelled tail-first                   190
-§2.4.5   ``X_to_Y`` converter definitions                              102
-§2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      6,407
+§2.4.5   ``X_to_Y`` converter definitions                              103
+§2.4.5   … distinct names                                               56
+§2.4.7   ``_get_*`` definitions                                      6,420
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   141
 §2.4.7   ``_calculate_*`` model methods                                  0
-§2.4.7   ``_prepare_*`` definitions                                    898
+§2.4.7   ``_prepare_*`` definitions                                    897
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            36
-§2.4.8   ``_check_*`` definitions                                    1,223
+§2.4.8   ``_check_*`` definitions                                    1,231
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
-§2.4.10  ``_raise_*`` model methods                                     18
+§2.4.10  ``_raise_*`` model methods                                     19
 §2.4.10  … raising unconditionally                                      11
 §2.4.11  ``_find_*`` methods                                            16
 §2.4.11  … performing an ORM read                                        0
@@ -1256,7 +1256,7 @@ Section  Population                                                  Count
 §2.4.11  ``_resolve_*`` definitions                                     28
 §2.4.12  ``_set_*`` definitions                                        127
 §2.4.12  ``_update_*`` definitions                                     419
-§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             261
+§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             262
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
 §2.4.12  ``_sync_*`` definitions                                        84
 §2.4.12  ``_synchronize_*`` definitions                                  0
@@ -1264,7 +1264,7 @@ Section  Population                                                  Count
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      359
 §2.4.13  Methods on plain classes in model files                       421
 §2.4.13  … such classes                                                168
-§2.4.13  Functions nested inside model methods                         657
+§2.4.13  Functions nested inside model methods                         658
 §2.4.14  Private method names reached from stored Python               118
 §2.4.14  … code blocks reaching them                                   127
 §2.4.14  … shipped data files holding those blocks                      75
@@ -2081,10 +2081,10 @@ running the other way.
 
 **``_get_`` is not a default.** It is 23.7 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 690
+deriving and computing. The split that matters is against ``_prepare_``: 692
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 898 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 897 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -2260,7 +2260,7 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **345** functions in
+**A ``bool`` return does not make a predicate** ``[review]``. **351** functions in
 this repository are annotated ``-> bool`` and are not predicates, against **279**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
@@ -2677,7 +2677,7 @@ grounds in ascending weight:
   happens, while ``self._raise_x_error()`` looks like every other call and the
   lines after it are unreachable in a way a reader has to deduce;
 * nothing types it. A function that never returns is ``NoReturn``; **0** of this
-  repository's **18** ``_raise_*`` model methods say so, and some claim
+  repository's **19** ``_raise_*`` model methods say so, and some claim
   ``-> None``, which is false.
 
 The cost is accepted -- the call site says the verb twice, and ``B904`` fires the
@@ -5248,7 +5248,7 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **99** times against ``_unique``'s
+tail -- the tree spells that tail ``_uniq`` **100** times against ``_unique``'s
 **52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**

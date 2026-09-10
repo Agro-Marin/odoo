@@ -331,7 +331,7 @@ class PurchaseOrderLine(models.Model):
 
     def _get_line_description_from_product(self, product_lang):
         name = super()._get_line_description_from_product(product_lang)
-        return self._get_requisition_line()._append_description_variants(name)
+        return self._get_requisition_line()._add_description_variants(name)
 
     def action_clear_quantities(self):
         zeroed_lines = self.filtered(lambda l: l.state not in ["done", "cancel"])

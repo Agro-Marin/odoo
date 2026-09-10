@@ -428,7 +428,7 @@ class PurchaseRequisitionLine(models.Model):
                 }
             )
 
-    def _append_description_variants(self, name):
+    def _add_description_variants(self, name):
         if not self or not self.product_description_variants:
             return name
         return name + "\n" + self.product_description_variants
@@ -437,7 +437,7 @@ class PurchaseRequisitionLine(models.Model):
         self, name, product_qty=0.0, price_unit=0.0, taxes_ids=False
     ):
         self.check_singleton()
-        name = self._append_description_variants(name)
+        name = self._add_description_variants(name)
         date_commitment = fields.Datetime.now()
         if self.requisition_id.date_start:
             date_commitment = max(

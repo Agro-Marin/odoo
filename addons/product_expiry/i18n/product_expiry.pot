@@ -28,6 +28,12 @@ msgid "\t--Expired--"
 msgstr ""
 
 #. module: product_expiry
+#. odoo-python
+#: code:addons/product_expiry/wizard/confirm_expiry.py:0
+msgid "%(user)s confirmed using expired lot(s): %(lots)s."
+msgstr ""
+
+#. module: product_expiry
 #: model_terms:ir.ui.view,arch_db:product_expiry.view_move_form_expiry
 msgid ""
 "<span class=\"badge rounded-pill float-end text-bg-warning\" invisible=\"not use_expiration_date or not (alert_date &lt;= time.strftime('%Y-%m-%d %H:%M:%S') &lt; expiration_date)\">Expiring</span>\n"
@@ -366,6 +372,12 @@ msgstr ""
 msgid ""
 "On hand quantity which hasn't been reserved on a transfer and is still "
 "fresh, in the default unit of measure of the product"
+msgstr ""
+
+#. module: product_expiry
+#. odoo-python
+#: code:addons/product_expiry/wizard/confirm_expiry.py:0
+msgid "Only a manager can confirm %(records)s with expired lots."
 msgstr ""
 
 #. module: product_expiry

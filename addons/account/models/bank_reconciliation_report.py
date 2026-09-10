@@ -483,7 +483,9 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         self.env.cr.execute(query)
         query_res_lines = self.env.cr.dictfetchall()
 
-        return self._compute_result(query_res_lines, current_groupby, prepare_result_dict)
+        return self._compute_result(
+            query_res_lines, current_groupby, prepare_result_dict
+        )
 
     def _bank_reconciliation_report_custom_engine_outstanding_common(
         self, options, internal_type, current_groupby
@@ -633,7 +635,9 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         self.env.cr.execute(query)
         query_res_lines = self.env.cr.dictfetchall()
 
-        return self._compute_result(query_res_lines, current_groupby, prepare_result_dict)
+        return self._compute_result(
+            query_res_lines, current_groupby, prepare_result_dict
+        )
 
     def _compute_result(self, query_res_lines, current_groupby, prepare_result_dict):
         if not current_groupby:

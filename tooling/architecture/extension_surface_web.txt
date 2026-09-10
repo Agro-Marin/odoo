@@ -309,8 +309,8 @@ MainComponentsContainer.setup  odoo  :triage
 Many2ManyBinaryField.onFileRemove  odoo  :triage
 Many2ManyBinaryField.setup  odoo  :triage
 Many2ManyTagsAvatarField.getTagProps  odoo  :triage
-Many2ManyTagsField.deleteTag  odoo  :keep
 Many2ManyTagsField.getTagProps  odoo enterprise  :keep
+Many2ManyTagsField.removeTag  odoo  :keep
 Many2ManyTagsField.setup  odoo  :keep
 Many2ManyTagsField.tags  odoo  :keep
 Many2ManyTagsField.update  odoo  :triage

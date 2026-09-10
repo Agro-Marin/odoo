@@ -65,9 +65,7 @@ class AccountTaxReportHandler(models.AbstractModel):
             "res_model": "account.move.line",
             "domain": self._get_amls_with_archived_tags_domain(options),
             "context": {"active_test": False},
-            "views": [
-                (self.env.ref("account.view_archived_tag_move_tree").id, "list")
-            ],
+            "views": [(self.env.ref("account.view_archived_tag_move_tree").id, "list")],
         }
 
 
@@ -148,9 +146,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
                 if k:
                     record_ids_gb[level].add(k)
                     if v.get("children"):
-                        update_record_ids_gb_recursively(
-                            v["children"], level=level + 1
-                        )
+                        update_record_ids_gb_recursively(v["children"], level=level + 1)
 
         update_record_ids_gb_recursively(tax_amount_hierarchy)
 
