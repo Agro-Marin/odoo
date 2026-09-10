@@ -349,15 +349,17 @@ requester re-submits (`action_resubmit`).
 | `_compute_date_approval_granted/refused/cancelled()` | request.py | Append-only terminal-date stamps (cleared on state=`new`) |
 | `_predict_outcomes()` / `action_predict_outcome()` | compute.py | On-demand outcome prediction from comparable decided requests (batched, memoised per category+partner). A button, not a field: computing it on every form read cost a bucket search per load and depended on the reader's record rules |
 | `action_confirm()` | lifecycle.py | Draft only: validate, assign sequence name, snapshot, stamp date_confirmed, auto-rules, start workflow |
-| `action_approve()` | lifecycle.py | Guard pending-change, then `_apply_decision("approve")` |
-| `action_refuse()` | lifecycle.py | Header path opens decision wizard; inline path `_apply_decision("refuse")` |
-| `_apply_decision()` | lifecycle.py | **Single decision funnel**: lock, cache refresh, delegation-aware resolution, state write, chatter, chain advance, activity cleanup, terminal notify, refusal rollback hook |
+| `action_approve(approver, steps)` | lifecycle.py | Guard pending-change, then `_apply_decision("approve", approver, steps)`; `steps` is the step the approval button decides |
+| `action_refuse(approver, steps)` | lifecycle.py | Header path opens decision wizard; inline path, or a named step, `_apply_decision("refuse", approver, steps)` |
+| `_apply_decision()` | lifecycle.py | **Single decision funnel**: lock, cache refresh, delegation-aware resolution, state write, chatter, chain advance, activity cleanup, terminal notify, refusal rollback hook. Records the steps each row decided: the ones named, or `_get_steps_for_decision`; a named step may join an approved row's decided steps |
 | `_get_current_pending_approver()` | request.py | Delegation-aware pending-approver resolution (single source for header/bulk/wizard) |
 | `action_cancel()` | lifecycle.py | Owner/manager, pending only → `_force_terminal("cancelled")` |
 | `action_reset_to_draft()` | lifecycle.py | any terminal state → new; clears decision metadata, date_confirmed, snapshot, escalation counters, applied rules; re-syncs approvers; keeps name. refused/cancelled: owner or manager. approved: **manager only** + `_check_withdraw_allowed()` (descendant-document guard) + notifies source document of the exit |
 | `_check_owner_or_manager()` | access.py | Access layer (WHO) for owner-side lifecycle actions |
 | `action_request_change()` / `action_resubmit()` | action.py | Request-a-change flow (set/clear `pending_change_field`) |
-| `action_withdraw()` | lifecycle.py | Withdraw approval (approved row → pending; explicit exit-from-approved notification) |
+| `action_withdraw()` | lifecycle.py | Withdraw approval (approved row → pending; explicit exit-from-approved notification); clears the row's decided steps |
+| `action_withdraw_approver(approver_id, step_id)` | lifecycle.py | Withdraw another's (or one's own) decision after `_check_withdraw_actor`; with `step_id`, only that step: a row decided for others too keeps them (`_withdraw_decided_steps`), otherwise the whole decision goes |
+| `_withdraw_decided_steps(approver, steps)` | lifecycle.py | Takes a decision back from some of its steps. The row stays approved for the rest; a request that falls back to pending re-asks its parked rows |
 | `_refuse_cascade()` | lifecycle.py | Parent-document cancellation → `_force_terminal("refused")` with `refusal_reason_parent_cancelled` |
 | `action_approve_bulk()` / `action_refuse_bulk()` | action.py | Bulk decisions via `_action_bulk_decision` (delegation-aware, skip_wizard) |
 | `action_view_to_review()` | request.py | Pending-review inbox, includes requests delegated TO the user |
@@ -388,10 +390,13 @@ requester re-submits (`action_resubmit`).
 | `_replay_bound_operation()` | Called from `_notify_if_terminal_transition` when a request becomes `approved`, AFTER `_notify_source_document_state_change`, so an adopter sees itself approved before the operation it gated runs. Hands off to `approval.binding._replay`; does nothing once `date_binding_replayed` is set, when the binding's `run_on_approval` is off, or while an invoking call is recording its own approval |
 | `_get_applicable_steps()` | The category's steps whose condition this request meets, in order. Routing stages one row per user over them instead of the flat approvers, group and replacement |
 | `_is_quorum_met(state_counts, threshold)` | Step mode when any row carries steps: every applicable step meets its quorum. Otherwise the flat `approval_minimum`, unchanged |
-| `_get_step_counts()` / `_get_step_assignment()` | Approvals per step. An approved row counts toward every step it belongs to, unless one is exclusive: then toward exactly one, the lowest step still short — Studio's exclusivity expressed as counting |
+| `_get_step_counts()` / `_get_step_assignment()` | Approvals per step. An approved row counts toward every step its decision was given for (`decided_step_ids`). Only a row approved for several steps one of which is exclusive -- consent, an automatic rule -- is resolved here, toward the lowest step still short |
+| `_get_steps_for_decision(approver)` | The steps an approval naming none is given for: every undecided step of the row, or, beside an exclusive step, the first still short of its quorum (exclusive first within a sequence). Decided when taken, so who decided which step stays fixed as later approvals come in |
+| `_check_steps_decidable(approvers, steps)` | Studio's exclusivity for decisions that name steps: a step already decided by the row, or a second step beside an exclusive decided one, raises |
+| `_get_rows_decidable_by(user)` | The user's rows an approval naming no step decides -- pending rows, and approved rows with a step still open to the user (their decided step was archived, or the button decided only some of their steps). `approval.binding._approve_on_invoke` decides these, so a click after an archive decides the rest, as Studio's click did |
 | `_get_unmet_steps()` / `_get_open_steps()` | The steps still short of their quorum, and the lowest-sequence ones among them, which are the ones being asked |
 | `_check_steps_can_be_met(steps)` | At confirmation, refuses a step whose pool is smaller than its quorum, rather than leaving a request that could never be approved |
-| `_notify_step_decision(approvers, acting_user, decision)` | Posts an internal note to the notify list of every step the decided rows count toward |
+| `_notify_step_decision(approvers, acting_user, decision, steps)` | Posts an internal note to the notify list of every step the decision counts toward -- the named steps, or the decided ones, narrowed on approval to where the assignment put them |
 
 ### Constraints
 
@@ -448,7 +453,8 @@ resolved by `_get_escalation_rules()`:
 | `is_delegated` | Boolean | **No** | No | compute, search=`_search_is_delegated`, copy=False. Non-stored: "today" is resolved in the SLOT OWNER's timezone (`user_id.tz`, `@api.depends` includes it), not the server's. The compute buckets the recordset by tz (`_delegation_today_by_tz`); the search inverts that into one OR-branch per distinct `res.users.tz` value, built by `_delegation_date_buckets()` and memoised in `env.cr.cache` under `approval_delegation_tz_buckets` (dropped by `res.users.write` on a `tz` change) |
 | `note` | Text | Yes | No | Decision note (approve/refuse context) |
 | `refusal_reason_id` | Many2one(`approval.refusal.reason`) | Yes | No | |
-| `step_ids` | Many2many(`approval.category.step`) | Yes | No | readonly, copy=False. The steps this row's decision counts toward. Rows stay `unique(request_id, user_id)`, so a user in the pools of two steps is one row carrying both |
+| `step_ids` | Many2many(`approval.category.step`) | Yes | No | readonly, copy=False. The steps this row may decide. Rows stay `unique(request_id, user_id)`, so a user in the pools of two steps is one row carrying both |
+| `decided_step_ids` | Many2many(`approval.category.step`) | Yes | No | readonly, copy=False, `active_test`. The steps the row's decision was given for, and so what the quorum counts it toward. The approval button decides the step it is drawn under; every other decision takes `_get_steps_for_decision`. Cleared on withdraw, reset and a requested change; migration 1.8 fills it for rows decided before |
 
 ### Key Methods
 
@@ -462,7 +468,8 @@ resolved by `_get_escalation_rules()`:
 | `_check_business_rules_create/unlink()` | Business rules layer: DRAFT only since 19.0.1.0.13 (relaxed only by `env.su` + `approver_ids_computation` sync context) — rows on decided requests are state-transition vehicles and are re-cycled via reset-to-draft |
 | `_check_delegation_dates` (constraint) | Delegation requires both dates, end >= start |
 | `_check_delegate_identity` (constraint) | Delegate must not be the approver themselves, the request owner, or a co-approver on the same request |
-| `_get_notifiable()` | The rows whose approver should be asked now. Every activity goes through `_create_activity`, which applies this first, so it orders the asking for all six callers: a row on a `notify_sequentially` category is asked only once one of its steps is among the lowest unmet ones |
+| `_get_notifiable()` | The rows whose approver should be asked now. Every activity goes through `_create_activity`, which applies this first, so it orders the asking for all six callers: a row on a `notify_sequentially` category is asked only once one of its steps is among the lowest unmet ones. Only a row whose user is listed for one of its steps is asked, and, when the category requests its steps in order, once a step they are listed for opens, not one they may decide through its group |
+| `_approve_for_every_step()` | Approves rows nobody decided -- consent approval, an auto-approve rule -- for all their steps, so they count as those paths always counted |
 
 ---
 
@@ -756,9 +763,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `_sync_reset_automation()` | One managed `on_create_or_write` rule per binding with a Reset When. Its pre-update filter is the condition inverted, so it fires on the transition into it. After creation only the name, the two filters and the trigger fields are written: never `trigger`, whose change makes `_compute_filter_pre_domain` clear the pre-update filter, and never `model_id`, whose write recomputes `trigger` to nothing. A changed model gets a new rule |
 | `_reset_coverage(records)` | Resets the covering approved requests to draft through `action_reset_to_draft`, so an adopter hears it through `_on_approval_reset`, and clears the one-shot stamp so the next cycle runs on approval again |
 | `_get_covering_requests(records)` / `_get_reset_field_ids(domain)` | The approved requests that could be covering the records; the fields the condition reads, which become the rule's trigger fields |
-| `get_button_approvals(specs)` | For each `{model, res_id, method, action_id}`: `{gated, approved, request, steps}`. Each step carries who may decide it and its decisions, assigned by `approval.request._get_step_assignment`, so what the button draws is what the quorum counts. A category without steps is one step with `id` false. Read access on the record is checked first |
+| `get_button_approvals(specs)` | For each `{model, res_id, method, action_id}`: `{gated, approved, request, steps}`. Each step carries who may decide it (`approval.request._can_decide_step`: neither decided by the caller nor excluded by an exclusive step they decided) and its decisions, assigned by `approval.request._get_step_assignment`, so what the button draws is what the quorum counts. A category without steps is one step with `id` false. Read access on the record is checked first |
 | `check_button_approval(model, res_id, method, action_id)` | `_gate` with a no-op operation: `{approved, request_id}`. It raises or reuses the request and marks the one-shot, because the browser runs the action next |
-| `action_decide_approval(...)` / `action_withdraw_decision(..., approver_id)` | Decide as the caller, or withdraw through `action_withdraw_approver` (a refusal through `action_reset_to_draft`); the rights are `_can_withdraw_approver` / `_can_reopen_refusal`, the same predicates the checks raise from |
+| `action_decide_approval(..., approve, step_id)` / `action_withdraw_decision(..., approver_id, step_id)` | Decide as the caller, for the step the button drew the control under (`_get_button_decision_steps` refuses a step of another button), or withdraw through `action_withdraw_approver` (a refusal through `action_reset_to_draft`); the rights are `_can_withdraw_approver` / `_can_reopen_refusal`, the same predicates the checks raise from, judged against the withdrawn step |
 | `_get_checkpoint_guard(model, checkpoint, operations)` / `_enforce_at_checkpoint(records, bindings, operation)` | Operation checkpoints. A model that declares `_operation_checkpoints = {operation: private_hook}` (`account.move`: `action_post` -> `_post_check_business_rules`) has the hook wrapped too, so a binding on the operation holds on every path that crosses it. The paths that never reach the operation's own wrapper get Block semantics: a checkpoint can neither ask for an approval nor keep a request, so a record Block or Request mode would stop is refused there |
 | `_admit(records, operation)` / `_get_admitted_ids(records, operation)` | The operation's wrapper marks the records it lets through, as (model, operation, ids) in `approval_binding_admitted`; their checkpoint does not check them again. Records the admitted call touches on its own (a reversal a posting creates) are still checked |
 | `create_step_for_button(model, method, action_id)` | Adds a step to a button; the first one binds the button in Studio's shape (Request, approve-on-invoke, run-on-approval off, a category that requests its steps in order). A step starts with the Internal User group and the gated model as subject model; its sequence is the last plus one, capped at 9 |
@@ -1145,7 +1152,7 @@ is computed and non-stored, recalculated per read.
 | Fields | `approval_request_id` (compute+search), `approver_id` (compute) |
 | Method | `_to_store_defaults()` adds approver state to Store |
 
-`_action_done` first runs `_approve_through_done_activities`: an approval activity marked done by the user it was asked of approves that user's pending row through `approval.approver.action_approve`. Anyone else, the system included, only dismisses it. A decision that cannot be recorded raises, so the activity stays open. The decision path marks the decider's activities done after their row is approved, so it never re-enters the approval.
+`_action_done` asks `_get_answering_approvers` which rows the activities approve: an approval activity marked done by the user it was asked of approves that user's pending row through `approval.approver.action_approve`. Anyone else, the system included, only dismisses it. The done runs first and the approval after it, both inside one savepoint: the feedback given with the activity is posted (approving first let the decision close the activity without it), and a decision that cannot be recorded raises and rolls the done back, so the activity stays open.
 
 ### mail.activity.type (extended)
 

@@ -322,9 +322,9 @@ class ApprovalRequestAccess(models.Model):
             refused, user
         )
 
-    def _check_withdraw_actor(self, approver) -> None:
+    def _check_withdraw_actor(self, approver, steps=None) -> None:
         self.check_singleton()
-        if self.env.su or self._can_withdraw_approver(approver, self.env.user):
+        if self.env.su or self._can_withdraw_approver(approver, self.env.user, steps):
             return
         raise AccessError(
             self.env._(
@@ -335,18 +335,55 @@ class ApprovalRequestAccess(models.Model):
             ),
         )
 
-    def _can_withdraw_approver(self, approver, user) -> bool:
+    def _can_withdraw_approver(self, approver, user, steps=None) -> bool:
         self.check_singleton()
         return (
             user._is_approval_manager()
             or approver._get_effective_approver() == user
-            or self._is_later_step_member(approver, user)
+            or self._is_later_step_member(approver, user, steps)
         )
 
-    def _is_later_step_member(self, approvers, user) -> bool:
+    def _can_decide_step(self, step, user) -> bool:
+        """Whether `user` has decided neither this step nor one that excludes it."""
+        self.check_singleton()
+        decided = self.approver_ids.filtered(
+            lambda a: (
+                a.state in ("approved", "refused")
+                and user in (a._get_effective_approver() | a.decided_by_user_id)
+            )
+        ).decided_step_ids
+        return step not in decided and not (
+            decided and (step.exclusive or any(decided.mapped("exclusive")))
+        )
+
+    def _get_rows_decidable_by(self, user):
+        """The user's rows an approval naming no step decides.
+
+        Pending rows, and approved rows with a step still open to the user: one whose
+        decided step was archived, or one decided from the approval button for some of
+        its steps only.
+        """
+        self.check_singleton()
+        return self.approver_ids.filtered(
+            lambda approver: (
+                approver._get_effective_approver() == user
+                and (
+                    approver.state == "pending"
+                    or (
+                        approver.state == "approved"
+                        and any(
+                            self._can_decide_step(step, user)
+                            for step in approver.step_ids - approver.decided_step_ids
+                        )
+                    )
+                )
+            )
+        )
+
+    def _is_later_step_member(self, approvers, user, steps=None) -> bool:
         """Whether `user` may act on these rows as the approver of a later step."""
         self.check_singleton()
-        own_steps = approvers.step_ids
+        own_steps = steps or approvers.decided_step_ids or approvers.step_ids
         if not own_steps:
             return False
         last = max(own_steps.mapped("sequence"))

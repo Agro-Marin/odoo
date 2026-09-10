@@ -124,6 +124,7 @@ class ApprovalRequestLifecycle(models.Model):
         self,
         decision: str,
         approver: models.BaseModel | None = None,
+        steps: models.BaseModel | None = None,
     ) -> None:
         self.check_singleton()
         assert decision in ("approve", "refuse")
@@ -149,18 +150,50 @@ class ApprovalRequestLifecycle(models.Model):
             candidate = approver.filtered(lambda a: a.request_id == self)
         if decision == "approve":
             self._check_approve_sequentially_can_approve(candidate)
-        approver = candidate.filtered(lambda a: a.state == "pending")
+        if steps:
+            approver = candidate.filtered(
+                lambda a: a.state in ("pending", "approved") and steps <= a.step_ids
+            )
+        else:
+            approver = candidate.filtered(
+                lambda a: (
+                    a.state == "pending"
+                    or (
+                        decision == "approve"
+                        and a.state == "approved"
+                        and a.step_ids - a.decided_step_ids
+                    )
+                )
+            )
         self._check_decision_actor(approver)
         if not approver:
             self._raise_not_assigned_approver()
+        self._check_steps_decidable(approver, steps)
         acting_user = approver[:1]._get_effective_approver()
-        approver.sudo().write(
-            {
-                "state": approver_state,
-                "decision_date": fields.Datetime.now(),
-                "decided_by_user_id": acting_user.id,
-            },
-        )
+        now = fields.Datetime.now()
+        for row in approver.sudo():
+            if steps:
+                decided = steps
+            elif decision == "approve":
+                decided = self._get_steps_for_decision(row)
+            else:
+                decided = row.step_ids
+            if decision == "approve" and row.state == "approved":
+                decided |= row.decided_step_ids
+            if decision == "approve" and row.state == "approved":
+                # Link rather than set: the row's decided steps read without an
+                # archived one, which a set would forget.
+                decided_steps = [Command.link(step.id) for step in decided]
+            else:
+                decided_steps = [Command.set(decided.ids)]
+            row.write(
+                {
+                    "state": approver_state,
+                    "decision_date": now,
+                    "decided_by_user_id": acting_user.id,
+                    "decided_step_ids": decided_steps,
+                },
+            )
         if decision == "approve":
             body = self.env._(
                 "The request created on %(create_date)s by %(request_owner)s has been accepted.",
@@ -190,7 +223,7 @@ class ApprovalRequestLifecycle(models.Model):
             message_type="notification",
             partner_ids=self.request_owner_id.partner_id.ids,
         )
-        self._notify_step_decision(approver, acting_user, decision)
+        self._notify_step_decision(approver, acting_user, decision, steps)
         if decision == "approve":
             self.sudo()._update_next_approvers_state(
                 approver,
@@ -225,15 +258,64 @@ class ApprovalRequestLifecycle(models.Model):
     def action_approve(
         self,
         approver: models.BaseModel | None = None,
+        steps: models.BaseModel | None = None,
     ) -> dict[str, Any] | None:
         self.check_singleton()
         self._check_no_pending_change("approve")
-        self._apply_decision("approve", approver)
+        self._apply_decision("approve", approver, steps)
 
-    def _notify_step_decision(self, approvers, acting_user, decision: str) -> None:
-        """Post an internal note to the notify list of every step these rows count toward."""
+    def _get_steps_for_decision(self, approver):
+        """The steps an approval naming none is given for.
+
+        Every undecided step of the row, unless one of the row's steps is exclusive:
+        then the first still short of its quorum, exclusive steps first within a
+        sequence. Deciding that here, not when counting, keeps who decided which step
+        fixed as later approvals come in.
+        """
         self.check_singleton()
-        steps = approvers.step_ids
+        undecided = approver.step_ids - approver.decided_step_ids
+        if not any(approver.step_ids.mapped("exclusive")):
+            return undecided
+        counts = self._get_step_counts()
+        ordered = undecided.sorted(
+            lambda step: (step.sequence, not step.exclusive, step.id)
+        )
+        short = ordered.filtered(lambda step: counts.get(step.id, 0) < step.minimum)
+        return short[:1] or ordered[:1]
+
+    def _check_steps_decidable(self, approvers, steps=None) -> None:
+        """Refuse deciding a step twice, or a step beside an exclusive decided one."""
+        self.check_singleton()
+        for approver in approvers:
+            decided = approver.decided_step_ids
+            if not decided:
+                continue
+            if steps and steps & decided:
+                raise UserError(
+                    self.env._(
+                        "%(user)s has already decided %(steps)s on %(name)s.",
+                        user=approver._get_effective_approver().name,
+                        steps=", ".join((steps & decided).mapped("name")),
+                        name=self.display_name,
+                    ),
+                )
+            wanted = steps or approver.step_ids - decided
+            if any((decided | wanted).mapped("exclusive")):
+                raise UserError(
+                    self.env._(
+                        "This approval or the one you already submitted limits you "
+                        "to a single approval on %(name)s. Another user is required "
+                        "to decide the other steps.",
+                        name=self.display_name,
+                    ),
+                )
+
+    def _notify_step_decision(
+        self, approvers, acting_user, decision: str, steps=None
+    ) -> None:
+        """Post an internal note to the notify list of every step this decision is for."""
+        self.check_singleton()
+        steps = steps or approvers.decided_step_ids
         partners = steps.notify_user_ids.partner_id
         if not partners:
             return
@@ -408,6 +490,7 @@ class ApprovalRequestLifecycle(models.Model):
                     "state": "waiting",
                     "decision_date": False,
                     "decided_by_user_id": False,
+                    "decided_step_ids": [Command.clear()],
                 },
             )
             self._cancel_activities()
@@ -558,6 +641,7 @@ class ApprovalRequestLifecycle(models.Model):
                     "note": False,
                     "decision_date": False,
                     "decided_by_user_id": False,
+                    "decided_step_ids": [Command.clear()],
                     "pending_since": False,
                 },
             )
@@ -601,15 +685,21 @@ class ApprovalRequestLifecycle(models.Model):
         }
 
     def action_refuse(
-        self, approver: models.BaseModel | None = None
+        self,
+        approver: models.BaseModel | None = None,
+        steps: models.BaseModel | None = None,
     ) -> dict[str, Any] | None:
         self.check_singleton()
         self._check_no_pending_change("refuse")
 
-        if approver is None and not self.env.context.get("skip_wizard"):
+        if (
+            approver is None
+            and steps is None
+            and not self.env.context.get("skip_wizard")
+        ):
             return self._get_decision_wizard_action("refuse")
 
-        self._apply_decision("refuse", approver)
+        self._apply_decision("refuse", approver, steps)
         return None
 
     def _get_decision_wizard_action(self, decision_type: str) -> dict[str, Any]:
@@ -689,6 +779,7 @@ class ApprovalRequestLifecycle(models.Model):
                     "state": "pending",
                     "decision_date": False,
                     "decided_by_user_id": False,
+                    "decided_step_ids": [Command.clear()],
                 },
             )
 
@@ -840,7 +931,9 @@ class ApprovalRequestLifecycle(models.Model):
             "has_location": ("location", self.env._("Location")),
         }
 
-    def action_withdraw_approver(self, approver_id: int) -> None:
+    def action_withdraw_approver(
+        self, approver_id: int, step_id: int | bool = False
+    ) -> None:
         self.check_singleton()
         approver = self.approver_ids.filtered(lambda a: a.id == approver_id)
         if not approver:
@@ -850,8 +943,60 @@ class ApprovalRequestLifecycle(models.Model):
                     name=self.display_name,
                 ),
             )
-        self._check_withdraw_actor(approver)
-        self.action_withdraw(approver)
+        steps = approver.decided_step_ids
+        if step_id:
+            steps = steps.filtered(lambda step: step.id == int(step_id))
+            if not steps:
+                raise UserError(
+                    self.env._(
+                        "%(approver)s gave no decision for that step on %(name)s.",
+                        approver=approver._get_effective_approver().name,
+                        name=self.display_name,
+                    ),
+                )
+        self._check_withdraw_actor(approver, steps)
+        if approver.state == "approved" and approver.decided_step_ids - steps:
+            self._withdraw_decided_steps(approver, steps)
+        else:
+            self.action_withdraw(approver)
+
+    def _withdraw_decided_steps(self, approver, steps) -> None:
+        """Take a decision back from some of its steps; it stands for the others."""
+        self.check_singleton()
+        self._lock_and_reload(with_approvers=True)
+        if self.state not in ("pending", "approved"):
+            raise UserError(
+                self.env._(
+                    "You cannot withdraw an approval on a %(state)s request.",
+                    state=self.state,
+                ),
+            )
+        self._check_withdraw_allowed()
+        old_state = self.state
+        approver.sudo().write(
+            {"decided_step_ids": [Command.unlink(step.id) for step in steps]},
+        )
+        if old_state == "approved" and self.state == "pending":
+            parked = self.approver_ids.filtered(lambda a: a.state == "waiting")
+            parked.sudo().write({"state": "pending"})
+            parked._create_activity()
+        acting_user = self.env.user
+        self.sudo().message_post(
+            body=self.env._(
+                "%(user)s withdrew %(approver)s's approval of %(steps)s.",
+                user=acting_user.name,
+                approver=approver._get_effective_approver().name,
+                steps=", ".join(steps.mapped("name")),
+            ),
+            author_id=acting_user.partner_id.id,
+            message_type="notification",
+        )
+        self._log_cycle(
+            "withdraw",
+            actor=acting_user.login,
+            was=old_state,
+            reopened=self.state != old_state,
+        )
 
     def _check_withdraw_allowed(self) -> None:
         pass

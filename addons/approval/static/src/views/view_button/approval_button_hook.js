@@ -96,19 +96,21 @@ export function useApprovalButton({ getRecord, method, action }) {
             load();
             return approved;
         },
-        decide(approve) {
+        decide(approve, stepId = false) {
             return replaceWith(
                 orm.call("approval.binding", "action_decide_approval", [
                     ...buttonArgs(),
                     approve,
+                    stepId,
                 ]),
             );
         },
-        withdraw(approverId) {
+        withdraw(approverId, stepId = false) {
             return replaceWith(
                 orm.call("approval.binding", "action_withdraw_decision", [
                     ...buttonArgs(),
                     approverId,
+                    stepId,
                 ]),
             );
         },

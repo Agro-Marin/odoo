@@ -596,7 +596,7 @@ class ApprovalBinding(models.Model):
         self.check_singleton()
         user = self.env.user
         for request in requests.filtered(lambda r: r.state == "pending"):
-            approver = request._get_current_pending_approver(user)
+            approver = request._get_rows_decidable_by(user)
             if not approver:
                 continue
             try:

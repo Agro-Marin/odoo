@@ -122,12 +122,12 @@ test("approving from the popover decides as the caller", async () => {
     });
     await contains(".o_approval_button").click();
     await contains(".o_approval_button_approve").click();
-    expect.verifySteps([["partner", 1, "method_a", false, true]]);
+    expect.verifySteps([["partner", 1, "method_a", false, true, 1]]);
     expect(".o_approval_button_decision.o_approval_button_approved").toHaveCount(1);
     expect(".o_approval_button_approve").toHaveCount(0);
 });
 
-test("withdrawing sends the decision's row", async () => {
+test("withdrawing sends the decision's row and the step it is drawn under", async () => {
     onRpc("approval.binding", "get_button_approvals", ({ args }) =>
         args[0].map(() => result({ steps: [step({ decisions: [approvedDecision] })] })),
     );
@@ -143,7 +143,7 @@ test("withdrawing sends the decision's row", async () => {
     });
     await contains(".o_approval_button").click();
     await contains(".o_approval_button_withdraw").click();
-    expect.verifySteps([["partner", 1, "method_a", false, 7]]);
+    expect.verifySteps([["partner", 1, "method_a", false, 7, 1]]);
 });
 
 test("a refusal that can be reopened offers to reopen it, and nothing to decide", async () => {
@@ -165,7 +165,7 @@ test("a refusal that can be reopened offers to reopen it, and nothing to decide"
     await contains(".o_approval_button").click();
     expect(".o_approval_button_approve").toHaveCount(0);
     await contains(".o_approval_button_reopen").click();
-    expect.verifySteps([["partner", 1, "method_a", false, false]]);
+    expect.verifySteps([["partner", 1, "method_a", false, false, false]]);
 });
 
 test("an action button is checked before it runs, and does not run unapproved", async () => {

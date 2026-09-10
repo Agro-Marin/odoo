@@ -765,6 +765,7 @@ class ApprovalRequest(models.Model):
         "approver_ids.required",
         "approval_minimum",
         "approver_ids.step_ids",
+        "approver_ids.decided_step_ids",
         "approver_ids.step_ids.minimum",
         "approver_ids.step_ids.exclusive",
         "approver_ids.step_ids.active",
@@ -814,21 +815,25 @@ class ApprovalRequest(models.Model):
     def _get_step_assignment(self) -> dict[int, Any]:
         """Which approved rows count toward each step, exclusivity applied.
 
-        An approved row counts toward every step it belongs to, unless one of them
-        is exclusive: then it counts toward exactly one, the lowest step still short
-        of its quorum. That is Studio's rule -- a user who decided an exclusive step
-        decides nothing else on the same record, and the other way round --
-        expressed as counting rather than as refused writes. The approval button
-        shows this assignment, so what it draws is what the quorum counts.
+        An approved row counts toward every step its decision was given for. That is
+        Studio's rule -- a user who decided an exclusive step decides nothing else on
+        the same record, and the other way round -- which a decision keeps when it
+        is taken (_get_steps_for_decision, _check_steps_decidable). A row approved
+        for several steps one of which is exclusive, as consent or an automatic rule
+        approves, counts toward exactly one: the lowest still short of its quorum.
+        The approval button shows this assignment, so what it draws is what the
+        quorum counts.
         """
         self.check_singleton()
         steps = self.approver_ids.step_ids.sorted(lambda step: (step.sequence, step.id))
         assigned = {step.id: self.env["approval.approver"] for step in steps}
         approved = self.approver_ids.filtered(
-            lambda approver: approver.state == "approved" and approver.step_ids,
+            lambda approver: approver.state == "approved" and approver.decided_step_ids,
         ).sorted(lambda approver: (approver.sequence, approver.id))
         for approver in approved:
-            own = approver.step_ids.sorted(lambda step: (step.sequence, step.id))
+            own = approver.decided_step_ids.filtered(
+                lambda step: step.id in assigned
+            ).sorted(lambda step: (step.sequence, step.id))
             if any(own.mapped("exclusive")):
                 target = own.sorted(
                     lambda step: (step.sequence, not step.exclusive, step.id)

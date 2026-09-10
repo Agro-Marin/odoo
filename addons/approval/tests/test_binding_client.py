@@ -1,4 +1,4 @@
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.tests import common, tagged
 
 
@@ -161,6 +161,108 @@ class TestApprovalBindingClient(common.TransactionCase):
             first["decisions"][0]["approver_id"],
         )
         self.assertEqual(result["steps"][0]["decisions"], [])
+
+    def test_the_button_decides_the_step_it_is_drawn_under(self):
+        category = self.env["approval.category"].create(
+            {"name": "Client Two Pools", "approval_minimum": 1}
+        )
+        pool_a, pool_b = (
+            self.env["approval.category.step"].create(
+                {
+                    "category_id": category.id,
+                    "name": name,
+                    "sequence": sequence,
+                    "member_ids": [(0, 0, {"user_id": user.id}) for user in users],
+                }
+            )
+            for name, sequence, users in (
+                ("Pool A", 10, (self.approver, self.peer)),
+                ("Pool B", 20, (self.approver, self.later)),
+            )
+        )
+        self._bind(category)
+        partner = self._partner()
+
+        def decide(step):
+            return self.Binding.with_user(self.approver).action_decide_approval(
+                "res.partner", partner.id, "action_archive", False, True, step.id
+            )
+
+        def steps_by_name(result):
+            return {step["name"]: step for step in result["steps"]}
+
+        result = decide(pool_b)
+        steps = steps_by_name(result)
+        self.assertEqual(
+            [decision["user_id"] for decision in steps["Pool B"]["decisions"]],
+            [self.approver.id],
+        )
+        self.assertEqual(
+            steps["Pool A"]["decisions"], [], "approving under Pool B left Pool A open"
+        )
+        self.assertTrue(steps["Pool A"]["can_decide"])
+        self.assertFalse(steps["Pool B"]["can_decide"])
+        self.assertFalse(result["approved"])
+        approver_id = steps["Pool B"]["decisions"][0]["approver_id"]
+
+        self.assertTrue(decide(pool_a)["approved"])
+
+        result = self.Binding.with_user(self.approver).action_withdraw_decision(
+            "res.partner", partner.id, "action_archive", False, approver_id, pool_b.id
+        )
+        steps = steps_by_name(result)
+        self.assertFalse(result["approved"])
+        self.assertEqual(
+            [decision["user_id"] for decision in steps["Pool A"]["decisions"]],
+            [self.approver.id],
+        )
+        self.assertEqual(steps["Pool B"]["decisions"], [])
+
+    def test_a_click_after_the_decided_step_is_archived_decides_the_rest(self):
+        """Studio's test_08_archive."""
+        category = self.env["approval.category"].create(
+            {"name": "Client Archive", "approval_minimum": 1}
+        )
+        Step = self.env["approval.category.step"]
+        exclusive = Step.create(
+            {
+                "category_id": category.id,
+                "name": "Exclusive",
+                "sequence": 10,
+                "exclusive": True,
+                "member_ids": [(0, 0, {"user_id": self.approver.id})],
+            }
+        )
+        Step.create(
+            {
+                "category_id": category.id,
+                "name": "Base",
+                "sequence": 20,
+                "member_ids": [
+                    (0, 0, {"user_id": user.id}) for user in (self.approver, self.peer)
+                ],
+            }
+        )
+        self._bind(category, approve_on_invoke=True)
+        partner = self._partner()
+
+        def check():
+            return self.Binding.with_user(self.approver).check_button_approval(
+                "res.partner", partner.id, "action_archive", False
+            )["approved"]
+
+        self.assertFalse(check(), "the exclusive step takes the approval")
+        exclusive.active = False
+        self.assertTrue(check(), "with it archived, the next click decides the base")
+
+    def test_a_step_of_another_button_is_not_decided(self):
+        self._bind(self.flat_category)
+        partner = self._partner()
+        foreign = self.step_category.step_ids[:1]
+        with self.assertRaises(UserError):
+            self.Binding.with_user(self.approver).action_decide_approval(
+                "res.partner", partner.id, "action_archive", False, True, foreign.id
+            )
 
     def test_a_refusal_from_the_button_is_reopened_by_the_refuser_only(self):
         self._bind(self.flat_category)

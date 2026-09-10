@@ -28,6 +28,22 @@ class TestApprovalActivityDone(ApprovalCommon):
         self.assertEqual(request.state, "approved")
         self.assertFalse(activity.active)
 
+    def test_the_feedback_given_while_approving_is_posted(self):
+        request = self._prepare_request(
+            self._make_category(approvers=[self.approver_1])
+        )
+        activity = self._activity_for(request, self.approver_1)
+        activity.with_user(self.approver_1).action_feedback("Checked the figures")
+        self.assertEqual(request.state, "approved")
+        self.assertEqual(
+            len(
+                request.message_ids.filtered(
+                    lambda message: "Checked the figures" in (message.body or "")
+                )
+            ),
+            1,
+        )
+
     def test_someone_else_marking_it_done_decides_nothing(self):
         """Studio's test_12_approval_activity_spoof."""
         request = self._prepare_request(
@@ -63,7 +79,13 @@ class TestApprovalActivityDone(ApprovalCommon):
         ).action_confirm_change()
         self.assertEqual(request.pending_change_field, "reason")
         self.assertTrue(activity.active)
-        with self.assertRaises(UserError):
+        # Not assertRaises: it rolls back to its own savepoint, which would hide
+        # whether marking the activity done is undone with the failed decision.
+        raised = False
+        try:
             activity.with_user(self.approver_1).action_done()
+        except UserError:
+            raised = True
+        self.assertTrue(raised)
         self.assertTrue(activity.active, "nothing was decided, so it stays open")
         self.assertEqual(self._row_for(request, self.approver_1).state, "pending")

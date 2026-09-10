@@ -485,7 +485,7 @@ class ApprovalRequestEscalation(models.Model):
             return False
 
         old_state = request.state
-        pending.sudo().write({"state": "approved"})
+        pending.sudo()._approve_for_every_step()
         request._cancel_activities()
         request._notify_if_terminal_transition(old_state)
         request.message_post(

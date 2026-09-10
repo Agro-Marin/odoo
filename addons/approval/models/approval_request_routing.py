@@ -204,7 +204,7 @@ class ApprovalRequestRouting(models.Model):
         rule = self._resolve_auto_action(matching)
         if rule:
             if rule.action_type == "auto_approve":
-                self.approver_ids.sudo().write({"state": "approved"})
+                self.approver_ids.sudo()._approve_for_every_step()
                 self.message_post(
                     body=self.env._(
                         "Auto-approved by rule: %(rule)s "

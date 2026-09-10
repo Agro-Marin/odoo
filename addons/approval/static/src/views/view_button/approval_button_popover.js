@@ -33,11 +33,11 @@ export class ApprovalButtonPopover extends Component {
         );
     }
 
-    decide(approve) {
-        return this.props.gate.decide(approve);
+    decide(approve, stepId) {
+        return this.props.gate.decide(approve, stepId);
     }
 
-    withdraw(approverId) {
-        return this.props.gate.withdraw(approverId);
+    withdraw(approverId, stepId) {
+        return this.props.gate.withdraw(approverId, stepId);
     }
 }

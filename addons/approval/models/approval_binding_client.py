@@ -55,10 +55,17 @@ class ApprovalBinding(models.Model):
 
     @api.model
     def action_decide_approval(
-        self, model: str, res_id: int, method=False, action_id=False, approve=True
+        self,
+        model: str,
+        res_id: int,
+        method=False,
+        action_id=False,
+        approve=True,
+        step_id=False,
     ) -> dict[str, Any]:
         records = self._get_records_for_button(model, res_id, "write")
         binding = self._get_button_binding_for(records, method, action_id)
+        steps = binding._get_button_decision_steps(step_id)
         request = binding._get_button_request(records)
         if request.state == "approved" and records.id in binding._get_covered_ids(
             records
@@ -73,14 +80,20 @@ class ApprovalBinding(models.Model):
             request = binding._raise_requests_for(records)
         request = request.with_user(self.env.user)
         if approve:
-            request.action_approve()
+            request.action_approve(steps=steps)
         else:
-            request.with_context(skip_wizard=True).action_refuse()
+            request.with_context(skip_wizard=True).action_refuse(steps=steps)
         return self._get_button_approval(model, res_id, method, action_id)
 
     @api.model
     def action_withdraw_decision(
-        self, model: str, res_id: int, method=False, action_id=False, approver_id=False
+        self,
+        model: str,
+        res_id: int,
+        method=False,
+        action_id=False,
+        approver_id=False,
+        step_id=False,
     ) -> dict[str, Any]:
         records = self._get_records_for_button(model, res_id, "write")
         binding = self._get_button_binding_for(records, method, action_id)
@@ -96,7 +109,7 @@ class ApprovalBinding(models.Model):
         if request.state == "refused":
             request.action_reset_to_draft()
         else:
-            request.action_withdraw_approver(approver_id)
+            request.action_withdraw_approver(approver_id, step_id)
         return self._get_button_approval(model, res_id, method, action_id)
 
     @api.model
@@ -176,6 +189,17 @@ class ApprovalBinding(models.Model):
         )
         return (waiting or bindings)[:1]
 
+    def _get_button_decision_steps(self, step_id):
+        self.check_singleton()
+        if not step_id:
+            return None
+        steps = self.category_id.sudo().step_ids.filtered(
+            lambda step: step.id == int(step_id)
+        )
+        if not steps:
+            raise UserError(self.env._("That step does not gate this button."))
+        return steps.sudo(False)
+
     def _get_button_request(self, record):
         self.check_singleton()
         Request = self.env["approval.request"].sudo()
@@ -218,12 +242,14 @@ class ApprovalBinding(models.Model):
                 "exclusive": step.exclusive,
                 "can_decide": is_open
                 and user.id in step._get_pool_user_ids()
-                and user not in decided.decided_by_user_id,
+                and (not request or request._can_decide_step(step, user)),
                 "decisions": [
-                    self._get_button_decision(row, request, user)
+                    self._get_button_decision(row, request, user, step)
                     for row in assignment.get(step.id, rows.browse())
                     | decided.filtered(
-                        lambda a, step=step: a.state == "refused" and step in a.step_ids
+                        lambda a, step=step: (
+                            a.state == "refused" and step in a.decided_step_ids
+                        )
                     )
                 ],
             }
@@ -255,7 +281,7 @@ class ApprovalBinding(models.Model):
         }
 
     @api.model
-    def _get_button_decision(self, row, request, user) -> dict[str, Any]:
+    def _get_button_decision(self, row, request, user, step=None) -> dict[str, Any]:
         actor = row.decided_by_user_id
         return {
             "approver_id": row.id,
@@ -267,5 +293,5 @@ class ApprovalBinding(models.Model):
             else False,
             "can_withdraw": row.state == "approved"
             and request.state in ("pending", "approved")
-            and request._can_withdraw_approver(row, user),
+            and request._can_withdraw_approver(row, user, step),
         }

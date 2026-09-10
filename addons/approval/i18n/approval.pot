@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 22:29+0000\n"
-"PO-Revision-Date: 2026-09-10 22:29+0000\n"
+"POT-Creation-Date: 2026-09-10 23:32+0000\n"
+"PO-Revision-Date: 2026-09-10 23:32+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -49,6 +49,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_binding.py:0
 msgid "%(action)s runs on %(action_model)s, not on %(model)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "%(approver)s gave no decision for that step on %(name)s."
 msgstr ""
 
 #. module: approval
@@ -322,7 +328,19 @@ msgstr ""
 #. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "%(user)s has already decided %(steps)s on %(name)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "%(user)s refused step(s) %(steps)s of %(request)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "%(user)s withdrew %(approver)s's approval of %(steps)s."
 msgstr ""
 
 #. module: approval
@@ -2384,6 +2402,11 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__decided_by_user_id
 msgid "Decided By"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_approver__decided_step_ids
+msgid "Decided Steps"
 msgstr ""
 
 #. module: approval
@@ -5495,6 +5518,12 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
+#: code:addons/approval/models/approval_binding_client.py:0
+msgid "That step does not gate this button."
+msgstr ""
+
+#. module: approval
+#. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "The '%(field)s' field is not available on category '%(category)s', so the requester would have nothing to change.\n"
@@ -5684,8 +5713,16 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_approver__step_ids
 msgid ""
-"The steps this approver's decision counts toward. Rows are one per user per "
-"request, so a user in the pools of two steps appears once, with both here."
+"The steps this approver may decide. Rows are one per user per request, so a "
+"user in the pools of two steps appears once, with both here."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_approver__decided_step_ids
+msgid ""
+"The steps this row's decision was given for, which are the steps the quorum "
+"counts it toward. The approval button decides the step it is drawn under; "
+"any other decision is given for every step of the row."
 msgstr ""
 
 #. module: approval
@@ -5734,6 +5771,14 @@ msgid ""
 "\n"
 "Request: %(name)s\n"
 "Original approver: %(approver)s"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid ""
+"This approval or the one you already submitted limits you to a single "
+"approval on %(name)s. Another user is required to decide the other steps."
 msgstr ""
 
 #. module: approval
@@ -6515,6 +6560,12 @@ msgstr ""
 msgid ""
 "You cannot unlink an attachment which is linked to an approved, refused or "
 "cancelled approval request."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "You cannot withdraw an approval on a %(state)s request."
 msgstr ""
 
 #. module: approval

@@ -70,28 +70,41 @@ class MailActivity(models.Model):
         ]
 
     def _action_done(self, feedback=False, attachment_ids=None):
-        self._approve_through_done_activities()
-        return super()._action_done(feedback=feedback, attachment_ids=attachment_ids)
+        approvers = self._get_answering_approvers()
+        if not approvers:
+            return super()._action_done(
+                feedback=feedback, attachment_ids=attachment_ids
+            )
+        with self.env.cr.savepoint():
+            result = super()._action_done(
+                feedback=feedback, attachment_ids=attachment_ids
+            )
+            for approver in approvers:
+                approver.action_approve()
+        return result
 
-    def _approve_through_done_activities(self) -> None:
-        """Done by the approver it was asked of, an approval activity approves.
+    def _get_answering_approvers(self):
+        """The rows these activities approve when marked done.
 
-        Anyone else marking it done only dismisses it. A decision that cannot be
-        recorded raises, so the activity stays open rather than vanishing with
-        nothing decided.
+        Done by the approver it was asked of, an approval activity approves; anyone else
+        marking it done only dismisses it. The approval follows the done, so the
+        feedback given with it is posted rather than closed over by the decision, and
+        both run in one savepoint, so a decision that cannot be recorded raises and
+        leaves the activity open rather than done with nothing decided.
         """
         activity_type = self.env.ref("approval.mail_activity_data_approval")
         user = self.env.user
-        for activity in self:
-            if (
-                not activity.active
-                or activity.activity_type_id != activity_type
-                or activity.user_id != user
-            ):
-                continue
-            approver = activity.approver_id
-            if approver.state == "pending" and approver.request_id.state == "pending":
-                approver.action_approve()
+        return self.filtered(
+            lambda activity: (
+                activity.active
+                and activity.activity_type_id == activity_type
+                and activity.user_id == user
+            )
+        ).approver_id.filtered(
+            lambda approver: (
+                approver.state == "pending" and approver.request_id.state == "pending"
+            )
+        )
 
     def _to_store_defaults(self, target):
         return super()._to_store_defaults(target) + [

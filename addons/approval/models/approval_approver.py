@@ -2,7 +2,7 @@ from typing import Any, Self
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
-from odoo.fields import Domain
+from odoo.fields import Command, Domain
 
 from .approval_utils import boolean_search_domain, is_approval_manager
 
@@ -71,9 +71,21 @@ class ApprovalApprover(models.Model):
         string="Steps",
         readonly=True,
         copy=False,
-        help="The steps this approver's decision counts toward. Rows are one per "
-        "user per request, so a user in the pools of two steps appears once, with "
-        "both here.",
+        help="The steps this approver may decide. Rows are one per user per "
+        "request, so a user in the pools of two steps appears once, with both here.",
+    )
+    decided_step_ids = fields.Many2many(
+        comodel_name="approval.category.step",
+        relation="approval_approver_decided_step_rel",
+        column1="approver_id",
+        column2="step_id",
+        context={"active_test": True},
+        string="Decided Steps",
+        readonly=True,
+        copy=False,
+        help="The steps this row's decision was given for, which are the steps the "
+        "quorum counts it toward. The approval button decides the step it is drawn "
+        "under; any other decision is given for every step of the row.",
     )
     source_rule_id = fields.Many2one(
         comodel_name="approval.rule",
@@ -390,23 +402,38 @@ class ApprovalApprover(models.Model):
         return self.filtered(lambda approver: approver._is_notifiable())
 
     def _is_notifiable(self) -> bool:
-        """A step's group lets its members decide; only its listed members are asked."""
+        """A step's group lets its members decide; only its listed members are asked.
+
+        In order, they are asked once a step they are listed for opens, not a step
+        they may decide only through its group.
+        """
         self.check_singleton()
         if not self.step_ids:
             return True
-        if not any(
-            self.user_id.id in step._get_member_user_ids() for step in self.step_ids
-        ):
+        listed = self.step_ids.filtered(
+            lambda step: self.user_id.id in step._get_member_user_ids()
+        )
+        if not listed:
             return False
         if not self.request_id.category_id.notify_sequentially:
             return True
-        return bool(self.step_ids & self.request_id._get_open_steps())
+        return bool(listed & self.request_id._get_open_steps())
 
     def _get_effective_approver(self):
         self.check_singleton()
         if self.is_delegated:
             return self.delegate_id
         return self.user_id
+
+    def _approve_for_every_step(self) -> None:
+        """Approve rows nobody decided -- consent, an automatic rule -- for all their steps."""
+        for approver in self:
+            approver.write(
+                {
+                    "state": "approved",
+                    "decided_step_ids": [Command.set(approver.step_ids.ids)],
+                },
+            )
 
     def _check_access_create(self, vals_list: list[dict]) -> None:
         if self._skip_check_access():

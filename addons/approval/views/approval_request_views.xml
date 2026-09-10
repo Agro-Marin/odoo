@@ -550,6 +550,14 @@
                                     <field name="sequence" column_invisible="True" />
                                     <field name="user_id" string="Approver" />
                                     <field
+                                        name="step_ids"
+                                        widget="many2many_tags"
+                                        optional="hide" />
+                                    <field
+                                        name="decided_step_ids"
+                                        widget="many2many_tags"
+                                        optional="show" />
+                                    <field
                                         name="is_delegated"
                                         column_invisible="True" />
                                     <field

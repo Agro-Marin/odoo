@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.1.7.0 (matches `__manifest__.py`) |
+| Version | 19.0.1.8.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `automation`, `mixin_report_sql`, `mail` |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -104,7 +104,7 @@ dashboards.
 | `test_subject_conditions.py` | Source-document conditions: `domain` and `field_selection` matching; absent, deleted and other-model source documents; configuration-time path validation; the overlap guard staying threshold-only |
 | `test_binding.py` | `approval.binding`: wrapping and unwrapping, one wrapper per method, Observe and Block, superuser vs `sudo()` elevation, the caller's elevation rather than the binding's, the kill switch, every configuration-time refusal; Request mode — no duplicate while pending, one replay as the requester, no replay after re-approval, no borrowing the approver's rights, no run once the snapshot moved, Block covered by a separately approved request; approve on invoke — an approver's call runs the operation exactly once, a non-approver's only raises the request, one step of two waits; run on approval off leaves the operation to the next call; the ORM-API and private-method refusals, and a stored refused binding left unapplied; a refusal that stands, who may reopen it, and withdrawing across steps |
 | `test_binding_actions.py` | Action bindings: a blocked server action refused on the server — the call web_studio let through — request, replay as the requester and approve-on-invoke on a server action, a report refused and then rendered once covered, the PDF entry point gated too, `is_enforced`, and every constraint on what an action binding may be |
-| `test_binding_client.py` | The approval button's questions: the `get_views` flag, an ungated button, who may decide each step before any call, a check that raises the request and runs nothing, decisions assigned to steps and withdrawn by a later step, a refusal reopened by its refuser only, a record the caller cannot read, an action button |
+| `test_binding_client.py` | The approval button's questions: the `get_views` flag, an ungated button, who may decide each step before any call, a check that raises the request and runs nothing, decisions assigned to steps and withdrawn by a later step, a decision under one step leaving the user's other step open and withdrawn from that step alone, a step of another button refused, a refusal reopened by its refuser only, a record the caller cannot read, an action button |
 | `test_binding_editor.py` | Studio's editor on the engine: the first step binds the button as Studio did, further steps join it up to order nine, an action button named by xmlid, the approvers list keeping delegations, the steps action, a button whose steps are all archived no longer gated |
 | `test_binding_studio_parity.py` | What a Studio rule did, held by steps and bindings, each test naming its Studio test: a record no step applies to is not gated, an exclusive approval counts toward the exclusive step first, an archived step is ignored in any context, a group member decides but only listed members are asked, a step holding decisions is archived not deleted, a binding's target is fixed once it has requests |
 | `test_binding_reset.py` | Coverage reset: the managed automation rule keeps its transition filter across an edit, a record returning to the condition needs approval again, an edit that keeps it there resets nothing, leaving and re-entering is a transition, a second cycle runs on approval again, and the rule goes with the condition or the binding |
@@ -124,6 +124,7 @@ dashboards.
 | `test_attachment_lock.py` | Attachments of a decided request are frozen: create, write, unlink, forged `res_field` |
 | `test_category.py` | Category configuration: approver-list domain helper, sequence-code derivation |
 | `test_category_steps.py` | Steps: two one-of-two steps need one approval from each, per-step quorum, one row per user counting toward every step, exclusivity in both directions, group and expired members, step conditions, refusal, asking steps in order while deciding freely, notify lists, configuration that could never be met, and a category without steps untouched |
+| `test_step_decisions.py` | Decisions given for steps: a named step counts toward that step only, an unnamed decision takes every step of the row, a step decided once per user, a step outside the row refused, exclusivity in both directions, withdrawing one step keeps the other and re-asks, withdrawing the only step withdraws the decision, a step never decided cannot be withdrawn, a refusal naming a step, a reset clearing decided steps, the note naming where the decision counts |
 | `test_ui.py` | Tour-based UI tests; `approval_button_tour`: a gated partner button draws its approvals, is approved from the popover, and the request is approved on the server |
 
 Former `test_audit_regressions.py` and `test_audit_round3_regressions.py`
@@ -218,8 +219,8 @@ approval/
 |   +-- approver_performance.py       # SQL view: approver stats
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 19 script directories (1.0.1 .. 1.0.26)
-+-- tests/                            # 38 test modules + common.py
++-- migrations/                       # 20 script directories (1.0.1 .. 1.8)
++-- tests/                            # 39 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -232,7 +233,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
-| Python test files | 38 (+ `common.py`) |
+| Python test files | 39 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 16 |
@@ -244,7 +245,7 @@ approval/
 | Transient models | 2 |
 | Test-only models | 1 |
 | Cron jobs | 3 |
-| Migration script directories | 19 |
+| Migration script directories | 20 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'

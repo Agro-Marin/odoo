@@ -41,15 +41,15 @@
                         class="btn btn-sm btn-link o_approval_button_withdraw"
                         title="Withdraw"
                         t-att-disabled="!canAct"
-                        t-on-click="() => this.withdraw(decision.approver_id)">
+                        t-on-click="() => this.withdraw(decision.approver_id, step.id)">
                         <i class="fa-solid fa-undo"/>
                     </button>
                 </div>
                 <div t-if="step.can_decide and !isRefused" class="d-flex gap-2 mt-1">
-                    <button class="btn btn-sm btn-success o_approval_button_approve" t-att-disabled="!canAct" t-on-click="() => this.decide(true)">
+                    <button class="btn btn-sm btn-success o_approval_button_approve" t-att-disabled="!canAct" t-on-click="() => this.decide(true, step.id)">
                         <i class="fa-solid fa-check"/> Approve
                     </button>
-                    <button class="btn btn-sm btn-danger o_approval_button_refuse" t-att-disabled="!canAct" t-on-click="() => this.decide(false)">
+                    <button class="btn btn-sm btn-danger o_approval_button_refuse" t-att-disabled="!canAct" t-on-click="() => this.decide(false, step.id)">
                         <i class="fa-solid fa-times"/> Refuse
                     </button>
                 </div>
