@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { EventBus } from "@odoo/owl";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
@@ -19,6 +20,7 @@ for (let id = 1; id <= 12; id++) {
 
 function makeList({ resIds = [], limit = 3 } = {}) {
     const model = {
+        bus: new EventBus(),
         Class: { Record: RelationalRecord, StaticList },
         patchConfig: (config, patch) => Object.assign(config, patch),
         loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),

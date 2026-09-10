@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { markRaw, toRaw } from "@odoo/owl";
+import { ModelEvent } from "@web/core/events";
 import { isX2Many } from "@web/core/field_types";
 import { omit } from "@web/core/utils/collections/objects";
 import { Operation } from "@web/core/utils/operation";
@@ -666,7 +667,8 @@ export class RelationalRecord extends DataPoint {
     }
 
     discardLocked() {
-        return discard(this);
+        discard(this);
+        this.model.bus.trigger(ModelEvent.RECORD_DISCARDED, { recordId: this.id });
     }
 
     displayInvalidFieldNotification() {

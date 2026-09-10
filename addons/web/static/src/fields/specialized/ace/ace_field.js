@@ -4,9 +4,10 @@
 import { useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { colorScheme } from "@web/core/color_scheme";
+import { ModelEvent } from "@web/core/events";
 import { formatText } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
@@ -30,18 +31,33 @@ export class AceField extends FieldComponent {
 
     /** @type {ReturnType<typeof useFieldDirtySignal>} */
     setFieldDirty;
+    /** @type {{ initialValue: string, revision: number }} */
+    state;
 
     setup() {
-        this.state = useState({});
+        this.state = useState({ initialValue: "", revision: 0 });
         this.isDirty = false;
         this.setFieldDirty = useFieldDirtySignal();
         this.notification = useService("notification");
         useRecordObserver((record) => {
             if (this.editedValue === undefined || !this.isDirty) {
-                /** @type {any} */ (this.state).initialValue = this.serialize(
+                this.state.initialValue = this.serialize(
                     fieldHandleFor(record, this.props.name).value,
                 );
             }
+        });
+
+        useBus(this.props.record.model.bus, ModelEvent.RECORD_DISCARDED, (ev) => {
+            if (ev.detail.recordId !== this.props.record.id) {
+                return;
+            }
+            this.isDirty = false;
+            this.editedValue = undefined;
+            this.setFieldDirty(false);
+            this.state.initialValue = this.serialize(this.field.value);
+            // The record value can be unchanged while Ace holds a rejected draft.
+            // Remount its session to discard that draft and its undo history.
+            this.state.revision++;
         });
 
         useFieldFlush(this.props.record.model.bus, (ev) =>
@@ -86,7 +102,7 @@ export class AceField extends FieldComponent {
     }
 
     handleChange(editedValue) {
-        if (/** @type {any} */ (this.state).initialValue !== editedValue) {
+        if (this.state.initialValue !== editedValue) {
             this.isDirty = true;
         } else {
             this.isDirty = false;
@@ -101,7 +117,7 @@ export class AceField extends FieldComponent {
 
     async commitChanges() {
         if (!this.props.readonly && this.isDirty) {
-            if (/** @type {any} */ (this.state).initialValue !== this.editedValue) {
+            if (this.state.initialValue !== this.editedValue) {
                 let value;
                 try {
                     value = this.deserialize(this.editedValue);

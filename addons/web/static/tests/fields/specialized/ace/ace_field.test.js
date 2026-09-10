@@ -11,6 +11,7 @@ import {
     defineModels,
     editAce,
     fields,
+    findComponent,
     models,
     mountView,
     onRpc,
@@ -18,6 +19,7 @@ import {
     preloadBundle,
     preventResizeObserverError,
 } from "@web/../tests/web_test_helpers";
+import { FormController } from "@web/views/form/form_controller";
 
 class Partner extends models.Model {
     _name = "res.partner";
@@ -26,6 +28,7 @@ class Partner extends models.Model {
     foo = fields.Text({ default: "My little Foo Value" });
     settings = fields.Json();
 
+    /** @type {Record<string, any>[]} */
     _records = [
         { id: 1, foo: "yop" },
         { id: 2, foo: "blip" },
@@ -239,4 +242,108 @@ test("invalid JSON in the editor marks the field invalid and blocks the save", a
     await contains(".o_form_button_save").click();
     expect.verifySteps(["web_save"]);
     expect(".o_field_widget[name=settings]").not.toHaveClass("o_field_invalid");
+});
+
+test("discard restores JSON after a rejected save", async () => {
+    Partner._records[0].settings = { original: true };
+    onRpc("web_save", () => expect.step("web_save"));
+    const view = await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `<form><field name="settings" widget="code"/><field name="foo"/></form>`,
+    });
+    const form = findComponent(
+        view,
+        (component) => component instanceof FormController,
+    );
+    if (!form) {
+        throw new Error("FormController was not mounted");
+    }
+    ace.edit(queryOne`.ace_editor`).setValue("{");
+    await animationFrame();
+    expect(await form.save()).toBe(false);
+    await animationFrame();
+    expect(".o_field_widget[name=settings]").toHaveClass("o_field_invalid");
+    await contains(".o_field_widget[name=foo] textarea").edit("also discarded");
+    expect(ace.edit(queryOne`.ace_editor`).getValue()).toBe("{");
+    await contains(".o_form_button_cancel").click();
+    await animationFrame();
+    expect(JSON.parse(ace.edit(queryOne`.ace_editor`).getValue())).toEqual({
+        original: true,
+    });
+    expect(".o_field_widget[name=settings]").not.toHaveClass("o_field_invalid");
+    expect(".o_field_widget[name=foo] textarea").toHaveValue("yop");
+    await contains(".o_field_widget[name=foo] textarea").edit("after discard");
+    await form.save();
+    expect.verifySteps(["web_save"]);
+});
+
+test("repeated invalid JSON saves stay blocked until the original value is restored", async () => {
+    Partner._records[0].settings = { original: true };
+    onRpc("web_save", () => expect.step("web_save"));
+    const view = await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `<form><field name="settings" widget="code"/><field name="foo"/></form>`,
+    });
+    const form = findComponent(
+        view,
+        (component) => component instanceof FormController,
+    );
+    if (!form) {
+        throw new Error("FormController was not mounted");
+    }
+    const original = ace.edit(queryOne`.ace_editor`).getValue();
+    ace.edit(queryOne`.ace_editor`).setValue("{");
+    await animationFrame();
+    expect(await form.save()).toBe(false);
+    expect(await form.save()).toBe(false);
+    await animationFrame();
+    expect.verifySteps([]);
+    expect(".o_field_widget[name=settings]").toHaveClass("o_field_invalid");
+    ace.edit(queryOne`.ace_editor`).setValue(original);
+    await animationFrame();
+    await contains(".o_field_widget[name=foo] textarea").edit("after undo");
+    await form.save();
+    expect.verifySteps(["web_save"]);
+    expect(".o_field_widget[name=settings]").not.toHaveClass("o_field_invalid");
+});
+
+test("invalid JSON prevents a tab-close beacon from saving other edits", async () => {
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
+    onRpc("web_save", () => expect.step("web_save"));
+    await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `<form><field name="foo"/><field name="settings" widget="code"/></form>`,
+    });
+    await contains(".o_field_widget[name=foo] textarea").edit("unsaved");
+    await editAce("{");
+    await unload();
+    await animationFrame();
+    expect.verifySteps([]);
+    expect(".o_field_widget[name=settings]").toHaveClass("o_field_invalid");
+});
+
+test("discard restores a required JSON field even when it remains invalid", async () => {
+    Partner._records[0].settings = {};
+    await mountView({
+        resModel: "res.partner",
+        resId: 1,
+        type: "form",
+        arch: `<form><field name="settings" widget="code" required="1"/></form>`,
+    });
+    ace.edit(queryOne`.ace_editor`).setValue("{");
+    await animationFrame();
+    await contains(".o_form_button_save").click();
+    await contains(".o_form_button_cancel").click();
+    await animationFrame();
+    expect(ace.edit(queryOne`.ace_editor`).getValue()).toBe("{}");
+    expect(".o_field_widget[name=settings]").toHaveClass("o_field_invalid");
 });

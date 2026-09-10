@@ -532,6 +532,7 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `ModelEvent.WILL_SAVE_URGENTLY` | `WILL_SAVE_URGENTLY` | `model.bus` | Urgent-save (tab close) about to run — `model/relational_model/urgent_save_coordinator.js` |
 | `ModelEvent.NEED_LOCAL_CHANGES` | `NEED_LOCAL_CHANGES` | `model.bus` | Ask open editors to commit pending input (`fields/relational/x2many/x2many_field.js`) |
 | `ModelEvent.FIELD_IS_DIRTY` | `FIELD_IS_DIRTY` | `getBus()` | Per-field dirty signal (`fields/field_dirty_signal.js`) |
+| `ModelEvent.RECORD_DISCARDED` | `RECORD_DISCARDED` | `model.bus` | After a record restores its saved values or savepoint; `{ recordId }` lets buffered editors reset only their own draft (`model/relational_model/record.js`) |
 | `ModelEvent.PROPERTY_FIELD_EDIT` | `PROPERTY_FIELD:EDIT` | `model.bus` | Enter property-definition edit mode (`fields/specialized/properties/properties_field.js`) |
 | `ModelEvent.SCROLL_TO_CURRENT_HOUR` | `SCROLL_TO_CURRENT_HOUR` | `model.bus` | Calendar scroll request (`views/calendar/calendar_controller.js`) |
 | `UserEvent.ACTIVE_COMPANIES_CHANGED` | `ACTIVE_COMPANIES_CHANGED` | `userBus` | Allowed-company selection changed (`core/user.js`). Load-bearing for `name_service` cache clearing — see ARCHITECTURE.md |

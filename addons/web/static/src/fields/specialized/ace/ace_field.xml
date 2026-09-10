@@ -4,6 +4,7 @@
     <t t-name="web.AceField">
         <div class="o_field_widget oe_form_field o_ace_view_editor oe_ace_open">
             <CodeEditor
+                t-key="state.revision"
                 value="state.initialValue"
                 mode="mode"
                 readonly="props.readonly"
