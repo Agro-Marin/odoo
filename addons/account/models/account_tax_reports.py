@@ -72,9 +72,7 @@ class AccountTaxUnit(models.Model):
         )
         generic_tax_report_tax_account.horizontal_group_ids |= horizontal_groups
 
-        generic_ec_sales_report = self.env.ref(
-            "account.generic_ec_sales_report"
-        )
+        generic_ec_sales_report = self.env.ref("account.generic_ec_sales_report")
         generic_ec_sales_report.horizontal_group_ids |= horizontal_groups
 
         for tax_unit in res:

@@ -508,9 +508,9 @@ class AccountDeferredReportHandler(models.AbstractModel):
             # This will trigger a second _get_lines call, however the first one was cached, so we just need to filter again on the cache (see _get_lines)
             moves_lines_to_generate, __, __, __, __ = self._get_moves_to_defer(options)
             if moves_lines_to_generate and already_generated:
-                warnings[
-                    "account.deferred_report_warning_partially_generated"
-                ] = {"alert_type": "warning"}
+                warnings["account.deferred_report_warning_partially_generated"] = {
+                    "alert_type": "warning"
+                }
             elif moves_lines_to_generate:
                 warnings["account.deferred_report_warning_never_generated"] = {
                     "alert_type": "warning"

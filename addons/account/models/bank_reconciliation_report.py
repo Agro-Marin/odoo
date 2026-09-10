@@ -901,9 +901,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         """
         general_ledger_action = self.env[
             "ir.actions.actions"
-        ]._get_action_dict_by_xml_id(
-            "account.action_account_report_general_ledger"
-        )
+        ]._get_action_dict_by_xml_id("account.action_account_report_general_ledger")
         general_ledger_action["params"] = {
             "options": options,
             "ignore_session": True,

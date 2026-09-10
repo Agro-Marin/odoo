@@ -33,9 +33,7 @@ class CustomerStatementCustomHandler(models.AbstractModel):
             ] = "account.pdf_export_main_customer_report"
 
     def action_send_statements(self, options):
-        template = self.env.ref(
-            "account.email_template_customer_statement", False
-        )
+        template = self.env.ref("account.email_template_customer_statement", False)
         partners = self.env["res.partner"].browse(options.get("partner_ids", []))
         return {
             "name": _("Send %s Statement", partners.name)

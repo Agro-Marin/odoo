@@ -108,9 +108,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
         line_to_adjust_id = self.env.ref(
             "account.multicurrency_revaluation_to_adjust"
         ).id
-        line_excluded_id = self.env.ref(
-            "account.multicurrency_revaluation_excluded"
-        ).id
+        line_excluded_id = self.env.ref("account.multicurrency_revaluation_excluded").id
 
         rslt = []
         for index, line in enumerate(lines):
@@ -191,9 +189,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
 
         general_ledger_action = self.env[
             "ir.actions.actions"
-        ]._get_action_dict_by_xml_id(
-            "account.action_account_report_general_ledger"
-        )
+        ]._get_action_dict_by_xml_id("account.action_account_report_general_ledger")
         general_ledger_action["params"] = {
             "options": general_ledger_options,
             "ignore_session": True,

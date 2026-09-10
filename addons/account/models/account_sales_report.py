@@ -329,28 +329,24 @@ class AccountEcSalesReportHandler(models.AbstractModel):
 
                 if warnings is not None:
                     if row["country_code"] not in self._get_ec_country_codes(options):
-                        warnings[
-                            "account.sales_report_warning_non_ec_country"
-                        ] = {"alert_type": "warning"}
+                        warnings["account.sales_report_warning_non_ec_country"] = {
+                            "alert_type": "warning"
+                        }
                     elif not row.get("vat_number"):
                         warnings["account.sales_report_warning_missing_vat"] = {
                             "alert_type": "warning"
                         }
                     if row.get("same_country") and row["country_code"]:
-                        warnings[
-                            "account.sales_report_warning_same_country"
-                        ] = {"alert_type": "warning"}
+                        warnings["account.sales_report_warning_same_country"] = {
+                            "alert_type": "warning"
+                        }
                     if duplicated_vat:
-                        if warnings.get(
-                            "account.sales_report_warning_duplicated_vat"
-                        ):
-                            warnings[
-                                "account.sales_report_warning_duplicated_vat"
-                            ]["duplicated_partners_vat"].append(vat)
+                        if warnings.get("account.sales_report_warning_duplicated_vat"):
+                            warnings["account.sales_report_warning_duplicated_vat"][
+                                "duplicated_partners_vat"
+                            ].append(vat)
                         else:
-                            warnings[
-                                "account.sales_report_warning_duplicated_vat"
-                            ] = {
+                            warnings["account.sales_report_warning_duplicated_vat"] = {
                                 "alert_type": "warning",
                                 "duplicated_partners_vat": [vat],
                             }

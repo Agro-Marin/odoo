@@ -175,9 +175,7 @@ class AccountReturnType(models.Model):
     @api.depends("report_id")
     def _compute_report_return_type(self):
         tax_report = self.env.ref("account.generic_tax_report")
-        generic_ec_sales_report = self.env.ref(
-            "account.generic_ec_sales_report"
-        )
+        generic_ec_sales_report = self.env.ref("account.generic_ec_sales_report")
         for record in self:
             report = record.report_id
             record.is_tax_return_type = report and tax_report in (
@@ -1659,9 +1657,7 @@ class AccountReturn(models.Model):
         audit_action = (
             self.with_context(active_id=self.id, active_model=self._name)
             .env["ir.actions.act_window"]
-            ._get_action_dict_by_xml_id(
-                "account.action_view_account_audit_checks"
-            )
+            ._get_action_dict_by_xml_id("account.action_view_account_audit_checks")
         )
         return {
             **audit_action,
@@ -3854,9 +3850,7 @@ class AccountReturnCheck(models.Model):
 
     def _get_evaluation_context(self):
         def generate_journals_options():
-            options = self.env.ref("account.trial_balance_report").get_options(
-                {}
-            )
+            options = self.env.ref("account.trial_balance_report").get_options({})
             journals = options.get("journals", [])
             for journal in journals:
                 if journal["model"] == "account.journal":
