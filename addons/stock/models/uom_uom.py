@@ -75,7 +75,7 @@ class UomUom(models.Model):
                     raise UserError(error_msg)
         return super().write(vals)
 
-    def _adjust_uom_quantities(self, qty, quant_uom):
+    def _get_procurement_qty_and_uom(self, qty, quant_uom):
         get_param = self.env["ir.config_parameter"].sudo().get_param
         if get_param("stock.propagate_uom") == "1":
             return (qty, self)

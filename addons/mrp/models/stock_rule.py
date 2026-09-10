@@ -88,7 +88,7 @@ class StockRule(models.Model):
                     quant_uom = bom_line.product_id.uom_id
                     values = dict(procurement.values, bom_line_id=bom_line.id)
                     component_qty, procurement_uom = (
-                        bom_line_uom._adjust_uom_quantities(
+                        bom_line_uom._get_procurement_qty_and_uom(
                             bom_line_data["qty"], quant_uom
                         )
                     )

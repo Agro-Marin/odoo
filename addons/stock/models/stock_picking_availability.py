@@ -250,7 +250,7 @@ class StockPickingAvailability(models.Model):
                         }
                         for late_move in picking.move_ids.filtered(
                             lambda m: m.date_delay_alert,
-                        ).move_orig_ids._delay_alert_get_documents()
+                        ).move_orig_ids._get_delay_alert_documents()
                     ],
                 },
             )

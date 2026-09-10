@@ -414,7 +414,7 @@ class StockPickingBatch(models.Model):
         return res
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_if_not_done(self):
+    def _unlink_except_done(self):
         if any(batch.state == "done" for batch in self):
             raise UserError(_("You cannot delete Done batch transfers."))
 

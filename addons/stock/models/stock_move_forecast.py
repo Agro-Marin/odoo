@@ -195,7 +195,7 @@ class StockMoveForecast(models.Model):
             else:
                 move.date_delay_alert = False
 
-    def _delay_alert_get_documents(self):
+    def _get_delay_alert_documents(self):
         return list(self.mapped("picking_id"))
 
     def _filtered_availability_relevant(self):

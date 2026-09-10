@@ -421,7 +421,7 @@ class SaleOrderLine(models.Model):
 
             line_uom = line.product_uom_id
             quant_uom = line.product_id.uom_id
-            procurement_qty, procurement_uom = line_uom._adjust_uom_quantities(
+            procurement_qty, procurement_uom = line_uom._get_procurement_qty_and_uom(
                 procurement_qty,
                 quant_uom,
             )

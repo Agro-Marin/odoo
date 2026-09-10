@@ -241,8 +241,8 @@ class StockPicking(models.Model):
             )
         return action
 
-    def _less_quantities_than_expected_add_documents(self, moves, documents):
-        documents = super()._less_quantities_than_expected_add_documents(
+    def _add_less_quantities_than_expected_documents(self, moves, documents):
+        documents = super()._add_less_quantities_than_expected_documents(
             moves, documents
         )
 

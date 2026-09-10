@@ -805,8 +805,8 @@ class StockMove(models.Model):
         else:
             return super()._get_upstream_documents_and_responsibles(visited)
 
-    def _delay_alert_get_documents(self):
-        res = super()._delay_alert_get_documents()
+    def _get_delay_alert_documents(self):
+        res = super()._get_delay_alert_documents()
         productions = self.raw_material_production_id | self.production_id
         return res + list(productions)
 

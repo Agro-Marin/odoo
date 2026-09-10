@@ -149,10 +149,10 @@ class StockPickingBackorder(models.Model):
             "DOWN",
             get_picking_responsible_key,
         )
-        documents = self._less_quantities_than_expected_add_documents(moves, documents)
+        documents = self._add_less_quantities_than_expected_documents(moves, documents)
         self._log_activity(_render_note_exception_quantity, documents)
 
-    def _less_quantities_than_expected_add_documents(self, moves, documents):
+    def _add_less_quantities_than_expected_documents(self, moves, documents):
         return documents
 
     def _get_without_quantities_error_message(self):

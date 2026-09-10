@@ -499,7 +499,7 @@ class PurchaseOrderLine(models.Model):
         if self.product_uom_id.compare(qty_to_attach, 0.0) > 0:
             qty_to_push = self.product_qty - move_dests_initial_demand
             product_uom_qty, product_uom_id = (
-                self.product_uom_id._adjust_uom_quantities(
+                self.product_uom_id._get_procurement_qty_and_uom(
                     qty_to_attach,
                     self.product_id.uom_id,
                 )
@@ -515,7 +515,7 @@ class PurchaseOrderLine(models.Model):
 
         if not self.product_uom_id.is_zero(qty_to_push):
             product_uom_qty, product_uom_id = (
-                self.product_uom_id._adjust_uom_quantities(
+                self.product_uom_id._get_procurement_qty_and_uom(
                     qty_to_push,
                     self.product_id.uom_id,
                 )
