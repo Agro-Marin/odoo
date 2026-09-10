@@ -19,8 +19,20 @@ from _repo_root import find_odoo_root
 ROOT = find_odoo_root(Path(__file__).resolve())
 SCAN_ROOTS = ("odoo", "addons")
 
+# `_vendor` is how this workspace spells a vendored tree (`addons/auth_passkey/_vendor`,
+# `odoo/libs/_vendor`); `vendored` matched nothing and eleven WebAuthn attestation
+# verifiers under `_vendor/webauthn` were one widening away from being banked as ours.
 SKIP_DIRS = frozenset(
-    {".git", "node_modules", "__pycache__", ".mypy_cache", "static", "lib", "vendored"}
+    {
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".mypy_cache",
+        "static",
+        "lib",
+        "vendored",
+        "_vendor",
+    }
 )
 
 PAYLOAD_SUFFIXES = (
@@ -36,18 +48,58 @@ PAYLOAD_SUFFIXES = (
 )
 
 READ_CANONICAL = "_get_"
+PAYLOAD_CANONICAL = "_prepare_"
 
-# The bool is not "abolished only when payload-suffixed" -- every verb here is
-# abolished unconditionally. It says the canonical DEPENDS on the payload test:
-# the four assemble verbs take _prepare_ when the name carries a payload suffix
-# and READ_CANONICAL when it does not, which is §2.4.3's Payload row and Read
-# row deciding between themselves. Reading it as a reach test is what let
-# _make_access_error and twenty like it past the gate.
+# Verb -> (canonical, payload_choice). The canonical is the row's spelling when
+# the name carries no payload suffix; where payload_choice is True and the name
+# ends in one, the Payload row wins and the canonical is `_prepare_`. That is
+# §2.4.3's Payload row and Read row deciding between themselves for the assemble
+# verbs (`_build_url` -> `_get_`, `_build_invoice_vals` -> `_prepare_`), and the
+# reserved `_sync_` and the Payload row deciding for `synchronize`
+# (`_synchronize_crons` -> `_sync_`, `_synchronize_partner_values` ->
+# `_prepare_`). Every verb here is abolished unconditionally; the bool never
+# decides whether the verb is seen, only which row it lands on. Reading it as a
+# reach test is what let `_make_access_error` and twenty like it past the gate.
+#
+# The second block is §2.4.20: the table read as families rather than as a word
+# list. Each is a word the guide's table does not print whose bodies satisfy one
+# of its rows, and each was a core-only reading in `naming_core_vocabulary.
+# SYNONYMS` until the addon floors had been read against it -- they have been,
+# one repository at a time, and the counts are in the commit that moved them.
+# The canonical printed for a synonym is §2.4.8's hypothesis, not a verdict:
+# `detect` is the Predicate row where the body answers a question (`mail`'s six
+# all were) and the Read row where it returns what it found, and only the body
+# says which.
+#
+# What is NOT here is argued as much as what is, because a synonym table nobody
+# can see the edge of is a word list again:
+#
+# * `refresh` has two reserved senses in `addons/` that a name cannot separate
+#   from §2.4.17's cache verb: an OAuth *refresh token* (`google_account`,
+#   `microsoft_account`, both calendars) and `REFRESH MATERIALIZED VIEW`
+#   (`mixin_report_sql`). Core holds it as a synonym at a hard zero because
+#   core's population has neither; this table cannot.
+# * `find`, `filter`, `collect`, `gather` and `complete` need the body.
+#   §2.4.11 keeps `_find_` out of this table in as many words (an ORM read
+#   that also writes is `_get_or_create_`, a derivation is `_get_`); `_filter_`
+#   is §2.4.22's `_filtered_` only where the return is the receiver reshaped;
+#   a collector is the Read row only when it owns its return; `complete` is
+#   three operations. `naming_core_vocabulary` reads the body for the first
+#   four at its governed scopes, and that is where they are gated.
+# * `emit` is `logging.Handler.emit`, `reap` and `probe` are terms of art from
+#   a layer below -- §2.4.3's reserved-not-abolished terms.
+# * `locate` reads 0 in every addon tree (mail's `_locate_unfollow_block` was
+#   renamed by hand) and 5 in core, where `locate_node` is the view-inheritance
+#   spec resolver in three modules. A row with no addon population and a core
+#   population nobody has read is not a tightening; it is five allowlist entries.
 ABOLISHED: dict[str, tuple[str, bool]] = {
-    "build": ("_prepare_", True),
-    "make": ("_prepare_", True),
-    "compose": ("_prepare_", True),
-    "construct": ("_prepare_", True),
+    "build": (READ_CANONICAL, True),
+    "make": (READ_CANONICAL, True),
+    "compose": (READ_CANONICAL, True),
+    "construct": (READ_CANONICAL, True),
+    "assemble": (READ_CANONICAL, True),
+    "craft": (READ_CANONICAL, True),
+    "forge": (READ_CANONICAL, True),
     "fetch": ("_get_", False),
     "retrieve": ("_get_", False),
     "obtain": ("_get_", False),
@@ -66,6 +118,18 @@ ABOLISHED: dict[str, tuple[str, bool]] = {
     "interpret": ("_read_", False),
     "derive": ("_read_", False),
     "sniff": ("_guess_", False),
+    # §2.4.20
+    "populate": ("_update_", False),
+    "tweak": ("_update_", False),
+    "prune": ("_remove_", False),
+    "sweep": ("_remove_", False),
+    "seed": ("_create_", False),
+    "scan": ("_read_", False),
+    "detect": ("_is_", False),
+    "determine": ("_get_", False),
+    "calculate": ("_get_", False),
+    "synchronize": ("_sync_", True),
+    "synchronise": ("_sync_", True),
 }
 
 RESERVED = {
@@ -210,26 +274,34 @@ def classify(name: str) -> tuple[str, str] | None:
     canonical, payload_choice = entry
     if name.endswith("_domain"):
         return verb, "_domain_"
-    if payload_choice and not name.endswith(PAYLOAD_SUFFIXES):
-        return verb, READ_CANONICAL
+    if payload_choice and name.endswith(PAYLOAD_SUFFIXES):
+        return verb, PAYLOAD_CANONICAL
     return verb, canonical
+
+
+PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
 
 
 def infix_abolished_verb(name: str) -> str | None:
     if classify(name) is not None:
         return None
     tokens = name.lstrip("_").split("_")
+    # §2.4.20: a predicate does not perform the operation its tail names, it
+    # answers a question ABOUT it, so behind `is_` / `has_` / `can_` / `should_`
+    # there is no hidden verb -- `can_scan_identity` asks whether a cache admits
+    # an identity scan. The core gate carried this carve-out for its synonym
+    # table; it moves here with the words.
+    if tokens[0] in PREDICATE_PREFIXES:
+        return None
     for token in tokens[1:-1]:
-        entry = ABOLISHED.get(token)
-        if entry is None:
+        if token not in ABOLISHED:
             continue
         # Deliberately narrower than classify(): an assemble verb behind a noun
         # is only read as a verb when the payload suffix agrees. §2.4.4 owns
         # this population and calls it a candidate list, not a defect list --
         # most infix tokens belong to a field name (_compute_auto_delete_keep_log)
         # rather than to an operation, and nothing here can tell the two apart.
-        _canonical, payload_choice = entry
-        if payload_choice and not name.endswith(PAYLOAD_SUFFIXES):
+        if token in ASSEMBLE_VERBS and not name.endswith(PAYLOAD_SUFFIXES):
             continue
         return token
     return None
@@ -286,7 +358,11 @@ _ORM_READ_CALLS = frozenset(
 _RENDER_DISPATCH_PREFIX = "_render_qweb_"
 _RENDER_DISPATCH_KEYS = ("_render_qweb_html", "_render_qweb_pdf", "_render_qweb_text")
 
-_ASSEMBLE_VERBS = frozenset({"build", "make", "compose", "construct"})
+ASSEMBLE_VERBS = frozenset(
+    verb
+    for verb, (canonical, payload) in ABOLISHED.items()
+    if payload and canonical == READ_CANONICAL
+)
 _FIND_OR_CREATE = re.compile(r"find_or_create(_|$)")
 _GET_OR_CREATE = re.compile(r"get_or_create(_|$)")
 _ORM_WRITE_CALLS = frozenset({"create", "write", "unlink"})
@@ -458,6 +534,8 @@ EXEC_VERBS = frozenset({"do", "run", "perform", "execute", "process", "handle"})
 
 
 def family_of(verb: str) -> str | None:
+    if verb in ASSEMBLE_VERBS:
+        return PAYLOAD_CANONICAL
     entry = ABOLISHED.get(verb)
     if entry is not None:
         return entry[0]
@@ -632,7 +710,7 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
                 if item.name.startswith(_RENDER_DISPATCH_PREFIX):
                     render_prefixed += 1
                 if (
-                    _stem.partition("_")[0] in _ASSEMBLE_VERBS
+                    _stem.partition("_")[0] in ASSEMBLE_VERBS
                     and _stem.partition("_")[2]
                 ):
                     assemble_seen += 1
@@ -778,22 +856,35 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
 # §2.4.13 gives the vocabulary three populations this gate could not see. It
 # governs "every function in the core package `odoo/`, at module level and on
 # plain classes alike", and in an addon it governs "the module's own helpers
-# too" -- a function declared at module level under `models/` or `wizard/`, a
-# method on a plain class in the same file, and a function nested inside either.
-# `measure()` implemented the scope as a class-membership test, so all three
-# were counted by `census()` and gated by nothing; the section says so in as
-# many words, and adds that the nested one is the largest and the cheapest to
-# repair, a nested `def` having no binding, no override and no call site outside
-# the body that declares it.
+# too" -- a function declared at module level, a method on a plain class in the
+# same file, and a function nested inside either. `measure()` implemented the
+# scope as a class-membership test, so all three were counted by `census()` and
+# gated by nothing.
+#
+# The directory list that the first widening introduced stopped at `models/`
+# and `wizard/`, and §2.4.13 records what that cost: a controller class derives
+# from `http.Controller`, so `is_model_class` was false for it and its directory
+# was in no list, and every route handler and every helper under an addon's
+# `controllers/`, `tools/`, `report/` and `utils/` was in the population of
+# nothing. Measured over EVERY directory of an addon the hole was 243
+# definitions, 75 of them under directories no earlier scan had thought to
+# name -- which is the argument for a rule with no list in it. The discriminator
+# is a `__manifest__.py` above the file, which is what makes a directory an
+# addon and what the core package has none of.
+#
+# Migration scripts are governed. §2.4.13 recorded that the two gates answered
+# that question differently by mechanism rather than by decision -- this one
+# reached 318 migration files and governed none of their 500 functions, while
+# `naming_core_vocabulary` reads every function at a governed scope and had
+# already renamed one. A helper in an upgrade script is this repository's code,
+# is reviewed like any other, and has no binding a rename could miss, so the
+# cheaper answer is also the consistent one.
 #
 # The core package is deliberately NOT widened here. `naming_core_vocabulary.py`
 # already reads every function under `odoo/odoo/` on sharper rules and holds a
 # hard zero with an argued allowlist, so widening this gate over the same tree
 # would ask one question twice and answer it two ways -- `append_paths` is the
 # case in point, a name §2.4.13 argues is correct and that gate allowlists.
-# `__manifest__.py` is what tells the two apart, being exactly what makes a
-# directory an addon and exactly what the core package has none of.
-ADDON_HELPER_DIRS = frozenset({"models", "wizard", "wizards"})
 
 
 @functools.cache
@@ -807,9 +898,7 @@ def _is_addon_directory(directory: Path) -> bool:
 def governs_module_helpers(path: Path) -> bool:
     if path.is_relative_to(ROOT / "odoo"):
         return False
-    return bool(ADDON_HELPER_DIRS & set(path.parts)) and _is_addon_directory(
-        path.parent
-    )
+    return _is_addon_directory(path.parent)
 
 
 def _module_scope_defs(

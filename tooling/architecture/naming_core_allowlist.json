@@ -7,7 +7,6 @@
     "append_paths": "reserved -- both halves of the _append_ reservation hold: an ordered list, and an addition at its end, beside an insert_paths that takes the index",
     "ensure_db_endpoint": "noun -- ensure_db is the route flag declared in addons/web, not a verb",
     "register_ensure_db_paths": "noun -- as ensure_db_endpoint",
-    "is_ensure_db_path": "noun -- as ensure_db_endpoint",
     "remove_control_characters": "noun -- a control character is a character",
     "_read_group_fill_temporal": "noun -- fill_temporal is a read_group parameter and a context key",
     "_read_group_fill_temporal_bound": "noun -- as _read_group_fill_temporal",

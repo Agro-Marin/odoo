@@ -112,13 +112,15 @@ CORE = ROOT / "odoo"
 # `GOVERNED_ADDONS` has in every other `--addon` gate: a scope nobody has read
 # measures cleanly and is pinned by nothing.
 #
-# `web` is the second, and it is here for a reason `stock` did not have: the
-# sibling gate reads model classes, plus module-level and nested definitions
-# under an addon's `models/` and `wizard/`. `addons/web` is twenty-four
-# CONTROLLER files, and `nv.ADDON_HELPER_DIRS` does not name `controllers`, so
-# more than half of this addon was in no gate's population at any scope. Its
-# floor of zero was not a swept tree, it was an unread one -- §2.4.13's "the
-# wrong gate reading 0" with the population missing rather than merely thin.
+# `web` is the second, and it is here for a reason `stock` did not have: when
+# it landed the sibling gate read model classes, plus module-level and nested
+# definitions under an addon's `models/` and `wizard/` only. `addons/web` is
+# twenty-four CONTROLLER files, and no list named `controllers`, so more than
+# half of this addon was in no gate's population at any scope. Its floor of
+# zero was not a swept tree, it was an unread one -- §2.4.13's "the wrong gate
+# reading 0" with the population missing rather than merely thin. The sibling
+# now governs every file under a manifest, so that hole is closed on the
+# spelling rules; what still needs this row is the body-reading half.
 #
 # `sale` is the third, and its seven findings are the cleanest statement of what
 # the sibling gate cannot ask. `naming_vocabulary.py --roots addons/sale --count`
@@ -311,12 +313,11 @@ FRAMEWORK = CORE / "tests"
 ALLOWLIST = Path(__file__).with_name("naming_core_allowlist.json")
 
 # §2.4.3's Payload row prints four verbs; the operation has more spellings than
-# the row has entries. `assemble`, `craft` and `forge` name the same act under a
-# word nobody listed, so they are read here on the same terms as the four -- flagged
-# whatever the tail, and flagged bare.
-ASSEMBLE = frozenset(
-    {"build", "make", "compose", "construct", "assemble", "craft", "forge"}
-)
+# the row has entries. `assemble`, `craft` and `forge` were read here first and
+# now sit in the shared table beside the four, on the same terms -- flagged
+# whatever the tail, `_prepare_` under a payload suffix and `_get_` otherwise.
+# The bare form is still this gate's alone (`classify_name` below).
+ASSEMBLE = nv.ASSEMBLE_VERBS
 
 # §2.4.20: read the table as families, not as a word list. `naming_vocabulary.py`
 # matches the literal token by construction, so a row's entry can drain to zero
@@ -325,19 +326,25 @@ ASSEMBLE = frozenset(
 # not print whose body satisfies one of its rows; the value is that row's
 # canonical and the reason, which is what the renamer needs and the count is not.
 #
-# This table is a core-only reading and belongs here rather than in the shared
-# `ABOLISHED`: the addon floor would move by names nobody has looked at, which is
-# the same argument the assemble verbs are carved out on. What is NOT here is as
-# argued as what is:
+# This table held ten words as a core-only reading until the addon floors had
+# been read against them -- the argument was that the shared table would move
+# by names nobody had looked at. They have been looked at, one repository at a
+# time, and `populate`, `prune`, `sweep`, `seed`, `scan`, `detect`, `determine`,
+# `tweak` and both spellings of `synchronize` are `nv.ABOLISHED` rows now,
+# reported by `classify_name` as `leading` like any other. What stays here is
+# the one the shared table refuses, and what is NOT in either is as argued as
+# what is:
 #
-# * `determine` is §2.4.20's own example and is left out, because core's
-#   population is not the derivation the section describes -- `Field.determine*`
-#   dispatches a hook by name or callable, which is a §2.4.9 question, and §2.4.9
-#   is provisional and says no mechanical rewrite exists.
-# * `collect` and `emit` need a discriminator this gate does not have. Most of
+# * `refresh` is §2.4.17's cache verb in core and only there. In `addons/` the
+#   same word is an OAuth *refresh token* (`google_account`, `microsoft_account`,
+#   both calendars) and `REFRESH MATERIALIZED VIEW` (`mixin_report_sql`), two
+#   reserved senses a name cannot separate from the cache one, so the shared
+#   table would print a wrong canonical for half its population.
+# * `collect` and `emit` need a discriminator this table does not have. Most of
 #   core's `collect_*` accumulate into a caller's container and return nothing,
-#   which is not the Read row; `emit` is `logging.Handler.emit`, and an override
-#   whose name is the contract is a rename that silently unhooks it.
+#   which is not the Read row -- `accumulate` below reads the body for it;
+#   `emit` is `logging.Handler.emit`, and an override whose name is the
+#   contract is a rename that silently unhooks it.
 # * `reap` and `probe` are terms of art from a layer below, on §2.4.3's
 #   "reserved, not abolished" terms: `reap` is the POSIX wait-for-a-child, and
 #   `probe` is a named subsystem in `odoo/db/`.
@@ -354,52 +361,9 @@ ASSEMBLE = frozenset(
 #   entry whose canonical is a coin flip is a word list again, which is what the
 #   paragraph above this list exists to refuse.
 SYNONYMS: dict[str, tuple[str, str]] = {
-    "populate": ("_update_", "populating is filling -- the Mutation row"),
-    "prune": ("_remove_", "pruning is purging -- the Removal row"),
-    "sweep": ("_remove_", "sweeping is purging -- the Removal row"),
-    "seed": ("create", "seeding is creating"),
-    "scan": ("_get_ or _read_", "reading a source and returning what is in it"),
-    "detect": (
-        "_is_ / _has_, or _get_",
-        (
-            "detecting is answering a question about the subject, which is the "
-            "Predicate row, or returning what was found, which is the Read row "
-            "-- the word names neither and the body picks. `mail`'s six were "
-            "all the first, and `_detect_is_bounce` carried the Predicate "
-            "row's own prefix INSIDE its tail, which is the tell: a name that "
-            "has to say `is` in the middle is a predicate wearing a verb in "
-            "front. Free in every scope governed when it landed"
-        ),
-    ),
-    "determine": (
-        "_get_ or the operation itself",
-        (
-            "determining is deciding, which every method does -- take the Read "
-            "row where it returns the value and §2.4.9's domain operation "
-            "where it performs one"
-        ),
-    ),
     "refresh": (
         "_reset_ / _invalidate_ / _rebuild_",
         "names neither the drop nor the rebuild, which is what §2.4.17 exists to say",
-    ),
-    "tweak": (
-        "_update_",
-        "tweaking is writing to the object -- the Mutation row, hedged",
-    ),
-    "synchronize": (
-        "_sync_ where it converges, _prepare_ where it returns the values",
-        (
-            "§2.4.3 reserves `_sync_` for convergence on a source of truth "
-            "elsewhere, and the long spelling is mostly that operation -- the "
-            "census counts `_sync_*` at 76 against `_synchronize_*` at 7, which "
-            "is the duplicate report. But read the body first: three of the "
-            "eight in this workspace RETURN a values dict and write nothing "
-            "(`_synchronize_partner_values`, `_synchronize_so_line_values`, "
-            "`_synchronize_publisher_values`), which is the Payload row and not "
-            "the reservation. A `_sync_` there would be the reservation losing "
-            "to the synonym table"
-        ),
     ),
 }
 
@@ -930,7 +894,7 @@ def performs_orm_write(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 # question ABOUT it -- so the verb behind one of these is the subject and not a
 # §2.4.4 hiding place. `can_scan_identity` asks whether a field's cache admits an
 # identity scan; renaming its middle token would be renaming the question.
-PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
+PREDICATE_PREFIXES = nv.PREDICATE_PREFIXES
 
 
 def _is_abstract_raise(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -1325,9 +1289,9 @@ def trailing_abolished_verb(name: str) -> tuple[str, str] | None:
     if token in ASSEMBLE:
         return token, "_prepare_* or _get_*"
     if (entry := nv.ABOLISHED.get(token)) is not None:
-        canonical, payload_only = entry
-        if payload_only:
-            return token, "_prepare_* or _get_*"
+        canonical, payload_choice = entry
+        if payload_choice:
+            return token, f"{canonical}* or {nv.PAYLOAD_CANONICAL}*"
         return token, f"{canonical}*"
     if (synonym := SYNONYMS.get(token)) is not None:
         return token, synonym[0]

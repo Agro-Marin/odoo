@@ -179,6 +179,68 @@ def test_the_payload_suffix_chooses_an_assemble_verbs_canonical_not_its_reach():
     assert classify("_make_line_values") == ("make", "_prepare_")
     assert classify("_build_url") == ("build", "_get_")
     assert classify("_compose_email") == ("compose", "_get_")
+    assert classify("_assemble_registry") == ("assemble", "_get_")
+    assert classify("_craft_line_vals") == ("craft", "_prepare_")
+
+
+def test_synchronize_lands_on_the_reservation_or_the_payload_row():
+    # §2.4.3 reserves `_sync_` for convergence on a source of truth elsewhere,
+    # and three of the workspace's eight `_synchronize_*` RETURN a values dict
+    # and write nothing -- the Payload row, which the suffix is what says.
+    assert classify("_synchronize_crons") == ("synchronize", "_sync_")
+    assert classify("_synchronise_state_and_active") == ("synchronise", "_sync_")
+    assert classify("_synchronize_partner_values") == ("synchronize", "_prepare_")
+
+
+@pytest.mark.parametrize(
+    ("name", "canonical"),
+    [
+        ("_populate_lines", "_update_"),
+        ("_tweak_recipients", "_update_"),
+        ("_prune_versions", "_remove_"),
+        ("_sweep_stale_rows", "_remove_"),
+        ("_seed_catalog_weights", "_create_"),
+        ("_scan_network", "_read_"),
+        ("_detect_is_bounce", "_is_"),
+        ("_determine_next_page", "_get_"),
+        ("_calculate_distance", "_get_"),
+    ],
+)
+def test_the_synonyms_of_a_row_are_flagged_with_the_rows_canonical(name, canonical):
+    # §2.4.20: the table is families, not a word list. These were core-only
+    # readings until the addon floors were read against them.
+    assert classify(name) == (name.lstrip("_").partition("_")[0], canonical)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "_refresh_google_token",
+        "_find_available_name",
+        "_filter_overdue_amls",
+        "_collect_qty_changes",
+        "_complete_quest",
+        "emit",
+        "locate_node",
+    ],
+)
+def test_the_words_the_table_declines_stay_out(name):
+    # Argued in the ABOLISHED comment: two reserved senses of `refresh` in
+    # addons/, and five words whose row only the body can pick.
+    assert classify(name) is None
+
+
+def test_an_infix_synonym_is_a_candidate_like_an_infix_abolished_verb():
+    from naming_vocabulary import infix_abolished_verb
+
+    assert infix_abolished_verb("_action_populate_lines") == "populate"
+    assert infix_abolished_verb("_cron_synchronize_partners") == "synchronize"
+    # The assemble verbs keep §2.4.4's narrower reading behind a noun.
+    assert infix_abolished_verb("_report_build_lines") is None
+    assert infix_abolished_verb("_report_build_vals") == "build"
+    # §2.4.20: a predicate prefix suspends the infix rule.
+    assert infix_abolished_verb("can_scan_identity") is None
+    assert infix_abolished_verb("is_refresh_due") is None
 
 
 def test_a_bare_assemble_verb_stays_out_of_this_gate():
@@ -431,9 +493,36 @@ def _addon(tmp_path, subdir="models", manifest=True):
     return module
 
 
-@pytest.mark.parametrize("subdir", ["models", "wizard", "wizards"])
-def test_an_addon_helper_file_is_governed_in_all_three_directories(tmp_path, subdir):
+@pytest.mark.parametrize(
+    "subdir",
+    ["models", "wizard", "wizards", "controllers", "tools", "report", "utils"],
+)
+def test_an_addon_helper_file_is_governed_in_every_directory(tmp_path, subdir):
     assert governs_module_helpers(_addon(tmp_path, subdir) / subdir / "widget_line.py")
+
+
+def test_a_helper_directly_under_the_addon_is_governed(tmp_path):
+    module = tmp_path / "widget"
+    module.mkdir()
+    (module / "__manifest__.py").write_text("{'name': 'widget'}\n")
+    (module / "utils.py").write_text("def validate_thread(token):\n    pass\n")
+    assert governs_module_helpers(module / "utils.py")
+    assert [v.name for v in measure([module])] == ["validate_thread"]
+
+
+def test_a_migration_script_is_governed(tmp_path):
+    # §2.4.13 recorded that the two gates answered this differently by
+    # mechanism; this pins the decision that a helper in an upgrade script is
+    # this repository's code like any other.
+    module = _addon(tmp_path, "migrations/1.2")
+    assert governs_module_helpers(module / "migrations" / "1.2" / "widget_line.py")
+
+
+def test_a_vendored_tree_is_skipped_under_its_real_name(tmp_path):
+    # `vendored` matched no directory in the workspace; `_vendor` is the spelling
+    # `addons/auth_passkey/_vendor` uses, and its WebAuthn verifiers are not ours.
+    module = _addon(tmp_path, "_vendor/webauthn")
+    assert measure([module]) == []
 
 
 def test_all_three_uncounted_populations_are_measured(tmp_path):
@@ -577,10 +666,16 @@ def test_a_definition_is_counted_once_however_deeply_nested(tmp_path):
     assert [v.name for v in measure([module])] == ["_retrieve_bucket"]
 
 
-def test_a_helper_outside_models_and_wizard_is_not_governed(tmp_path):
+def test_a_controller_helper_is_measured(tmp_path):
+    # The hole §2.4.13 measured at 243 definitions: a class deriving from
+    # http.Controller fails is_model_class, and no directory list named
+    # `controllers`, so a route handler was in the population of nothing.
     outside = _addon(tmp_path, "controllers")
-    assert not governs_module_helpers(outside / "controllers" / "widget_line.py")
-    assert measure([outside]) == []
+    assert {v.name for v in measure([outside])} == {
+        "make_widget_vals",
+        "_fetch_rows",
+        "_retrieve_bucket",
+    }
 
 
 def test_a_models_directory_with_no_manifest_above_it_is_not_an_addon(tmp_path):

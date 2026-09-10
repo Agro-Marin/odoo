@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.29
+:Version: 6.30
 :Date: 2026-09-09
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -1225,7 +1225,7 @@ Section  Population                                                  Count
 §2.4.3   Non-test methods declared on a model class                 26,993
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               103
-§2.4.4   Model methods with an abolished verb behind a noun            132
+§2.4.4   Model methods with an abolished verb behind a noun            141
 §2.4.4   ``fields`` family: definitions spelled head-first             220
 §2.4.4   ``fields`` family: distinct names spelled head-first           99
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
@@ -1416,12 +1416,12 @@ that guessed at the rest would report ``_parse_date`` wrong for doing exactly
 what its verb reserves.
 
 **Nor is it a claim that the gate is now complete**, and the nearest
-counter-example is one section down: §2.4.13 records that
-``ADDON_HELPER_DIRS`` is ``{models, wizard, wizards}``, so an addon's
-``controllers/`` is in **this** gate's population at no scope. That is a hole in
-the **population**; this was a hole in the **rule**, and they compose -- a
-reserved verb misused in a controller is reached by neither -- so read the two
-together and neither as a completeness claim.
+counter-example is one section down: until 2026-09-09 §2.4.13 recorded that
+``ADDON_HELPER_DIRS`` was ``{models, wizard, wizards}``, so an addon's
+``controllers/`` was in **this** gate's population at no scope. That was a hole
+in the **population**; this was a hole in the **rule**, and they composed -- a
+reserved verb misused in a controller was reached by neither. The population
+hole is closed (§2.4.13); read the rule half as no completeness claim either.
 
 **Say which gate, though.** ``naming_core_vocabulary.py``'s ``scan_files`` is
 ``rglob("*.py")`` minus ``SKIP_DIRS`` and the test suites, with no helper-dirs
@@ -2219,8 +2219,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **359** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **271**
+**A ``bool`` return does not make a predicate** ``[review]``. **347** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **275**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -3107,14 +3107,48 @@ while anyone is renaming inside ``bool_returning_*``. The core gate's
 ``nv.SKIP_DIRS | {"_vendor"}`` is genuinely free only because
 ``naming_core_vocabulary.py`` has no census.
 
-**What was done instead is the per-scope gate**, which reaches the same files
+**What was done first is the per-scope gate**, which reaches the same files
 without moving a shared floor: ``naming_core_vocabulary.py`` reads *every*
 function under the scope it is pointed at, so adding ``web`` to its
 ``GOVERNED_ADDONS`` put those twenty-four controller files under a hard zero of
-their own, argued by allowlist rather than banked. **That is the general repair
-for an absent scope** -- onboard the tree to the gate whose population is
-already right, rather than widening the one whose population is wrong and
-paying for it in every other repository at once.
+their own, argued by allowlist rather than banked. That is still the repair for
+the **body-reading** rules, which travel only to a scope somebody has read.
+
+**The widening itself landed on 2026-09-09** ``[ratchet naming]``, and it is
+not a longer list: ``governs_module_helpers`` is now *a file under a
+``__manifest__.py``*, full stop -- ``controllers/``, ``tools/``, ``report/``,
+``utils/``, a module's top-level ``utils.py`` and ``hooks.py``, and
+``migrations/``, which is the question the two gates had answered differently
+by mechanism and now answer the same way: an upgrade script's helper is this
+repository's code, reviewed like any other, with no binding a rename could
+miss. ``SKIP_DIRS`` spells ``_vendor`` in the same change, so the eleven
+WebAuthn verifiers left the scan as the block above predicted. §2.4.20's
+synonyms joined the table in the same commit, so the readings below carry both
+moves at once. *Frozen reading* (§1.4) at ``3e297bb9ff4b`` / ``7634473eeab`` /
+``301e2ca79`` / ``cc15c000f``, in a detached worktree carrying only the gate
+files:
+
+=================  ========  =======  ==============
+Scope              Before    After    Floor banked
+=================  ========  =======  ==============
+``odoo``                 19      159   159, exact
+``enterprise``          195      275   275, no-increase
+``agromarin``             1      116   116, no-increase
+``design-themes``         0        0   --
+=================  ========  =======  ==============
+
+**Every one of the 140, 80 and 115 is newly visible and none is new**, and
+the banking notes say so in those words. The 19 ``odoo`` was already red
+against a floor of 0 before this change -- eighteen ``account`` report names
+that arrived with the 2026-09-09 sync -- so the table's *Before* column is a
+reading of the tree, not of the floor. **The odoo floor is banked at 159 so
+the sweep can proceed in batches under an ``exact`` floor**, each batch
+re-banking downward in its own commit; the two sibling floors are banked at
+their readings so that §9.4's contract is stated as a number rather than as a
+red gate nobody owns, and the ``agromarin`` 116 is owed: 27 of them are the
+``migrations`` bucket this section priced at 23 before the synonyms, the rest
+are one ``marin`` model's ``_calculate_*`` family, the ``telegram_bot_*``
+controllers and the ``_detect_`` predicates.
 
 **A function nested inside a method is the third such population, and the
 largest** ``[gate doc_restated_counts]``. The scan read ``tree.body`` for module
@@ -3148,11 +3182,13 @@ alone held six with no verb at all: ``fallback_loc``, ``next_move``,
   fix: nothing outside the method can collide with the name, so nothing pushes
   back on a private spelling. The freedom and the drift are one fact.
 * **The backlog inside it is drained, and that was always the point**
-  ``[gate doc_restated_counts]``: of them, **8** open with a verb the abolished
-  table reports and **8** with a reserved one. It was 8 and 7 when this
+  ``[gate doc_restated_counts]``: of them, **12** open with a verb the abolished
+  table reports and **7** with a reserved one. It was 8 and 7 when this
   bullet was written, which is what made the population worth naming as a
   discipline rather than as debt -- and the gate that could see it did not exist
-  yet, so the eight were swept by hand. ``naming_vocabulary.py`` measures this
+  yet, so the eight were swept by hand. The four above eight arrived when
+  §2.4.20's synonyms joined the table (below), so they are newly visible
+  rather than new, and they are in the ``naming`` floor's population now. ``naming_vocabulary.py`` measures this
   population now, so the zero is held rather than observed: the cost of leaving
   it ungoverned was never a pile of bad names, it was that nothing stopped one
   forming.
@@ -4259,24 +4295,31 @@ is the same reading arriving from the other side, and §2.4.8 is this one in
 reverse -- a name wearing a listed verb that turns out not to belong to its
 family.
 
-**In the core package that reading is now a gate, not advice**
-``[gate naming_core_vocabulary]``. ``naming_core_vocabulary.py`` carries a ``SYNONYMS``
-table beside the abolished one -- ``populate``, ``prune``, ``sweep``, ``seed``,
-``scan``, ``gather``, ``refresh`` -- each mapping a word the table does not print
-onto the row whose discriminator its bodies satisfied, and ``assemble``,
-``craft`` and ``forge`` join the Payload verbs on the same terms as the four,
-flagged whatever the tail. It is a core-only reading on the same argument the
-assemble verbs are carved out on: widening the shared table would move the addon
-floor by names nobody has read. **What the table leaves out is argued in the
-same comment as what it holds**, because a synonym table nobody can see the edge
-of is a word list again -- ``reap`` and ``probe`` are terms of art from a layer
-below on §2.4.3's *reserved, not abolished* terms, ``emit`` is
-``logging.Handler``'s contract and renaming it unhooks it in silence, ``collect``
-needs a discriminator the gate does not have (most of core's accumulate into a
-caller's container and return nothing, which is not the Read row), and
-``determine`` -- this section's own example -- is left out because core's
-population is not a derivation at all: ``Field.determine*`` dispatches a hook by
-name or callable, which is §2.4.9's question, and §2.4.9 is provisional.
+**That reading is a gate in every repository now, not advice**
+``[ratchet naming]``. ``naming_vocabulary.py``'s ``ABOLISHED`` carries the
+synonyms beside the printed rows -- ``populate`` and ``tweak`` (Mutation),
+``prune`` and ``sweep`` (Removal), ``seed`` (``create``), ``scan`` (``_read_``),
+``detect`` (Predicate, or Read where the body returns what it found),
+``determine`` and ``calculate`` (Read), and ``synchronize`` in both spellings
+(the reserved ``_sync_``, or ``_prepare_`` under a payload suffix) -- and
+``assemble``, ``craft`` and ``forge`` join the Payload verbs on the same terms
+as the four, flagged whatever the tail. They were a core-only reading in
+``naming_core_vocabulary.py``'s ``SYNONYMS`` until 2026-09-09, on the argument
+that widening the shared table would move the addon floors by names nobody had
+read; they were read, one repository at a time, and the counts are in
+§2.4.13's table. **What the table leaves out is argued in the same comment as
+what it holds**, because a synonym table nobody can see the edge of is a word
+list again -- ``refresh`` stays core-only, because in ``addons/`` the same word
+is an OAuth *refresh token* and ``REFRESH MATERIALIZED VIEW`` and a name cannot
+tell either from §2.4.17's cache verb; ``reap`` and ``probe`` are terms of art
+from a layer below on §2.4.3's *reserved, not abolished* terms; ``emit`` is
+``logging.Handler``'s contract and renaming it unhooks it in silence;
+``collect`` needs a discriminator the shared table does not have (most of
+core's accumulate into a caller's container and return nothing, which is not
+the Read row -- the core gate's ``accumulate`` rule reads the body for it); and
+``locate`` reads zero in every addon tree and five in core, where
+``locate_node`` is the view-inheritance spec resolver, so a row for it would be
+five allowlist entries and no tightening.
 
 **A predicate prefix suspends the infix rule, and that is not a fudge**
 ``[review]``. §2.4.4 flags a verb behind a noun because the noun hides it from a
@@ -4285,8 +4328,8 @@ name or callable, which is §2.4.9's question, and §2.4.9 is provisional.
 operation its tail names, it answers a question **about** it, so the verb is the
 subject. ``can_scan_identity`` asks whether a field's cache admits an identity
 scan, and renaming its middle token renames the question rather than the
-operation. The carve-out is in the gate, and the four definitions it protects
-sit on one module.
+operation. The carve-out is in the shared gate's ``infix_abolished_verb``, and
+the four definitions it protects sit on one module.
 
 **Two of the gate's rules read the body, because their discriminator is a claim
 about behaviour** ``[gate naming_core_vocabulary]``. Every other rule in it is a
@@ -7556,6 +7599,14 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.30
+     - 2026-09-09
+     - §2.4.13: the shared gate governs every file under a manifest --
+       controllers, tools, report, utils, migrations -- and ``SKIP_DIRS``
+       spells ``_vendor``; §2.4.20's synonyms and the three assemble synonyms
+       move from the core-only table into ``ABOLISHED``. Floors banked at the
+       widened readings (159 / 275 / 116) as newly visible names, not new ones;
+       ``locate`` and ``refresh`` argued out of the shared table.
    * - 6.29
      - 2026-09-09
      - §2.4.13: ``ADDON_HELPER_DIRS`` is ``{models, wizard, wizards}``, so an

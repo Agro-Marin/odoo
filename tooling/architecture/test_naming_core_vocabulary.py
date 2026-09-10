@@ -85,11 +85,21 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertEqual(hit[0], "bare")
 
-    def test_an_unlisted_synonym_of_an_abolished_row_is_reported(self):
-        # §2.4.20: the table is families, not a word list. `naming_vocabulary`
-        # matches the literal token, so the sibling sees nothing here.
-        self.assertIsNone(nv.classify("_prune_counters"))
+    def test_a_synonym_of_an_abolished_row_is_reported(self):
+        # §2.4.20: the table is families, not a word list. The synonyms were
+        # this gate's own reading until the addon floors were read against
+        # them; they are shared rows now and arrive as `leading`.
+        self.assertEqual(nv.classify("_prune_counters"), ("prune", "_remove_"))
         hit = ncv.classify_name("_prune_counters")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "leading")
+
+    def test_the_one_synonym_the_shared_table_refuses_is_still_reported_here(self):
+        # `refresh` has two reserved senses in addons/ (an OAuth refresh token,
+        # REFRESH MATERIALIZED VIEW) that a name cannot separate from §2.4.17's
+        # cache verb, so it is a core-only reading and stays `synonym`.
+        self.assertIsNone(nv.classify("_refresh_field_cache"))
+        hit = ncv.classify_name("_refresh_field_cache")
         self.assertIsNotNone(hit)
         self.assertEqual(hit[0], "synonym")
 
@@ -106,10 +116,10 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         self.assertIsNone(ncv.classify_name("is_refresh_due"))
 
     def test_an_assemble_synonym_is_reported_without_a_payload_suffix(self):
-        self.assertIsNone(nv.classify("_assemble_registry"))
+        self.assertEqual(nv.classify("_assemble_registry"), ("assemble", "_get_"))
         hit = ncv.classify_name("_assemble_registry")
         self.assertIsNotNone(hit)
-        self.assertEqual(hit[0], "assemble")
+        self.assertEqual(hit[0], "leading")
 
     def test_a_predicate_hiding_behind_detect_is_reported(self):
         # `detect` names neither row it can belong to, so the body picks: the
@@ -121,7 +131,7 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
             with self.subTest(name):
                 hit = ncv.classify_name(name)
                 self.assertIsNotNone(hit, name)
-                self.assertEqual(hit[0], "synonym")
+                self.assertEqual(hit[0], "leading")
 
     def test_the_verbs_the_table_declines_to_add_stay_out(self):
         # Argued in the SYNONYMS comment, and asserted here so that adding one
@@ -433,26 +443,27 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
     def test_the_two_synonyms_this_sweep_added_are_reported(self):
         # Both are §2.4.20's shape: a row of the abolished table performed under
         # a word nobody listed, invisible to the sibling by construction.
-        for name, kind in (
-            ("_tweak_notify_recipient_groups", "synonym"),
-            ("_synchronize_crons", "synonym"),
+        for name, canonical in (
+            ("_tweak_notify_recipient_groups", "_update_"),
+            ("_synchronize_crons", "_sync_"),
         ):
             with self.subTest(name=name):
-                self.assertIsNone(nv.classify(name))
+                self.assertEqual(nv.classify(name)[1], canonical)
                 hit = ncv.classify_name(name)
                 self.assertIsNotNone(hit)
-                self.assertEqual(hit[0], kind)
+                self.assertEqual(hit[0], "leading")
 
     def test_the_synchronize_entry_names_both_canonicals(self):
         # The entry is the renamer's instruction, and this family splits: five
         # of the workspace's eight converge on a source of truth elsewhere and
         # are §2.4.3's reserved `_sync_`, three RETURN a values dict and are the
-        # Payload row. An entry printing `_sync_` alone would send those three
-        # to the wrong row -- the reservation losing to the synonym table.
-        canonical, why = ncv.SYNONYMS["synchronize"]
-        self.assertIn("_sync_", canonical)
-        self.assertIn("_prepare_", canonical)
-        self.assertIn("values", why)
+        # Payload row. The payload suffix is what picks, in the shared table.
+        self.assertEqual(nv.classify("_synchronize_crons")[1], "_sync_")
+        self.assertEqual(nv.classify("_synchronize_so_line_values")[1], "_prepare_")
+        self.assertEqual(
+            ncv.trailing_abolished_verb("_cron_synchronize"),
+            ("synchronize", "_sync_* or _prepare_*"),
+        )
 
     def test_a_dunder_is_not_a_naming_choice(self):
         self.assertIsNone(ncv.classify_name("__init__"))
@@ -554,8 +565,8 @@ class TestItCatchesAPlantedRegression(unittest.TestCase):
         self.assertEqual(found, [])
 
     def test_a_synonym_fails_the_gate_end_to_end(self):
-        found = self.plant("def _sweep_stale_rows(cr):\n    return cr\n")
-        self.assertEqual([v.name for v in found], ["_sweep_stale_rows"])
+        found = self.plant("def _refresh_stale_rows(cr):\n    return cr\n")
+        self.assertEqual([v.name for v in found], ["_refresh_stale_rows"])
         self.assertEqual(found[0].kind, "synonym")
 
     def test_a_body_aware_rule_fails_the_gate_end_to_end(self):
