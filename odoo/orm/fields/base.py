@@ -654,6 +654,9 @@ class Field[T](
                 return self.convert_to_record(value, record)
         return self._get_cache_miss(record, env, record_id)
 
+    def _get_origin_value(self, origin: BaseModel) -> typing.Any:
+        return origin[self.name]
+
     def _get_cache_miss(
         self,
         record: BaseModel,

@@ -72,13 +72,17 @@ def get_cache_miss_from_origin(
                 rec_origin = spawn(recs_env, (origin_id,), origin_prefetch)
                 field._update_cache(
                     rec,
-                    field.convert_to_cache(rec_origin[field.name], rec, validate=False),
+                    field.convert_to_cache(
+                        field._get_origin_value(rec_origin), rec, validate=False
+                    ),
                 )
 
     def _single() -> None:
         field._update_cache(
             record,
-            field.convert_to_cache(record._origin[field.name], record, validate=False),
+            field.convert_to_cache(
+                field._get_origin_value(record._origin), record, validate=False
+            ),
         )
 
     _run_batch_then_single(

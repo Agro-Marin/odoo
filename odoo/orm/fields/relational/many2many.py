@@ -345,7 +345,7 @@ class Many2many(_RelationalMulti):
                 self.read(records.browse(missing_ids))
 
         old_relation = {
-            record.id: OrderedSet(record[self.name]._ids)
+            record.id: OrderedSet(self._get_raw_ids(record))
             for record in records.with_context(active_test=False)
         }
         new_relation = {x: OrderedSet(ys) for x, ys in old_relation.items()}
@@ -375,7 +375,7 @@ class Many2many(_RelationalMulti):
             return id_ and NewId(id_)
 
         old_relation = {
-            record.id: OrderedSet(record[self.name]._ids)
+            record.id: OrderedSet(self._get_raw_ids(record))
             for records, _ in records_commands_list
             for record in records
         }

@@ -496,7 +496,7 @@ run **with** the HTTP server, because their `HttpCase` classes are the only
 end-to-end coverage of what they test and none is a tour; the rest run
 `--no-http`.
 
-`test_orm` — **1,227 test methods** under its `tests/` directory — is the addon
+`test_orm` — **1,229 test methods** under its `tests/` directory — is the addon
 written to test the ORM. Above all `test_domain_evaluator_parity.py`: the only
 check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()`
 (the in-memory predicate), with a generative suite asserting the two evaluators

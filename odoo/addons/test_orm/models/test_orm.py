@@ -1574,6 +1574,13 @@ class TestOrmModel_Active_Field(models.Model):
         "dest_id",
         context={"active_test": False},
     )
+    active_relatives_ids = fields.Many2many(
+        "test_orm.model_active_field",
+        "model_active_field_relatives_rel",
+        "source_id",
+        "dest_id",
+        context={"active_test": True},
+    )
     parent_active = fields.Boolean(
         string="Active Parent", related="parent_id.active", store=True
     )

@@ -2619,6 +2619,53 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         )
         self.assertEqual(blind.all_children_ids, live + dead)
 
+    def _record_relating_to_an_archived_one(self):
+        Model = self.env["test_orm.model_active_field"]
+        record = Model.create({"name": "Record"})
+        dead = Model.create({"name": "Dead", "active": False})
+        live = Model.create({"name": "Live"})
+        record.all_relatives_ids = [Command.link(dead.id)]
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(record.active_relatives_ids, Model.browse())
+        return record, dead, live
+
+    def test_52d_a_link_through_a_live_only_x2many_keeps_archived_corecords(self):
+        record, dead, live = self._record_relating_to_an_archived_one()
+        record.active_relatives_ids = [Command.link(live.id)]
+        dead.active = True
+        self.assertEqual(
+            record.active_relatives_ids,
+            dead + live,
+            "the link rebuilt the cached relation from what the field let it see, so "
+            "the archived corecord, still related in the database, vanished",
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(record.active_relatives_ids, dead + live)
+
+    def test_52e_a_link_on_a_draft_of_a_live_only_x2many_keeps_archived_corecords(
+        self,
+    ):
+        record, dead, live = self._record_relating_to_an_archived_one()
+        draft = record.new(origin=record)
+        draft.active_relatives_ids = [Command.link(live.id)]
+        # A draft's corecords snapshot their origin, archived flag included, so the
+        # field keeps hiding the archived one; what must survive is the relation.
+        field = draft._fields["active_relatives_ids"]
+        related = draft.env[field.comodel_name].browse(field._get_raw_ids(draft))
+        self.assertEqual(related._origin, dead + live)
+
+        seeded = record.new(
+            {"active_relatives_ids": [Command.link(live.id)]}, origin=record
+        )
+        related = seeded.env[field.comodel_name].browse(field._get_raw_ids(seeded))
+        self.assertEqual(
+            related._origin,
+            dead + live,
+            "a draft built with a link from its origin dropped the archived corecord",
+        )
+
     def test_53_boolean_query(self):
         Model = self.env["test_orm.model_active_field"]
 

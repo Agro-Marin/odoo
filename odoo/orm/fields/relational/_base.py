@@ -387,7 +387,7 @@ class _RelationalMulti(_Relational):
             else:
                 browse = comodel.browse
             if record._has_origin:
-                current = record.with_context(active_test=False)[self.name]._ids
+                current = self._get_raw_ids(record.with_context(active_test=False))
             else:
                 current = ()
             delta = CommandDelta.fold(value, lambda it: browse(it).id)
@@ -407,6 +407,17 @@ class _RelationalMulti(_Relational):
             return ()
 
         raise ValueError(f"Wrong value for {self}: {value}")
+
+    def _get_raw_ids(self, record: ModelLike) -> tuple[IdType, ...]:
+        # Reading the field drops inactive corecords under the field's own
+        # active_test, which a caller's with_context(active_test=False) cannot
+        # lift; a write deriving the new relation from the old must see all of it.
+        record[self.name]
+        return self._get_cache(record.env)[record.id]
+
+    @override
+    def _get_origin_value(self, origin: BaseModel) -> BaseModel:
+        return origin.env[self.comodel_name].browse(self._get_raw_ids(origin))
 
     def _prepare_read_context(self) -> dict:
         context = {
