@@ -679,7 +679,7 @@ test("can click on action-bound links -- 1", async () => {
             expect(options).toEqual({});
         },
     });
-    Animal._views[["toy", 1]] = `
+    Animal._views["toy,1"] = `
         <toy>
             <a type="action" data-method="setTheControl" data-model="animal">link</a>
         </toy>
@@ -709,7 +709,7 @@ test("can click on action-bound links -- 2", async () => {
             });
         },
     });
-    Animal._views[["toy", 1]] = `
+    Animal._views["toy,1"] = `
         <toy>
             <a type="action" name="myLittleAction" data-context="{ &quot;somekey&quot;: &quot;somevalue&quot; }">
                 link
@@ -744,7 +744,7 @@ test("can click on action-bound links -- 3", async () => {
             });
         },
     });
-    Animal._views[["toy", 1]] = `
+    Animal._views["toy,1"] = `
         <toy>
             <a type="action" title="myTitle" data-model="animal" data-resId="66" data-views="[[55, 'toy']]" data-domain="[['field', '=', 'val']]" data-context="{ &quot;somekey&quot;: &quot;somevalue&quot; }">
                 link

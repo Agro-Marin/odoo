@@ -62,6 +62,19 @@ import { computeViewClassName } from "./view_utils.js";
  * @property {string[]} [searchMenuTypes]
  * @property {Record<string, any>} [globalState]
  * @typedef {"activity"
+ * | "calendar"
+ * | "cohort"
+ * | "form"
+ * | "gantt"
+ * | "graph"
+ * | "grid"
+ * | "hierarchy"
+ * | "kanban"
+ * | "list"
+ * | "map"
+ * | "pivot"
+ * | "search"
+ * } ViewType
  */
 
 const viewRegistry = registry.category("views");
@@ -214,6 +227,16 @@ const ACTIONS = [
 /**
  * @typedef {{ views: [number | false, string][], viewId: number | false | undefined, searchViewId: number | false | undefined }} ViewSelection
  * @typedef {{
+ * viewDescription: any,
+ * arch: string | undefined,
+ * fields: Record<string, any> | undefined,
+ * relatedModels: Record<string, any> | undefined,
+ * actionMenus: Record<string, any> | undefined,
+ * searchViewId: number | false | undefined,
+ * searchViewArch: string | undefined,
+ * searchViewFields: Record<string, any> | undefined,
+ * irFilters: Record<string, any>[] | undefined,
+ * }} LoadedView
  */
 
 /**
