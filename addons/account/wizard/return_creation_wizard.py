@@ -26,7 +26,7 @@ class AccountReturnCreationWizard(models.TransientModel):
     available_return_type_ids = fields.Many2many(
         string="Available Return Type",
         comodel_name="account.return.type",
-        compute="_compute_available_return_type",
+        compute="_compute_available_return_type_ids",
     )
     return_type_id = fields.Many2one(
         string="Return Type",
@@ -97,7 +97,7 @@ class AccountReturnCreationWizard(models.TransientModel):
             self.date_from = self.date_to = False
 
     @api.depends("category")
-    def _compute_available_return_type(self):
+    def _compute_available_return_type_ids(self):
         return_type_by_country_and_category = self.env[
             "account.return.type"
         ]._read_group(

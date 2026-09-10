@@ -749,7 +749,7 @@ class AccountReportOptions(models.Model):
         return Domain.AND(domains)
 
     @api.model
-    def _get_options_all_entries_domain(self, options):
+    def _get_domain_options_all_entries(self, options):
         if not options.get("all_entries"):
             return Domain("parent_state", "=", "posted")
         else:
@@ -1704,7 +1704,7 @@ class AccountReportOptions(models.Model):
             if date_scope
             else Domain.TRUE,
             self._get_options_partner_domain(options),
-            self._get_options_all_entries_domain(options),
+            self._get_domain_options_all_entries(options),
             self._get_options_unreconciled_domain(options),
             self._get_options_account_type_domain(options),
             self._get_options_aml_ir_filters(options),

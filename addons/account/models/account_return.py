@@ -1020,7 +1020,7 @@ class AccountReturn(models.Model):
     )
     type_external_id = fields.Char(compute="_compute_type_external_id")
     date_deadline = fields.Date(
-        string="Deadline", compute="_compute_deadline", store=True
+        string="Deadline", compute="_compute_date_deadline", store=True
     )
     date_lock = fields.Date(string="Lock Date")
     date_submission = fields.Date(string="Submission Date")
@@ -1296,7 +1296,7 @@ class AccountReturn(models.Model):
         "type_id.deadline_days_delay",
         "is_completed",
     )
-    def _compute_deadline(self):
+    def _compute_date_deadline(self):
         for account_return in self:
             if account_return.is_completed:
                 continue
@@ -1417,6 +1417,7 @@ class AccountReturn(models.Model):
             record[record.type_id.states_workflow] = record.state
 
     @api.depends("type_id", "state", "type_id.states_workflow")
+    @api.depends_context("lang")
     def _compute_visible_states(self):
         for record in self:
             current_state = record.state

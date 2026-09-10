@@ -2462,7 +2462,7 @@ class TestTaxReport(TestAccountReportsCommon):
                     current_company
                 ).property_account_position_id
             )
-        tax_unit._compute_fiscal_position_completion()
+        tax_unit._compute_fpos_synced()
         self.assertTrue(tax_unit.fpos_synced)
 
         # remove company 3 from the unit and verify that the fiscal positions are removed from the relevant companies

@@ -196,6 +196,7 @@ class AccountReportSend(models.TransientModel):
             wizard.warnings = warnings
 
     @api.depends("partner_ids")
+    @api.depends_context("lang")
     def _compute_mail_lang(self):
         for wizard in self:
             if wizard.mode == "single":

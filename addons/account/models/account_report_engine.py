@@ -158,7 +158,7 @@ class AccountReport(models.Model):
             "account.annual_statements", raise_if_not_found=False
         ):
             asr_section_reports = reports.filtered_domain(
-                self._asr_sections_domain(root_annual_statements)
+                self._get_domain_asr_sections(root_annual_statements)
             )
 
             if asr_section_reports:
@@ -182,7 +182,7 @@ class AccountReport(models.Model):
             asr_section_reports._link_annual_statements(root_annual_statements)
         return reports
 
-    def _asr_sections_domain(self, root_annual_statements):
+    def _get_domain_asr_sections(self, root_annual_statements):
         """Return the domain filtering which reports may be a section of an annual statements report."""
         return [
             ("root_report_id", "in", root_annual_statements.section_report_ids.ids),
@@ -2022,7 +2022,7 @@ class AccountReportHorizontalGroupRule(models.Model):
     _name = "account.report.horizontal.group.rule"
     _description = "Horizontal group rule for reports"
 
-    def _field_name_selection_values(self):
+    def _selection_move_line_relational_fields(self):
         return [
             (aml_field["name"], aml_field["string"])
             for aml_field in self.env["account.move.line"].fields_get().values()
@@ -2037,7 +2037,9 @@ class AccountReportHorizontalGroupRule(models.Model):
     )
     domain = fields.Char(string="Domain", required=True, default="[]")
     field_name = fields.Selection(
-        string="Field", selection="_field_name_selection_values", required=True
+        string="Field",
+        selection="_selection_move_line_relational_fields",
+        required=True,
     )
     res_model_name = fields.Char(string="Model", compute="_compute_res_model_name")
 

@@ -59,7 +59,7 @@ class AccountAccount(models.Model):
     audit_var_percentage = fields.Float(
         string="Var %",
         compute="_compute_audit_variation",
-        search="_search_var_percentage",
+        search="_search_audit_var_percentage",
         default=False,
     )
     audit_status = fields.Selection(
@@ -76,7 +76,7 @@ class AccountAccount(models.Model):
     )
     last_message = fields.Char(string="Last Message", compute="_compute_last_message")
 
-    def _common_audit_search(
+    def _get_domain_audit_field(
         self, field_name: str, operator: str, value, previous=False
     ):
         if isinstance(value, OrderedSet):
@@ -97,22 +97,22 @@ class AccountAccount(models.Model):
         return [("id", "in", [row["id"] for row in result])]
 
     def _search_audit_debit(self, operator, value):
-        return self._common_audit_search("audit_debit", operator, value)
+        return self._get_domain_audit_field("audit_debit", operator, value)
 
     def _search_audit_credit(self, operator, value):
-        return self._common_audit_search("audit_credit", operator, value)
+        return self._get_domain_audit_field("audit_credit", operator, value)
 
     def _search_audit_balance(self, operator, value):
-        return self._common_audit_search("audit_balance", operator, value)
+        return self._get_domain_audit_field("audit_balance", operator, value)
 
     def _search_audit_previous_balance(self, operator, value):
-        return self._common_audit_search("audit_previous_balance", operator, value)
+        return self._get_domain_audit_field("audit_previous_balance", operator, value)
 
     def _search_audit_var_n_1(self, operator, value):
-        return self._common_audit_search("audit_var_n_1", operator, value)
+        return self._get_domain_audit_field("audit_var_n_1", operator, value)
 
-    def _search_var_percentage(self, operator, value):
-        return self._common_audit_search("audit_var_percentage", operator, value)
+    def _search_audit_var_percentage(self, operator, value):
+        return self._get_domain_audit_field("audit_var_percentage", operator, value)
 
     @api.depends_context("working_file_id")
     def _compute_audit_period(self):

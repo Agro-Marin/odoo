@@ -503,7 +503,7 @@ class AccountDeferredReportHandler(models.AbstractModel):
             and self.env.company.generate_deferred_revenue_entries_method == "manual"
         ):
             already_generated = self.env["account.move"].search_count(
-                report._get_generated_deferral_entries_domain(options)
+                report._get_domain_generated_deferral_entries(options)
             )
             # This will trigger a second _get_lines call, however the first one was cached, so we just need to filter again on the cache (see _get_lines)
             moves_lines_to_generate, __, __, __, __ = self._get_moves_to_defer(options)
@@ -647,7 +647,7 @@ class AccountDeferredReportHandler(models.AbstractModel):
     def action_generate_entry(self, options):
         new_deferred_moves = self._generate_deferral_entry(options)
         report = self.env["account.report"].browse(options["report_id"])
-        domain = report._get_generated_deferral_entries_domain(options)
+        domain = report._get_domain_generated_deferral_entries(options)
         already_generated = self.env["account.move"].search_count(domain, limit=1)
         if new_deferred_moves or already_generated:
             return report.open_deferral_entries(options, {})

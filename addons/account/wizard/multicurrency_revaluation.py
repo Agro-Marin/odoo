@@ -16,7 +16,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     journal_id = fields.Many2one(
         comodel_name="account.journal",
         compute="_compute_accounting_values",
-        inverse="_inverse_revaluation_journal",
+        inverse="_inverse_journal_id",
         compute_sudo=True,
         domain=[("type", "=", "general")],
         required=True,
@@ -32,7 +32,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     expense_provision_account_id = fields.Many2one(
         comodel_name="account.account",
         compute="_compute_accounting_values",
-        inverse="_inverse_expense_provision_account",
+        inverse="_inverse_expense_provision_account_id",
         compute_sudo=True,
         string="Expense Account",
         required=True,
@@ -41,7 +41,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     income_provision_account_id = fields.Many2one(
         comodel_name="account.account",
         compute="_compute_accounting_values",
-        inverse="_inverse_income_provision_account",
+        inverse="_inverse_income_provision_account_id",
         compute_sudo=True,
         string="Income Account",
         required=True,
@@ -49,7 +49,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     )
     preview_data = fields.Text(compute="_compute_preview_data")
     show_warning_move_id = fields.Many2one(
-        "account.move", compute="_compute_show_warning"
+        "account.move", compute="_compute_show_warning_move_id"
     )
 
     @api.model
@@ -74,7 +74,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     @api.depends(
         "expense_provision_account_id", "income_provision_account_id", "reversal_date"
     )
-    def _compute_show_warning(self):
+    def _compute_show_warning_move_id(self):
         for record in self:
             last_move = (
                 self.env["account.move.line"]
@@ -138,15 +138,15 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
                 record.company_id.account_revaluation_income_provision_account_id
             )
 
-    def _inverse_revaluation_journal(self):
+    def _inverse_journal_id(self):
         for record in self:
             record.company_id.sudo().account_revaluation_journal_id = record.journal_id
 
-    def _inverse_expense_provision_account(self):
+    def _inverse_expense_provision_account_id(self):
         for record in self:
             record.company_id.sudo().account_revaluation_expense_provision_account_id = record.expense_provision_account_id
 
-    def _inverse_income_provision_account(self):
+    def _inverse_income_provision_account_id(self):
         for record in self:
             record.company_id.sudo().account_revaluation_income_provision_account_id = (
                 record.income_provision_account_id

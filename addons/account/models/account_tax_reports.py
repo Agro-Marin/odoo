@@ -11,13 +11,13 @@ class AccountTaxUnit(models.Model):
         string="Country",
         comodel_name="res.country",
         required=True,
-        inverse="_inverse_vat",
+        inverse="_inverse_vat_and_country_id",
         help="The country in which this tax unit is used to group your companies' tax reports declaration.",
     )
     vat = fields.Char(
         string="Tax ID",
         required=True,
-        inverse="_inverse_vat",
+        inverse="_inverse_vat_and_country_id",
         help="The identifier to be used when submitting a report for this unit.",
     )
     company_ids = fields.Many2many(
@@ -34,7 +34,7 @@ class AccountTaxUnit(models.Model):
     )
     fpos_synced = fields.Boolean(
         string="Fiscal Positions Synchronised",
-        compute="_compute_fiscal_position_completion",
+        compute="_compute_fpos_synced",
         help="Technical field indicating whether Fiscal Positions exist for all companies in the unit",
     )
 
@@ -104,7 +104,7 @@ class AccountTaxUnit(models.Model):
         return result
 
     @api.depends("company_ids")
-    def _compute_fiscal_position_completion(self):
+    def _compute_fpos_synced(self):
         # The real input is every company partner's property_account_position_id, which
         # no @api.depends can reach: it is company-dependent, on arbitrary partners.
         # Whatever writes those positions has to invalidate this field -- see
@@ -234,7 +234,7 @@ class AccountTaxUnit(models.Model):
             self.country_id, self.vat, validation=False
         )
 
-    def _inverse_vat(self):
+    def _inverse_vat_and_country_id(self):
         for record in self:
             if not record.vat:
                 continue

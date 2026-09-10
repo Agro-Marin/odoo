@@ -610,7 +610,7 @@ class AccountReportActions(models.Model):
         return action
 
     def open_deferral_entries(self, options, params):
-        domain = self._get_generated_deferral_entries_domain(options)
+        domain = self._get_domain_generated_deferral_entries(options)
         deferral_line_ids = self.env["account.move"].search(domain).line_ids.ids
         return {
             "type": "ir.actions.act_window",
@@ -1131,7 +1131,7 @@ class AccountReportActions(models.Model):
 
         return groupby_domain
 
-    def _get_generated_deferral_entries_domain(self, options):
+    def _get_domain_generated_deferral_entries(self, options):
         """Get the search domain for the generated deferral entries of the current period.
 
         :param options: the report's `options` dict containing `date_from`, `date_to` and `deferred_report_type`
