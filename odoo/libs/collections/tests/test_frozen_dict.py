@@ -1,8 +1,10 @@
 import copy
 import pickle
 import unittest
+from collections.abc import Iterable, Mapping
+from typing import Any
 
-from odoo.libs.collections.frozen_dict import frozendict
+from odoo.libs.collections.frozen_dict import freehash, frozendict
 
 
 class TestFrozendictImmutability(unittest.TestCase):
@@ -122,3 +124,58 @@ class TestFrozendictHashesNestedValues(unittest.TestCase):
                 }
             )
         )
+
+
+def _acyclic_freehash(arg: Any) -> int:
+    try:
+        return hash(arg)
+    except TypeError:
+        if isinstance(arg, Mapping):
+            return hash(
+                frozenset((key, _acyclic_freehash(val)) for key, val in arg.items())
+            )
+        if isinstance(arg, Iterable):
+            return hash(frozenset(_acyclic_freehash(item) for item in arg))
+        return id(arg)
+
+
+class TestFreehashCycles(unittest.TestCase):
+    def test_a_dict_that_holds_itself_hashes(self):
+        localdict: dict[str, Any] = {"BASIC": 1000.0}
+        localdict["localdict"] = localdict
+        context = frozendict({"force_payslip_localdict": localdict})
+        self.assertEqual(
+            hash(context), hash(frozendict({"force_payslip_localdict": localdict}))
+        )
+
+    def test_equal_cycles_hash_equal(self):
+        first: dict[str, Any] = {"a": 1}
+        first["self"] = first
+        second: dict[str, Any] = {"a": 1}
+        second["self"] = second
+        self.assertEqual(freehash(first), freehash(second))
+
+    def test_a_list_that_holds_itself_hashes(self):
+        items: list[Any] = [1]
+        items.append(items)
+        self.assertIsInstance(freehash(items), int)
+
+    def test_a_cycle_through_a_frozendict_hashes(self):
+        inner: dict[str, Any] = {}
+        outer = frozendict({"inner": inner})
+        inner["outer"] = outer
+        self.assertIsInstance(hash(outer), int)
+
+    def test_acyclic_values_hash_as_before(self):
+        values = [
+            {"a": 1, "b": [1, 2, {"c": {3, 4}}]},
+            [{"x": [1, [2, [3]]]}, frozendict({"y": 2})],
+            {"nested": frozendict({"z": [1, 2]})},
+        ]
+        for value in values:
+            with self.subTest(value=value):
+                self.assertEqual(freehash(value), _acyclic_freehash(value))
+                self.assertEqual(
+                    hash(frozendict({"v": value})),
+                    hash(frozenset({("v", _acyclic_freehash(value))})),
+                )

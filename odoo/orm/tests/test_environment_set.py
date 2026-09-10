@@ -2,6 +2,7 @@ import gc
 import unittest
 from typing import Any
 
+from odoo.libs.collections.frozen_dict import frozendict
 from odoo.orm.runtime.transaction import _EnvironmentSet
 
 
@@ -35,6 +36,15 @@ class TestEnvironmentSet(unittest.TestCase):
         e = _env(7, su=True, context=(("lang", "en"),))
         es.add(e)
         self.assertIs(es.get_environment(es.key(7, True, (("lang", "en"),))), e)
+
+    def test_a_context_holding_itself_is_found_by_key(self):
+        localdict: dict[str, Any] = {"BASIC": 1000.0}
+        localdict["localdict"] = localdict
+        context = frozendict({"force_payslip_localdict": localdict})
+        es = _EnvironmentSet()
+        e = _env(2, context=context)
+        es.add(e)
+        self.assertIs(es.get_environment(es.key(2, False, context)), e)
 
     def test_lookup_misses_for_an_unknown_key(self):
         es = _EnvironmentSet()

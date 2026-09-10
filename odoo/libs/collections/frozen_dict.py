@@ -5,15 +5,35 @@ from typing import Any, NoReturn
 
 
 def freehash(arg: Any) -> int:
+    return _freehash(arg, set())
+
+
+def _freehash(arg: Any, path: set[int]) -> int:
+    if isinstance(arg, frozendict):
+        cached = getattr(arg, "_hash", None)
+        if cached is not None:
+            return cached
+    else:
+        try:
+            return hash(arg)
+        except TypeError:
+            pass
+    marker = id(arg)
+    if marker in path:
+        # A value met again on its own path closes a cycle. Equal structures close it at the
+        # same point, so a constant keeps them hashing equal.
+        return 0
+    path.add(marker)
     try:
-        return hash(arg)
-    except TypeError:
         if isinstance(arg, Mapping):
-            return hash(frozendict(arg))
-        elif isinstance(arg, Iterable):
-            return hash(frozenset(freehash(item) for item in arg))
-        else:
-            return id(arg)
+            return hash(
+                frozenset((key, _freehash(val, path)) for key, val in arg.items())
+            )
+        if isinstance(arg, Iterable):
+            return hash(frozenset(_freehash(item, path) for item in arg))
+        return id(arg)
+    finally:
+        path.discard(marker)
 
 
 class frozendict[K, T](dict[K, T]):
@@ -60,7 +80,7 @@ class frozendict[K, T](dict[K, T]):
         try:
             return self._hash
         except AttributeError:
-            h = hash(frozenset((key, freehash(val)) for key, val in self.items()))
+            h = _freehash(self, set())
             object.__setattr__(self, "_hash", h)
             return h
 
