@@ -166,7 +166,9 @@ name one with the addon installed.
 
 **A suite nobody can run is a suite nobody runs.** The embed's two long-standing
 failures sat unreproducible behind a documented command that could not work; that
-is the same silence `hoot-shard` runs `--self` by default to avoid.
+is the same silence `hoot-shard` runs `--self` by default to avoid. Once the page
+could be driven they took an afternoon: both were one extra task in `loadEmoji()`
+on every message post (`9ee765a16088`), and the page reads 36 of 36.
 
 ## Affected-suite selection
 
