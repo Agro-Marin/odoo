@@ -130,7 +130,7 @@ class MailMessage(models.Model):
                 direct_allowed.add(id_)
             elif model and res_id and message_type != "user_notification":
                 model_ids[model][res_id].add(id_)
-        return direct_allowed | self._find_allowed_doc_ids(model_ids)
+        return direct_allowed | self._get_readable_message_ids(model_ids)
 
     def _get_search_domain_non_internal(self) -> Domain:
         return Domain("message_type", "!=", "comment") | self._get_search_domain_share()
@@ -142,7 +142,7 @@ class MailMessage(models.Model):
             & Domain("subtype_id.internal", "=", False)
         )
 
-    def _filter_records_for_message_operation(
+    def _get_accessible_documents(
         self, doc_model: str, doc_res_ids: Collection[int], operation: str
     ) -> models.Model:
         documents_all = (
@@ -170,15 +170,13 @@ class MailMessage(models.Model):
         return self.env[doc_model].browse(allowed_ids)
 
     @api.model
-    def _find_allowed_doc_ids(self, model_ids: dict[str, dict]) -> set:
+    def _get_readable_message_ids(self, model_ids: dict[str, dict]) -> set:
         IrModelAccess = self.env["ir.model.access"]
         allowed_ids = set()
         for doc_model, doc_dict in model_ids.items():
             if not IrModelAccess.check(doc_model, "read", False):
                 continue
-            allowed = self._filter_records_for_message_operation(
-                doc_model, list(doc_dict), "read"
-            )
+            allowed = self._get_accessible_documents(doc_model, list(doc_dict), "read")
             allowed_ids |= {
                 msg_id
                 for document_id in allowed.ids
@@ -329,7 +327,7 @@ class MailMessage(models.Model):
             return
         for model, docid_msgids in documents.items():
             allowed_ids = set(
-                self._filter_records_for_message_operation(
+                self._get_accessible_documents(
                     model, list(docid_msgids), operation
                 )._ids
             )
@@ -367,7 +365,7 @@ class MailMessage(models.Model):
                     remaining.pop(mid, None)
 
     @api.model
-    def _filter_records_followed_by_self(
+    def _get_followed_res_ids(
         self, doc_model: str, doc_res_ids: Collection[int]
     ) -> set[int]:
         if not doc_res_ids:
@@ -390,7 +388,7 @@ class MailMessage(models.Model):
         if not remaining:
             return
         for model, docid_msgids in documents.items():
-            for res_id in self._filter_records_followed_by_self(model, docid_msgids):
+            for res_id in self._get_followed_res_ids(model, docid_msgids):
                 for mid in docid_msgids[res_id]:
                     remaining.pop(mid, None)
 

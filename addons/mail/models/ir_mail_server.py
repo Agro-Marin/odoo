@@ -77,7 +77,7 @@ class IrMail_Server(models.Model):
         return super()._get_test_email_from()
 
     @api.model
-    def _filter_mail_servers_fallback(self, servers: IrMail_Server) -> IrMail_Server:
+    def _filtered_mail_servers_fallback(self, servers: IrMail_Server) -> IrMail_Server:
         return servers.filtered(lambda s: not s.owner_user_id)
 
     def _get_domain_mail_servers_allowed(self) -> Domain:

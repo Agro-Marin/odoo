@@ -171,7 +171,7 @@ class MailScheduledMessage(models.Model):
             return set()
         return set(
             self.env["mail.message"]
-            ._filter_records_for_message_operation(model, list(res_ids), "create")
+            ._get_accessible_documents(model, list(res_ids), "create")
             ._ids
         )
 

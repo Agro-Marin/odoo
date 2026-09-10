@@ -57,7 +57,7 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
         alias_vals_list, record_vals_list = [], []
         overrides_by_index = {}
         for index, vals in enumerate(vals_list):
-            if self._require_new_alias(vals):
+            if self._is_new_alias_required(vals):
                 company_id = vals.get(company_fname) or company_id_default
                 company = (
                     self.env["res.company"]
@@ -90,7 +90,7 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
         valid_vals_list = []
         record_vals_iter = iter(record_vals_list)
         for vals in vals_list:
-            if self._require_new_alias(vals):
+            if self._is_new_alias_required(vals):
                 record_vals = next(record_vals_iter)
                 record_vals["alias_id"] = next(alias_ids)
                 valid_vals_list.append(record_vals)
@@ -165,7 +165,7 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
         return vals_list
 
     @api.model
-    def _require_new_alias(self, record_vals: dict) -> bool:
+    def _is_new_alias_required(self, record_vals: dict) -> bool:
         return not record_vals.get("alias_id") and record_vals.get("alias_name")
 
     def _alias_get_alias_domain_id(self) -> dict:

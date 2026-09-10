@@ -58,7 +58,7 @@ class MailFollowers(models.Model):
                     model_ids.setdefault(res_model, {}).setdefault(res_id, set()).add(
                         id_
                     )
-            return own | self.env["mail.message"]._find_allowed_doc_ids(model_ids)
+            return own | self.env["mail.message"]._get_readable_message_ids(model_ids)
 
         return get_accessible_query(
             self,
@@ -108,5 +108,7 @@ class MailFollowers(models.Model):
                 model_ids.setdefault(follower.res_model, {}).setdefault(
                     follower.res_id, set()
                 ).add(follower.id)
-        allowed = set(own) | self.env["mail.message"]._find_allowed_doc_ids(model_ids)
+        allowed = set(own) | self.env["mail.message"]._get_readable_message_ids(
+            model_ids
+        )
         return self.browse([fol_id for fol_id in self._ids if fol_id in allowed])

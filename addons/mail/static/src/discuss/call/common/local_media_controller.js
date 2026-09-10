@@ -29,7 +29,7 @@ const SCREEN_CONFIG = {
  * @property {(soundName: string) => void} playSound
  * @property {(text: string) => void} notify
  * @property {(isTalking: boolean) => void} setTalking
- * @property {() => Promise} refreshMicAudioStatus
+ * @property {() => Promise} updateMicAudioStatus
  */
 export class LocalMediaController {
     /** @type {AudioContext} */
@@ -381,7 +381,7 @@ export class LocalMediaController {
             const micAudioTrack = this.state.micAudioTrack;
             if (settings.use_push_to_talk || !this.state.channel || !micAudioTrack) {
                 session.isTalking = false;
-                await this.hooks.refreshMicAudioStatus();
+                await this.hooks.updateMicAudioStatus();
                 return;
             }
             try {
@@ -401,7 +401,7 @@ export class LocalMediaController {
                 this.hooks.notify(_t("Your browser does not support voice activation"));
                 session.isTalking = true;
             }
-            await this.hooks.refreshMicAudioStatus();
+            await this.hooks.updateMicAudioStatus();
         });
     }
 

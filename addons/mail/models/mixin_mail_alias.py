@@ -19,7 +19,7 @@ class MixinMailAlias(models.AbstractModel):
     alias_name = fields.Char(inherited=True)
     alias_defaults = fields.Text(inherited=True)
 
-    def _require_new_alias(self, record_vals: dict) -> bool:
+    def _is_new_alias_required(self, record_vals: dict) -> bool:
         return not record_vals.get("alias_id")
 
     def _init_column(self, name: str, *, new_column: bool = False) -> None:

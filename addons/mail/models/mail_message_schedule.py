@@ -95,7 +95,7 @@ class MailMessageSchedule(models.Model):
         return self._send_notifications()
 
     def _send_notifications(self, default_notify_kwargs: dict | None = None) -> bool:
-        for model, schedules in self._group_by_model().items():
+        for model, schedules in self._grouped_by_model().items():
             existing_ids = ()
             if model:
                 res_ids = schedules.mapped("mail_message_id.res_id")
@@ -172,7 +172,7 @@ class MailMessageSchedule(models.Model):
         self.env.ref("mail.ir_cron_send_scheduled_message")._trigger(new_datetime)
         return True
 
-    def _group_by_model(self) -> dict:
+    def _grouped_by_model(self) -> dict:
         grouped = {}
         for schedule in self:
             model = (

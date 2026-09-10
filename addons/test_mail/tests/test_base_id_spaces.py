@@ -215,14 +215,14 @@ class TestBaseSuggestedMessageSort(MailCommon):
 
     def test_banned_email_keys_are_deduplicated(self):
         seen = []
-        real = type(self.env["mail.alias.domain"])._find_aliases
+        real = type(self.env["mail.alias.domain"])._get_alias_emails
 
         def capture(domains, email_list):
             seen.append(list(email_list))
             return real(domains, email_list)
 
         with patch.object(
-            type(self.env["mail.alias.domain"]), "_find_aliases", capture
+            type(self.env["mail.alias.domain"]), "_get_alias_emails", capture
         ):
             self.record._mail_get_banned_emails(
                 ["dup@test.example.com"] * 5 + ["other@test.example.com"]

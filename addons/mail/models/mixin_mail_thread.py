@@ -3009,7 +3009,7 @@ class MixinMailThread(models.AbstractModel):
                     .sudo()
                     .search([("mail_message_id", "in", message.ids)])
                 )
-            tracking_values = tracking_values._filter_has_field_access(self.env)
+            tracking_values = tracking_values._filtered_has_field_access(self.env)
             if tracking_values:
                 tracking_values = record_wlang._track_filter_for_display(
                     tracking_values
@@ -3949,7 +3949,7 @@ class MixinMailThread(models.AbstractModel):
                 return str(bool(value))
             return "" if value is None or value is False else str(value)
 
-        trackings = message.sudo().tracking_value_ids._filter_free_field_access()
+        trackings = message.sudo().tracking_value_ids._filtered_free_field_access()
         for formatted in trackings._tracking_value_format():
             is_bool = formatted["fieldInfo"]["fieldType"] == "boolean"
             old_value = _fmt(formatted["oldValue"], is_bool)
@@ -4747,13 +4747,15 @@ class MixinMailThread(models.AbstractModel):
         for record in self:
             attachments = Attachment.browse(ids_by_res_id.get(record.id, ()))
             res[record.id] = (
-                self._filter_superseded_attachments(attachments)
+                self._filtered_unsuperseded_attachments(attachments)
                 if supersedes
                 else attachments
             )
         return res
 
-    def _filter_superseded_attachments(self, attachments: IrAttachment) -> IrAttachment:
+    def _filtered_unsuperseded_attachments(
+        self, attachments: IrAttachment
+    ) -> IrAttachment:
         svg_ids = attachments.filtered(
             lambda attachment: attachment.mimetype == "image/svg+xml"
         )

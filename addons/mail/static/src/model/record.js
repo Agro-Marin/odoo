@@ -163,7 +163,7 @@ export class Record {
      * @param {RecordData|string|number} data
      * @returns {RecordData}
      */
-    static _retrieveIdFromData(data) {
+    static _getIdFromData(data) {
         const Model = toRaw(this);
         /** @type {RecordData} */
         const res = {};
@@ -277,7 +277,7 @@ export class Record {
     static preinsert(data) {
         const ModelFullProxy = this;
         const Model = toRaw(ModelFullProxy);
-        const ids = Model._retrieveIdFromData(data);
+        const ids = Model._getIdFromData(data);
         for (const name in ids) {
             if (
                 ids[name] &&
@@ -488,7 +488,7 @@ export class Record {
      * @returns {RecordData}
      */
     _toDataRelationalRecord(ongoing, prefix = undefined) {
-        const data = this.Model._retrieveIdFromData(this);
+        const data = this.Model._getIdFromData(this);
         if (
             ongoing.depth ||
             ongoing.fields?.some(

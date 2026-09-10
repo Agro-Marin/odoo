@@ -1148,7 +1148,7 @@ class DiscussChannel(models.Model):
             if info.get("voice"):
                 voice += attachment
         if voice:
-            voice._set_voice_metadata()
+            voice._create_voice_metadata()
         return attachments
 
     def _message_subscribe(

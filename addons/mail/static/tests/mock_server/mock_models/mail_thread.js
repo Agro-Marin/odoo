@@ -483,7 +483,7 @@ export class MailThread extends models.ServerModel {
                         message.id,
                         false,
                     );
-                    this.env["discuss.channel.member"]._set_new_message_separator(
+                    this.env["discuss.channel.member"]._update_new_message_separator(
                         [memberOfCurrentUser.id],
                         message.id + 1,
                         true,

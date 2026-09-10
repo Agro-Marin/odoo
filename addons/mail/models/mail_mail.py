@@ -248,7 +248,7 @@ class MailMail(models.Model):
     @api.constrains("mail_message_id", "mail_server_id")
     def _check_mail_server_id(self) -> None:
         for mail in self:
-            if mail.mail_server_id and not mail._filter_mail_mail_servers(
+            if mail.mail_server_id and not mail._filtered_mail_mail_servers(
                 mail.mail_server_id
             ):
                 raise ValidationError(
@@ -635,7 +635,7 @@ class MailMail(models.Model):
             + 10 * 1024
         )
 
-    def _filter_mail_mail_servers(self, mail_servers: IrMail_Server) -> IrMail_Server:
+    def _filtered_mail_mail_servers(self, mail_servers: IrMail_Server) -> IrMail_Server:
         if self.env["ir.config_parameter"]._get_bool_param(
             "mail.disable_personal_mail_servers"
         ):
@@ -1012,7 +1012,7 @@ class MailMail(models.Model):
                 mail.mail_server_id.id,
                 mail.record_alias_domain_id.id,
                 mail._get_envelope_email_from(),
-                mail._filter_mail_mail_servers(all_mail_servers),
+                mail._filtered_mail_mail_servers(all_mail_servers),
             )
             group_per_email_from[key].append(mail.id)
 
@@ -1055,7 +1055,7 @@ class MailMail(models.Model):
             for batch_ids in itertools.batched(record_ids, batch_size, strict=False):
                 yield mail_server_id, alias_domain_id, smtp_from, batch_ids
 
-    def _filter_ready_to_send(self) -> Self:
+    def _filtered_ready_to_send(self) -> Self:
         now = fields.Datetime.now()
         return self.filtered(
             lambda mail: (
@@ -1235,7 +1235,7 @@ class MailMail(models.Model):
         raise_exception: bool = False,
         post_send_callback: Callable[..., bool] | None = None,
     ) -> None:
-        outgoing = self._filter_ready_to_send()
+        outgoing = self._filtered_ready_to_send()
         for (
             mail_server_id,
             alias_domain_id,
@@ -1357,7 +1357,7 @@ class MailMail(models.Model):
         to_send = self
         if mail_server:
             unauthorized = self.filtered(
-                lambda mail: not mail._filter_mail_mail_servers(mail_server)
+                lambda mail: not mail._filtered_mail_mail_servers(mail_server)
             )
             if unauthorized:
                 if raise_exception:

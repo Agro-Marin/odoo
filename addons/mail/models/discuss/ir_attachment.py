@@ -33,9 +33,9 @@ class IrAttachment(models.Model):
     def _post_add_create(self, **kwargs) -> None:
         super()._post_add_create(**kwargs)
         if kwargs.get("voice"):
-            self._set_voice_metadata()
+            self._create_voice_metadata()
 
-    def _set_voice_metadata(self) -> None:
+    def _create_voice_metadata(self) -> None:
         self.env["discuss.voice.metadata"].create(
             [{"attachment_id": att.id} for att in self]
         )

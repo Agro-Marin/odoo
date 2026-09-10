@@ -537,7 +537,7 @@ async function discuss_channel_set_new_message_separator(request) {
         ["channel_id", "=", channel_id],
         partner ? ["partner_id", "=", partner.id] : ["guest_id", "=", guest.id],
     ]);
-    return this.env["discuss.channel.member"]._set_new_message_separator(
+    return this.env["discuss.channel.member"]._update_new_message_separator(
         [memberId],
         message_id,
         true,

@@ -1479,10 +1479,10 @@ class MixinMailGateway(models.AbstractModel):
             message, {"body": payload.body, "attachments": payload.attachments}
         )
 
-    def _message_parse_bounce_find_part(
+    def _message_parse_bounce_get_part(
         self, email_message: EmailMessage, content_types: tuple[str, ...]
     ) -> EmailMessage | None:
-        return mime.find_part(email_message, content_types)
+        return mime.get_part(email_message, content_types)
 
     def _message_parse_bounce_recipient(
         self, dsn_part: EmailMessage | None
@@ -1511,10 +1511,10 @@ class MixinMailGateway(models.AbstractModel):
         if not is_bounce:
             return {"is_bounce": False}
 
-        email_part = self._message_parse_bounce_find_part(
+        email_part = self._message_parse_bounce_get_part(
             email_message, ("message/rfc822", "text/rfc822-headers")
-        ) or self._message_parse_bounce_find_part(email_message, ("multipart/report",))
-        dsn_part = self._message_parse_bounce_find_part(
+        ) or self._message_parse_bounce_get_part(email_message, ("multipart/report",))
+        dsn_part = self._message_parse_bounce_get_part(
             email_message, ("message/delivery-status",)
         )
         bounced_email, bounced_partner = self._message_parse_bounce_recipient(dsn_part)
@@ -1594,7 +1594,7 @@ class MixinMailGateway(models.AbstractModel):
         alias_emails = (
             self.env["mail.alias.domain"]
             .sudo()
-            ._find_aliases(msg_dict["recipients_normalized"])
+            ._get_alias_emails(msg_dict["recipients_normalized"])
         )
         msg_dict["cc_filtered"] = ",".join(
             cc for cc in email_cc_list if email_normalize(cc) not in alias_emails

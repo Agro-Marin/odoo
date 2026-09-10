@@ -11,8 +11,8 @@ patch(AttachmentUploadService.prototype, {
         return super.getUploadURL(...arguments);
     },
 
-    _buildFormData() {
-        const formData = super._buildFormData(...arguments);
+    _updateFormData() {
+        const formData = super._updateFormData(...arguments);
         formData.append("guest_token", this.store.guest_token);
     },
 });

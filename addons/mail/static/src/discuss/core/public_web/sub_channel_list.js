@@ -93,7 +93,7 @@ export class SubChannelList extends Component {
 
     async onClickCreate() {
         await this.props.thread.createSubChannel({ name: this.state.searchTerm });
-        this._refreshSubChannelList();
+        this._updateSubChannelList();
         this.props.close?.();
     }
 
@@ -109,7 +109,7 @@ export class SubChannelList extends Component {
                     searchTerm: this.state.searchTerm,
                 });
                 if (this.state.searching) {
-                    this._refreshSubChannelList();
+                    this._updateSubChannelList();
                     this.state.lastSearchTerm = this.state.searchTerm;
                 }
             } finally {
@@ -118,7 +118,7 @@ export class SubChannelList extends Component {
         });
     }
 
-    _refreshSubChannelList() {
+    _updateSubChannelList() {
         this.state.subChannels = fuzzyLookup(
             this.state.searchTerm ?? "",
             this.props.thread.sub_channel_ids,

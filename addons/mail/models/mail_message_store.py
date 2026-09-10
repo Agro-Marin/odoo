@@ -266,7 +266,7 @@ class MailMessage(models.Model):
             )
         if store.target.is_current_user(self.env):
             displayed_tracking_ids = (
-                self.sudo().tracking_value_ids._filter_has_field_access(self.env)
+                self.sudo().tracking_value_ids._filtered_has_field_access(self.env)
             )
             if record and isinstance(record, self.pool["mixin.mail.thread"]):
                 displayed_tracking_ids = record._track_filter_for_display(

@@ -48,7 +48,7 @@ class MockedConnection:
     def get_unread_messages(self):
         yield from list(self.mock_messages.items())
 
-    def handled_message(self, num):
+    def mark_message_handled(self, num):
         if self.fail_ack:
             raise OSError("STORE failed")
         self.acknowledged.append(num)
@@ -194,7 +194,7 @@ class TestIncomingMailTransport(TransactionCase):
             connection = incoming_mail.connect("pop", "127.0.0.1", srv.port, "none")
             connection.count_unread_messages()
             for num, _raw in connection.get_unread_messages():
-                connection.handled_message(num)
+                connection.mark_message_handled(num)
             connection.disconnect()
         self.assertEqual(srv.mailbox.deleted, {1, 2})
 
@@ -219,7 +219,7 @@ class TestIncomingMailTransport(TransactionCase):
                 [],
                 "a fetched-but-unacknowledged message must stay unread",
             )
-            connection.handled_message(b"101")
+            connection.mark_message_handled(b"101")
             self.assertEqual(server.mailbox.flags()[101], ["\\Seen"])
             connection.disconnect()
 
@@ -238,7 +238,7 @@ class TestIncomingMailTransport(TransactionCase):
 
             server.mailbox.expunge_uid(101)
 
-            connection.handled_message(num)
+            connection.mark_message_handled(num)
             connection.disconnect()
         self.assertEqual(
             server.mailbox.flags(),
@@ -848,7 +848,7 @@ class TestFetchmailDurability(FetchmailCommon):
         server = self._server(name="ordered")
         connection = MockedConnection({1: _message(1)})
         order = []
-        connection.handled_message = lambda num: order.append("acknowledged")
+        connection.mark_message_handled = lambda num: order.append("acknowledged")
         with self.enter_registry_test_mode(), self.registry.cursor() as cr:
             commit = type(cr).commit
 
@@ -1171,7 +1171,7 @@ class TestFetchmailProgress(FetchmailCommon):
             def get_unread_messages(self):
                 raise OSError("dropped mid-batch")
 
-            def handled_message(self, num):
+            def mark_message_handled(self, num):
                 pass
 
             def disconnect(self):

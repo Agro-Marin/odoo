@@ -71,7 +71,7 @@ class MailTrackingValue(models.Model):
         "mail.message", "Message ID", required=True, index=True, ondelete="cascade"
     )
 
-    def _filter_has_field_access(self, env: Environment) -> Self:
+    def _filtered_has_field_access(self, env: Environment) -> Self:
         def has_field_access(tracking: MailTrackingValue) -> bool:
             if not tracking.field_id:
                 return env.is_system()
@@ -83,7 +83,7 @@ class MailTrackingValue(models.Model):
 
         return self.filtered(has_field_access)
 
-    def _filter_free_field_access(self) -> Self:
+    def _filtered_free_field_access(self) -> Self:
         def has_free_access(tracking: MailTrackingValue) -> bool:
             if not tracking.field_id:
                 return False

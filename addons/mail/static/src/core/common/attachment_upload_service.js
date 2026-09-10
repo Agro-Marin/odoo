@@ -223,7 +223,7 @@ export class AttachmentUploadService {
             .upload(this.getUploadURL(thread), [file], {
                 /** @param {FormData} formData */
                 buildFormData: (formData) => {
-                    this._buildFormData(
+                    this._updateFormData(
                         formData,
                         tmpURL,
                         thread,
@@ -251,7 +251,7 @@ export class AttachmentUploadService {
      * @param {import("models").Activity} [options.activity]
      * @returns {FormData}
      */
-    _buildFormData(formData, tmpURL, thread, composer, tmpId, options) {
+    _updateFormData(formData, tmpURL, thread, composer, tmpId, options) {
         formData.append("thread_id", thread.id);
         formData.append("tmp_url", tmpURL);
         formData.append("thread_model", thread.model);

@@ -68,8 +68,8 @@ patch(AttachmentUploadService.prototype, {
         return super._upload(thread, composer, file, options, tmpId, tmpURL);
     },
 
-    _buildFormData(formData, tmpURL, thread, composer, tmpId, options) {
-        super._buildFormData(...arguments);
+    _updateFormData(formData, tmpURL, thread, composer, tmpId, options) {
+        super._updateFormData(...arguments);
         if (options?.cloud_storage) {
             formData.append("cloud_storage", true);
         }

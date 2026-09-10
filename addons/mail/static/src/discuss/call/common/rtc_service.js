@@ -421,7 +421,7 @@ export class Rtc extends Record {
                 playSound: (soundName) => this.soundEffectsService.play(soundName),
                 notify: (text) => this.notification.add(text, { type: "warning" }),
                 setTalking: (isTalking) => this.setTalking(isTalking),
-                refreshMicAudioStatus: () => this.refreshMicAudioStatus(),
+                updateMicAudioStatus: () => this.updateMicAudioStatus(),
             },
         });
     }
@@ -1649,7 +1649,7 @@ export class Rtc extends Record {
             }
             session.audioElement.muted = is_deaf;
         }
-        await this.refreshMicAudioStatus();
+        await this.updateMicAudioStatus();
     }
 
     /** @param {string} deviceId */
@@ -1667,7 +1667,7 @@ export class Rtc extends Record {
     /** @param {Boolean} is_muted */
     async setMute(is_muted) {
         this.updateAndBroadcast({ is_muted });
-        await this.refreshMicAudioStatus();
+        await this.updateMicAudioStatus();
     }
 
     /** @param {Boolean} raise */
@@ -1691,7 +1691,7 @@ export class Rtc extends Record {
         this.localSession.isTalking = isTalking;
         if (!this.localSession.isMute) {
             this.pttExtService.notifyIsTalking(isTalking);
-            await this.refreshMicAudioStatus();
+            await this.updateMicAudioStatus();
         }
     }
 
@@ -1809,7 +1809,7 @@ export class Rtc extends Record {
         this.state.updateAndBroadcastDebounce?.();
     }
 
-    async refreshMicAudioStatus() {
+    async updateMicAudioStatus() {
         if (!this.state.micAudioTrack) {
             return;
         }
@@ -1827,7 +1827,7 @@ export class Rtc extends Record {
     }
 
     /** @param {number} id */
-    deleteSession(id) {
+    removeSession(id) {
         const session = this.store["discuss.channel.rtc.session"].get(id);
         if (session) {
             if (this.localSession && session.eq(this.localSession)) {

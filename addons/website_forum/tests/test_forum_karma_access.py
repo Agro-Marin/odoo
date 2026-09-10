@@ -651,7 +651,7 @@ class TestForumMailOperationMap(TestForumCommon):
     """The karma gate on message write/unlink must survive ``sudo()``.
 
     ``_mail_get_operation_for_mail_message_operation`` is reached with two
-    environments: ``mail.message._filter_records_for_message_operation`` calls it
+    environments: ``mail.message._get_accessible_documents`` calls it
     on a plain recordset, while ``mail.message._get_with_access`` and the
     chatter's ``_get_thread_with_access_for_post`` call it on a ``sudo()`` one.
 

@@ -8,7 +8,7 @@ const KNOWN_DOUBLE_PATCHES = new Set([
     "Activity.prototype :: setup",
     "ActivityMenu.prototype :: availableViews",
     "ActivityMenu.prototype :: openActivityGroup",
-    "AttachmentUploadService.prototype :: _buildFormData",
+    "AttachmentUploadService.prototype :: _updateFormData",
     "ChatWindow.prototype :: _onClose",
     "ChatWindow.prototype :: close",
     "ChatWindow.prototype :: setup",
@@ -122,5 +122,4 @@ test("every live double-patch is consciously allowlisted", () => {
             " `super` chain; review and allowlist them in KNOWN_DOUBLE_PATCHES" +
             " (patch_order_audit.test.js)",
     });
-
 });

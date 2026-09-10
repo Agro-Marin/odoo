@@ -220,7 +220,7 @@ def postprocess_payload(payload: Payload) -> Payload:
     return Payload(body, attachments)
 
 
-def find_part(
+def get_part(
     message: EmailMessage, content_types: tuple[str, ...]
 ) -> EmailMessage | None:
     return next(

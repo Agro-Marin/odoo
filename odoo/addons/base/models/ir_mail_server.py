@@ -1288,7 +1288,7 @@ class IrMail_Server(models.Model):
         ):
             return mail_server, email_from
 
-        fallbacks = self._filter_mail_servers_fallback(mail_servers)
+        fallbacks = self._filtered_mail_servers_fallback(mail_servers)
 
         if notifications_email and (
             mail_server := self._get_first_server_for_email(
@@ -1361,7 +1361,7 @@ class IrMail_Server(models.Model):
         return notifications_email or email_from
 
     @api.model
-    def _filter_mail_servers_fallback(self, servers: Self) -> Self:
+    def _filtered_mail_servers_fallback(self, servers: Self) -> Self:
         return servers
 
     @api.model

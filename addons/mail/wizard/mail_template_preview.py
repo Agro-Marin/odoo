@@ -103,7 +103,7 @@ class MailTemplatePreview(models.TransientModel):
             error_msg = False
             mail_template = preview.mail_template_id.with_context(lang=preview.lang)
             if not preview.resource_ref or not preview.resource_ref.id:
-                preview._set_mail_attributes()
+                preview._update_mail_attributes()
                 preview.error_msg = False
             else:
                 try:
@@ -112,9 +112,9 @@ class MailTemplatePreview(models.TransientModel):
                     )._prepare_mail_vals(
                         [preview.resource_ref.id], preview._MAIL_TEMPLATE_FIELDS
                     )[preview.resource_ref.id]
-                    preview._set_mail_attributes(values=mail_values)
+                    preview._update_mail_attributes(values=mail_values)
                 except (ValueError, UserError, AccessError) as user_error:
-                    preview._set_mail_attributes()
+                    preview._update_mail_attributes()
                     error_msg = user_error.args[0]
             preview.error_msg = error_msg
 
@@ -140,7 +140,7 @@ class MailTemplatePreview(models.TransientModel):
             res = self.env[model].search([], limit=1)  # noqa: E8507  the probed model varies per preview, so no one query spans them
             preview.resource_ref = f"{model},{res.id}" if res else False
 
-    def _set_mail_attributes(self, values: dict | None = None) -> None:
+    def _update_mail_attributes(self, values: dict | None = None) -> None:
         for field in self._MAIL_TEMPLATE_FIELDS:
             if field == "partner_to":
                 continue

@@ -92,7 +92,7 @@ class MailMessage(models.Model):
         for message in audit_messages:
             title = message.subject or message.preview
             tracking_value_ids = (
-                message.sudo().tracking_value_ids._filter_has_field_access(self.env)
+                message.sudo().tracking_value_ids._filtered_has_field_access(self.env)
             )
             if not title and tracking_value_ids:
                 title = self.env._("Updated")

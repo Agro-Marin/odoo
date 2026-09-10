@@ -352,7 +352,7 @@ class MailAlias(models.Model):
                 )
             prepared.append(vals)
 
-        self._apply_alias_name_vals(prepared)
+        self._update_alias_name_vals(prepared)
         AliasDomain = self.env["mail.alias.domain"]
         self._check_alias_address_available(
             [
@@ -370,7 +370,7 @@ class MailAlias(models.Model):
 
         if "alias_name" in vals or "alias_domain_id" in vals:
             vals = dict(vals)
-            self._apply_alias_name_vals([vals])
+            self._update_alias_name_vals([vals])
             AliasDomain = self.env["mail.alias.domain"]
             addresses = [
                 (
@@ -390,7 +390,7 @@ class MailAlias(models.Model):
         return super().write(vals)
 
     @api.model
-    def _apply_alias_name_vals(self, vals_list: list[ValuesType]) -> None:
+    def _update_alias_name_vals(self, vals_list: list[ValuesType]) -> None:
         pending = []
         for vals in vals_list:
             if "alias_name" not in vals:

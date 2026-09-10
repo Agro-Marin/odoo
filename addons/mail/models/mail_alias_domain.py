@@ -403,7 +403,7 @@ class MailAliasDomain(models.Model):
         return ",".join(value)
 
     @api.model
-    def _find_aliases(self, email_list: list[str]) -> list[str]:
+    def _get_alias_emails(self, email_list: list[str]) -> list[str]:
         split = [(e, *e.partition("@")[::2]) for e in email_list if e and "@" in e]
         if not split:
             return []

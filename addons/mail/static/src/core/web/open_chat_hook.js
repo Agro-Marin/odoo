@@ -7,7 +7,7 @@ export const helpers = {
      * @param {number} id
      * @returns {{userId?: number, partnerId?: number}}
      */
-    buildOpenChatParams: (resModel, id) => ({
+    prepareOpenChatParams: (resModel, id) => ({
         userId: resModel === "res.users" ? id : undefined,
         partnerId: resModel === "res.partner" ? id : undefined,
     }),
@@ -28,6 +28,6 @@ export function useOpenChat(resModel) {
         );
     }
     return /** @param {number} id */ async (id) => {
-        store.openChat(helpers.buildOpenChatParams(resModel, id));
+        store.openChat(helpers.prepareOpenChatParams(resModel, id));
     };
 }

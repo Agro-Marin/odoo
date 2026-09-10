@@ -845,7 +845,7 @@ class DiscussChannelMember(models.Model):
             ],
         ).bus_send()
 
-    def _set_new_message_separator(self, message_id: int) -> None:
+    def _update_new_message_separator(self, message_id: int) -> None:
         self.check_singleton()
         if message_id == self.new_message_separator:
             bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()

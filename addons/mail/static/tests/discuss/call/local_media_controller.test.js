@@ -58,7 +58,7 @@ function makeController() {
             playSound: (soundName) => steps.sounds.push(soundName),
             notify: () => {},
             setTalking: () => {},
-            refreshMicAudioStatus: async () => {},
+            updateMicAudioStatus: async () => {},
         },
     });
     return { controller, state, session, settings, steps };

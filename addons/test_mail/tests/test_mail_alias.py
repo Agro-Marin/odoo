@@ -2313,7 +2313,7 @@ class TestMailAliasDomainName(TestMailAliasCommon):
             )
         )
         self.assertEqual(
-            Domain._find_aliases(["catchall@mixed.example.com"]),
+            Domain._get_alias_emails(["catchall@mixed.example.com"]),
             ["catchall@mixed.example.com"],
         )
         self.assertIn(domain.bounce_email, Domain._get_bounce_emails())
@@ -2525,7 +2525,7 @@ class TestMailAliasDomainLifecycle(TestMailAliasCommon):
 
 @tagged("mail_gateway", "mail_alias", "multi_company")
 class TestMailAliasDomainFindAliases(TestMailAliasCommon):
-    """`_find_aliases` answers "is this address ours", not "can we route it"."""
+    """`_get_alias_emails` answers "is this address ours", not "can we route it"."""
 
     @classmethod
     def setUpClass(cls):
@@ -2552,7 +2552,7 @@ class TestMailAliasDomainFindAliases(TestMailAliasCommon):
         Domain = self.env["mail.alias.domain"]
         ours = f"helpdesk@{self.mail_alias_domain.name}"
         self.assertEqual(
-            Domain._find_aliases([ours, "helpdesk@gmail.com"]),
+            Domain._get_alias_emails([ours, "helpdesk@gmail.com"]),
             [ours, "helpdesk@gmail.com"],
         )
 
@@ -2564,7 +2564,7 @@ class TestMailAliasDomainFindAliases(TestMailAliasCommon):
         )
         ours = f"helpdesk@{self.mail_alias_domain.name}"
         self.assertEqual(
-            self.env["mail.alias.domain"]._find_aliases(
+            self.env["mail.alias.domain"]._get_alias_emails(
                 ["helpdesk@partner.example.com", ours, "helpdesk@gmail.com"]
             ),
             ["helpdesk@partner.example.com", ours],
@@ -2574,7 +2574,7 @@ class TestMailAliasDomainFindAliases(TestMailAliasCommon):
     def test_repeated_inputs_answer_once(self):
         catchall = self.mail_alias_domain.catchall_email
         self.assertEqual(
-            self.env["mail.alias.domain"]._find_aliases([catchall] * 3), [catchall]
+            self.env["mail.alias.domain"]._get_alias_emails([catchall] * 3), [catchall]
         )
 
 

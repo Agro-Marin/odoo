@@ -2142,7 +2142,7 @@ class TestMailMailQueueResilience(MailCommon):
         """One mail on a server it may not use must not stop the other mails.
 
         ``_send`` raises ``UserError`` for the whole batch when *any* of its mails
-        fails ``_filter_mail_mail_servers``, and ``send`` does not catch it: the
+        fails ``_filtered_mail_mail_servers``, and ``send`` does not catch it: the
         exception leaves the configuration-group loop, so every group after the
         offending one is skipped too. ``_check_mail_server_id`` does not prevent
         this -- it is an ``@api.constrains`` on the mail, and the thing that makes
@@ -2544,12 +2544,14 @@ class TestMailMailSendGuarantees(MailCommon):
                 }
             )
         )
-        self.assertTrue(mail._filter_mail_mail_servers(server), "allowed while enabled")
+        self.assertTrue(
+            mail._filtered_mail_mail_servers(server), "allowed while enabled"
+        )
         self.env["ir.config_parameter"].sudo().set_param(
             "mail.disable_personal_mail_servers", True
         )
         self.assertFalse(
-            mail._filter_mail_mail_servers(server),
+            mail._filtered_mail_mail_servers(server),
             "the kill-switch is still honoured one mail at a time",
         )
 

@@ -7,10 +7,10 @@ patch(helpers, {
         ...helpers.SUPPORTED_M2X_AVATAR_MODELS,
         "hr.employee",
     ],
-    buildOpenChatParams(resModel, id) {
+    prepareOpenChatParams(resModel, id) {
         if (resModel === "hr.employee") {
             return { employeeId: id };
         }
-        return super.buildOpenChatParams(...arguments);
+        return super.prepareOpenChatParams(...arguments);
     },
 });

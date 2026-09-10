@@ -157,7 +157,7 @@ class MailMessage(models.Model):
         tracking_values = (
             self.env["mail.tracking.value"].sudo().search(tracking_value_domain)
         )
-        return tracking_values._filter_has_field_access(self.env).mail_message_id.ids
+        return tracking_values._filtered_has_field_access(self.env).mail_message_id.ids
 
     def _get_page_around(self, domain: Domain, around: int, limit: int) -> Self:
         after_limit = limit // 2

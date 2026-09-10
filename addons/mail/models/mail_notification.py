@@ -150,7 +150,7 @@ class MailNotification(models.Model):
             return _("Unknown error")
 
     def _filtered_for_web_client(self) -> Self:
-        def _filter_unimportant_notifications(notif: MailNotification) -> bool:
+        def _is_relevant_for_web_client(notif: MailNotification) -> bool:
             if (
                 notif.notification_status in ["bounce", "exception", "canceled"]
                 or notif.res_partner_id.partner_share
@@ -160,7 +160,7 @@ class MailNotification(models.Model):
             subtype = notif.mail_message_id.subtype_id
             return not subtype or subtype.track_recipients
 
-        return self.filtered(_filter_unimportant_notifications)
+        return self.filtered(_is_relevant_for_web_client)
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return [

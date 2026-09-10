@@ -521,7 +521,7 @@ class Base(models.AbstractModel):
             banned.add(root_email)
         banned.update(
             alias
-            for alias in self.env["mail.alias.domain"].sudo()._find_aliases(keys)
+            for alias in self.env["mail.alias.domain"].sudo()._get_alias_emails(keys)
             if alias
         )
         return banned
@@ -923,7 +923,7 @@ class Base(models.AbstractModel):
             return found_results
 
         alias_emails = (
-            self.env["mail.alias.domain"].sudo()._find_aliases(emails_key_all)
+            self.env["mail.alias.domain"].sudo()._get_alias_emails(emails_key_all)
             if avoid_alias
             else []
         )

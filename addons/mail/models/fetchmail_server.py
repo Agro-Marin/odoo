@@ -570,7 +570,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             )
             return _MessageOutcome.REFUSED
         try:
-            connection.handled_message(num)
+            connection.mark_message_handled(num)
         except Exception:
             _logger.warning(
                 "Processed message %r on %s server %s but could not acknowledge it; "

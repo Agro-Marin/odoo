@@ -28,8 +28,8 @@ patch(AttachmentUploadService.prototype, {
      * @param {boolean} [options.voice]
      * @returns {FormData}
      */
-    _buildFormData(formData, tmpURL, thread, composer, tmpId, options) {
-        super._buildFormData(...arguments);
+    _updateFormData(formData, tmpURL, thread, composer, tmpId, options) {
+        super._updateFormData(...arguments);
         if (options?.voice) {
             formData.append("voice", true);
         }

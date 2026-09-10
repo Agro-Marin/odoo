@@ -55,7 +55,7 @@ class IncomingMailConnection(Protocol):
     def get_unread_messages(self) -> Iterator[tuple[MessageRef, bytes]]:
         pass
 
-    def handled_message(self, num: MessageRef) -> None:
+    def mark_message_handled(self, num: MessageRef) -> None:
         pass
 
     def disconnect(self) -> None:
@@ -98,7 +98,7 @@ class OdooIMAP4(IMAP4):
                 continue
             yield num, data[0][1]
 
-    def handled_message(self, num: bytes) -> None:
+    def mark_message_handled(self, num: bytes) -> None:
         typ, data = self.uid("STORE", num, "+FLAGS", "(\\Seen)")
         self._check(typ, data, "UID STORE")
 
@@ -132,7 +132,7 @@ class OdooPOP3(POP3):
             (_header, lines, _octets) = self.retr(num)
             yield num, b"\r\n".join(lines)
 
-    def handled_message(self, num: int) -> None:
+    def mark_message_handled(self, num: int) -> None:
         self.dele(num)
 
     def disconnect(self) -> None:

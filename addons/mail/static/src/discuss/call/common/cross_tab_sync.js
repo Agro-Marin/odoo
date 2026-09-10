@@ -140,7 +140,7 @@ export class CrossTabSync {
         });
     }
 
-    _refreshTimeout() {
+    _resetTimeout() {
         browser.clearTimeout(this._crossTabTimeoutId);
         this._crossTabTimeoutId = browser.setTimeout(() => {
             this.hooks.onHostClosed();
@@ -156,7 +156,7 @@ export class CrossTabSync {
                 }
                 this.state.remoteSessionId = hostedSessionId;
                 this.state.remoteChannelId = hostedChannelId;
-                this._refreshTimeout();
+                this._resetTimeout();
                 this.hooks.onRemoteUpdate(changes);
                 return;
             case CROSS_TAB_HOST_MESSAGE.CLOSE: {
@@ -180,7 +180,7 @@ export class CrossTabSync {
                 if (!this.isRemote || this.state.remoteSessionId !== hostedSessionId) {
                     return;
                 }
-                this._refreshTimeout();
+                this._resetTimeout();
                 return;
             }
             case CROSS_TAB_CLIENT_MESSAGE.INIT: {

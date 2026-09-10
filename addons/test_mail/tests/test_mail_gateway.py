@@ -4039,7 +4039,7 @@ class TestMailGatewayHelpers(MailGatewayCommon):
         The bounce goes on a cursor of its own so it survives the rollback the
         caller's `raise` causes -- but `fetchmail_server._deliver` then rolls the
         main cursor back, counts the delivery REFUSED and never calls
-        `handled_message`, so the message stays on the server and is offered
+        `mark_message_handled`, so the message stays on the server and is offered
         again. The bounce is already committed. Nothing converges: the same
         message fails the same way and bounces again every single poll, and
         neither the duplicate guard (no `mail.message` was committed) nor either

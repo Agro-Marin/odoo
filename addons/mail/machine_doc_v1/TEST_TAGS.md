@@ -194,7 +194,7 @@ Two separate things inflate the numbers, so check both before believing one:
    (deepest `/addons/` frame, with line numbers) gives ~25 distinct sites each
    contributing exactly one query — `_message_compute_parent_id`,
    `_notify_get_reply_to_batch`, `_get_forbidden_access`,
-   `_filter_records_for_message_operation`, `_add_default_followers`,
+   `_get_accessible_documents`, `_add_default_followers`,
    `_get_subscription_data`, `_get_recipient_data`, `_compute_main_user_id`,
    `_notify_by_email_prepare_rendering_context`, `_split_by_mail_configuration`,
    `_prepare_outgoing_list`, `_postprocess_sent_message`, and so on. No third

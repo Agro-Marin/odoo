@@ -54,6 +54,32 @@ So the report is a candidate list on §2.4.4's terms: a population to read, not
 a defect list. Where it is wrong it is wrong in the direction that costs a
 reader a minute, which is the only direction a non-blocking instrument may be
 wrong in.
+
+**The first version read only a third of the definitions, and the third it
+skipped was the private one.** Every shape it matched began with `[a-z]`, so
+a `_`-prefixed method -- the JS spelling of exactly the population the Python
+gate is FOR -- was never a candidate, and neither was a member of an object
+literal (`name: (x) => ...`, `name: function (`) or a class field bound to an
+arrow. Measured on `addons/mail` when this was widened: **338** private method
+shorthands and **470** object-literal members had been outside the scan, and
+among them `_retrieveIdFromData`, two `_buildFormData` that mutate the
+`FormData` they are handed, and two `_refresh*` that reset a timer and rewrite
+a state key. In the other direction the shorthand shape had no way to tell a
+method definition from a bare call statement, so `fillEmpty(parent);` -- a
+call into an imported `html_editor` helper -- was reported as a definition in
+mail. A definition's parameter list is followed by a `{`; a call's is followed
+by `;`, `)` or `,`. The shorthand now requires the brace.
+
+Two more words are JavaScript's own and join `IDIOM`: `find` and `filter` are
+`Array.prototype`, and a `findDelimiterAt` or a `filterProgressValue` is named
+for the built-in it wraps, where the Python table would send them to `_get_`
+and `_filtered_`. Two more names are platform contracts and join
+`PLATFORM_METHODS`: `deleteProperty` is a `Proxy` trap, and `locateFile` is the
+Emscripten / MediaPipe module option a WASM loader reads by that exact key.
+And the store's record system under `mail/static/src/model/` declares `delete`
+as its own API -- `record.delete()`, `recordList.delete(...records)` and the
+no-inverse variant beside it -- mirroring `Set.prototype.delete`, so that tree
+joins `CONTRACT_TREES` for the same reason `html_editor`'s plugins do.
 """
 
 from __future__ import annotations
@@ -69,6 +95,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import _sources
 import naming_core_vocabulary as ncv
 import naming_vocabulary as nv
 from _repo_root import find_odoo_root
@@ -83,37 +110,79 @@ ABOLISHED = frozenset(nv.ABOLISHED) | frozenset(ncv.SYNONYMS) | ncv.ASSEMBLE
 
 # Argued one by one in the module docstring. These are not exceptions to the
 # vocabulary; they are words whose JavaScript meaning is a different word.
-IDIOM = frozenset({"fetch", "make", "assign"})
+IDIOM = frozenset({"fetch", "make", "assign", "find", "filter"})
 
 # `delete` and `fill` are honest verbs in most positions and contract names in
-# two trees. Exempting the WORD would lose `fillPartnersMentionToken`, which
+# three trees. Exempting the WORD would lose `fillPartnersMentionToken`, which
 # was a real finding; exempting the TREE loses only the names those trees own.
-CONTRACT_TREES = ("/plugin/", "_plugin.js", "/html_editor/")
+CONTRACT_TREES = ("/plugin/", "_plugin.js", "/html_editor/", "mail/static/src/model/")
 
-# A Canvas 2D or DOM method the code is implementing or wrapping, where the
-# name is the platform's and not ours.
+# A Canvas 2D, DOM, Proxy or WASM-loader method the code is implementing or
+# wrapping, where the name is the platform's and not ours.
 PLATFORM_METHODS = frozenset(
-    {"fillRect", "fillRects", "fillText", "deleteBackward", "deleteForward"}
+    {
+        "fillRect",
+        "fillRects",
+        "fillText",
+        "deleteBackward",
+        "deleteForward",
+        "deleteProperty",
+        "locateFile",
+    }
 )
 
 SKIP_DIRS = frozenset({"node_modules", "lib", "libs", "vendored", "_vendor"})
 
-# A method shorthand in a class or object literal, a `function` declaration, and
-# an arrow bound to a const. Deliberately not a JS parser: this reports a
-# population for a human to read, and the cost of a regex missing a definition
-# is one name nobody looks at, where the cost of adding a JS parser to this
-# repository is a dependency for a non-blocking report.
+# A method shorthand in a class or object literal, a `function` declaration, an
+# arrow bound to a const, an object-literal member bound to an arrow or a
+# `function`, and a class field bound to an arrow. Deliberately not a JS
+# parser: this reports a population for a human to read, and the cost of a
+# regex missing a definition is one name nobody looks at, where the cost of
+# adding a JS parser to this repository is a dependency for a non-blocking
+# report.
+#
+# A name may open with `_` or `$`: the private prefix is the JS spelling of the
+# population the Python gate exists for, and the first version of this reader
+# could not see it at all.
+_NAME = r"([_$a-z][A-Za-z0-9_$]*)"
+# A parameter list with one level of nesting, enough for a destructured
+# `({ force = false, unmute = true })` and a default `(a = fn(b))`.
+_PARAMS = r"\((?:[^()]|\([^()]*\))*\)"
+# The brace is what separates `name(args) {` -- a definition -- from
+# `name(args);`, a call at statement level, which the same regex without it
+# reported as a definition.
 _SHORTHAND = re.compile(
     r"^[ \t]*(?:async[ \t]+|static[ \t]+|get[ \t]+|set[ \t]+|\*)*"
-    r"([a-z][A-Za-z0-9_$]*)[ \t]*\(",
+    + _NAME
+    + r"[ \t]*"
+    + _PARAMS
+    + r"[ \t]*\{",
     re.MULTILINE,
 )
-_FUNCTION = re.compile(r"\bfunction[ \t]+([a-z][A-Za-z0-9_$]*)[ \t]*\(")
+_FUNCTION = re.compile(r"\bfunction[ \t]*\*?[ \t]+" + _NAME + r"[ \t]*\(")
 _ARROW = re.compile(
-    r"^[ \t]*(?:export[ \t]+)?(?:const|let|var)[ \t]+([a-z][A-Za-z0-9_$]*)"
-    r"[ \t]*=[ \t]*(?:async[ \t]*)?\(",
+    r"^[ \t]*(?:export[ \t]+)?(?:const|let|var)[ \t]+"
+    + _NAME
+    + r"[ \t]*=[ \t]*(?:async[ \t]*)?\(",
     re.MULTILINE,
 )
+_MEMBER = re.compile(
+    r"^[ \t]+"
+    + _NAME
+    + r"[ \t]*:[ \t]*(?:async[ \t]*)?(?:function[ \t]*\*?[ \t]*\(|"
+    + _PARAMS
+    + r"[ \t]*=>)",
+    re.MULTILINE,
+)
+_CLASS_FIELD = re.compile(
+    r"^[ \t]+(?:static[ \t]+)?"
+    + _NAME
+    + r"[ \t]*=[ \t]*(?:async[ \t]*)?"
+    + _PARAMS
+    + r"[ \t]*=>",
+    re.MULTILINE,
+)
+_SHAPES = (_SHORTHAND, _FUNCTION, _ARROW, _MEMBER, _CLASS_FIELD)
 
 # `if (`, `for (`, `while (`, `catch (` and `switch (` all match the shorthand
 # shape, and so does a bare call at statement level. A keyword list is exact
@@ -165,11 +234,12 @@ def leading_verb(name: str) -> str | None:
     in Python -- §2.4.6's `[review]` tier, and the same argument
     `naming_core_vocabulary` makes for holding bare verbs out of its gate.
     """
-    head = re.match(r"[a-z]+", name)
+    stem = name.lstrip("_$")
+    head = re.match(r"[a-z]+", stem)
     if head is None:
         return None
     verb = head.group(0)
-    return verb if len(verb) < len(name) else None
+    return verb if len(verb) < len(stem) else None
 
 
 def is_exempt(path: Path, name: str, verb: str) -> bool:
@@ -190,7 +260,7 @@ def scan_files(root: Path) -> list[Path]:
 def definitions(text: str) -> list[tuple[str, int]]:
     """Every name this file appears to define, with its line."""
     found: list[tuple[str, int]] = []
-    for regex in (_SHORTHAND, _FUNCTION, _ARROW):
+    for regex in _SHAPES:
         for match in regex.finditer(text):
             name = match.group(1)
             if name in _KEYWORDS:
@@ -210,7 +280,7 @@ def measure(root: Path) -> list[Violation]:
     found: list[Violation] = []
     for path in files:
         text = path.read_text(encoding="utf-8", errors="ignore")
-        display = path.relative_to(ROOT).as_posix()
+        display = Path(_sources.display_across_repos(path, ROOT)).as_posix()
         for name, line in definitions(text):
             verb = leading_verb(name)
             if verb is None or verb not in ABOLISHED:
@@ -276,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(v) for v in found], indent=2))
         return 0
 
-    where = ", ".join(str(r.relative_to(ROOT)) for r in roots)
+    where = ", ".join(_sources.display_across_repos(r, ROOT) for r in roots)
     print(f"§2.4 method vocabulary in JavaScript -- {where}")
     print("=" * 72)
     for item in found if args.top == 0 else found[: args.top]:

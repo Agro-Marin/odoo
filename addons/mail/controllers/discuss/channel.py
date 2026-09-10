@@ -173,7 +173,7 @@ class ChannelController(http.Controller):
         self, channel_id: int, message_id: int
     ) -> None:
         member = get_self_member_or_404(channel_id)
-        return member._set_new_message_separator(to_record_id(message_id))
+        return member._update_new_message_separator(to_record_id(message_id))
 
     @http.route(
         "/discuss/channel/notify_typing",

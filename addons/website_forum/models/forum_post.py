@@ -1024,7 +1024,7 @@ class ForumPost(models.Model):
             # and by the chatter's ``_get_thread_with_access_for_post``, where
             # ``su`` is True. The karma gate therefore passed for *every* user on
             # those paths while working correctly on the batch path
-            # (``_filter_records_for_message_operation``), which does not sudo.
+            # (``_get_accessible_documents``), which does not sudo.
             # Ask about the user, so the answer is the same in both.
             user = self.env.user
             is_admin = user._is_admin()

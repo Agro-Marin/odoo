@@ -1,13 +1,3 @@
-"""`hasattr(object, 'x') and object.x` names a field an optional module adds.
-
-`mail.template._find_unknown_object_attribute` refused every `object.<name>` the
-model lacked, guard or no guard, so a template copied through Python -- where
-`install_mode` is not set and `_check_rendering` runs -- was refused for the very
-expression `account`'s own invoice template ships (`timesheet_count`, a field only
-`sale_timesheet` adds). `l10n_co_dian` copies that template and could not install
-without `sale_timesheet`.
-"""
-
 from markupsafe import Markup
 
 from odoo.exceptions import ValidationError

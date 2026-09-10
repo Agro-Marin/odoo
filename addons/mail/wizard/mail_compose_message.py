@@ -350,7 +350,7 @@ class MailComposeMessage(models.TransientModel):
     def _compute_subject(self) -> None:
         for composer in self:
             if composer.template_id:
-                composer._set_value_from_template("subject")
+                composer._update_value_from_template("subject")
             if not composer.template_id or not composer.subject:
                 subject = composer.parent_id.subject
                 if (
@@ -374,7 +374,7 @@ class MailComposeMessage(models.TransientModel):
     def _compute_body(self) -> None:
         for composer in self:
             if composer.template_id:
-                composer._set_value_from_template("body_html", "body")
+                composer._update_value_from_template("body_html", "body")
             if not composer.template_id:
                 composer.body = False
 
@@ -469,7 +469,7 @@ class MailComposeMessage(models.TransientModel):
             updated_author_id = None
 
             if composer.template_id.email_from:
-                composer._set_value_from_template("email_from")
+                composer._update_value_from_template("email_from")
             elif composer.template_id:
                 composer.email_from = self.env.user.email_formatted
             elif not composer.template_id or not composer.email_from:
@@ -575,7 +575,7 @@ class MailComposeMessage(models.TransientModel):
     def _compute_reply_to(self) -> None:
         for composer in self:
             if composer.template_id:
-                composer._set_value_from_template("reply_to")
+                composer._update_value_from_template("reply_to")
             else:
                 composer.reply_to = False
 
@@ -731,7 +731,7 @@ class MailComposeMessage(models.TransientModel):
     def _compute_scheduled_date(self) -> None:
         for composer in self:
             if composer.template_id:
-                composer._set_value_from_template("scheduled_date")
+                composer._update_value_from_template("scheduled_date")
             if not composer.template_id:
                 composer.scheduled_date = False
 
@@ -739,7 +739,7 @@ class MailComposeMessage(models.TransientModel):
     def _compute_lang(self) -> None:
         for composer in self:
             if composer.template_id:
-                composer._set_value_from_template("lang")
+                composer._update_value_from_template("lang")
             if not composer.template_id:
                 composer.lang = False
 
@@ -919,7 +919,7 @@ class MailComposeMessage(models.TransientModel):
 
             sent_in_batch = False
             if self.force_send:
-                iter_mails_sudo_tosend = iter_mails_sudo._filter_ready_to_send()
+                iter_mails_sudo_tosend = iter_mails_sudo._filtered_ready_to_send()
                 if iter_mails_sudo_tosend:
                     iter_mails_sudo_tosend.send(auto_commit=auto_commit)
                     sent_in_batch = True
@@ -1563,7 +1563,7 @@ class MailComposeMessage(models.TransientModel):
             or []
         )
 
-    def _set_value_from_template(
+    def _update_value_from_template(
         self, template_fname: str, composer_fname: str | Literal[False] = False
     ) -> Any:
         self.check_singleton()

@@ -278,7 +278,7 @@ export class DiscussChannelMember extends models.ServerModel {
             return;
         }
         this._set_last_seen_message([member.id], last_message_id);
-        this.env["discuss.channel.member"]._set_new_message_separator(
+        this.env["discuss.channel.member"]._update_new_message_separator(
             [member.id],
             last_message_id + 1,
         );
@@ -347,7 +347,7 @@ export class DiscussChannelMember extends models.ServerModel {
      * @param {number[]} ids
      * @param {number} message_id
      */
-    _set_new_message_separator(ids, message_id) {
+    _update_new_message_separator(ids, message_id) {
         const kwargs = getKwArgs(arguments, "ids", "message_id", "sync");
         ids = kwargs.ids;
         delete kwargs.ids;

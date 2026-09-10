@@ -520,7 +520,7 @@ class MailTemplate(models.Model):
                         for chain in _hasattr_guarded_chains(tree)
                     ]
                     for expression in expressions:
-                        if message := self._find_unknown_object_attribute(
+                        if message := self._get_unknown_object_attribute_error(
                             expression, model, guarded
                         ):
                             raise AttributeError(message)
@@ -546,7 +546,7 @@ class MailTemplate(models.Model):
             return expressions
         return []
 
-    def _find_unknown_object_attribute(
+    def _get_unknown_object_attribute_error(
         self,
         expression: str,
         model: models.BaseModel,
@@ -563,11 +563,11 @@ class MailTemplate(models.Model):
                 continue
             if any(chain[: len(guard)] == guard for guard in guarded):
                 continue
-            if message := self._find_unknown_model_attribute(chain[1:], model):
+            if message := self._get_unknown_model_attribute_error(chain[1:], model):
                 return message
         return None
 
-    def _find_unknown_model_attribute(
+    def _get_unknown_model_attribute_error(
         self, names: list[str], model: models.BaseModel
     ) -> str | None:
         for name in names:
@@ -929,7 +929,7 @@ class MailTemplate(models.Model):
         for res_id, emails in emails_by_res_id.items():
             contribution.setdefault(res_id, {}).update(emails)
 
-        self._resolve_partner_to(partner_to_by_res_id, contribution)
+        self._update_partner_to(partner_to_by_res_id, contribution)
 
         return _merge_render_results(
             {} if render_results is None else render_results, contribution
@@ -978,7 +978,7 @@ class MailTemplate(models.Model):
                 partners.ids
             )
 
-    def _resolve_partner_to(
+    def _update_partner_to(
         self, partner_to_by_res_id: dict[int, str], contribution: RenderResults
     ) -> None:
 

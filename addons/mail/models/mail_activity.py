@@ -523,7 +523,7 @@ class MailActivity(models.Model):
         for res_model, res_ids in doc_ids.items():
             allowed = set(
                 env["mail.message"]
-                ._filter_records_for_message_operation(res_model, res_ids, operation)
+                ._get_accessible_documents(res_model, res_ids, operation)
                 ._ids
             )
             if mine := own_doc_ids.get(res_model, set()) - allowed:
@@ -564,13 +564,9 @@ class MailActivity(models.Model):
             return set()
         Message = self.env["mail.message"]
         readable = set(
-            Message._filter_records_for_message_operation(
-                res_model, res_ids, "read"
-            )._ids
+            Message._get_accessible_documents(res_model, res_ids, "read")._ids
         )
-        return readable | Message._filter_records_followed_by_self(
-            res_model, res_ids - readable
-        )
+        return readable | Message._get_followed_res_ids(res_model, res_ids - readable)
 
     def _access_rows(self) -> list[AccessRow]:
         return [
