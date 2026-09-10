@@ -101,7 +101,8 @@ test("PdfViewerField: upload file and download it", async () => {
     });
     patchWithCleanup(browser, {
         open: (url, type) => {
-            expect.step(`browser_open:${type}:${url.startsWith("blob:")}`);
+            expect.step(`browser_open:${type}:${String(url).startsWith("blob:")}`);
+            return window;
         },
     });
     expect("iframe.o_pdfview_iframe").toHaveCount(1);

@@ -49,12 +49,14 @@ test("Parameters error handling", async () => {
     };
 
     await mountNestedSortableAndAssert(() => {
+        // @ts-expect-error
         expect(() => useNestedSortable({})).toThrow(
             `Error in hook useNestedSortable: missing required property "ref" in parameter`,
         );
     });
     await mountNestedSortableAndAssert(() => {
         expect(() =>
+            // @ts-expect-error
             useNestedSortable({
                 elements: ".item",
                 groups: ".list",
@@ -84,7 +86,7 @@ test("Parameters error handling", async () => {
             connectGroups: true,
             nest: true,
             listTagName: "ol",
-            nestIndent: 20,
+            nestInterval: 20,
         });
     });
 });
@@ -524,6 +526,7 @@ test("Sorting with nesting - move root down", async () => {
             `;
 
         setup() {
+            let firstMove = false;
             useNestedSortable({
                 ref: useRef("root"),
                 elements: ".item",
@@ -532,10 +535,10 @@ test("Sorting with nesting - move root down", async () => {
                 onDragStart({ element }) {
                     expect.step("start");
                     expect(element).toHaveAttribute("id", "dragged");
-                    this.firstMove = true;
+                    firstMove = true;
                 },
                 onMove({ element, previous, next, parent, prevPos }) {
-                    if (this.firstMove) {
+                    if (firstMove) {
                         expect.step("move 1");
                         expect(element).toHaveAttribute("id", "dragged");
                         expect(previous).toHaveAttribute("id", "noChild");
@@ -544,7 +547,7 @@ test("Sorting with nesting - move root down", async () => {
                         expect(prevPos.previous).toHaveAttribute("id", "dragged");
                         expect(prevPos.next).toHaveAttribute("id", "noChild");
                         expect(prevPos.parent).toBe(null);
-                        this.firstMove = false;
+                        firstMove = false;
                     } else {
                         expect.step("move 2");
                         expect(element).toHaveAttribute("id", "dragged");
@@ -610,6 +613,7 @@ test("Sorting with nesting - move child down", async () => {
             `;
 
         setup() {
+            let firstMove = false;
             useNestedSortable({
                 ref: useRef("root"),
                 elements: ".item",
@@ -618,10 +622,10 @@ test("Sorting with nesting - move child down", async () => {
                 onDragStart({ element }) {
                     expect.step("start");
                     expect(element).toHaveAttribute("id", "dragged");
-                    this.firstMove = true;
+                    firstMove = true;
                 },
                 onMove({ element, previous, next, parent, prevPos }) {
-                    if (this.firstMove) {
+                    if (firstMove) {
                         expect.step("move 1");
                         expect(element).toHaveAttribute("id", "dragged");
                         expect(previous).toHaveAttribute("id", "child");
@@ -630,7 +634,7 @@ test("Sorting with nesting - move child down", async () => {
                         expect(prevPos.previous).toHaveAttribute("id", "dragged");
                         expect(prevPos.next).toHaveAttribute("id", "child");
                         expect(prevPos.parent).toHaveAttribute("id", "parent");
-                        this.firstMove = false;
+                        firstMove = false;
                     } else {
                         expect.step("move 2");
                         expect(element).toHaveAttribute("id", "dragged");
@@ -694,6 +698,7 @@ test("Sorting with nesting - move root up", async () => {
             `;
 
         setup() {
+            let firstMove = false;
             useNestedSortable({
                 ref: useRef("root"),
                 elements: ".item",
@@ -701,10 +706,10 @@ test("Sorting with nesting - move root up", async () => {
                 onDragStart({ element }) {
                     expect.step("start");
                     expect(element).toHaveAttribute("id", "dragged");
-                    this.firstMove = true;
+                    firstMove = true;
                 },
                 onMove({ element, previous, next, parent, prevPos }) {
-                    if (this.firstMove) {
+                    if (firstMove) {
                         expect.step("move 1");
                         expect(element).toHaveAttribute("id", "dragged");
                         expect(previous).toHaveAttribute("id", "parent");
@@ -713,7 +718,7 @@ test("Sorting with nesting - move root up", async () => {
                         expect(prevPos.previous).toHaveAttribute("id", "dragged");
                         expect(prevPos.next).toBe(null);
                         expect(prevPos.parent).toBe(null);
-                        this.firstMove = false;
+                        firstMove = false;
                     } else {
                         expect.step("move 2");
                         expect(element).toHaveAttribute("id", "dragged");
@@ -776,6 +781,7 @@ test("Sorting with nesting - move child up", async () => {
             `;
 
         setup() {
+            let firstMove = false;
             useNestedSortable({
                 ref: useRef("root"),
                 elements: ".item",
@@ -783,10 +789,10 @@ test("Sorting with nesting - move child up", async () => {
                 onDragStart({ element }) {
                     expect.step("start");
                     expect(element).toHaveAttribute("id", "dragged");
-                    this.firstMove = true;
+                    firstMove = true;
                 },
                 onMove({ element, previous, next, parent, prevPos }) {
-                    if (this.firstMove) {
+                    if (firstMove) {
                         expect.step("move 1");
                         expect(element).toHaveAttribute("id", "dragged");
                         expect(previous).toBe(null);
@@ -795,7 +801,7 @@ test("Sorting with nesting - move child up", async () => {
                         expect(prevPos.previous).toHaveAttribute("id", "dragged");
                         expect(prevPos.next).toBe(null);
                         expect(prevPos.parent).toHaveAttribute("id", "parent");
-                        this.firstMove = false;
+                        firstMove = false;
                     } else {
                         expect.step("move 2");
                         expect(element).toHaveAttribute("id", "dragged");

@@ -19,22 +19,22 @@ const ROUTE = "/web/binary/upload_attachment";
  * @returns {{ fire: (type: string) => void }}
  */
 function mockXhr({ status = 200, responseText = "", responseURL = ROUTE }) {
-    /** @type {Record<string, Function>} */
-    const listeners = {};
-    const xhr = {
-        upload: { addEventListener() {} },
-        addEventListener(/** @type {string} */ type, /** @type {Function} */ cb) {
-            listeners[type] = cb;
-        },
-        open() {},
+    const xhr = new XMLHttpRequest();
+    patchWithCleanup(xhr, {
         send() {},
         getResponseHeader: () => "text/html; charset=utf-8",
-        responseURL,
-        status,
-        responseText,
-    };
+        get responseURL() {
+            return responseURL;
+        },
+        get status() {
+            return status;
+        },
+        get responseText() {
+            return responseText;
+        },
+    });
     patchWithCleanup(fileUploadService, { createXhr: () => xhr });
-    return { fire: (type) => listeners[type]?.() };
+    return { fire: (type) => xhr.dispatchEvent(new Event(type)) };
 }
 
 /**
@@ -42,7 +42,9 @@ function mockXhr({ status = 200, responseText = "", responseURL = ROUTE }) {
  * @returns {Promise<string[]>}
  */
 async function uploadAndSettle(response) {
-    mockService("notification", { add: () => {} });
+    mockService("notification", {
+        add: () => () => {},
+    });
     const { fire } = mockXhr(response);
     await makeMockEnv();
     const fileUpload = getService("file_upload");

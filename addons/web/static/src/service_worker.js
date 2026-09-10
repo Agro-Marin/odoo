@@ -1,4 +1,15 @@
-/** @type {ServiceWorkerGlobalScope} */
+/**
+ * @type {ServiceWorkerGlobalScope & {
+ * __ODOO_SW_TEST_HOOKS__?: {
+ * extractSessionInfo: typeof extractSessionInfo;
+ * getTextFromResponse: typeof getTextFromResponse;
+ * isStaleWhileRevalidateURL: typeof isStaleWhileRevalidateURL;
+ * restoreSessionInfo: typeof restoreSessionInfo;
+ * staleWhileRevalidate: typeof staleWhileRevalidate;
+ * waitingMessage: typeof waitingMessage;
+ * };
+ * }}
+ */
 const sw = /** @type {any} */ (self);
 
 const CACHE_VERSION = "v1";
@@ -163,7 +174,7 @@ const removeSupersededCaches = async () => {
  * @returns {string | null}
  */
 const extractSessionInfo = (htmlContent) => {
-    const marker = htmlContent.match(/odoo\.__session_info__\s*=\s*/);
+    const marker = /odoo\.__session_info__\s*=\s*/.exec(htmlContent);
     if (!marker) {
         return null;
     }
@@ -238,21 +249,7 @@ const getSessionInfo = async () => {
  * @param {Response} response
  * @returns {Promise<string>}
  */
-const getTextFromResponse = async (response) => {
-    const reader = response.clone().body.getReader();
-    const decoder = new TextDecoder();
-    let result = "";
-    while (true) {
-        const { value, done } = await reader.read();
-        if (done) {
-            break;
-        }
-        result += decoder.decode(value, { stream: true });
-    }
-    result += decoder.decode();
-    reader.releaseLock();
-    return result;
-};
+const getTextFromResponse = (response) => response.clone().text();
 
 /**
  * @param {string} url
@@ -449,10 +446,12 @@ const nextMessageMap = new Map();
  */
 const waitingMessage = async (message) =>
     new Promise((resolve) => {
-        if (!nextMessageMap.has(message)) {
-            nextMessageMap.set(message, []);
+        let callbacks = nextMessageMap.get(message);
+        if (!callbacks) {
+            callbacks = [];
+            nextMessageMap.set(message, callbacks);
         }
-        nextMessageMap.get(message).push(resolve);
+        callbacks.push(resolve);
     });
 
 sw.addEventListener("message", (event) => {
@@ -475,7 +474,9 @@ sw.addEventListener("message", (event) => {
 
 sw.__ODOO_SW_TEST_HOOKS__ = {
     extractSessionInfo,
+    getTextFromResponse,
     isStaleWhileRevalidateURL,
     restoreSessionInfo,
     staleWhileRevalidate,
+    waitingMessage,
 };

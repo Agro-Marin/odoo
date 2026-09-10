@@ -586,6 +586,7 @@ describe("DateTimeInput (datetime)", () => {
             },
         });
 
+        /** @type {import("@web/core/l10n/luxon").DateTime} */
         let onChangeDate;
 
         await mountWithCleanup(DateTimeInputComp, {

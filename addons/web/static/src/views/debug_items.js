@@ -111,7 +111,18 @@ class GetMetadataDialog extends Component {
     fieldNamesBlackList;
     /** @type {import("services").ServiceFactories["orm"]} */
     orm;
-    /** @type {{ */
+    /**
+     * @type {{
+     * id?: number,
+     * xmlid?: string | false,
+     * xmlids?: {xmlid: string, noupdate: boolean}[],
+     * noupdate?: boolean,
+     * creator?: string,
+     * lastModifiedBy?: string,
+     * createDate?: string,
+     * writeDate?: string,
+     * }}
+     */
     state;
 
     static template = "web.DebugMenu.GetMetadataDialog";

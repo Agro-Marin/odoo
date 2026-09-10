@@ -34,6 +34,7 @@ import {
     lightenColor,
 } from "@web/core/colors/colors";
 import { Domain } from "@web/core/domain";
+import { parseXML } from "@web/core/utils/dom/xml";
 import { SampleServer } from "@web/model/sample_server";
 import { GraphArchParser } from "@web/views/graph/graph_arch_parser";
 import { DATA_LIMIT, GraphModel } from "@web/views/graph/graph_model";
@@ -954,7 +955,7 @@ test("cumulated start converts the start value like the series in multi-currency
 });
 
 test("displaying line chart with only 1 data point", async () => {
-    Foo._records = Foo._records.filter((id) => id === 1);
+    Foo._records = Foo._records.filter(({ id }) => id === 1);
 
     await mountView({
         type: "graph",
@@ -1291,7 +1292,7 @@ test("switching measure", async () => {
 });
 
 test("process default view description", async () => {
-    expect(new GraphArchParser().parse()).toEqual({
+    expect(new GraphArchParser().parse(parseXML("<graph/>"))).toEqual({
         fields: {},
         fieldAttrs: {},
         groupBy: [],
@@ -1308,7 +1309,11 @@ test("process simple arch (no field tag)", async () => {
     `;
 
     expect(
-        new GraphArchParser().parse(arch1, { foo: { fields: fooFields } }, "foo"),
+        new GraphArchParser().parse(
+            parseXML(arch1),
+            { foo: { fields: fooFields } },
+            "foo",
+        ),
     ).toEqual({
         disableLinking: true,
         fields: fooFields,
@@ -1324,7 +1329,11 @@ test("process simple arch (no field tag)", async () => {
     `;
 
     expect(
-        new GraphArchParser().parse(arch2, { foo: { fields: fooFields } }, "foo"),
+        new GraphArchParser().parse(
+            parseXML(arch2),
+            { foo: { fields: fooFields } },
+            "foo",
+        ),
     ).toEqual({
         disableLinking: false,
         fields: fooFields,
@@ -1354,7 +1363,11 @@ test("process arch with field tags", async () => {
     `;
 
     expect(
-        new GraphArchParser().parse(arch, { foo: { fields: fooFields } }, "foo"),
+        new GraphArchParser().parse(
+            parseXML(arch),
+            { foo: { fields: fooFields } },
+            "foo",
+        ),
     ).toEqual({
         fields: fooFields,
         fieldAttrs: {
@@ -1381,7 +1394,11 @@ test("process arch with non stored field tags of type measure", async () => {
         </graph>
     `;
     expect(
-        new GraphArchParser().parse(arch, { foo: { fields: fooFields } }, "foo"),
+        new GraphArchParser().parse(
+            parseXML(arch),
+            { foo: { fields: fooFields } },
+            "foo",
+        ),
     ).toEqual({
         fields: fooFields,
         fieldAttrs: {},
@@ -2137,7 +2154,7 @@ test("clicking on bar charts triggers a do_action", async () => {
     expect.assertions(6);
 
     mockService("action", {
-        doAction(actionRequest, options) {
+        async doAction(actionRequest, options) {
             expect(actionRequest).toEqual({
                 context: { allowed_company_ids: [1], lang: "en", tz: "taht", uid: 7 },
                 domain: [["bar", "=", false]],
@@ -2178,7 +2195,7 @@ test("middle click on bar charts triggers a do_action", async () => {
     expect.assertions(6);
 
     mockService("action", {
-        doAction(actionRequest, options) {
+        async doAction(actionRequest, options) {
             expect(actionRequest).toEqual({
                 context: { allowed_company_ids: [1], lang: "en", tz: "taht", uid: 7 },
                 domain: [["bar", "=", false]],
@@ -2219,7 +2236,7 @@ test("Clicking on bar charts removes group_by and search_default_* context keys"
     expect.assertions(2);
 
     mockService("action", {
-        doAction(actionRequest, options) {
+        async doAction(actionRequest, options) {
             expect(actionRequest).toEqual({
                 context: { allowed_company_ids: [1], lang: "en", tz: "taht", uid: 7 },
                 domain: [["bar", "=", false]],
@@ -2258,11 +2275,11 @@ test("Clicking on bar charts removes group_by and search_default_* context keys"
 test("clicking on a pie chart trigger a do_action with correct views", async () => {
     expect.assertions(6);
 
-    Foo._views[["list", 364]] = `<list />`;
-    Foo._views[["form", 29]] = `<form />`;
+    Foo._views["list,364"] = `<list />`;
+    Foo._views["form,29"] = `<form />`;
 
     mockService("action", {
-        doAction(actionRequest, options) {
+        async doAction(actionRequest, options) {
             expect(actionRequest).toEqual({
                 context: { allowed_company_ids: [1], lang: "en", tz: "taht", uid: 7 },
                 domain: [["bar", "=", false]],
@@ -2308,11 +2325,11 @@ test("clicking on a pie chart trigger a do_action with correct views", async () 
 test("middle click on a pie chart trigger a do_action with correct views", async () => {
     expect.assertions(6);
 
-    Foo._views[["list", 364]] = `<list />`;
-    Foo._views[["form", 29]] = `<form />`;
+    Foo._views["list,364"] = `<list />`;
+    Foo._views["form,29"] = `<form />`;
 
     mockService("action", {
-        doAction(actionRequest, options) {
+        async doAction(actionRequest, options) {
             expect(actionRequest).toEqual({
                 context: { allowed_company_ids: [1], lang: "en", tz: "taht", uid: 7 },
                 domain: [["bar", "=", false]],

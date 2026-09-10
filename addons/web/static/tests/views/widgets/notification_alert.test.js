@@ -10,6 +10,7 @@ class Partner extends models.Model {
 
 defineModels([Partner]);
 
+/** @type {import("@web/../tests/_framework/view_test_helpers").MountViewParams} */
 const viewData = {
     type: "form",
     resModel: "partner",
@@ -34,7 +35,7 @@ test("notification alert should not be displayed when notification granted", asy
 });
 
 test("notification alert should not be displayed when notification default", async () => {
-    mockPermission("notifications", "default");
+    mockPermission("notifications", "prompt");
     await mountView(viewData);
     expect(".o_widget_notification_alert .alert").toHaveCount(0, {
         message: "notification alert should not be displayed when notification default",

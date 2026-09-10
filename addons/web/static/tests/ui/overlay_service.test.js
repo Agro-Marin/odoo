@@ -77,6 +77,7 @@ test("double remove runs onRemove once (idempotent)", async () => {
         static props = ["*"];
     }
 
+    /** @type {(value?: unknown) => void} */
     let resolveRemove;
     const onRemove = () => {
         expect.step("onRemove");
@@ -329,8 +330,12 @@ test("mounting a second container does not transiently mount foreign overlays", 
         static template = xml`<div class="tracked">tracked</div>`;
         static props = ["*"];
         setup() {
-            onMounted(() => steps.push("mounted"));
-            onWillDestroy(() => steps.push("destroyed"));
+            onMounted(() => {
+                steps.push("mounted");
+            });
+            onWillDestroy(() => {
+                steps.push("destroyed");
+            });
         }
     }
     getService("overlay").add(Tracked, {});
@@ -397,6 +402,7 @@ test("click-away containment spans sub-overlays without allocating per sibling",
 test("a hosted env REPLACES the container's env instead of extending it", async () => {
     await mountWithCleanup(MainComponentsContainer);
 
+    /** @type {{ hosted: string, inheritedServices: boolean, overlay: boolean }} */
     let seen;
     class Probe extends Component {
         static props = ["*"];
@@ -421,6 +427,7 @@ test("a hosted env REPLACES the container's env instead of extending it", async 
 test("a hosted overlay still reports containment to click-away", async () => {
     await mountWithCleanup(MainComponentsContainer);
 
+    /** @type {(node: Node) => boolean} */
     let contains;
     class Probe extends Component {
         static props = ["*"];

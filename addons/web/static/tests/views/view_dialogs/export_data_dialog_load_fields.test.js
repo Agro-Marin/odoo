@@ -5,6 +5,7 @@ import { ExportDataDialog } from "@web/views/view_dialogs/export_data_dialog";
 
 describe.current.tags("headless");
 
+/** @param {{onFetch?: (context: ReturnType<typeof makeContext>) => void}} [options] */
 function makeContext({ onFetch } = {}) {
     const ctx = {
         knownFields: {

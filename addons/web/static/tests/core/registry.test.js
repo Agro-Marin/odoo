@@ -285,9 +285,12 @@ test("can validate subclassess", async () => {
     const widgetRegistry = new Registry();
     widgetRegistry.addValidation(schema);
     class Widget extends Component {}
-    expect(() => widgetRegistry.add("calculator", { component: Widget })).not.toThrow({
-        message: "Support subclasses",
-    });
+    expect(() => widgetRegistry.add("calculator", { component: Widget })).not.toThrow(
+        undefined,
+        {
+            message: "Support subclasses",
+        },
+    );
 });
 
 test("function predicate accepts and rejects values", async () => {
@@ -309,7 +312,7 @@ test("function predicate validates existing entries on addValidation", async () 
     serverState.debug = "1";
     const fnRegistry = new Registry();
     expect(() => fnRegistry.add("good", () => 1)).not.toThrow();
-    expect(() => fnRegistry.add("bad", 42)).not.toThrow({
+    expect(() => fnRegistry.add("bad", 42)).not.toThrow(undefined, {
         message: "no schema yet, anything goes",
     });
     expect(() => fnRegistry.addValidation((v) => typeof v === "function")).toThrow();

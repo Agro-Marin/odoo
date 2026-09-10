@@ -23,16 +23,15 @@ import {
     defineModels,
     fields,
     getService,
+    mockService,
     models,
     mountView,
     mountWebClient,
     onRpc,
-    patchWithCleanup,
     preloadFullCalendar,
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { Domain } from "@web/core/domain";
-import { notificationService } from "@web/ui/notification/notification_service";
 import { CalendarModel } from "@web/views/calendar/calendar_model";
 
 import { selectDateRange } from "./calendar_test_helpers.js";
@@ -530,12 +529,11 @@ test("multi_create: basic creation (datetime field)", async () => {
 
 test.tags("desktop");
 test("multi_create: input validation (datetime field)", async () => {
-    patchWithCleanup(notificationService, {
-        start: () => ({
-            add: (message) => {
-                expect.step(message);
-            },
-        }),
+    mockService("notification", {
+        add(message) {
+            expect.step(message);
+            return () => {};
+        },
     });
 
     onRpc("event", "create", ({ args: [records] }) => {
@@ -749,12 +747,11 @@ test("multi_create: test onChange on form with no blur (input text)", async () =
 
 test.tags("desktop");
 test("multi_create: test onChange on TimePicker with no blur (input text)", async () => {
-    patchWithCleanup(notificationService, {
-        start: () => ({
-            add: (message) => {
-                expect.step(message);
-            },
-        }),
+    mockService("notification", {
+        add(message) {
+            expect.step(message);
+            return () => {};
+        },
     });
 
     onRpc("event", "create", ({ args: [records] }) => {
@@ -871,12 +868,11 @@ test("multi_create: avoid trigger add/del event on specific element", async () =
 
 test.tags("desktop");
 test("multi_create: test required attribute in form", async () => {
-    patchWithCleanup(notificationService, {
-        start: () => ({
-            add: (message) => {
-                expect.step(message);
-            },
-        }),
+    mockService("notification", {
+        add(message) {
+            expect.step(message);
+            return () => {};
+        },
     });
 
     onRpc("event", "create", ({ args: [records] }) => {

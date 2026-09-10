@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { Tree, Options } from "@web/core/tree/condition_tree" */
 import { eliminateVirtualOperators } from "@web/core/tree/virtual_operators";
 
 import { constructExpressionFromTree } from "./construct_expression_from_tree.js";

@@ -303,8 +303,8 @@ test("within iframe -- wrong element class", async () => {
         static props = {
             ...Popover.props,
             target: {
-                validate: (...args) => {
-                    const val = Popover.props.target.validate(...args);
+                validate: (target) => {
+                    const val = Popover.props.target.validate(target);
                     expect.step(`validate target props: "${val}"`);
                     return val;
                 },
@@ -369,9 +369,9 @@ test("popover fixed position", async () => {
 
 test("popover with arrow and onPositioned", async () => {
     class TestPopover extends Popover {
-        onPositioned() {
+        onPositioned(solution) {
             expect.step("onPositioned (from override)");
-            super.onPositioned(...arguments);
+            super.onPositioned(solution);
         }
     }
 
@@ -463,6 +463,7 @@ test("popover position is updated when the content dimensions change", async () 
 });
 
 test("arrow follows target and can get sucked", async () => {
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     let container;
     patchWithCleanup(Popover.defaultProps, { arrow: true });
     patchWithCleanup(Popover.prototype, {

@@ -13,8 +13,8 @@ describe("makeContext", () => {
     test("duplicate a context", () => {
         const ctx1 = { a: 1 };
         const ctx2 = makeContext([ctx1]);
-        expect(ctx1).not.toBe(ctx2);
-        expect(ctx1).toEqual(/** @type {any} */ (ctx2));
+        expect(ctx2).not.toBe(ctx1);
+        expect(ctx2).toEqual(ctx1);
     });
 
     test("can accept undefined or empty string", () => {

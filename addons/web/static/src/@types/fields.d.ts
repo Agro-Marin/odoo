@@ -1,6 +1,8 @@
 declare module "fields" {
     import { DomainListRepr } from "@web/core/domain";
 
+    export type FieldValue = string | number | boolean | null | FieldValue[] | { [key: string]: FieldValue };
+
     interface IFieldDefinition<T extends FieldType> {
         change_default: boolean;
         groupable: boolean;

@@ -708,6 +708,7 @@ test("no timer is scheduled once the swiper is destroyed mid-action", async () =
         },
     });
 
+    /** @type {() => void} */
     let hide;
     class Parent extends Component {
         static props = {};

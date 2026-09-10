@@ -5,7 +5,13 @@ import { registry } from "@web/core/registry";
 
 /** @typedef {"list" | "form" | "kanban" | "calendar" | "hierarchy" | "base_settings" | (string & {})} FieldViewPrefix */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * name: string;
+ * view?: FieldViewPrefix;
+ * aliases?: Array<string | { name: string; view?: FieldViewPrefix }>;
+ * }} FieldRegistrationSpec
+ */
 
 /**
  * @param {FieldRegistrationSpec} spec

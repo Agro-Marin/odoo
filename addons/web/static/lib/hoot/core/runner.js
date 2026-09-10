@@ -66,25 +66,45 @@ const { isPrevented, mockPreventDefault } = _window;
 
 /**
  * @typedef {{
+ *  readonly config: (config: JobConfig) => CurrentConfigurators;
+ *  readonly debug: () => CurrentConfigurators;
+ *  readonly multi: (count: number) => CurrentConfigurators;
+ *  readonly only: () => CurrentConfigurators;
+ *  readonly skip: () => CurrentConfigurators;
+ *  readonly tags: (...tags: string[]) => CurrentConfigurators;
+ *  readonly timeout: (ms: number) => CurrentConfigurators;
+ *  readonly todo: () => CurrentConfigurators;
+ * }} CurrentConfigurators
  * @typedef {{
+ *  count: number;
+ *  message: string;
+ *  name: string;
+ * }} GlobalIssueReport
  * @typedef {Suite | Test} Job
  * @typedef {import("./job").JobConfig} JobConfig
  * @typedef {{
+ *  icon?: string;
+ *  label: string;
+ *  platform?: import("../mock/navigator").Platform;
+ *  size?: [number, number];
+ *  tags?: string[];
+ *  touch?: boolean;
+ * }} Preset
  * @typedef {import("./config").SearchFilter} SearchFilter
  */
 
 /**
- * @template
+ * @template T
  * @typedef {(payload: T) => MaybePromise<any>} Callback
  */
 
 /**
- * @template {unknown[]}
+ * @template {unknown[]} T
  * @typedef {import("../hoot_utils").DropFirst} DropFirst
  */
 
 /**
- * @template
+ * @template T
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
@@ -177,7 +197,7 @@ function formatAssertions(assertions) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T[]} array
  */
 function shuffle(array) {
@@ -330,7 +350,7 @@ export class Runner {
     _started = false;
     _startTime = 0;
 
-    /** @type {null | (value?: any) => any} */
+    /** @type {null | ((value?: any) => any)} */
     _resolveCurrent = null;
 
     /** @param {typeof DEFAULT_CONFIG} [config] */
@@ -703,7 +723,7 @@ export class Runner {
     }
 
     /**
-     * @template {(...args: any[]) => any}
+     * @template {(...args: any[]) => any} T
      * @param {T} fn
      * @returns {T}
      */
@@ -711,7 +731,12 @@ export class Runner {
         return fn.bind(this);
     }
 
-    /** @returns {{ */
+    /**
+     * @returns {{
+     *  suite: Suite | null;
+     *  test: Test | null;
+     * }}
+     */
     getCurrent() {
         return {
             suite: this.suiteStack.at(-1) || null,
@@ -1094,8 +1119,8 @@ export class Runner {
     }
 
     /**
-     * @template {(...args: any[]) => any}
-     * @template {false | () => Job}
+     * @template {(...args: any[]) => any} T
+     * @template {false | (() => Job)} C
      * @param {T} fn
      * @param {C} getCurrent
      * @returns {typeof configurableFn}
@@ -1104,6 +1129,16 @@ export class Runner {
         /**
          * @typedef {((...args: DropFirst<Parameters<T>>) => Configurators) & Configurators} ConfigurableFunction
          * @typedef {{
+         *  readonly debug: ConfigurableFunction;
+         *  readonly only: ConfigurableFunction;
+         *  readonly skip: ConfigurableFunction;
+         *  readonly todo: ConfigurableFunction;
+         *  readonly config: (...configs: JobConfig[]) => Configurators;
+         *  readonly current: C extends false ? never : Configurators;
+         *  readonly multi: (count: number) => Configurators;
+         *  readonly tags: (...tagNames: string[]) => Configurators;
+         *  readonly timeout: (ms: number) => Configurators;
+         * }} Configurators
          */
 
         /** @type {Configurators["current"]} */
@@ -1195,14 +1230,16 @@ export class Runner {
             this.tags.set(tag.id, tag);
             switch (tag.name) {
                 case Tag.DEBUG:
-                    if (typeof this.debug !== "boolean" && this.debug !== job) {
-                        throw new HootError(
-                            `cannot set multiple tests or suites as "debug" at the same time`,
-                            { level: "critical" },
-                        );
-                    }
-                    this.debug = job;
                 case Tag.ONLY:
+                    if (tag.name === Tag.DEBUG) {
+                        if (typeof this.debug !== "boolean" && this.debug !== job) {
+                            throw new HootError(
+                                `cannot set multiple tests or suites as "debug" at the same time`,
+                                { level: "critical" },
+                            );
+                        }
+                        this.debug = job;
+                    }
                     if (!this.dry) {
                         logger.global.warn(
                             `${stringify(job.fullName)} is marked as ${stringify(

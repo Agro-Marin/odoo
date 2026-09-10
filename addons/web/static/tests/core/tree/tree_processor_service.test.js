@@ -24,7 +24,7 @@ defineModels([Partner]);
 
 /**
  * @param {any[]} domain
- * @param {number} limit
+ * @param {number} [limit]
  * @returns {Promise<string>}
  */
 async function describe(domain, limit) {
@@ -149,6 +149,7 @@ test("negated OR collapsing to one merged `in` keeps its negation", async () => 
     expect(description).toInclude("not");
 });
 
+/** @type {import("@web/core/domain").DomainListRepr[]} */
 const SEMANTIC_CORPUS = [
     ["|", "!", ["a", "=", 1], ["a", "=", 2]],
     ["|", "!", ["a", "in", [1, 3]], ["a", "=", 2]],
@@ -244,6 +245,7 @@ test("a tree's field defs and display names are resolved once, not once per leaf
     };
 
     const treeProcessor = getService("tree_processor");
+    /** @type {import("@web/core/domain").DomainListRepr} */
     const domain = ["&", "&", "&", "&", "&"];
     for (let i = 0; i < 6; i++) {
         domain.push(["manager_id", "in", [i + 1]]);

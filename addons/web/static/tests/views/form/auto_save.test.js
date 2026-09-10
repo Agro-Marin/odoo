@@ -308,7 +308,7 @@ test("save on closing tab/browser", async () => {
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("sendBeacon");
-        blob.text().then((r) => {
+        new Response(blob).text().then((r) => {
             const { params } = JSON.parse(r);
             if (params.method === "web_save" && params.model === "partner") {
                 expect(params.args).toEqual([[1], { name: "test" }]);
@@ -376,7 +376,10 @@ test("save on closing tab/browser (sendBeacon fails)", async () => {
 });
 
 test("save on closing tab/browser (invalid field)", async () => {
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     onRpc("partner", "web_save", () => expect.step("save"));
 
     await mountView({
@@ -400,7 +403,10 @@ test("save on closing tab/browser (invalid field)", async () => {
 });
 
 test("save on closing tab/browser (not dirty)", async () => {
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     onRpc("partner", "web_save", () => expect.step("save"));
 
     await mountView({
@@ -422,7 +428,10 @@ test("save on closing tab/browser (not dirty)", async () => {
 });
 
 test("save on closing tab/browser (dirty NEW record blocks unload)", async () => {
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     onRpc("partner", "web_save", () => expect.step("save"));
 
     await mountView({
@@ -472,7 +481,10 @@ test("save on closing tab/browser (not dirty but trailing spaces)", async () => 
 test("save on closing tab/browser (not dirty) with text field", async () => {
     Partner._fields.information = fields.Text();
 
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     onRpc("web_save", () => expect.step("save"));
 
     await mountView({
@@ -518,7 +530,10 @@ test(`save on closing tab/browser (detached form)`, async () => {
         `,
     };
 
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     onRpc("web_save", () => expect.step("save"));
 
     await mountWebClient();
@@ -545,7 +560,7 @@ test("save on closing tab/browser (onchanges)", async () => {
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("sendBeacon");
-        blob.text().then((r) => {
+        new Response(blob).text().then((r) => {
             const { params } = JSON.parse(r);
             if (params.method === "web_save" && params.model === "partner") {
                 expect(params.args).toEqual([[1], { expertise: "test" }]);
@@ -589,7 +604,7 @@ test("save on closing tab/browser (onchanges 2)", async () => {
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("sendBeacon");
-        blob.text().then((r) => {
+        new Response(blob).text().then((r) => {
             const { params } = JSON.parse(r);
             if (params.method === "web_save") {
                 expect(params.args).toEqual([
@@ -636,7 +651,7 @@ test("save on closing tab/browser (pending change)", async () => {
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("sendBeacon");
-        blob.text().then((r) => {
+        new Response(blob).text().then((r) => {
             const { params } = JSON.parse(r);
             if (params.method === "web_save") {
                 expect(params.args).toEqual([[1], { expertise: "test" }]);
@@ -675,7 +690,7 @@ test("save on closing tab/browser (onchanges + pending change)", async () => {
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("sendBeacon");
-        blob.text().then((r) => {
+        new Response(blob).text().then((r) => {
             const { params } = JSON.parse(r);
             if (params.method === "web_save") {
                 expect(params.args).toEqual([
@@ -732,7 +747,10 @@ test("save on closing tab/browser (onchanges + pending change)", async () => {
 test("save on closing tab/browser (invalid pending change)", async () => {
     Partner._fields.age = fields.Integer();
 
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
     await mountView({
@@ -758,7 +776,10 @@ test("save on closing tab/browser (onchanges + invalid field)", async () => {
         },
     };
 
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     const onchangeDeferred = new Deferred();
     onRpc("partner", "onchange", () => onchangeDeferred);
     onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
@@ -909,7 +930,10 @@ test("doesn't autosave when in dialog (visibility change)", async () => {
 });
 
 test("doesn't autosave when in dialog (beacon)", async () => {
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     await mountViewInDialog({
         resModel: "partner",
         type: "form",
@@ -1161,7 +1185,10 @@ test(`form-in-dialog destroyed before mount doesn't leak the dialog-stack counte
 });
 
 test("save on closing tab/browser (uncommitted typed input on NEW record blocks unload)", async () => {
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     onRpc("partner", "web_save", () => expect.step("save"));
 
     await mountView({

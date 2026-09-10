@@ -32,7 +32,12 @@ class Parent extends Component {
 
 test("FileUploader accepts only an exact allowed MIME and rejects empty type", async () => {
     const notifications = [];
-    mockService("notification", { add: (message) => notifications.push(message) });
+    mockService("notification", {
+        add: (message) => {
+            notifications.push(message);
+            return () => {};
+        },
+    });
     const uploaded = [];
     await mountWithCleanup(Parent, {
         props: {
@@ -62,7 +67,9 @@ test("FileUploader accepts only an exact allowed MIME and rejects empty type", a
 
 test("FileUploader multi-upload continues past a too-large file and resets input", async () => {
     patchWithCleanup(session, { max_file_upload_size: 3 });
-    mockService("notification", { add: () => {} });
+    mockService("notification", {
+        add: () => () => {},
+    });
     const uploaded = [];
     await mountWithCleanup(Parent, {
         props: {
@@ -87,7 +94,12 @@ test("FileUploader multi-upload continues past a too-large file and resets input
 test("FileUploader checkSize accepts a per-file predicate", async () => {
     patchWithCleanup(session, { max_file_upload_size: 3 });
     const notifications = [];
-    mockService("notification", { add: (message) => notifications.push(message) });
+    mockService("notification", {
+        add: (message) => {
+            notifications.push(message);
+            return () => {};
+        },
+    });
     const uploaded = [];
     await mountWithCleanup(Parent, {
         props: {

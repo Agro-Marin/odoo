@@ -277,14 +277,7 @@ test("a viewport change (virtual keyboard) does not dismiss the sheet", async ()
     expect(".sheet-child").toHaveCount(1);
     expect(sheet.state.isDismissing).toBe(false);
 
-    patchWithCleanup(browser, {
-        visualViewport: {
-            width: 375,
-            height: 300,
-            addEventListener: () => {},
-            removeEventListener: () => {},
-        },
-    });
+    patchWithCleanup(browser.visualViewport, { width: 375, height: 300 });
     sheet.updateDimensions();
     sheet.scrollRailRef.el.dispatchEvent(new Event("scroll"));
     await runAllTimers();
@@ -381,14 +374,7 @@ test("a shrinking visual viewport never sizes the sheet past it", async () => {
     await animationFrame();
     await runAllTimers();
 
-    patchWithCleanup(browser, {
-        visualViewport: {
-            width: 375,
-            height: 300,
-            addEventListener: () => {},
-            removeEventListener: () => {},
-        },
-    });
+    patchWithCleanup(browser.visualViewport, { width: 375, height: 300 });
     sheet.updateDimensions();
     await animationFrame();
 
@@ -401,14 +387,7 @@ test("a shrinking visual viewport never sizes the sheet past it", async () => {
 
 /** @param {number} height */
 function resizeVisualViewport(height) {
-    patchWithCleanup(browser, {
-        visualViewport: {
-            width: 375,
-            height,
-            addEventListener: () => {},
-            removeEventListener: () => {},
-        },
-    });
+    patchWithCleanup(browser.visualViewport, { width: 375, height });
 }
 
 test.tags("mobile");

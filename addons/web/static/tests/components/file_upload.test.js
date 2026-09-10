@@ -95,6 +95,7 @@ test("upload can be aborted by clicking on cross", async () => {
     mockService("dialog", {
         add() {
             fileUploadService.uploads[1].xhr.dispatchEvent(new Event("abort"));
+            return async () => {};
         },
     });
     await mountWithCleanup(Parent);
@@ -113,13 +114,19 @@ test("upload updates on progress", async () => {
     fileUploadService.upload("/test/", []);
     await animationFrame();
 
-    const progressEvent = new Event("progress", { bubbles: true });
-    progressEvent.loaded = 250000000;
-    progressEvent.total = 500000000;
+    let progressEvent = new ProgressEvent("progress", {
+        bubbles: true,
+        loaded: 250000000,
+        total: 500000000,
+    });
     fileUploadService.uploads[1].xhr.upload.dispatchEvent(progressEvent);
     await animationFrame();
     expect(".file_upload_progress_text_left").toHaveText("Uploading... (50%)");
-    progressEvent.loaded = 350000000;
+    progressEvent = new ProgressEvent("progress", {
+        bubbles: true,
+        loaded: 350000000,
+        total: 500000000,
+    });
     fileUploadService.uploads[1].xhr.upload.dispatchEvent(progressEvent);
     await animationFrame();
     expect(".file_upload_progress_text_right").toHaveText("(350/500MB)");

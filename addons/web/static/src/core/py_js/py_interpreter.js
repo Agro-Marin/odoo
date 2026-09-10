@@ -1227,7 +1227,15 @@ function attributeOf(table, typeName, key) {
 
 const unboundFn = Symbol("unbound function");
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *   context: Record<string, any>,
+ *   dicts: Set<object>,
+ *   callerProvidesContext: boolean,
+ *   pyContext: Record<string, any> | undefined,
+ *   evaluate: (ast: AST) => any,
+ * }} EvalScope
+ */
 
 /**
  * @param {import("./ast_type.js").ASTName} ast

@@ -1,5 +1,6 @@
 // @ts-check
 
+import { mockDate } from "@odoo/hoot-mock";
 import {
     App,
     onError,
@@ -32,6 +33,7 @@ import { registerCleanup } from "./cleanup.js";
  * @typedef {keyof HTMLElementEventMap | keyof WindowEventMap} EventType
  * @typedef {Side | `${Side}-${Side}` | { x?: number, y?: number }} Position
  * @typedef {"bottom" | "left" | "right" | "top"} Side
+ * @typedef {PointerEventInit & KeyboardEventInit & DragEventInit & InputEventInit & CompositionEventInit & FocusEventInit & ClipboardEventInit & { pageX?: number, pageY?: number, touches?: TouchInit[] }} TestEventInit
  * @typedef TriggerEventOptions
  * @property {boolean} [skipVisibilityCheck=false]
  * @property {boolean} [sync=false]
@@ -47,75 +49,21 @@ import { registerCleanup } from "./cleanup.js";
  * @param {number} [ms=0]
  */
 export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
-    const RealDate = window.Date;
-    const actualDate = new RealDate();
-
-    const fakeDate = new RealDate(year, month, day, hours, minutes, seconds, ms);
     if (!(luxon.Settings.defaultZone instanceof luxon.FixedOffsetZone)) {
         throw new Error("luxon.Settings.defaultZone must be a FixedOffsetZone");
     }
-    const browserOffset = -fakeDate.getTimezoneOffset();
-    const patchedOffset = luxon.Settings.defaultZone.offset();
-    const offsetDiff = patchedOffset - browserOffset;
-    const correctedMinutes = fakeDate.getMinutes() - offsetDiff;
-    fakeDate.setMinutes(correctedMinutes);
-
-    const timeInterval = actualDate.getTime() - fakeDate.getTime();
-
-    window.Date = (function (NativeDate) {
-        function Date(Y, M, D, h, m, s, ms) {
-            const length = arguments.length;
-            let date;
-            if (arguments.length > 0) {
-                date =
-                    length === 1 && String(Y) === Y
-                        ? new NativeDate(Date.parse(Y))
-                        : length >= 7
-                          ? new NativeDate(Y, M, D, h, m, s, ms)
-                          : length >= 6
-                            ? new NativeDate(Y, M, D, h, m, s)
-                            : length >= 5
-                              ? new NativeDate(Y, M, D, h, m)
-                              : length >= 4
-                                ? new NativeDate(Y, M, D, h)
-                                : length >= 3
-                                  ? new NativeDate(Y, M, D)
-                                  : length >= 2
-                                    ? new NativeDate(Y, M)
-                                    : length >= 1
-                                      ? new NativeDate(Y)
-                                      : new NativeDate();
-                date.constructor = Date;
-                return date;
-            } else {
-                date = new NativeDate();
-                let time = date.getTime();
-                time -= timeInterval;
-                date.setTime(time);
-                return date;
-            }
-        }
-
-        for (const key in NativeDate) {
-            Date[key] = NativeDate[key];
-        }
-
-        Date.now = function () {
-            const date = new NativeDate();
-            let time = date.getTime();
-            time -= timeInterval;
-            return time;
-        };
-        Date.UTC = NativeDate.UTC;
-        Date.prototype = NativeDate.prototype;
-        Date.prototype.constructor = Date;
-
-        Date.parse = NativeDate.parse;
-        return Date;
-    })(Date);
-
-    registerCleanup(() => {
-        window.Date = RealDate;
+    const offset = luxon.Settings.defaultZone.offset();
+    const date = new Date(
+        Date.UTC(year, month, day, hours, minutes, seconds, ms) - offset * 60000,
+    );
+    mockDate({
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+        hour: date.getUTCHours(),
+        minute: date.getUTCMinutes(),
+        second: date.getUTCSeconds(),
+        millisecond: date.getUTCMilliseconds(),
     });
 }
 
@@ -137,7 +85,7 @@ export function patchWithCleanup(obj, patchValue) {
     });
 }
 
-/** @returns {Element} */
+/** @returns {Document} */
 export function getFixture() {
     return document;
 }
@@ -168,13 +116,13 @@ export function findElement(el, selector) {
     return target;
 }
 
-/** @param {EventInit} [args] */
+/** @param {TestEventInit} [args] */
 const mapBubblingEvent = (args) => ({ ...args, bubbles: true });
 
-/** @param {EventInit} [args] */
+/** @param {TestEventInit} [args] */
 const mapNonBubblingEvent = (args) => ({ ...args, bubbles: false });
 
-/** @param {EventInit} [args={}] */
+/** @param {TestEventInit} [args={}] */
 const mapBubblingPointerEvent = (args = {}) => ({
     clientX: args.pageX,
     clientY: args.pageY,
@@ -184,14 +132,14 @@ const mapBubblingPointerEvent = (args = {}) => ({
     view: window,
 });
 
-/** @param {EventInit} [args] */
+/** @param {TestEventInit} [args] */
 const mapNonBubblingPointerEvent = (args) => ({
     ...mapBubblingPointerEvent(args),
     bubbles: false,
     cancelable: false,
 });
 
-/** @param {EventInit} [args={}] */
+/** @param {TestEventInit} [args={}] */
 const mapCancelableTouchEvent = (args = {}) => ({
     ...args,
     bubbles: true,
@@ -203,13 +151,13 @@ const mapCancelableTouchEvent = (args = {}) => ({
     zoom: 1.0,
 });
 
-/** @param {EventInit} [args] */
+/** @param {TestEventInit} [args] */
 const mapNonCancelableTouchEvent = (args) => ({
     ...mapCancelableTouchEvent(args),
     cancelable: false,
 });
 
-/** @param {EventInit} [args] */
+/** @param {TestEventInit} [args] */
 const mapKeyboardEvent = (args) => ({
     ...args,
     bubbles: true,
@@ -217,9 +165,8 @@ const mapKeyboardEvent = (args) => ({
 });
 
 /**
- * @template {typeof Event}
  * @param {EventType} eventType
- * @returns {[T, (attrs: EventInit) => EventInit]}
+ * @returns {[new (type: string, attrs?: EventInit) => Event, (attrs?: TestEventInit) => EventInit]}
  */
 const getEventConstructor = (eventType) => {
     switch (eventType) {
@@ -300,13 +247,13 @@ const getEventConstructor = (eventType) => {
 };
 
 /**
- * @template {EventType}
- * @param {Element} el
+ * @template {EventType} T
+ * @param {Node | Window} el
  * @param {string | null | undefined | false} selector
  * @param {T} eventType
- * @param {EventInit} [eventInit]
+ * @param {TestEventInit} [eventInit]
  * @param {TriggerEventOptions} [options={}]
- * @returns {GlobalEventHandlersEventMap[T] | Promise<GlobalEventHandlersEventMap[T]>}
+ * @returns {Event | Promise<Event>}
  */
 export function triggerEvent(el, selector, eventType, eventInit, options = {}) {
     const errors = [];
@@ -340,9 +287,9 @@ export function triggerEvent(el, selector, eventType, eventInit, options = {}) {
 }
 
 /**
- * @param {Element} el
+ * @param {Node | Window} el
  * @param {string | null | undefined | false} selector
- * @param {(EventType | [EventType, EventInit])[]} [eventDefs]
+ * @param {(EventType | [EventType, TestEventInit])[]} [eventDefs]
  * @param {TriggerEventOptions} [options={}]
  */
 export function triggerEvents(el, selector, eventDefs, options = {}) {
@@ -555,7 +502,7 @@ export async function editInput(el, selector, value) {
     }
 
     const eventOpts = {};
-    if (input.type === "file") {
+    if (input instanceof HTMLInputElement && input.type === "file") {
         const files = Array.isArray(value) ? value : [value];
         const dataTransfer = new DataTransfer();
         for (const file of files) {
@@ -574,7 +521,7 @@ export async function editInput(el, selector, value) {
 
     await triggerEvents(input, null, ["input", "change"], eventOpts);
 
-    if (input.type === "file") {
+    if (input instanceof HTMLInputElement && input.type === "file") {
         await nextTick();
         await nextTick();
     }

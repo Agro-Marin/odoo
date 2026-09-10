@@ -2,17 +2,28 @@
 
 import { makeErrorFromResponse } from "@web/core/network/rpc";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * code?: number;
+ * context?: import("@web/core/context").Context;
+ * description?: string;
+ * message?: string;
+ * subType?: string;
+ * errorName?: string;
+ * type?: string;
+ * args?: unknown[];
+ * }} ServerErrorInit
+ */
 
 /**
- * @template
+ * @template T
  * @typedef {import("./mock_server").KwArgs} KwArgs
  */
 
 const KWARGS_SYMBOL = Symbol("is_kwargs");
 
 /**
- * @template
+ * @template T
  * @param {T} kwargs
  * @returns {T}
  */
@@ -22,7 +33,7 @@ export function makeKwArgs(kwargs) {
 }
 
 /**
- * @template {string}
+ * @template {string} T
  * @param {Iterable<any>} allArgs
  * @param {...T} argNames
  * @returns {KwArgs<Record<T, any>>}
@@ -94,7 +105,7 @@ export function safeSplit(value, separator) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T} kwargs
  * @returns {T}
  */

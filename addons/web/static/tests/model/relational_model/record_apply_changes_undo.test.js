@@ -6,6 +6,8 @@ import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { StaticList } from "@web/model/relational_model/static_list";
 
+import { makeTestRelationalModel } from "./model_test_helpers.js";
+
 describe.current.tags("headless");
 
 const LINK = 4;
@@ -16,13 +18,14 @@ const SERVER_ROWS = {
     99: { id: 99, display_name: "Rec 99" },
 };
 
-function makeX2ManyList(resIds) {
-    const model = {
-        Class: { Record: RelationalRecord, StaticList },
-        patchConfig: (config, patch) => Object.assign(config, patch),
+async function makeX2ManyList(resIds) {
+    const model = await makeTestRelationalModel({
         loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
-    };
+    });
+    /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
     const config = {
+        ...model.config,
+        isRoot: false,
         resModel: "res.partner",
         activeFields: { display_name: makeActiveField() },
         fields: { display_name: { type: "char", name: "display_name" } },
@@ -39,7 +42,7 @@ function makeX2ManyList(resIds) {
         _isEvalContextReady: true,
     };
     const data = resIds.map((id) => SERVER_ROWS[id]);
-    return new StaticList(/** @type {any} */ (model), config, data, {
+    return new StaticList(model, config, data, {
         parent,
         onUpdate: async () => {},
     });
@@ -74,7 +77,7 @@ function makeRecordWith(list) {
 
 describe("RelationalRecord.applyChanges undo — x2many sub-list", () => {
     test("undoChanges reverts an in-place onchange LINK on the x2many list", async () => {
-        const list = makeX2ManyList([1, 2]);
+        const list = await makeX2ManyList([1, 2]);
         expect(list._commands).toEqual([]);
         expect(list._currentIds).toEqual([1, 2]);
         expect(list.count).toBe(2);
@@ -103,7 +106,7 @@ describe("RelationalRecord.applyChanges undo — x2many sub-list", () => {
     });
 
     test("after undo the x2many save payload carries no phantom command", async () => {
-        const list = makeX2ManyList([1, 2]);
+        const list = await makeX2ManyList([1, 2]);
         expect(list.getCommands()).toEqual([]);
 
         const record = makeRecordWith(list);

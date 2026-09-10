@@ -8,6 +8,8 @@ import { pick } from "@web/core/utils/collections/objects";
 import { resolveClientAction } from "./action_loader.js";
 import { actionStorage } from "./action_storage.js";
 
+/** @import { ActionManager, Controller } from "./action_service.js" */
+
 /**
  * @param {{ tag?: any, id?: any }} [action]
  * @returns {boolean}

@@ -3,8 +3,8 @@
 
 import { htmlEscape as _htmlEscape, markup } from "@odoo/owl";
 
-/** @type {(value: any) => string} */
-const htmlEscape = _htmlEscape;
+/** @param {unknown} value */
+const htmlEscape = (value) => _htmlEscape(value).toString();
 import { formatList, normalizedMatches } from "@web/core/l10n/utils";
 import { unique } from "@web/core/utils/collections/arrays";
 import {
@@ -74,7 +74,7 @@ export function highlightText(query, text, classes) {
 }
 
 /**
- * @param {Parameters<formatList>[0]} values
+ * @param {Iterable<string | Markup>} values
  * @param {Parameters<formatList>[1]} [options]
  * @returns {Markup}
  */
@@ -143,8 +143,8 @@ export function htmlReplaceAll(content, search, replacer) {
 }
 
 /**
- * @param {string} str
- * @param {...unknown[]} substitutions
+ * @param {string | Markup} str
+ * @param {...unknown} substitutions
  * @returns {string | Markup}
  */
 export function htmlSprintf(str, ...substitutions) {

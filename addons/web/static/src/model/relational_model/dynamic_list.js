@@ -17,6 +17,7 @@ import { formatServerValue } from "./record_value_transforms.js";
 import { resequenceRecords } from "./resequence.js";
 import { computeNextOrderBy } from "./static_list_utils.js";
 
+/** @import { DataPoint } from "./datapoint.js" */
 const DEFAULT_HANDLE_FIELD = "sequence";
 
 /** @abstract */
@@ -151,7 +152,7 @@ export class DynamicList extends EditableListDataPoint {
         return this.records.filter((record) => record.selected);
     }
 
-    /** @returns {number[] | false} the selected ids, or false when the whole domain is */
+    /** @returns {(number | false)[] | false} */
     get selectedResIds() {
         if (this.isDomainSelected || !this.selection.length) {
             return false;
@@ -693,7 +694,10 @@ export class DynamicList extends EditableListDataPoint {
         this.isDomainSelected = value;
     }
 
-    /** @param {boolean} isSelected */
+    /**
+     * @param {boolean} isSelected
+     * @param {boolean} state
+     */
     async _toggleArchive(isSelected, state) {
         const method = state ? "action_archive" : "action_unarchive";
         const context = this.context;

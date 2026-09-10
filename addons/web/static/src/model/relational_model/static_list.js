@@ -21,6 +21,10 @@ import { applyCommands } from "./static_list_command_engine.js";
 import { resequenceStaticList, sortBy, sortStaticList } from "./static_list_sort.js";
 import { copyRecordData, listId, pairCreatedRows } from "./static_list_utils.js";
 
+/** @import { DatapointId } from "@web/model/types" */
+
+/** @import { RelationalRecord } from "./record.js" */
+
 /**
  * @param {[number, any, any?][]} commands
  * @returns {[number, any, any?][]}

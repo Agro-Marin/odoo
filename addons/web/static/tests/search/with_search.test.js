@@ -38,7 +38,7 @@ class Animal extends models.Model {
     });
 
     _views = {
-        [["search", 1]]: `
+        ["search,1"]: `
             <search>
                 <filter name="filter" string="True domain" domain="[(1, '=', 1)]"/>
                 <filter name="group_by" context="{ 'group_by': 'name' }"/>
@@ -293,7 +293,8 @@ test("react to prop 'domain' changes", async () => {
 });
 
 test("reload with partial props preserves the unspecified search keys", async () => {
-    let searchModel = null;
+    /** @type {import("@web/search/search_model").SearchModel} */
+    let searchModel;
     class TestComponent extends Component {
         static props = ["*"];
         static template = xml`<div class="o_test_component">Test component content</div>`;

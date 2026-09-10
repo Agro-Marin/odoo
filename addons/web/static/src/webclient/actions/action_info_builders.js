@@ -4,6 +4,8 @@
 import { sameValue } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
 
+/** @import { Action, ActWindowAction, ActionManager, ActionProps, BaseView, Config, Controller } from "./action_service.js" */
+
 /**
  * @param {Record<string, any>} currentState
  * @param {string|undefined} target

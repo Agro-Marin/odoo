@@ -34,7 +34,7 @@ import { registry } from "@web/core/registry";
  * @typedef {Object} LoadViewsParams
  * @property {string} resModel
  * @property {[number | false, string][]} views
- * @property {Object} context
+ * @property {Object} [context]
  */
 
 /**

@@ -49,8 +49,8 @@ test("a failing open flips the instance to degraded mode", async () => {
 /** @param {{ completed: boolean }} state */
 function patchTransactionToRecordCompletion(state) {
     const originalTransaction = IDBDatabase.prototype.transaction;
-    IDBDatabase.prototype.transaction = function (...args) {
-        const transaction = originalTransaction.apply(this, args);
+    IDBDatabase.prototype.transaction = function (stores, mode, options) {
+        const transaction = originalTransaction.call(this, stores, mode, options);
         transaction.addEventListener("complete", () => {
             state.completed = true;
         });

@@ -28,6 +28,7 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog/dialog";
 
+/** @import { Command } from "./command_service.js" */
 const commandSetupRegistry = registry.category("command_setup");
 
 const DEFAULT_PLACEHOLDER = _t("Search...");
@@ -85,15 +86,46 @@ function commandKey(command) {
     ].join("\u0000");
 }
 
-/** @typedef {Command & { */
+/**
+ * @typedef {Command & {
+ * Component?: import("@odoo/owl").ComponentConstructor;
+ * props?: object;
+ * }} CommandItem
+ */
 
-/** @typedef {CommandItem & { */
+/**
+ * @typedef {CommandItem & {
+ * index: number;
+ * keyId: string | number;
+ * text: string | ReturnType<typeof highlightText>;
+ * }} DisplayedCommand
+ */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * namespace?: string;
+ * provide: (env: any, options?: any) => CommandItem[] | Promise<CommandItem[]>;
+ * }} Provider
+ */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * categories?: string[];
+ * categoryNames?: Record<string, string>;
+ * debounceDelay?: number;
+ * emptyMessage?: string;
+ * placeholder?: string;
+ * }} NamespaceConfig
+ */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * configByNamespace?: {[namespace: string]: NamespaceConfig};
+ * FooterComponent?: import("@odoo/owl").ComponentConstructor;
+ * providers: readonly Provider[];
+ * searchValue?: string;
+ * }} CommandPaletteConfig
+ */
 
 /**
  * @param {number} hidden
@@ -177,7 +209,17 @@ export class CommandPalette extends Component {
     activeElement;
     /** @type {ReturnType<typeof useAutofocus>} */
     inputRef;
-    /** @type {{ commands: DisplayedCommand[], */
+    /**
+     * @type {{ commands: DisplayedCommand[],
+     * emptyMessage: string,
+     * FooterComponent?: import("@odoo/owl").ComponentConstructor,
+     * hiddenCount: number,
+     * isLoading: boolean,
+     * namespace: string,
+     * placeholder: string,
+     * searchValue: string,
+     * selectedIndex: number }}
+     */
     state;
     /** @type {ReturnType<typeof useRef>} */
     root;
@@ -243,7 +285,19 @@ export class CommandPalette extends Component {
         });
         useExternalListener(window, "mousedown", this.onWindowMouseDown);
 
-        /** @type {{ */
+        /**
+         * @type {{
+         * commands: any[];
+         * namespace: string;
+         * searchValue: string;
+         * placeholder: string;
+         * emptyMessage: string;
+         * hiddenCount: number;
+         * selectedIndex: number;
+         * isLoading: boolean;
+         * FooterComponent: any;
+         * }}
+         */
         this.state = useState({
             commands: [],
             namespace: "default",

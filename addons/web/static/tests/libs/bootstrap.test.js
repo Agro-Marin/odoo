@@ -73,7 +73,7 @@ describe("sanitizer allow list", () => {
     });
 
     test("data-bs prefix is rejected but data-bsomething is not", async () => {
-        const pattern = Tooltip.Default.allowList["*"].at(-1);
+        const pattern = /** @type {RegExp} */ (Tooltip.Default.allowList["*"].at(-1));
         expect(pattern.test("data-bs-toggle")).toBe(false);
         expect(pattern.test("data-bsomething")).toBe(true);
         expect(pattern.test("data-foo")).toBe(true);
@@ -81,7 +81,7 @@ describe("sanitizer allow list", () => {
     });
 
     test("data-tooltip is rejected, since Odoo's own data-api acts on it", async () => {
-        const pattern = Tooltip.Default.allowList["*"].at(-1);
+        const pattern = /** @type {RegExp} */ (Tooltip.Default.allowList["*"].at(-1));
         for (const attr of [
             "data-tooltip",
             "data-tooltip-template",

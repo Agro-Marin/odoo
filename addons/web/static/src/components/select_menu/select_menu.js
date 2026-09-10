@@ -126,7 +126,15 @@ export class SelectMenu extends Component {
     /** @type {ReturnType<typeof useDropdownState>} */
     dropdownState;
 
-    /** @type {{ */
+    /**
+     * @type {{
+     *     choices: any[],
+     *     displayedOptions: any[],
+     *     searchValue: string | null,
+     *     appliedSearch: string,
+     *     isFocused: boolean,
+     * }}
+     */
     state;
 
     setup() {

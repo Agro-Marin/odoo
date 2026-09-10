@@ -1317,7 +1317,7 @@ test("Fetch choices", async () => {
             />
         `;
         setup() {
-            this.state = useState({ choices: [] }, { value: "" });
+            this.state = useState({ choices: [], value: "" });
         }
         loadChoice(/** @type {any} */ searchString) {
             if (searchString === "test") {
@@ -1686,6 +1686,7 @@ test("selected-value lookup does not scan the selection per choice", async () =>
         },
     });
 
+    /** @type {Probe} */
     let menu;
     class Probe extends SelectMenu {
         setup() {
@@ -1717,6 +1718,7 @@ test("the selected set follows a new value", async () => {
         { value: "a", label: "A" },
         { value: "b", label: "B" },
     ];
+    /** @type {Probe} */
     let menu;
     class Probe extends SelectMenu {
         setup() {
@@ -1748,6 +1750,7 @@ test("a selection mutated in place is still reflected", async () => {
         { value: "a", label: "A" },
         { value: "b", label: "B" },
     ];
+    /** @type {Probe} */
     let menu;
     class Probe extends SelectMenu {
         setup() {

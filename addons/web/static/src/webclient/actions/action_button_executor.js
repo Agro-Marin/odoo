@@ -13,6 +13,8 @@ import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants.js"
 
 /** @typedef {Object} DoActionButtonParams */
 
+/** @import { ActionManager, Context } from "./action_service.js" */
+
 export class InvalidButtonParamsError extends Error {}
 
 /**

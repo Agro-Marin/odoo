@@ -199,7 +199,7 @@ function makeTime(hour, minute, second) {
 }
 
 /**
- * @param {string} value
+ * @param {unknown} value
  * @param {boolean} [parseSeconds]
  * @returns {Time | null}
  */
@@ -245,7 +245,7 @@ export function parseTime(value, parseSeconds) {
 }
 
 /**
- * @param {string} timeStr
+ * @param {unknown} timeStr
  * @returns {string|false}
  */
 function normalizeTimeStr(timeStr) {
@@ -253,19 +253,19 @@ function normalizeTimeStr(timeStr) {
         return false;
     }
 
-    timeStr = timeStr.trim().toLowerCase();
+    let normalized = timeStr.trim().toLowerCase();
 
     for (const map of NUMERAL_MAPS) {
         for (let i = 0; i < map.length; i++) {
-            timeStr = timeStr.replaceAll(map[i], String(i));
+            normalized = normalized.replaceAll(map[i], String(i));
         }
     }
 
-    return timeStr.replace(/^\D+|\D+$/g, "").replace(/\D+/g, ":");
+    return normalized.replace(/^\D+|\D+$/g, "").replace(/\D+/g, ":");
 }
 
 /**
- * @param {string} timeStr
+ * @param {unknown} timeStr
  * @returns {{ isPm: boolean, isAm: boolean }}
  */
 function meridiemCheck(timeStr) {

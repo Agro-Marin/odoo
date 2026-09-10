@@ -7,11 +7,26 @@ import { RecordSaveCoordinator } from "@web/model/relational_model/record_save_c
 
 export { RECORD_CONTRACT_SURFACE };
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * data: Record<string, any>,
+ * savedData: Record<string, any>,
+ * _values: Record<string, any>,
+ * _editState: import("@web/model/relational_model/record_edit_state").RecordEditState,
+ * _hasChanges: boolean,
+ * changes: Record<string, any>,
+ * _textValues: Record<string, any>,
+ * _initialTextValues: Record<string, any>,
+ * setEvalContext: () => void,
+ * _clearChanges: () => void,
+ * rebuildData: () => void,
+ * }} RecordStateSurface
+ */
 
 /**
  * @param {Record<string, any>} target
  * @param {{ changes?: Record<string, any>, textValues?: Record<string, any>,
+ * initialTextValues?: Record<string, any>, dirty?: boolean }} [seed]
  * @returns {Record<string, any>}
  */
 export function installEditState(target, seed = {}) {

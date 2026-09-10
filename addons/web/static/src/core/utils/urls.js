@@ -32,7 +32,7 @@ export function getOrigin(origin) {
 }
 
 /**
- * @param {string} route
+ * @param {string} [route]
  * @param {object} [queryParams]
  * @param {object} [options]
  * @param {string} [options.origin]
@@ -133,7 +133,7 @@ export function getDataURLFromFile(file) {
 const SAFE_URL_SCHEMES = ["http", "https", "ftp", "ftps", "mailto", "tel"];
 
 /**
- * @param {string} href
+ * @param {unknown} href
  * @param {string[]} [extraSchemes]
  * @returns {boolean}
  */

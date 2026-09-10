@@ -5,7 +5,17 @@
  * @param {string} keyOptionalFields
  * @param {string} keyDebugOpenView
  * @param {Pick<
+ * import("./list_renderer").ListGridContext,
+ * "getAllColumns" | "getOptionalActiveFields" | "onSave"
+ * >} ctx
  * @returns {{
+ * debugOpenView: boolean,
+ * computeOptionalActiveFields: () => Record<string, boolean>,
+ * saveOptionalActiveFields: () => void,
+ * toggleOptionalField: (fieldName: string, render: () => void) => void,
+ * toggleOptionalFieldGroup: (groupId: string, render: () => void) => void,
+ * toggleDebugOpenView: (render: () => void) => void,
+ * }}
  */
 import { browser } from "@web/core/browser/browser";
 import { exprToBoolean } from "@web/core/utils/format/strings";

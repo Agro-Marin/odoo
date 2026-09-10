@@ -191,7 +191,7 @@ test("grouped: arrow traversal crosses an 'Add a line' row without trapping focu
     await animationFrame();
     const focusedCell = document.activeElement.closest("[data-col-index]");
     expect(focusedCell).not.toBe(null);
-    expect(focusedCell.dataset.colIndex).toBe("2");
+    expect(focusedCell.getAttribute("data-col-index")).toBe("2");
     expect(document.activeElement.closest(".o_data_row")).not.toBe(null);
 });
 

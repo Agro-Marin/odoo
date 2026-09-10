@@ -72,6 +72,9 @@ test("other non-ok statuses raise a NetworkError with status and url", async () 
 test("FormData is built by post", async () => {
     mockFetch((_, { body }) => {
         expect(body).toBeInstanceOf(FormData);
+        if (!(body instanceof FormData)) {
+            throw new Error("Expected FormData");
+        }
         expect(body.get("s")).toBe("1");
         expect(body.get("a")).toBe("1");
         expect(body.getAll("a")).toEqual(["1", "2", "3"]);

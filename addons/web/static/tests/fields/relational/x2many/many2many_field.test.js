@@ -1671,8 +1671,8 @@ test("many2many list add *many* records, remove, re-add", async () => {
         relation: "partner.type",
         string: "pokemon",
         domain: [["color", "=", 2]],
-        onChange: true,
     });
+    Partner._onChanges.timmy = true;
     PartnerType._fields.product_ids = fields.Many2many({
         string: "Product",
         relation: "product.product",
@@ -1779,7 +1779,7 @@ test("many2many kanban: action/type attribute", async () => {
 
 test("select create with _view_ref as text", async () => {
     PartnerType._views = {
-        [["list", "my.little.string"]]: `<list><field name="name"/></list>`,
+        ["list,my.little.string"]: `<list><field name="name"/></list>`,
     };
     patchWithCleanup(Many2XAutocomplete.defaultProps, {
         searchLimit: 1,
@@ -1958,7 +1958,7 @@ test("`this` inside rendererProps should reference the component", async () => {
             this.num = 1;
         }
 
-        async onAdd({ context, editable } = {}) {
+        async onAdd(options = {}) {
             this.num = 2;
             expect.step("onAdd");
             super.onAdd(...arguments);
@@ -2075,6 +2075,7 @@ test("test view button warning on opening unsaved record", async () => {
             expect.step("notification");
             expect(message).toBe("Please save your changes first");
             expect(options).toEqual({ type: "danger" });
+            return () => {};
         },
     });
 

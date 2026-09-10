@@ -135,8 +135,8 @@ declare module "registries" {
                   options: Record<string, any>;
               }) => "content" | number | number[] | false | undefined);
         relatedFields?:
-            | Partial<StaticFieldInfo>[]
-            | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);
+            | FieldDependency[]
+            | ((baseInfo: StaticFieldInfo) => FieldDependency[]);
         isEmpty?(...args: any[]): boolean;
         supportedAttributes?: any[];
         supportedOptions?: any[];

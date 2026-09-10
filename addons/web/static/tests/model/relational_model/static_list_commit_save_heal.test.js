@@ -11,9 +11,10 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
-import { RelationalRecord } from "@web/model/relational_model/record";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { StaticList } from "@web/model/relational_model/static_list";
+
+import { makeTestRelationalModel } from "./model_test_helpers.js";
 
 describe.current.tags("desktop");
 
@@ -153,22 +154,22 @@ describe("a save whose new id is not where the created row was", () => {
 });
 
 describe("_healMissingWindow in isolation", () => {
-    function makeList({ /** @type {any} */ resIds = [], limit = 5 } = {}) {
+    async function makeList({ /** @type {any} */ resIds = [], limit = 5 } = {}) {
         const loaded = [];
         const rows = {};
         for (const id of [1, 2, 3, 4, 5]) {
             rows[id] = { id, display_name: `Rec ${id}` };
         }
-        const model = {
-            Class: { Record: RelationalRecord, StaticList },
-            patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
-                Object.assign(config, patch),
+        const model = await makeTestRelationalModel({
             loadRecords: async ({ resIds: /** @type {any} */ ids }) => {
                 loaded.push([...ids]);
                 return ids.map((/** @type {any} */ id) => rows[id]);
             },
-        };
+        });
+        /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
         const config = {
+            ...model.config,
+            isRoot: false,
             resModel: "res.partner",
             activeFields: { display_name: makeActiveField() },
             fields: { display_name: { type: "char", name: "display_name" } },
@@ -194,7 +195,7 @@ describe("_healMissingWindow in isolation", () => {
     }
 
     test("reads only the window ids that have no datapoint", async () => {
-        const { list, loaded } = makeList({ resIds: [1, 2], limit: 5 });
+        const { list, loaded } = await makeList({ resIds: [1, 2], limit: 5 });
         list._currentIds = [1, 2, 3, 4];
 
         list._healMissingWindow();
@@ -205,14 +206,14 @@ describe("_healMissingWindow in isolation", () => {
     });
 
     test("issues no read when every member is already backed", async () => {
-        const { list, loaded } = makeList({ resIds: [1, 2], limit: 5 });
+        const { list, loaded } = await makeList({ resIds: [1, 2], limit: 5 });
         list._healMissingWindow();
         expect(loaded).toEqual([]);
         expect(list._commandsPromise).toBe(null);
     });
 
     test("stays within the page window", async () => {
-        const { list, loaded } = makeList({ resIds: [1], limit: 2 });
+        const { list, loaded } = await makeList({ resIds: [1], limit: 2 });
         list._currentIds = [1, 3, 4, 5];
 
         list._healMissingWindow();

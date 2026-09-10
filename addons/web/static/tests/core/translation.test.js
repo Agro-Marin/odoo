@@ -27,9 +27,10 @@ import { IndexedDB } from "@web/core/utils/indexed_db";
 import { session } from "@web/session";
 const { DateTime } = luxon;
 
-function _t() {
+/** @type {typeof basic_t} */
+function _t(source, ...substitutions) {
     odoo.translationContext = "web";
-    const translatedTerm = basic_t(...arguments);
+    const translatedTerm = basic_t(source, ...substitutions);
     odoo.translationContext = null;
     return translatedTerm;
 }
@@ -42,6 +43,8 @@ class TestComponent extends Component {
         return xml`${this._template}<div id="${id++}"/>`;
     }
     static _template = "";
+    /** @type {ReturnType<typeof basic_t>} */
+    static someLazyText;
     static props = ["*"];
 }
 
@@ -599,7 +602,7 @@ describe("_t with markups", () => {
                 email: maliciousUserInput,
             },
         );
-        expect(translatedStr).toBeInstanceOf(markup().constructor);
+        expect(translatedStr).toBeInstanceOf(markup("").constructor);
         expect(translatedStr.valueOf()).toBe(
             "FREE <blink>ROBUX</blink>, please contact &lt;script&gt;alert(&#x27;This should&#x27;ve been escaped&#x27;)&lt;/script&gt;",
         );

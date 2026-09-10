@@ -9,7 +9,10 @@ import { BaseRecordSelector, displayNameFor } from "./base_record_selector.js";
 import { RecordAutocomplete } from "./record_autocomplete.js";
 import { useTagNavigation } from "./tag_navigation_hook.js";
 
-/** @typedef {{ id?: number, text: string, onDelete: Function, img: string | false, */
+/**
+ * @typedef {{ id?: number, text: string, onDelete: Function, img: string | false,
+ * colorIndex?: number, canEdit?: boolean }} RecordTag
+ */
 /** @typedef {{ resIds: number[], [key: string]: any }} MultiRecordSelectorProps */
 
 export class MultiRecordSelector extends BaseRecordSelector {

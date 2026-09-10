@@ -10,6 +10,7 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isActivationKey } from "@web/core/browser/hotkeys";
 import { EmbeddedActions } from "@web/search/embedded_actions_bar/embedded_actions";
 
+/** @import { EmbeddedAction } from "@web/search/embedded_actions_bar/embedded_actions" */
 export class EmbeddedActionsDropdown extends Component {
     static template = "web.EmbeddedActionsDropdown";
     static components = { Dropdown, DropdownItem, AccordionItem, CheckBox };

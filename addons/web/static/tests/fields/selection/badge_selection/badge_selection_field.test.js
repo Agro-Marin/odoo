@@ -37,8 +37,8 @@ class Partner extends models.Model {
 class Product extends models.Model {
     _rec_name = "display_name";
 
-    name = fields.Char("name");
-    color = fields.Integer("color");
+    name = fields.Char({ string: "name" });
+    color = fields.Integer({ string: "color" });
 
     _records = [
         { id: 37, display_name: "xphone", name: "xphone", color: 6 },

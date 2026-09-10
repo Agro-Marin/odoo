@@ -2,8 +2,9 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
-import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
+
+import { makeTestRelationalModel } from "./model_test_helpers.js";
 
 const LINK = 4;
 
@@ -14,17 +15,18 @@ const SERVER_ROWS = {
     99: { id: 99, display_name: "Rec 99" },
 };
 
-function makeList({ resIds = [], limit = 2 } = {}) {
+async function makeList({ resIds = [], limit = 2 } = {}) {
     const loadedResIds = [];
-    const model = {
-        Class: { Record: RelationalRecord, StaticList },
-        patchConfig: (config, patch) => Object.assign(config, patch),
+    const model = await makeTestRelationalModel({
         loadRecords: async ({ resIds: ids }) => {
             loadedResIds.push([...ids]);
             return ids.map((id) => SERVER_ROWS[id]);
         },
-    };
+    });
+    /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
     const config = {
+        ...model.config,
+        isRoot: false,
         resModel: "res.partner",
         activeFields: { display_name: makeActiveField() },
         fields: { display_name: { type: "char", name: "display_name" } },
@@ -50,7 +52,7 @@ function makeList({ resIds = [], limit = 2 } = {}) {
 
 describe("LINK on a full page", () => {
     test("the linked record is loaded on page navigation, not mapped as a stub", async () => {
-        const { list, loadedResIds } = makeList({ resIds: [1, 2, 3], limit: 2 });
+        const { list, loadedResIds } = await makeList({ resIds: [1, 2, 3], limit: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
 
         await list.applyCommandsLocked([[LINK, 99, false]]);
@@ -69,7 +71,7 @@ describe("LINK on a full page", () => {
     });
 
     test("fully loaded cached records are not refetched on navigation", async () => {
-        const { list, loadedResIds } = makeList({ resIds: [1, 2], limit: 2 });
+        const { list, loadedResIds } = await makeList({ resIds: [1, 2], limit: 2 });
 
         await list.loadLocked({ offset: 0 });
 
@@ -81,7 +83,7 @@ describe("LINK on a full page", () => {
     });
 
     test("a LINK with server data on a full page needs no later load", async () => {
-        const { list, loadedResIds } = makeList({ resIds: [1, 2], limit: 2 });
+        const { list, loadedResIds } = await makeList({ resIds: [1, 2], limit: 2 });
 
         await list.applyCommandsLocked([[LINK, 99, SERVER_ROWS[99]]]);
         await list.loadLocked({ offset: 2 });

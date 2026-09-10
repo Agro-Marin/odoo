@@ -85,6 +85,7 @@ test("CodeEditor shouldn't accepts markup values", async () => {
         static template = xml`<Parent value="state.value"/>`;
         static props = ["*"];
         setup() {
+            /** @type {{value: string | import("@odoo/owl").Markup}} */
             this.state = useState({ value: `<div>Some Text</div>` });
         }
     }
@@ -341,6 +342,7 @@ test("code editor can take an initial cursor position", async () => {
 });
 
 test("a value change does not re-attach the session", async () => {
+    /** @type {CodeEditor} */
     let editor;
     patchWithCleanup(CodeEditor.prototype, {
         setup() {
@@ -354,10 +356,9 @@ test("a value change does not re-attach the session", async () => {
         static props = ["*"];
         setup() {
             this.state = useState({ value: "a = 1\n" });
-            Parent.last = this;
         }
     }
-    await mountWithCleanup(Parent);
+    const parent = await mountWithCleanup(Parent);
     await animationFrame();
 
     let setSessionCalls = 0;
@@ -367,7 +368,7 @@ test("a value change does not re-attach the session", async () => {
         return origSetSession(...args);
     };
 
-    Parent.last.state.value = "a = 2\n";
+    parent.state.value = "a = 2\n";
     await animationFrame();
 
     expect(setSessionCalls).toBe(0, {
@@ -377,6 +378,7 @@ test("a value change does not re-attach the session", async () => {
 });
 
 test("a mode change does re-attach the session", async () => {
+    /** @type {CodeEditor} */
     let editor;
     patchWithCleanup(CodeEditor.prototype, {
         setup() {
@@ -390,10 +392,9 @@ test("a mode change does re-attach the session", async () => {
         static props = ["*"];
         setup() {
             this.state = useState({ mode: "python" });
-            Parent.last = this;
         }
     }
-    await mountWithCleanup(Parent);
+    const parent = await mountWithCleanup(Parent);
     await animationFrame();
 
     let setSessionCalls = 0;
@@ -403,7 +404,7 @@ test("a mode change does re-attach the session", async () => {
         return origSetSession(...args);
     };
 
-    Parent.last.state.mode = "xml";
+    parent.state.mode = "xml";
     await animationFrame();
     expect(setSessionCalls).toBe(1);
 });

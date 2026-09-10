@@ -70,4 +70,12 @@ export function fieldHandleFor(record, name) {
     return handle;
 }
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * readonly name: string,
+ * readonly value: any,
+ * readonly definition: Record<string, any>,
+ * readonly type: string,
+ * update: (value: any, options?: { save?: boolean }) => Promise<void>,
+ * }} FieldHandle
+ */

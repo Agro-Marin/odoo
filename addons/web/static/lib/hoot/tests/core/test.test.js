@@ -58,7 +58,6 @@ describe(parseUrl(import.meta.url), () => {
         expect(String(t.code)).toBe(
             `
 test("${testName}", () => {
-    // Synchronous
     expect(1).toBe(1);
 });
 `.trim(),

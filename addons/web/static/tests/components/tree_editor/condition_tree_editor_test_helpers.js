@@ -87,8 +87,10 @@ function getValue(root) {
     switch (el.tagName) {
         case "INPUT":
             return queryValue(el);
-        case "SELECT":
-            return el.options[el.selectedIndex].label;
+        case "SELECT": {
+            const select = /** @type {HTMLSelectElement} */ (el);
+            return select.options[select.selectedIndex].label;
+        }
         default:
             return queryText(el);
     }
@@ -258,7 +260,7 @@ export function getCurrentValue(index, target) {
         const texts = queryAllTexts(`.o_tag`, { root: valueEditor });
         if (texts.length) {
             if (value) {
-                texts.push(value);
+                texts.push(String(value));
             }
             return texts.join(" ");
         }
@@ -273,7 +275,9 @@ export function getCurrentValue(index, target) {
 export function getOperatorOptions(index, target) {
     const el = queryAt(SELECTORS.operatorEditor, index, target);
     if (el) {
-        return queryAll(`select:only option`, { root: el }).map((o) => o.label);
+        return /** @type {HTMLOptionElement[]} */ (
+            queryAll(`select:only option`, { root: el })
+        ).map((o) => o.label);
     }
 }
 
@@ -284,7 +288,9 @@ export function getOperatorOptions(index, target) {
 export function getValueOptions(index, target) {
     const el = queryAt(SELECTORS.valueEditor, index, target);
     if (el) {
-        return queryAll(`select:only option`, { root: el }).map((o) => o.label);
+        return /** @type {HTMLOptionElement[]} */ (
+            queryAll(`select:only option`, { root: el })
+        ).map((o) => o.label);
     }
 }
 
@@ -293,7 +299,9 @@ export function getValueOptions(index, target) {
  * @param {Target} [target]
  */
 function getCurrentComplexCondition(index, target) {
-    const input = queryAt(SELECTORS.complexConditionInput, index, target);
+    const input = /** @type {HTMLInputElement} */ (
+        queryAt(SELECTORS.complexConditionInput, index, target)
+    );
     return input?.value;
 }
 

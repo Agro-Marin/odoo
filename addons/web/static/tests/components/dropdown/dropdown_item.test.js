@@ -64,7 +64,8 @@ test("prevents click default with href", async () => {
         onClick(ev) {
             expect(!ev.defaultPrevented).toBe(true);
             super.onClick(...arguments);
-            const href = ev.target.getAttribute("href");
+            const href =
+                ev.target instanceof Element ? ev.target.getAttribute("href") : null;
             expect(href !== null ? ev.defaultPrevented : !ev.defaultPrevented).toBe(
                 true,
             );

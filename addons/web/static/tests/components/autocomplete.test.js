@@ -1187,6 +1187,7 @@ test("a failing source does not reject the fire-and-forget open()", async () => 
 });
 
 test("a new value prop is applied after the edit was abandoned with Escape", async () => {
+    /** @type {(value: string) => void} */
     let setValue;
     class Parent extends Component {
         static components = { AutoComplete };
@@ -1238,8 +1239,9 @@ test("a pointerdown inside an iframe dismisses the dropdown", async () => {
             frame.addEventListener("load", () => resolve(undefined), { once: true });
         }
     });
-    frame.contentWindow.document.body.dispatchEvent(
-        new frame.contentWindow.PointerEvent("pointerdown", { bubbles: true }),
+    const frameWindow = /** @type {Window & typeof globalThis} */ (frame.contentWindow);
+    frameWindow.document.body.dispatchEvent(
+        new frameWindow.PointerEvent("pointerdown", { bubbles: true }),
     );
     await animationFrame();
 

@@ -5,8 +5,8 @@ import { FLOAT_PRECISION } from "@web/model/sample_data";
 import { SampleServer } from "@web/model/sample_server";
 
 class DeterministicSampleServer extends SampleServer {
-    constructor(/** @type {any[]} */ ...args) {
-        super(...args);
+    constructor(modelName, fields, relatedModels) {
+        super(modelName, fields, relatedModels);
         this.arrayElCpt = 0;
         this.boolCpt = 0;
         this.subRecordIdCpt = 0;

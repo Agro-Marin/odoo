@@ -401,7 +401,7 @@ test("new record has an expand button", async () => {
         expect.step("save");
     });
     mockService("action", {
-        doAction(actionRequest) {
+        async doAction(actionRequest) {
             if (actionRequest === "menu") {
                 return;
             }
@@ -436,7 +436,7 @@ test("expand after custom onRecordSave uses the persisted resId", async () => {
         expect.step("save");
     });
     mockService("action", {
-        doAction(actionRequest) {
+        async doAction(actionRequest) {
             if (actionRequest === "menu") {
                 return;
             }
@@ -470,7 +470,7 @@ test("existing record has an expand button", async () => {
         expect.step("save");
     });
     mockService("action", {
-        doAction(actionRequest) {
+        async doAction(actionRequest) {
             if (actionRequest === "menu") {
                 return;
             }
@@ -518,7 +518,7 @@ test("expand button with save and new", async () => {
         expect.step("save");
     });
     mockService("action", {
-        doAction(actionRequest) {
+        async doAction(actionRequest) {
             if (actionRequest === "menu") {
                 return;
             }

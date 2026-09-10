@@ -3,9 +3,13 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { postprocessReadGroup } from "@web/model/relational_model/group_postprocessor";
 
+/** @returns {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
 function makeConfig() {
     return {
         resModel: "task",
+        isMonoRecord: false,
+        isRoot: true,
+        context: {},
         fields: { name: { type: "char", name: "name" } },
         activeFields: {},
         fieldsToAggregate: [],
@@ -86,6 +90,7 @@ describe("sticky-empty group re-insertion", () => {
     });
 
     test("a re-inserted group resets its nested subgroups (2-level grouping)", async () => {
+        /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
         const config = {
             ...makeConfig(),
             fields: {

@@ -20,12 +20,11 @@ import { TimePicker } from "@web/components/time_picker/time_picker";
 const pad2 = (value) => String(value).padStart(2, "0");
 
 /**
- * @template {any}
+ * @template T
  * @param {number} length
  * @param {(index: number) => T} mapping
  */
-const range = (length, mapping = (n) => n) =>
-    [...Array(length)].map((_, i) => mapping(i));
+const range = (length, mapping) => [...Array(length)].map((_, i) => mapping(i));
 
 const getTimeOptions = (rounding = 15) => {
     const _hours = range(24, String);
@@ -534,6 +533,7 @@ test("the input exposes combobox semantics and stays out of the tab order", asyn
 });
 
 test("suggestions are rebuilt only when the rounding that shapes them changes", async () => {
+    /** @type {Probe} */
     let picker;
     class Probe extends TimePicker {
         setup() {

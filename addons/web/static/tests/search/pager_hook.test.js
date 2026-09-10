@@ -143,6 +143,7 @@ test("pager is correctly updated on desktop", async () => {
 
 test("a key the previous render set and this one omits does not survive", async () => {
     let withUpdateTotal = true;
+    /** @type {import("@web/search/pager_hook").PagerProps} */
     let pagerProps;
 
     class TestComponent extends Component {
@@ -152,6 +153,7 @@ test("a key the previous render set and this one omits does not survive", async 
         setup() {
             this.state = useState({ tick: 0 });
             usePager(() => {
+                /** @type {import("@web/search/pager_hook").PagerProps} */
                 const props = {
                     offset: 0,
                     limit: 10,
@@ -159,7 +161,7 @@ test("a key the previous render set and this one omits does not survive", async 
                     onUpdate: () => {},
                 };
                 if (withUpdateTotal) {
-                    props.updateTotal = () => {};
+                    props.updateTotal = () => 50;
                 }
                 return props;
             });
@@ -183,6 +185,7 @@ test("a key the previous render set and this one omits does not survive", async 
 
 test("an absent pager resets the state to a hidden pager", async () => {
     let hasPager = true;
+    /** @type {import("@web/search/pager_hook").PagerProps} */
     let pagerProps;
 
     class TestComponent extends Component {

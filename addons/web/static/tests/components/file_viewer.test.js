@@ -1,6 +1,6 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { animationFrame, click, hover, pointerDown, pointerUp } from "@odoo/hoot-dom";
 import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -108,6 +108,7 @@ test("re-anchors on a new files list", async () => {
 
 test("re-anchors on a plain (non-reactive) files list", async () => {
     const other = { ...IMAGE_FILE, name: "other.png" };
+    /** @type {() => void} */
     let reorder;
     class Parent extends Component {
         static components = { FileViewer };
@@ -229,19 +230,13 @@ test("a rotated image is re-sized when the window is", async () => {
 });
 
 test("printing closes the window when the job is handed off, not on a timer", async () => {
-    /** @type {Record<string, Function>} */
-    const listeners = {};
     let closed = false;
     let printed = false;
     let fallbackDelay = null;
-    const printWindow = {
-        document: {
-            createElement: (/** @type {string} */ tag) => document.createElement(tag),
-            body: document.createElement("div"),
-        },
-        addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => {
-            listeners[type] = fn;
-        },
+    const frame = document.createElement("iframe");
+    getFixture().append(frame);
+    const printWindow = frame.contentWindow;
+    patchWithCleanup(printWindow, {
         print: () => {
             printed = true;
         },
@@ -252,7 +247,7 @@ test("printing closes the window when the job is handed off, not on a timer", as
             fallbackDelay = ms;
             return 1;
         },
-    };
+    });
     patchWithCleanup(browser, { open: () => printWindow });
 
     const viewer = await mountWithCleanup(FileViewer, {
@@ -261,14 +256,12 @@ test("printing closes the window when the job is handed off, not on a timer", as
     viewer.onClickPrint();
     expect(printed).toBe(false);
 
-    /** @type {any} */ (printWindow.document.body.firstChild).dispatchEvent(
-        new Event("load"),
-    );
+    printWindow.document.body.firstChild.dispatchEvent(new Event("load"));
     expect(printed).toBe(true);
     expect(closed).toBe(false, { message: "not closed out from under the dialog" });
     expect(fallbackDelay).toBe(1000, { message: "a fallback, not the mechanism" });
 
-    listeners.afterprint();
+    printWindow.dispatchEvent(new Event("afterprint"));
     expect(closed).toBe(true);
 });
 

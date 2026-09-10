@@ -4,7 +4,13 @@ import { Component, useRef, useState, xml } from "@odoo/owl";
 
 import { useAutofocus, useHootKey, useWindowListener } from "../hoot_utils.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *  buttonClassName?: string;
+ *  className?: string;
+ *  slots: Record<string, any>;
+ * }} HootDropdownProps
+ */
 
 /** @extends {Component<HootDropdownProps, import("../hoot").Environment>} */
 export class HootDropdown extends Component {

@@ -1,7 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * originalProperties: Map<string, PropertyDescriptor | undefined>;
+ * skeleton: object;
+ * extensions: Set<object>;
+ * }} PatchDescription
+ */
 
 /** @type {WeakMap<object, PatchDescription>} */
 const patchDescriptions = new WeakMap();
@@ -62,9 +68,9 @@ function findAncestorPropertyDescriptor(objToPatch, key) {
 
 /**
  * @template {Record<string, any>} T
- * @template {Partial<T>} U
+ * @template {object} U
  * @param {T} objToPatch
- * @param {U & ThisType<T & U>} extension
+ * @param {U & Partial<Omit<T, never>> & ThisType<T & U>} extension
  * @returns {() => void}
  */
 export function patch(objToPatch, extension) {

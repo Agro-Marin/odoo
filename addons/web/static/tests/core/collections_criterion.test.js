@@ -19,12 +19,14 @@ describe("the empty-string key is a key", () => {
 
 describe("the falsy NUMBER 0 is rejected, like any other number", () => {
     test("sortBy", () => {
+        // @ts-expect-error
         expect(() => sortBy([{ 0: "b" }], 0)).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'number'/,
         );
     });
 
     test("groupBy", () => {
+        // @ts-expect-error
         expect(() => groupBy([{ 0: "b" }], 0)).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'number'/,
         );

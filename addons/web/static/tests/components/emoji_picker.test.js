@@ -38,6 +38,7 @@ test("fallback UI is displayed when the emoji bundle fails to load", async () =>
 
 test.tags("mobile");
 test("mobile picker dialog is torn down with its owner", async () => {
+    /** @type {ReturnType<typeof useEmojiPicker>} */
     let picker;
     class Host extends Component {
         static template = xml`<div class="test-host"/>`;
@@ -102,7 +103,7 @@ test("mobile picker app is torn down with its owner", async () => {
 });
 
 test("the active emoji is read from the rendered list, not from the DOM", async () => {
-    patchWithCleanup(loader, { loadEmoji: () => Promise.resolve() });
+    patchWithCleanup(loader, { loadEmoji: () => Promise.resolve([]) });
     /** @type {any} */
     let instance;
     class Probe extends EmojiPicker {
@@ -152,6 +153,7 @@ test("hovering an emoji updates the placeholder without re-rendering the grid", 
 });
 
 test("adaptNavbar survives a navbar with no emoji rendered", async () => {
+    /** @type {EmojiPicker} */
     let picker;
     patchWithCleanup(EmojiPicker.prototype, {
         setup() {
@@ -171,6 +173,7 @@ test("adaptNavbar survives a navbar with no emoji rendered", async () => {
 });
 
 test("category id stays a number when a search returns nothing", async () => {
+    /** @type {Probe} */
     let picker;
     class Probe extends EmojiPicker {
         setup() {
@@ -218,6 +221,7 @@ test("external state search rebuilds the navigation grid", async () => {
 });
 
 test("the merged emoji list is not rebuilt on every render", async () => {
+    /** @type {Probe} */
     let picker;
     class Probe extends EmojiPicker {
         setup() {
@@ -234,6 +238,7 @@ test("the merged emoji list is not rebuilt on every render", async () => {
 });
 
 test("every cell with a neighbouring row can be left with an arrow key", async () => {
+    /** @type {Probe} */
     let picker;
     class Probe extends EmojiPicker {
         setup() {
@@ -252,10 +257,10 @@ test("every cell with a neighbouring row can be left with an arrow key", async (
         const stuck = [];
         for (const [rowIndex, row] of matrix.entries()) {
             for (const [colIndex, index] of row.entries()) {
-                for (const [key, step] of [
+                for (const [key, step] of /** @type {[string, number][]} */ ([
                     ["ArrowDown", 1],
                     ["ArrowUp", -1],
-                ]) {
+                ])) {
                     if (!matrix[rowIndex + step]) {
                         continue;
                     }
@@ -276,6 +281,7 @@ test("every cell with a neighbouring row can be left with an arrow key", async (
 test.tags("desktop");
 test("an externally driven search brings the keyboard selection back in range", async () => {
     const external = reactive({ searchTerm: "" });
+    /** @type {Probe} */
     let picker;
     class Probe extends EmojiPicker {
         setup() {

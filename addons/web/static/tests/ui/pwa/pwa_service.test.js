@@ -37,7 +37,12 @@ test("PWA service fetches the manifest found in the page", async () => {
 });
 
 test("PWA installation process", async () => {
-    const beforeInstallPromptEvent = new CustomEvent("beforeinstallprompt");
+    const beforeInstallPromptEvent = Object.assign(
+        new CustomEvent("beforeinstallprompt"),
+        {
+            prompt: async () => ({ outcome: "accepted" }),
+        },
+    );
     beforeInstallPromptEvent.preventDefault = () => {};
     beforeInstallPromptEvent.prompt = async () => ({ outcome: "accepted" });
     browser.BeforeInstallPromptEvent = beforeInstallPromptEvent;
@@ -79,18 +84,15 @@ test("PWA installation process", async () => {
 });
 
 test("Safari install prompt: dismissal persists on every dialog close path", async () => {
-    patchWithCleanup(browser, {
-        navigator: {
-            language: browser.navigator.language,
-            userAgent:
-                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-        },
+    patchWithCleanup(browser.navigator, {
+        userAgent:
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
     });
     mockService("dialog", {
         add(_component, _props, options) {
             expect.step("dialog opened");
             options.onClose();
-            return () => {};
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -118,7 +120,12 @@ test("PWA service boots despite a corrupted installationState in localStorage", 
 
 test("a native prompt is consumed once, so a second show() cannot reject", async () => {
     let prompts = 0;
-    const beforeInstallPromptEvent = new CustomEvent("beforeinstallprompt");
+    const beforeInstallPromptEvent = Object.assign(
+        new CustomEvent("beforeinstallprompt"),
+        {
+            prompt: async () => ({ outcome: "accepted" }),
+        },
+    );
     beforeInstallPromptEvent.preventDefault = () => {};
     beforeInstallPromptEvent.prompt = async () => {
         if (++prompts > 1) {

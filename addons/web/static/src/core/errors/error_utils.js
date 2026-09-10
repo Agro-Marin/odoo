@@ -5,7 +5,12 @@ import { mapFramesToSource, parseStackFrames } from "./stack_frames.js";
 
 /** @typedef {import("./uncaught_errors").UncaughtError} UncaughtError */
 
-/** @typedef {Error & { */
+/**
+ * @typedef {Error & {
+ * annotatedTraceback?: string,
+ * errorEvent?: ErrorEvent | PromiseRejectionEvent,
+ * }} AnnotatedError
+ */
 
 /**
  * @param {UncaughtError} uncaughtError

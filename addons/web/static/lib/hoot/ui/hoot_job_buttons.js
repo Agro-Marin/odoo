@@ -6,7 +6,12 @@ import { Job } from "../core/job.js";
 import { Test } from "../core/test.js";
 import { HootLink } from "./hoot_link.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *  hidden?: boolean;
+ *  job: Job;
+ * }} HootJobButtonsProps
+ */
 
 /** @extends {Component<HootJobButtonsProps, import("../hoot").Environment>} */
 export class HootJobButtons extends Component {

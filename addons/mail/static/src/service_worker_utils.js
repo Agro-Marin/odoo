@@ -14,7 +14,9 @@ export const PUSH_NOTIFICATION_ACTION = {
  * @returns {string}
  */
 export function arrayBufferToBase64Url(buffer) {
-    const bytes = new Uint8Array(buffer);
+    const bytes = ArrayBuffer.isView(buffer)
+        ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+        : new Uint8Array(buffer);
     let binary = "";
     for (let i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i]);
@@ -23,14 +25,26 @@ export function arrayBufferToBase64Url(buffer) {
 }
 
 /**
- * @param {{title?: string, options?: Object}} [notification]
+ * @typedef {Omit<NotificationOptions, "data"> & {
+ * data?: {type?: string, model?: string, res_id?: number};
+ * actions?: {action: string, title: string, icon?: string}[];
+ * }} PushNotificationOptions
+ * @typedef {{title?: string, options?: PushNotificationOptions}} PushNotification
+ * @typedef {{type: "generic" | "ignore"} |
+ * {type: "cancel", tag: string} |
+ * {type: "show", title: string, options: PushNotificationOptions} |
+ * {type: "handshake", notification: PushNotification & {title: string}}} PushNotificationPlan
+ */
+
+/**
+ * @param {PushNotification} [notification]
  * @param {{isAndroid?: boolean}} [env]
- * @returns {{type: string, title?: string, options?: Object, tag?: string}}
+ * @returns {PushNotificationPlan}
  */
 export function planPushNotification(notification, { isAndroid = false } = {}) {
     const dataType = notification?.options?.data?.type;
     if (dataType === PUSH_NOTIFICATION_TYPE.CANCEL) {
-        const tag = notification.options?.tag;
+        const tag = notification?.options?.tag;
         if (!tag) {
             return { type: "ignore" };
         }
@@ -51,11 +65,14 @@ export function planPushNotification(notification, { isAndroid = false } = {}) {
         }
         return { type: "show", title: notification.title, options };
     }
-    return { type: "handshake" };
+    return {
+        type: "handshake",
+        notification: { ...notification, title: notification.title },
+    };
 }
 
 /**
- * @template {{id: string, url: string, focused?: boolean, visibilityState?: string}}
+ * @template {{id: string, url: string, focused?: boolean, visibilityState?: string}} T
  * @param {readonly T[]} clients
  * @param {Object} [options]
  * @param {{id: string}} [options.source]

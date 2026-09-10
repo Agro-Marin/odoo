@@ -24,6 +24,8 @@ import {
     WHITE_LISTED_KEYS,
 } from "./draggable_hook_builder_utils.js";
 
+/** @import { DraggableHookContext, DraggableHookCurrentContext } from "./draggable_hook_builder.js" */
+
 /**
  * @param {PointerEvent} ev
  * @param {HTMLElement} target
@@ -60,7 +62,14 @@ function neutralizeTouchInterference(
 }
 
 export class DragSession {
-    /** @param {{ */
+    /**
+     * @param {{
+     * ctx: DraggableHookContext,
+     * state: { dragging: boolean, willDrag: boolean },
+     * params: Record<string, any>,
+     * hookParams: Record<string, any>,
+     * }} deps
+     */
     constructor({ ctx, state, params, hookParams }) {
         this.ctx = ctx;
         this.state = state;

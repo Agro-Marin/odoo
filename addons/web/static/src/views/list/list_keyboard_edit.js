@@ -3,7 +3,20 @@
 
 import { getElementToFocus } from "./list_focus.js";
 
-/** @typedef {Pick< */
+/**
+ * @typedef {Pick<
+ * import("./list_renderer").ListGridContext,
+ * | "getProps"
+ * | "getColumns"
+ * | "getEditedRecord"
+ * | "getControls"
+ * | "getCanCreate"
+ * | "getDisplayRowCreates"
+ * | "isCellReadonly"
+ * | "onAdd"
+ * | "onEditNextRecord"
+ * >} ListEditContext
+ */
 
 const EDIT_HANDLER_NAMES = [
     "focusCell",

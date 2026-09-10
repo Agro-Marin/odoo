@@ -2493,9 +2493,9 @@ test("Can change display type of a measure", async function () {
     expect(getFormattedValueGrid(model, "A1:D5")).toEqual({
         A1: "Partner Pivot",      B1: "xphone",       C1: "xpad",         D1: "Total",
         A2: "",                   B2: "Probability",  C2: "Probability",  D2: "Probability",
-        A3: "No",                 B3: "0.00%",        C3: "11.45%",       D3: "11.45%",
-        A4: "Yes",                B4: "7.63%",        C4: "80.92%",       D4: "88.55%",
-        A5: "Total",              B5: "7.63%",        C5: "92.37%",       D5: "100.00%",
+        A3: "No",                 B3: "0.00%",        C3: "45.80%",       D3: "45.80%",
+        A4: "Yes",                B4: "30.53%",       C4: "161.83%",      D4: "118.07%",
+        A5: "Total",              B5: "30.53%",       C5: "123.16%",      D5: "100.00%",
     });
 
     updatePivotMeasureDisplay(model, pivotId, "probability:avg", {
@@ -2510,7 +2510,7 @@ test("Can change display type of a measure", async function () {
         A1: "Partner Pivot",      B1: "xphone",       C1: "xpad",         D1: "Total",
         A2: "",                   B2: "Probability",  C2: "Probability",  D2: "Probability",
         A3: "No",                 B3: "",             C3: "100.00%",      D3: "100.00%",
-        A4: "Yes",                B4: "",             C4: "706.67%",      D4: "773.33%",
+        A4: "Yes",                B4: "",             C4: "353.33%",      D4: "257.78%",
         A5: "Total",              B5: "",             C5: "",             D5: "",
     });
 });

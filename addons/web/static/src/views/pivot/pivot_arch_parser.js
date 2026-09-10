@@ -17,6 +17,16 @@ export class PivotArchParser extends ViewArchParser {
      * @param {Record<string, any>} [_models]
      * @param {string} [_modelName]
      * @returns {{
+     * activeMeasures: string[],
+     * colGroupBys: string[],
+     * defaultOrder: string | null,
+     * fieldAttrs: Record<string, Record<string, any>>,
+     * rowGroupBys: string[],
+     * widgets: Object,
+     * title?: string,
+     * disableLinking?: boolean,
+     * displayQuantity?: boolean,
+     * }}
      */
     parse(arch, _models, _modelName) {
         return this.visitArch(

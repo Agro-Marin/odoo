@@ -8,6 +8,7 @@ import { Model, useModelWithSampleData } from "@web/model/model";
 
 test("model.orm is restored when the sample-data load throws", async () => {
     expect.errors(1);
+    /** @type {Model} */
     let model = null;
     let realOrm = null;
 

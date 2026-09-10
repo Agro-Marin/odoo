@@ -9,7 +9,13 @@ import {
 
 /** @param {Object} [overrides] */
 function makeFakeAm(overrides = {}) {
-    /** @type {{ */
+    /**
+     * @type {{
+     *     pushState: number,
+     *     switchView: Record<string, any>[],
+     *     doAction: Record<string, any>[],
+     * }}
+     */
     const calls = { pushState: 0, switchView: [], doAction: [] };
     const am = {
         pushState: () => calls.pushState++,
@@ -66,7 +72,7 @@ function makeAction(overrides = {}) {
 describe.current.tags("desktop");
 
 test("client props carry the action and its id alongside the caller's props", async () => {
-    const action = { id: 7, name: "Some Client Action" };
+    const action = { type: "ir.actions.client", id: 7, name: "Some Client Action" };
     const { props } = prepareActionInfo(action, { custom: 1 }, makeFakeAm());
     expect(props.custom).toBe(1);
     expect(props.action).toBe(action);
@@ -76,19 +82,29 @@ test("client props carry the action and its id alongside the caller's props", as
 test("client displayName prefers display_name, then name, then empty", async () => {
     const am = makeFakeAm();
     expect(
-        prepareActionInfo({ display_name: "D", name: "N" }, {}, am).displayName,
+        prepareActionInfo(
+            { type: "ir.actions.client", display_name: "D", name: "N" },
+            {},
+            am,
+        ).displayName,
     ).toBe("D");
-    expect(prepareActionInfo({ name: "N" }, {}, am).displayName).toBe("N");
-    expect(prepareActionInfo({}, {}, am).displayName).toBe("");
+    expect(
+        prepareActionInfo({ type: "ir.actions.client", name: "N" }, {}, am).displayName,
+    ).toBe("N");
+    expect(prepareActionInfo({ type: "ir.actions.client" }, {}, am).displayName).toBe("");
 });
 
 test("active_id is left UNDEFINED rather than defaulted to false", async () => {
-    const { currentState } = prepareActionInfo({ id: 1 }, {}, makeFakeAm());
+    const { currentState } = prepareActionInfo(
+        { type: "ir.actions.client", id: 1 },
+        {},
+        makeFakeAm(),
+    );
     expect("active_id" in currentState).toBe(true);
     expect(currentState.active_id).toBe(undefined);
 
     const withActive = prepareActionInfo(
-        { id: 1, context: { active_id: 4 } },
+        { type: "ir.actions.client", id: 1, context: { active_id: 4 } },
         {},
         makeFakeAm(),
     );
@@ -97,13 +113,23 @@ test("active_id is left UNDEFINED rather than defaulted to false", async () => {
 
 test("resId, unlike active_id, DOES default to false", async () => {
     const am = makeFakeAm();
-    expect(prepareActionInfo({ id: 1 }, {}, am).currentState.resId).toBe(false);
-    expect(prepareActionInfo({ id: 1 }, { resId: 9 }, am).currentState.resId).toBe(9);
+    expect(
+        prepareActionInfo({ type: "ir.actions.client", id: 1 }, {}, am).currentState
+            .resId,
+    ).toBe(false);
+    expect(
+        prepareActionInfo({ type: "ir.actions.client", id: 1 }, { resId: 9 }, am)
+            .currentState.resId,
+    ).toBe(9);
 });
 
 test("updateActionState pushes a url only when the state actually changed", async () => {
     const am = makeFakeAm();
-    const { props, currentState } = prepareActionInfo({ id: 1 }, { resId: 3 }, am);
+    const { props, currentState } = prepareActionInfo(
+        { type: "ir.actions.client", id: 1 },
+        { resId: 3 },
+        am,
+    );
     const controller = { isMounted: true };
 
     props.updateActionState(controller, { resId: 3 });
@@ -146,12 +172,16 @@ test("updateActionState treats NaN as equal to itself, as shallowEqual did", asy
 
 test("updateActionState never pushes for a dialog, or before the controller mounts", async () => {
     const am = makeFakeAm();
-    const dialog = prepareActionInfo({ id: 1, target: "new" }, {}, am);
+    const dialog = prepareActionInfo(
+        { type: "ir.actions.client", id: 1, target: "new" },
+        {},
+        am,
+    );
     dialog.props.updateActionState({ isMounted: true }, { resId: 5 });
     expect(am.__calls.pushState).toBe(0);
     expect(dialog.currentState.resId).toBe(5);
 
-    const inline = prepareActionInfo({ id: 1 }, {}, am);
+    const inline = prepareActionInfo({ type: "ir.actions.client", id: 1 }, {}, am);
     inline.props.updateActionState({ isMounted: false }, { resId: 5 });
     expect(am.__calls.pushState).toBe(0);
 });

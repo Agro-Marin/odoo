@@ -254,7 +254,13 @@ export const SEARCH_COMPOSITION_ORDER = [
     "search/search_model.js",
 ];
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * published: string[],
+ * requires: string[],
+ * sharedState: string[],
+ * }} UnitContract
+ */
 
 /** @type {Record<string, UnitContract>} */
 export const SEARCH_COMPOSITION_CONTRACT = {

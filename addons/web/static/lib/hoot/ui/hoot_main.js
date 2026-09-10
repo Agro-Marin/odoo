@@ -13,7 +13,10 @@ import { HootSearch } from "./hoot_search.js";
 import { HootSideBar } from "./hoot_side_bar.js";
 import { HootStatusPanel } from "./hoot_status_panel.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * }} HootMainProps
+ */
 
 const { setTimeout } = globalThis;
 

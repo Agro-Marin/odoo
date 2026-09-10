@@ -496,6 +496,7 @@ describe("throttleForAnimation", () => {
         const throttledFn = throttleForAnimation(() =>
             Promise.reject(new Error("boom")),
         );
+        /** @type {Error} */
         let caught;
         await throttledFn().catch((error) => (caught = error));
         expect(caught).toBeInstanceOf(Error);
@@ -510,8 +511,9 @@ describe("throttleForAnimation", () => {
         });
         throttledFn();
         const trailing = throttledFn();
+        /** @type {Error} */
         let caught;
-        const settled = trailing.catch((error) => (caught = error));
+        const settled = Promise.resolve(trailing).catch((error) => (caught = error));
         await runAllTimers();
         await settled;
         expect(caught).toBeInstanceOf(Error);

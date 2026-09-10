@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { RelationalRecord } from "./record.js" */
 export class ListMembership {
     /** @param {(number | string)[]} [ids] */
     constructor(ids = []) {

@@ -3,6 +3,7 @@
 
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 
+/** @import { DomainListRepr } from "@web/core/domain" */
 export const SPECIAL = Symbol("special");
 
 /**

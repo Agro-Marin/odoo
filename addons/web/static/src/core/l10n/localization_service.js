@@ -63,9 +63,31 @@ const FALLBACK_LANG_PARAMETERS = {
     week_start: 7,
 };
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * hash: string,
+ * modules: Record<string, { messages: { id: string, string: string }[] }>,
+ * lang_parameters: {
+ * date_format: string,
+ * time_format: string,
+ * decimal_point: string,
+ * direction: string,
+ * grouping: string,
+ * thousands_sep: string,
+ * week_start: number,
+ * },
+ * multi_lang: boolean,
+ * }} TranslationPayload
+ */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * db: IndexedDB,
+ * url: string,
+ * lang: string,
+ * cacheMarker: string,
+ * }} TranslationSource
+ */
 
 /** @param {string} cacheMarker */
 function markTranslationsCached(cacheMarker) {

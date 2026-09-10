@@ -1,6 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { AST } from "@web/core/py_js/py_parser" */
+
+/** @import { DomainRepr } from "@web/core/domain" */
+
 /** @typedef {number|string|boolean|Expression} Atom */
 
 /** @typedef {Atom|Atom[]} Value */

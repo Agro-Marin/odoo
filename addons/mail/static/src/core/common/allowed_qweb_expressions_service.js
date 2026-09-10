@@ -3,7 +3,13 @@
 
 import { registry } from "@web/core/registry";
 
-/** @type {{ */
+/**
+ * @type {{
+ * dependencies: string[];
+ * async: boolean;
+ * start: (env: import("@web/env").OdooEnv, deps: { orm: import("@web/core/network/orm_service").ORM }) => (resModel: string) => Promise<string[]>;
+ * }}
+ */
 export const allowedQwebExpressionsService = {
     dependencies: ["orm"],
     async: true,

@@ -18,7 +18,7 @@ declare module "registries" {
         type: "component";
         Component: ComponentConstructor;
         props: object;
-        sequence: number;
+        sequence?: number;
         section?: string;
     }
 
@@ -27,11 +27,11 @@ declare module "registries" {
         callback?: () => void | Promise<void>;
         description: string;
         href?: string;
-        sequence: number;
+        sequence?: number;
         section?: string;
     }
 
-    type DebugRegistryItemShapeResult = DebugComponent | DebugItem | null;
+    type DebugRegistryItemShapeResult = DebugComponent | DebugItem | null | false | undefined;
 
     export type DebugRegistryItemShape = (
         params: DebugRegistryItemShapeParams,

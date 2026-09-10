@@ -156,6 +156,11 @@ export function useRecordSelection(ctx) {
  * @param {() => number} config.getLongTouchThreshold
  * @param {(record: any) => void} config.onLongTouch
  * @returns {{
+ * onTouchStart: (record?: any) => void,
+ * onTouchEnd: () => void,
+ * onTouchMove: () => void,
+ * resetLongTouchTimer: () => void,
+ * }}
  */
 export function useLongTouchSelection({ getLongTouchThreshold, onLongTouch }) {
     /** @type {ReturnType<typeof browser.setTimeout> | null} */

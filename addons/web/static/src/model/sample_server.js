@@ -38,8 +38,29 @@ import {
 
 /**
  * @typedef {{
+ * fieldName: string;
+ * func: string;
+ * name: string;
+ * }} MeasureSpec
  * @typedef {{
+ * fields: Record<string, any>;
+ * records: Record<string, any>[];
+ * }} ModelData
  * @typedef {{
+ * model: string;
+ * method?: string;
+ * route?: string;
+ * args?: any[];
+ * domain?: any[];
+ * groupBy?: string[];
+ * aggregates?: string[];
+ * specification?: Record<string, any>;
+ * recordIds?: number[];
+ * group_by?: string;
+ * progress_bar?: { field: string; colors: Record<string, string> };
+ * grouping_sets?: string[][];
+ * [key: string]: any;
+ * }} MockRpcParams
  */
 
 registry
@@ -229,6 +250,7 @@ export class SampleServer {
      * @param {string} modelName
      * @param {string} groupBySpec
      * @returns {{ fieldName: string, type: string, interval: string | undefined,
+     * relation: string | undefined, alias: string, field: Record<string, any> } | undefined}
      */
     _resolveGroupBy(modelName, groupBySpec) {
         const [fieldName, interval] = groupBySpec.split(":");

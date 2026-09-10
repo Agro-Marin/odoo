@@ -85,6 +85,7 @@ describe("Basic Properties", () => {
     });
 
     test("or", () => {
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const currentDomain = [
             "|",
             ["section_id", "=", 42],
@@ -300,13 +301,30 @@ describe("Basic Properties", () => {
 
     test("flat implicit-AND normalization scales (O(N)) and stays correct", () => {
         const N = 500;
+        /** @type {import("@web/core/domain").Condition[]} */
         const leaves = Array.from({ length: N }, (_, i) => [`f${i}`, "=", i]);
         const dom = new Domain(leaves);
         const ast = dom.ast.value;
         expect(ast.length).toBe(2 * N - 1);
-        expect(ast.slice(0, N - 1).every((n) => n.value === "&")).toBe(true);
-        expect(ast[N - 1].value[0].value).toBe("f0");
-        expect(ast.at(-1).value[0].value).toBe(`f${N - 1}`);
+        expect(ast.slice(0, N - 1)).toEqual(
+            Array.from({ length: N - 1 }, () => ({ type: 1, value: "&" })),
+        );
+        expect(ast[N - 1]).toEqual({
+            type: 10,
+            value: [
+                { type: 1, value: "f0" },
+                { type: 1, value: "=" },
+                { type: 0, value: 0 },
+            ],
+        });
+        expect(ast.at(-1)).toEqual({
+            type: 10,
+            value: [
+                { type: 1, value: `f${N - 1}` },
+                { type: 1, value: "=" },
+                { type: 0, value: N - 1 },
+            ],
+        });
         const record = Object.fromEntries(leaves.map(([f, , v]) => [f, v]));
         expect(dom.contains(record)).toBe(true);
         record.f7 = 999;
@@ -558,7 +576,9 @@ describe("Basic Properties", () => {
         expect(() => new Domain(`[(+, "=", 1)]`)).toThrow(
             /Invalid domain representation/,
         );
+        // @ts-expect-error
         expect(() => new Domain([{}])).toThrow(/Invalid domain representation/);
+        // @ts-expect-error
         expect(() => new Domain([1])).toThrow(/Invalid domain representation/);
     });
 
@@ -845,6 +865,7 @@ describe("Operator and - or - not", () => {
 
 describe("Remove domain leaf", () => {
     test("Remove leaf in domain.", () => {
+        /** @type {import("@web/core/domain").DomainListRepr} */
         let domain = [
             ["start_datetime", "!=", false],
             ["end_datetime", "!=", false],
@@ -892,6 +913,7 @@ describe("Remove domain leaf", () => {
     });
 
     test("Fully removed AND subtree inside OR becomes FALSE (neutral of OR).", () => {
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const domain = ["|", "&", ["a", "=", 1], ["a", "=", 2], ["b", "=", 3]];
         const newDomain = Domain.removeDomainLeaves(domain, ["a"]);
         expect(newDomain.toString()).toBe(`["|", (0, "=", 1), ("b", "=", 3)]`);
@@ -900,6 +922,7 @@ describe("Remove domain leaf", () => {
     });
 
     test("Fully removed 3-leaf OR becomes TRUE like the 2-leaf case.", () => {
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const domain = ["|", "|", ["a", "=", 1], ["a", "=", 2], ["a", "=", 3]];
         const newDomain = Domain.removeDomainLeaves(domain, ["a"]);
         expect(newDomain.toString()).toBe(`[(1, "=", 1)]`);
@@ -1172,7 +1195,10 @@ describe("contains: parity with the server's in-memory evaluator", () => {
 
     test("None and False select the same records for every unset-aware operator", () => {
         for (const record of [{ x: false }, { x: "" }, { x: 0 }, { x: "a" }]) {
-            for (const [withNone, withFalse] of [
+            for (const [
+                withNone,
+                withFalse,
+            ] of /** @type {[import("@web/core/domain").Condition, import("@web/core/domain").Condition][]} */ ([
                 [
                     ["x", "=", null],
                     ["x", "=", false],
@@ -1189,7 +1215,7 @@ describe("contains: parity with the server's in-memory evaluator", () => {
                     ["x", "not in", [null]],
                     ["x", "not in", [false]],
                 ],
-            ]) {
+            ])) {
                 expect(new Domain([withNone]).contains(record)).toBe(
                     new Domain([withFalse]).contains(record),
                 );

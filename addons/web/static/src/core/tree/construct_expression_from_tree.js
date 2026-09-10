@@ -3,6 +3,10 @@
 
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 
+/** @import { Tree } from "@web/core/tree/condition_tree" */
+
+/** @import { Condition, Connector, Options } from "@web/core/tree/condition_tree" */
+
 import { isX2ManyType } from "@web/core/field_types";
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { isValidPath, not } from "@web/core/tree/ast_utils";

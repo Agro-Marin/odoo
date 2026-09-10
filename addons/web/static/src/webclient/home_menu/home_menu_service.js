@@ -62,6 +62,12 @@ export class HomeMenuState {
 /**
  * @param {import("services").ServiceFactories["menu"]} menus
  * @returns {{
+ *  apps: import("./home_menu.js").HomeMenuApp[],
+ *  config: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
+ *  defaultConfig: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
+ *  defaultOrder: string[],
+ *  personal: boolean,
+ * }}
  */
 export function computeHomeMenuLayout(menus) {
     const defaultConfig = parseHomeMenuConfig(session.homemenu_default_config);

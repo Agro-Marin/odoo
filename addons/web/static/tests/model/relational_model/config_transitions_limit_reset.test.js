@@ -7,10 +7,15 @@ describe.current.tags("headless");
 
 const DEPS = { hasRoot: true };
 
-/** @param {{ groupBy?: string[], limit?: number }} [options] */
+/**
+ * @param {{ groupBy?: string[], limit?: number }} [options]
+ * @returns {import("@web/model/relational_model/relational_model").RelationalModelConfig}
+ */
 function baseConfig({ groupBy = [], limit = 80 } = {}) {
     return {
         isMonoRecord: false,
+        isRoot: true,
+        fieldsToAggregate: [],
         resModel: "thing",
         context: {},
         domain: [],

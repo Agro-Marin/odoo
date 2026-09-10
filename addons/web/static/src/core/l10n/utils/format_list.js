@@ -43,6 +43,9 @@ const _listFormatCache = new Map();
 /**
  * @param {Iterable<string>} values
  * @param {{
+ * localeCode?: string;
+ * style?: FormatListStyle;
+ * }} [options]
  * @returns {string}
  */
 export function formatList(values, { localeCode, style } = {}) {

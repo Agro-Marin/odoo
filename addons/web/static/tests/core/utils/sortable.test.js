@@ -7,7 +7,7 @@ import { Component, reactive, useRef, useState, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 
-beforeEach(disableAnimations);
+beforeEach(() => disableAnimations());
 
 test("Parameters error handling", async () => {
     const mountListAndAssert = async (setupList) => {
@@ -28,12 +28,14 @@ test("Parameters error handling", async () => {
     };
 
     await mountListAndAssert(() => {
+        // @ts-expect-error
         expect(() => useSortable({})).toThrow(
             `Error in hook useSortable: missing required property "ref" in parameter`,
         );
     });
     await mountListAndAssert(() => {
         expect(() =>
+            // @ts-expect-error
             useSortable({
                 elements: ".item",
             }),
@@ -43,6 +45,7 @@ test("Parameters error handling", async () => {
     });
     await mountListAndAssert(() => {
         expect(() =>
+            // @ts-expect-error
             useSortable({
                 elements: ".item",
                 groups: ".list",
@@ -59,7 +62,7 @@ test("Parameters error handling", async () => {
     });
     await mountListAndAssert(() => {
         useSortable({
-            ref: {},
+            ref: { el: null },
             elements: ".item",
             enable: false,
         });

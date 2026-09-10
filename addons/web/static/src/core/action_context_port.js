@@ -3,7 +3,10 @@
 
 import { CallbackRecorder } from "@web/core/action_hook";
 
-/** @typedef {"__beforeLeave__" | "__getGlobalState__" | "__getLocalState__" */
+/**
+ * @typedef {"__beforeLeave__" | "__getGlobalState__" | "__getLocalState__"
+ * | "__getContext__" | "__getOrderBy__"} ActionContextSlot
+ */
 
 /** @type {readonly Function[]} */
 const NO_CALLBACKS = Object.freeze([]);

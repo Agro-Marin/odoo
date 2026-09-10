@@ -696,7 +696,10 @@ export class EmojiPicker extends Component {
 }
 
 class MobilePickerHost {
-    /** @param {{ PickerComponent: any, component: any, addDialog: Function, */
+    /**
+     * @param {{ PickerComponent: any, component: any, addDialog: Function,
+     *   state: { isOpen: boolean }, props: Record<string, any> }} deps
+     */
     constructor({ PickerComponent, component, addDialog, state, props }) {
         this.PickerComponent = PickerComponent;
         this.component = component;
@@ -859,8 +862,7 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
         () => [ref?.el],
     );
     onWillDestroy(() => mobile.close());
-    Object.assign(state, { open, close, toggle });
-    return state;
+    return Object.assign(state, { open, close, toggle });
 }
 
 class PickerMobile extends Component {

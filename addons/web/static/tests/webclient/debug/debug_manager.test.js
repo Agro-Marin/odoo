@@ -196,7 +196,7 @@ describe("DebugMenu", () => {
             }));
         class WithCustom extends ActionDialog {
             setup() {
-                super.setup(...arguments);
+                super.setup();
                 useDebugCategory("custom", { customKey: "abc" });
             }
         }

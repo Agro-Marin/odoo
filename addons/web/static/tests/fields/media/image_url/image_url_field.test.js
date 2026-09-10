@@ -150,7 +150,7 @@ test("image fields in x2many list are loaded correctly", async () => {
 
 test("image url fields in kanban don't stop opening record", async () => {
     patchWithCleanup(KanbanController.prototype, {
-        openRecord() {
+        async openRecord() {
             expect.step("open record");
         },
     });

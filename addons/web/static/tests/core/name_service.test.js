@@ -1,6 +1,7 @@
 // @ts-check
 
 import { after, describe, expect, test } from "@odoo/hoot";
+import { on } from "@odoo/hoot-dom";
 import {
     defineModels,
     fields,
@@ -57,8 +58,7 @@ test("loadDisplayNames is done in silent mode", async () => {
         const silent = detail.settings.silent ? "(silent)" : "";
         expect.step(`RPC:REQUEST${silent}`);
     };
-    rpcBus.addEventListener("RPC:REQUEST", onRPCRequest);
-    after(() => rpcBus.removeEventListener("RPC:REQUEST", onRPCRequest));
+    after(on(rpcBus, "RPC:REQUEST", onRPCRequest));
 
     await getService("name").loadDisplayNames("dev", [1]);
     expect.verifySteps(["RPC:REQUEST(silent)"]);

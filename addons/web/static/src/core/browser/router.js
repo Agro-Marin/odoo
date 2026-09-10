@@ -16,7 +16,23 @@ export const PATH_KEYS = ["resId", "action", "active_id", "model"];
 
 /**
  * @typedef {{
+ * bus: EventBus,
+ * started: boolean,
+ * state: Record<string, any>,
+ * pushTimeout: ReturnType<typeof browser.setTimeout> | undefined,
+ * pushArgs: PushArgs,
+ * lockedKeys: Set<string>,
+ * hiddenKeysFromUrl: Set<string>,
+ * ephemeralStack: (object | null)[],
+ * unwindingEphemerals: boolean,
+ * }} RouterState
  * @typedef {{
+ * replace: boolean,
+ * reload: boolean,
+ * state: Record<string, any>,
+ * mode: "push" | "replace",
+ * title?: string,
+ * }} PushArgs
  */
 
 /** @type {RouterState} */

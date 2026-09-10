@@ -5,14 +5,12 @@ import { click, queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, onMounted, toRaw, xml } from "@odoo/owl";
 import {
-    clickSave,
     contains,
     defineModels,
     fields,
     makeMockEnv,
     models,
     mountView,
-    onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { parseFloat, parseMonetary } from "@web/core/parsers";
@@ -136,9 +134,9 @@ const gaugeDataset = () => {
     patchWithCleanup(GaugeField.prototype, {
         setup() {
             super.setup();
-            onMounted(() =>
-                datasets.push(JSON.stringify(this.chart.config.data.datasets[0].data)),
-            );
+            onMounted(() => {
+                datasets.push(JSON.stringify(this.chart.config.data.datasets[0].data));
+            });
         },
     });
     return datasets;
@@ -206,7 +204,9 @@ test("a field going clean does not clear a dirty sibling's mark", async () => {
         resId: 1,
         arch: `<form><field name="name"/><field name="other"/></form>`,
     });
-    const [nameInput, otherInput] = queryAll(".o_field_widget input");
+    const [nameInput, otherInput] = queryAll(".o_field_widget input").filter(
+        (el) => el instanceof HTMLInputElement,
+    );
 
     nameInput.value = "dirty text";
     nameInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
@@ -230,7 +230,9 @@ test("the field-level dirty mark drains when the input is restored", async () =>
         resId: 1,
         arch: `<form><field name="name"/><field name="other"/></form>`,
     });
-    const [nameInput] = queryAll(".o_field_widget input");
+    const [nameInput] = queryAll(".o_field_widget input").filter(
+        (el) => el instanceof HTMLInputElement,
+    );
 
     nameInput.value = "typed";
     nameInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
@@ -316,15 +318,17 @@ test("json_checkboxes: a toggle survives an onchange inside the debounce window"
     await click(boxes()[0]);
     await animationFrame();
 
-    const nameInput = queryAll(".o_field_widget[name=name] input")[0];
+    const nameInput = /** @type {HTMLInputElement} */ (
+        queryAll(".o_field_widget[name=name] input")[0]
+    );
     nameInput.value = "changed";
     nameInput.dispatchEvent(new Event("change", { bubbles: true }));
     await animationFrame();
     await runAllTimers();
     await animationFrame();
 
-    expect(boxes()[0].checked).toBe(true);
-    expect(boxes()[1].checked).toBe(false);
+    expect(/** @type {HTMLInputElement} */ (boxes()[0]).checked).toBe(true);
+    expect(/** @type {HTMLInputElement} */ (boxes()[1]).checked).toBe(false);
 });
 
 test("fieldDependencies: a malformed declaration is rejected, valid ones are kept", async () => {

@@ -30,7 +30,6 @@ class Parent extends Component {
     static startDomain = `["&", "&", ("foo", "=", "aaa"), ("foo", "=", "bbb"), ("foo", "=", "ccc")]`;
     setup() {
         this.state = useState({ domain: Parent.startDomain });
-        Parent.last = this;
     }
 }
 
@@ -50,16 +49,18 @@ test("deleting a row drops that row's DOM node, not the last one", async () => {
 });
 
 test("an externally shortened domain does not move the caret onto another row", async () => {
-    await mountWithCleanup(Parent);
+    const parent = await mountWithCleanup(Parent);
     await animationFrame();
-    const inputs = queryAll(".o_tree_editor_condition input.o_input");
+    const inputs = /** @type {HTMLInputElement[]} */ (
+        queryAll(".o_tree_editor_condition input.o_input")
+    );
     expect(inputs.map((i) => i.value)).toEqual(["aaa", "bbb", "ccc"]);
 
     const middle = /** @type {HTMLInputElement} */ (inputs[1]);
     middle.focus();
     middle.setSelectionRange(1, 1);
 
-    Parent.last.state.domain = `["&", ("foo", "=", "bbb"), ("foo", "=", "ccc")]`;
+    parent.state.domain = `["&", ("foo", "=", "bbb"), ("foo", "=", "ccc")]`;
     await animationFrame();
     await animationFrame();
 
@@ -67,6 +68,8 @@ test("an externally shortened domain does not move the caret onto another row", 
         message: `the focused input silently became "${middle.value}"`,
     });
     expect(
-        queryAll(".o_tree_editor_condition input.o_input").map((i) => i.value),
+        /** @type {HTMLInputElement[]} */ (
+            queryAll(".o_tree_editor_condition input.o_input")
+        ).map((i) => i.value),
     ).toEqual(["bbb", "ccc"]);
 });

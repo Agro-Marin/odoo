@@ -180,7 +180,7 @@ export function onTimeZoneChange(callback) {
     timeZoneChangeCallbacks.push(callback);
 }
 
-export class MockDate extends Date {
+class MockDateValue extends Date {
     constructor(...args) {
         if (args.length === 1) {
             super(args[0]);
@@ -202,6 +202,12 @@ export class MockDate extends Date {
         return new MockDate().getTime();
     }
 }
+
+export const MockDate = new Proxy(MockDateValue, {
+    apply() {
+        return new MockDateValue().toString();
+    },
+});
 
 export const MockIntl = createMock(Intl, {
     DateTimeFormat: { value: MockDateTimeFormat },

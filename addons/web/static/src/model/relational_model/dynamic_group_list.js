@@ -6,6 +6,8 @@ import { Domain } from "@web/core/domain";
 import { DynamicList } from "./dynamic_list.js";
 import { getGroupServerValue } from "./field_values.js";
 
+/** @import { DynamicListContract } from "./dynamic_list_contract.js" */
+/** @import { RelationalRecord } from "./record.js" */
 export const MOVABLE_RECORD_TYPES = [
     "char",
     "boolean",

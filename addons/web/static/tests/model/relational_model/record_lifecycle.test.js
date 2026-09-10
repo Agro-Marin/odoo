@@ -66,7 +66,7 @@ function makeRecord({
                     call ??
                     (async (model, method) => {
                         if (method === "copy") {
-                            return [resId * 10];
+                            return [Number(resId) * 10];
                         }
                         return false;
                     }),

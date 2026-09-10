@@ -88,6 +88,10 @@ import {
 
 const SUPERSEDED = Symbol("superseded");
 
+/**
+ * @template {object} [E=import("@web/env").OdooEnv]
+ * @extends {Model<E>}
+ */
 export class PivotModel extends Model {
     /**
      * @override

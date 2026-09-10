@@ -1529,6 +1529,7 @@ test("checks that href is correctly used", async () => {
     patchWithCleanup(browser, {
         open: (href) => {
             expect.step(href.toString());
+            return window;
         },
     });
     await animationFrame();

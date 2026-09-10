@@ -16,6 +16,9 @@ import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
  * @property {() => boolean} shouldSave
  * @property {(isDirty: boolean) => void} setFieldDirty
  * @property {{
+ * isDirty: boolean,
+ * lastSetValue: string | null,
+ * }} edit
  */
 
 /** @param {InputFieldContext} ctx */

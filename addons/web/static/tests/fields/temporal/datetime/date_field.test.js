@@ -405,7 +405,10 @@ test("date field should select its content onclick when there is one", async () 
     await contains(".o_field_date input").click();
     expect(".o_datetime_picker").toHaveCount(1);
     const active = document.activeElement;
-    expect(active.tagName).toBe("INPUT");
+    expect(active).toBeInstanceOf(HTMLInputElement);
+    if (!(active instanceof HTMLInputElement)) {
+        throw new Error("Expected the active input");
+    }
     expect(active.value.slice(active.selectionStart, active.selectionEnd)).toBe(
         "02/03/2017",
     );

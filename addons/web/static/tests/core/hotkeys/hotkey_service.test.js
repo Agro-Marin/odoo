@@ -131,7 +131,7 @@ test("[accesskey] attrs replaced by [data-hotkey], part 2", async () => {
         static props = ["*"];
         setup() {
             this.state = useState({ foo: true });
-            this.step = expect.step.bind();
+            this.step = expect.step;
         }
     }
     const comp = await mountWithCleanup(MyComponent);
@@ -228,7 +228,7 @@ test("invisible data-hotkeys are not enabled. ", async () => {
     await tick();
     expect.verifySteps(["click"]);
 
-    queryOne(".myButton").disabled = true;
+    /** @type {HTMLButtonElement} */ (queryOne(".myButton")).disabled = true;
     await press(strokes);
     expect.verifySteps([]);
 });
@@ -484,13 +484,17 @@ test("hotkeys evil 👹", async () => {
     await makeMockEnv();
     const hotkey = getService("hotkey");
 
+    // @ts-expect-error
     expect(() => hotkey.add()).toThrow(/must specify an hotkey/);
+    // @ts-expect-error
     expect(() => hotkey.add(null)).toThrow(/must specify an hotkey/);
     function callback() {}
     expect(() => hotkey.add(null, callback)).toThrow(/must specify an hotkey/);
+    // @ts-expect-error
     expect(() => hotkey.add("")).toThrow(/must specify an hotkey/);
     expect(() => hotkey.add("crap", callback)).toThrow(/not whitelisted/);
     expect(() => hotkey.add("ctrl+o", callback)).toThrow(/not whitelisted/);
+    // @ts-expect-error
     expect(() => hotkey.add("Control+o")).toThrow(/specify a callback/);
     expect(() => hotkey.add("Control+o+d", callback)).toThrow(
         /more than one single key part/,
@@ -975,7 +979,7 @@ test("native browser space key ' ' is correctly translated to 'space' ", async (
         }
     }
 
-    expect(getActiveHotkey({ key: " " })).toBe("space");
+    expect(getActiveHotkey(new KeyboardEvent("keydown", { key: " " }))).toBe("space");
 
     await mountWithCleanup(A);
     await press([" "]);

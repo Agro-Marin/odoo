@@ -17,7 +17,7 @@ function mutatesActionLoadPayload(model) {
 }
 
 /**
- * @param {import("./action_service").ActionManager} am
+ * @param {Pick<import("./action_service").ActionManager, "breadcrumbCache" | "controllerStack" | "getBreadcrumbs">} am
  * @returns {() => void}
  */
 export function installActionCacheInvalidation(am) {

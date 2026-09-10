@@ -7,7 +7,7 @@ import { localization } from "@web/core/l10n/localization";
 describe.current.tags("headless");
 
 test("accessing a missing localization parameter throws a helpful error", () => {
-    expect(() => localization.notALocalizationParameter).toThrow(
+    expect(() => Reflect.get(localization, "notALocalizationParameter")).toThrow(
         /could not access localization parameter "notALocalizationParameter"/,
     );
 });
@@ -21,7 +21,7 @@ test("protocol probes and symbols do not throw", () => {
     expect(() => JSON.stringify(localization)).not.toThrow();
     expect(localization[Symbol.toStringTag]).toBe(undefined);
     expect(localization[Symbol.toPrimitive]).toBe(undefined);
-    expect(localization.then).toBe(undefined);
+    expect(Reflect.get(localization, "then")).toBe(undefined);
     expect(localization.constructor).toBe(Object);
-    expect(localization.inspect).toBe(undefined);
+    expect(Reflect.get(localization, "inspect")).toBe(undefined);
 });

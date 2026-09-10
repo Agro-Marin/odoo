@@ -86,6 +86,7 @@ test("onSelectionChanged fires for a cardinality-preserving selection swap", asy
     expect(seen.at(-1)).toBe("[1]");
 
     seen.length = 0;
+    /** @type {NodeListOf<HTMLInputElement>} */
     const inputs = document.querySelectorAll(
         `.o_data_row .o_list_record_selector input`,
     );
@@ -103,6 +104,7 @@ test("onSelectionChanged fires for a cardinality-preserving selection swap", asy
 test.tags("desktop");
 test("onSelectionChanged ignores a superseded resId resolution", async () => {
     const seen = [];
+    /** @type {(() => void) | null} */
     let releaseFirst = null;
     let call = 0;
     patchWithCleanup(DynamicRecordList.prototype, {
@@ -126,6 +128,7 @@ test("onSelectionChanged ignores a superseded resId resolution", async () => {
         onSelectionChanged: (resIds) => seen.push(JSON.stringify(resIds)),
     });
 
+    /** @type {NodeListOf<HTMLInputElement>} */
     const inputs = document.querySelectorAll(
         `.o_data_row .o_list_record_selector input`,
     );

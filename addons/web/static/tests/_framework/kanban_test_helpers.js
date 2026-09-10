@@ -33,7 +33,7 @@ export function discardKanbanRecord() {
     return contains(".o_kanban_quick_create .o_kanban_cancel").click();
 }
 
-/** @param {string} value */
+/** @param {string | number} value */
 export function editKanbanColumnName(value) {
     return contains(".o_column_quick_create input").edit(value);
 }
@@ -44,7 +44,7 @@ export function editKanbanRecord() {
 
 /**
  * @param {string} fieldName
- * @param {string} value
+ * @param {string | number} value
  */
 export function editKanbanRecordQuickCreateInput(fieldName, value) {
     return contains(

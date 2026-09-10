@@ -35,12 +35,14 @@ test("Parameters error handling", async () => {
     };
 
     await mountList(() => {
+        // @ts-expect-error
         expect(() => useDraggable({})).toThrow(
             `Error in hook useDraggable: missing required property "ref" in parameter`,
         );
     });
     await mountList(() => {
         expect(() =>
+            // @ts-expect-error
             useDraggable({
                 elements: ".item",
             }),
@@ -56,7 +58,7 @@ test("Parameters error handling", async () => {
     });
     await mountList(() => {
         useDraggable({
-            ref: {},
+            ref: { el: null },
             elements: ".item",
             enable: false,
         });

@@ -50,7 +50,16 @@ export class FileViewer extends Component {
     /** @type {{ dx: number, dy: number, x: number, y: number }} */
     translate;
 
-    /** @type {{ */
+    /**
+     * @type {{
+     *     index: number,
+     *     file: any,
+     *     imageLoaded: boolean,
+     *     scale: number,
+     *     angle: number,
+     *     isIframeLoaded: boolean,
+     * }}
+     */
     state;
 
     setup() {
@@ -211,7 +220,7 @@ export class FileViewer extends Component {
         }
     }
 
-    /** @param {PointerEvent} ev */
+    /** @param {PointerEvent & { target: HTMLImageElement }} ev */
     onPointerdownImage(ev) {
         if (this.isDragging) {
             return;

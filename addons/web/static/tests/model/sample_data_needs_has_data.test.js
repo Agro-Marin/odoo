@@ -19,7 +19,7 @@ class HonestModel extends Model {
 }
 
 /**
- * @param {typeof Model} ModelClass
+ * @param {import("@web/model/model").ModelConstructor} ModelClass
  * @param {boolean} useSampleModel
  * @returns {Promise<string[]>}
  */

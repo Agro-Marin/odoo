@@ -27,8 +27,24 @@ import { registerInlineViewArchs } from "./mock_server/mock_model.js";
 /**
  * @typedef {any} Config
  * @typedef {{
+ * value?: string;
+ * index?: number;
+ * }} EditSelectMenuParams
  * @typedef {ViewProps & {
+ * archs?: Record<string, string>
+ * config?: Config;
+ * env?: import("@web/env").OdooEnv;
+ * resId?: number;
+ * [key: string]: any;
+ * }} MountViewParams
  * @typedef {{
+ * class?: string;
+ * id?: string;
+ * index?: number;
+ * modifier?: string;
+ * target?: string;
+ * text?: string;
+ * }} SelectorOptions
  * @typedef {import("@odoo/hoot").FormatXmlOptions} FormatXmlOptions
  * @typedef {import("@web/views/view").ViewProps} ViewProps
  * @typedef {import("./mock_server/mock_model").ViewType} ViewType

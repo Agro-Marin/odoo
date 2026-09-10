@@ -233,7 +233,7 @@ export function isObject(value) {
 
 /**
  * @template {Record<string, any>} T
- * @template {keyof T} K
+ * @template {PropertyKey} K
  * @param {T} object
  * @param {...(K)} properties
  * @returns {Omit<T, K>}
@@ -279,10 +279,10 @@ function hasPropertyBelowObject(object, property) {
 
 /**
  * @template T
- * @template {keyof T} K
+ * @template {PropertyKey} K
  * @param {T} object
  * @param {...(K)} properties
- * @returns {Pick<T, K>}
+ * @returns {Pick<T, Extract<K, keyof T>> & Partial<Record<Exclude<K, keyof T>, unknown>>}
  */
 export function pick(object, ...properties) {
     /** @type {any} */

@@ -113,7 +113,7 @@ class Pony extends models.Model {
 class ResUsersSettings extends WebResUsersSettings {
     /** @param {number[]} id */
     get_embedded_actions_settings(id) {
-        /** @type {import("mock_models").ResUsersSettingsEmbeddedAction} */
+        /** @type {ResUsersSettingsEmbeddedAction} */
         const ResUsersSettingsEmbeddedAction =
             this.env["res.users.settings.embedded.action"];
         return ResUsersSettingsEmbeddedAction.embedded_action_settings_format(id);
@@ -122,7 +122,7 @@ class ResUsersSettings extends WebResUsersSettings {
     /**
      * @param {number} action_id
      * @param {number} res_id
-     * @param {number} vals
+     * @param {Record<string, any>} vals
      */
     set_embedded_actions_setting(id, action_id, res_id, vals) {
         const kwargs = getKwArgs(arguments, "id", "action_id", "res_id", "vals");
@@ -131,7 +131,7 @@ class ResUsersSettings extends WebResUsersSettings {
         res_id = kwargs.res_id;
         vals = kwargs.vals;
 
-        /** @type {import("mock_models").ResUsersSettingsEmbeddedAction} */
+        /** @type {ResUsersSettingsEmbeddedAction} */
         const ResUsersSettingsEmbeddedAction =
             this.env["res.users.settings.embedded.action"];
 
@@ -160,7 +160,7 @@ class ResUsersSettings extends WebResUsersSettings {
                 ...vals,
             });
         } else {
-            ResUsersSettingsEmbeddedAction.write(embeddedSettings.id, vals);
+            ResUsersSettingsEmbeddedAction.write([Number(embeddedSettings.id)], vals);
         }
     }
 }

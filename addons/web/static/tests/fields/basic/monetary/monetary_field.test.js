@@ -875,7 +875,7 @@ test("monetary ghost value mirrors the input without re-rendering per keystroke"
         arch: `<form><field name="monetary_field"/></form>`,
     });
     expect(queryText(".o_monetary_ghost_value")).toBe(
-        queryValue("[name=monetary_field] input"),
+        String(queryValue("[name=monetary_field] input")),
     );
 
     await contains("[name=monetary_field] input").edit("1234.5", { confirm: false });
@@ -884,7 +884,7 @@ test("monetary ghost value mirrors the input without re-rendering per keystroke"
     await contains("[name=monetary_field] input").edit("77", { confirm: "blur" });
     await animationFrame();
     expect(queryText(".o_monetary_ghost_value")).toBe(
-        queryValue("[name=monetary_field] input"),
+        String(queryValue("[name=monetary_field] input")),
     );
 });
 

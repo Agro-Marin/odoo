@@ -1420,6 +1420,7 @@ test("save a record with an empty many2many_tags required", async () => {
         add: (message, params) => {
             expect(message).toBe("Missing required fields");
             expect(params).toEqual({ type: "danger" });
+            return () => {};
         },
     });
 

@@ -2436,6 +2436,33 @@ export async function middleClick(target, options) {
 }
 
 /**
+ * @template {Record<string, unknown>} M
+ * @template {keyof M & string} K
+ * @overload
+ * @param {import("@odoo/owl").EventBus<M>} target
+ * @param {K} type
+ * @param {(event: CustomEvent<M[K]>) => void} listener
+ * @param {boolean | AddEventListenerOptions} [options]
+ * @returns {() => void}
+ */
+/**
+ * @template {EventType} T
+ * @overload
+ * @param {Target<EventTarget>} target
+ * @param {T} type
+ * @param {(event: GlobalEventHandlersEventMap[T]) => void} listener
+ * @param {boolean | AddEventListenerOptions} [options]
+ * @returns {() => void}
+ */
+/**
+ * @overload
+ * @param {Target<EventTarget>} target
+ * @param {string} type
+ * @param {(event: Event) => void} listener
+ * @param {boolean | AddEventListenerOptions} [options]
+ * @returns {() => void}
+ */
+/**
  * Shorthand helper to attach an event listener to the given {@link Target}, and
  * returning a function to remove the listener.
  *
@@ -2604,7 +2631,7 @@ export async function rightClick(target, options) {
  *  - `scroll`
  *
  * @param {AsyncTarget} target
- * @param {Position} position
+ * @param {Position} [position]
  * @param {ScrollOptions} [options]
  * @returns {Promise<EventList>}
  * @example

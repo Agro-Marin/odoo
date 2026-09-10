@@ -12,7 +12,18 @@ import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-/** @typedef {import("@web/fields/standard_field_props").StandardFieldProps & { */
+/**
+ * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
+ * maxValueField?: string | number;
+ * currentValueField?: string;
+ * isEditable?: boolean;
+ * isCurrentValueEditable?: boolean;
+ * isMaxValueEditable?: boolean;
+ * required?: boolean;
+ * title?: string;
+ * overflowClass?: string;
+ * }} ProgressBarFieldProps
+ */
 
 /**
  * @param {string | number | undefined} value

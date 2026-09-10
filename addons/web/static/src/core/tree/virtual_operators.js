@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { Tree, Options, Condition, Connector, Value } from "./condition_tree.js" */
 import {
     applyTransformations,
     areEqualTrees,

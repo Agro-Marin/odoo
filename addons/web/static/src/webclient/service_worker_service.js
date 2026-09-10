@@ -53,6 +53,9 @@ export function watchServiceWorkerUpdates(registration) {
 /**
  * @param {Deferred} settledDeferred
  * @returns {Promise<{
+ *   registration: ServiceWorkerRegistration | undefined,
+ *   stopWatching: () => void,
+ * }>}
  */
 export async function registerServiceWorker(settledDeferred) {
     const { serviceWorker } = browser.navigator;

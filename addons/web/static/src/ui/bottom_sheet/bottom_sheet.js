@@ -108,10 +108,25 @@ export class BottomSheet extends Component {
     /** @type {boolean} */
     skipsAnimation = false;
 
-    /** @type {{ */
+    /**
+     * @type {{
+     *     isPositionedReady: boolean,
+     *     isSnappingEnabled: boolean,
+     *     isDismissing: boolean,
+     *     progress: number,
+     * }}
+     */
     state;
 
-    /** @type {{ */
+    /**
+     * @type {{
+     *     viewportHeight: number,
+     *     naturalHeight: number,
+     *     initialHeight: number,
+     *     maxHeight: number,
+     *     dismissThreshold: number,
+     * }}
+     */
     measurements;
 
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */

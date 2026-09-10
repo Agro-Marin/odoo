@@ -10,6 +10,8 @@ import {
 } from "./search_favorites.js";
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js";
 
+/** @import { FavoriteItem } from "./search_types" */
+
 /**
  * @template {new (...args: any[]) => any} T
  * @param {T} Base

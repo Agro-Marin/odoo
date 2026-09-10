@@ -111,7 +111,7 @@ test("tooltip (P1): help text activates the lazy tooltip getter", async () => {
 });
 
 test("MultiRecordViewButton (L1): does not mutate the shared clickParams object", async () => {
-    mockService("action", { doActionButton() {} });
+    mockService("action", { async doActionButton() {} });
     const clickParams = { type: "object", name: "act" };
     class Parent extends Component {
         static components = { MultiRecordViewButton };
@@ -170,6 +170,7 @@ test("R2 probe: an OWL re-render of the button mid-action keeps it disabled", as
         },
     });
 
+    /** @type {Parent} */
     let parent;
     class Parent extends Component {
         static components = { ViewButton };

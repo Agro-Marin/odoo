@@ -3,6 +3,8 @@
 
 import { _t } from "@web/core/translation";
 
+/** @import { FieldsRegistryItemShape } from "registries" */
+
 /**
  * @param {string} name
  * @param {string} label

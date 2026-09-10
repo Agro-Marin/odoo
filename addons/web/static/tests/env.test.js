@@ -119,7 +119,7 @@ test(`a failed service does not prevent its dependents from being reported`, asy
     const { env, started } = startEnv();
     await started;
 
-    expect(env.services).toEqual({});
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({});
     expect(errors.length).toBe(1);
     expect(warnings.length).toBe(1);
     expect(warnings[0][0]).toMatch(/Skipped 1 service\(s\)/);
@@ -247,14 +247,17 @@ test(`startServices: skips services with unreachable deps and warns (no throw)`,
     });
 
     await startServices(env);
-    expect(env.services).toEqual({});
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({});
     expect(warnings.length).toBe(1);
     expect(warnings[0][0]).toMatch(/Skipped 1 service\(s\)/);
     expect(warnings[0][0]).toMatch(/\bb\b/);
 
     registerService("a", [], () => "a");
     await startServices(env);
-    expect(env.services).toEqual({ a: "a", b: "b" });
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({
+        a: "a",
+        b: "b",
+    });
 });
 
 test(`startMissingServices: starts late-registered services without a registry listener`, async () => {
@@ -263,13 +266,19 @@ test(`startMissingServices: starts late-registered services without a registry l
     env.disposeServiceRegistryListener();
     registerService("provider", [], () => "p");
     registerService("consumer", ["provider"], (_env, deps) => `${deps.provider}-c`);
-    expect(env.services).toEqual({});
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({});
 
     await startMissingServices(env);
-    expect(env.services).toEqual({ provider: "p", consumer: "p-c" });
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({
+        provider: "p",
+        consumer: "p-c",
+    });
 
     await startMissingServices(env);
-    expect(env.services).toEqual({ provider: "p", consumer: "p-c" });
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({
+        provider: "p",
+        consumer: "p-c",
+    });
 });
 
 test(`a queued startup pass runs even if the in-flight pass rejects`, async () => {
@@ -295,8 +304,8 @@ test(`a queued startup pass runs even if the in-flight pass rejects`, async () =
     await p1;
     await p2;
 
-    expect(env.services.good).toBe("g");
-    expect(env.services.boom).toBe("recovered");
+    expect(Reflect.get(env.services, "good")).toBe("g");
+    expect(Reflect.get(env.services, "boom")).toBe("recovered");
     expect(errors.length).toBe(1);
     expect(String(errors[0][0])).toMatch(/service "boom" failed to start \(async\)/);
 });
@@ -315,7 +324,7 @@ test(`startServices: cascade-skips transitive consumers when a dep is missing`, 
     });
 
     await startServices(env);
-    expect(env.services).toEqual({});
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({});
     expect(warnings.length).toBe(1);
     expect(warnings[0][0]).toMatch(/Skipped 2 service\(s\)/);
 });
@@ -333,12 +342,14 @@ test(`registry UPDATE while missing-dep leftovers exist starts the new service (
     });
 
     await startServices(env);
-    expect(env.services).toEqual({});
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({});
 
     registerService("standalone", [], () => "s");
     await tick();
     await tick();
-    expect(env.services).toEqual({ standalone: "s" });
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({
+        standalone: "s",
+    });
 });
 
 test(`startServices: still throws on genuine circular dependency`, async () => {
@@ -440,7 +451,10 @@ test(`startServices: waits for all synchronous code before attempting to start s
     registerService("a", [], () => "a");
 
     await serviceStartingPromise;
-    expect(env.services).toEqual({ a: "a", b: "b" });
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({
+        a: "a",
+        b: "b",
+    });
 });
 
 test(`mountComponent creates an env and sets the application as root when no env is provided`, async () => {
@@ -457,7 +471,9 @@ test(`mountComponent creates an env and sets the application as root when no env
         app.env.disposeServiceRegistryListener?.();
     });
     const { env } = app;
-    expect(env.services).toEqual({ my_service: "a" });
+    expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({
+        my_service: "a",
+    });
     expect(odoo.__WOWL_DEBUG__).toEqual({ root: app.root.component });
     expect(getFixture()).toHaveText("Root");
 });

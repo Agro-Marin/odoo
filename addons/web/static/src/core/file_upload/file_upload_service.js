@@ -97,6 +97,11 @@ class FileUploadService {
      * @param {string} route
      * @param {FileList | File[]} files
      * @param {{
+     * buildFormData?: (formData: FormData) => void,
+     * displayErrorNotification?: boolean,
+     * directFile?: File,
+     * [key: string]: any,
+     * }} [params]
      */
     async upload(route, files, params = {}) {
         const xhr = fileUploadService.createXhr();

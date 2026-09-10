@@ -18,6 +18,9 @@ function _record(key) {
  * @param {string} flagSubstring
  * @param {string} [extraGlobalFlag]
  * @returns {((category: string, ...parts: any[]) => void) & {
+ * enabled: () => boolean,
+ * active: () => boolean,
+ * }}
  */
 function _makeNamespacedLog(prefix, flagSubstring, extraGlobalFlag) {
     const flagKey = `debug.${flagSubstring}`;

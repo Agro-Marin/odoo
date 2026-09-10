@@ -31,6 +31,7 @@ class TestCompiler {
  * @returns {Record<string, Element>}
  */
 function makeTemplates(specs) {
+    /** @type {Record<string, Element>} */
     const templates = {};
     for (const [name, tag, attrs = {}] of specs) {
         const el = document.createElement(tag);
@@ -210,6 +211,7 @@ describe("compileViewTemplates — template name uniqueness", () => {
             ["card", "div", { class: "c" }],
             ["sub", "div", {}],
         ]);
+        /** @type {Record<string, Element>} */
         const b = {};
         b.sub = makeTemplates([["sub", "div", {}]]).sub;
         b.card = makeTemplates([["card", "div", { class: "c" }]]).card;
@@ -425,9 +427,11 @@ test("dropdown-menu-end becomes a Dropdown position instead of a class", async (
             </div>
         </form>`;
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
-    const dropdown = /** @type {Element} */ (
-        compiler.compileNode(doc, {}).querySelector("Dropdown")
-    );
+    const compiled = compiler.compileNode(doc, {});
+    if (!(compiled instanceof Element)) {
+        throw new Error("Expected a compiled element");
+    }
+    const dropdown = compiled.querySelector("Dropdown");
 
     expect(dropdown.getAttribute("position")).toInclude("bottom-end");
     expect(dropdown.getAttribute("menuClass")).toBe(null);

@@ -9,6 +9,7 @@ import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { EmbeddedActions } from "@web/search/embedded_actions_bar/embedded_actions";
 import { EmbeddedActionsDropdown } from "@web/search/embedded_actions_bar/embedded_actions_dropdown";
 
+/** @import { EmbeddedAction } from "@web/search/embedded_actions_bar/embedded_actions" */
 export class EmbeddedActionsBar extends Component {
     static template = "web.EmbeddedActionsBar";
     static components = {

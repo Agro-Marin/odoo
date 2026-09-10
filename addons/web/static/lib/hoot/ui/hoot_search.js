@@ -27,6 +27,7 @@ import { HootTagButton } from "./hoot_tag_button.js";
 
 /**
  * @typedef {{
+ * }} HootSearchProps
  * @typedef {import("../core/config").SearchFilter} SearchFilter
  * @typedef {import("../core/tag").Tag} Tag
  * @typedef {import("../core/test").Test} Test

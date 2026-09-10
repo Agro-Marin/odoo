@@ -7,7 +7,7 @@ import { reposition, reverseForRTL } from "@web/core/position/utils";
 const AUTO_PLACEMENTS = new Set(["auto", "auto-start", "auto-end"]);
 
 function ensureDirection() {
-    if (!("direction" in localization)) {
+    if (!("direction" in /** @type {Partial<typeof localization>} */ (localization))) {
         localization.direction =
             document.documentElement.getAttribute("dir") === "rtl" ||
             getComputedStyle(document.documentElement).direction === "rtl"
@@ -18,7 +18,7 @@ function ensureDirection() {
 
 /**
  * @param {string} placement
- * @returns {string}
+ * @returns {import("@web/core/position/utils").ComputePositionOptions["position"]}
  */
 function mirror(placement) {
     const [d, v = "middle"] = placement.split("-");

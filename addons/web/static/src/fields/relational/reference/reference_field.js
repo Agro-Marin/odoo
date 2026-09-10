@@ -130,7 +130,7 @@ export class ReferenceField extends FieldComponent {
         return this.props.hideModel || this.props.modelField;
     }
 
-    /** @returns {string|undefined} */
+    /** @returns {string | false | undefined} */
     getRelation() {
         const modelName = this.getModelName();
         if (modelName) {
@@ -154,7 +154,7 @@ export class ReferenceField extends FieldComponent {
         }
     }
 
-    /** @returns {string|undefined} */
+    /** @returns {string | false | undefined} */
     getModelName() {
         return this.hideModelSelector && this.state.modelName;
     }

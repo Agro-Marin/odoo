@@ -8,7 +8,15 @@ import { registry } from "@web/core/registry";
  * @typedef {import("@web/core/l10n/luxon").DateTime} DateTime
  * @typedef {{ name: string, type: "date" | "datetime" }} TemporalField
  * @typedef {{
+ *     startOf: (dt: DateTime) => DateTime,
+ *     cycle: number,
+ *     cyclePos: (dt: DateTime) => number,
+ * }} GranularityConfig
  * @typedef {{
+ *     min_groups: number,
+ *     fill_from?: string | false,
+ *     fill_to?: string | false,
+ * }} FillTemporalContext
  */
 
 /** @type {Record<string, GranularityConfig>} */

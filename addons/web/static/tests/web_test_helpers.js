@@ -40,13 +40,12 @@ import { globalCachedFetch } from "./_framework/module_set.hoot.js";
  */
 
 /**
- * @template
- * @typedef {import("./_framework/mock_server/mock_server").KwArgs<T>} KwArgs
+ * @template T
+ * @typedef {import("./_framework/mock_server/mock_model").KwArgs<T>} KwArgs
  */
 
 /**
- * @template
- * @typedef {import("./_framework/mock_server/mock_server").RouteCallback<T>} RouteCallback
+ * @typedef {import("./_framework/mock_server/mock_server").RouteCallback} RouteCallback
  */
 
 export { asyncStep, waitForSteps } from "./_framework/async_step.js";

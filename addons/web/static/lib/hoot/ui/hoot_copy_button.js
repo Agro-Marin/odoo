@@ -4,7 +4,12 @@ import { Component, useState, xml } from "@odoo/owl";
 
 import { copy, hasClipboard } from "../hoot_utils.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *  altText?: string;
+ *  text: string;
+ * }} HootCopyButtonProps
+ */
 
 /** @extends {Component<HootCopyButtonProps, import("../hoot").Environment>} */
 export class HootCopyButton extends Component {

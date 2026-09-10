@@ -107,13 +107,17 @@ declare module "@spreadsheet" {
     export interface AddGlobalFilterCommand {
         type: "ADD_GLOBAL_FILTER";
         filter: CmdGlobalFilter;
-        [string]: any; // Fields matching
+        pivot?: Record<string, FieldMatching>;
+        list?: Record<string, FieldMatching>;
+        chart?: Record<string, FieldMatching>;
     }
 
     export interface EditGlobalFilterCommand {
         type: "EDIT_GLOBAL_FILTER";
         filter: CmdGlobalFilter;
-        [string]: any; // Fields matching
+        pivot?: Record<string, FieldMatching>;
+        list?: Record<string, FieldMatching>;
+        chart?: Record<string, FieldMatching>;
     }
 
     export interface RemoveGlobalFilterCommand {

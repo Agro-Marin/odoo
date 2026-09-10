@@ -3,15 +3,12 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { markRaw } from "@odoo/owl";
-import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
-import {
-    installEditState,
-    RECORD_STATE_TRANSITIONS,
-} from "@web/../tests/model/relational_model/record_doubles";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { ListMembership } from "@web/model/relational_model/list_membership";
 import { save } from "@web/model/relational_model/record_save";
-import { RecordSaveCoordinator } from "@web/model/relational_model/record_save_coordinator";
 import { StaticList } from "@web/model/relational_model/static_list";
+
+import { makeTestRecordWithLines } from "./model_test_helpers.js";
 
 const LINK = 4;
 
@@ -150,56 +147,21 @@ describe("discardLocked prune sequencing", () => {
 });
 
 describe("save barrier on pending commands", () => {
-    function makeRecord(/** @type {any} */ list, { /** @type {any} */ webSave }) {
-        const record = {
-            resId: 1,
-            resIds: [1],
-            resModel: "res.partner",
-            saveState: new RecordSaveCoordinator(),
-            context: {},
-            dirty: true,
-            activeFields: { lines: {} },
-            fields: { lines: { type: "one2many" } },
-            fieldNames: ["lines"],
-            data: { lines: list },
-            config: { isRoot: false, context: {} },
-            isInEdition: true,
-            changes: markRaw({}),
-            _values: markRaw({}),
-            /** @returns {Record<string, any>} */
-            get savedData() {
-                return this._values;
-            },
-            _textValues: markRaw({}),
-            setEvalContext() {},
+    /**
+     * @param {StaticList} list
+     * @param {{webSave: import("services").ServiceFactories["orm"]["webSave"]}} options
+     */
+    async function makeRecord(list, { webSave }) {
+        const record = await makeTestRecordWithLines();
+        patchWithCleanup(record.model.orm, { webSave });
+        patchWithCleanup(record, {
             checkValidityLocked: () => true,
             getChangesLocked: () => ({ lines: list.getCommands() }),
-            ...RECORD_STATE_TRANSITIONS,
-            _clearChanges() {},
-            discardLocked: () => {},
-            loadLocked: async () => {},
-            setData: () => {},
-            model: {
-                closeUrgentSaveNotification() {},
-                urgentSave: { isActive: false },
-                useSendBeaconToSaveUrgently: false,
-                env: { inDialog: false },
-                load: async () => {},
-                patchConfig: () => {},
-                updateSimilarRecords: () => {},
-                __proto__: MODEL_LIFECYCLE_PROTO,
-                hooks: {
-                    lifecycle: {
-                        onWillSaveRecord: async () => {},
-                        onRecordSaved: async () => {},
-                        onWillLoadRoot: () => {},
-                    },
-                    ui: {},
-                },
-                orm: { webSave },
-            },
-        };
-        installEditState(record, { dirty: true });
+            setEvalContext() {},
+        });
+        record._values.lines = list;
+        record.applyChanges({ lines: list });
+        record.dirty = true;
         return record;
     }
 
@@ -210,9 +172,9 @@ describe("save barrier on pending commands", () => {
         list._trackCommandsPromise(list.applyCommandsLocked([[LINK, 42, false]]));
         expect(list._commandsPromise).not.toBe(null);
 
-        /** @type {any[]} */
+        /** @type {Record<string, unknown>} */
         let savedChanges = null;
-        const rec = makeRecord(list, {
+        const rec = await makeRecord(list, {
             webSave: async (
                 /** @type {any} */ _model,
                 /** @type {any} */ _ids,
@@ -241,7 +203,7 @@ describe("save barrier on pending commands", () => {
         const list = makeList();
         list.applyCommandsLocked([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
 
-        const rec = makeRecord(list, {
+        const rec = await makeRecord(list, {
             webSave: async () => {
                 expect.step("webSave");
                 return [{ id: 1 }];
@@ -279,7 +241,7 @@ describe("save barrier on pending commands", () => {
         failLoads = false;
         /** @type {any} */
         let savedChanges = null;
-        const rec = makeRecord(list, {
+        const rec = await makeRecord(list, {
             webSave: async (
                 /** @type {any} */ _model,
                 /** @type {any} */ _ids,
@@ -291,7 +253,7 @@ describe("save barrier on pending commands", () => {
         });
         rec._values = markRaw({ lines: list });
 
-        const result = await save(/** @type {any} */ (rec), { reload: false });
+        const result = await save(rec, { reload: false });
         await list._commandsPromise;
 
         expect(result).toBe(true);
@@ -308,7 +270,7 @@ describe("save barrier on pending commands", () => {
             set: () => {},
         });
 
-        const rec = makeRecord(list, {
+        const rec = await makeRecord(list, {
             webSave: async () => {
                 expect.step("webSave");
                 return [{ id: 1 }];

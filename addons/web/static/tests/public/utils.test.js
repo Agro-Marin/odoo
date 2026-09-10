@@ -127,11 +127,15 @@ describe("patch dynamic content", () => {
         /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-att-style": /** @param {any} el */ (el, old) => ({
-                    changeMe: 50,
-                    doubleMe: old.doubleMe * 2,
-                    addMe: 1000,
-                }),
+                "t-att-style":
+                    /**
+                     * @param {any} el
+                     * @param {any} old
+                     */ (el, old) => ({
+                        changeMe: 50,
+                        doubleMe: old.doubleMe * 2,
+                        addMe: 1000,
+                    }),
             },
         };
         patchDynamicContent(parent, patch);
@@ -155,10 +159,14 @@ describe("patch dynamic content", () => {
         /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-on-click": /** @param {any} el */ (el, oldFn) => {
-                    oldFn();
-                    expect.step("patch");
-                },
+                "t-on-click":
+                    /**
+                     * @param {any} el
+                     * @param {any} oldFn
+                     */ (el, oldFn) => {
+                        oldFn();
+                        expect.step("patch");
+                    },
             },
         };
         patchDynamicContent(parent, patch);
@@ -172,10 +180,14 @@ describe("patch dynamic content", () => {
         /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-on-click": /** @param {any} el */ (el, oldFn) => {
-                    oldFn();
-                    expect.step("patch");
-                },
+                "t-on-click":
+                    /**
+                     * @param {any} el
+                     * @param {any} oldFn
+                     */ (el, oldFn) => {
+                        oldFn();
+                        expect.step("patch");
+                    },
             },
         };
         patchDynamicContent(parent, patch);

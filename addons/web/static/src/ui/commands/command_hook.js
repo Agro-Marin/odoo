@@ -5,6 +5,8 @@ import { useEffect } from "@odoo/owl";
 import { useActiveElementScope } from "@web/core/utils/active_element_scope";
 import { useService } from "@web/core/utils/hooks";
 
+/** @import { CommandOptions } from "@web/ui/commands/command_service" */
+
 /**
  * @param {string} name
  * @param {()=>(void | import("@web/ui/commands/command_palette").CommandPaletteConfig)} action

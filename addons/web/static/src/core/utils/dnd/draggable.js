@@ -4,10 +4,12 @@
 import { pick } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 
+/** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
+
 /**
- * @typedef DraggableParams
+ * @typedef DraggableOptions
  * @property {{ el: HTMLElement | null }} ref
- * @property {string | (() => string)} elements
+ * @property {string | (() => string)} [elements]
  * @property {boolean | (() => boolean)} [enable]
  * @property {string | (() => string)} [handle]
  * @property {string | (() => string)} [ignore]
@@ -17,6 +19,8 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
  * @property {(params: DraggableHandlerParams) => any} [onDragEnd]
  * @property {(params: DraggableHandlerParams) => any} [onDrop]
  */
+
+/** @typedef {import("./draggable_hook_builder.js").DragOptions & DraggableOptions} DraggableParams */
 
 /**
  * @typedef DraggableState

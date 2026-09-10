@@ -9,6 +9,8 @@ import { _t } from "@web/core/translation";
 import { getFieldContext, getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 
+/** @import { RelationalRecord } from "@web/model/relational_model/record" */
+
 /**
  * @param {RelationalRecord} record
  * @param {{ id?: number, display_name?: string }} value

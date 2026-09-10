@@ -3,6 +3,10 @@
 
 import { isX2Many } from "@web/core/field_types";
 
+/** @import { RecordContract } from "./record_contract.js" */
+
+/** @import { StaticListContract } from "./static_list_contract.js" */
+
 /**
  * @param {RecordContract} record
  * @returns {Generator<[string, StaticListContract]>}

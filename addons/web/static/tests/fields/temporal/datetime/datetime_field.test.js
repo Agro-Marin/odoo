@@ -858,10 +858,23 @@ test("list datetime: the column is sized for the string it renders", async () =>
     const [renderedCell] = queryAllTexts(".o_data_row:eq(0) .o_data_cell");
 
     expect(renderedCell).not.toInclude(":00:00");
-    expect(datetimeColumn).toBe(dateTimeField.listViewWidth({ options: {} }) + 9);
+    expect(datetimeColumn).toBe(
+        dateTimeField.listViewWidth({
+            type: "datetime",
+            hasLabel: false,
+            options: {},
+        }) + 9,
+    );
     expect(
-        dateTimeField.listViewWidth({ options: { show_seconds: true } }),
-    ).toBeGreaterThan(dateTimeField.listViewWidth({ options: {} }), {
-        message: "reserving room for seconds must be opt-in, not the default",
-    });
+        dateTimeField.listViewWidth({
+            type: "datetime",
+            hasLabel: false,
+            options: { show_seconds: true },
+        }),
+    ).toBeGreaterThan(
+        dateTimeField.listViewWidth({ type: "datetime", hasLabel: false, options: {} }),
+        {
+            message: "reserving room for seconds must be opt-in, not the default",
+        },
+    );
 });

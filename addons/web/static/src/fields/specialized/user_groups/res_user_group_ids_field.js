@@ -17,6 +17,11 @@ const viewRegistry = registry.category("views");
 
 /**
  * @typedef {{
+ * id: string | number,
+ * name: string,
+ * privilege_ids?: Array<string | number>,
+ * privileges: Privilege[],
+ * }} PrivilegeCategory
  * @typedef {{ id: string | number } & Record<string, any>} Privilege
  */
 

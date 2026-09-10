@@ -8,6 +8,7 @@
 
 import { isX2Many, isX2ManyType } from "@web/core/field_types";
 import { omit } from "@web/core/utils/collections/objects";
+import { exprToBoolean } from "@web/core/utils/format/strings";
 
 import { invalidateAggregateSpecs } from "./field_values.js";
 import {
@@ -26,7 +27,17 @@ function convertBoolToPyExpr(value) {
     return value;
 }
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * context?: string;
+ * invisible?: boolean | string | null;
+ * readonly?: boolean | string | null;
+ * required?: boolean | string | null;
+ * onChange?: boolean | string;
+ * forceSave?: boolean;
+ * isHandle?: boolean;
+ * }} ActiveFieldOptions
+ */
 
 export const FIELD_DEPENDENCIES_VALIDATION = {
     type: [
@@ -72,7 +83,7 @@ export const RELATED_FIELDS_VALIDATION = {
 
 /**
  * @param {ActiveFieldOptions} [options]
- * @returns {Record<string, any>}
+ * @returns {import("@web/model/types").FieldInfo}
  */
 export function makeActiveField({
     context,
@@ -88,7 +99,7 @@ export function makeActiveField({
         invisible: convertBoolToPyExpr(invisible || false),
         readonly: convertBoolToPyExpr(readonly || false),
         required: convertBoolToPyExpr(required || false),
-        onChange: onChange || false,
+        onChange: exprToBoolean(onChange ?? false),
         forceSave: forceSave || false,
         isHandle: isHandle || false,
     };

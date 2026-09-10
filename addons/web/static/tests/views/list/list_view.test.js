@@ -1164,8 +1164,16 @@ test(`list view with disabled button`, async () => {
             </list>
         `,
     });
-    expect(queryAll(`button[name='a']`).every((btn) => !btn.disabled)).toBe(true);
-    expect(queryAll(`button[name='b']`).every((btn) => btn.disabled)).toBe(true);
+    expect(
+        queryAll(`button[name='a']`).every(
+            (btn) => btn instanceof HTMLButtonElement && !btn.disabled,
+        ),
+    ).toBe(true);
+    expect(
+        queryAll(`button[name='b']`).every(
+            (btn) => btn instanceof HTMLButtonElement && btn.disabled,
+        ),
+    ).toBe(true);
 });
 
 test.tags("desktop");
@@ -1385,14 +1393,20 @@ test(`list view: action button executes action on click: buttons are disabled an
     });
     await clickRecordSelector();
     const cpButtons = queryAll`div.o_control_panel_breadcrumbs button, div.o_control_panel_actions button`;
-    expect(cpButtons.every((btn) => !btn.disabled)).toBe(true);
+    expect(
+        cpButtons.every((btn) => btn instanceof HTMLButtonElement && !btn.disabled),
+    ).toBe(true);
 
     await clickControlPanelAction("x");
-    expect(cpButtons.every((btn) => btn.disabled)).toBe(true);
+    expect(
+        cpButtons.every((btn) => btn instanceof HTMLButtonElement && btn.disabled),
+    ).toBe(true);
 
     executeActionDef.resolve();
     await animationFrame();
-    expect(cpButtons.every((btn) => !btn.disabled)).toBe(true);
+    expect(
+        cpButtons.every((btn) => btn instanceof HTMLButtonElement && !btn.disabled),
+    ).toBe(true);
 });
 
 test(`list view: buttons handler is called once on double click`, async () => {
@@ -5962,6 +5976,7 @@ test(`delete all records matching the domain`, async () => {
     mockService("notification", {
         add() {
             expect.step("should not display a notification");
+            return () => {};
         },
     });
 
@@ -6003,6 +6018,7 @@ test(`delete all records matching the domain (limit reached)`, async () => {
     mockService("notification", {
         add() {
             expect.step("notify");
+            return () => {};
         },
     });
 
@@ -6134,6 +6150,7 @@ test(`archive all records matching the domain`, async () => {
     mockService("notification", {
         add() {
             expect.step("should not display a notification");
+            return () => {};
         },
     });
 
@@ -6176,6 +6193,7 @@ test(`archive all records matching the domain (limit reached)`, async () => {
     mockService("notification", {
         add() {
             expect.step("notify");
+            return () => {};
         },
     });
 
@@ -7709,7 +7727,9 @@ test(`empty list with sample data`, async () => {
     });
 
     const cells = queryAllTexts(`.o_data_row:eq(0) > .o_data_cell`);
-    expect(isNaN(cells[2])).toBe(false, { message: "Integer value is a number" });
+    expect(isNaN(Number(cells[2]))).toBe(false, {
+        message: "Integer value is a number",
+    });
     expect(!!cells[3]).toBe(true, { message: "Many2one field is a string" });
     expect(cells[4]).not.toHaveLength(0, {
         message: "Many2many contains at least one string tag",
@@ -8325,7 +8345,7 @@ test(`editable list view with groupby node and modifiers`, async () => {
 
 test(`groupby node with edit button`, async () => {
     mockService("action", {
-        doAction(action) {
+        async doAction(action) {
             expect.step("doAction");
             expect(action).toEqual({
                 context: { create: false },
@@ -8356,7 +8376,7 @@ test(`groupby node with edit button`, async () => {
 
 test(`edit button does not trigger fold group`, async () => {
     mockService("action", {
-        doAction(action) {
+        async doAction(action) {
             expect.step("doAction");
             expect(action).toEqual({
                 context: { create: false },
@@ -8735,7 +8755,7 @@ test("click on a button in a list view on second page", async () => {
         expect.step(`web_search_read (offset: ${kwargs.offset})`);
     });
     mockService("action", {
-        doActionButton: (action) => {
+        doActionButton: async (action) => {
             expect.step("doActionButton");
             action.onClose();
         },
@@ -9327,6 +9347,7 @@ test(`leaving unvalid rows in edition`, async () => {
             if (type === "danger") {
                 warnings++;
             }
+            return () => {};
         },
     });
 
@@ -9507,7 +9528,7 @@ test(`execute ActionMenus actions on desktop`, async () => {
     stepAllNetworkCalls();
 
     mockService("action", {
-        doAction(id, { additionalContext, onClose }) {
+        async doAction(id, { additionalContext, onClose }) {
             expect.step({ action_id: id, context: additionalContext });
             onClose();
         },
@@ -9569,7 +9590,7 @@ test(`execute ActionMenus actions on mobile`, async () => {
     stepAllNetworkCalls();
 
     mockService("action", {
-        doAction(id, { additionalContext, onClose }) {
+        async doAction(id, { additionalContext, onClose }) {
             expect.step({ action_id: id, context: additionalContext });
             onClose();
         },
@@ -9630,7 +9651,7 @@ test(`execute ActionMenus actions on mobile`, async () => {
 test.tags("desktop");
 test(`execute ActionMenus actions with correct params (single page) on desktop`, async () => {
     mockService("action", {
-        doAction(id, { additionalContext }) {
+        async doAction(id, { additionalContext }) {
             expect.step({ action_id: id, context: additionalContext });
         },
     });
@@ -9733,7 +9754,7 @@ test(`execute ActionMenus actions with correct params (single page) on desktop`,
 test.tags("mobile");
 test(`execute ActionMenus actions with correct params (single page) on mobile`, async () => {
     mockService("action", {
-        doAction(id, { additionalContext }) {
+        async doAction(id, { additionalContext }) {
             expect.step({ action_id: id, context: additionalContext });
         },
     });
@@ -9837,7 +9858,7 @@ test(`execute ActionMenus actions with correct params (single page) on mobile`, 
 test.tags("desktop");
 test(`execute ActionMenus actions with correct params (multi pages)`, async () => {
     mockService("action", {
-        doAction(id, { additionalContext }) {
+        async doAction(id, { additionalContext }) {
             expect.step({ action_id: id, context: additionalContext });
         },
     });
@@ -10414,7 +10435,9 @@ test(`navigation: moving right with keydown from text field does not move the fo
     });
     await contains(`.o_field_cell[name=foo]`).click();
     expect(`.o_field_widget[name=foo] textarea`).toBeFocused();
-    const textarea = queryOne(".o_field_widget[name=foo] textarea");
+    const textarea = /** @type {HTMLTextAreaElement} */ (
+        queryOne(".o_field_widget[name=foo] textarea")
+    );
     expect(textarea.selectionStart).toBe(0);
     expect(textarea.selectionEnd).toBe(3);
 
@@ -12433,7 +12456,7 @@ test(`discard has to wait for changes in each field in multi edit`, async () => 
             if (!this.isDirty) {
                 return;
             }
-            const value = this.input.el.value;
+            const value = /** @type {HTMLInputElement} */ (this.input.el).value;
             await def;
             await this.props.record.update({
                 [this.props.name]: `update value: ${value}`,
@@ -12629,7 +12652,7 @@ Are you sure you want to update 2 records?`);
     expect(`.modal-body main .o_modal_changes`).toHaveText(`Field: Int field
 Update to: 666`);
     expect(
-        queryOne(".modal .o_modal_changes .o_field_widget").parentNode.style
+        queryOne(".modal .o_modal_changes .o_field_widget").parentElement.style
             .pointerEvents,
     ).toBe("none", {
         message: "pointer events should be deactivated on the demo widget",
@@ -15260,7 +15283,7 @@ test("cell-level keyboard navigation in editable grouped list", async () => {
 test.tags("desktop");
 test(`execute group header button with keyboard navigation`, async () => {
     mockService("action", {
-        doActionButton: ({ name }) => {
+        doActionButton: async ({ name }) => {
             expect.step(name);
         },
     });
@@ -16363,6 +16386,7 @@ test(`Auto save: modify a record and leave action (reject)`, async () => {
     mockService("notification", {
         add(message, _) {
             expect.step(message);
+            return () => {};
         },
     });
 
@@ -16465,7 +16489,7 @@ test(`Auto save: save on closing tab/browser (pending changes)`, async () => {
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("web_save");
-        blob.text().then((r) => {
+        new Response(blob).text().then((r) => {
             const { params } = JSON.parse(r);
             expect(params.method).toBe("web_save");
             expect(params.args).toEqual([[1], { foo: "test" }]);
@@ -16518,7 +16542,7 @@ test(`Auto save: save on closing tab/browser (onchanges + pending changes)`, asy
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("web_save");
-        blob.text().then((r) => {
+        new Response(blob).text().then((r) => {
             const { params } = JSON.parse(r);
             expect(params.method).toBe("web_save");
             expect(params.args).toEqual([[1], { int_field: 2021 }]);
@@ -16559,7 +16583,7 @@ test(`Auto save: save on closing tab/browser (onchanges)`, async () => {
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("web_save");
-        blob.text().then((r) => {
+        new Response(blob).text().then((r) => {
             const { params } = JSON.parse(r);
             expect(params.method).toBe("web_save");
             expect(params.args).toEqual([[1], { foo: "test", int_field: 2021 }]);
@@ -20104,7 +20128,7 @@ test(`basic open record with allowOpenAction`, async () => {
     mockService("action", {
         async doActionButton(params) {
             const { name } = params;
-            expect.step(`execute_action: ${name}`, params);
+            expect.step(`execute_action: ${name}`);
         },
     });
     await mountView({
@@ -20239,6 +20263,7 @@ test("scroll position is restored when coming back to list view", async () => {
 });
 
 test("column tooltip cache is invalidated when debug mode is toggled", async () => {
+    /** @type {ListRenderer} */
     let renderer;
     patchWithCleanup(ListRenderer.prototype, {
         setup() {

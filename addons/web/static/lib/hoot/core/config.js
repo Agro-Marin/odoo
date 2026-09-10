@@ -11,7 +11,7 @@ const {
 } = globalThis;
 
 /**
- * @template {Record<string, any>}
+ * @template {Record<string, any>} T
  * @param {T} schema
  * @returns {{ [key in keyof T]: ReturnType<T[key]["parse"]> }}
  */
@@ -20,7 +20,7 @@ function getSchemaDefaults(schema) {
 }
 
 /**
- * @template {Record<string, any>}
+ * @template {Record<string, any>} T
  * @param {T} schema
  * @returns {(keyof T)[]}
  */
@@ -29,7 +29,7 @@ function getSchemaKeys(schema) {
 }
 
 /**
- * @template
+ * @template T
  * @param {(values: string[]) => T} parse
  * @returns {(valueIfEmpty: T) => (values: string[]) => T}
  */

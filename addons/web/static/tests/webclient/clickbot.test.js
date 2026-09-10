@@ -119,6 +119,7 @@ test("clickbot clickeverywhere test", async () => {
     const clickEverywhereDef = new Deferred();
     patchWithCleanup(browser, {
         console: {
+            ...browser.console,
             log: (msg) => {
                 expect.step(msg);
                 if (msg === SUCCESS_SIGNAL) {
@@ -226,6 +227,7 @@ test("only one app", async () => {
     });
     patchWithCleanup(browser, {
         console: {
+            ...browser.console,
             log: (msg) => {
                 expect.step(msg);
                 if (msg === SUCCESS_SIGNAL) {
@@ -301,6 +303,7 @@ test("clickbot clickeverywhere test (with dropdown menu)", async () => {
     const clickEverywhereDef = new Deferred();
     patchWithCleanup(browser, {
         console: {
+            ...browser.console,
             log: (msg) => {
                 expect.step(msg);
                 if (msg === SUCCESS_SIGNAL) {
@@ -398,6 +401,7 @@ test("clickbot test waiting rpc after clicking filter", async () => {
     let clickBotStarted = false;
     patchWithCleanup(browser, {
         console: {
+            ...browser.console,
             log: (msg) => {
                 if (msg === SUCCESS_SIGNAL) {
                     expect.step(msg);
@@ -462,6 +466,7 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
     let id = 1;
     patchWithCleanup(browser, {
         console: {
+            ...browser.console,
             log: (msg) => {
                 if (msg === "test successful") {
                     expect.step(msg);
@@ -606,6 +611,7 @@ test("clickbot test waiting render after clicking filter", async () => {
     let clickBotStarted = false;
     patchWithCleanup(browser, {
         console: {
+            ...browser.console,
             log: (msg) => {
                 if (msg === SUCCESS_SIGNAL) {
                     expect.step(msg);
@@ -681,6 +687,7 @@ test("clickbot clickeverywhere menu modal", async () => {
     const clickEverywhereDef = new Deferred();
     patchWithCleanup(browser, {
         console: {
+            ...browser.console,
             log: (msg) => {
                 expect.step(msg);
                 if (msg === SUCCESS_SIGNAL) {

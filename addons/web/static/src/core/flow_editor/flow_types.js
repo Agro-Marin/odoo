@@ -82,7 +82,22 @@
  * @property {FlowConnectionId} [pendingConnectionId]
  */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *     type: "node_drag",
+ *     nodeId: FlowNodeId,
+ *     origin: FlowPosition,
+ * } | {
+ *     type: "node_resize",
+ *     nodeId: FlowNodeId,
+ *     origin: FlowSize,
+ * } | {
+ *     type: "connection_drag",
+ *     connectionDraft: FlowConnectionDraft,
+ * } | {
+ *     type: "pan",
+ * }} FlowInteraction
+ */
 
 /**
  * @typedef FlowConnection

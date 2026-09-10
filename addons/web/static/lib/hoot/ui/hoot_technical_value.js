@@ -23,7 +23,11 @@ import {
     toExplicitString,
 } from "../hoot_utils.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *  value?: any;
+ * }} TechnicalValueProps
+ */
 
 const {
     Object: { keys: $keys },

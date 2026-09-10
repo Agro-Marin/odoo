@@ -3,6 +3,8 @@
 
 import { DynamicList } from "./dynamic_list.js";
 
+/** @import { ListInsertion } from "./editable_list_datapoint.js" */
+/** @import { RelationalRecord } from "./record.js" */
 export class DynamicRecordList extends DynamicList {
     static type = "DynamicRecordList";
 

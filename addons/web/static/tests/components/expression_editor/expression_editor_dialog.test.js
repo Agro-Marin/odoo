@@ -37,8 +37,8 @@ async function makeExpressionEditorDialog(params = {}) {
                 onConfirm: () => {},
                 ...props,
                 resModel: "partner",
+                fields: Partner._fields,
             };
-            this.expressionEditorProps.fields = Partner._fields;
         }
         async set(expression) {
             this.expressionEditorProps.expression = expression;
@@ -75,6 +75,7 @@ test("expr well sent but wrong, so notification when onConfirm", async () => {
             expect(message).toBe("Expression is invalid. Please correct it");
             expect(options).toEqual({ type: "danger" });
             expect.step("notification");
+            return () => {};
         },
     });
     await makeExpressionEditorDialog({

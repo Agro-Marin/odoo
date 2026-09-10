@@ -37,9 +37,10 @@ import { redirect } from "@web/core/utils/urls";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { WebClient } from "@web/webclient/webclient";
 
-function _t() {
+/** @type {typeof basic_t} */
+function _t(source, ...substitutions) {
     odoo.translationContext = "web";
-    const translatedTerm = basic_t(...arguments);
+    const translatedTerm = basic_t(source, ...substitutions);
     odoo.translationContext = null;
     return translatedTerm;
 }
@@ -290,7 +291,7 @@ describe(`new urls`, () => {
             static props = ["*"];
         }
         actionRegistry.add("HelloWorldTest", ClientAction);
-        browser.sessionStorage.setItem("menu_id", 2);
+        browser.sessionStorage.setItem("menu_id", "2");
         redirect("/odoo/test");
         logHistoryInteractions();
         await mountWebClient();
@@ -1201,9 +1202,9 @@ describe(`new urls`, () => {
     test(`initial action crashes`, async () => {
         expect.errors(1);
 
-        const ClientAction = registry
-            .category("actions")
-            .get("__test__client__action__");
+        const ClientAction = /** @type {import("@odoo/owl").ComponentConstructor} */ (
+            registry.category("actions").get("__test__client__action__")
+        );
         class Override extends ClientAction {
             setup() {
                 super.setup();
@@ -2494,9 +2495,9 @@ describe(`legacy urls`, () => {
     test(`initial action crashes`, async () => {
         expect.errors(1);
 
-        const ClientAction = registry
-            .category("actions")
-            .get("__test__client__action__");
+        const ClientAction = /** @type {import("@odoo/owl").ComponentConstructor} */ (
+            registry.category("actions").get("__test__client__action__")
+        );
         class Override extends ClientAction {
             setup() {
                 super.setup();

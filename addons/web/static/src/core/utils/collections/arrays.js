@@ -4,7 +4,7 @@
 /**
  * @template T
  * @template {string | number | symbol} K
- * @typedef {keyof T | ((item: T) => K)} Criterion
+ * @typedef {string | ((item: T) => K)} Criterion
  */
 
 /**

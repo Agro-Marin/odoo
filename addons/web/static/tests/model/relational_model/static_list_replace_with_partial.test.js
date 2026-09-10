@@ -3,8 +3,9 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
-import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
+
+import { makeTestRelationalModel } from "./model_test_helpers.js";
 
 describe.current.tags("headless");
 
@@ -16,14 +17,15 @@ const SERVER_ROWS = {
 };
 
 /** @param {{ resIds?: number[], deleted?: Set<number> }} [options] */
-function makeList({ resIds = [], deleted = new Set() } = {}) {
-    const model = {
-        Class: { Record: RelationalRecord, StaticList },
-        patchConfig: (config, patch) => Object.assign(config, patch),
+async function makeList({ resIds = [], deleted = new Set() } = {}) {
+    const model = await makeTestRelationalModel({
         loadRecords: async ({ resIds: ids }) =>
             ids.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]),
-    };
+    });
+    /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
     const config = {
+        ...model.config,
+        isRoot: false,
         resModel: "res.partner",
         activeFields: { display_name: makeActiveField() },
         fields: { display_name: { type: "char", name: "display_name" } },
@@ -48,7 +50,7 @@ function makeList({ resIds = [], deleted = new Set() } = {}) {
 
 describe("StaticList.replaceWith partial server response", () => {
     test("a concurrently-deleted id is dropped, not left as an undefined hole", async () => {
-        const list = makeList({ resIds: [1], deleted: new Set([99]) });
+        const list = await makeList({ resIds: [1], deleted: new Set([99]) });
 
         await list.replaceWith([1, 2, 99]);
 
@@ -59,7 +61,7 @@ describe("StaticList.replaceWith partial server response", () => {
     });
 
     test("the phantom id is not shipped in the SET command", async () => {
-        const list = makeList({ resIds: [1], deleted: new Set([99]) });
+        const list = await makeList({ resIds: [1], deleted: new Set([99]) });
 
         await list.replaceWith([1, 2, 99]);
 
@@ -67,7 +69,7 @@ describe("StaticList.replaceWith partial server response", () => {
     });
 
     test("a full response still keeps every id (guard is inert on the happy path)", async () => {
-        const list = makeList({ resIds: [1] });
+        const list = await makeList({ resIds: [1] });
 
         await list.replaceWith([1, 2, 3, 99]);
 

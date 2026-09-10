@@ -9,13 +9,14 @@ import { findComponent, mountWithCleanup } from "./component_test_helpers.js";
 import { contains } from "./dom_test_helpers.js";
 import { getMockEnv, makeMockEnv } from "./env_test_helpers.js";
 
-const ensureSearchView = async () => {
+/** @param {import("@odoo/hoot").Target} [root] */
+const ensureSearchView = async (root) => {
     if (
         getMockEnv().isSmall &&
-        queryAll`.o_control_panel_navigation`.length &&
-        !queryAll`.o_searchview`.length
+        queryAll(".o_control_panel_navigation", { root }).length &&
+        !queryAll(".o_searchview", { root }).length
     ) {
-        await contains(`.o_control_panel_navigation .fa-search`).click();
+        await contains(`.o_control_panel_navigation .fa-search`, { root }).click();
     }
 };
 
@@ -220,8 +221,9 @@ export async function saveAndEditFavorite() {
     await contains(`.o_favorite_menu .o_edit_favorite`).click();
 }
 
-export function getFacetTexts() {
-    return queryAllTexts(`.o_searchview_facet`);
+/** @param {import("@odoo/hoot").Target} [root] */
+export function getFacetTexts(root) {
+    return queryAllTexts(`.o_searchview_facet`, { root });
 }
 
 /** @param {string} label */
@@ -283,7 +285,8 @@ export async function toggleActionMenu() {
     await contains(".o_cp_action_menus .dropdown-toggle").click();
 }
 
-export async function toggleSearchBarMenu() {
-    await ensureSearchView();
-    await contains(`.o_searchview_dropdown_toggler`).click();
+/** @param {import("@odoo/hoot").Target} [root] */
+export async function toggleSearchBarMenu(root) {
+    await ensureSearchView(root);
+    await contains(`.o_searchview_dropdown_toggler`, { root }).click();
 }

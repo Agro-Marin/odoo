@@ -1,12 +1,6 @@
 declare module "@odoo/hoot" {
     export * from "@web/../lib/hoot/hoot";
 
-    /**
-     * Configurator methods available on `test` and `describe`.
-     *
-     * These are added at runtime via Object.defineProperty in
-     * Runner._addConfigurators, which TypeScript cannot track.
-     */
     interface HootConfigurators {
         readonly debug: HootConfigurators & ((...args: any[]) => any);
         readonly only: HootConfigurators & ((...args: any[]) => any);

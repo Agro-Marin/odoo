@@ -578,6 +578,7 @@ test("support of invalid paths (allowEmpty=false)", async () => {
         static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="state.path" />`;
         static props = ["*"];
         setup() {
+            /** @type {{ path: unknown }} */
             this.state = useState({ path: `` });
         }
     }
@@ -623,6 +624,7 @@ test("support of invalid paths (allowEmpty=true)", async () => {
         static template = xml`<ModelFieldSelector resModel="'partner'" readonly="false" path="state.path" allowEmpty="true" />`;
         static props = ["*"];
         setup() {
+            /** @type {{ path: unknown }} */
             this.state = useState({ path: `` });
         }
     }
@@ -1114,7 +1116,9 @@ test("arrowing up into fresh results enters them from the end", async () => {
     await mountWithCleanup(Parent);
     await openModelFieldSelectorPopover();
 
-    const input = queryOne("input.o_input[placeholder='Search...']");
+    const input = /** @type {HTMLInputElement} */ (
+        queryOne("input.o_input[placeholder='Search...']")
+    );
     await contains(input).edit("o", { confirm: false });
     input.setSelectionRange(0, 0);
     await press("ArrowUp");

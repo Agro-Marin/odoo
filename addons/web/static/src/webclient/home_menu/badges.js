@@ -94,7 +94,11 @@ export function loadHomeMenuBadges(env, apps, { refresh = false } = {}) {
     return badges;
 }
 
-/** @param {any} provider */
+/**
+ * @param {any} provider
+ * @param {import("@web/env").OdooEnv} env
+ * @param {BadgeApp[]} apps
+ */
 async function runProvider(provider, env, apps) {
     let timer;
     const timeoutMs =
@@ -116,7 +120,10 @@ async function runProvider(provider, env, apps) {
     }
 }
 
-/** @param {import("@web/env").OdooEnv} env */
+/**
+ * @param {import("@web/env").OdooEnv} env
+ * @param {BadgeApp[]} apps
+ */
 async function countHomeMenuBadges(env, apps) {
     /** @type {Record<string, number>} */
     const badges = {};

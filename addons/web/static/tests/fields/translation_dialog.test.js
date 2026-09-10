@@ -145,8 +145,12 @@ describe("language rows", () => {
 
         expect(".modal .o_translation_dialog .translation").toHaveCount(2);
 
-        const inputs = queryAll(".modal .o_translation_dialog .translation input");
-        const values = inputs.map((el) => el.value);
+        const inputs = queryAll(
+            ".modal .o_translation_dialog .translation input",
+        ).filter((el) => el instanceof HTMLInputElement);
+        const values = inputs.map((el) =>
+            el instanceof HTMLInputElement ? el.value : null,
+        );
         expect(values).toInclude("yop");
         expect(values).toInclude("yop français");
     });
@@ -170,7 +174,9 @@ describe("language rows", () => {
         await contains("[name=name] input").click();
         await contains(".o_field_char .btn.o_field_translate").click();
 
-        const inputs = queryAll(".modal .o_translation_dialog .translation input");
+        const inputs = queryAll(
+            ".modal .o_translation_dialog .translation input",
+        ).filter((el) => el instanceof HTMLInputElement);
         const enInput = inputs.find((el) => el.value === "modified english");
         expect(enInput).not.toBe(undefined, {
             message:
@@ -205,7 +211,9 @@ describe("save payload", () => {
         await contains("[name=name] input").click();
         await contains(".o_field_char .btn.o_field_translate").click();
 
-        const inputs = queryAll(".modal .o_translation_dialog .translation input");
+        const inputs = queryAll(
+            ".modal .o_translation_dialog .translation input",
+        ).filter((el) => el instanceof HTMLInputElement);
         const frInput = inputs.find((el) => el.value === "yop français");
         await contains(frInput).edit("nouveau");
 

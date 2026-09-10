@@ -3,10 +3,22 @@
 
 import { markRaw } from "@odoo/owl";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * changes: Record<string, any>,
+ * textValues: Record<string, any>,
+ * invalidFields: string[],
+ * unsetRequiredFields: string[],
+ * }} SavePoint
+ */
 
 /**
  * @param {{
+ * changes?: Record<string, any>,
+ * textValues?: Record<string, any>,
+ * invalidFields?: Iterable<string>,
+ * unsetRequiredFields?: Iterable<string>,
+ * }} [parts]
  * @returns {SavePoint}
  */
 export function createSavePoint({

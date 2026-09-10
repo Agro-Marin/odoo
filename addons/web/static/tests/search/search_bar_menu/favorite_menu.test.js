@@ -31,7 +31,7 @@ test("simple rendering with no favorite (without ability to save)", async () => 
     favoriteMenuRegistry.remove("custom-favorite-item");
     after(() => {
         favoriteMenuRegistry.add("custom-favorite-item", registryItem[1], {
-            sequence: registryItem[1],
+            sequence: registryItem[0],
         });
     });
 
@@ -86,7 +86,7 @@ test("edit an active favorite", async () => {
         },
     ];
     mockService("action", {
-        doAction(action) {
+        async doAction(action) {
             expect.step("edit favorite");
             expect(action).toEqual({
                 context: {

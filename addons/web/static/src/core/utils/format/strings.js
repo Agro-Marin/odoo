@@ -63,12 +63,12 @@ export function escapeRegExp(pattern) {
 }
 
 /**
- * @param {string | null | undefined} str
+ * @param {string | number | boolean | null | undefined} str
  * @param {boolean} [trueIfEmpty=false]
  * @returns {boolean}
  */
 export function exprToBoolean(str, trueIfEmpty = false) {
-    return str ? !R_FALSY.test(str) : trueIfEmpty;
+    return str ? !R_FALSY.test(String(str)) : trueIfEmpty;
 }
 
 /**

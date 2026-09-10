@@ -40,7 +40,14 @@ const PAIRS = [
     { name: "monetary", format: formatMonetary, parse: parseMonetary },
 ];
 
-/** @type {{ */
+/**
+ * @type {{
+ * name: string,
+ * decimalPoint: string,
+ * thousandsSep: string | false,
+ * grouping: number[],
+ * }[]}
+ */
 const LOCALES = [
     { name: "en_US", decimalPoint: ".", thousandsSep: ",", grouping: [3, 0] },
     { name: "fr_BE", decimalPoint: ",", thousandsSep: ".", grouping: [3, 0] },

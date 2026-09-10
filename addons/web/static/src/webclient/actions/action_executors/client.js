@@ -9,6 +9,8 @@ import { nextActionDepth } from "../action_constants.js";
 
 const actionRegistry = registry.category("actions");
 
+/** @import { ActionManager, ActionOptions, ClientAction } from "../action_service.js" */
+
 /**
  * @param {ClientAction} action
  * @param {ActionOptions} options

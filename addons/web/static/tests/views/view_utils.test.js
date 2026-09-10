@@ -68,9 +68,11 @@ describe("computeAggregatedValue", () => {
     });
 
     test("invalid aggregator", () => {
+        // @ts-expect-error
         expect(() => computeAggregatedValue([])).toThrow(
             "Invalid aggregator 'undefined'",
         );
+        // @ts-expect-error
         expect(() => computeAggregatedValue([], "oups")).toThrow(
             "Invalid aggregator 'oups'",
         );

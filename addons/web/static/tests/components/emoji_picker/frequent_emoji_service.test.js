@@ -35,11 +35,11 @@ test("usage counts accumulate and persist", async () => {
 test("getMostFrequent sorts by descending usage and honours the limit", async () => {
     await makeMockEnv();
     const emoji = getService("web.frequent.emoji");
-    for (const [codepoints, count] of [
+    for (const [codepoints, count] of /** @type {[string, number][]} */ ([
         ["a", 1],
         ["b", 5],
         ["c", 3],
-    ]) {
+    ])) {
         for (let i = 0; i < count; i++) {
             emoji.incrementEmojiUsage(codepoints);
         }

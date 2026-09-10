@@ -5,6 +5,7 @@ import { patch, patchInfo } from "@web/core/utils/patch";
 
 class BaseClass {
     static staticStr = "base";
+    /** @type {Record<string, string>} */
     static staticObj = { base: "base" };
     static staticArr = ["base"];
     static staticFn() {
@@ -71,6 +72,7 @@ function createGenericExtension() {
     return class Extension extends BaseClass {
         static staticStr = BaseClass.staticStr + "extension";
         static staticArr = [...BaseClass.staticArr, "extension"];
+        /** @type {Record<string, string>} */
         static staticObj = { ...BaseClass.staticObj, extension: "extension" };
         static staticFn() {
             super.staticFn();
@@ -212,6 +214,9 @@ test("call instance method defined in patch", () => {
             expect.step("patch.f");
         },
     });
+    if (!("f" in instance) || typeof instance.f !== "function") {
+        throw new Error("Patch did not install f");
+    }
     instance.f();
     expect(instance).toInclude("f");
     expect.verifySteps(["patch.f"]);

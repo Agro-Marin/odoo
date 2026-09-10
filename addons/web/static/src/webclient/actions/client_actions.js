@@ -9,6 +9,8 @@ import { registry } from "@web/core/registry";
 import { htmlSprintf } from "@web/core/utils/dom/html";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
 
+/** @import { Action } from "./action_service.js" */
+
 /**
  * @param {import("@web/env").OdooEnv} env
  * @param {Action} action

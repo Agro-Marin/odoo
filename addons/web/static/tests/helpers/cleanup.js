@@ -1,8 +1,8 @@
 // @ts-check
 
-const cleanups = [];
+import { after } from "@odoo/hoot";
 
-/** @param {Function} callback */
+/** @param {() => void | Promise<void>} callback */
 export function registerCleanup(callback) {
-    cleanups.push(callback);
+    after(callback);
 }

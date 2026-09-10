@@ -447,7 +447,7 @@ test("Export dialog: interacting with available fields", async () => {
 
 test("Export dialog: compatible and export type options", async () => {
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             expect.step(options.url);
             expect(JSON.parse(options.data.data)["import_compat"]).toBe(true);
         },
@@ -491,7 +491,7 @@ test("Export dialog: compatible and export type options", async () => {
 
 test("toggling import compatibility after adding an expanded field", async () => {
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             expect.step(options.url);
             expect(JSON.parse(options.data.data)["import_compat"]).toBe(true);
         },
@@ -649,7 +649,7 @@ test.tags("desktop");
 test("ExportDialog: export all records of the domain", async () => {
     let isDomainSelected = false;
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             if (isDomainSelected) {
                 expect(JSON.parse(options.data.data).ids).toBe(false);
                 expect.step(
@@ -712,7 +712,7 @@ test("ExportDialog: export all records of the domain", async () => {
 
 test("Direct export list", async () => {
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             expect(options.url).toBe("/web/export/xlsx");
             expect(JSON.parse(options.data.data)).toEqual({
                 context: { allowed_company_ids: [1], lang: "en", uid: 7, tz: "taht" },
@@ -758,7 +758,7 @@ test("Direct export list", async () => {
 
 test("Export list with modified context", async () => {
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             expect.step("Export records");
             expect(options.url).toBe("/web/export/xlsx");
             expect(JSON.parse(options.data.data)).toEqual({
@@ -817,7 +817,7 @@ test("Export list with modified context", async () => {
 
 test("Direct export grouped list", async () => {
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             expect(JSON.parse(options.data.data).groupby).toEqual(["foo", "bar"]);
         },
     });
@@ -843,7 +843,7 @@ test("Direct export grouped list", async () => {
 test.tags("desktop");
 test("Direct export list take optional fields into account on desktop", async () => {
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             expect(JSON.parse(options.data.data).fields).toEqual([
                 { label: "Bar", name: "bar", store: true, type: "boolean" },
             ]);
@@ -875,7 +875,7 @@ test("Direct export list take optional fields into account on desktop", async ()
 test.tags("mobile");
 test("Direct export list take optional fields into account on mobile", async () => {
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             expect(JSON.parse(options.data.data).fields).toEqual([
                 { label: "Bar", name: "bar", store: true, type: "boolean" },
             ]);
@@ -1089,6 +1089,7 @@ test("Export dialog: search in debug", async () => {
 });
 
 test("Export dialog: disable button during export", async () => {
+    /** @type {InstanceType<typeof Deferred>} */
     let def;
     patchWithCleanup(download, {
         _download: () => (def = new Deferred()),
@@ -1114,6 +1115,7 @@ test("Export dialog: disable button during export", async () => {
 
 test("Export dialog: button is re-enabled after a failed export", async () => {
     expect.errors(1);
+    /** @type {InstanceType<typeof Deferred>} */
     let def;
     patchWithCleanup(download, {
         _download: () => (def = new Deferred()),

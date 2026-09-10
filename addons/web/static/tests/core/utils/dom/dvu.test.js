@@ -73,13 +73,13 @@ test("useViewportChange subscribes lazily and releases with its last consumer", 
     const originalAdd = browser.addEventListener.bind(browser);
     const originalRemove = browser.removeEventListener.bind(browser);
     patchWithCleanup(browser, {
-        addEventListener(type, ...rest) {
+        addEventListener(type, listener, options) {
             added.push(type);
-            return originalAdd(type, ...rest);
+            return originalAdd(type, listener, options);
         },
-        removeEventListener(type, ...rest) {
+        removeEventListener(type, listener, options) {
             removed.push(type);
-            return originalRemove(type, ...rest);
+            return originalRemove(type, listener, options);
         },
     });
 

@@ -832,6 +832,7 @@ describe("_reloadSections choreography", () => {
     });
 
     test("the fetch is left on sectionsPromise when it is not awaited", async () => {
+        /** @type {(value?: unknown) => void} */
         let release;
         const model = makeReloadModel({
             _getDomain: () => [["a", "=", 1]],

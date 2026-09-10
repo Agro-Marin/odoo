@@ -47,7 +47,7 @@ function makeDomainResolver() {
  * @param {string} params.fieldType
  * @param {Record<string, boolean>} [params.subViewActiveActions={}]
  * @param {Object | ((props: Record<string, any>) => Object)} [params.crudOptions={}]
- * @param {(props: Record<string, any>) => ActiveActionsEvalParams} [params.getEvalParams=()
+ * @param {(props: Record<string, any>) => ActiveActionsEvalParams} [params.getEvalParams=() => ({})]
  * @returns {RelationalActiveActions}
  */
 export function useActiveActions({

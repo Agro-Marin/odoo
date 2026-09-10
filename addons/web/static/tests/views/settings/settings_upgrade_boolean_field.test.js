@@ -62,7 +62,7 @@ test("widget upgrade_boolean in a form view - label", async () => {
 });
 
 test("widget upgrade_boolean in a form view - dialog (enterprise version)", async () => {
-    patchWithCleanup(odoo, { info: { isEnterprise: 1 } });
+    patchWithCleanup(odoo.info, { isEnterprise: true });
     await mountView({
         type: "form",
         arch: `
@@ -83,7 +83,7 @@ test("widget upgrade_boolean in a form view - dialog (enterprise version)", asyn
 });
 
 test("widget upgrade_boolean in a form view - label (enterprise version)", async () => {
-    patchWithCleanup(odoo, { info: { isEnterprise: 1 } });
+    patchWithCleanup(odoo.info, { isEnterprise: true });
     await mountView({
         type: "form",
         arch: `

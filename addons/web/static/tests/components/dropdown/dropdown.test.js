@@ -257,6 +257,7 @@ test("hold position on hover", async () => {
         },
     });
 
+    /** @type {{ filler: boolean; }} */
     let parentState;
     class Parent extends Component {
         setup() {
@@ -472,6 +473,7 @@ test("refocus toggler on close with keynav", async () => {
 
 test.tags("desktop");
 test("opening a dropdown over another restores focus to its own toggler", async () => {
+    /** @type {Parent} */
     let parent;
     class Parent extends Component {
         static components = { Dropdown, DropdownItem };
@@ -908,7 +910,8 @@ test("don't close dropdown outside the active element", async () => {
 });
 
 test("t-if t-else as toggler", async () => {
-    let state = undefined;
+    /** @type {{foo: string}} */
+    let state;
 
     class Parent extends Component {
         static components = { Dropdown };
@@ -1336,7 +1339,7 @@ test("multi-level dropdown: keynav", async () => {
             }
         }
         if (step.selected !== undefined) {
-            const verify = step.selected === false ? [] : [step.selected];
+            const verify = [step.selected];
             expect.verifySteps(verify);
         }
     }
@@ -1426,6 +1429,7 @@ test("multi-level dropdown: submenu keeps position when patched", async () => {
         },
     });
 
+    /** @type {{ foo: boolean; }} */
     let parentState;
     class Parent extends Component {
         static components = { Dropdown, DropdownItem };
@@ -1626,6 +1630,7 @@ test("dropdown: no BottomSheet", async () => {
 
 test.tags("desktop");
 test("a mouseenter on an open dropdown does not hijack focus on the next open", async () => {
+    /** @type {ReturnType<typeof useDropdownState>} */
     let state;
     class Parent extends Component {
         static components = { Dropdown, DropdownGroup };
@@ -1908,6 +1913,7 @@ test("an unrelated dropdown opening closes the open one", async () => {
 });
 
 test("a swapped `state` prop is refused rather than silently ignored", async () => {
+    /** @type {Parent} */
     let parent;
     class Parent extends Component {
         static components = { Dropdown };

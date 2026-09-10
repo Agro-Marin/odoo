@@ -9,8 +9,19 @@ import { HootJobButtons } from "./hoot_job_buttons.js";
 
 /**
  * @typedef {{
+ *  multi?: number;
+ *  name: string;
+ *  hasSuites: boolean;
+ *  reporting: import("../hoot_utils").Reporting;
+ *  selected: boolean;
+ *  unfolded: boolean;
+ * }} HootSideBarSuiteProps
  * @typedef {{
+ *  reporting: import("../hoot_utils").Reporting;
+ *  statusFilter: import("./setup_hoot_ui").StatusFilter | null;
+ * }} HootSideBarCounterProps
  * @typedef {{
+ * }} HootSideBarProps
  */
 
 const { Boolean, location: actualLocation, Object, String } = globalThis;

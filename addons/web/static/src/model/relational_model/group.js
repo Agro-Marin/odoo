@@ -5,6 +5,7 @@ import { Domain } from "@web/core/domain";
 
 import { DataPoint } from "./datapoint.js";
 
+/** @import { RelationalModelConfig } from "./relational_model.js" */
 export class Group extends DataPoint {
     static type = "Group";
 

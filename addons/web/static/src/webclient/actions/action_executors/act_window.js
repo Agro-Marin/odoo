@@ -7,6 +7,8 @@ import { View } from "@web/views/view";
 import { getActionViews } from "../action_info_builders.js";
 import { findView } from "../action_views.js";
 
+/** @import { ActionManager, ActionOptions, ActWindowAction } from "../action_service.js" */
+
 /**
  * @param {ActWindowAction} action
  * @param {ActionOptions} options

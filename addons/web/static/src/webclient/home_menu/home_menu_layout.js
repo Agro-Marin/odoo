@@ -92,7 +92,15 @@ export function useHomeMenuLayoutSync(onChange) {
 /** @typedef {{ operation: string, xmlid?: string, value?: boolean | string[] }} LayoutChange */
 
 export class HomeMenuLayout {
-    /** @param {{ */
+    /**
+     * @param {{
+     * config: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
+     * defaultConfig: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
+     * orm: import("services").ServiceFactories["orm"],
+     * personal?: boolean,
+     * onSaved?: () => void,
+     * }} params
+     */
     constructor({ config, defaultConfig, orm, personal, onSaved = () => {} }) {
         this.config = config;
         this.defaultConfig = defaultConfig;

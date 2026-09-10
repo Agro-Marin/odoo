@@ -47,20 +47,43 @@ const {
  * @typedef {(records: ModelRecord[], fieldName: string) => any} AggregatorFunction
  * @typedef {typeof Model} ModelConstructor
  * @typedef {{
+ * create_date: string;
+ * display_name: string | false;
+ * id: number | false;
+ * name: import("fields").FieldValue;
+ * write_date: string;
+ * [key: string]: any;
+ * }} ModelRecord
  * @typedef {{
+ * __domain: any;
+ * __extra_domain: any[];
+ * [key: string]: any;
+ * }} ModelRecordGroup
  * @typedef {{
- * @typedef {ViewType | `${ViewType},${number | string}`} ViewKey
+ * context?: Context;
+ * domain?: DomainListRepr;
+ * fields?: string[];
+ * limit?: number;
+ * modelName?: string;
+ * offset?: number;
+ * order?: string;
+ * }} SearchParams
+ * @typedef {string} ViewKey
  * @typedef {import("@web/views/view").ViewType} ViewType
  */
 
 /**
- * @template
+ * @template T
  * @typedef {T | Iterable<T>} MaybeIterable
  */
 
 /**
- * @template
+ * @template [T={}]
  * @typedef {{
+ * args?: any[];
+ * context?: Context;
+ * [key: string]: any;
+ * } & Partial<T>} KwArgs
  */
 
 /**
@@ -75,7 +98,7 @@ function aggregateFields(aggregatedFields, group, records) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T[]} target
  * @param {...T[]} arrays
  */
@@ -766,6 +789,13 @@ function orderByField(model, orderBy, records) {
 /**
  * @param {Model} model
  * @param {{
+ * arch: string | Node;
+ * editable?: boolean;
+ * fields?: Record<string, FieldDefinition>;
+ * level?: number;
+ * modelName?: string;
+ * processedNodes?: Node[];
+ * }} params
  */
 function parseView(model, params) {
     const processedNodes = params.processedNodes || [];
@@ -971,6 +1001,12 @@ function searchPanelDomainImage(
  * @param {Model} model
  * @param {string} fieldName
  * @param {KwArgs<{
+ * enable_counters: boolean;
+ * extra_domain: DomainListRepr;
+ * limit: number;
+ * only_counters: boolean;
+ * set_limit: number;
+ * }>} [kwargs={}]
  */
 function searchPanelFieldImage(model, fieldName, kwargs) {
     const enableCounters = kwargs.enable_counters;
@@ -1522,7 +1558,7 @@ export class Model extends Array {
         instance ||= createRawInstance(this);
         return (
             instance._name ||
-            instance._inherit ||
+            safeSplit(instance._inherit)[0] ||
             (this.name
                 ? this.name.replace(R_CAMEL_CASE, "$1.$2").toLowerCase()
                 : "anonymous")
@@ -1542,7 +1578,7 @@ export class Model extends Array {
     _inherit = null;
     /** @type {string} */
     _name = "";
-    /** @type {Record<string, (record: ModelRecord) => any>} */
+    /** @type {Record<string, boolean | ((record: ModelRecord) => any)>} */
     _onChanges = {};
     /** @type {string} */
     _order = "id";
@@ -1668,13 +1704,18 @@ export class Model extends Array {
         });
     }
 
-    /** @param {Iterable<ModelRecord>} valuesList */
-    create(valuesList) {
+    /**
+     * @param {MaybeIterable<Partial<ModelRecord>>} valuesList
+     * @param {KwArgs} [_kwargs]
+     */
+    create(valuesList, _kwargs = {}) {
         const kwargs = getKwArgs(arguments, "vals_list");
         ({ vals_list: valuesList } = kwargs);
 
         const shouldReturnList = isIterable(valuesList);
-        const allValues = shouldReturnList ? valuesList : [valuesList];
+        const allValues = shouldReturnList
+            ? /** @type {Iterable<Partial<ModelRecord>>} */ (valuesList)
+            : [/** @type {Partial<ModelRecord>} */ (valuesList)];
         /** @type {number[]} */
         const ids = [];
         for (const values of allValues) {
@@ -1947,6 +1988,11 @@ export class Model extends Array {
                                 type === "date" ? serializeDate : serializeDateTime;
                             const from = serialize(startDate);
                             const to = serialize(endDate);
+                            if (from === false || to === false) {
+                                throw new MockServerError(
+                                    `Invalid date range for "${fieldPath}"`,
+                                );
+                            }
                             group.__extra_domain = [
                                 ...this._readGroupDateRangeExtraDomain(
                                     fieldPath,
@@ -2095,7 +2141,7 @@ export class Model extends Array {
         const result = [];
         for (const record of this) {
             const isInDomain = actualDomain.contains(record);
-            if (isInDomain && (!name || record.display_name?.includes(name))) {
+            if (isInDomain && (!name || (record.display_name || "").includes(name))) {
                 result.push(/** @type {any} */ (toIdDisplayName(record)));
             }
         }
@@ -2283,7 +2329,16 @@ export class Model extends Array {
 
     /** @param {string} fieldName */
     search_panel_select_range(fieldName) {
-        /** @type {KwArgs<{ */
+        /**
+         * @type {KwArgs<{
+         * category_domain: DomainListRepr;
+         * comodel_domain: DomainListRepr;
+         * enable_counters: boolean;
+         * filter_domain: DomainListRepr;
+         * limit: number;
+         * search_domain: DomainListRepr;
+         * }>}
+         */
         const kwargs = getKwArgs(arguments, "field_name");
         ({ field_name: fieldName } = kwargs);
 
@@ -2422,7 +2477,16 @@ export class Model extends Array {
      * @param {string} [groupBy]
      */
     search_panel_select_multi_range(fieldName, groupBy) {
-        /** @type {KwArgs<{ */
+        /**
+         * @type {KwArgs<{
+         * category_domain: DomainListRepr;
+         * comodel_domain: DomainListRepr;
+         * enable_counters: boolean;
+         * filter_domain: DomainListRepr;
+         * limit: number;
+         * search_domain: DomainListRepr;
+         * }>}
+         */
         const kwargs = getKwArgs(arguments, "field_name", "group_by");
         ({ field_name: fieldName, group_by: groupBy } = kwargs);
 
@@ -3252,7 +3316,7 @@ export class Model extends Array {
     }
 
     /**
-     * @private
+     * @protected
      * @param {Record<string, ModelRecord>} [originalRecords={}]
      */
     _applyComputesAndValidate(originalRecords = {}) {

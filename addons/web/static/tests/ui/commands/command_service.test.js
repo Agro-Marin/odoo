@@ -62,12 +62,15 @@ beforeEach(async () => {
 
 test("commands evilness 👹", async () => {
     expect(function () {
+        // @ts-expect-error
         getService("command").add();
     }).toThrow(/A Command must have a name and an action function/);
     expect(function () {
+        // @ts-expect-error
         getService("command").add(null);
     }).toThrow(/A Command must have a name and an action function/);
     expect(function () {
+        // @ts-expect-error
         getService("command").add("");
     }).toThrow(/A Command must have a name and an action function/);
     expect(function () {

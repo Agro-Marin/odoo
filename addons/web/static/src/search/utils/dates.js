@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { PeriodWindow } from "../search_types" */
 import { Domain } from "@web/core/domain";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";

@@ -7,11 +7,10 @@ import { pick, shallowEqual } from "@web/core/utils/collections/objects";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 /**
- * @template T
  * @typedef VirtualGridParams
  * @property {ReturnType<typeof import("@odoo/owl").useRef>} scrollableRef
- * @property {ScrollPosition} [initialScroll={
- * @property {(changed: Partial<VirtualGridIndexes>) => void} [onChange=()
+ * @property {ScrollPosition} [initialScroll={ left: 0, top: 0 }]
+ * @property {(changed: Partial<VirtualGridIndexes>) => void} [onChange=() => this.render()]
  * @property {number} [bufferCoef=1]
  * @property {() => number} [getRowsOffset]
  */
@@ -87,8 +86,7 @@ function getIndexes({
 }
 
 /**
- * @template T
- * @param {VirtualGridParams<T>} params
+ * @param {VirtualGridParams} params
  * @returns {VirtualGridIndexes & VirtualGridSetters}
  */
 export function useVirtualGrid({

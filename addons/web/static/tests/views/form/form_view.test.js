@@ -200,10 +200,10 @@ onRpc("has_group", () => true);
 
 before(() => {
     patchWithCleanup(EventBus.prototype, {
-        addEventListener(...args) {
-            super.addEventListener(...args);
+        addEventListener(type, listener, options) {
+            super.addEventListener(type, listener, options);
             after(() => {
-                this.removeEventListener(...args);
+                this.removeEventListener(type, listener, options);
             });
         },
     });
@@ -3619,7 +3619,7 @@ test(`onchange send relation parent field values (including readonly)`, async ()
     ResUsers._fields.login = fields.Char();
     ResUsers._onChanges = {
         name: (obj) => {
-            obj.login = obj.name.toLowerCase() + "@example.org";
+            obj.login = String(obj.name || "").toLowerCase() + "@example.org";
         },
     };
     Partner._onChanges = {
@@ -3771,7 +3771,7 @@ test(`default record with a one2many and an onchange on sub field`, async () => 
 });
 
 test(`remove default value in subviews`, async () => {
-    Product._onchanges = {
+    Product._onChanges = {
         name: () => {},
     };
 
@@ -5065,7 +5065,7 @@ test(`discard has to wait for changes in each field`, async () => {
         }
 
         async updateValue() {
-            const value = this.input.el.value;
+            const value = /** @type {HTMLInputElement} */ (this.input.el).value;
             await def;
             await this.props.record.update({
                 [this.props.name]: `update value: ${value}`,
@@ -6101,7 +6101,7 @@ test("delete the last record (without previous action)", async () => {
 
     redirect("/odoo/m-partner/1");
     patchWithCleanup(WebClient.prototype, {
-        _loadDefaultApp() {
+        async _loadDefaultApp() {
             expect.step("__DEFAULT_ACTION__ called");
         },
     });
@@ -7776,7 +7776,9 @@ test(`in create mode, first field is focused`, async () => {
         type: "form",
         arch: `<form><field name="foo"/><field name="bar"/></form>`,
     });
-    const input = queryFirst`.o_field_widget[name="foo"] input`;
+    const input = /** @type {HTMLInputElement} */ (
+        queryFirst`.o_field_widget[name="foo"] input`
+    );
     expect(input).toBeFocused();
     expect(input.selectionStart).toBe(input.value.length);
 });
@@ -8044,7 +8046,7 @@ test(`open one2many form containing many2many_tags`, async () => {
 
 test(`display toolbar`, async () => {
     mockService("action", {
-        doAction(id, { additionalContext }) {
+        async doAction(id, { additionalContext }) {
             expect.step("doAction");
             expect(id).toBe(29);
             expect(additionalContext.active_id).toBe(1);
@@ -8083,7 +8085,7 @@ test(`display toolbar`, async () => {
 
 test(`execute ActionMenus actions`, async () => {
     mockService("action", {
-        doAction(id, { additionalContext, onClose }) {
+        async doAction(id, { additionalContext, onClose }) {
             expect.step({ action_id: id, context: additionalContext });
             onClose();
         },
@@ -8131,7 +8133,7 @@ test(`execute ActionMenus actions`, async () => {
 
 test(`execute ActionMenus actions (create)`, async () => {
     mockService("action", {
-        doAction(id, { additionalContext, onClose }) {
+        async doAction(id, { additionalContext, onClose }) {
             expect.step({ action_id: id, context: additionalContext });
             onClose();
         },
@@ -9211,7 +9213,7 @@ test("Redirect Warning full feature: additional context, action_id, leaving whil
                         <field name="name"/>
                     </group>
                 </form>`,
-        "partner,false,search": "<search></search>",
+        search: "<search></search>",
     };
     onRpc("partner", "web_save", () => {
         expect.step("web_save");
@@ -9543,7 +9545,7 @@ test(`process the context for subview not inline`, async () => {
 test(`Can switch to form view on inline tree`, async () => {
     const id = 2;
     mockService("action", {
-        doAction(action, options) {
+        async doAction(action, options) {
             expect.step("doAction");
             expect(action).toEqual({
                 context: {
@@ -9584,14 +9586,16 @@ test(`Can switch to form view on inline tree`, async () => {
 
 test(`x2many field, open form view in new window`, async () => {
     mockService("action", {
-        doAction(params, options) {
+        async doAction(params, options) {
             if (options?.newWindow) {
                 expect.step("opened in a new window");
                 return;
             }
             super.doAction(params);
         },
-        loadState() {},
+        async loadState() {
+            return true;
+        },
     });
     Partner._records[0].child_ids = [2];
     await mountView({
@@ -11014,7 +11018,7 @@ test(`form view with edit='0' but create='1', new record`, async () => {
 });
 
 test(`save a form view with an invisible required field`, async () => {
-    Partner._fields.text = fields.Text({ required: 1 });
+    Partner._fields.text = fields.Text({ required: true });
 
     onRpc("web_save", ({ args }) => {
         expect(args[1]).toEqual({ int_field: 0, text: false });
@@ -11039,7 +11043,7 @@ test(`save a form view with an invisible required field`, async () => {
 });
 
 test(`save a form view with a duplicated invisible required field`, async () => {
-    Partner._fields.text = fields.Char({ required: 1 });
+    Partner._fields.text = fields.Char({ required: true });
 
     await mountView({
         resModel: "partner",
@@ -11059,7 +11063,7 @@ test(`save a form view with a duplicated invisible required field`, async () => 
 });
 
 test(`save a form view with an invisible required field in a x2many`, async () => {
-    Partner._fields.text = fields.Char({ required: 1 });
+    Partner._fields.text = fields.Char({ required: true });
 
     onRpc("web_save", ({ args }) => {
         expect(args[1].child_ids[0][2]).toEqual({ int_field: 1, text: false });
@@ -11157,6 +11161,7 @@ test(`onSave/onDiscard props`, async () => {
 });
 
 test(`props.onSave is not called when leaving a clean form`, async () => {
+    /** @type {FormController} */
     let controller;
     patchWithCleanup(FormController.prototype, {
         setup() {
@@ -11566,6 +11571,7 @@ test(`action button in x2many should display a notification if the record is vir
     mockService("notification", {
         add(message, { type }) {
             expect.step(`${type}:${message}`);
+            return () => {};
         },
     });
 
@@ -12621,6 +12627,7 @@ test(`an empty json object does not pass the required check`, async () => {
             expect.step("notification");
             expect(message).toBe("Missing required fields");
             expect(params).toEqual({ type: "danger" });
+            return () => {};
         },
     });
 
@@ -12845,7 +12852,7 @@ test(`CogMenu dropdown's open/close state shouldn't be modified after 'onchange'
 
 test(`cog menu action is executed with up to date context`, async () => {
     mockService("action", {
-        doAction(id, { additionalContext }) {
+        async doAction(id, { additionalContext }) {
             expect.step(`doAction ${additionalContext.x}`);
         },
     });
@@ -13032,6 +13039,7 @@ test(`do not perform button action for records with invalid datas`, async () => 
     mockService("notification", {
         add: (message) => {
             expect.step(`Pop Up: Invalid Field: ${message}`);
+            return () => {};
         },
     });
     defineActions([

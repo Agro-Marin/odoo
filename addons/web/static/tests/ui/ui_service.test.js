@@ -329,10 +329,12 @@ test("the service releases its breakpoint listeners on destroy", async () => {
     await makeMockEnv();
 
     let attached = 0;
+    const matchMedia = browser.matchMedia;
     patchWithCleanup(browser, {
         matchMedia: (/** @type {string} */ query) => {
             const isBreakpoint = query.startsWith("(min-width:");
-            return {
+            const media = matchMedia(query);
+            patchWithCleanup(media, {
                 matches: false,
                 addEventListener() {
                     if (isBreakpoint) {
@@ -344,7 +346,8 @@ test("the service releases its breakpoint listeners on destroy", async () => {
                         attached--;
                     }
                 },
-            };
+            });
+            return media;
         },
     });
 
@@ -392,6 +395,7 @@ test("the blocking overlay announces its message politely", async () => {
 
 /** @param {() => number} getWidth */
 function mockMatchMediaAtWidth(getWidth) {
+    const matchMedia = browser.matchMedia;
     /** @type {any[]} */
     const medias = [];
     patchWithCleanup(browser, {
@@ -400,7 +404,12 @@ function mockMatchMediaAtWidth(getWidth) {
             const max = query.match(/max-width:\s*([\d.]+)px/)?.[1];
             /** @type {any[]} */
             const listeners = [];
-            const media = {
+            const media = matchMedia(query);
+            const notify = () =>
+                listeners.forEach((cb) =>
+                    cb({ matches: media.matches, target: media }),
+                );
+            patchWithCleanup(media, {
                 get matches() {
                     if (min === undefined && max === undefined) {
                         return false;
@@ -414,12 +423,8 @@ function mockMatchMediaAtWidth(getWidth) {
                 addEventListener: (/** @type {any} */ _, /** @type {any} */ cb) =>
                     listeners.push(cb),
                 removeEventListener: () => {},
-                notify: () =>
-                    listeners.forEach((cb) =>
-                        cb({ matches: media.matches, target: media }),
-                    ),
-            };
-            medias.push(media);
+            });
+            medias.push({ notify });
             return media;
         },
     });

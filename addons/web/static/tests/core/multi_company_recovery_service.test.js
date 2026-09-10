@@ -47,7 +47,7 @@ test("recoverFromLifecycleError activates and reloads for a genuinely new compan
         get activeCompanies() {
             return [{ id: 1 }];
         },
-        activateCompanies(/** @type {number[]} */ ids) {
+        async activateCompanies(/** @type {number[]} */ ids) {
             expect.step(`activate:${ids.join(",")}`);
         },
     });
@@ -114,7 +114,7 @@ test("recoverFromSaveError tolerates a missing allowed_company_ids context", asy
         get activeCompanies() {
             return [{ id: 1 }];
         },
-        activateCompanies(/** @type {number[]} */ ids) {
+        async activateCompanies(/** @type {number[]} */ ids) {
             expect.step(`activate:${ids.join(",")}`);
         },
     });
@@ -135,7 +135,7 @@ test("recoverFromSaveError extends an existing allowed_company_ids context", asy
         get activeCompanies() {
             return [{ id: 1 }];
         },
-        activateCompanies(/** @type {number[]} */ ids) {
+        async activateCompanies(/** @type {number[]} */ ids) {
             expect.step(`activate:${ids.join(",")}`);
         },
     });

@@ -7,7 +7,16 @@ describe.current.tags("headless");
 
 describe("RelationalModel.patchConfig", () => {
     test("is synchronous: patch is visible immediately, no await", () => {
+        /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
         const config = {
+            resModel: "res.partner",
+            domain: [],
+            context: {},
+            orderBy: [],
+            groupBy: [],
+            fieldsToAggregate: [],
+            isRoot: true,
+            isMonoRecord: true,
             activeFields: {},
             fields: {},
             mode: "readonly",
@@ -27,7 +36,16 @@ describe("RelationalModel.patchConfig", () => {
     });
 
     test("keeps keys not present in the patch", () => {
+        /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
         const config = {
+            resModel: "res.partner",
+            domain: [],
+            context: {},
+            orderBy: [],
+            groupBy: [],
+            fieldsToAggregate: [],
+            isRoot: true,
+            isMonoRecord: true,
             activeFields: {},
             fields: {},
             limit: 80,

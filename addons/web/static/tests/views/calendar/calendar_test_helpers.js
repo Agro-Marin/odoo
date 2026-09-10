@@ -299,7 +299,7 @@ export function findFilterPanelSection(sectionName) {
 
 /**
  * @param {string} sectionName
- * @param {string} filterValue
+ * @param {string | number} filterValue
  * @returns {HTMLElement}
  */
 export function findFilterPanelFilter(sectionName, filterValue) {
@@ -753,7 +753,7 @@ export async function navigate(direction) {
 
 /**
  * @param {string} sectionName
- * @param {string} filterValue
+ * @param {string | number} filterValue
  * @returns {Promise<void>}
  */
 export async function toggleFilter(sectionName, filterValue) {
@@ -806,7 +806,7 @@ export async function toggleSectionFilter(sectionName) {
 
 /**
  * @param {string} sectionName
- * @param {string} filterValue
+ * @param {string | number} filterValue
  * @returns {Promise<void>}
  */
 export async function removeFilter(sectionName, filterValue) {

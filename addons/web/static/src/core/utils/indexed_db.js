@@ -397,6 +397,9 @@ export class IndexedDB {
      * @param {IDBDatabase} db
      * @param {string[]} tables
      * @param {{
+     * needsValue: boolean,
+     * shouldDelete: (cursor: IDBCursor | IDBCursorWithValue) => boolean,
+     * }} params
      * @returns {Promise<void>}
      */
     async _removeEntries(db, tables, { needsValue, shouldDelete }) {

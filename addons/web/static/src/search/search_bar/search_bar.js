@@ -81,7 +81,13 @@ export class SearchBar extends Component {
     ui;
     /** @type {{ showSearchBar: boolean }} */
     visibilityState;
-    /** @type {{ */
+    /**
+     * @type {{
+     * expanded: any[];
+     * query: string;
+     * subItemsLimits: Record<string, number>;
+     * }}
+     */
     state;
     /** @type {any[]} */
     items;

@@ -16,8 +16,8 @@ import {
 import { SampleServer } from "@web/model/sample_server";
 
 class DeterministicSampleServer extends SampleServer {
-    constructor() {
-        super(...arguments);
+    constructor(modelName, fields, relatedModels) {
+        super(modelName, fields, relatedModels);
         this.arrayElCpt = 0;
         this.boolCpt = 0;
         this.subRecordIdCpt = 0;

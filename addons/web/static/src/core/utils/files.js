@@ -6,6 +6,7 @@ import { humanNumber } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
 
+/** @import { Services } from "services" */
 export const DEFAULT_MAX_FILE_SIZE = 128 * 1024 * 1024;
 
 /**

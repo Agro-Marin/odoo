@@ -6,6 +6,10 @@
 /** @typedef {any} Tree */
 /** @typedef {any} Value */
 
+/** @import { ValueEditorInfo } from "@web/components/tree_editor/tree_editor_value_editors" */
+
+/** @import { OperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor" */
+
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";

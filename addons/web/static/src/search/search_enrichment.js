@@ -3,6 +3,8 @@
 
 import { getPeriodOptions } from "./utils/dates.js";
 
+/** @import { AutocompleteValue, EnrichedOption, EnrichedSearchItem, QueryElement, StoredSearchItem } from "./search_types" */
+
 /**
  * @param {readonly Record<string, any>[]} options
  * @param {any[]} selectedIds

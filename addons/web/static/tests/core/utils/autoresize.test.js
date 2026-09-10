@@ -62,13 +62,14 @@ test(`call onResize callback`, async () => {
         static props = ["*"];
 
         setup() {
+            /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
             const inputRef = useRef("input");
             useAutoresize(inputRef, {
-                randomParam: true,
+                minimumHeight: 10,
                 onResize(el, options) {
                     expect.step("onResize");
                     expect(el).toBe(inputRef.el);
-                    expect(options).toInclude("randomParam");
+                    expect(options).toInclude("minimumHeight");
                 },
             });
         }
@@ -86,6 +87,7 @@ test(`call onResize callback after resizing text area`, async () => {
         static props = ["*"];
 
         setup() {
+            /** @type {import("@odoo/owl").Ref<HTMLTextAreaElement>} */
             const textareaRef = useRef("textarea");
             useAutoresize(textareaRef, {
                 onResize(el, options) {

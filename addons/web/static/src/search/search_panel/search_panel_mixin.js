@@ -10,6 +10,10 @@ import {
     createFilterTree as buildFilterTree,
 } from "./search_panel_fetch.js";
 
+/** @import { DomainListRepr } from "@web/core/domain" */
+
+/** @import { Category, Filter, Section, SectionPredicate } from "../search_types" */
+
 /**
  * @param {any} error
  * @returns {string}
@@ -74,7 +78,7 @@ export const SearchPanelMixin = (Base) =>
 
         /**
          * @param {SectionPredicate} [predicate]
-         * @returns {Section[]}
+         * @returns {(Section & {empty: boolean})[]}
          */
         getSections(predicate) {
             if (!this._sections) {
@@ -117,7 +121,7 @@ export const SearchPanelMixin = (Base) =>
 
         /**
          * @param {Category} category
-         * @param {number[]} valueIds
+         * @param {(number | false)[]} valueIds
          */
         _updateCategoryValue(category, valueIds) {
             if (!valueIds.includes(category.activeValueId)) {

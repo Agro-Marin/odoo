@@ -14,7 +14,17 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 import { LruCache } from "@web/core/utils/lru_cache";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * callback?: function;
+ * type?: "ram" | "disk";
+ * update?: "once" | "always";
+ * immutable?: boolean;
+ * model?: string;
+ * silent?: boolean;
+ * onRequestIssued?: (request: object) => void;
+ * }} RPCCacheSettings
+ */
 
 const VERSION_FIELD = "__version";
 

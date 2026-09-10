@@ -40,16 +40,24 @@ import { hasTouch } from "@web/core/browser/feature_detection";
  * @typedef {import("@odoo/hoot").QueryOptions} QueryOptions
  * @typedef {import("@odoo/hoot").Target} Target
  * @typedef {DragOptions & {
+ * initialPointerMoveDistance?: number;
+ * pointerDownDuration?: number;
+ * }} DragAndDropOptions
  * @typedef {{
+ * altKey?: boolean;
+ * ctrlKey?: boolean;
+ * metaKey?: boolean;
+ * shiftKey?: boolean;
+ * }} KeyModifierOptions
  */
 
 /**
- * @template
+ * @template T
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
 /**
- * @template {(...args: any) => any}
+ * @template {(...args: any) => any} T
  * @typedef {(...args: Parameters<T>) => MaybePromise<ReturnType<T>>} Promisify
  */
 
@@ -419,7 +427,7 @@ export async function sortableDrag(from, options) {
 
     let isFirstMove = true;
 
-    /** @param {string} [targetSelector] */
+    /** @param {Target} [targetSelector] */
     const moveAbove = async (targetSelector) => {
         await moveTo(targetSelector, {
             position: {
@@ -431,7 +439,7 @@ export async function sortableDrag(from, options) {
         isFirstMove = false;
     };
 
-    /** @param {string} [targetSelector] */
+    /** @param {Target} [targetSelector] */
     const moveUnder = async (targetSelector) => {
         const elRect = queryRect(targetSelector);
         const firstMoveBelow = isFirstMove && elRect.y > fromRect.y;

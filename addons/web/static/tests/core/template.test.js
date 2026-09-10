@@ -37,12 +37,14 @@ const parser = new DOMParser();
 function extractTranslations(template, addon) {
     const doc = parser.parseFromString(template, "text/xml");
     const root = doc.firstChild;
+    /** @type {Record<string, string>} */
     const terms = {};
     visit(root, addon, terms);
     return terms;
 }
 
 function registerTemplates(...templates) {
+    /** @type {Record<string, Record<string, string>>} */
     const translations = {};
 
     for (const { name, content, inheritFrom, inheritMode } of templates) {

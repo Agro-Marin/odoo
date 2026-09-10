@@ -467,7 +467,7 @@ describe("useService", () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const state = reactive({ child: true });
         const def = new Deferred();
-        /** @type {any} */
+        /** @type {import("services").ServiceFactories["failing_service"]} */
         let failing;
 
         class Child extends Component {
@@ -487,7 +487,6 @@ describe("useService", () => {
         }
 
         registry.category("services").add("failing_service", {
-            name: "failing_service",
             async: ["boom"],
             start: () => ({
                 async boom() {
@@ -518,7 +517,7 @@ describe("useService", () => {
     test("a rejection while the owner is alive still propagates", async () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const def = new Deferred();
-        /** @type {any} */
+        /** @type {import("services").ServiceFactories["failing_service"]} */
         let failing;
 
         class Child extends Component {
@@ -530,7 +529,6 @@ describe("useService", () => {
         }
 
         registry.category("services").add("live_failing_service", {
-            name: "live_failing_service",
             async: ["boom"],
             start: () => ({
                 async boom() {
@@ -553,7 +551,7 @@ describe("useService", () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const state = reactive({ child: true });
         let def = new Deferred();
-        /** @type {any} */
+        /** @type {import("services").ServiceFactories["modifier_service"]} */
         let svc;
 
         class Child extends Component {
@@ -573,7 +571,6 @@ describe("useService", () => {
         }
 
         registry.category("services").add("modifier_service", {
-            name: "modifier_service",
             async: ["asyncMethod"],
             start: () => ({
                 _silent: false,
@@ -780,7 +777,9 @@ describe("useSpellCheck", () => {
 
 describe("useChildRef and useForwardRefToParent", () => {
     test("simple usecase", async () => {
+        /** @type {import("@odoo/owl").Ref} */
         let childRef;
+        /** @type {import("@web/core/utils/hooks").ForwardRef} */
         let parentRef;
 
         class Child extends Component {

@@ -254,7 +254,7 @@ test("macro timeout if element is not visible", async () => {
             expect.step(error.message);
         },
     });
-    macro.start(queryOne(".counter"));
+    macro.start();
     await waitForMacro();
     expect.verifySteps(["TIMEOUT step failed to complete within 1000 ms."]);
 });
@@ -343,6 +343,7 @@ test("a string action fails fast at construction", async () => {
         () =>
             new Macro({
                 name: "test",
+                // @ts-expect-error
                 steps: [{ action: "doStuff" }],
             }),
     ).toThrow(/Error in schema for Macro/);
@@ -380,6 +381,7 @@ test("waitUntil rejects when the predicate throws inside the rAF loop", async ()
         }
         return false;
     });
+    /** @type {Error} */
     let caught;
     const settled = prom.catch((error) => (caught = error));
     await runAllTimers();
@@ -441,13 +443,13 @@ test("waitUntil removes its abort listener when it settles normally", async () =
     const originalAdd = signal.addEventListener.bind(signal);
     const originalRemove = signal.removeEventListener.bind(signal);
     patchWithCleanup(signal, {
-        addEventListener(...args) {
+        addEventListener(type, listener, options) {
             added++;
-            return originalAdd(...args);
+            return originalAdd(type, listener, options);
         },
-        removeEventListener(...args) {
+        removeEventListener(type, listener, options) {
             removed++;
-            return originalRemove(...args);
+            return originalRemove(type, listener, options);
         },
     });
     for (let i = 0; i < 5; i++) {

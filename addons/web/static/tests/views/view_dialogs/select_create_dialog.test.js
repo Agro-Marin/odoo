@@ -880,7 +880,7 @@ test("SelectCreateDialog with open action", async () => {
     mockService("action", {
         async doActionButton(params) {
             const { name } = params;
-            expect.step(`execute_action: ${name}`, params);
+            expect.step(`execute_action: ${name}`);
         },
     });
     Instrument._views["list"] = `

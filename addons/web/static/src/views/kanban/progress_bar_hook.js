@@ -11,6 +11,7 @@ import {
     getAggregateSpecifications,
 } from "@web/model/relational_model";
 
+/** @import { Group } from "@web/model/relational_model/group" */
 const FALSE = Symbol("False");
 
 const MOVE_RECONCILE_DELAY = 300;

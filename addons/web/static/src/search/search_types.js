@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { OrderTerm } from "@web/core/utils/order_by" */
+
 /**
  * @typedef {Object} SearchItemCommon
  * @property {number} [id]
@@ -15,21 +17,93 @@
  * @property {boolean} [isInvalid]
  */
 
-/** @typedef {SearchItemCommon & { */
+/**
+ * @typedef {SearchItemCommon & {
+ * type: "filter",
+ * domain: string,
+ * context?: string | Record<string, any>,
+ * }} FilterItem
+ */
 
-/** @typedef {SearchItemCommon & { */
+/**
+ * @typedef {SearchItemCommon & {
+ * type: "dateFilter",
+ * fieldName: string,
+ * fieldType: "date" | "datetime",
+ * domain: string,
+ * optionsParams: PeriodWindow,
+ * defaultGeneratorIds: string[],
+ * }} DateFilterItem
+ */
 
-/** @typedef {SearchItemCommon & { */
+/**
+ * @typedef {SearchItemCommon & {
+ * type: "groupBy",
+ * fieldName: string,
+ * fieldType?: string,
+ * custom?: boolean,
+ * isProperty?: boolean,
+ * propertyFieldName?: string,
+ * definitionRecordId?: number,
+ * definitionRecordName?: string,
+ * }} GroupByItem
+ */
 
-/** @typedef {SearchItemCommon & { */
+/**
+ * @typedef {SearchItemCommon & {
+ * type: "dateGroupBy",
+ * fieldName: string,
+ * fieldType?: string,
+ * defaultIntervalId: string,
+ * custom?: boolean,
+ * isProperty?: boolean,
+ * propertyFieldName?: string,
+ * definitionRecordId?: number,
+ * definitionRecordName?: string,
+ * }} DateGroupByItem
+ */
 
-/** @typedef {SearchItemCommon & { */
+/**
+ * @typedef {SearchItemCommon & {
+ * type: "field",
+ * fieldName: string,
+ * fieldType: string,
+ * domain?: string,
+ * filterDomain?: string,
+ * operator?: string,
+ * context?: string,
+ * defaultAutocompleteValue?: AutocompleteValue,
+ * }} FieldItem
+ */
 
-/** @typedef {SearchItemCommon & { */
+/**
+ * @typedef {SearchItemCommon & {
+ * type: "field_property",
+ * fieldName: string,
+ * propertyItemId: number,
+ * propertyDomain: any[],
+ * propertyFieldDefinition: Record<string, any>,
+ * operator?: string,
+ * }} FieldPropertyItem
+ */
 
-/** @typedef {SearchItemCommon & { */
+/**
+ * @typedef {SearchItemCommon & {
+ * type: "favorite",
+ * domain: string,
+ * context: Record<string, any>,
+ * groupBys: string[],
+ * orderBy: OrderTerm[],
+ * userIds: number[],
+ * serverSideId: number,
+ * removable?: boolean,
+ * }} FavoriteItem
+ */
 
-/** @typedef {FilterItem | DateFilterItem | GroupByItem | DateGroupByItem */
+/**
+ * @typedef {FilterItem | DateFilterItem | GroupByItem | DateGroupByItem
+ * | FieldItem | FieldPropertyItem | FavoriteItem} SearchItem
+ */
 
 /** @typedef {SearchItem & { id: number, groupId: number }} StoredSearchItem */
 
@@ -118,6 +192,12 @@
  * @property {boolean} isActive
  */
 
-/** @typedef {SearchItem & { */
+/**
+ * @typedef {SearchItem & {
+ * isActive: boolean,
+ * options?: EnrichedOption[],
+ * autocompleteValues?: AutocompleteValue[],
+ * }} EnrichedSearchItem
+ */
 
 export {};

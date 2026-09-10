@@ -13,6 +13,11 @@ import {
  * @typedef {import("./suite").Suite} Suite
  * @typedef {import("./suite").Test} Test
  * @typedef {{
+ *  name: string;
+ *  exclude?: string[];
+ *  before?: (test: Test) => any;
+ *  after?: (test: Test) => any;
+ * }} TagDefinition
  */
 
 const {

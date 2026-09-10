@@ -53,6 +53,16 @@ import {
 } from "./search_state.js";
 import { getIntervalOptions } from "./utils/dates.js";
 
+/** @import { Context } from "@web/core/context" */
+
+/** @import { Domain, DomainListRepr } from "@web/core/domain" */
+
+/** @import { OrderTerm } from "@web/core/utils/order_by" */
+
+/** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
+
+/** @import { ActiveItem, AutocompleteValue, Category, Facet, Filter, QueryElement, QueryGroup, SearchItem, SearchItems, Section, StoredSearchItem } from "./search_types" */
+
 /**
  * @typedef {Object} SearchModelConfig
  * @property {string} resModel

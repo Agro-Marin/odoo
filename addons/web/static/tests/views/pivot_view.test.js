@@ -554,7 +554,7 @@ test("clicking on a cell triggers a doAction", async () => {
                     [2, "form"],
                 ],
             });
-            return Promise.resolve(true);
+            return Promise.resolve();
         },
     });
 
@@ -645,7 +645,7 @@ test('clicking on the "Total" cell with time range activated', async () => {
                 ["date", ">=", "2016-12-01"],
                 ["date", "<=", "2016-12-31"],
             ]);
-            return Promise.resolve(true);
+            return Promise.resolve();
         },
     });
 
@@ -2591,7 +2591,7 @@ test("correctly compute group domain when a date field has false value", async (
     mockService("action", {
         doAction(action) {
             expect(action.domain).toEqual([["date", "=", false]]);
-            return Promise.resolve(true);
+            return Promise.resolve();
         },
     });
 
@@ -4003,7 +4003,7 @@ test("middle clicking on a cell triggers a doAction", async () => {
                 ],
             });
             expect(options).toEqual({ newWindow: true, viewType: "list" });
-            return Promise.resolve(true);
+            return Promise.resolve();
         },
     });
 

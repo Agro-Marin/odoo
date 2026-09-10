@@ -303,6 +303,7 @@ test("properties: no access to parent", async () => {
     patchWithCleanup(formView.env.services.notification, {
         add: (message, options) => {
             expect(message).toBe('Oops! You cannot edit the Company "Company 1".');
+            return () => {};
         },
     });
 
@@ -802,7 +803,7 @@ test("properties: move properties", async () => {
         },
     );
 
-    await click(popover, ".oi-chevron-up");
+    await contains(".oi-chevron-up", { root: popover }).click();
     expect(queryAllTexts(".o_field_properties .o_field_property_label")).toEqual([
         "My Selection",
         "My Char",
@@ -1182,12 +1183,12 @@ test("properties: many2one 'Search more...' +  internal link save keeps data", a
             comodel: "partner",
         },
     ];
-    Partner._views[["list", false]] = `
+    Partner._views["list,false"] = `
         <list>
             <field name="id"/>
             <field name="display_name"/>
         </list>`;
-    User._views[["form", false]] = `
+    User._views["form,false"] = `
         <form>
             <sheet>
                 <group>
@@ -1195,7 +1196,7 @@ test("properties: many2one 'Search more...' +  internal link save keeps data", a
                 </group>
             </sheet>
         </form>`;
-    User._views[["list", false]] = `
+    User._views["list,false"] = `
         <list>
             <field name="id"/>
             <field name="display_name"/>
@@ -1768,7 +1769,7 @@ test("properties: kanban view without properties", async () => {
 
 test.tags("desktop");
 test("properties: switch view on desktop", async () => {
-    Partner._views[["kanban", 99]] = `<kanban>
+    Partner._views["kanban,99"] = `<kanban>
                 <templates>
                     <t t-name="card">
                         <field name="company_id"/> <hr/>
@@ -1777,7 +1778,7 @@ test("properties: switch view on desktop", async () => {
                     </t>
                 </templates>
             </kanban>`;
-    Partner._views[["list", 100]] = `<list limit="1">
+    Partner._views["list,100"] = `<list limit="1">
                 <field name="display_name"/>
                 <field name="properties"/>
             </list>`;
@@ -1801,7 +1802,7 @@ test("properties: switch view on desktop", async () => {
 
 test.tags("mobile");
 test("properties: switch view on mobile", async () => {
-    Partner._views[["kanban", 99]] = `<kanban>
+    Partner._views["kanban,99"] = `<kanban>
                 <templates>
                     <t t-name="card">
                         <field name="company_id"/> <hr/>
@@ -1810,7 +1811,7 @@ test("properties: switch view on mobile", async () => {
                     </t>
                 </templates>
             </kanban>`;
-    Partner._views[["list", 100]] = `<list limit="1">
+    Partner._views["list,100"] = `<list limit="1">
                 <field name="display_name"/>
                 <field name="properties"/>
             </list>`;
@@ -2862,7 +2863,7 @@ test("properties: moving single property to 2nd group in auto split mode", async
         getPropertyHandleElement("property_1"),
     ).drag();
     const secondGroup = queryFirst(".o_property_group:last-of-type");
-    await moveTo(secondGroup, "bottom");
+    await moveTo(secondGroup, { position: "bottom" });
     await drop();
     expect(getGroups()).toEqual([
         [["GROUP 1", "property_gen_2"]],
@@ -2897,7 +2898,7 @@ test("properties: split, moving property from 2nd group to 1st", async () => {
     await toggleMenuItem("Edit Properties");
     await contains(getPropertyHandleElement("property_3")).dragAndDrop(
         getPropertyHandleElement("property_2"),
-        "top",
+        { position: "top" },
     );
     expect(getGroups()).toEqual([
         [
@@ -2916,7 +2917,7 @@ test("properties: split, moving property from 1st group to 2nd", async () => {
     await toggleMenuItem("Edit Properties");
     await contains(getPropertyHandleElement("property_3")).dragAndDrop(
         getPropertyHandleElement("property_6"),
-        "top",
+        { position: "top" },
     );
     expect(getGroups()).toEqual([
         [

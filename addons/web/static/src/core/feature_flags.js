@@ -6,7 +6,12 @@ import { session } from "@web/session";
 
 /** @typedef {boolean | number | string | null} FeatureFlagValue */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * default?: FeatureFlagValue;
+ * description?: string;
+ * }} FeatureFlagOptions
+ */
 
 const LS_PREFIX = "feature.";
 const URL_PARAM_NAME = "features";

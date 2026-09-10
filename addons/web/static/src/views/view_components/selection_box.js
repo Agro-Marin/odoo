@@ -9,7 +9,10 @@ export class SelectionBox extends Component {
     static props = {
         root: { type: Object },
     };
-    /** @returns {import("@web/model/relational_model/dynamic_record_list").DynamicRecordList */
+    /**
+     * @returns {import("@web/model/relational_model/dynamic_record_list").DynamicRecordList
+     * & import("@web/model/relational_model/dynamic_group_list").DynamicGroupList}
+     */
     get root() {
         return this.props.root;
     }

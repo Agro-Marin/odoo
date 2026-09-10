@@ -33,7 +33,28 @@ import { makePopover } from "@web/ui/popover/popover_hook";
  * @typedef {import("@odoo/owl").Component} Component
  * @typedef {ReturnType<typeof import("@odoo/owl").useRef>} OwlRef
  * @typedef {{
+ * createPopover?: (component: import("@odoo/owl").ComponentConstructor, options: PopoverServiceAddOptions) => PopoverHookReturnType;
+ * ensureVisibility?: () => boolean;
+ * format?: string;
+ * getInputs?: () => HTMLElement[];
+ * onApply?: (value: DateTimePickerProps["value"]) => any;
+ * onChange?: (value: DateTimePickerProps["value"]) => any;
+ * onClose?: () => any;
+ * pickerProps?: DateTimePickerProps;
+ * showSeconds?: boolean;
+ * target?: HTMLElement | string;
+ * useOwlHooks?: boolean;
+ * }} DateTimePickerServiceParams
  * @typedef {{
+ * enable: () => (() => void);
+ * unregister: () => boolean;
+ * dispose: () => void;
+ * isOpen: () => boolean;
+ * open: (inputIndex: number) => void;
+ * close: () => void;
+ * commitInputs: () => Promise<void>;
+ * state: DateTimePickerProps;
+ * }} DateTimePickerHandle
  */
 
 /**
@@ -625,7 +646,7 @@ export class DateTimePickerService {
     }
 }
 
-const datetimePickerService = {
+export const datetimePickerService = {
     dependencies: ["popover"],
     start(env, { popover: popoverService }) {
         return new DateTimePickerService(env, popoverService);

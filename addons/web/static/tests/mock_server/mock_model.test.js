@@ -84,7 +84,14 @@ test("models can be extended by having the same name", async () => {
         }
 
         same_method() {
-            return [super.same_method(), "2"].join(" & ");
+            const inherited = Reflect.get(
+                Object.getPrototypeOf(Second.prototype),
+                "same_method",
+            );
+            if (typeof inherited !== "function") {
+                throw new Error("Expected the inherited model method");
+            }
+            return [inherited.call(this), "2"].join(" & ");
         }
     }
 

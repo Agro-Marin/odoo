@@ -13,7 +13,10 @@ export class FormControllerWithHTMLExpander extends FormController {
         super.setup();
         this.htmlExpanderState = useState({ reload: true });
         const oldOnNotebookPageChange = this.onNotebookPageChange;
-        /** @param {string} notebookId */
+        /**
+         * @param {string} notebookId
+         * @param {string} page
+         */
         this.onNotebookPageChange = (notebookId, page) => {
             oldOnNotebookPageChange(notebookId, page);
             if (page && !this.htmlExpanderState.reload) {
@@ -42,7 +45,10 @@ export class FormControllerWithHTMLExpander extends FormController {
         this.htmlExpanderState.reload = false;
     }
 
-    /** @param {any} record */
+    /**
+     * @param {any} record
+     * @param {any} changes
+     */
     async onRecordSaved(record, changes) {
         super.onRecordSaved(record, changes);
         this.htmlExpanderState.reload = true;

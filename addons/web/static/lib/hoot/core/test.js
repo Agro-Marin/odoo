@@ -7,7 +7,7 @@ import { Job } from "./job.js";
 import { Tag } from "./tag.js";
 
 /**
- * @template
+ * @template T
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 

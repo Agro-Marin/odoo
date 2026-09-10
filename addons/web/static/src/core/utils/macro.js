@@ -163,12 +163,12 @@ export class Macro {
         this.onComplete = this.onComplete ?? (() => {});
         /** @type {Function} */
         this.onStep = this.onStep ?? (() => {});
-        /** @type {(info: { error: Error, step: MacroStep, index: number }) => void} */
-        this.onError =
-            this.onError ??
-            (({ error, step, index }) => {
-                console.error(error.message ?? error, step, index);
-            });
+        this.onError ??= Macro.prototype.onError;
+    }
+
+    /** @param {{ error: Error, step: MacroStep, index: number }} info */
+    onError({ error, step, index }) {
+        console.error(error.message ?? error, step, index);
     }
 
     async start() {

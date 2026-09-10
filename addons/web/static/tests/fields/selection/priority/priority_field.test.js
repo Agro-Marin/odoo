@@ -245,8 +245,8 @@ test("PriorityField can write after adding a record -- kanban", async () => {
     Partner._fields.selection = fields.Selection({
         string: "Selection",
         selection: [
-            ["0", 0],
-            ["1", 1],
+            ["0", "0"],
+            ["1", "1"],
         ],
     });
     Partner._records[0].selection = "0";

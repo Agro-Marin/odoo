@@ -61,7 +61,12 @@ export class CogMenu extends ActionMenus {
         );
     }
 
-    /** @returns {Array< */
+    /**
+     * @returns {Array<
+     * | {Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}
+     * | {key: string, groupNumber: number, description?: string, action?: any, callback?: Function}
+     * >}
+     */
     get cogItems() {
         return [...this.registryItems, ...(this.actionItems ?? [])].toSorted(
             (item1, item2) => (item1.groupNumber || 0) - (item2.groupNumber || 0),

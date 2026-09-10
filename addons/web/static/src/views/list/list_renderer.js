@@ -79,9 +79,72 @@ const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) =>
  * @typedef {import("./list_column_utils").Column} Column
  * @typedef {"up" | "down" | "left" | "right"} Direction
  * @typedef {ViewProps & {
+ * list: DynamicList | StaticList;
+ * archInfo?: any;
+ * editable?: any;
+ * cycleOnTab?: boolean;
+ * allowSelectors?: boolean;
+ * [key: string]: any;
+ * }} ListRendererProps
  * @typedef {{
+ * getProps: () => ListRendererProps;
+ * getEnv: () => any;
+ * getColumns: () => Column[];
+ * getAllColumns: () => Column[];
+ * getFields: () => Record<string, object>;
+ * getGridState: () => import("./list_grid_state").ListGridState;
+ * getEditedRecord: () => any;
+ * getOptionalActiveFields: () => Record<string, boolean>;
+ * getAllowSelectors: () => boolean;
+ * getCanCreate: () => boolean;
+ * getDisplayRowCreates: () => boolean;
+ * getControls: () => any[];
+ * getSel: () => any;
+ * getVirtualization: () => import("./list_virtualization").ListVirtualization | undefined;
+ * canResequence: () => boolean;
+ * toggleRecordSelection: (record: object) => void;
+ * onToggleGroup: (group: object) => void;
+ * onAdd: (params?: object) => void;
+ * onOpenRecord: (record: object) => void;
+ * onDeleteRecord: (record: object) => void;
+ * onEditNextRecord: (record: object, group?: object) => any;
+ * onSave: () => void;
+ * findFocusFutureCell: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | null;
+ * isInlineEditable: (record: object) => boolean;
+ * isCellReadonly: (column: Column, record: object) => boolean;
+ * expandCheckboxes: (record: object, direction: "up" | "down") => boolean;
+ * setKeyboardNavigation: (active: boolean) => void;
+ * }} ListGridContext
  * @typedef {{
+ * isEditing: boolean;
+ * canSelectRecord: boolean;
+ * }} ListRowFlags
  * @typedef {{
+ * getRowClass: (record: RelationalRecord) => string;
+ * getColumns: (record: RelationalRecord) => Column[];
+ * evalInvisible: (invisible: string, record: RelationalRecord) => boolean;
+ * canUseFormatter: (column: Column, record: RelationalRecord) => boolean;
+ * getFormattedValue: (column: Column, record: RelationalRecord) => any;
+ * getCellClass: (column: Column, record: RelationalRecord) => string;
+ * getCellTitle: (column: Column, record: RelationalRecord, formattedValue?: string) => string | undefined;
+ * getFieldClass: (column: Column) => string;
+ * getFieldProps: (record: RelationalRecord, column: Column) => object;
+ * displayDeleteIcon: (record: RelationalRecord) => boolean;
+ * onCellClicked: (record: RelationalRecord, column: Column, ev: PointerEvent, newWindow?: boolean) => any;
+ * onButtonCellClicked: (record: RelationalRecord, column: Column, ev: PointerEvent) => any;
+ * onRemoveCellClicked: (record: RelationalRecord, ev: PointerEvent) => any;
+ * onCellKeydown: (ev: KeyboardEvent, group?: Group | null, record?: object | null) => any;
+ * toggleRecordSelection: (record: any) => any;
+ * onRowTouchStart: (record: RelationalRecord, ev: TouchEvent) => void;
+ * onRowTouchEnd: (record: RelationalRecord) => void;
+ * onRowTouchMove: (record: RelationalRecord) => void;
+ * onClickCapture: (record: RelationalRecord, ev: PointerEvent) => void;
+ * ignoreEventInSelectionMode: (ev: MouseEvent) => void;
+ * getGridState: () => import("./list_grid_state").ListGridState;
+ * getEditedRecord: () => any;
+ * displaySaveNotification: () => void;
+ * markRowRender: (recordId: string) => void;
+ * }} ListRowApi
  */
 
 export class ListRenderer extends Component {

@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { Action, BaseView } from "./action_service.js" */
+
 /**
  * @param {BaseView[]} views
  * @param {boolean} multiRecord

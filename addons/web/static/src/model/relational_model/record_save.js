@@ -18,6 +18,7 @@ import {
     x2manyLists,
 } from "./x2many_tree.js";
 
+/** @import { RelationalRecord } from "@web/model/relational_model/record" */
 const PENDING_COMMANDS_MAX_ITERATIONS = 100;
 
 /** @param {RelationalRecord} record */
@@ -144,6 +145,7 @@ function collectOrderBys(record, nextId) {
 /**
  * @param {RelationalRecord} record
  * @param {{ reload: boolean, nextId: number | undefined, orderBys: Record<string, any>,
+ * concurrencyBaseline: Record<string, any> }} params
  * @returns {Record<string, any>}
  */
 function getSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline }) {
@@ -170,6 +172,7 @@ function getSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline }
  * @param {RelationalRecord} record
  * @param {Record<string, any>[]} records
  * @param {{ reload: boolean, nextId: number | undefined, creation: boolean,
+ * changes: Record<string, any>, orderBys: Record<string, any> }} params
  * @returns {Promise<void>}
  */
 async function applySaveResult(
@@ -212,9 +215,16 @@ async function applySaveResult(
 }
 
 /**
+ * @template {(e: Error, actions: { discard: () => void, retry: () => Promise<unknown> }) => unknown} [OnError=() => never]
+ * @overload
  * @param {RelationalRecord} record
- * @param {{ reload?: boolean, onError?: (e: Error, actions: { discard: () => void, retry: () => any }) => any, nextId?: number }} [options]
- * @returns {Promise<boolean>}
+ * @param {{ reload?: boolean, onError?: OnError, nextId?: number }} [options]
+ * @returns {Promise<boolean | Awaited<ReturnType<OnError>>>}
+ */
+/**
+ * @param {RelationalRecord} record
+ * @param {{ reload?: boolean, onError?: (e: Error, actions: { discard: () => void, retry: () => Promise<unknown> }) => unknown, nextId?: number }} [options]
+ * @returns {Promise<unknown>}
  */
 export async function save(record, { reload = true, onError, nextId } = {}) {
     modelLog("save", record.resModel, record.resId || "(new)");

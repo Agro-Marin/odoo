@@ -41,7 +41,11 @@ class Product extends models.Model {
         const result = super.name_search(...arguments);
         const kwargs = getKwArgs(arguments, "name", "domain", "operator", "limit");
         for (const record of this) {
-            if (record.barcode === kwargs.name) {
+            if (
+                record.barcode === kwargs.name &&
+                typeof record.id === "number" &&
+                typeof record.name === "string"
+            ) {
                 result.push([record.id, record.name]);
             }
         }
@@ -80,7 +84,10 @@ defineModels([Product, SaleOrderLine, User]);
 
 beforeEach(() => {
     mockUserAgent("android");
-    mockVibrate((pattern) => expect.step(`vibrate:${pattern}`));
+    mockVibrate((pattern) => {
+        expect.step(`vibrate:${pattern}`);
+        return true;
+    });
 });
 
 test("Many2OneBarcode component should display the barcode icon", async () => {

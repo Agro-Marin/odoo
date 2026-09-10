@@ -42,7 +42,11 @@ test("reorderApps: a newly installed app does not scramble the customized order"
 
 /** @param {any[]} spec */
 function makeTree(spec) {
-    /** @param {any} node */
+    /**
+     * @param {any} node
+     * @param {number | undefined} appID
+     * @returns {any}
+     */
     const build = (node, appID) => {
         const id = node.id;
         const ownAppID = appID ?? id;

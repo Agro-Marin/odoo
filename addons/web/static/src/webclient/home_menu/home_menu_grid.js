@@ -24,7 +24,16 @@ const MENU_MATCHES = 8;
 const EMPTY_MENU_TREE = { childrenTree: [] };
 
 export class HomeMenuGrid {
-    /** @param {{ */
+    /**
+     * @param {{
+     *  apps: () => HomeMenuApp[],
+     *  query: () => string,
+     *  editing: () => boolean,
+     *  badges: () => Record<string, number>,
+     *  layout: import("./home_menu_layout.js").HomeMenuLayout,
+     *  menus: import("services").ServiceFactories["menu"],
+     * }} params
+     */
     constructor({ apps, query, editing, badges, layout, menus }) {
         this.apps = apps;
         this.query = query;

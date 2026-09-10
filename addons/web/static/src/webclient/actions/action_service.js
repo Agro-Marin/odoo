@@ -106,11 +106,17 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Record<ViewType, Controller>} [controllers]
  * @property {CallableFunction} [onClose]
  */
-/** @typedef {Omit<Action, "views"> & { type: "ir.actions.act_window", views: any[][], */
+/**
+ * @typedef {Omit<Action, "views"> & { type: "ir.actions.act_window", views: any[][],
+ * mobile_view_mode?: string }} ActWindowAction
+ */
 /** @typedef {Action & { type: "ir.actions.act_url", url?: string, close?: boolean }} ActURLAction */
 /** @typedef {Action & { type: "ir.actions.client" }} ClientAction */
 /** @typedef {Action & { type: "ir.actions.server" }} ServerAction */
-/** @typedef {Action & { type: "ir.actions.report", report_name?: string, report_file?: string, */
+/**
+ * @typedef {Action & { type: "ir.actions.report", report_name?: string, report_file?: string,
+ * data?: Record<string, any>, close_on_report_download?: boolean }} ReportAction
+ */
 /**
  * @typedef {Object} Controller
  * @property {string} jsId

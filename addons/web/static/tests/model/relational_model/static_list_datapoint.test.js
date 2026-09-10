@@ -196,7 +196,7 @@ describe("_duplicateRecords early-return guards", () => {
 
     test("no handleField to sequence on: returns without touching any collaborator", async () => {
         const records = [{ data: { sequence: 1 } }];
-        const list = makeBareStaticList({ records, handleField: false });
+        const list = makeBareStaticList({ records, handleField: "" });
         await list._duplicateRecords(records, {});
         expect(list.records).toBe(records);
     });

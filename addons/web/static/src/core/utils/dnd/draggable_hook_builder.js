@@ -19,6 +19,17 @@ import {
 export { DRAGGED_CLASS };
 
 /**
+ * @typedef DragOptions
+ * @property {boolean} [allowDisconnected]
+ * @property {(el: HTMLElement) => boolean} [preventDrag]
+ * @property {number} [delay]
+ * @property {number} [touchDelay]
+ * @property {number} [tolerance]
+ * @property {Partial<EdgeScrollingOptions> | (() => Partial<EdgeScrollingOptions>)} [edgeScrolling]
+ * @property {Window | (() => Window)} [iframeWindow]
+ */
+
+/**
  * @typedef {ReturnType<typeof import("./draggable_hook_builder_utils.js")["makeCleanupManager"]>} CleanupManager
  * @typedef {ReturnType<typeof import("./draggable_hook_builder_utils.js")["makeDOMHelpers"]>} DOMHelpers
  * @typedef DraggableBuilderParams
@@ -27,6 +38,12 @@ export { DRAGGED_CLASS };
  * @property {Record<string, string[]>} [acceptedParams]
  * @property {Record<string, any>} [defaultParams]
  * @property {{
+ * addListener?: typeof import("@odoo/owl")["useExternalListener"];
+ * setup: typeof import("@odoo/owl")["useEffect"];
+ * teardown: typeof import("@odoo/owl")["onWillUnmount"];
+ * throttle: typeof import("@web/core/utils/timing")["useThrottleForAnimation"];
+ * wrapState: typeof import("@odoo/owl")["reactive"];
+ * }} setupHooks
  * @property {(params: DraggableBuildHandlerParams) => any} onComputeParams
  * @property {(params: DraggableBuildHandlerParams) => any} onDragStart
  * @property {(params: DraggableBuildHandlerParams) => any} onDrag
@@ -34,7 +51,38 @@ export { DRAGGED_CLASS };
  * @property {(params: DraggableBuildHandlerParams) => any} onDrop
  * @property {(params: DraggableBuildHandlerParams) => any} onWillStartDrag
  * @typedef {{
+ * ref: { el: HTMLElement | null };
+ * elementSelector?: string | null;
+ * ignoreSelector: string | null;
+ * fullSelector: string | null;
+ * followCursor: boolean;
+ * cursor: string | null;
+ * enable: () => boolean;
+ * preventDrag: (el: HTMLElement) => boolean;
+ * pointer: Position;
+ * edgeScrolling: EdgeScrollingOptions;
+ * delay?: number;
+ * tolerance?: number;
+ * touchDelay?: number;
+ * dragging: boolean;
+ * willDrag: boolean;
+ * current: DraggableHookCurrentContext;
+ * [key: string]: any;
+ * }} DraggableHookContext
  * @typedef {{
+ * container: HTMLElement;
+ * containerRect: DOMRect;
+ * element: HTMLElement;
+ * elementRect: DOMRect;
+ * scrollParentX?: HTMLElement | null;
+ * scrollParentXRect?: DOMRect | null;
+ * scrollParentY?: HTMLElement | null;
+ * scrollParentYRect?: DOMRect | null;
+ * timeout?: ReturnType<typeof import("@web/core/browser/browser")["browser"]["setTimeout"]>;
+ * initialPosition: Position;
+ * offset: Position;
+ * [key: string]: any;
+ * }} DraggableHookCurrentContext
  * @typedef EdgeScrollingOptions
  * @property {boolean} [enabled=true]
  * @property {number} speed
@@ -44,6 +92,11 @@ export { DRAGGED_CLASS };
  * @property {number} x
  * @property {number} y
  * @typedef {DOMHelpers & {
+ * ctx: DraggableHookContext,
+ * addCleanup(cleanupFn: () => any): void,
+ * addEffectCleanup(cleanupFn: () => any): void,
+ * callHandler(handlerName: string, arg: Record<any, any>): void,
+ * }} DraggableBuildHandlerParams
  * @typedef {DOMHelpers & Position & { element: HTMLElement }} DraggableHandlerParams
  */
 

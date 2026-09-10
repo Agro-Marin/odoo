@@ -70,7 +70,15 @@ export class X2ManyField extends FieldComponent {
     /** @type {Record<string, any>} */
     fieldDefinition;
 
-    /** @type {{ */
+    /**
+     * @type {{
+     * openRecord: (record: any) => any,
+     * onAdd: (params: any) => any,
+     * onListAdd: (params: any) => any,
+     * onOpenFormView: (record: any, options: any) => any,
+     * deleteRecord: (record: any) => any,
+     * }}
+     */
     rendererCallbacks;
 
     /** @type {{ source: Record<string, any> | null, recordsDraggable: boolean | undefined, archInfo: Record<string, any> | null }} */

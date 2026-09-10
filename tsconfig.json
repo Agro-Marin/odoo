@@ -16,6 +16,9 @@
         "disableSizeLimit": true,
         "types": [],
         "paths": {
+            "/web/static/lib/bootstrap/bootstrap.esm.js": [
+                "addons/web/static/lib/bootstrap/bootstrap.esm.js"
+            ],
             "@odoo/hoot": ["addons/web/static/lib/hoot/hoot.js"],
             "@odoo/hoot-mock": ["addons/web/static/lib/hoot/hoot-mock.js"],
             "@odoo/hoot-dom": ["addons/web/static/lib/hoot-dom/hoot-dom.js"],

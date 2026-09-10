@@ -140,13 +140,16 @@ function captureVisibilityHandlers() {
     /** @type {Array<() => void>} */
     const handlers = [];
     patchWithCleanup(browser, {
-        /**
-         * @param {string} type
-         * @param {() => void} handler
-         */
         addEventListener(type, handler) {
             expect(type).toBe("visibilitychange");
-            handlers.push(handler);
+            handlers.push(() => {
+                const event = new Event(type);
+                if (typeof handler === "function") {
+                    handler.call(window, event);
+                } else {
+                    handler.handleEvent(event);
+                }
+            });
         },
     });
     return handlers;
@@ -224,7 +227,9 @@ test("the default landing is the home menu even with a dangling first menu id", 
     /** @type {any[]} */
     const selected = [];
     patchWithCleanup(getService("menu"), {
-        selectMenu: (menu) => selected.push(menu?.id ?? menu),
+        selectMenu: async (menu) => {
+            selected.push(menu?.id ?? menu);
+        },
     });
 
     await mountWebClient();

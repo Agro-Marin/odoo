@@ -24,11 +24,17 @@ import { SampleDataCoordinator } from "./sample_data_coordinator.js";
 import { makeSampleORM } from "./sample_server.js";
 import { getSearchParamsIssues } from "./search_params_schema.js";
 
+/** @import { OdooEnv } from "@web/env" */
+/** @import { SearchParams } from "@web/model/types" */
+/** @import { ServiceFactories as Services } from "services" */
+/** @typedef {{new(env: OdooEnv, params: Object, services: Object): Model; services: string[]; prototype: Model; name: string}} ModelConstructor */
+
+/** @template {object} [E=OdooEnv] */
 export class Model extends SignalStore {
     static services = [];
 
     /**
-     * @param {OdooEnv} env
+     * @param {E} env
      * @param {Object} params
      * @param {Object} services
      */
@@ -149,7 +155,7 @@ function _isSearchParamsValidationEnabled() {
 }
 
 /**
- * @param {typeof Model} ModelClass
+ * @param {ModelConstructor} ModelClass
  * @returns {Record<string, any>}
  */
 function useModelServices(ModelClass) {
@@ -174,7 +180,7 @@ function reloadFromProps(model, props) {
 }
 
 /**
- * @param {typeof Model} ModelClass
+ * @param {ModelConstructor} ModelClass
  * @param {(component: import("@odoo/owl").Component) => Object} buildParams
  * @returns {{ component: import("@odoo/owl").Component, model: Model }}
  */
@@ -193,7 +199,7 @@ function makeModel(ModelClass, buildParams) {
 }
 
 /**
- * @param {typeof Model} ModelClass
+ * @param {ModelConstructor} ModelClass
  * @param {Object} params
  * @param {Object} [options]
  * @param {Function} [options.beforeFirstLoad]
@@ -211,10 +217,10 @@ export function useModel(ModelClass, params, options = {}) {
 }
 
 /**
- * @param {typeof Model} ModelClass
+ * @param {ModelConstructor} ModelClass
  * @param {Object} params
  * @param {Object} [options]
- * @param {Function} [options.lazy=false]
+ * @param {boolean} [options.lazy=false]
  * @returns {Model}
  */
 export function useModelWithSampleData(ModelClass, params, options = {}) {

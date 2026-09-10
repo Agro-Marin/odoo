@@ -200,7 +200,7 @@ test("the notification service exposes no close entry point", async () => {
     await makeMockEnv();
 
     const service = getService("notification");
-    expect(service.close).toBe(undefined);
+    expect(Reflect.get(service, "close")).toBe(undefined);
     for (const name of ["add", "notifications", "destroy"]) {
         expect(service[name]).not.toBe(undefined);
     }
@@ -313,6 +313,7 @@ test("a notification that fails to render does not kill later notifications", as
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
 
+    // @ts-expect-error
     getService("notification").add("faulty", { buttons: "not-a-list" });
     await animationFrame();
     await animationFrame();
@@ -363,6 +364,7 @@ test("an unrecognised option does not cost the caller their notification", async
     await animationFrame();
     expect(".o_notification").toHaveCount(1);
 
+    // @ts-expect-error
     getService("notification").add("second", { notAnOption: true });
     await animationFrame();
     await animationFrame();

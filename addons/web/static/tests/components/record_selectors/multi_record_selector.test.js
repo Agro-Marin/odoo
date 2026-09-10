@@ -202,6 +202,7 @@ test("A superseded display-name load does not overwrite the current selection", 
         }
     });
 
+    /** @type {Parent} */
     let parent;
     class Parent extends Component {
         static components = { MultiRecordSelector };

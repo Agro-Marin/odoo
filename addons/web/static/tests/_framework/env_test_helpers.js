@@ -13,6 +13,7 @@ import { pick } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
 import { makeEnv, startServices } from "@web/env";
 
+/** @import { OdooEnv } from "@web/env" */
 import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
 
 /**
@@ -56,7 +57,7 @@ export function getMockEnv() {
 }
 
 /**
- * @template {keyof Services}
+ * @template {keyof Services} T
  * @param {T} name
  * @returns {Services[T]}
  */
@@ -67,6 +68,8 @@ export function getService(name) {
 /**
  * @param {Partial<OdooEnv>} [partialEnv]
  * @param {{
+ * makeNew?: boolean;
+ * }} [options]
  */
 export async function makeMockEnv(partialEnv, options) {
     if (currentEnv && !options?.makeNew) {
@@ -124,9 +127,11 @@ export async function makeDialogMockEnv(partialEnv) {
 }
 
 /**
- * @template {keyof Services}
+ * @template {keyof Services} T
  * @param {T} name
  * @param {Partial<Services[T]> |
+ * ((env: OdooEnv, dependencies: Dependencies) => Services[T])
+ * } serviceFactory
  */
 export function mockService(name, serviceFactory) {
     const serviceRegistry = registry.category("services");

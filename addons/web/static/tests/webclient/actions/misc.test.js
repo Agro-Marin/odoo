@@ -557,6 +557,7 @@ test("document's title is updated when an action is executed", async () => {
 
 test.tags("desktop");
 test('handles "history_back" event', async () => {
+    /** @type {import("@web/views/list/list_controller").ListController} */
     let list;
     patchWithCleanup(listView.Controller.prototype, {
         setup() {

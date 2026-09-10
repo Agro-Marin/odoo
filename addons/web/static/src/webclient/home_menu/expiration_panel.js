@@ -16,7 +16,7 @@ function dayCount(days) {
     return days === 1 ? _t("1 day") : _t("%s days", days);
 }
 
-/** @extends */
+/** @extends Component */
 export class ExpirationPanel extends Component {
     static template = "web.ExpirationPanel";
     static props = {};

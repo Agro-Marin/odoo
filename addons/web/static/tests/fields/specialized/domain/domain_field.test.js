@@ -384,7 +384,7 @@ test("field context is propagated when opening selection", async function () {
     PartnerType._views = {
         list: `<list><field name="name" /></list>`,
         search: `<search><field name="name" string="Name" /></search>`,
-        [["list", 3]]: `<list><field name="id" /></list>`,
+        ["list,3"]: `<list><field name="id" /></list>`,
     };
     onRpc("has_group", () => true);
 

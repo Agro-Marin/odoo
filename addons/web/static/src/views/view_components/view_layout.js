@@ -82,6 +82,10 @@ export class ViewLayout extends Component {
 
 /**
  * @param {{
+ * model?: () => any,
+ * displayNoContent?: () => boolean,
+ * display?: () => Record<string, any>,
+ * }} [hooks]
  * @returns {{ searchBarToggler: any, rootRef: any, props: ViewLayoutProps }}
  */
 export function useViewChassis(hooks = {}) {

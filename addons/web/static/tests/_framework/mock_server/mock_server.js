@@ -41,19 +41,55 @@ const { DateTime } = luxon;
 
 /**
  * @typedef {{
+ * type?: string;
+ * [key: string]: any;
+ * }} ActionDefinition
  * @typedef {import("@web/core/domain").DomainListRepr} DomainListRepr
  * @typedef {import("./mock_fields").FieldDefinition} FieldDefinition
  * @typedef {{
+ * actionID?: string | number;
+ * actionPath?: string;
+ * parent_id?: MenuId;
+ * appID?: MenuId;
+ * children?: (MenuId | MenuDefinition)[];
+ * id: MenuId;
+ * name?: string;
+ * webIcon?: string | false;
+ * webIconData?: string;
+ * xmlid?: string;
+ * }} MenuDefinition
  * @typedef {number | "root"} MenuId
  * @typedef {MockServerBaseEnvironment & { [modelName: string]: Model }} MockServerEnvironment
  * @typedef {import("./mock_model").Model} Model
  * @typedef {import("./mock_model").ModelConstructor} ModelConstructor
  * @typedef {(this: MockServer, params: OrmParams) => unknown} OrmCallback
  * @typedef {{
+ * args: any[];
+ * kwargs: KwArgs;
+ * method: string;
+ * model: string;
+ * parent: () => any;
+ * request: Request;
+ * route: string;
+ * }} OrmParams
  * @typedef {[RegExp, Record<string, string>]} RouteMatcher
  * @typedef {{
+ * final?: boolean;
+ * pure?: boolean;
+ * }} RouteOptions
  * @typedef {`${string}/${string}`} RoutePath
  * @typedef {{
+ * actions?: Partial<MockServer["actions"]>;
+ * lang?: string;
+ * lang_parameters?: Partial<MockServer["_lang_parameters"]>;
+ * menus?: MenuDefinition[];
+ * models?: Iterable<ModelConstructor>;
+ * modules?: Partial<MockServer["_modules"]>;
+ * multi_lang?: import("../mock_server_state.hoot").ServerState["multiLang"];
+ * routes?: any[];
+ * timezone?: string;
+ * translations?: Record<string, string>;
+ * }} ServerParams
  * @typedef {import("@odoo/hoot").ServerWebSocket} ServerWebSocket
  * @typedef {string | Iterable<string> | RegExp} StringMatcher
  * @typedef {(string | RegExp)[]} StringMatchers
@@ -530,6 +566,8 @@ export class MockServer {
      * @type {Record<string, Model>}
      */
     _models = Object.create(null);
+    /** @type {Set<string>} */
+    _missingComputes = new Set();
     /**
      * @private
      * @type {Model[]}
@@ -1082,10 +1120,9 @@ export class MockServer {
                 } else if (
                     serverModelInheritances.has([model._name, modelName].join(","))
                 ) {
-                    model._inherit = model._inherit.replace(
-                        new RegExp(`${modelName},?`),
-                        "",
-                    );
+                    model._inherit = safeSplit(model._inherit)
+                        .filter((name) => name !== modelName)
+                        .join(",");
                 } else {
                     throw modelNotFoundError(modelName, "could not inherit from model");
                 }
@@ -1119,7 +1156,6 @@ export class MockServer {
                         const computeName = computeFn;
                         computeFn = /** @type {any} */ (model)[computeName];
                         if (typeof computeFn !== "function") {
-                            this._missingComputes ??= new Set();
                             const key = `${model._name}.${fieldName}:${computeName}`;
                             if (!this._missingComputes.has(key)) {
                                 this._missingComputes.add(key);
@@ -1196,12 +1232,19 @@ export class MockServer {
         }
     }
 
-    /** @param {OrmCallback} callback */
     /**
+     * @overload
+     * @param {OrmCallback} callback
+     */
+
+    /**
+     * @overload
      * @param {StringMatchers} method
      * @param {OrmCallback} callback
      */
+
     /**
+     * @overload
      * @param {StringMatchers} model
      * @param {StringMatcher} method
      * @param {OrmCallback} callback
@@ -1245,17 +1288,26 @@ export class MockServer {
         this._routes.push([/** @type {any} */ (routeRegexes), callback, options || {}]);
     }
 
-    /** @param {OrmCallback} callback */
     /**
+     * @overload
+     * @param {OrmCallback} callback
+     */
+
+    /**
+     * @overload
      * @param {RoutePath | Iterable<RoutePath>} route
      * @param {RouteCallback} callback
      * @param {RouteOptions} [options]
      */
+
     /**
+     * @overload
      * @param {StringMatcher} method
      * @param {OrmCallback} callback
      */
+
     /**
+     * @overload
      * @param {StringMatcher} model
      * @param {StringMatcher} method
      * @param {OrmCallback} callback
@@ -1340,7 +1392,11 @@ export class MockServer {
         });
     }
 
-    async loadBundle(request, { bundle_name } = {}) {
+    /**
+     * @param {Request} request
+     * @param {Record<string, string>} params
+     */
+    async loadBundle(request, { bundle_name }) {
         const stubFactory = HEAVY_STATIC_BUNDLE_STUBS[bundle_name];
         if (stubFactory) {
             return new Response(JSON.stringify(stubFactory()), {
@@ -1539,21 +1595,28 @@ export async function makeMockServer() {
 }
 
 /**
+ * @overload
  * @param {OrmCallback} callback
  * @returns {void}
  */
+
 /**
+ * @overload
  * @param {RoutePath | Iterable<RoutePath>} route
  * @param {RouteCallback} callback
  * @param {RouteOptions} [options]
  * @returns {void}
  */
+
 /**
+ * @overload
  * @param {StringMatcher} method
  * @param {OrmCallback} callback
  * @returns {void}
  */
+
 /**
+ * @overload
  * @param {StringMatcher} model
  * @param {StringMatcher} method
  * @param {OrmCallback} callback

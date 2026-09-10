@@ -42,10 +42,10 @@ export class ResUsers extends ServerModel {
 
     /**
      * @override
-     * @type {ServerModel["create"]}
+     * @param {Parameters<ServerModel["create"]>} args
      */
-    create() {
-        const userId = /** @type {Function} */ (super.create).apply(this, arguments);
+    create(...args) {
+        const userId = super.create(...args);
         const [user] = this.env["res.users"].browse(userId);
         if (user && !user.partner_id) {
             this.env["res.users"].write(userId, {

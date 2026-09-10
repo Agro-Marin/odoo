@@ -1,7 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * name: string;
+ * asc?: boolean;
+ * }} OrderTerm
+ */
 
 /**
  * @param {OrderTerm[]} orderBy

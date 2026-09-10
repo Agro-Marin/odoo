@@ -112,7 +112,6 @@ test("can execute the callback of settings", async () => {
         async doAction(actionId) {
             expect.step(actionId.res_id);
             expect.step(actionId.name);
-            return true;
         },
     });
     userMenuRegistry.add("preferences", preferencesItem);

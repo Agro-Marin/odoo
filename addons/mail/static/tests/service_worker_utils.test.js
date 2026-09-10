@@ -29,7 +29,10 @@ test("planPushNotification: empty/invalid payload -> generic", () => {
 test("planPushNotification: CALL shows the notification", () => {
     const plan = planPushNotification({
         title: "Incoming call",
-        options: { data: { type: "CALL" }, actions: [{ action: "ACCEPT" }] },
+        options: {
+            data: { type: "CALL" },
+            actions: [{ action: "ACCEPT", title: "Accept" }],
+        },
     });
     expect(plan.type).toBe("show");
     expect(plan.title).toBe("Incoming call");
@@ -41,7 +44,10 @@ test("planPushNotification: CALL on Android drops the ACCEPT action (no mutation
         title: "Incoming call",
         options: {
             data: { type: "CALL" },
-            actions: [{ action: "ACCEPT" }, { action: "DECLINE" }],
+            actions: [
+                { action: "ACCEPT", title: "Accept" },
+                { action: "DECLINE", title: "Decline" },
+            ],
         },
     };
     const plan = planPushNotification(notification, { isAndroid: true });
@@ -122,4 +128,10 @@ test("pickTargetClient: the message source is never picked", () => {
     const source = windowClient("source", { focused: true });
     const other = windowClient("other");
     expect(pickTargetClient([source, other], { source })).toBe(other);
+});
+
+test("arrayBufferToBase64Url respects view bounds", () => {
+    const bytes = new Uint8Array([0, 0xfb, 0xff, 0xbf, 0]);
+    expect(arrayBufferToBase64Url(bytes.subarray(1, 4))).toBe("-_-_");
+    expect(arrayBufferToBase64Url(new DataView(bytes.buffer, 1, 3))).toBe("-_-_");
 });

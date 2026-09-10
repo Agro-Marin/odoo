@@ -65,7 +65,13 @@ describe("EmbeddedActions.removeAction", () => {
         );
 
         await expect(
-            EmbeddedActions.prototype.removeAction.call(self, { id: 7 }),
+            EmbeddedActions.prototype.removeAction.call(self, {
+                id: 7,
+                parent_action_id: 1,
+                name: "Action 7",
+                parent_res_model: "res.partner",
+                action_id: 7,
+            }),
         ).rejects.toThrow();
 
         expect(self.embeddedInfos.visibleEmbeddedActions).toEqual([7, 8]);
@@ -85,7 +91,13 @@ describe("EmbeddedActions.removeAction", () => {
             },
         );
 
-        await EmbeddedActions.prototype.removeAction.call(self, { id: 7 });
+        await EmbeddedActions.prototype.removeAction.call(self, {
+            id: 7,
+            parent_action_id: 1,
+            name: "Action 7",
+            parent_res_model: "res.partner",
+            action_id: 7,
+        });
 
         expect(self.embeddedInfos.visibleEmbeddedActions).toEqual([8]);
         expect(self.embeddedInfos.embeddedActions.map((a) => a.id)).toEqual([8]);
@@ -251,6 +263,7 @@ describe("EmbeddedActions.toggleActionVisibility", () => {
 describe("EmbeddedActions.toggleBar", () => {
     test("re-entrant call is ignored while a toggle is in flight", async () => {
         let applyCalls = 0;
+        /** @type {(value?: unknown) => void} */
         let release;
         const gate = new Promise((resolve) => {
             release = resolve;
@@ -353,7 +366,8 @@ describe("EmbeddedActions.saveNewAction", () => {
     });
 
     test("[id, name] tuple action_id is normalized to the id", async () => {
-        let createdValues = null;
+        /** @type {{ action_id: number, parent_action_id: number }} */
+        let createdValues;
         const self = makeSaveSelf({
             orm: {
                 create: async (_model, [values]) => {
@@ -379,7 +393,8 @@ describe("EmbeddedActions.saveNewAction", () => {
     });
 
     test("bare numeric action_id is used as-is, not replaced by the current action", async () => {
-        let createdValues = null;
+        /** @type {{ action_id: number, parent_action_id: number }} */
+        let createdValues;
         const self = makeSaveSelf({
             orm: {
                 create: async (_model, [values]) => {
@@ -402,7 +417,7 @@ describe("EmbeddedActions.saveNewAction", () => {
 
 describe("EmbeddedActions.reorderFromDrop", () => {
     /**
-     * @param {number[]} ids
+     * @param {(number | false)[]} ids
      * @param {Function} setEmbeddedActionsConfig
      */
     function makeReorderSelf(ids, setEmbeddedActionsConfig) {
@@ -584,7 +599,7 @@ describe("EmbeddedActions.isVisible", () => {
     });
 
     test("the flag is read per call, so it survives a set that arrives later", () => {
-        /** @type {Record<string, any>} */
+        /** @type {Parameters<typeof EmbeddedActions.isVisible>[0]} */
         const infos = {
             visibleEmbeddedActions: [],
             showAllEmbeddedActions: true,

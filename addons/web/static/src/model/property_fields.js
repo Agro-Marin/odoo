@@ -3,6 +3,10 @@
 
 import { invalidateAggregateSpecs } from "./relational_model/field_values.js";
 
+/** @import { Field } from "@web/model/types" */
+
+/** @import { ServiceFactories as Services } from "services" */
+
 /**
  * @param {string} propertyFullName
  * @param {Record<string, any> | undefined | false} definition

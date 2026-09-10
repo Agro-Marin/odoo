@@ -6,6 +6,10 @@ import { SignalStore } from "@web/core/utils/reactive";
 
 import { getId } from "./field_context.js";
 
+/** @import { Field, FieldInfo } from "@web/model/types" */
+
+/** @import { RelationalModel, RelationalModelConfig } from "./relational_model.js" */
+
 /** @typedef {Record<string, unknown> | unknown[]} DataPointPayload */
 
 export class DataPoint extends SignalStore {

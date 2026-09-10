@@ -231,6 +231,7 @@ describe("restoreFromSavePoint — _textValues", () => {
  * @param {Object} [opts.initialTextValues={}]
  * @param {string[]} [opts.invalid=[]]
  * @param {Object} [opts.savePoint=null]
+ * @param {Record<string, import("@web/model/types").Field>} [opts.fields]
  * @returns {Object}
  */
 function makeDiscardRecord({

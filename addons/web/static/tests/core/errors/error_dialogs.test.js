@@ -91,12 +91,12 @@ test("Client ErrorDialog with traceback", async () => {
 test("button clipboard copy error traceback", async () => {
     freezeTime();
     expect.assertions(1);
-    const error = new Error();
-    error.name = "ERROR_NAME";
-    error.message = "This is the message";
-    error.traceback = "This is a traceback";
+    const error = Object.assign(new Error("This is the message"), {
+        name: "ERROR_NAME",
+        traceback: "This is a traceback",
+    });
     patchWithCleanup(navigator.clipboard, {
-        writeText(value) {
+        async writeText(value) {
             expect(value).toBe(
                 `${error.name}\n\n${error.message}\n\nOccurred on 2019-03-11 09:30:00 GMT\n\n${error.traceback}`,
             );
@@ -163,7 +163,7 @@ test("WarningDialog", async () => {
 
 test("RedirectWarningDialog", async () => {
     mockService("action", {
-        doAction(actionId) {
+        async doAction(actionId) {
             expect.step(actionId);
         },
     });

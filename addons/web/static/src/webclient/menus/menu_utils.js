@@ -42,7 +42,16 @@ export function menuHref(menu) {
  * @property {{ iconClass: string, color: string, backgroundColor: string }} [webIcon]
  */
 
-/** @typedef {MenuEntry & { */
+/**
+ * @typedef {MenuEntry & {
+ *  actionID: number|string,
+ *  appID: number,
+ *  href: string,
+ *  id: number,
+ *  label: string,
+ *  parents: string,
+ * }} AppEntry
+ */
 
 const MAX_APPS_PER_SEARCHABLE_MODEL = 1;
 
@@ -275,7 +284,10 @@ export function readHomeMenuConfig(raw) {
     return null;
 }
 
-/** @param {unknown} raw */
+/**
+ * @param {unknown} raw
+ * @returns {HomeMenuConfig}
+ */
 export function parseHomeMenuConfig(raw) {
     return readHomeMenuConfig(raw) ?? { order: [], pinned: [], hidden: [] };
 }

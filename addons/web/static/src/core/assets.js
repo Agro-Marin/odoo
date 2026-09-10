@@ -18,7 +18,15 @@ import { globalSingleton } from "./utils/global_singleton.js";
 
 const log = makeAssetLog("js");
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * cssLibs: string[];
+ * jsLibs: string[];
+ * esmUrl: string | null;
+ * esmSpecifiers: string[] | null;
+ * esmImportMap: Record<string, string> | null;
+ * }} BundleFileNames
+ */
 
 const __odoo_assets_state__ = globalSingleton("assets", () => ({
     globalBundleCache: new Map(),

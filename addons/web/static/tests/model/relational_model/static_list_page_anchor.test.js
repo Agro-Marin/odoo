@@ -2,8 +2,9 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
-import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
+
+import { makeTestRelationalModel } from "./model_test_helpers.js";
 
 const UNLINK = 3;
 
@@ -13,13 +14,14 @@ for (let id = 1; id <= 8; id++) {
     SERVER_ROWS[id] = { id, display_name: `Rec ${id}` };
 }
 
-function makeList({ resIds = [], limit = 3 } = {}) {
-    const model = {
-        Class: { Record: RelationalRecord, StaticList },
-        patchConfig: (config, patch) => Object.assign(config, patch),
+async function makeList({ resIds = [], limit = 3 } = {}) {
+    const model = await makeTestRelationalModel({
         loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
-    };
+    });
+    /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
     const config = {
+        ...model.config,
+        isRoot: false,
         resModel: "res.partner",
         activeFields: { display_name: makeActiveField() },
         fields: { display_name: { type: "char", name: "display_name" } },
@@ -50,7 +52,7 @@ function expectWindowMatchesRecords(list) {
 
 describe("page anchor after rows are removed ahead of the offset", () => {
     test("unlinking earlier-page rows keeps the user on the same records", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
         await list.loadLocked({ offset: 3 });
         expect(list.records.map((r) => r.resId)).toEqual([4, 5, 6]);
 
@@ -68,7 +70,7 @@ describe("page anchor after rows are removed ahead of the offset", () => {
     });
 
     test("a partial shift re-anchors by exactly the number removed ahead", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
         await list.loadLocked({ offset: 3 });
 
         await list.applyCommandsLocked([[UNLINK, 2, false]]);
@@ -80,7 +82,7 @@ describe("page anchor after rows are removed ahead of the offset", () => {
     });
 
     test("a removal on the CURRENT page does not move the anchor", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
         await list.loadLocked({ offset: 3 });
 
         await list.applyCommandsLocked([[UNLINK, 5, false]]);
@@ -91,7 +93,7 @@ describe("page anchor after rows are removed ahead of the offset", () => {
     });
 
     test("a later loadLocked lands on the rows the user was shown", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5, 6, 7], limit: 3 });
         await list.loadLocked({ offset: 3 });
         await list.applyCommandsLocked([
             [UNLINK, 1, false],

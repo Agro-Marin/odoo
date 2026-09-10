@@ -12,6 +12,7 @@ import {
     models,
     mountWithCleanup,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { createDebugContext } from "@web/core/debug/debug_context";
 import { useNavigation } from "@web/core/navigation/navigation";
@@ -90,6 +91,10 @@ describe("list-operator values", () => {
         const tree = constructTreeFromDomain(
             `["|", ("id", "in", allowed_ids), ("id", "=", 1)]`,
         );
+        expect(tree.type).toBe("connector");
+        if (tree.type !== "connector") {
+            throw new Error("Expected a connector");
+        }
         expect(tree.children[0].value instanceof Expression).toBe(true);
         expect(simplifyTree(tree).type).toBe("connector");
         expect(constructDomainFromTree(tree)).toBe(
@@ -319,9 +324,7 @@ describe("malformed condition values", () => {
         test(`an \`in range\` carrying ${label} renders instead of throwing`, async () => {
             await makeMockEnv();
             const treeProcessor = getService("tree_processor");
-            const tree = constructTreeFromDomain([["state", "=", "x"]]);
-            tree.operator = "in range";
-            tree.value = value;
+            const tree = condition("state", "in range", value);
             expect(
                 await treeProcessor.getDomainTreeDescription("hardening", tree),
             ).toBe(expected);
@@ -331,9 +334,7 @@ describe("malformed condition values", () => {
     test("a well-formed `in range` is still read as a range", async () => {
         await makeMockEnv();
         const treeProcessor = getService("tree_processor");
-        const tree = constructTreeFromDomain([["state", "=", "x"]]);
-        tree.operator = "in range";
-        tree.value = ["char", "today", false, false];
+        const tree = condition("state", "in range", ["char", "today", false, false]);
         expect(await treeProcessor.getDomainTreeDescription("hardening", tree)).toBe(
             "State is in Today",
         );
@@ -355,10 +356,21 @@ describe("connection recovery is per env", () => {
             error.event = /** @type {any} */ ({ preventDefault: () => {} });
             return error;
         };
+        const baseEnv = await makeMockEnv();
         const makeEnv = (opened) => {
-            const env = { services: { dialog: { add: () => opened.push(1) } } };
-            env.services.connection_recovery = connectionRecoveryService.start(env);
-            return env;
+            patchWithCleanup(baseEnv.services.dialog, {
+                add() {
+                    opened.push(1);
+                    return async () => {};
+                },
+            });
+            return {
+                ...baseEnv,
+                services: {
+                    ...baseEnv.services,
+                    connection_recovery: connectionRecoveryService.start(baseEnv),
+                },
+            };
         };
         const expired = new InvalidResponseError("/web/x", 200);
 
@@ -471,7 +483,7 @@ describe("input bindings are per owner", () => {
         secondPicker.enable();
         firstPicker.dispose();
 
-        const input = queryOne("input.shared");
+        const input = /** @type {HTMLInputElement} */ (queryOne("input.shared"));
         input.value = "02/20/2020";
         input.dispatchEvent(new Event("change"));
 
@@ -487,7 +499,7 @@ describe("input bindings are per owner", () => {
         const picker = makePicker(changes);
         picker.enable();
         picker.enable();
-        const input = queryOne("input.shared");
+        const input = /** @type {HTMLInputElement} */ (queryOne("input.shared"));
         input.value = "03/10/2020";
         input.dispatchEvent(new Event("change"));
         expect(changes.length).toBe(1);
@@ -513,16 +525,13 @@ describe("reconnect poll stops with its env", () => {
         const error = new UncaughtPromiseError();
         error.event = /** @type {any} */ ({ preventDefault: () => {} });
         const notifications = [];
-        const env = {
-            services: {
-                notification: {
-                    add: (message) => {
-                        notifications.push(String(message));
-                        return () => {};
-                    },
-                },
+        const env = await makeMockEnv();
+        patchWithCleanup(env.services.notification, {
+            add(message) {
+                notifications.push(String(message));
+                return () => {};
             },
-        };
+        });
 
         const recovery = connectionRecoveryService.start(env);
         env.services.connection_recovery = recovery;

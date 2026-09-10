@@ -6,7 +6,7 @@ import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 
 describe.current.tags("headless");
 
-function makeSetDataProbeRecord({ dirty, changes = {} } = {}) {
+function makeSetDataProbeRecord({ dirty = false, changes = {} } = {}) {
     const editState = new RecordEditState();
     editState.changes = changes;
     editState.dirty = dirty;

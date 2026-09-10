@@ -22,13 +22,17 @@ describe.current.tags("headless");
 
 describe("groupby", () => {
     test("groupBy parameter validations", () => {
+        // @ts-expect-error
         expect(() => groupBy({})).toThrow(/TypeError: \w+ is not iterable/);
+        // @ts-expect-error
         expect(() => groupBy([], true)).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'boolean'/,
         );
+        // @ts-expect-error
         expect(() => groupBy([], 3)).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'number'/,
         );
+        // @ts-expect-error
         expect(() => groupBy([], {})).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'object'/,
         );
@@ -62,16 +66,20 @@ describe("groupby", () => {
 
 describe("sortby", () => {
     test("sortBy parameter validation", () => {
+        // @ts-expect-error
         expect(() => sortBy({})).toThrow(/TypeError: \w+ is not iterable/);
         expect(() => sortBy([Symbol("b"), Symbol("a")])).toThrow(
             /(Cannot convert a (Symbol value)|(symbol) to a number)|(can't convert symbol to number)/,
         );
+        // @ts-expect-error
         expect(() => sortBy([2, 1, 5], true)).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'boolean'/,
         );
+        // @ts-expect-error
         expect(() => sortBy([2, 1, 5], 3)).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'number'/,
         );
+        // @ts-expect-error
         expect(() => sortBy([2, 1, 5], {})).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'object'/,
         );

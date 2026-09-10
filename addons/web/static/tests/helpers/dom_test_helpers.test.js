@@ -37,6 +37,7 @@ test("contains: all actions", async () => {
     const KEY_PRESS = ["keydown", "keyup"];
     const KEY_PRESS_WITH_CHANGE = ["keydown", "change", "keyup"];
 
+    /** @type {[string, string[], (target: string) => Promise<unknown>][]} */
     const actions = [
         ["button", CLICK, (t) => contains(t).click()],
         ["button", ["pointerdown"], (t) => contains(t).drag()],
@@ -147,7 +148,7 @@ test("only one drag sequence is allowed at a time", async () => {
     throwOnDragEnd = true;
     onError((ev) => {
         ev.preventDefault();
-        expect(ev.error).toMatch("dragend error", {
+        expect("error" in ev ? ev.error : ev.reason).toMatch("dragend error", {
             message: "drag sequence should be automatically canceled after test",
         });
     });

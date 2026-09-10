@@ -198,7 +198,13 @@ const R_STACK_LINE_START = isFirefox()
     ? /^\s*(?<prefix>@)(?<rest>.*)/i
     : /^\s*(?<prefix>at)(?<rest>.*)/i;
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *  open?: boolean | "always";
+ *  slots: any;
+ *  test: Test;
+ * }} TestResultProps
+ */
 
 /** @extends {Component<TestResultProps, import("../hoot").Environment>} */
 export class HootTestResult extends Component {

@@ -29,7 +29,16 @@ function scrollable({ vertical = true } = {}) {
     return box;
 }
 
-/** @param {{ */
+/**
+ * @param {{
+ * box: HTMLElement,
+ * pointer: {x: number, y: number},
+ * speed?: number,
+ * threshold?: number,
+ * direction?: string,
+ * vertical?: boolean,
+ * }} spec
+ */
 function scrollCtx({
     box,
     pointer,

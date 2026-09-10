@@ -12,6 +12,7 @@ import { HootTestResult } from "./hoot_test_result.js";
 /**
  * @typedef {import("../core/test").Test} Test
  * @typedef {{
+ * }} HootReportingProps
  */
 
 const { Boolean } = globalThis;

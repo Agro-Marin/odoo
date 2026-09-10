@@ -8,6 +8,22 @@ import { bp } from "./py_parser.js";
 /** @typedef {import("./ast_type.js").AST} AST */
 
 /**
+ * @template T
+ * @typedef {T extends null ? import("./ast_type").ASTNone :
+ * T extends string | Date | PyDate | PyDateTime | PyTime ? import("./ast_type").ASTString :
+ * T extends number ? import("./ast_type").ASTNumber :
+ * T extends boolean ? import("./ast_type").ASTBoolean :
+ * T extends (infer V)[] ? {type: 4, value: PyValue<V>[]} :
+ * T extends object ? {type: 11, value: {[K in keyof T]: PyValue<T[K]>}} : AST} PyValue
+ */
+
+/**
+ * @template T
+ * @overload
+ * @param {T} value
+ * @returns {PyValue<T>}
+ */
+/**
  * @param {any} value
  * @returns {AST}
  */

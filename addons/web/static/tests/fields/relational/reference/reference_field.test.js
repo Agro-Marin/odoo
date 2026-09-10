@@ -199,7 +199,7 @@ test("ReferenceField in modal readonly mode", async () => {
             <field name="reference" />
         </form>
     `;
-    Partner._views[["list", false]] = `
+    Partner._views["list,false"] = `
         <list>
             <field name="display_name"/>
             <field name="reference" />
@@ -244,7 +244,7 @@ test("ReferenceField in modal write mode", async () => {
             <field name="reference" />
         </form>
     `;
-    Partner._views[["list", false]] = `
+    Partner._views["list,false"] = `
         <list>
             <field name="display_name"/>
             <field name="reference" />
@@ -293,7 +293,7 @@ test("ReferenceField in modal write mode", async () => {
 test("reference in form view", async () => {
     expect.assertions(11);
 
-    Product._views[["form", false]] = `
+    Product._views["form,false"] = `
         <form>
             <field name="display_name" />
         </form>
@@ -333,7 +333,7 @@ test("reference in form view", async () => {
     });
 
     mockService("action", {
-        doAction(action) {
+        async doAction(action) {
             expect(action.res_id).toBe(17, {
                 message: "should do a do_action with correct parameters",
             });
@@ -405,8 +405,8 @@ test("reference in form view", async () => {
 test("Many2One 'Search more...' updates on resModel change", async () => {
     onRpc("has_group", () => true);
 
-    Product._views[["list", false]] = `<list><field name="display_name"/></list>`;
-    Product._views[["search", false]] = `<search/>`;
+    Product._views["list,false"] = `<list><field name="display_name"/></list>`;
+    Product._views["search,false"] = `<search/>`;
     for (let i = 0; i < 8; i++) {
         Product._records.push({ id: 100 + i, name: `zzz ${i}` });
     }
@@ -559,7 +559,7 @@ test("default_get a reference field in a x2m", async () => {
         relation_field: "turtle_trululu",
         default: [[0, 0, { turtle_ref: "product,37" }]],
     });
-    Turtle._views[["form", false]] = `
+    Turtle._views["form,false"] = `
         <form>
             <field name="display_name" />
             <field name="turtle_ref" />
@@ -927,7 +927,9 @@ test("Change model field of a ReferenceField then select an invalid value (tree 
     expect(".reference_field input").toHaveValue("");
     expect(".o_list_many2one input").toHaveValue("Partner");
     await click(".o_list_table .reference_field input");
-    const textInput = queryFirst(".o_list_table .reference_field input");
+    const textInput = /** @type {HTMLInputElement} */ (
+        queryFirst(".o_list_table .reference_field input")
+    );
     textInput.setSelectionRange(0, textInput.value.length);
     await click(".o_list_table .reference_field input");
     await press("Backspace");
@@ -1047,6 +1049,7 @@ test("reference char with list view pager navigation", async () => {
 });
 
 test("reference write uses the picker's model, not a stale currentRelation", async () => {
+    /** @type {ReferenceField} */
     let ref;
     patchWithCleanup(ReferenceField.prototype, {
         setup() {

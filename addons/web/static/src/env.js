@@ -19,7 +19,16 @@ import { session } from "@web/session";
 
 const log = makeAssetLog("env");
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * bus: EventBus;
+ * debug: string;
+ * services: import("services").ServiceFactories;
+ * readonly isSmall: boolean;
+ * config?: Record<string, any>;
+ * [key: string]: any;
+ * }} OdooEnv
+ */
 
 /** @returns {OdooEnv} */
 export function makeEnv() {
@@ -383,14 +392,9 @@ export const globalValues = {
 };
 
 /**
- * @param {import("@odoo/owl").ComponentConstructor} component
- * @param {HTMLElement | ShadowRoot} target
- * @param {Partial<ConstructorParameters<typeof App>[1]> & {
- */
-/**
- * @param {OdooEnv | undefined} env
+ * @param {import("@odoo/owl").Env | undefined} env
  * @param {Record<string, any>} [overrides]
- * @returns {Record<string, any>} the App configuration every Owl root shares
+ * @returns {Record<string, any>}
  */
 export function makeAppConfig(env, overrides = {}) {
     return {
@@ -406,6 +410,13 @@ export function makeAppConfig(env, overrides = {}) {
     };
 }
 
+/**
+ * @param {import("@odoo/owl").ComponentConstructor} component
+ * @param {HTMLElement | ShadowRoot} target
+ * @param {Partial<ConstructorParameters<typeof App>[1]> & {
+ * beforeMount?: (env: OdooEnv) => void | Promise<void>
+ * }} [appConfig]
+ */
 export async function mountComponent(component, target, appConfig = {}) {
     const { beforeMount, ...owlConfig } = appConfig;
     let { env } = appConfig;

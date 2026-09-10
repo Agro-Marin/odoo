@@ -437,9 +437,11 @@ test("validate some obviously wrong calls", async () => {
 
     const { services } = await makeMockEnv();
 
+    // @ts-expect-error
     expect(() => services.orm.read(false, [3], ["id", "descr"])).toThrow(
         "Invalid model name: false",
     );
+    // @ts-expect-error
     expect(() => services.orm.read("res.res.partner", false, ["id", "descr"])).toThrow(
         "Invalid ids list: false",
     );
@@ -507,20 +509,20 @@ test("Cache: can cache a simple orm call", async () => {
     );
     onRpc(() => {
         expect.step("Fetch");
-        return { name: 123 };
+        return [{ name: 123 }];
     });
 
     const { services } = await makeMockEnv();
 
-    expect(await services.orm.cache().read("res.partner", [1], [])).toEqual({
-        name: 123,
-    });
-    expect(await services.orm.cache().read("res.partner", [1], [])).toEqual({
-        name: 123,
-    });
-    expect(await services.orm.cache().read("res.partner", [1], [])).toEqual({
-        name: 123,
-    });
+    expect(await services.orm.cache().read("res.partner", [1], [])).toEqual([
+        { name: 123 },
+    ]);
+    expect(await services.orm.cache().read("res.partner", [1], [])).toEqual([
+        { name: 123 },
+    ]);
+    expect(await services.orm.cache().read("res.partner", [1], [])).toEqual([
+        { name: 123 },
+    ]);
     expect.verifySteps(["Fetch"]);
 });
 
@@ -536,7 +538,7 @@ test("Cache: can cache and update a orm call", async () => {
     let i = 0;
     onRpc(() => {
         expect.step("Fetch");
-        return { name: response[i++] };
+        return [{ name: response[i++] }];
     });
 
     const { services } = await makeMockEnv();
@@ -551,7 +553,7 @@ test("Cache: can cache and update a orm call", async () => {
                 },
             })
             .read("res.partner", [1], []),
-    ).toEqual({ name: 123 });
+    ).toEqual([{ name: 123 }]);
     await microTick();
     expect(
         await services.orm
@@ -564,15 +566,15 @@ test("Cache: can cache and update a orm call", async () => {
                 },
             })
             .read("res.partner", [1], []),
-    ).toEqual({ name: 123 });
+    ).toEqual([{ name: 123 }]);
     await microTick();
     await microTick();
     await microTick();
     expect.verifySteps([
         "Fetch",
-        'callback - hasChanged:false result:{"name":123}',
+        'callback - hasChanged:false result:[{"name":123}]',
         "Fetch",
-        'callback - hasChanged:true result:{"name":456}',
+        'callback - hasChanged:true result:[{"name":456}]',
     ]);
 });
 

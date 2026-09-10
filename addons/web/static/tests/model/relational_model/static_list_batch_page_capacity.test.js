@@ -1,10 +1,10 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { EventBus } from "@odoo/owl";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
-import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
+
+import { makeTestRelationalModel } from "./model_test_helpers.js";
 
 const CREATE = 0;
 const DELETE = 2;
@@ -18,15 +18,15 @@ for (let id = 1; id <= 12; id++) {
     SERVER_ROWS[id] = { id, display_name: `Rec ${id}` };
 }
 
-function makeList({ resIds = [], limit = 3 } = {}) {
-    const model = {
-        bus: new EventBus(),
-        Class: { Record: RelationalRecord, StaticList },
-        patchConfig: (config, patch) => Object.assign(config, patch),
+async function makeList({ resIds = [], limit = 3 } = {}) {
+    const model = await makeTestRelationalModel({
         loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
         loadNewRecord: async () => ({ display_name: "" }),
-    };
+    });
+    /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
     const config = {
+        ...model.config,
+        isRoot: false,
         resModel: "res.partner",
         activeFields: { display_name: makeActiveField() },
         fields: { display_name: { type: "char", name: "display_name" } },
@@ -50,7 +50,7 @@ describe.current.tags("headless");
 
 describe("a batch that removes and adds must not inflate the page", () => {
     test("DELETE + CREATE on a full page leaves limit untouched", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
         expect(list.records.map((r) => r.resId)).toEqual([1, 2, 3]);
 
         await list.applyCommandsLocked([
@@ -66,7 +66,7 @@ describe("a batch that removes and adds must not inflate the page", () => {
     });
 
     test("UNLINK + CREATE on a full page leaves limit untouched", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
 
         await list.applyCommandsLocked([
             [UNLINK, 1, false],
@@ -79,7 +79,7 @@ describe("a batch that removes and adds must not inflate the page", () => {
     });
 
     test("repeating the batch never accumulates slots", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
         for (let i = 0; i < 4; i++) {
             const victim = list.records[0];
             await list.applyCommandsLocked([
@@ -93,7 +93,7 @@ describe("a batch that removes and adds must not inflate the page", () => {
     });
 
     test("a CLEAR-led batch re-declaring fewer rows leaves limit untouched", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
 
         await list.applyCommandsLocked([
             [CLEAR, false, false],
@@ -110,7 +110,7 @@ describe("a batch that removes and adds must not inflate the page", () => {
 
 describe("a genuine over-limit add still opens a slot", () => {
     test("CREATE alone on a full page bumps the limit by one", async () => {
-        const list = makeList({ resIds: [1, 2, 3], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3], limit: 3 });
 
         await list.applyCommandsLocked([[CREATE, false, { display_name: "new" }]]);
 
@@ -120,7 +120,7 @@ describe("a genuine over-limit add still opens a slot", () => {
     });
 
     test("two CREATEs on a full page bump it by two", async () => {
-        const list = makeList({ resIds: [1, 2, 3], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3], limit: 3 });
 
         await list.applyCommandsLocked([
             [CREATE, false, { display_name: "a" }],
@@ -133,7 +133,7 @@ describe("a genuine over-limit add still opens a slot", () => {
     });
 
     test("addAndRemove over the limit only opens slots for rows that remain", async () => {
-        const list = makeList({ resIds: [1, 2, 3], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3], limit: 3 });
 
         await list.applyCommandsLocked(
             [
@@ -153,7 +153,7 @@ describe("a genuine over-limit add still opens a slot", () => {
 
 describe("the slot is still handed back on discard", () => {
     test("discard after a genuine bump restores the original limit", async () => {
-        const list = makeList({ resIds: [1, 2, 3], limit: 3 });
+        const list = await makeList({ resIds: [1, 2, 3], limit: 3 });
         await list.applyCommandsLocked([[CREATE, false, { display_name: "new" }]]);
         expect(list.limit).toBe(4);
 

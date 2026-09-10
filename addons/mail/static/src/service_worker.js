@@ -20,10 +20,8 @@ let interactionSinceCleanupCount = 0;
 function openDatabase() {
     dbPromise ??= new Promise((resolve, reject) => {
         const request = indexedDB.open("RtcLogsDB", 1);
-        request.onupgradeneeded = /** @param {IDBVersionChangeEvent} event */ function (
-            event,
-        ) {
-            const db = event.target.result;
+        request.onupgradeneeded = function () {
+            const db = request.result;
             if (!db.objectStoreNames.contains("logs")) {
                 const store = db.createObjectStore("logs", {
                     keyPath: "id",
@@ -32,18 +30,19 @@ function openDatabase() {
                 store.createIndex("timestamp", "timestamp", { unique: false });
             }
         };
-        request.onsuccess = /** @param {Event} event */ async function (event) {
-            db = event.target.result;
+        request.onsuccess = async function () {
+            const database = request.result;
+            db = database;
             try {
-                await cleanupLogs(db);
+                await cleanupLogs(database);
             } catch (error) {
                 console.error("Error cleaning up logs:", error);
             }
-            resolve(db);
+            resolve(database);
         };
-        request.onerror = /** @param {Event} event */ function (event) {
+        request.onerror = function () {
             dbPromise = undefined;
-            reject(event.target.error);
+            reject(request.error);
         };
     });
     return dbPromise;
@@ -72,17 +71,16 @@ async function cleanupLogs(dataBase) {
         const index = store.index("timestamp");
         const range = IDBKeyRange.upperBound(cutoffTime);
         const request = index.openCursor(range);
-        request.onsuccess = /** @param {Event} event */ (event) => {
-            const cursor = event.target.result;
+        request.onsuccess = () => {
+            const cursor = request.result;
             if (cursor) {
                 cursor.delete();
                 cursor.continue();
             }
         };
-        request.onerror = /** @param {Event} event */ (event) =>
-            reject(event.target.error);
+        request.onerror = () => reject(request.error);
         tx.oncomplete = () => resolve();
-        tx.onerror = /** @param {Event} event */ (event) => reject(event.target.error);
+        tx.onerror = () => reject(tx.error);
     });
 }
 
@@ -93,17 +91,16 @@ async function cleanupLogs(dataBase) {
  * @returns {Promise<{timelines: Object, snapshots: Object}|undefined>}
  */
 async function storeLogs(logs, { download = false } = {}) {
-    if (!db) {
-        await openDatabase();
-    }
+    const database = db || (await openDatabase());
     if (interactionSinceCleanupCount > 30) {
         interactionSinceCleanupCount = 0;
-        await cleanupLogs(db);
+        await cleanupLogs(database);
     }
     interactionSinceCleanupCount++;
     return new Promise((resolve, reject) => {
+        /** @type {{timelines: Record<string, unknown>, snapshots: Record<string, unknown>} | undefined} */
         let output;
-        const tx = db.transaction("logs", "readwrite");
+        const tx = database.transaction("logs", "readwrite");
         const store = tx.objectStore("logs");
         for (const log of logs) {
             if (!log) {
@@ -116,16 +113,16 @@ async function storeLogs(logs, { download = false } = {}) {
                 value: value,
                 timestamp: Date.now(),
             });
-            request.onerror = /** @param {Event} event */ (event) =>
-                reject(event.target.error);
+            request.onerror = () => reject(request.error);
         }
         if (download) {
             const request = store.getAll();
-            request.onerror = /** @param {Event} event */ (event) =>
-                reject(event.target.error);
+            request.onerror = () => reject(request.error);
             request.onsuccess = () => {
                 const allLogs = request.result;
+                /** @type {Record<string, unknown>} */
                 const timelines = {};
+                /** @type {Record<string, unknown>} */
                 const snapshots = {};
                 allLogs.forEach((log) => {
                     if (log.type === "timeline") {
@@ -138,7 +135,7 @@ async function storeLogs(logs, { download = false } = {}) {
             };
         }
         tx.oncomplete = () => resolve(output);
-        tx.onerror = /** @param {Event} event */ (event) => reject(event.target.error);
+        tx.onerror = () => reject(tx.error);
     });
 }
 
@@ -147,7 +144,7 @@ async function storeLogs(logs, { download = false } = {}) {
  * @param {Object} param1
  * @param {string} [param1.action]
  * @param {boolean} [param1.joinCall]
- * @param {Client | ServiceWorker | MessagePort} [source]
+ * @param {Client | ServiceWorker | MessagePort | null} [param1.source]
  */
 async function openDiscussChannel(
     channelId,
@@ -161,7 +158,7 @@ async function openDiscussChannel(
         );
     }
     const targetClient = pickTargetClient(await matchWindowClients(), {
-        source,
+        source: source && "id" in source ? source : undefined,
         urlRegexes: discussURLRegexes,
     });
     if (targetClient) {
@@ -275,7 +272,7 @@ sw.addEventListener(
                 );
                 return;
             case "handshake":
-                event.waitUntil(handlePushEvent(notification));
+                event.waitUntil(handlePushEvent(plan.notification));
                 return;
         }
     },
@@ -312,12 +309,13 @@ function incrementUnread() {
 }
 
 /**
- * @param {{options?: {data?: {model: string, res_id: number}}}} notification
+ * @param {import("@mail/service_worker_utils").PushNotification & {title: string}} notification
  * @returns {Promise<void>}
  */
 async function handlePushEvent(notification) {
     const { model, res_id } = notification.options?.data || {};
     const correlationId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    /** @type {ReturnType<typeof setTimeout>} */
     let timeoutId;
     return new Promise((resolve) => {
         sw.handlePushEventMessageFns.set(correlationId, () => {
@@ -362,17 +360,17 @@ sw.addEventListener(
         if (!event.oldSubscription) {
             return;
         }
-        event.waitUntil(resubscribePushDevice(event));
+        event.waitUntil(resubscribePushDevice(event.oldSubscription));
     },
 );
 
-/** @param {PushSubscriptionChangeEvent} event */
-async function resubscribePushDevice(event) {
+/** @param {PushSubscription} oldSubscription */
+async function resubscribePushDevice(oldSubscription) {
     const subscription = await sw.registration.pushManager.subscribe(
-        event.oldSubscription.options,
+        oldSubscription.options,
     );
     const applicationServerKey =
-        event.oldSubscription.options?.applicationServerKey ||
+        oldSubscription.options?.applicationServerKey ||
         subscription.options?.applicationServerKey;
     await fetch("/web/dataset/call_kw/mail.push.device/register_devices", {
         headers: {
@@ -388,7 +386,7 @@ async function resubscribePushDevice(event) {
                 args: [],
                 kwargs: {
                     ...subscription.toJSON(),
-                    previousEndpoint: event.oldSubscription.endpoint,
+                    previousEndpoint: oldSubscription.endpoint,
                     ...(applicationServerKey
                         ? {
                               vapid_public_key:
@@ -413,7 +411,7 @@ sw.addEventListener(
                 try {
                     const data = await storeLogs(logs, { download });
                     if (download) {
-                        source.postMessage({
+                        source?.postMessage({
                             action: "POST_RTC_LOGS",
                             data,
                         });

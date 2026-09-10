@@ -7,7 +7,15 @@ import { HootCopyButton } from "./hoot_copy_button.js";
 import { HootLink } from "./hoot_link.js";
 import { HootTagButton } from "./hoot_tag_button.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *  canCopy?: boolean;
+ *  full?: boolean;
+ *  inert?: boolean;
+ *  showStatus?: boolean;
+ *  test: Test;
+ * }} HootTestPathProps
+ */
 
 /** @extends {Component<HootTestPathProps, import("../hoot").Environment>} */
 export class HootTestPath extends Component {

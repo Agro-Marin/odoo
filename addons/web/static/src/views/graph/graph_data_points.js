@@ -9,9 +9,33 @@
 
 /** @typedef {Record<string, Record<string, number>>} Numbering */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * count: any,
+ * domain: any,
+ * value: any,
+ * labels: any[],
+ * isFalsyXGroup: boolean,
+ * identifier: string,
+ * xIdentifier: string,
+ * datasetId: string,
+ * cumulatedStart: any,
+ * convertedCumulatedStart?: any,
+ * currencyId?: any,
+ * convertedValue?: any,
+ * }} GraphDataPoint
+ */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * currencyId?: any,
+ * value?: any,
+ * cumulatedStart?: any,
+ * convertedValue?: any,
+ * convertedCumulatedStart?: any,
+ * [key: string]: any,
+ * }} CurrencyResolvable
+ */
 
 /**
  * @param {string} measure

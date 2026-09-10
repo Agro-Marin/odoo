@@ -274,7 +274,6 @@ test("IndexedDB Crypt: can cache a simple call", async () => {
         1,
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
-    await rpcCache.encryptReady;
 
     expect(
         await rpcCache.read("table", "key", () => Promise.resolve({ test: 123 }), {
@@ -370,6 +369,7 @@ test("update callback - reordered keys are not a change (order-independent compa
     await rpcCache.read("table", "key", () => Promise.resolve({ a: 1, b: 2 }));
 
     const def = new Deferred();
+    /** @type {boolean} */
     let observedHasChanged;
     await rpcCache.read(
         "table",
@@ -1171,7 +1171,7 @@ test("DiskCache: multiple consecutive calls, empty cache, fallback fails", async
 
 test("DiskCache: write throws an IDBQuotaExceededError", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        deleteDatabase() {
+        async deleteDatabase() {
             expect.step("delete db");
         },
         write() {

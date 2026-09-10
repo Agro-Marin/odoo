@@ -156,15 +156,14 @@ test("a changed viewId reloads the view", async function () {
         static props = {};
         setup() {
             this.state = useState({ viewId: 1 });
-            Parent.instance = this;
         }
     }
 
-    await mountWithCleanup(Parent);
+    const parent = await mountWithCleanup(Parent);
     expect(loaded).toEqual([[[1, "toy"]]]);
     expect(".o_toy_view.toy").toHaveInnerHTML(`<toy>Arch content (id=1)</toy>`);
 
-    Parent.instance.state.viewId = 2;
+    parent.state.viewId = 2;
     await animationFrame();
     await animationFrame();
 

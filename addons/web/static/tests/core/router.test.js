@@ -1952,6 +1952,7 @@ describe("internal links", () => {
 
         expect(router.current).toEqual({});
 
+        /** @type {boolean} */
         let defaultPrevented;
         browser.addEventListener("click", (ev) => {
             expect.step("click");
@@ -2007,6 +2008,7 @@ describe("internal links", () => {
 
         expect(router.current).toEqual({});
 
+        /** @type {boolean} */
         let defaultPrevented;
         browser.addEventListener("click", (ev) => {
             expect.step("click");
@@ -2046,6 +2048,7 @@ describe("internal links", () => {
                 "should have different protocols between the current location and the clicked link",
         });
 
+        /** @type {boolean} */
         let defaultPrevented;
         browser.addEventListener("click", (ev) => {
             expect.step("click");
@@ -2084,6 +2087,7 @@ describe("internal links", () => {
 
         expect(router.current).toEqual({});
 
+        /** @type {boolean} */
         let defaultPrevented;
         browser.addEventListener("click", (ev) => {
             expect.step("click");
@@ -2127,6 +2131,7 @@ describe("internal links", () => {
 
         expect(router.current).toEqual({});
 
+        /** @type {boolean} */
         let defaultPrevented;
         browser.addEventListener("click", (ev) => {
             expect.step("click");
@@ -2169,6 +2174,7 @@ describe("internal links", () => {
 
         expect(router.current).toEqual({});
 
+        /** @type {boolean} */
         let defaultPrevented;
         link.addEventListener("click", (ev) => {
             expect.step("click");

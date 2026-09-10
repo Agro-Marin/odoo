@@ -57,3 +57,31 @@ test("a skipped test declared first is erased without taking its siblings", () =
     expect(testNames(runner)).toEqual(["kept"]);
     expect(suiteNames(runner)).toEqual(["outer", "inner"]);
 });
+
+test("debug selects its test with the same inclusion level as only", () => {
+    const { runner, describe: desc, test: t } = makeHeadlessRunner();
+    runner.dry = true;
+    desc("selection", () => {
+        t.debug("debugged", () => {});
+        t.only("included", () => {});
+        t("ordinary", () => {});
+    });
+    const [debugged, included, ordinary] = runner.tests.values();
+    expect(runner.debug).toBe(debugged);
+    expect(runner.state.includeSpecs.id[debugged.id]).toBeGreaterThan(0);
+    expect(runner.state.includeSpecs.id[debugged.id]).toBe(
+        runner.state.includeSpecs.id[included.id],
+    );
+    expect(runner.state.includeSpecs.id[ordinary.id]).toBe(undefined);
+});
+
+test("only selects its test without enabling debugging", () => {
+    const { runner, describe: desc, test: t } = makeHeadlessRunner();
+    runner.dry = true;
+    desc("selection", () => {
+        t.only("included", () => {});
+    });
+    const [included] = runner.tests.values();
+    expect(runner.debug).toBe(false);
+    expect(runner.state.includeSpecs.id[included.id]).toBeGreaterThan(0);
+});

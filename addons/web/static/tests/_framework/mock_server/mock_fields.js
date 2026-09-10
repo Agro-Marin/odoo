@@ -11,7 +11,16 @@ import { MockServerError } from "./mock_server_utils.js";
  * @typedef {import("fields").FieldType} FieldType
  * @typedef {import("./mock_model").ModelRecord} ModelRecord
  * @typedef {{
- * @typedef {number | string | boolean | number[]} RecordFieldValue
+ * compute?: (() => void) | string;
+ * default?: RecordFieldValue | ((record: ModelRecord) => RecordFieldValue);
+ * onChange?: (record: ModelRecord) => void;
+ * }} MockFieldProperties
+ * @typedef {import("fields").FieldValue} RecordFieldValue
+ */
+
+/**
+ * @template {FieldType} T
+ * @typedef {T extends "generic" ? Omit<FieldDefinitionsByType[T], "type"> & { type: string } : FieldDefinitionsByType[T]} MockFieldDefinition
  */
 
 /** @param {string} name */
@@ -23,10 +32,14 @@ function camelToPascal(name) {
 }
 
 /**
- * @template {FieldType}
- * @template
+ * @template {FieldType} T
+ * @template [R=never]
  * @param {T} type
  * @param {{
+ * aggregator?: Aggregator;
+ * defaults?: Partial<MockFieldDefinition<T> & MockFieldProperties>;
+ * requiredKeys?: R[];
+ * }} params
  */
 function makeFieldGenerator(type, { aggregator, defaults, requiredKeys = [] } = {}) {
     const constructorFnName = camelToPascal(type);
@@ -41,7 +54,7 @@ function makeFieldGenerator(type, { aggregator, defaults, requiredKeys = [] } = 
     Object.assign(defaultDef, defaults);
 
     return {
-        /** @param {Partial<FieldDefinitionsByType[T] & MockFieldProperties>} [properties] */
+        /** @param {Partial<MockFieldDefinition<T> & MockFieldProperties>} [properties] */
         [constructorFnName](properties) {
             const field = {
                 ...defaultDef,

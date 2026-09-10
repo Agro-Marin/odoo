@@ -3,7 +3,14 @@
 
 import { browser } from "@web/core/browser/browser";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * functionName: string,
+ * fileName: string,
+ * lineNumber: number,
+ * columnNumber: number,
+ * }} StackFrame
+ */
 
 const V8_FRAME_RE = /^\s*at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?\s*$/;
 const GECKO_FRAME_RE = /^\s*(?:(.*?)@)?(.+?):(\d+):(\d+)\s*$/;

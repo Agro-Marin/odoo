@@ -258,7 +258,7 @@ export class EmbeddedActions {
 
     /**
      * @param {{visibleEmbeddedActions: (number|false)[], showAllEmbeddedActions?: boolean}} embeddedInfos
-     * @param {EmbeddedAction} action
+     * @param {Pick<EmbeddedAction, "id">} action
      * @returns {boolean}
      */
     static isVisible(embeddedInfos, action) {

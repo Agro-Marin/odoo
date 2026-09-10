@@ -99,6 +99,18 @@ describe(parseUrl(import.meta.url), () => {
         expect.verifySteps([blobUrl]);
     });
 
+    test("response readers decode a blob body and preserve clone isolation", async () => {
+        const response = new Response(
+            new Blob(['{"value":', "42}"], { type: "application/json" }),
+        );
+        const clone = response.clone();
+        expect(await response.json()).toEqual({ value: 42 });
+        expect(response.bodyUsed).toBe(true);
+        expect(clone.bodyUsed).toBe(false);
+        expect(await clone.text()).toBe('{"value":42}');
+        await expect(response.text()).rejects.toThrow(/already read/);
+    });
+
     test("mock response with nested blobs", async () => {
         mockFetch(
             () =>

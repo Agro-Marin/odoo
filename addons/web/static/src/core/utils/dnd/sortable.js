@@ -8,12 +8,14 @@ import {
 } from "@web/core/utils/dnd/draggable_hook_builder";
 import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_utils";
 
+/** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
+
 /** @typedef {DraggableHandlerParams & { group: HTMLElement | null }} SortableHandlerParams */
 
 /**
- * @typedef SortableParams
+ * @typedef SortableOptions
  * @property {{ el: HTMLElement | null }} ref
- * @property {string | (() => string)} elements
+ * @property {string | (() => string)} [elements]
  * @property {boolean | (() => boolean)} [enable]
  * @property {number} [delay]
  * @property {number} [touchDelay]
@@ -44,6 +46,8 @@ import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_uti
  * @property {HTMLElement | null} next
  * @property {HTMLElement | null} parent
  */
+
+/** @typedef {import("./draggable_hook_builder.js").DragOptions & SortableOptions} SortableParams */
 
 /**
  * @typedef SortableState

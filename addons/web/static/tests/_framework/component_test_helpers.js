@@ -6,7 +6,6 @@ import { getTemplate as defaultGetTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
 import { isIterable } from "@web/core/utils/collections/arrays";
 import { patch } from "@web/core/utils/patch";
-// @ts-ignore — customDirectives & globalValues exist at runtime but aren't in .d.ts
 import {
     customDirectives as defaultCustomDirectives,
     globalValues as defaultGlobalValues,
@@ -24,13 +23,14 @@ import { getMockEnv, makeMockEnv } from "./env_test_helpers.js";
  */
 
 /**
- * @template
- * @template
+ * @template [P=any]
+ * @template [E=any]
  * @typedef {import("@odoo/owl").ComponentConstructor<P, E>} ComponentConstructor
  */
 
 /**
- * @param {any} ComponentClass
+ * @template {Component} TComponent
+ * @param {new (...args: any[]) => TComponent} ComponentClass
  * @param {HTMLElement | ShadowRoot} targetEl
  * @param {AppConfig} config
  */
@@ -51,6 +51,19 @@ patch(MainComponentsContainer.prototype, {
 
 let hasMainComponent = false;
 
+/**
+ * @template {Component} C
+ * @overload
+ * @param {App | Component} parent
+ * @param {(component: Component) => component is C} predicate
+ * @returns {C | null}
+ */
+/**
+ * @overload
+ * @param {App | Component} parent
+ * @param {(component: Component) => boolean} predicate
+ * @returns {Component | null}
+ */
 /**
  * @param {App | Component} parent
  * @param {(component: Component) => boolean} predicate
@@ -90,10 +103,33 @@ export function getDropdownMenu(togglerSelector) {
 }
 
 /**
- * @template {import("@odoo/owl").Component}
- * @param {(new (...args: any[]) => TComponent) | string} ComponentClass
- * @param {AppConfig & {
+ * @typedef {AppConfig & {
+ * componentEnv?: Partial<OdooEnv>;
+ * containerEnv?: Partial<OdooEnv>;
+ * fixtureClassName?: string | string[] | null;
+ * env?: any;
+ * noMainContainer?: boolean;
+ * props?: any;
+ * target?: Target;
+ * }} MountWithCleanupOptions
+ */
+
+/**
+ * @template {Component} TComponent
+ * @overload
+ * @param {new (...args: any[]) => TComponent} ComponentClass
+ * @param {MountWithCleanupOptions} [options]
  * @returns {Promise<TComponent>}
+ */
+/**
+ * @overload
+ * @param {string} ComponentClass
+ * @param {MountWithCleanupOptions} [options]
+ * @returns {Promise<Component>}
+ */
+/**
+ * @param {(new (...args: any[]) => Component) | string} ComponentClass
+ * @param {MountWithCleanupOptions} [options]
  */
 export async function mountWithCleanup(ComponentClass, options) {
     const {

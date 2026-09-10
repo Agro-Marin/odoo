@@ -72,7 +72,10 @@ defineActions([
 
 beforeEach(() => {
     patchWithCleanup(browser, {
-        open: (url) => expect.step("open: " + url),
+        open: (url) => {
+            expect.step("open: " + url);
+            return window;
+        },
     });
 });
 
@@ -184,6 +187,7 @@ test("opening in a new window seeds sessionStorage, then restores this window's"
             views: [[false, "kanban"]],
         },
     ]);
+    /** @type {{ action: string; state: string; }} */
     let duringOpen;
     patchWithCleanup(browser, {
         open: (url) => {
@@ -192,6 +196,7 @@ test("opening in a new window seeds sessionStorage, then restores this window's"
                 action: browser.sessionStorage.getItem("current_action"),
                 state: browser.sessionStorage.getItem("current_state"),
             };
+            return window;
         },
     });
 
@@ -224,7 +229,10 @@ test("opening in a new window from a blank session leaves no residue", async () 
         },
     ]);
     patchWithCleanup(browser, {
-        open: (url) => expect.step("open: " + url),
+        open: (url) => {
+            expect.step("open: " + url);
+            return window;
+        },
     });
     await mountWebClient();
     browser.sessionStorage.removeItem("current_action");

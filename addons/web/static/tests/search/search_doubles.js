@@ -2,6 +2,8 @@
 
 import { Mutex } from "@web/core/utils/concurrency";
 
+/** @import { QueryElement } from "@web/search/search_types" */
+
 // The notification channel the doubles share is a stand-in for SearchModel's
 // own: `_notifications` is where a test reads the steps, and `blockNotification`
 // is the channel's flag -- search_model.js declares the real one as its private

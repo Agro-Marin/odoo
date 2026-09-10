@@ -22,14 +22,17 @@ const mountManifestLink = (/** @type {any} */ href) => {
 };
 
 test("Installation page displays the app info correctly", async () => {
-    const beforeInstallPromptEvent = new CustomEvent("beforeinstallprompt");
+    const beforeInstallPromptEvent = Object.assign(
+        new CustomEvent("beforeinstallprompt"),
+        { prompt: async () => ({ outcome: "accepted" }) },
+    );
     beforeInstallPromptEvent.preventDefault = () => {};
     beforeInstallPromptEvent.prompt = async () => ({ outcome: "accepted" });
     browser.BeforeInstallPromptEvent = beforeInstallPromptEvent;
     await makeMockEnv();
     patchWithCleanup(browser.location, {
         replace: (url) => {
-            expect(url.searchParams.get("app_name")).toBe("%3COtto%26", {
+            expect(new URL(url).searchParams.get("app_name")).toBe("%3COtto%26", {
                 message: "ask to redirect with updated searchParams",
             });
             expect.step("URL replace");

@@ -2,7 +2,7 @@
 // @ts-check
 /**
  *
- * @typedef {import("@spreadsheet").OdooPivotDefinition} OdooPivotDefinition
+ * @typedef {import("@spreadsheet").OdooPivotCoreDefinition} OdooPivotCoreDefinition
  * @typedef {import("@spreadsheet").AllCoreCommand} AllCoreCommand
  * @typedef {import("@spreadsheet").GFLocalPivot} GFLocalPivot
  *

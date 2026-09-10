@@ -5,6 +5,8 @@ import { onWillUnmount, status, useComponent } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { useService } from "@web/core/utils/hooks";
 
+/** @import { PopoverServiceAddFunction, PopoverServiceAddOptions } from "@web/ui/popover/popover_service" */
+
 /**
  * @typedef PopoverHookReturnType
  * @property {(target: string | HTMLElement, props: object) => void} open
@@ -43,14 +45,14 @@ export function makePopover(addFn, component, options) {
 
 /**
  * @param {import("@odoo/owl").ComponentConstructor<any, any>} component
- * @param {PopoverServiceAddOptions} [options]
+ * @param {PopoverServiceAddOptions & {useBottomSheet?: boolean | (() => boolean)}} [options]
  * @returns {PopoverHookReturnType}
  */
 export function usePopover(component, options = {}) {
     const popoverService = useService("popover");
     const owner = useComponent();
 
-    const { useBottomSheet } = /** @type {any} */ (options);
+    const { useBottomSheet } = options;
     const wantsBottomSheet =
         typeof useBottomSheet === "function"
             ? useBottomSheet

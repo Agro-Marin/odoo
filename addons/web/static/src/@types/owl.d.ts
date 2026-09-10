@@ -1,23 +1,5 @@
-/**
- * Ambient type declarations for @odoo/owl.
- *
- * OWL is bundled at `static/lib/owl/owl.es.js` (version 2.8.2) and resolved
- * at runtime via the import map emitted by `ir_qweb._get_native_module_nodes()`
- * (see `addons/web/machine_doc_v1/ESM_BUNDLING.md`). The npm package
- * `@odoo/owl` is NOT installed — installing it would pull jsdom + ~30
- * transitive packages and risk version drift with the bundled runtime.
- * This file declares the public API directly so `tsc --noEmit` can
- * resolve `import { ... } from "@odoo/owl"` without those costs.
- *
- * Source of truth for the export list: the `export { ... }` statement at
- * the end of `owl.es.js`. Adapted for the typing patterns this codebase
- * actually uses (component generics simplified, hooks left loosely typed
- * where upstream OWL keeps internals private). If the bundled OWL is
- * upgraded, re-extract the export list and update this file.
- */
-
 declare module "@odoo/owl" {
-    export type Env = Record<string, any>;
+    export type Env = Record<PropertyKey, any>;
 
     export interface ComponentConstructor<P = any, E extends Env = Env> {
         new (props: P, env: E, node?: any): Component<P, E>;
@@ -29,7 +11,8 @@ declare module "@odoo/owl" {
 
     export interface AppConfig<E extends Env = Env> {
         env?: E;
-        /** `App` stores it as `this.props = config.props || {}`. */
+        templates?: string | Document | Record<string, string | Element>;
+        test?: boolean;
         props?: any;
         getTemplate?: (name: string) => Element | string | null | undefined;
         dev?: boolean;
@@ -45,23 +28,32 @@ declare module "@odoo/owl" {
     }
 
     export class App<C extends Component = Component> {
-        constructor(component: ComponentConstructor, config?: AppConfig);
+        static apps: Set<App>;
+        constructor(component: new (...args: any[]) => C, config?: AppConfig);
         env: Env;
+        root: ComponentNode<C> | null;
+        scheduler: {
+            tasks: Set<unknown>;
+            processing: boolean;
+            frame: number;
+            flush(): void;
+            processTasks(): void;
+        };
+        static registerTemplate(name: string, template: string | Element | Function): void;
+        getTemplate(name: string): Function;
+        addTemplate(name: string, template: string | Element): void;
+        addTemplates(templates: string | Document): void;
         mount(target: HTMLElement | ShadowRoot): Promise<C>;
         destroy(): void;
     }
 
+    export interface ComponentNode<C extends Component = Component> {
+        component: C;
+        children: Record<string, ComponentNode>;
+        app: App;
+    }
+
     export class Component<P = any, E extends Env = Env> {
-        /**
-         * Odoo's fallback env for an `App` built without an explicit one —
-         * `website/js/utils.js` and `portal/interactions/portal_composer.js`
-         * read it. OWL itself never assigns it: there is no `Component.env`
-         * anywhere in `owl.es.js`, and `App` deliberately keeps its own frozen
-         * copy (`Object.freeze(Object.create(...))`). `env.js` assigns this one
-         * at mount time. Declared here because it is our convention, not part
-         * of OWL's export surface — the exception to this file's rule that the
-         * export list comes from the bundle.
-         */
         static env?: Env;
         static template?: string;
         static components?: any;
@@ -70,7 +62,6 @@ declare module "@odoo/owl" {
         constructor(props: P, env: E, node?: any);
         props: P;
         env: E;
-        readonly el: HTMLElement | undefined;
         setup(): void;
         render(deep?: boolean): void;
         [key: string]: any;
@@ -146,14 +137,14 @@ declare module "@odoo/owl" {
 
     export function xml(strings: TemplateStringsArray, ...values: any[]): string;
 
-    export interface Markup {
+    export interface Markup extends String {
         toString(): string;
         readonly __markup: true;
     }
     export function markup(strings: TemplateStringsArray, ...values: any[]): Markup;
     export function markup(value: string): Markup;
 
-    export function htmlEscape(value: string): string;
+    export function htmlEscape(value: unknown): Markup;
 
     export function mount<C extends Component>(
         component: ComponentConstructor,
@@ -166,7 +157,32 @@ declare module "@odoo/owl" {
     ): "new" | "mounted" | "unmounted" | "destroyed";
 
     export function validate(value: any, schema: any): void;
-    export function validateType(value: any, type: any): boolean;
+    export type PropType =
+        | BooleanConstructor
+        | StringConstructor
+        | NumberConstructor
+        | ObjectConstructor
+        | ArrayConstructor
+        | FunctionConstructor
+        | (new (...args: never[]) => object)
+        | "*";
+    export type PropDescription =
+        | PropType
+        | PropDescription[]
+        | {
+              type?: PropDescription;
+              optional?: boolean;
+              value?: unknown;
+              element?: PropDescription;
+              shape?: Record<string, PropDescription>;
+              values?: PropDescription;
+              validate?: (value: unknown) => boolean;
+          };
+    export function validateType(
+        key: string,
+        value: unknown,
+        description: PropDescription,
+    ): string | null;
 
     export function whenReady(): Promise<void>;
     export function whenReady(callback: () => void): void;

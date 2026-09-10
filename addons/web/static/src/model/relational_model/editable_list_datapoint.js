@@ -5,6 +5,8 @@ import { markRaw } from "@odoo/owl";
 
 import { DataPoint } from "./datapoint.js";
 
+/** @import { RelationalRecord } from "./record.js" */
+
 /** @typedef {{ position?: "top" | "bottom" }} ListInsertion */
 
 /** @abstract */

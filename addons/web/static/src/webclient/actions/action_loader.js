@@ -11,6 +11,8 @@ import { isHtmlEmpty } from "@web/core/utils/dom/html";
 
 const actionRegistry = registry.category("actions");
 
+/** @import { Action, ActionDescription, ActionManager, ActionRequest, Context, Controller } from "./action_service.js" */
+
 /**
  * @param {string | number} key
  * @returns {[string, import("registries").ActionsRegistryItemShape] | []}

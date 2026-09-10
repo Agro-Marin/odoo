@@ -72,8 +72,8 @@ import { waitUntil } from "./time.js";
  *  last?: boolean;
  *  not?: boolean;
  *  only?: boolean;
- *  root?: HTMLElement;
- *  scrollable?: ScrollAxis;
+ *  root?: Target;
+ *  scrollable?: ScrollAxis | boolean;
  *  selected?: boolean;
  *  shadow?: boolean;
  *  value?: boolean;
@@ -1116,7 +1116,7 @@ export function cleanupDOM() {
 }
 
 /**
- * @param {Node | () => Node} node
+ * @param {Node | (() => Node)} node
  */
 export function defineRootNode(node) {
     if (typeof node === "function") {

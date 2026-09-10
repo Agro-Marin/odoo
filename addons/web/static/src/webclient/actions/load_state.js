@@ -6,6 +6,8 @@ import { user } from "@web/core/user";
 
 import { actionStorage } from "./action_storage.js";
 
+/** @import { ActionManager } from "./action_service.js" */
+
 /**
  * @param {any[]} controllers
  * @param {Record<string, any>} state

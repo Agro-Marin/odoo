@@ -7,11 +7,41 @@ import { registry } from "@web/core/registry";
 
 import { CommandPalette, DefaultFooter } from "./command_palette.js";
 
-/** @typedef {{ */
+/** @import { CommandPaletteConfig } from "./command_palette.js" */
 
-/** @typedef {{ */
+/** @import { HotkeyOptions } from "@web/core/hotkeys/hotkey_service" */
 
-/** @typedef {Command & CommandOptions & { */
+/**
+ * @typedef {{
+ * name: string;
+ * action: ()=>(void | CommandPaletteConfig);
+ * category?: string;
+ * href?: string;
+ * className?: string;
+ * }} Command
+ */
+
+/**
+ * @typedef {{
+ * category?: string;
+ * isAvailable?: (...args: any[]) => boolean;
+ * global?: boolean;
+ * hotkey?: string;
+ * hotkeyOptions?: HotkeyOptions;
+ * activeElement?: HTMLElement;
+ * scope?: () => Document | HTMLElement;
+ * identifier?: string;
+ * href?: string;
+ * className?: string;
+ * }} CommandOptions
+ */
+
+/**
+ * @typedef {Command & CommandOptions & {
+ * removeHotkey?: ()=>void;
+ * getScope: () => Document | HTMLElement;
+ * }} CommandRegistration
+ */
 
 const commandCategoryRegistry = registry.category("command_categories");
 const commandProviderRegistry = registry.category("command_provider");
@@ -77,25 +107,23 @@ class CommandService {
     }
 
     /**
-     * @param {CommandPaletteConfig} [config]
+     * @param {Partial<CommandPaletteConfig>} [config]
      * @param {Function} [onClose]
      */
-    openMainPalette(config = /** @type {any} */ ({}), onClose) {
+    openMainPalette(config = {}, onClose) {
         const providers = commandProviderRegistry.getAll();
         this._configByNamespace ??= this._buildConfigByNamespace(providers);
-        config = Object.assign(
-            {
-                configByNamespace: this._configByNamespace,
-                FooterComponent: DefaultFooter,
-                providers,
-            },
-            config,
-        );
-        return this.openPalette(config, onClose);
+        const mainConfig = {
+            configByNamespace: this._configByNamespace,
+            FooterComponent: DefaultFooter,
+            providers,
+            ...config,
+        };
+        return this.openPalette(mainConfig, onClose);
     }
 
     /**
-     * @param {any[]} providers
+     * @param {ReturnType<typeof commandProviderRegistry.getAll>} providers
      * @returns {Record<string, any>}
      */
     _buildConfigByNamespace(providers) {

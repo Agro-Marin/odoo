@@ -180,9 +180,9 @@ test("popovers share one detached-target observer per root", async () => {
     const Native = MutationObserver;
     patchWithCleanup(globalThis, {
         MutationObserver: class extends Native {
-            observe(...args) {
+            observe(target, options) {
                 observeCalls++;
-                return super.observe(...args);
+                return super.observe(target, options);
             }
             disconnect() {
                 disconnectCalls++;
@@ -466,7 +466,8 @@ test("a slotted popover is rejected rather than silently empty", async () => {
     }
     let message = "none";
     onError((ev) => {
-        message = String(ev.reason?.message ?? ev.reason);
+        const error = "reason" in ev ? ev.reason : ev.error;
+        message = String(error?.message ?? error);
         ev.preventDefault();
     });
     try {

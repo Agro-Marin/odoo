@@ -4,7 +4,14 @@ import { describe, expect, globals, test } from "@odoo/hoot";
 
 describe.current.tags("headless");
 
-/** @type {Promise<{ */
+/**
+ * @type {Promise<{
+ * extractSessionInfo: (html: string) => string | null,
+ * getTextFromResponse: (response: Response) => Promise<string>,
+ * isStaleWhileRevalidateURL: (url: URL) => boolean,
+ * restoreSessionInfo: (htmlBody: string, info: string) => string,
+ * }> | null}
+ */
 let hooksPromise = null;
 function loadServiceWorkerHooks() {
     hooksPromise ??= (async () => {
@@ -24,15 +31,64 @@ const url = (/** @type {string} */ path) => new URL(path, "https://example.com")
 /**
  * @param {any} caches
  * @param {any} fetch
+ * @param {any} [fakeSelf]
  */
-async function loadServiceWorkerHooksWith(caches, fetch) {
+async function loadServiceWorkerHooksWith(
+    caches,
+    fetch,
+    fakeSelf = { addEventListener() {} },
+) {
     const response = await globals.fetch("/web/static/src/service_worker.js");
     const source = await response.text();
-    /** @type {any} */
-    const fakeSelf = { addEventListener: () => {} };
     new Function("self", "caches", "fetch", source)(fakeSelf, caches, fetch);
     return fakeSelf.__ODOO_SW_TEST_HOOKS__;
 }
+
+describe("getTextFromResponse", () => {
+    test("an empty response body reads as empty text", async () => {
+        const { getTextFromResponse } = await loadServiceWorkerHooks();
+        expect(
+            await getTextFromResponse(new globals.Response(null, { status: 204 })),
+        ).toBe("");
+    });
+
+    test("decodes UTF-8 across chunks and preserves the original response", async () => {
+        const { getTextFromResponse } = await loadServiceWorkerHooks();
+        const bytes = new TextEncoder().encode("a€b");
+        const response = new globals.Response(
+            new ReadableStream({
+                start(controller) {
+                    controller.enqueue(bytes.slice(0, 2));
+                    controller.enqueue(bytes.slice(2));
+                    controller.close();
+                },
+            }),
+        );
+        expect(await getTextFromResponse(response)).toBe("a€b");
+        expect(await response.text()).toBe("a€b");
+    });
+});
+
+test("message waiters are notified together and cleared for the next message", async () => {
+    const listeners = new Map();
+    const hooks = await loadServiceWorkerHooksWith(undefined, undefined, {
+        addEventListener: (type, callback) => listeners.set(type, callback),
+    });
+    const first = hooks.waitingMessage("ready").then(() => expect.step("first"));
+    const second = hooks.waitingMessage("ready").then(() => expect.step("second"));
+    listeners.get("message")({ data: "unrelated" });
+    await Promise.resolve();
+    expect.verifySteps([]);
+    listeners.get("message")({ data: "ready" });
+    await Promise.all([first, second]);
+    expect.verifySteps(["first", "second"]);
+    const next = hooks.waitingMessage("ready").then(() => expect.step("next"));
+    await Promise.resolve();
+    expect.verifySteps([]);
+    listeners.get("message")({ data: "ready" });
+    await next;
+    expect.verifySteps(["next"]);
+});
 
 describe("staleWhileRevalidate", () => {
     test("a network failure with nothing cached answers an error response, not undefined", async () => {

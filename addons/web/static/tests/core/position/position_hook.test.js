@@ -27,7 +27,12 @@ before(
         ),
 );
 
-function getTestComponent(popperOptions, styles = {}, target = false) {
+/**
+ * @param {Omit<import("@web/core/position/position_hook").UsePositionOptions, "container"> & {container?: HTMLElement}} [popperOptions]
+ * @param {Partial<Record<"container" | "popper" | "content", Partial<CSSStyleDeclaration>>>} [styles]
+ * @param {HTMLElement} [target]
+ */
+function getTestComponent(popperOptions, styles = {}, target) {
     class TestComp extends Component {
         static template = xml`
             <div id="scroll-container" style="overflow: auto; height: 450px">
@@ -41,9 +46,7 @@ function getTestComponent(popperOptions, styles = {}, target = false) {
         `;
         static props = ["*"];
         setup() {
-            if (!target) {
-                target = useRef("target");
-            }
+            const targetRef = useRef("target");
             const container = useRef("container");
             const popper = useRef("popper");
             const content = useRef("content");
@@ -52,7 +55,7 @@ function getTestComponent(popperOptions, styles = {}, target = false) {
                 Object.assign(popper.el.style, styles.popper);
                 Object.assign(content.el.style, styles.content);
             });
-            usePosition("popper", () => target?.el || target, {
+            usePosition("popper", () => target || targetRef.el, {
                 ...popperOptions,
                 container: () => popperOptions?.container || container.el,
             });
@@ -191,6 +194,7 @@ test("can disable auto-flipping", async () => {
 });
 
 test("can offset", async () => {
+    /** @type {Pick<import("@web/core/position/utils").PositioningSolution, "direction" | "variant" | "variantOffset">} */
     const expected = {
         direction: "bottom",
         variant: "middle",
@@ -296,7 +300,10 @@ test("reposition popper when a scroll event occurs", async () => {
 test("is positioned relative to its containing block", async () => {
     const fixtureBox = getFixture().getBoundingClientRect();
     const margin = 15;
-    let pos1, pos2;
+    /** @type {import("@web/core/position/utils").PositioningSolution} */
+    let pos1;
+    /** @type {import("@web/core/position/utils").PositioningSolution} */
+    let pos2;
     let TestComp = getTestComponent(
         {
             onPositioned: (el, pos) => {
@@ -387,6 +394,7 @@ test("iframe: popper is outside, target inside", async () => {
     });
 
     const popperTarget = iframe.contentDocument.getElementById("target");
+    /** @type {{el: HTMLElement, solution: import("@web/core/position/utils").PositioningSolution}} */
     let onPositionedArgs;
     const Popper = getPopperComponent(
         {
@@ -480,6 +488,7 @@ test("iframe: popper is outside, target and container inside", async () => {
     });
 
     const popperTarget = iframe.contentDocument.getElementById("target");
+    /** @type {{el: HTMLElement, solution: import("@web/core/position/utils").PositioningSolution}} */
     let onPositionedArgs;
     const Popper = getPopperComponent(
         {
@@ -551,6 +560,7 @@ test("iframe: both popper and target inside", async () => {
         backgroundColor: "khaki",
     });
 
+    /** @type {{el: HTMLElement, solution: import("@web/core/position/utils").PositioningSolution}} */
     let onPositionedArgs;
     const Popper = getTestComponent({
         container: innerContainer,
@@ -726,7 +736,8 @@ test("popper as child of another", async () => {
 });
 
 test("batch update call", async () => {
-    let position = null;
+    /** @type {ReturnType<typeof usePosition>} */
+    let position;
     class TestComponent extends Component {
         static template = xml`
             <div id="container" t-ref="container" style="background-color: salmon; display: flex; align-items: center; justify-content: center; width: 450px; height: 450px; margin: 25px; overflow: auto">
@@ -1326,11 +1337,11 @@ test("document listeners are bound once, not re-bound on every render", async ()
     let added = 0;
     const realAdd = document.addEventListener.bind(document);
     patchWithCleanup(document, {
-        addEventListener(type, ...rest) {
+        addEventListener(type, listener, options) {
             if (type === "scroll" || type === "load") {
                 added++;
             }
-            return realAdd(type, ...rest);
+            return realAdd(type, listener, options);
         },
     });
 
@@ -1365,13 +1376,10 @@ test("a throwing onPositioned does not freeze positioning forever", async () => 
     expect.errors(1);
     let shouldThrow = false;
     let positioned = 0;
-    let comp;
-
     class Popper extends Component {
         static template = xml`<div t-ref="popper" class="popper">popper</div>`;
         static props = ["*"];
         setup() {
-            comp = this;
             this.position = usePosition("popper", () => getFixture(), {
                 onPositioned: () => {
                     positioned++;
@@ -1383,7 +1391,7 @@ test("a throwing onPositioned does not freeze positioning forever", async () => 
         }
     }
 
-    await mountWithCleanup(Popper);
+    const comp = await mountWithCleanup(Popper);
     await animationFrame();
     expect(positioned).toBeGreaterThan(0);
 

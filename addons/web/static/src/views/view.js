@@ -55,7 +55,7 @@ import {
  * @property {string[]} [groupBy]
  * @property {OrderTerm[]} [orderBy]
  * @property {boolean} [useSampleModel]
- * @property {string|false} [noContentHelp]
+ * @property {string|import("@odoo/owl").Markup|false} [noContentHelp]
  * @property {string} [className]
  * @property {string} [jsClass]
  * @property {boolean} [noBreadcrumbs]

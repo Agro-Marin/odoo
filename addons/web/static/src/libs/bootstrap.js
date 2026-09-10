@@ -110,7 +110,9 @@ Tooltip.prototype.show = function () {
 };
 
 const bsTooltipDispose = Tooltip.prototype.dispose;
-Tooltip.prototype.dispose = function (...args) {
+Tooltip.prototype.dispose = function (
+    /** @type {Parameters<typeof bsTooltipDispose>} */ ...args
+) {
     if (shownTooltip === this) {
         shownTooltip = null;
     }

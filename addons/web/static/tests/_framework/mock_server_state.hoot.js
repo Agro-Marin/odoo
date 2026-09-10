@@ -124,7 +124,7 @@ const subscriptions = new Map([
 ]);
 
 /**
- * @template
+ * @template T
  * @param {T} target
  * @param {(state: ServerState) => T} callback
  */

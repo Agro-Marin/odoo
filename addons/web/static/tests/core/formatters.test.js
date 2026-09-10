@@ -234,17 +234,17 @@ test("formatX2many", () => {
 test("formatMonetary", () => {
     patchWithCleanup(currencies, {
         10: {
-            digits: [69, 2],
+            digits: /** @type {[number, number]} */ ([69, 2]),
             position: "after",
             symbol: "€",
         },
         11: {
-            digits: [69, 2],
+            digits: /** @type {[number, number]} */ ([69, 2]),
             position: "before",
             symbol: "$",
         },
         12: {
-            digits: [69, 2],
+            digits: /** @type {[number, number]} */ ([69, 2]),
             position: "after",
             symbol: "&",
         },
@@ -256,6 +256,7 @@ test("formatMonetary", () => {
         type: "monetary",
         currency_field: "c_x",
     };
+    /** @type {Record<string, number | number[]>} */
     let data = {
         c_x: [11],
         c_y: 12,

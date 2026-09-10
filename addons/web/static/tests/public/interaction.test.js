@@ -20,7 +20,7 @@ import { Interaction } from "@web/public/interaction";
 import { InteractionService } from "@web/public/interaction_service";
 import { patchDynamicContent } from "@web/public/utils";
 
-import { startInteraction, startInteractions } from "./helpers.js";
+import { getInteraction, startInteraction, startInteractions } from "./helpers.js";
 
 describe.current.tags("interaction_dev");
 
@@ -33,8 +33,7 @@ async function startInteractionsCounted(Is, html) {
         },
     });
     const { core } = await startInteraction(Is, html);
-    Object.defineProperty(core, "scanCount", { value: scanCount - 1 });
-    return { core };
+    return { core: Object.assign(core, { scanCount: scanCount - 1 }) };
 }
 
 const TemplateBase = `
@@ -400,7 +399,7 @@ describe("using selectors", () => {
         expect.verifySteps(["a", "b"]);
 
         queryOne("button").classList.remove("a");
-        core.interactions[0].interaction.updateContent();
+        getInteraction(core, Test).updateContent();
         await click("button");
         expect.verifySteps(["b"]);
 
@@ -551,7 +550,7 @@ describe("removing listeners", () => {
         expect(clicked).toBe(0);
         await click("span");
         expect(clicked).toBe(1);
-        core.interactions[0].interaction.removeListener();
+        getInteraction(core, Test).removeListener();
         await click("span");
         expect(clicked).toBe(1);
     });
@@ -574,7 +573,7 @@ describe("removing listeners", () => {
         await click(spans[0]);
         await click(spans[1]);
         expect(clicked).toBe(2);
-        core.interactions[0].interaction.removeListener();
+        getInteraction(core, Test).removeListener();
         await click(spans[0]);
         await click(spans[1]);
         expect(clicked).toBe(2);
@@ -655,11 +654,14 @@ describe("handling crashes", () => {
     test("a dynamic selector yielding a non-target names itself in the error", async () => {
         expect.errors(1);
         class Test extends Interaction {
+            setup() {
+                Object.assign(this.dynamicSelectors, {
+                    _bogus: () => "not-a-node",
+                });
+            }
+
             static selector = ".test";
-            dynamicSelectors = {
-                ...this.dynamicSelectors,
-                _bogus: () => "not-a-node",
-            };
+
             dynamicContent = { _bogus: { "t-on-click": () => {} } };
         }
         await expect(startInteraction(Test, TemplateTest)).rejects.toThrow(
@@ -691,6 +693,7 @@ describe("handling crashes", () => {
 
     test("cannot update content while updating content", async () => {
         let update = false;
+        /** @type {Test} */
         let interaction = null;
         class Test extends Interaction {
             static selector = ".test";
@@ -717,6 +720,7 @@ describe("handling crashes", () => {
 
     test("recover from a throwing t-out definition", async () => {
         let boom = false;
+        /** @type {Test} */
         let interaction = null;
         class Test extends Interaction {
             static selector = ".test";
@@ -803,6 +807,9 @@ describe("handling crashes", () => {
         const { core } = await startInteraction(Test, TemplateTest);
         patchWithCleanup(core, {
             reportError(error) {
+                if (!(error instanceof Error)) {
+                    throw error;
+                }
                 expect.step(`reported:${error.message}`);
             },
         });
@@ -829,6 +836,9 @@ describe("handling crashes", () => {
         const { core } = await startInteraction(Test, TemplateTest);
         patchWithCleanup(core, {
             reportError(error) {
+                if (!(error instanceof Error)) {
+                    throw error;
+                }
                 expect.step(`reported:${error.message}`);
             },
         });
@@ -1036,7 +1046,7 @@ describe("using qualifiers", () => {
         await click("span");
         expect(clicked).toBe(true);
         expect("span").not.toHaveClass("a");
-        core.interactions[0].interaction.updateContent();
+        getInteraction(core, Test).updateContent();
         expect("span").toHaveClass("a");
     });
 
@@ -1086,7 +1096,7 @@ describe("using qualifiers", () => {
         await click("span");
         expect(clicked).toBe(true);
         expect("span").not.toHaveClass("a");
-        core.interactions[0].interaction.updateContent();
+        getInteraction(core, Test).updateContent();
         expect("span").toHaveClass("a");
     });
 
@@ -1400,6 +1410,9 @@ describe("waitFor...", () => {
             const { core } = await startInteraction(Test, TemplateTest);
             patchWithCleanup(core, {
                 reportError(error) {
+                    if (!(error instanceof Error)) {
+                        throw error;
+                    }
                     expect.step(`reported:${error.message}`);
                 },
             });
@@ -1584,6 +1597,7 @@ describe("waitFor...", () => {
     });
 
     test("a fired timeout does not accumulate in the cleanup list", async () => {
+        /** @type {Test} */
         let interaction;
         class Test extends Interaction {
             static selector = ".test";
@@ -1704,7 +1718,7 @@ describe("t-att-class", () => {
         );
         expect("span").toHaveClass("a");
         expect("span").not.toHaveClass("b");
-        core.interactions[0].interaction.updateContent();
+        getInteraction(core, Test).updateContent();
         expect("span").toHaveClass("a");
         expect("span").not.toHaveClass("b");
     });
@@ -2145,7 +2159,7 @@ describe("t-att and t-out", () => {
         expect("span").toHaveClass("b");
         expect("span").not.toHaveStyle({ backgroundColor: "rgb(0, 0, 255)" });
         expect("span").toHaveStyle({ color: "rgb(255, 0, 0)" });
-        core.interactions[0].interaction.updateContent();
+        getInteraction(core, Test).updateContent();
         await animationFrame();
         expect("span").toHaveClass("a");
         expect("span").toHaveClass("b");
@@ -2154,6 +2168,7 @@ describe("t-att and t-out", () => {
     });
 
     test("t-att-... receive the target as argument", async () => {
+        /** @type {HTMLElement} */
         let target;
         class Test extends Interaction {
             static selector = "span";
@@ -2309,6 +2324,7 @@ describe("t-att and t-out", () => {
             }
             start() {
                 this.waitForTimeout(() => {
+                    /** @type {string | symbol | import("@odoo/owl").Markup} */
                     this.tOut = Interaction.INITIAL_VALUE;
                 }, 1000);
             }
@@ -2624,7 +2640,7 @@ describe("t-att and t-out", () => {
         await animationFrame();
         const innerEl = queryOne(".inner");
         for (let i = 0; i < 3; i++) {
-            core.interactions[0].interaction.updateContent();
+            getInteraction(core, Outer).updateContent();
             await animationFrame();
         }
         expect(innerStarts).toBe(1);
@@ -2652,7 +2668,7 @@ describe("t-att and t-out", () => {
         await animationFrame();
         const innerEl = queryOne(".inner");
         for (let i = 0; i < 3; i++) {
-            core.interactions[0].interaction.updateContent();
+            getInteraction(core, Outer).updateContent();
             await animationFrame();
         }
         expect(innerStarts).toBe(1);
@@ -2674,7 +2690,7 @@ describe("t-att and t-out", () => {
             Test,
             `<div class="test"><div class="slot"></div></div>`,
         );
-        const interaction = core.interactions[0].interaction;
+        const interaction = getInteraction(core, Test);
         for (let i = 1; i <= 300; i++) {
             interaction.tOut = markup(`<div class="row">${i}</div>`);
             interaction.updateContent();
@@ -2703,6 +2719,7 @@ describe("t-att and t-out", () => {
         class Test extends Interaction {
             static selector = ".test";
             setup() {
+                /** @type {string | import("@odoo/owl").Markup} */
                 this.tOut = markup`<i>a</i>`;
             }
             dynamicContent = {
@@ -2713,7 +2730,7 @@ describe("t-att and t-out", () => {
             Test,
             `<div class="test"><div class="slot"></div></div>`,
         );
-        const interaction = core.interactions[0].interaction;
+        const interaction = getInteraction(core, Test);
         expect(".slot").toHaveInnerHTML(`<i>a</i>`);
         interaction.tOut = "<i>a</i>";
         interaction.updateContent();
@@ -2739,6 +2756,7 @@ describe("t-att and t-out", () => {
         class Test extends Interaction {
             static selector = ".test";
             setup() {
+                /** @type {string | import("@odoo/owl").Markup} */
                 this.tOut = "a";
             }
             dynamicContent = {
@@ -2750,9 +2768,7 @@ describe("t-att and t-out", () => {
             `<div class="test"><div class="slot"><i>x</i></div></div>`,
         );
         expect(starts).toBe(1);
-        const interaction = core.interactions.find(
-            (i) => i.interaction.constructor === Test,
-        ).interaction;
+        const interaction = getInteraction(core, Test);
         interaction.tOut = "b";
         interaction.updateContent();
         expect(".slot").toHaveText("b");
@@ -2825,7 +2841,7 @@ describe("t-att and t-out", () => {
         core.interactions[0].updateContent();
         expect(document.activeElement).toBe(input);
         expect(queryOne(".scroller").scrollTop).toBe(120);
-        core.interactions[0].interaction.tOut = markup`<input class="typed" data-v="2"/>`;
+        getInteraction(core, Test).tOut = markup`<input class="typed" data-v="2"/>`;
         core.interactions[0].updateContent();
         expect(queryOne(".typed")).not.toBe(input);
     });
@@ -2870,7 +2886,7 @@ describe("t-att and t-out", () => {
             `<div class="test"><div class="slot">x</div></div>`,
         );
         expect(queryOne(".slot").childNodes).toHaveLength(0);
-        const interaction = core.interactions[0].interaction;
+        const interaction = getInteraction(core, Test);
         interaction.tOut = undefined;
         core.interactions[0].updateContent();
         expect(queryOne(".slot").childNodes).toHaveLength(0);
@@ -2924,7 +2940,7 @@ describe("t-att and t-out", () => {
             `<div class="test"><div class="slot"></div></div>`,
         );
         expect(".slot").toHaveInnerHTML(`<i>B</i>`);
-        core.interactions[0].interaction.a = markup`<i>A2</i>`;
+        getInteraction(core, Test).a = markup`<i>A2</i>`;
         core.interactions[0].updateContent();
         expect(".slot").toHaveInnerHTML(`<i>B</i>`);
     });
@@ -2934,6 +2950,7 @@ describe("t-att and t-out", () => {
             static selector = ".test";
             hidden = false;
             setup() {
+                /** @type {string | number} */
                 this.v = "1";
             }
             dynamicContent = {
@@ -2949,7 +2966,7 @@ describe("t-att and t-out", () => {
         );
         expect(".slot").toHaveAttribute("data-x", "1");
         expect(".slot").not.toHaveAttribute("hidden");
-        const interaction = core.interactions[0].interaction;
+        const interaction = getInteraction(core, Test);
         interaction.v = 2;
         interaction.hidden = true;
         core.interactions[0].updateContent();
@@ -2965,6 +2982,7 @@ describe("t-att and t-out", () => {
             static selector = ".test";
             dynamicContent = { _root: { "t-out": () => this.tOut } };
             setup() {
+                /** @type {symbol | import("@odoo/owl").Markup} */
                 this.tOut = Interaction.INITIAL_VALUE;
             }
         }
@@ -2975,7 +2993,7 @@ describe("t-att and t-out", () => {
                 return super.startInteractions(el);
             },
         });
-        const interaction = core.interactions[0].interaction;
+        const interaction = getInteraction(core, Test);
         interaction.tOut = markup(`<i></i><i></i><i></i><i></i>`);
         interaction.updateContent();
         expect.verifySteps(["scan"]);
@@ -2991,7 +3009,9 @@ describe("components", () => {
             static props = {};
 
             setup() {
-                onWillDestroy(() => (isCDestroyed = true));
+                onWillDestroy(() => {
+                    isCDestroyed = true;
+                });
             }
         }
 
@@ -3020,7 +3040,9 @@ describe("components", () => {
             };
 
             setup() {
-                onWillDestroy(() => (isCDestroyed = true));
+                onWillDestroy(() => {
+                    isCDestroyed = true;
+                });
             }
         }
 
@@ -3049,7 +3071,9 @@ describe("components", () => {
             };
 
             setup() {
-                onWillDestroy(() => (isCDestroyed = true));
+                onWillDestroy(() => {
+                    isCDestroyed = true;
+                });
             }
         }
 
@@ -3094,6 +3118,7 @@ describe("components", () => {
             static props = {};
         }
 
+        /** @type {() => void} */
         let destroy;
         class Test extends Interaction {
             static selector = ".test";
@@ -3140,6 +3165,7 @@ describe("insert", () => {
         el1.classList.add("very-cool-class");
         const el2 = document.createElement("div");
         el2.classList.add("very-cool-class");
+        /** @type {Test} */
         let interaction;
         class Test extends Interaction {
             static selector = ".test";
@@ -3677,6 +3703,8 @@ describe("locked", () => {
 describe("debounced (1)", () => {
     let core;
     let testEl;
+    /** @type {() => void} */
+    let cancel;
     beforeEach(async () => {
         patchWithCleanup(Colibri.prototype, {
             updateContent() {
@@ -3698,6 +3726,7 @@ describe("debounced (1)", () => {
         }
         ({ core } = await startInteraction(Test, TemplateTest));
         expect.verifySteps(["updateContent"]);
+        cancel = getInteraction(core, Test).debouncedFn.cancel;
         testEl = queryOne(".test");
     });
 
@@ -3742,7 +3771,7 @@ describe("debounced (1)", () => {
         expect.verifySteps(["done", "updateContent"]);
         await click(testEl);
         await click(testEl);
-        core.interactions[0].interaction.debouncedFn.cancel();
+        cancel();
         await advanceTime(500);
         expect.verifySteps([]);
     });
@@ -3776,6 +3805,7 @@ describe("debounced (2)", () => {
 
     test("debounced is not called if the interaction is destroyed in the meantime", async () => {
         freezeTime();
+        /** @type {number} */
         let debounceTimer;
 
         class Test extends Interaction {
@@ -3931,6 +3961,8 @@ describe("debounced (2)", () => {
 describe("throttled_for_animation (1)", () => {
     let core;
     let testEl;
+    /** @type {() => void} */
+    let cancel;
     (beforeEach(async () => {
         patchWithCleanup(Colibri.prototype, {
             updateContent() {
@@ -3952,6 +3984,7 @@ describe("throttled_for_animation (1)", () => {
         }
         ({ core } = await startInteraction(Test, TemplateTest));
         expect.verifySteps(["updateContent"]);
+        cancel = getInteraction(core, Test).throttle.cancel;
         testEl = queryOne(".test");
     }),
         test("throttled event handler executes call right away", async () => {
@@ -3993,7 +4026,7 @@ describe("throttled_for_animation (1)", () => {
         expect.verifySteps(["done", "updateContent"]);
         await click(testEl);
         await click(testEl);
-        core.interactions[0].interaction.throttle.cancel();
+        cancel();
         expect.verifySteps([]);
     });
 });
@@ -4088,7 +4121,7 @@ describe("throttled_for_animation (2)", () => {
                     "t-on-click": this.throttled(async () => {
                         await def;
                         clicked++;
-                    }, 100),
+                    }),
                     "t-att-x": () => clicked.toString(),
                 },
             };
@@ -4215,7 +4248,7 @@ describe("patching", () => {
             },
         });
         const { core } = await startInteraction(Base, TemplateTest);
-        const interaction = core.interactions[0].interaction;
+        const interaction = getInteraction(core, Base);
         expect(interaction.value).toBe(10);
         expect("span").toHaveAttribute("value", "290");
         expect("span").toHaveClass("base");
@@ -4361,7 +4394,7 @@ describe("dynamic attributes", () => {
         const { core } = await startInteraction(Test, `<div class="test"></div>`);
         const el = queryOne(".test");
         expect(el.className).toBe("test a");
-        core.interactions[0].interaction.phase = 1;
+        getInteraction(core, Test).phase = 1;
         core.interactions[0].updateContent();
         expect(el.className).toBe("test a b");
         core.stopInteractions();
@@ -4448,6 +4481,9 @@ describe("lifecycle edge cases", () => {
         });
         patchWithCleanup(core, {
             reportError(error) {
+                if (!(error instanceof Error)) {
+                    throw error;
+                }
                 expect.step(`reported:${error.message}`);
             },
         });
@@ -4536,6 +4572,9 @@ describe("lifecycle edge cases", () => {
         await animationFrame();
         patchWithCleanup(core, {
             reportError(error) {
+                if (!(error instanceof Error)) {
+                    throw error;
+                }
                 expect.step(`reported:${error.message}`);
             },
         });
@@ -4710,7 +4749,7 @@ describe("lifecycle edge cases", () => {
         );
         const el = queryOne(".test");
         expect(el.style.color).toBe("red");
-        core.interactions[0].interaction.phase = 1;
+        getInteraction(core, Test).phase = 1;
         core.interactions[0].updateContent();
         expect(el.style.zIndex).toBe("5");
         core.stopInteractions();
@@ -4723,14 +4762,14 @@ describe("restoring on destroy", () => {
     test("a node that left the selector's match set is restored too", async () => {
         class Test extends Interaction {
             static selector = ".test";
-            dynamicSelectors = {
-                ...this.dynamicSelectors,
-                _target: () => this.target,
-            };
+
             dynamicContent = {
                 _target: { "t-att-class": () => ({ marked: true }) },
             };
             setup() {
+                Object.assign(this.dynamicSelectors, {
+                    _target: () => this.target,
+                });
                 this.target = this.el.querySelector(".a");
             }
         }
@@ -4739,7 +4778,7 @@ describe("restoring on destroy", () => {
             `<div class="test"><span class="a"></span><span class="b"></span></div>`,
         );
         expect(".a").toHaveClass("marked");
-        core.interactions[0].interaction.target = queryOne(".b");
+        getInteraction(core, Test).target = queryOne(".b");
         core.interactions[0].updateContent();
         expect(".b").toHaveClass("marked");
         core.stopInteractions();
@@ -4750,14 +4789,14 @@ describe("restoring on destroy", () => {
     test("a t-out node that left the match set is restored too", async () => {
         class Test extends Interaction {
             static selector = ".test";
-            dynamicSelectors = {
-                ...this.dynamicSelectors,
-                _target: () => this.target,
-            };
+
             dynamicContent = {
                 _target: { "t-out": () => "replaced" },
             };
             setup() {
+                Object.assign(this.dynamicSelectors, {
+                    _target: () => this.target,
+                });
                 this.target = this.el.querySelector(".a");
             }
         }
@@ -4766,7 +4805,7 @@ describe("restoring on destroy", () => {
             `<div class="test"><span class="a">first</span><span class="b">second</span></div>`,
         );
         expect(queryOne(".a").textContent).toBe("replaced");
-        core.interactions[0].interaction.target = queryOne(".b");
+        getInteraction(core, Test).target = queryOne(".b");
         core.interactions[0].updateContent();
         core.stopInteractions();
         expect(queryOne(".a").textContent).toBe("first");
@@ -4976,13 +5015,13 @@ describe("selectors sharing an event", () => {
         class Test extends Interaction {
             static selector = ".test";
             setup() {
+                Object.assign(this.dynamicSelectors, {
+                    _target: () =>
+                        this.matching ? this.el.querySelectorAll("span") : null,
+                });
                 this.matching = false;
             }
-            dynamicSelectors = {
-                ...this.dynamicSelectors,
-                _target: () =>
-                    this.matching ? this.el.querySelectorAll("span") : null,
-            };
+
             dynamicContent = {
                 _root: { "t-on-mouseover": () => (this.matching = true) },
                 _target: {
@@ -5004,13 +5043,13 @@ describe("selectors sharing an event", () => {
         class Test extends Interaction {
             static selector = ".test";
             setup() {
+                Object.assign(this.dynamicSelectors, {
+                    _target: () =>
+                        this.matching ? this.el.querySelectorAll("span") : null,
+                });
                 this.matching = true;
             }
-            dynamicSelectors = {
-                ...this.dynamicSelectors,
-                _target: () =>
-                    this.matching ? this.el.querySelectorAll("span") : null,
-            };
+
             dynamicContent = {
                 _root: { "t-on-mouseover": () => (this.matching = false) },
                 _target: {

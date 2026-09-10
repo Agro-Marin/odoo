@@ -3,6 +3,10 @@
 
 import { rankInterval } from "./utils/dates.js";
 
+/** @import { OrderTerm } from "@web/core/utils/order_by" */
+
+/** @import { ActiveItem, QueryElement, QueryGroup, SearchItems } from "./search_types" */
+
 /**
  * @param {QueryElement[]} query
  * @param {SearchItems} searchItems

@@ -10,6 +10,8 @@ import { parseActiveIds } from "./action_constants.js";
 import { resolveClientAction } from "./action_loader.js";
 import { actionStorage } from "./action_storage.js";
 
+/** @import { ActionOptions, ActionRequest, Context, Controller } from "./action_service.js" */
+
 /**
  * @param {Controller[]} controllerStack
  * @returns {Record<string, any>}
@@ -172,7 +174,14 @@ function resolveActionFromModel(state, lastAction, options) {
  * @returns {{ actionRequest: ActionRequest, options: ActionOptions } | null}
  */
 function resolveActionParams(state, lastAction) {
-    /** @type {{ */
+    /**
+     * @type {{
+     * additionalContext?: Object,
+     * viewType?: string,
+     * poppedLeaves?: number,
+     * props?: { resId?: any, globalState?: any },
+     * }}
+     */
     const options = {};
     let actionRequest = null;
     if (state.action) {

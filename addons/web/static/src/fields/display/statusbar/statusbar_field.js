@@ -25,6 +25,12 @@ import { useCommand } from "@web/ui/commands/command_hook";
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
+ * domain?: [Array, Function];
+ * foldField?: string;
+ * isDisabled?: boolean;
+ * visibleSelection?: string[];
+ * withCommand?: boolean;
+ * }} StatusBarFieldProps
  * @typedef StatusBarItem
  * @property {number} value
  * @property {string} label

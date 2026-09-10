@@ -1,6 +1,6 @@
-import { OdooPivotRuntimeDefinition } from "@spreadsheet/pivot/pivot_runtime";
+import { OdooPivotRuntimeDefinition } from "@spreadsheet/pivot/odoo_pivot";
 import { ORM } from "@web/core/network/orm_service";
-import { PivotMeasure } from "@spreadsheet/pivot/pivot_runtime";
+import { PivotMeasure } from "@spreadsheet/pivot/odoo_pivot";
 import { ServerData } from "@spreadsheet/data_sources/server_data";
 import {
     Pivot,
@@ -12,8 +12,8 @@ declare module "@spreadsheet" {
     export interface OdooPivotCoreDefinition extends CommonPivotCoreDefinition {
         type: "ODOO";
         model: string;
-        domain: Array;
-        context?: Object;
+        domain: import("@web/core/domain").DomainRepr;
+        context?: Record<string, unknown>;
         actionXmlId: string;
     }
 
@@ -38,14 +38,14 @@ declare module "@spreadsheet" {
         store?: boolean;
     }
 
-    export type OdooFields = Record<string, Field | undefined>;
+    export type OdooFields = Record<string, OdooField | undefined>;
 
     export interface PivotMetaData {
         colGroupBys: string[];
         rowGroupBys: string[];
         activeMeasures: string[];
         resModel: string;
-        fields?: Record<string, Field | undefined>;
+        fields?: Record<string, OdooField | undefined>;
         modelLabel?: string;
         fieldAttrs: any;
     }
@@ -53,8 +53,8 @@ declare module "@spreadsheet" {
     export interface PivotSearchParams {
         groupBy: string[];
         orderBy: string[];
-        domain: Array;
-        context: Object;
+        domain: import("@web/core/domain").DomainRepr;
+        context: Record<string, unknown>;
     }
 
     /* Params used for the odoo pivot model */
@@ -67,8 +67,8 @@ declare module "@spreadsheet" {
         fields: OdooFields;
         definition: OdooPivotRuntimeDefinition;
         searchParams: {
-            domain: Array;
-            context: Object;
+            domain: import("@web/core/domain").DomainRepr;
+            context: Record<string, unknown>;
         };
     }
 

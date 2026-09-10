@@ -6,7 +6,10 @@ import { refresh, subscribeToURLParams } from "../core/url.js";
 import { STORAGE, storageSet } from "../hoot_utils.js";
 import { HootLink } from "./hoot_link.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * }} HootButtonsProps
+ */
 
 const {
     clearTimeout,

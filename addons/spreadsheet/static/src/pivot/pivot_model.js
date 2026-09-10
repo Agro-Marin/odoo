@@ -144,14 +144,18 @@ export const NO_RECORD_AT_THIS_POSITION = "__NO_RECORD_AT_THIS_POSITION__";
  * This class is an extension of PivotModel with some additional information
  * that we need in spreadsheet (display_name, isUsedInSheet, ...)
  */
+/** @extends {PivotModel<{_t: typeof import("@web/core/translation")._t}>} */
 export class OdooPivotModel extends PivotModel {
     /**
-     * @param {import("@web/env").OdooEnv} env
+     * @param {{_t: typeof import("@web/core/translation")._t}} env
      * @param {import("@spreadsheet").OdooPivotModelParams} params
      * @param {import("@spreadsheet").PivotModelServices} services
      */
     constructor(env, params, services) {
-        super(env, params, services);
+        const webParams = params.definition.getDefinitionForPivotModel(params.fields);
+        webParams.searchParams = { ...webParams.searchParams, ...params.searchParams };
+        super(env, webParams, services);
+        this.definition = params.definition;
         /**
          * @private
          */
@@ -170,21 +174,6 @@ export class OdooPivotModel extends PivotModel {
          * @type {import("@spreadsheet").OdooGetters}
          */
         this.getters = services.getters;
-    }
-
-    /**
-     * @param {import("@spreadsheet").OdooPivotModelParams} params
-     * @param {import("@spreadsheet").PivotModelServices} services
-     */
-    setup(params, services) {
-        /** This is necessary to ensure the compatibility with the PivotModel from web */
-        const p = params.definition.getDefinitionForPivotModel(params.fields);
-        p.searchParams = {
-            ...p.searchParams,
-            ...params.searchParams,
-        };
-        super.setup(p);
-        this.definition = params.definition;
     }
 
     /**
@@ -224,6 +213,12 @@ export class OdooPivotModel extends PivotModel {
     }
 
     async load(searchParams) {
+        for (const groupBy of [
+            ...this.metaData.colGroupBys,
+            ...this.metaData.rowGroupBys,
+        ]) {
+            this._normalize(groupBy);
+        }
         if (
             this.metaData.activeMeasures.find(
                 (fieldName) =>
@@ -450,7 +445,10 @@ export class OdooPivotModel extends PivotModel {
          * automatically
          */
         const prune = false;
-        await super._loadData(config, prune);
+        const loaded = await super._loadData(config, prune);
+        if (!loaded) {
+            return false;
+        }
 
         const registerLabels = (tree, groupBys) => {
             const group = tree.root;
@@ -477,6 +475,7 @@ export class OdooPivotModel extends PivotModel {
 
         registerLabels(this.data.colGroupTree, this.metaData.fullColGroupBys);
         registerLabels(this.data.rowGroupTree, this.metaData.fullRowGroupBys);
+        return true;
     }
 
     _registerDisplayLabel(fieldName, value, label) {

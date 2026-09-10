@@ -24,6 +24,9 @@ import { setupHootUI } from "./ui/setup_hoot_ui.js";
  * @typedef {import("../hoot-dom/helpers/events").PointerOptions} PointerOptions
  * @typedef {import("./mock/network").ServerWebSocket} ServerWebSocket
  * @typedef {{
+ *  runner: Runner;
+ *  ui: import("./ui/setup_hoot_ui").UiState
+ * }} Environment
  */
 
 const runner = new Runner(urlParams);

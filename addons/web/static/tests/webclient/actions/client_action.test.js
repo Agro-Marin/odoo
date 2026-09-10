@@ -443,10 +443,14 @@ test("test reload client action", async () => {
 
     patchWithCleanup(browser.history, {
         pushState: (_state, _unused, url) => {
-            expect.step(`pushState ${url.replace(browser.location.origin, "")}`);
+            expect.step(
+                `pushState ${String(url).replace(browser.location.origin, "")}`,
+            );
         },
         replaceState: (_state, _unused, url) => {
-            expect.step(`replaceState ${url.replace(browser.location.origin, "")}`);
+            expect.step(
+                `replaceState ${String(url).replace(browser.location.origin, "")}`,
+            );
         },
     });
     patchWithCleanup(browser.location, {

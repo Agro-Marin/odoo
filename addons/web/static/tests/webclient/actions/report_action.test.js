@@ -163,6 +163,7 @@ test("send context in case of html report", async () => {
     mockService("notification", {
         add(message, options) {
             expect.step(options.type || "notification");
+            return () => {};
         },
     });
 
@@ -195,7 +196,12 @@ test("downloadReport resolves with nothing (no wkhtmltopdf-fallback plumbing)", 
             return Promise.resolve();
         },
     });
-    const action = { report_name: "some_report", report_type: "qweb-pdf" };
+    /** @type {import("@web/webclient/actions/action_service").ReportAction} */
+    const action = {
+        type: "ir.actions.report",
+        report_name: "some_report",
+        report_type: "qweb-pdf",
+    };
     const result = await downloadReport(action, "pdf", {});
     expect(result).toBe(undefined);
     expect.verifySteps(["/report/download"]);

@@ -7,6 +7,12 @@ import { formatAST } from "@web/core/py_js/py";
 import { ASTType } from "../py_js/ast_type.js";
 import { addChild, connector, Expression, toValue } from "./condition_tree.js";
 
+/** @import { AST } from "@web/core/py_js/py_parser" */
+
+/** @import { DomainRepr } from "@web/core/domain" */
+
+/** @import { Tree } from "./condition_tree.js" */
+
 /**
  * @param {AST[]} ASTs
  * @param {boolean} [distributeNot=false]

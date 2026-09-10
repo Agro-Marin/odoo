@@ -8,7 +8,23 @@ import { useService } from "@web/core/utils/hooks";
 import { getFieldsSpec } from "@web/model/relational_model/field_spec";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 
-/** @typedef {{ */
+/** @import { Field, FieldInfo } from "@web/model/types" */
+
+/** @import { LifecycleHooks, RelationalModelConfig, UIHooks } from "@web/model/relational_model/relational_model" */
+
+/** @import { ServiceFactories } from "services" */
+
+/**
+ * @typedef {{
+ * resModel: string;
+ * resId?: number | false;
+ * mode?: "edit" | "readonly";
+ * context?: {[key: string]: any};
+ * hooks?: { lifecycle?: Partial<LifecycleHooks>; ui?: Partial<UIHooks> };
+ * activeFields?: {[key: string]: Partial<FieldInfo>};
+ * fieldNames?: string[];
+ * }} RecordInfo
+ */
 
 const defaultActiveField = { attrs: {}, options: {}, domain: "[]", string: "" };
 

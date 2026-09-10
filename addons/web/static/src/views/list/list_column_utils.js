@@ -1,7 +1,26 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @typedef {{ */
+/** @import { DynamicList } from "@web/model/relational_model/dynamic_list" */
+
+/** @import { StaticList } from "@web/model/relational_model/static_list" */
+
+/**
+ * @typedef {{
+ * type: string;
+ * name: string;
+ * id: string;
+ * label?: string;
+ * widget?: string;
+ * hasLabel?: boolean;
+ * optional?: string;
+ * classNames?: string;
+ * column_invisible?: string | boolean;
+ * attrs?: Record<string, string>;
+ * relatedPropertyField?: Record<string, unknown>;
+ * [key: string]: unknown;
+ * }} Column
+ */
 
 import { getPropertyFieldInfo } from "@web/fields/field";
 import { combineModifiers } from "@web/model/relational_model";
@@ -11,7 +30,7 @@ const propertyColumnsCache = new WeakMap();
 
 /**
  * @param {Column} column
- * @param {DynamicList | StaticList} list
+ * @param {Pick<StaticList, "fields" | "activeFields">} list
  * @returns {Column[]}
  */
 export function getPropertyFieldColumns(column, list) {
@@ -65,7 +84,7 @@ export function getPropertyFieldColumns(column, list) {
 
 /**
  * @param {Column[]} allColumns
- * @param {DynamicList | StaticList} list
+ * @param {Pick<StaticList, "fields" | "activeFields">} list
  * @returns {Column[]}
  */
 export function processAllColumns(allColumns, list) {

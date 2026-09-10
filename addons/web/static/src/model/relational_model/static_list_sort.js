@@ -7,8 +7,18 @@ import { parseServerValue } from "./field_values.js";
 import { computeResequencePlan } from "./resequence.js";
 import { compareRecords, computeNextOrderBy } from "./static_list_utils.js";
 
+/** @import { StaticList } from "@web/model/relational_model/static_list" */
+
 /**
- * @param {StaticList} list
+ * @typedef {Pick<StaticList, "currentIds" | "_currentIds" | "orderBy" | "_needsReordering" | "fieldNames" | "fields" | "activeFields" | "config" | "evalContext" | "_getResIdsToLoad" | "loadLocked" | "markReordered"> & {
+ * model: Pick<StaticList["model"], "loadRecords">;
+ * _cache: Map<import("@web/model/types").DatapointId, Pick<import("./record").RelationalRecord, "resId" | "data" | "applyValues">>;
+ * _createRecordDatapoint: (data: Record<string, any>) => void;
+ * }} SortableList
+ */
+
+/**
+ * @param {SortableList} list
  * @param {any[]} [currentIds]
  * @param {any[]} [orderBy]
  */
@@ -32,7 +42,7 @@ export async function sortStaticList(
         const config = { ...list.config, resIds, activeFields };
         const records = await list.model.loadRecords(config, list.evalContext);
         for (const record of records) {
-            const cached = /** @type {Map<any, any>} */ (list._cache).get(record.id);
+            const cached = list._cache.get(record.id);
             if (cached) {
                 cached.applyValues(record);
                 continue;
@@ -51,7 +61,7 @@ export async function sortStaticList(
             sortKeys.set(record.id, { resId: record.id, data });
         }
     }
-    const cache = /** @type {Map<any, any>} */ (list._cache);
+    const cache = list._cache;
     const sortableOf = (/** @type {any} */ id) => cache.get(id) || sortKeys.get(id);
     const entries = currentIds
         .filter((/** @type {any} */ id) => sortableOf(id))
@@ -104,7 +114,7 @@ export async function resequenceStaticList(list, movedId, targetId) {
 }
 
 /**
- * @param {StaticList} list
+ * @param {SortableList} list
  * @param {string} fieldName
  */
 export function sortBy(list, fieldName) {

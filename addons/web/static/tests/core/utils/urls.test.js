@@ -17,7 +17,7 @@ describe.current.tags("headless");
 
 beforeEach(() => {
     patchWithCleanup(browser, {
-        location: { protocol: "http:", host: "testhost" },
+        location: { ...browser.location, protocol: "http:", host: "testhost" },
     });
 });
 
@@ -28,7 +28,7 @@ test("getOrigin", () => {
 
 test("can return current origin", () => {
     patchWithCleanup(browser, {
-        location: { protocol: "testprotocol:", host: "testhost" },
+        location: { ...browser.location, protocol: "testprotocol:", host: "testhost" },
     });
     expect(url()).toBe("testprotocol://testhost");
 });
@@ -74,13 +74,14 @@ test("getDataURLFromFile handles empty file", async () => {
 test("redirect", () => {
     function testRedirect(url) {
         browser.location = {
+            ...browser.location,
             protocol: "http:",
             host: "testhost",
             origin: "http://www.test.com",
             pathname: "/some/tests",
             href: "http://www.test.com",
             assign: (url) => {
-                browser.location.href = url;
+                browser.location.href = String(url);
             },
         };
         redirect(url);

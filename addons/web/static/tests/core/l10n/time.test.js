@@ -22,6 +22,7 @@ beforeEach(() => {
 
 describe.current.tags("headless");
 test("parseTime (various entries)", async () => {
+    /** @type {[unknown, string | null][]} */
     const testSet = [
         ["8:15", "8:15:00"],
         ["15:15", "15:15:00"],
@@ -75,10 +76,8 @@ test("parseTime (various entries)", async () => {
     ];
 
     for (const [input, expected] of testSet) {
-        let result = parseTime(input, true);
-        if (result) {
-            result = result.toString(true);
-        }
+        const parsed = parseTime(input, true);
+        const result = parsed ? parsed.toString(true) : null;
         expect(result).toBe(expected, {
             message: `"${input}" should parse to "${expected}" and got "${result}"`,
         });
@@ -87,6 +86,7 @@ test("parseTime (various entries)", async () => {
 
 describe.current.tags("headless");
 test("parseTime (3-digit '24x' resolves to 2:4x, not end-of-day)", async () => {
+    /** @type {[unknown, string | null][]} */
     const testSet = [
         ["240", "2:40:00"],
         ["241", "2:41:00"],
@@ -101,10 +101,8 @@ test("parseTime (3-digit '24x' resolves to 2:4x, not end-of-day)", async () => {
     ];
 
     for (const [input, expected] of testSet) {
-        let result = parseTime(input, true);
-        if (result) {
-            result = result.toString(true);
-        }
+        const parsed = parseTime(input, true);
+        const result = parsed ? parsed.toString(true) : null;
         expect(result).toBe(expected, {
             message: `"${input}" should parse to "${expected}" and got "${result}"`,
         });
@@ -113,6 +111,7 @@ test("parseTime (3-digit '24x' resolves to 2:4x, not end-of-day)", async () => {
 
 describe.current.tags("headless");
 test("parseTime (no seconds)", async () => {
+    /** @type {[unknown, string | null][]} */
     const testSet = [
         ["8:15", "8:15"],
         ["10:15", "10:15"],
@@ -136,10 +135,8 @@ test("parseTime (no seconds)", async () => {
     ];
 
     for (const [input, expected] of testSet) {
-        let result = parseTime(input, false);
-        if (result) {
-            result = result.toString(false);
-        }
+        const parsed = parseTime(input, false);
+        const result = parsed ? parsed.toString(false) : null;
         expect(result).toBe(expected, {
             message: `(parseSeconds=false) "${input}" should parse to "${expected}" and got "${result}"`,
         });
@@ -150,6 +147,7 @@ describe.current.tags("headless");
 test("parseTime (arabic numbers)", async () => {
     patchWithCleanup(Settings, { defaultNumberingSystem: "arab" });
 
+    /** @type {[unknown, string | null][]} */
     const testSet = [
         ["11", "١١:٠٠"],
         ["11:45", "١١:٤٥"],

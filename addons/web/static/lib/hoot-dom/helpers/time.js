@@ -9,7 +9,7 @@ import { isInstanceOf } from "../hoot_dom_utils.js";
  * }} AdvanceTimeOptions
  *
  * @typedef {{
- *  message?: string | () => string;
+ *  message?: string | (() => string);
  *  timeout?: number;
  * }} WaitOptions
  */

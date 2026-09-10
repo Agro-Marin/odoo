@@ -72,7 +72,8 @@ export class Interaction {
 
     setup() {}
 
-    async willStart() {}
+    /** @returns {void | Promise<void>} */
+    willStart() {}
 
     /** @returns {void | Promise<void>} */
     start() {}
@@ -359,7 +360,7 @@ export class Interaction {
      * @param {import("@odoo/owl").ComponentConstructor} C
      * @param {Object|null} [props]
      * @param {InsertPosition} [position]
-     * @returns {Function}
+     * @returns {() => void}
      */
     mountComponent(el, C, props = null, position = "beforeend") {
         return this.__colibri__.mountComponent(el, C, props, position);

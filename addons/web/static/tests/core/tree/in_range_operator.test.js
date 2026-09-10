@@ -35,6 +35,7 @@ const options = {
 const fullOptions = { ...options, generateSmartDates: false };
 
 test(`"in range" operator: no introduction for complex paths (generateSmartDates=false)`, async () => {
+    /** @type {{tree_py: import("@web/core/tree/condition_tree").Tree, tree?: import("@web/core/tree/condition_tree").Tree, domain?: import("@web/core/domain").DomainListRepr}[]} */
     const toTest = [
         {
             tree_py: connector("&", [
@@ -87,6 +88,7 @@ test(`"in range" operator: no introduction for complex paths (generateSmartDates
 });
 
 test(`"in range" operator: no introduction if condition negated or "|" or different path (generateSmartDates=false)`, async () => {
+    /** @type {{tree_py: import("@web/core/tree/condition_tree").Tree, tree?: import("@web/core/tree/condition_tree").Tree, domain?: import("@web/core/domain").DomainListRepr}[]} */
     const toTest = [
         {
             tree_py: connector("&", [
@@ -221,6 +223,7 @@ test(`"in range" operator: no introduction if condition negated or "|" or differ
 test(`"in range" operator: introduction/elimination for datetime fields (generateSmartDates=false)`, async () => {
     mockDate("2025-07-03 16:20:00");
     await makeMockEnv();
+    /** @type {{tree_py: import("@web/core/tree/condition_tree").Tree, tree?: import("@web/core/tree/condition_tree").Tree, domain?: import("@web/core/domain").DomainListRepr}[]} */
     const toTest = [
         {
             tree_py: connector("&", [
@@ -578,6 +581,7 @@ test(`"in range" operator: introduction/elimination for datetime fields (generat
 test(`"in range" operator: introduction/elimination for date fields (generateSmartDates=false)`, async () => {
     mockDate("2025-07-03 16:20:00");
     await makeMockEnv();
+    /** @type {{tree_py: import("@web/core/tree/condition_tree").Tree, tree?: import("@web/core/tree/condition_tree").Tree, domain?: import("@web/core/domain").DomainListRepr}[]} */
     const toTest = [
         {
             tree_py: connector("&", [
@@ -908,6 +912,7 @@ test(`"in range" operator: introduction/elimination for date fields (generateSma
 });
 
 test(`"in range" operator: no introduction for complex paths`, async () => {
+    /** @type {{tree_py: import("@web/core/tree/condition_tree").Tree, tree?: import("@web/core/tree/condition_tree").Tree, domain?: import("@web/core/domain").DomainListRepr}[]} */
     const toTest = [
         {
             tree_py: connector("&", [
@@ -960,6 +965,7 @@ test(`"in range" operator: no introduction for complex paths`, async () => {
 });
 
 test(`"in range" operator: no introduction if condition negated or "|" or different path`, async () => {
+    /** @type {{tree_py: import("@web/core/tree/condition_tree").Tree, tree?: import("@web/core/tree/condition_tree").Tree, domain?: import("@web/core/domain").DomainListRepr}[]} */
     const toTest = [
         {
             tree_py: connector("&", [
@@ -1029,6 +1035,7 @@ test(`"in range" operator: no introduction if condition negated or "|" or differ
 
 test(`"in range" operator: introduction/elimination for datetime fields`, async () => {
     await makeMockEnv();
+    /** @type {{tree_py: import("@web/core/tree/condition_tree").Tree, tree?: import("@web/core/tree/condition_tree").Tree, domain?: import("@web/core/domain").DomainListRepr}[]} */
     const toTest = [
         {
             tree_py: connector("&", [
@@ -1285,6 +1292,7 @@ test(`"in range" operator: introduction/elimination for datetime fields`, async 
 
 test(`"in range" operator: introduction/elimination for date fields`, async () => {
     await makeMockEnv();
+    /** @type {{tree_py: import("@web/core/tree/condition_tree").Tree, tree?: import("@web/core/tree/condition_tree").Tree, domain?: import("@web/core/domain").DomainListRepr}[]} */
     const toTest = [
         {
             tree_py: connector("&", [

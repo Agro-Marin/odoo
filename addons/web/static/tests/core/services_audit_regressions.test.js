@@ -105,7 +105,7 @@ describe("multi_company_recovery", () => {
             get activeCompanies() {
                 return [{ id: 1 }];
             },
-            activateCompanies() {},
+            async activateCompanies() {},
         });
         const model = { config: { context: { allowed_company_ids: [1, 3] } } };
 
@@ -283,23 +283,33 @@ describe("title_service", () => {
 describe("currency", () => {
     test("a fetch issued before a company switch cannot land after it", async () => {
         await makeMockEnv();
-        serverState.currencies = [{ id: 1, position: "after", symbol: "€" }];
+        serverState.currencies = [
+            { id: 1, name: "EUR", position: "after", symbol: "€" },
+        ];
         let companyCurrency = 1;
         patchWithCleanup(user, {
             get activeCompany() {
                 return { id: 1, currency_id: companyCurrency };
             },
         });
-        const serverReplied = new Deferred();
-        onRpc("read", async ({ model }) => {
+        const staleRequestStarted = new Deferred();
+        const staleReply = new Deferred();
+        const freshRequestStarted = new Deferred();
+        const freshReply = new Deferred();
+        onRpc("read", async ({ model, kwargs }) => {
             if (model !== "res.currency") {
                 return;
             }
-            const rate = companyCurrency === 1 ? 0.5 : 0.99;
-            expect.step(`read to_currency=${companyCurrency}`);
-            if (companyCurrency !== 1) {
-                await serverReplied;
+            const currencyId = kwargs.context.to_currency;
+            expect.step(`read to_currency=${currencyId}`);
+            if (currencyId === 2) {
+                staleRequestStarted.resolve();
+                await staleReply;
+            } else if (currencyId === 3) {
+                freshRequestStarted.resolve();
+                await freshReply;
             }
+            const rate = { 1: 0.5, 2: 0.99, 3: 0.75 }[currencyId];
             return [{ id: 1, inverse_rate: rate, date: "2026-07-10" }];
         });
 
@@ -309,19 +319,25 @@ describe("currency", () => {
 
         companyCurrency = 2;
         const inFlight = getCurrencyRates();
+        await staleRequestStarted;
+        companyCurrency = 3;
         userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
-        serverReplied.resolve();
-        await inFlight;
+        staleReply.resolve();
+        await freshRequestStarted;
 
-        expect.verifySteps(["read to_currency=2"]);
-        expect(rates[1].toCompanyRate).toBe(0.5, {
-            message: "the superseded fetch did NOT overwrite the shared rates",
-        });
+        expect(rates[1].toCompanyRate).toBe(0.5);
+        freshReply.resolve();
+        const currentRates = await inFlight;
+        expect.verifySteps(["read to_currency=2", "read to_currency=3"]);
+        expect(currentRates).toBe(rates);
+        expect(rates[1].toCompanyRate).toBe(0.75);
     });
 
     test("a company switch does not by itself cost an RPC", async () => {
         await makeMockEnv();
-        serverState.currencies = [{ id: 1, position: "after", symbol: "€" }];
+        serverState.currencies = [
+            { id: 1, name: "EUR", position: "after", symbol: "€" },
+        ];
         onRpc("read", ({ model }) => {
             if (model === "res.currency") {
                 expect.step("read rates");

@@ -7,7 +7,7 @@ declare module "registries" {
     import { ActionDescription } from "@web/webclient/actions/action_service";
 
     interface ActionHandlerParams {
-        action: object;
+        action: ActionDescription;
         env: OdooEnv;
         options: ActionOptions;
     }
@@ -25,8 +25,8 @@ declare module "registries" {
 
     export interface CogMenuRegistryItemShape {
         Component: ComponentConstructor;
-        groupNumber: number;
-        isDisplayed?: (env: OdooEnv) => boolean;
+        groupNumber?: number;
+        isDisplayed?: (env: OdooEnv) => boolean | Promise<boolean>;
     }
 
     export type DialogsRegistryItemShape = ComponentConstructor;
@@ -52,8 +52,8 @@ declare module "registries" {
 
     export interface FavoriteMenuRegistryItemShape {
         Component: ComponentConstructor;
-        groupNumber: number;
-        isDisplayed?: (env: OdooEnv) => boolean;
+        groupNumber?: number;
+        isDisplayed?: (env: OdooEnv) => boolean | Promise<boolean>;
     }
 
     export type FormattersRegistryItemShape = (value: any, options?: any) => any;
@@ -127,7 +127,7 @@ declare module "registries" {
     export type UserMenuItemsRegistryItemShape = (env: OdooEnv) => {
         type: string;
         id?: string;
-        description?: string;
+        description?: string | import("@odoo/owl").Markup;
         callback?: () => any;
         href?: string;
         sequence?: number;

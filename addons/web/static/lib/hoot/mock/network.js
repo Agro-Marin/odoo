@@ -20,7 +20,18 @@ import { ensureTest } from "../main_runner.js";
 
 /**
  * @typedef {ResponseInit & {
+ *  type?: ResponseType;
+ *  url?: string;
+ * }} MockResponseInit
  * @typedef {AbortController
+ *  | MockBroadcastChannel
+ *  | MockMessageChannel
+ *  | MockMessagePort
+ *  | MockSharedWorker
+ *  | MockWebSocket
+ *  | MockWorker
+ *  | MockXMLHttpRequest
+ *  | ServerWebSocket} NetworkInstance
  */
 
 const {

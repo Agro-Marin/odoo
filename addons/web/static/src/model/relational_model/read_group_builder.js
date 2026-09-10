@@ -7,6 +7,8 @@ import { getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { getAggregateSpecifications, getGroupServerValue } from "./field_values.js";
 
+/** @import { RelationalModelConfig } from "./relational_model.js" */
+
 /**
  * @param {Record<string, any>} groups
  * @returns {Array<Record<string, any>>}

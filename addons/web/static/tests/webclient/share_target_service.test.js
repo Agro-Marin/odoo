@@ -5,7 +5,7 @@ import { advanceTime, animationFrame } from "@odoo/hoot-mock";
 import {
     getService,
     makeMockEnv,
-    mockServiceWorkerRegistration,
+    mockServiceWorkerContainer,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
@@ -17,26 +17,32 @@ describe.current.tags("desktop");
 /** @param {{ controlled?: boolean, reply?: any }} [options] */
 function mockServiceWorker({ controlled = true, reply } = {}) {
     const listeners = new Set();
-    const serviceWorker = {
-        register: async () => mockServiceWorkerRegistration(),
-        ready: Promise.resolve(),
-        controller: controlled
-            ? {
-                  postMessage(message) {
-                      expect.step(`postMessage:${message}`);
-                      if (reply === undefined) {
-                          return;
-                      }
+    /** @type {ServiceWorker | null} */
+    const controller = controlled
+        ? Object.assign(new EventTarget(), {
+              scriptURL: "https://example.com/service-worker.js",
+              state: /** @type {const} */ ("activated"),
+              onstatechange: null,
+              onerror: null,
+              postMessage(message) {
+                  expect.step(`postMessage:${message}`);
+                  if (reply !== undefined) {
                       for (const listener of [...listeners]) {
-                          listener({ data: reply });
+                          listener(new MessageEvent("message", { data: reply }));
                       }
-                  },
-              }
-            : null,
-        addEventListener: (_type, listener) => listeners.add(listener),
-        removeEventListener: (_type, listener) => listeners.delete(listener),
-    };
-    patchWithCleanup(browser, { navigator: { ...browser.navigator, serviceWorker } });
+                  }
+              },
+          })
+        : null;
+    mockServiceWorkerContainer({
+        controller,
+        addEventListener: (_type, listener) => {
+            listeners.add(listener);
+        },
+        removeEventListener: (_type, listener) => {
+            listeners.delete(listener);
+        },
+    });
     return { listenerCount: () => listeners.size };
 }
 
@@ -105,7 +111,7 @@ test("an uncontrolled page yields no files and no navigation", async () => {
 
 test("an acked share navigates to the expenses app and hands the files over once", async () => {
     mockLocation("?share_target=trigger");
-    const files = [{ name: "receipt.png" }];
+    const files = [new File(["receipt"], "receipt.png", { type: "image/png" })];
     mockServiceWorker({
         reply: { action: "odoo_share_target_ack", shared_files: files },
     });

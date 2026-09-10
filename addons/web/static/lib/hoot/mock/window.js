@@ -123,7 +123,7 @@ function callMediaQueryChanges(changedKeys) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T} target
  * @param {keyof T} property
  */
@@ -659,7 +659,7 @@ export function watchListeners(view = getWindow()) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T} target
  * @param {string[]} [whiteList]
  */

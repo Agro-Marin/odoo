@@ -305,7 +305,7 @@ export async function fetchModelDefinitions(modelNames) {
 }
 
 /**
- * @param {string | URL} input
+ * @param {string | URL | Request} input
  * @returns {string}
  */
 function unmockOrigin(input) {
@@ -318,10 +318,14 @@ function unmockOrigin(input) {
 }
 
 /**
- * @param {string | URL} input
+ * @param {string | URL | Request} input
  * @param {RequestInit} [init]
  */
 export function globalCachedFetch(input, init) {
+    if (input instanceof Request) {
+        init = new Request(input, init);
+        input = input.url;
+    }
     if (init?.method && init.method.toLowerCase() !== "get") {
         throw new Error(
             `cannot use a global cached fetch with HTTP method "${init.method}"`,

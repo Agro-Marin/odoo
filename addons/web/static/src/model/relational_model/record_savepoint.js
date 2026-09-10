@@ -3,6 +3,8 @@
 
 import { isX2Many } from "@web/core/field_types";
 
+/** @import { RecordContract } from "@web/model/relational_model/record_contract" */
+
 /** @typedef {RecordContract} ConstructedRecord */
 
 export { createSavePoint } from "./record_edit_state.js";

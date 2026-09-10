@@ -122,7 +122,7 @@ test("view switcher (middle click)", async () => {
     expect(`.o_control_panel_navigation .o_cp_switch_buttons`).toHaveCount(1);
     expect(`.o_switch_view`).toHaveCount(2);
 
-    getService("action").switchView = (viewType, props, options) =>
+    getService("action").switchView = async (viewType, props, options) =>
         expect.step(
             `${viewType} -- ${JSON.stringify(props)} -- ${JSON.stringify(options)}`,
         );

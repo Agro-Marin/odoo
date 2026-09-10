@@ -6,6 +6,15 @@ import { toRaw } from "@odoo/owl";
 /**
  * @typedef {"group" | "record" | "add-line"} FlatRowType
  * @typedef {{
+ * type: FlatRowType,
+ * globalIndex: number,
+ * record?: object,
+ * rawRecord?: object,
+ * recordId?: string,
+ * group?: object,
+ * parentGroup?: object,
+ * depth: number,
+ * }} FlatRow
  */
 
 export class ListGridState {

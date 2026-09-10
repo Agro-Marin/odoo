@@ -147,7 +147,15 @@ class Foo extends models.Model {
 
 defineModels([Partner, Bar, Foo]);
 
-/** @param {{ */
+/**
+ * @param {{
+ * model?: string;
+ * method?: string;
+ * args?: any[];
+ * kwargs?: Record<string, any>;
+ * [key: string]: any;
+ * }} params
+ */
 function fetchCallKw(params) {
     return fetch(`/web/dataset/call_kw/${params.model}/${params.method}`, {
         method: "POST",
@@ -167,7 +175,15 @@ function fetchCallKw(params) {
     });
 }
 
-/** @param {{ */
+/**
+ * @param {{
+ * model?: string;
+ * method?: string;
+ * args?: any[];
+ * kwargs?: Record<string, any>;
+ * [key: string]: any;
+ * }} params
+ */
 const ormRequest = async (params) => {
     const response = await fetchCallKw(params);
     const { error, result } = await response.json();
@@ -1947,13 +1963,13 @@ test("webRead sub-fields of a many2one field", async () => {
 });
 
 test("List View: invisible on processed Arch", async () => {
-    Bar._views[["list", 10001]] = `
+    Bar._views["list,10001"] = `
         <list>
             <field name="bool" column_invisible="1"/>
             <field name="foo"/>
         </list>
     `;
-    Bar._views[["search", 10001]] = `
+    Bar._views["search,10001"] = `
         <search></search>
     `;
 
@@ -2026,12 +2042,12 @@ test("performRPC: trigger onchange for new record", async () => {
 });
 
 test("access rights attributes are present on an editable many2one field", async () => {
-    Bar._views[["form", 10001]] = `
+    Bar._views["form,10001"] = `
         <form>
             <field name="partner_id" />
         </form>
     `;
-    Bar._views[["search", 10001]] = `
+    Bar._views["search,10001"] = `
         <search></search>
     `;
 
@@ -2060,12 +2076,12 @@ test("access rights attributes are missing on an editable many2one field", async
         relation: "res.partner",
         readonly: true,
     });
-    Bar._views[["form", 10001]] = `
+    Bar._views["form,10001"] = `
         <form>
             <field name="partner_id" readonly="0" />
         </form>
     `;
-    Bar._views[["search", 10001]] = `
+    Bar._views["search,10001"] = `
         <search></search>
     `;
 

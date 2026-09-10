@@ -76,10 +76,10 @@ class DebugContext {
                             }),
                         ),
                 )
-                .filter(Boolean)
+                .filter((item) => item !== false && item != null)
                 .sort((x, y) => {
-                    const xSeq = x?.sequence || 1000;
-                    const ySeq = y?.sequence || 1000;
+                    const xSeq = (x && x.sequence) || 1000;
+                    const ySeq = (y && y.sequence) || 1000;
                     return xSeq - ySeq;
                 })
         );

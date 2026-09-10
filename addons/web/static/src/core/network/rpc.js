@@ -9,22 +9,73 @@ import { rpcLog } from "@web/core/utils/asset_log";
 import { isObject, omit } from "@web/core/utils/collections/objects";
 import { globalSingleton } from "@web/core/utils/global_singleton";
 
-/** @typedef {{ */
+/** @import { RPCCache } from "@web/core/network/rpc_cache" */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * code: number;
+ * message: string;
+ * data?: RPCErrorData;
+ * type?: string;
+ * }} JsonRpcError
+ */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * name?: string;
+ * message?: string;
+ * arguments?: unknown[];
+ * context?: Record<string, unknown>;
+ * debug?: string;
+ * [extra: string]: unknown;
+ * }} RPCErrorData
+ */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * cache?: boolean | { type?: "ram" | "disk"; update?: "once" | "always"; immutable?: boolean; callback?: Function };
+ * silent?: boolean;
+ * headers?: HeadersInit;
+ * timeout?: number;
+ * retry?: number | Partial<RetryConfig>;
+ * dedup?: boolean;
+ * signal?: AbortSignal;
+ * }} RpcSettings
+ */
+
+/**
+ * @typedef {{
+ * data: { id: number; jsonrpc: "2.0"; method: "call"; params: Record<string, any> };
+ * url: string;
+ * settings?: RpcSettings;
+ * result?: any;
+ * error?: NetworkError;
+ * }} RpcEventDetail
+ */
 
 /**
  * @template T
  * @typedef {Promise<T> & { abort: (rejectError?: boolean) => void }} RpcPromise
  */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * subscribers: number;
+ * lastOut: () => void;
+ * }} InflightEntry
+ */
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * rpcBus: EventBus,
+ * inflightDedup: Map<string, InflightEntry & { shared: any }>,
+ * inflightCacheJoin: Map<string, InflightEntry>,
+ * rpcCache: RPCCache | null | undefined,
+ * busListenersAttached: boolean,
+ * rpcId: number,
+ * dedupCallbackSeq: number,
+ * }} RpcState
+ */
 
 /** @type {RpcState} */
 const _rpcState = globalSingleton(

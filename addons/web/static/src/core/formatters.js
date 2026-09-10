@@ -32,7 +32,7 @@ function isFiniteNumber(value) {
 }
 
 /**
- * @param {string} [value]
+ * @param {string | false} [value]
  * @returns {string}
  */
 export function formatBinary(value) {
@@ -94,6 +94,13 @@ formatFieldDate.extractOptions = ({ options }) => ({
 /**
  * @param {any} value
  * @param {{
+ * numeric?: boolean,
+ * showTime?: boolean,
+ * showDate?: boolean,
+ * showSeconds?: boolean,
+ * format?: string,
+ * tz?: string,
+ * }} [options]
  * @returns {string}
  */
 export function formatFieldDateTime(value, options = {}) {
@@ -115,7 +122,7 @@ formatFieldDateTime.extractOptions = ({ attrs, options }) => ({
 });
 
 /**
- * @param {number | false} value
+ * @param {unknown} value
  * @param {any} [options]
  * @returns {string}
  */
@@ -138,7 +145,7 @@ formatFieldFloat.extractOptions = ({ attrs, options }) => ({
 });
 
 /**
- * @param {number | false} value
+ * @param {unknown} value
  * @param {any} [options]
  * @returns {string}
  */
@@ -157,7 +164,7 @@ formatFloatFactor.extractOptions = ({ attrs, options }) => ({
 });
 
 /**
- * @param {number | false} value
+ * @param {unknown} value
  * @param {Object} [options]
  * @param {boolean} [options.noLeadingZeroHour]
  * @param {boolean} [options.displaySeconds]
@@ -168,10 +175,10 @@ export function formatFloatTime(value, options = {}) {
         return "";
     }
     const isNegative = value < 0;
-    value = Math.abs(value);
+    const absoluteValue = Math.abs(value);
 
-    let hour = Math.floor(value);
-    const milliSecLeft = Math.round(value * 3600000) - hour * 3600000;
+    let hour = Math.floor(absoluteValue);
+    const milliSecLeft = Math.round(absoluteValue * 3600000) - hour * 3600000;
     let min = milliSecLeft / 60000;
     if (options.displaySeconds) {
         min = Math.floor(min);
@@ -274,7 +281,7 @@ export function formatX2many(value) {
 }
 
 /**
- * @param {number | false} value
+ * @param {unknown} value
  * @param {any} [options]
  * @returns {string}
  */
@@ -302,7 +309,7 @@ formatMonetary.extractOptions = ({ options }) => ({
 });
 
 /**
- * @param {number | false} value
+ * @param {unknown} value
  * @param {any} [options]
  * @returns {string}
  */
@@ -369,7 +376,7 @@ export function formatSelection(value, options = {}) {
 }
 
 /**
- * @param {string | false} value
+ * @param {unknown} value
  * @returns {string}
  */
 export function formatText(value) {

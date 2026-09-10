@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { markup } from "@odoo/owl";
+/** @import { Field } from "@web/model/types" */
 import { Domain } from "@web/core/domain";
 import {
     deserializeDate,
@@ -307,23 +308,34 @@ function getValueFromGroupData(field, rawValue) {
 }
 
 /**
- * @param {Record<string, unknown>} values
- * @param {Record<string, object>} fields
- * @param {Record<string, object>} activeFields
- * @param {{ withReadonly?: boolean, context?: Record<string, unknown> }} [options]
- */
-/**
  * @param {{ id: number, display_name?: string } | false | null | undefined} a
  * @param {{ id: number, display_name?: string } | false | null | undefined} b
- * @returns {boolean} whether two many2one values name the same record the same way
+ * @returns {boolean}
  */
 export function sameMany2OneValue(a, b) {
-    return (
-        Boolean(a) === Boolean(b) &&
-        (!a || (a.id === b.id && a.display_name === b.display_name))
-    );
+    if (!a || !b) {
+        return !a && !b;
+    }
+    return a.id === b.id && a.display_name === b.display_name;
 }
 
+/**
+ * @typedef {{
+ * readonly?: string | boolean;
+ * related?: {
+ * fields: Record<string, Field>;
+ * activeFields: Record<string, SerializationFieldInfo>;
+ * };
+ * }} SerializationFieldInfo
+ */
+
+/**
+ * @param {Record<string, unknown>} values
+ * @param {Record<string, Field>} fields
+ * @param {Record<string, SerializationFieldInfo>} activeFields
+ * @param {{ withReadonly?: boolean, evalContext?: Record<string, unknown> }} [options]
+ * @returns {Record<string, unknown>}
+ */
 export function fromUnityToServerValues(
     values,
     fields,
@@ -331,6 +343,7 @@ export function fromUnityToServerValues(
     { withReadonly, evalContext } = {},
 ) {
     const { CREATE, UPDATE, LINK } = x2ManyCommands;
+    /** @type {Record<string, unknown>} */
     const serverValues = {};
     for (const fieldName of Object.keys(values)) {
         /** @type {any} */

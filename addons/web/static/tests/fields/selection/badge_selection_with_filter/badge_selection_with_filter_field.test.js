@@ -31,19 +31,23 @@ class Partner extends models.Model {
 
     _onChanges = {
         is_raining_outside(record) {
-            record.allowed_moods =
-                ["happy"] + (record.is_raining_outside ? ["sad"] : []);
+            record.allowed_moods = [
+                "happy",
+                ...(record.is_raining_outside ? ["sad"] : []),
+            ];
         },
         color(record) {
-            record.allowed_moods =
-                (record.color !== "black" ? ["happy"] : []) +
-                (record.color !== "white" ? ["sad"] : []);
+            record.allowed_moods = [
+                ...(record.color !== "black" ? ["happy"] : []),
+                ...(record.color !== "white" ? ["sad"] : []),
+            ];
         },
         mood(record) {
-            record.allowed_colors =
-                (record.mood === "happy" ? ["white"] : []) +
-                ["grey"] +
-                (record.mood === "sad" ? ["black"] : []);
+            record.allowed_colors = [
+                ...(record.mood === "happy" ? ["white"] : []),
+                "grey",
+                ...(record.mood === "sad" ? ["black"] : []),
+            ];
         },
     };
 

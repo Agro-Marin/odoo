@@ -88,11 +88,11 @@ function debounceEdges(options) {
 }
 
 /**
- * @template {Function} T
+ * @template {(...args: any[]) => any} T
  * @param {T} func
- * @param {number | "animationFrame" | (() => number)} delay
+ * @param {number | "animationFrame" | (() => number)} [delay]
  * @param {boolean | {leading?: boolean, trailing?: boolean}} [options]
- * @returns {T & { cancel: (execNow?: boolean) => void }}
+ * @returns {((this: ThisParameterType<T>, ...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>) & { cancel: (execNow?: boolean) => void }}
  */
 export function debounce(func, delay, options) {
     /** @type {any} */
@@ -259,11 +259,11 @@ export function throttleForAnimation(func) {
 }
 
 /**
- * @template {Function} T
+ * @template {(...args: any[]) => any} T
  * @param {T} callback
  * @param {number | "animationFrame" | (() => number)} delay
  * @param {{execBeforeUnmount?: boolean, immediate?: boolean, trailing?: boolean}} [options]
- * @returns {T & { cancel: (execNow?: boolean) => void }}
+ * @returns {((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>) & { cancel: (execNow?: boolean) => void }}
  */
 export function useDebounced(
     callback,
@@ -271,7 +271,9 @@ export function useDebounced(
     { execBeforeUnmount = false, immediate = false, trailing = !immediate } = {},
 ) {
     const component = useComponent();
-    const debounced = debounce(callback.bind(component), delay, {
+    /** @type {(...args: Parameters<T>) => ReturnType<T>} */
+    const invoke = (...args) => callback.apply(component, args);
+    const debounced = debounce(invoke, delay, {
         leading: immediate,
         trailing,
     });

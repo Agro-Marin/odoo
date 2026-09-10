@@ -13,6 +13,7 @@ import { BlankComponent } from "./blank_component.js";
 
 const actionRegistry = registry.category("actions");
 
+/** @import { Action, ActionManager, Controller } from "./action_service.js" */
 export class ActionDispatch {
     /**
      * @param {ActionManager} am

@@ -39,8 +39,7 @@ const MAX_SCROLL_TOP = ROW_COUNT * ITEM_HEIGHT - CONTAINER_HEIGHT;
 const MAX_SCROLL_LEFT = COLUMN_COUNT * ITEM_WIDTH - CONTAINER_WIDTH;
 
 /**
- * @param {import("@web/core/utils/virtual_grid").VirtualGridParams} [virtualGridParams]
- * @returns {typeof Component}
+ * @param {Partial<import("@web/core/utils/virtual_grid").VirtualGridParams>} [virtualGridParams]
  */
 function getTestComponent(virtualGridParams) {
     class Item extends Component {

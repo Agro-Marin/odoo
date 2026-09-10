@@ -3,6 +3,8 @@
 
 import { modelLog } from "@web/core/utils/asset_log";
 
+/** @import { RelationalRecord } from "@web/model/relational_model/record" */
+
 /**
  * @param {RelationalRecord} record
  * @param {() => Promise<any>} [reload]

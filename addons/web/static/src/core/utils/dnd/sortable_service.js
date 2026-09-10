@@ -6,7 +6,12 @@ import { registry } from "@web/core/registry";
 import { useSortable } from "@web/core/utils/dnd/sortable";
 import { throttleForAnimation } from "@web/core/utils/timing";
 
-/** @typedef {Record<string, any> & { */
+/**
+ * @typedef {Record<string, any> & {
+ * ref?: {el: HTMLElement} | ReturnType<typeof import("@odoo/owl").useRef>;
+ * sortableId?: string | symbol;
+ * }} SortableServiceHookParams
+ */
 
 const DEFAULT_SORTABLE_ID = Symbol.for("defaultSortable");
 

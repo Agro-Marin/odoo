@@ -437,10 +437,10 @@ test("orderedBy in context is not propagated when executing another action", asy
     ];
 
     let searchReadCount = 1;
-    onRpc("web_search_read", ({ model, sort, kwargs }) => {
+    onRpc("web_search_read", ({ model, kwargs }) => {
         if (searchReadCount === 1) {
             expect(model).toBe("partner");
-            expect(sort).toBe(undefined);
+            expect(kwargs.sort).toBe(undefined);
         }
         if (searchReadCount === 2) {
             expect(model).toBe("partner");
@@ -448,7 +448,7 @@ test("orderedBy in context is not propagated when executing another action", asy
         }
         if (searchReadCount === 3) {
             expect(model).toBe("pony");
-            expect(sort).toBe(undefined);
+            expect(kwargs.sort).toBe(undefined);
         }
         searchReadCount += 1;
     });
@@ -1882,7 +1882,12 @@ test("current act_window action is stored in session_storage if possible", async
     });
     await mountWebClient();
 
-    expectedAction = MockServer.current._findAction(3);
+    expectedAction = await MockServer.current.loadAction(
+        new Request(`${browser.location.origin}/web/action/load`, {
+            method: "POST",
+            body: JSON.stringify({ params: { action_id: 3 } }),
+        }),
+    );
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 

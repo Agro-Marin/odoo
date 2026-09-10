@@ -77,7 +77,7 @@ export function append(parent, node) {
  * @param {Element} el
  * @param {string} attr
  * @param {string | string[]} parts
- * @param {string} [glue="
+ * @param {string} [glue=" "]
  */
 export function combineAttributes(el, attr, parts, glue = " ") {
     const allValues = [];

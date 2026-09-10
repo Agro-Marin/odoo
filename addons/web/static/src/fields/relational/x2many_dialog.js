@@ -306,7 +306,14 @@ function getDialogDeleteAction({ record, activeActions, viewMode }) {
     };
 }
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * activeField: any, activeActions: any, viewMode: string,
+ * getList: () => any, updateRecord: Function, saveRecord: Function,
+ * isMany2Many: boolean, viewService: any, env: any, component: any,
+ * addDialog: Function,
+ * }} X2ManyDialogContext
+ */
 
 /**
  * @param {X2ManyDialogContext} ctx

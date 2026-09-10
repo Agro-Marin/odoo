@@ -4,7 +4,14 @@ import { expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 
-/** @returns {Promise<any> & { */
+/**
+ * @returns {Promise<any> & {
+ * abort: (rejectError?: boolean) => void,
+ * aborts: boolean[],
+ * resolve: (value?: any) => void,
+ * reject: (reason?: any) => void,
+ * }}
+ */
 function abortablePromise() {
     const def = /** @type {any} */ (new Deferred());
     def.aborts = [];

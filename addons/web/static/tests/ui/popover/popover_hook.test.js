@@ -103,7 +103,8 @@ test("popover opened from another", async () => {
 
 test("a hosted component's close reason reaches onClose", async () => {
     await mountWithCleanup(MainComponentsContainer);
-    let received = "NEVER CALLED";
+    /** @type {string | {reason: string}} */
+    let received;
     class Closer extends Component {
         static template = xml`<div id="comp">in popover</div>`;
         static props = ["*"];
@@ -127,7 +128,8 @@ test("a hosted component's close reason reaches onClose", async () => {
 
 test("the owner's own close reason reaches onClose", async () => {
     await mountWithCleanup(MainComponentsContainer);
-    let received = "NEVER CALLED";
+    /** @type {string | {reason: string}} */
+    let received;
     class Comp extends Component {
         static template = xml`<div id="comp">in popover</div>`;
         static props = ["*"];
@@ -158,6 +160,7 @@ test("an unknown option still warns through the hook's option bag", async () => 
     patchWithCleanup(odoo, { debug: "1" });
 
     const popover = makePopover((...args) => getService("popover").add(...args), Comp, {
+        // @ts-expect-error
         totallyBogusOption: true,
     });
     popover.open(getFixture(), {});

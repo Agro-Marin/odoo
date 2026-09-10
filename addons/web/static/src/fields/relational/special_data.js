@@ -14,6 +14,10 @@ import {
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 
+/** @import { Component } from "@odoo/owl" */
+
+/** @import { Services } from "services" */
+
 /** @type {WeakMap<Map<string, Promise<any>>, Map<string, Set<() => void>>>} */
 const staleReloadSubscribers = new WeakMap();
 

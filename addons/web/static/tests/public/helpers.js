@@ -101,6 +101,21 @@ export async function startInteractions(
     };
 }
 
+/**
+ * @template {import("@web/public/interaction").Interaction} T
+ * @param {{ interactions: { interaction: import("@web/public/interaction").Interaction }[] }} core
+ * @param {new (...args: ConstructorParameters<typeof import("@web/public/interaction").Interaction>) => T} InteractionClass
+ * @returns {T}
+ */
+export function getInteraction(core, InteractionClass) {
+    for (const { interaction } of core.interactions) {
+        if (interaction instanceof InteractionClass) {
+            return interaction;
+        }
+    }
+    throw new Error(`No active interaction of class ${InteractionClass.name}`);
+}
+
 export function mockSendRequests() {
     /** @type {Array<{ url: string | null, method: string | null }>} */
     const requests = [];

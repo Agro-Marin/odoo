@@ -282,7 +282,7 @@ test("basic rendering of a component with search panel", async () => {
     expect(`${firstSection} .o_search_panel_category_value:first .active`).toHaveCount(
         1,
     );
-    expect(queryAllTexts`${firstSection} .o_search_panel_category_value`).toEqual([
+    expect(queryAllTexts(`${firstSection} .o_search_panel_category_value`)).toEqual([
         "All",
         "asustek\n2",
         "agrolait\n2",
@@ -294,7 +294,7 @@ test("basic rendering of a component with search panel", async () => {
     );
     expect(`${secondSection} .o_search_panel_section_header`).toHaveText(/category/i);
     expect(`${secondSection} .o_search_panel_filter_value`).toHaveCount(2);
-    expect(queryAllTexts`${secondSection} .o_search_panel_filter_value`).toEqual([
+    expect(queryAllTexts(`${secondSection} .o_search_panel_filter_value`)).toEqual([
         "gold\n1",
         "silver\n3",
     ]);
@@ -1685,7 +1685,9 @@ test("filter with domain", async () => {
 
     onRpc("search_panel_select_multi_range", ({ kwargs }) => {
         expect.step("search_panel_select_multi_range");
-        expect({ ...kwargs, context: {} }).toMatchObject({
+        /** @type {import("@web/../tests/_framework/mock_server/mock_model").KwArgs} */
+        const normalizedKwargs = { ...kwargs, context: {} };
+        expect(normalizedKwargs).toMatchObject({
             group_by: false,
             category_domain: [],
             context: {},
@@ -2187,8 +2189,8 @@ test("search panel is not instantiated in dialogs", async () => {
         name: `Company${i + 1}`,
     }));
     Company._views = {
-        [["list", false]]: `<list><field name="name"/></list>`,
-        [["search", false]]: `
+        ["list,false"]: `<list><field name="name"/></list>`,
+        ["search,false"]: `
             <search>
                 <field name="name"/>
                 <searchpanel>
@@ -3196,7 +3198,7 @@ test("search panel can be collapsed/expanded", async () => {
 });
 
 test("search panel can be collapsed by default if it was set in local storage beforehand", async () => {
-    browser.localStorage.setItem("search_panel_expanded,false,1", false);
+    browser.localStorage.setItem("search_panel_expanded,false,1", "false");
     await mountWebClient();
     await getService("action").doAction(1);
     expect(`.o_search_panel`).toHaveCount(0);

@@ -61,6 +61,7 @@ function addProductIds() {
     });
 }
 
+/** @param {{ domain?: string, resModel?: string, className?: string, defaultConnector?: "&" | "|", isDebugMode?: boolean, readonly?: boolean, update?: (domain: string, fromDebug?: boolean) => void, debugUpdate?: (domain: string) => void }} [params] */
 async function makeDomainSelector(params = {}) {
     const props = { ...params };
 
@@ -403,10 +404,10 @@ test("edit a domain with the debug textarea", async () => {
     expect(SELECTORS.condition).toHaveCount(1);
 
     newDomain = `[['product_id', 'ilike', 1],['id', '=', 0]]`;
-    await contains(SELECTORS.debugArea).edit(newDomain, {
+    await contains(SELECTORS.debugArea).edit(newDomain);
+    expect(SELECTORS.debugArea).toHaveValue(newDomain, {
         message: "the domain should not have been formatted",
     });
-    expect(SELECTORS.debugArea).toHaveValue(newDomain);
     expect(SELECTORS.condition).toHaveCount(2);
 });
 

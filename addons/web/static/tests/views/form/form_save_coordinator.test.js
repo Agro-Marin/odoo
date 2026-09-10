@@ -260,7 +260,8 @@ describe("FormSaveCoordinator — saveOverride", () => {
     test("invokes saveOverride instead of record.save when provided", async () => {
         let recordSaveCalls = 0;
         let overrideCalls = 0;
-        let overrideArgs = null;
+        /** @type {{ rec: ReturnType<typeof makeContext>["record"], params: { custom: string } }} */
+        let overrideArgs;
         const { coordinator, record } = makeContext({
             save: async () => {
                 recordSaveCalls++;
@@ -313,6 +314,7 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
     });
 
     test("requestUrgentSave during an in-flight save defers settlement to that save", async () => {
+        /** @type {(value?: unknown) => void} */
         let rejectSave;
         const savePromise = new Promise((_, reject) => (rejectSave = reject));
         let urgentCalls = 0;
@@ -343,6 +345,7 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
     });
 
     test("a failing urgent save during an in-flight save fires the hook without touching status", async () => {
+        /** @type {(value?: unknown) => void} */
         let resolveSave;
         const savePromise = new Promise((r) => (resolveSave = r));
         let failedHookCalls = 0;
@@ -397,7 +400,10 @@ describe("FormSaveCoordinator — requestDiscard", () => {
                 discardCalls++;
             },
         });
-        coordinator.status = "error";
+        coordinator.status =
+            /** @type {import("@web/views/form/form_save_coordinator").FormSaveStatus} */ (
+                "error"
+            );
         await coordinator.requestDiscard();
         expect(discardCalls).toBe(1);
         expect(coordinator.status).toBe("clean");
@@ -423,7 +429,10 @@ describe("FormSaveCoordinator — transition guard", () => {
 
     test("_transition('failed') from 'dirty' throws", () => {
         const { coordinator } = makeContext();
-        coordinator.status = "dirty";
+        coordinator.status =
+            /** @type {import("@web/views/form/form_save_coordinator").FormSaveStatus} */ (
+                "dirty"
+            );
         let caught = null;
         try {
             coordinator._transition("failed");
@@ -437,7 +446,10 @@ describe("FormSaveCoordinator — transition guard", () => {
 
     test("_transition('recoverable') from 'error' throws", () => {
         const { coordinator } = makeContext();
-        coordinator.status = "error";
+        coordinator.status =
+            /** @type {import("@web/views/form/form_save_coordinator").FormSaveStatus} */ (
+                "error"
+            );
         let caught = null;
         try {
             coordinator._transition("recoverable");
@@ -498,12 +510,17 @@ describe("FormSaveCoordinator — transition guard", () => {
 
 describe("FormSaveCoordinator — concurrent saves", () => {
     test("a second requestSave during an in-flight save supersedes the first's terminal", async () => {
-        let resolveFirst, resolveSecond;
+        /** @type {(value?: unknown) => void} */
+        let resolveFirst;
+        /** @type {(value?: unknown) => void} */
+        let resolveSecond;
         const firstPromise = new Promise((r) => (resolveFirst = r));
         const secondPromise = new Promise((r) => (resolveSecond = r));
         let call = 0;
-        let firstSaveEnteredAt = null;
-        let secondSaveEnteredAt = null;
+        /** @type {{ status: import("@web/views/form/form_save_coordinator").FormSaveStatus, epoch: number }} */
+        let firstSaveEnteredAt;
+        /** @type {{ status: import("@web/views/form/form_save_coordinator").FormSaveStatus, epoch: number }} */
+        let secondSaveEnteredAt;
         const { coordinator } = makeContext({
             save: () => {
                 const which = ++call;
@@ -539,6 +556,7 @@ describe("FormSaveCoordinator — concurrent saves", () => {
     });
 
     test("a concurrent save's failure does not corrupt the winner's outcome", async () => {
+        /** @type {(value?: unknown) => void} */
         let resolveSecond;
         const secondPromise = new Promise((r) => (resolveSecond = r));
         let call = 0;
@@ -561,8 +579,10 @@ describe("FormSaveCoordinator — concurrent saves", () => {
     });
 
     test("a superseded save's dialog-mode error does not open the error dialog", async () => {
+        /** @type {(value?: unknown) => void} */
         let resolveSecond;
         const secondPromise = new Promise((r) => (resolveSecond = r));
+        /** @type {(value?: unknown) => void} */
         let triggerFirstFailure;
         const firstFailure = new Promise((r) => (triggerFirstFailure = r));
         let onSaveErrorCalls = 0;
@@ -571,7 +591,11 @@ describe("FormSaveCoordinator — concurrent saves", () => {
             data: { message: "stale-rpc-failure" },
         });
         const { coordinator } = makeContext({
-            save: ({ onError } = {}) => {
+            save: (
+                /** @type {{ onError?: import("@web/views/form/form_save_coordinator").FormSaveHooks["onSaveError"] }} */ {
+                    onError,
+                } = {},
+            ) => {
                 if (++call === 1) {
                     return firstFailure.then(() =>
                         onError(staleError, {
@@ -607,6 +631,7 @@ describe("FormSaveCoordinator — concurrent saves", () => {
     });
 
     test("requestDiscard mid-save invalidates the in-flight save's terminal", async () => {
+        /** @type {(value?: unknown) => void} */
         let resolveSave;
         const savePromise = new Promise((r) => (resolveSave = r));
         let statusInsideSave = null;
@@ -631,7 +656,10 @@ describe("FormSaveCoordinator — concurrent saves", () => {
     });
 
     test("requestSave mid-discard supersedes the discard's settlement", async () => {
-        let resolveDiscard, resolveSave;
+        /** @type {(value?: unknown) => void} */
+        let resolveDiscard;
+        /** @type {(value?: unknown) => void} */
+        let resolveSave;
         const discardPromise = new Promise((r) => (resolveDiscard = r));
         const savePromise = new Promise((r) => (resolveSave = r));
         let discardCalls = 0;
@@ -642,7 +670,10 @@ describe("FormSaveCoordinator — concurrent saves", () => {
             },
             save: () => savePromise,
         });
-        coordinator.status = "dirty";
+        coordinator.status =
+            /** @type {import("@web/views/form/form_save_coordinator").FormSaveStatus} */ (
+                "dirty"
+            );
 
         const discardPending = coordinator.requestDiscard();
         const savePending = coordinator.requestSave();

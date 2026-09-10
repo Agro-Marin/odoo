@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { Value } from "./condition_tree.js" */
+
 /**
  * @param {Value} value
  * @param {boolean | Record<number, string>} [displayNames]

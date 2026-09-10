@@ -66,7 +66,8 @@ describe("completeMany2OneValue", () => {
     });
 
     test("calls name_create when display_name is present but id is absent", async () => {
-        let nameCreateArgs = null;
+        /** @type {{ model: string, method: string, args: unknown[] }} */
+        let nameCreateArgs;
         const rec = makeRecord({
             fields: { partner_id: { type: "many2one", context: {} } },
             activeFields: { partner_id: { context: "{}", related: null } },
@@ -87,7 +88,8 @@ describe("completeMany2OneValue", () => {
     });
 
     test("calls webRead when id is present but display_name is undefined", async () => {
-        let webReadArgs = null;
+        /** @type {{ model: string, ids: number[] }} */
+        let webReadArgs;
         const rec = makeRecord({
             fields: { partner_id: { type: "many2one", context: {} } },
             activeFields: { partner_id: { context: "{}", related: null } },
@@ -128,6 +130,7 @@ describe("preprocessMany2oneChanges", () => {
             fields: { partner_id: { type: "many2one", context: {} } },
             activeFields: { partner_id: { context: "{}" } },
         });
+        /** @type {{partner_id: number | false}} */
         const changes = { partner_id: 0 };
         await preprocessMany2oneChanges(rec, changes);
         expect(changes.partner_id).toBe(false);
@@ -178,6 +181,7 @@ describe("preprocessMany2OneReferenceChanges", () => {
                 return null;
             },
         });
+        /** @type {{ref_id: number | {resId: number}}} */
         const changes = { ref_id: 42 };
         await preprocessMany2OneReferenceChanges(rec, changes);
         expect(changes.ref_id).toEqual({ resId: 42 });
@@ -226,6 +230,7 @@ describe("preprocessX2manyChanges", () => {
             fields: { turtles: { type: "one2many" } },
             data: { turtles: list },
         });
+        /** @type {{turtles: import("@web/core/network/commands").X2ManyCommand[] | typeof list}} */
         const changes = { turtles: [x2ManyCommands.set([1, 2, 3])] };
         await preprocessX2manyChanges(rec, changes);
         expect(replacedWith).toEqual([1, 2, 3]);
@@ -245,6 +250,7 @@ describe("preprocessX2manyChanges", () => {
             fields: { turtles: { type: "one2many" } },
             data: { turtles: list },
         });
+        /** @type {{turtles: import("@web/core/network/commands").X2ManyCommand[] | typeof list}} */
         const changes = { turtles: [deleteCmd] };
         await preprocessX2manyChanges(rec, changes);
         expect(appliedCommands).toEqual([deleteCmd]);
@@ -313,6 +319,7 @@ describe("preprocessHtmlChanges", () => {
         const rec = makeRecord({
             fields: { description: { type: "html" } },
         });
+        /** @type {{description: string | import("@odoo/owl").Markup}} */
         const changes = { description: "<p>hello</p>" };
         preprocessHtmlChanges(rec, changes);
         expect(String(changes.description)).toBe("<p>hello</p>");

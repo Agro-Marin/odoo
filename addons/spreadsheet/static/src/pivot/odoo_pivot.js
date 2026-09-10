@@ -92,7 +92,7 @@ export class OdooPivot {
             "pivot_column_groupby",
         );
 
-        /** @protected */
+        /** @protected @type {import("@web/core/domain").DomainRepr} */
         this.domainWithGlobalFilters = this.coreDefinition.domain;
     }
 
@@ -358,7 +358,7 @@ export class OdooPivot {
         }
         if (lastNode.field === "measure") {
             const measureId = lastNode.value;
-            return { value: this.getMeasure(measureId).displayName };
+            return { value: this.getMeasure(toString(measureId)).displayName };
         }
         const value = this.model.getGroupByCellValue(lastNode.field, lastNode.value);
         const format = this._getPivotFieldFormat(lastNode.field, lastNode.value);

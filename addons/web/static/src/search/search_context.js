@@ -6,6 +6,8 @@ import { evaluateExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 
+/** @import { ActiveItem, AutocompleteValue, QueryGroup, SearchItems } from "./search_types" */
+
 /**
  * @param {unknown} value
  * @returns {boolean}

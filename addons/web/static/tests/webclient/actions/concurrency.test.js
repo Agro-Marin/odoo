@@ -906,6 +906,7 @@ test("local state, global state, and race conditions", async () => {
         search: `<search><filter name="display_name" string="Foo" domain="[]"/></search>`,
     };
 
+    /** @type {Promise<void> | InstanceType<typeof Deferred>} */
     let def = Promise.resolve();
     let id = 1;
     class ToyController extends Component {
@@ -946,11 +947,12 @@ test("local state, global state, and race conditions", async () => {
     await toggleMenuItem("Foo");
     expect(isItemSelected("Foo")).toBe(true);
 
-    def = new Deferred();
+    const transition = new Deferred();
+    def = transition;
     await contains(".o_control_panel .o_switch_view.o_toy").click();
     await contains(".o_control_panel .o_switch_view.o_toy").click();
 
-    def.resolve();
+    transition.resolve();
     await animationFrame();
 
     await toggleSearchBarMenu();

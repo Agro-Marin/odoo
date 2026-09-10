@@ -28,7 +28,93 @@ declare module "@odoo/o-spreadsheet" {
     // Identity & primitive types
     // -----------------------------------------------------------------
     export type UID = string;
-    export type CellErrorType = string;
+    export type StoreConstructor<T> = new (...args: never[]) => T;
+    export const CellErrorType: {
+        readonly NotAvailable: "#N/A";
+        readonly InvalidReference: "#REF";
+        readonly BadExpression: "#BAD_EXPR";
+        readonly CircularDependency: "#CYCLE";
+        readonly UnknownFunction: "#NAME?";
+        readonly DivisionByZero: "#DIV/0!";
+        readonly SpilledBlocked: "#SPILL!";
+        readonly GenericError: "#ERROR";
+        readonly NullError: "#NULL!";
+    };
+    export type CellErrorType = (typeof CellErrorType)[keyof typeof CellErrorType];
+    export type Maybe<T> = T | null | undefined;
+    export type CellValue = string | number | boolean;
+    export interface FunctionResultObject {
+        value: CellValue;
+        format?: string;
+    }
+    export type FPayload =
+        | Maybe<CellValue | FunctionResultObject>
+        | Maybe<CellValue | FunctionResultObject>[][];
+    export interface CellPosition {
+        sheetId: UID;
+        col: number;
+        row: number;
+    }
+    export type Cell =
+        | { isFormula: false }
+        | {
+              isFormula: true;
+              compiledFormula: { tokens: Token[] };
+          };
+    export type Granularity = string;
+    export type PivotDomain = { field: string; value: CellValue; type: string }[];
+    export interface PivotCoreMeasure {
+        id: string;
+        fieldName: string;
+        aggregator: string;
+        userDefinedName?: string;
+        isHidden?: boolean;
+        format?: string;
+        computedBy?: string;
+        display?: { type: string; fieldName?: string };
+    }
+    export interface PivotMeasure extends PivotCoreMeasure {
+        displayName: string;
+        type: string;
+        isValid: boolean;
+    }
+    export interface PivotDimension {
+        displayName: string;
+        nameWithGranularity: string;
+        fieldName: string;
+        type: string;
+        granularity?: Granularity;
+        order?: string;
+        isValid: boolean;
+    }
+    export interface PivotTableColumn {
+        fields: string[];
+        values: CellValue[];
+        width: number;
+        offset?: number;
+    }
+    export interface PivotTableRow {
+        fields: string[];
+        values: CellValue[];
+        indent: number;
+    }
+    export interface AddPivotCommand {
+        type: "ADD_PIVOT";
+        pivotId: UID;
+        pivot: CommonPivotCoreDefinition;
+    }
+    export interface UpdatePivotCommand {
+        type: "UPDATE_PIVOT";
+        pivotId: UID;
+        pivot: CommonPivotCoreDefinition;
+    }
+    export interface CoreCommandMap {
+        ADD_PIVOT: AddPivotCommand;
+        UPDATE_PIVOT: UpdatePivotCommand;
+        REMOVE_PIVOT: { type: "REMOVE_PIVOT"; pivotId: UID };
+        DUPLICATE_PIVOT: { type: "DUPLICATE_PIVOT"; pivotId: UID; newPivotId: UID };
+    }
+    export type CoreCommand = CoreCommandMap[keyof CoreCommandMap];
 
     // -----------------------------------------------------------------
     // Model — referenced from models.d.ts via Model["config"], Model["getters"]
@@ -49,6 +135,7 @@ declare module "@odoo/o-spreadsheet" {
     // Static `getters` array is the OWL-style declaration of plugin getter names.
     // -----------------------------------------------------------------
     export class CorePlugin {
+        allowDispatch(command: CoreCommand): string | string[];
         static getters: readonly string[];
         getters: any;
         [key: string]: any;
@@ -74,7 +161,7 @@ declare module "@odoo/o-spreadsheet" {
     // -----------------------------------------------------------------
     // Pivots
     // -----------------------------------------------------------------
-    export class Pivot {
+    export class Pivot<T = PivotRuntimeDefinition> {
         [key: string]: any;
     }
     export interface CommonPivotCoreDefinition {
@@ -84,9 +171,28 @@ declare module "@odoo/o-spreadsheet" {
         [key: string]: any;
     }
     export class PivotRuntimeDefinition {
+        constructor(
+            definition: CommonPivotCoreDefinition,
+            fields: Record<
+                string,
+                { name: string; string: string; type: string; aggregator?: string }
+            >,
+        );
+        columns: PivotDimension[];
+        rows: PivotDimension[];
+        measures: PivotMeasure[];
+        getDimension(nameWithGranularity: string): PivotDimension;
+        getMeasure(id: string): PivotMeasure;
         [key: string]: any;
     }
     export class SpreadsheetPivotTable {
+        constructor(
+            columns: PivotTableColumn[][],
+            rows: PivotTableRow[],
+            measures: string[],
+            fieldsType: Record<string, string | undefined>,
+            collapsedDomains?: { COL: PivotDomain[]; ROW: PivotDomain[] },
+        );
         [key: string]: any;
     }
 
@@ -164,7 +270,7 @@ declare module "@odoo/o-spreadsheet" {
     export function parse(formula: string): any;
     export function tokenize(formula: string): any;
     export function astToFormula(ast: any): string;
-    export function iterateAstNodes(ast: any): IterableIterator<any>;
+    export function iterateAstNodes(ast: AST): AST[];
     export const tokenColors: Record<string, string>;
     export const coreTypes: { [key: string]: any };
 
@@ -185,7 +291,10 @@ declare module "@odoo/o-spreadsheet" {
     // Namespaces — catch-all index signatures so `helpers.foo`,
     // `registries.bar`, `components.Baz` all type-check as `any`.
     // -----------------------------------------------------------------
-    export const helpers: { [name: string]: any };
+    export const helpers: {
+        toString(data: FPayload): string;
+        [name: string]: any;
+    };
     export const constants: { [name: string]: any };
     export const components: { [name: string]: any };
     export const registries: { [name: string]: any };

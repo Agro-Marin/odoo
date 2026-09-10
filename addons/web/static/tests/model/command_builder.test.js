@@ -9,6 +9,8 @@ import {
     serializeCommands,
 } from "@web/model/relational_model/command_builder";
 
+/** @import { X2ManyCommand } from "@web/core/network/commands" */
+/** @import { LedgerEntry } from "@web/model/relational_model/command_builder" */
 describe.current.tags("headless");
 
 /**
@@ -39,7 +41,7 @@ describe("serializeCommands", () => {
             unknownRecordCommands: new Map(),
             fields,
             activeFields,
-            context: {},
+            evalContext: {},
             withReadonly: false,
             getRecord: () => undefined,
             getRecordChanges: () => ({}),

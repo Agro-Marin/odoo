@@ -12,7 +12,14 @@ import {
 const mainComponents = registry.category("main_components");
 const services = registry.category("services");
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * env?: object;
+ * onRemove?: (params?: any) => void;
+ * sequence?: number;
+ * rootId?: string;
+ * }} OverlayServiceAddOptions
+ */
 
 class OverlayService {
     constructor() {

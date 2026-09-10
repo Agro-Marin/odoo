@@ -302,6 +302,9 @@ onRpc("has_group", () => true);
  * @param {import("@odoo/hoot-dom").Target} from
  * @param {import("@odoo/hoot-dom").Target} to
  * @param {{
+ * start: "top" | "center" | "bottom";
+ * end: "top" | "center" | "bottom";
+ * }} [positions]
  * @returns {Promise<void>}
  */
 async function selectRange(from, to, positions) {
@@ -2013,7 +2016,7 @@ test(`create event with default context (no quickCreate)`, async () => {
     Event._records = [];
 
     mockService("action", {
-        doAction(request) {
+        async doAction(request) {
             expect.step("doAction");
             expect(request.context).toEqual({
                 default_name: "New",
@@ -2060,7 +2063,7 @@ test(`create all day event in week mode (no quickCreate)`, async () => {
     Event._records = [];
 
     mockService("action", {
-        doAction(request) {
+        async doAction(request) {
             expect.step("doAction");
             expect(request.context).toEqual({
                 default_start: "2016-12-14",
@@ -2439,7 +2442,7 @@ test(`create and edit event in month mode (all_day: false)`, async () => {
     mockTimeZone(-4);
 
     mockService("action", {
-        doAction(request) {
+        async doAction(request) {
             expect.step("doAction");
             expect(request).toEqual({
                 type: "ir.actions.act_window",
@@ -2529,7 +2532,7 @@ test(`readonly date_start field`, async () => {
 
     let expectedRequest;
     mockService("action", {
-        doAction(request) {
+        async doAction(request) {
             expect.step("doAction");
             expect(request).toEqual(expectedRequest);
         },
@@ -2581,7 +2584,7 @@ test(`readonly date_start field`, async () => {
 test(`readonly calendar view`, async () => {
     let expectedRequest;
     mockService("action", {
-        doAction(request) {
+        async doAction(request) {
             expect.step("doAction");
             expect(request).toEqual(expectedRequest);
         },
@@ -4298,6 +4301,7 @@ test(`updateRecord does not write the create_name_field mapped name`, async () =
     }
     defineModels([CustomEvent]);
 
+    /** @type {import("@web/views/calendar/calendar_model").CalendarModel} */
     let model;
     patchWithCleanup(CalendarController.prototype, {
         setup() {
@@ -4323,7 +4327,7 @@ test(`updateRecord does not write the create_name_field mapped name`, async () =
 
 test(`form_view_id attribute works (for creating events)`, async () => {
     mockService("action", {
-        doAction(request) {
+        async doAction(request) {
             expect.step("doAction");
             expect(request.views[0][0]).toBe(42);
         },
@@ -4346,7 +4350,7 @@ test(`form_view_id attribute works (for creating events)`, async () => {
 
 test(`form_view_id attribute works with popup (for creating events)`, async () => {
     mockService("action", {
-        doAction(request) {
+        async doAction(request) {
             expect.step("doAction");
             expect(request.views[0][0]).toBe(1);
         },
@@ -4369,7 +4373,7 @@ test(`calendar fallback to form view id in action if necessary`, async () => {
     Event._views["form,43"] = `<form />`;
 
     mockService("action", {
-        doAction(request) {
+        async doAction(request) {
             expect.step("doAction");
             expect(request).toEqual({
                 type: "ir.actions.act_window",
@@ -5424,7 +5428,7 @@ test(`calendar with custom quick create view`, async () => {
     mockService("dialog", {
         add(_, props) {
             expect.step(`add dialog ${props.viewId}`);
-            return () => {};
+            return async () => {};
         },
     });
 
@@ -6197,6 +6201,7 @@ test(`disable editing without write access rights`, async () => {
 });
 
 test(`calendar view with show_unusual_days`, async () => {
+    /** @type {Record<string, boolean>} */
     let unusualDays = {
         "2016-12-14": true,
     };
@@ -6261,6 +6266,7 @@ test(`calendar view with show_unusual_days`, async () => {
 
 test.tags("desktop");
 test(`unusual days are refetched after a record update`, async () => {
+    /** @type {Record<string, boolean>} */
     let unusualDays = {
         "2016-12-14": true,
     };

@@ -52,16 +52,31 @@ import { Test } from "./test.js";
 
 /**
  * @typedef {{
+ *  aborted?: boolean;
+ *  debug?: boolean;
+ * }} AfterTestOptions
  * @typedef {import("../hoot_utils").ArgumentType} ArgumentType
  * @typedef {string | ((pass: boolean) => string)} AssertionMessage
  * @typedef {string | string[] | ((pass: boolean, raw: typeof String["raw"]) => string | string[])} AssertionReportMessage
  * @typedef {VerifierOptions & {
+ *  timeout?: number;
+ * }} AsyncVerifierOptions
  * @typedef {InteractionType | "assertion" | "error" | "step"} CaseEventType
  * @typedef {{ exact?: boolean }} ClassListOptions
  * @typedef {{ exact?: boolean; inline?: boolean }} DOMStyleOptions
  * @typedef {{
+ *  headless: boolean;
+ * }} ExpectBuilderParams
  * @typedef {{
+ *  message?: AssertionMessage;
+ *  not?: boolean;
+ *  rejects?: boolean;
+ *  resolves?: boolean;
+ *  silent?: boolean;
+ * }} ExpectOptions
  * @typedef {DeepEqualOptions & {
+ *  message?: AssertionMessage;
+ * }} VerifierOptions
  * @typedef {import("../hoot_utils").DeepEqualOptions} DeepEqualOptions
  * @typedef {import("../hoot_utils").Label} Label
  * @typedef {import("@odoo/hoot-dom").Dimensions} Dimensions
@@ -74,18 +89,30 @@ import { Test } from "./test.js";
  */
 
 /**
- * @template
+ * @template T
  * @typedef {T & ReturnType<Promise.withResolvers> & {
+ *  options: VerifierOptions;
+ *  timeout: number;
+ * }} AsyncResolver
  */
 
 /**
- * @template
- * @template
+ * @template [R=unknown]
+ * @template [A=R]
  * @typedef {{
+ *  acceptedType: ArgumentType | ArgumentType[];
+ *  getFailedDetails: () => unknown[];
+ *  mapElements: (received: Target) => ElementMap;
+ *  message: AssertionMessage;
+ *  name: string;
+ *  onFail: AssertionReportMessage;
+ *  onPass: AssertionReportMessage;
+ *  predicate: () => boolean;
+ * }} MatcherSpecifications
  */
 
 /**
- * @template
+ * @template T
  * @typedef {T | Iterable<T>} MaybeIterable
  */
 
@@ -213,7 +240,7 @@ function includes(object, item) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T[]} list
  * @param {string} separator
  * @param {string} [lastSeparator]
@@ -763,7 +790,7 @@ export function makeExpect(params) {
     }
 
     /**
-     * @template
+     * @template [R=unknown]
      * @param {R} received
      */
     function expect(received) {
@@ -934,9 +961,9 @@ export class CaseResult {
 }
 
 /**
- * @template
- * @template
- * @template
+ * @template R
+ * @template [A=R]
+ * @template [Async=false]
  */
 export class Matcher {
     /**
@@ -976,7 +1003,7 @@ export class Matcher {
         return this._clone(FLAGS.not);
     }
 
-    /** @returns {Omit<Matcher<R, A, true>, "rejects" | "resolves">} */
+    /** @returns {Omit<Matcher<unknown, unknown, true>, "rejects" | "resolves">} */
     get rejects() {
         if (this._flags & (FLAGS.rejects | FLAGS.resolves)) {
             throw matcherModifierError(
@@ -987,7 +1014,7 @@ export class Matcher {
         return this._clone(FLAGS.rejects);
     }
 
-    /** @returns {Omit<Matcher<R, A, true>, "rejects" | "resolves">} */
+    /** @returns {Omit<Matcher<Awaited<R>, Awaited<A>, true>, "rejects" | "resolves">} */
     get resolves() {
         if (this._flags & (FLAGS.rejects | FLAGS.resolves)) {
             throw matcherModifierError(
@@ -1995,6 +2022,10 @@ export class Assertion extends CaseEvent {
     /**
      * @param {number} number
      * @param {Partial<Assertion & {
+     *  docLabel?: string;
+     *  message: AssertionMessage,
+     *  reportMessage: AssertionReportMessage,
+     * }>} values
      */
     constructor(number, values) {
         super();

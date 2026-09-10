@@ -551,20 +551,20 @@ test("ImageField: set 0 width/height in the size option", async () => {
 
     const imgs = queryAll(".o_field_widget img");
 
-    expect([imgs[0].attributes.width, imgs[0].attributes.height]).toEqual(
-        [undefined, undefined],
-        {
-            message: "if both size are set to 0, both attributes are undefined",
-        },
-    );
+    expect([
+        imgs[0].getAttributeNode("width"),
+        imgs[0].getAttributeNode("height"),
+    ]).toEqual([undefined, undefined], {
+        message: "if both size are set to 0, both attributes are undefined",
+    });
 
-    expect([imgs[1].attributes.width, imgs[1].attributes.height.value]).toEqual(
-        [undefined, "50"],
-        {
-            message:
-                "if only the width is set to 0, the width attribute is not set on the img",
-        },
-    );
+    expect([
+        imgs[1].getAttributeNode("width"),
+        imgs[1].getAttributeNode("height").value,
+    ]).toEqual([undefined, "50"], {
+        message:
+            "if only the width is set to 0, the width attribute is not set on the img",
+    });
     expect([
         imgs[1].style.width,
         imgs[1].style.maxWidth,
@@ -574,13 +574,13 @@ test("ImageField: set 0 width/height in the size option", async () => {
         message: "the image should correctly set its attributes",
     });
 
-    expect([imgs[2].attributes.width.value, imgs[2].attributes.height]).toEqual(
-        ["50", undefined],
-        {
-            message:
-                "if only the height is set to 0, the height attribute is not set on the img",
-        },
-    );
+    expect([
+        imgs[2].getAttributeNode("width").value,
+        imgs[2].getAttributeNode("height"),
+    ]).toEqual(["50", undefined], {
+        message:
+            "if only the height is set to 0, the height attribute is not set on the img",
+    });
     expect([
         imgs[2].style.width,
         imgs[2].style.maxWidth,

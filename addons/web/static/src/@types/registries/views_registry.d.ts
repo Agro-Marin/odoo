@@ -37,6 +37,10 @@ declare module "registries" {
             viewDescr: ViewsRegistryItemShape,
             config: object,
         ): object;
+        modelParams?: {
+            fromState(state: any): object;
+            fromArch(archInfo: any, genericProps: ViewInfo, config: object): object;
+        };
         Renderer?: any;
         searchMenuTypes?: string[];
         SearchModel?: any;

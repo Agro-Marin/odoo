@@ -11,7 +11,13 @@ import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
 
 /**
  * @typedef {Parameters<typeof import("@odoo/owl").mount>[2] & {
+ *  className: string | string[];
+ *  target?: import("@odoo/hoot-dom").Target;
+ * }} MountOnFixtureOptions
  * @typedef {{
+ *  component: import("@odoo/owl").ComponentConstructor;
+ *  props: unknown;
+ * }} TestRootProps
  */
 
 const { customElements, document, getSelection, HTMLElement, Promise, WeakSet } =

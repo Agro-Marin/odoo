@@ -244,7 +244,7 @@ test("model_selector: autofocus", async () => {
         },
     });
     const input = queryOne("input.o-autocomplete--input");
-    expect(input).toBe(document.activeElement);
+    expect(document.activeElement).toBe(input);
 });
 
 test("models arriving after mount are loaded", async () => {

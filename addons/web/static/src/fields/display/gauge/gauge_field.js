@@ -10,7 +10,13 @@ import { FieldComponent } from "@web/fields/field_component";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-/** @typedef {import("@web/fields/standard_field_props").StandardFieldProps & { */
+/**
+ * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
+ * maxValueField?: string;
+ * maxValue?: number;
+ * title?: string;
+ * }} GaugeFieldProps
+ */
 /** @extends {FieldComponent<GaugeFieldProps>} */
 export class GaugeField extends FieldComponent {
     static template = "web.GaugeField";

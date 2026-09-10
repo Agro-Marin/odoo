@@ -29,7 +29,7 @@ test("has a slot for translatable text", async () => {
     await mountWithCleanup(Parent);
 
     expect(`.form-check`).toHaveCount(1);
-    expect(`.form-check`).toHaveText("rugubudubudubu", { exact: true });
+    expect(`.form-check`).toHaveText("rugubudubudubu");
 });
 
 test("call onChange prop when some change occurs", async () => {
@@ -181,6 +181,7 @@ test("checkbox with props indeterminate", async () => {
 });
 
 test("controlled checkbox is restored when the parent rejects the change", async () => {
+    /** @type {boolean} */
     let received;
     class Parent extends Component {
         static components = { CheckBox };

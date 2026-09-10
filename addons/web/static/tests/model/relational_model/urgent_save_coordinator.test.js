@@ -13,6 +13,7 @@ test("new instance starts idle and isActive=false", () => {
 
 test("run() flips status active during fn, idle after", async () => {
     const coord = new UrgentSaveCoordinator();
+    /** @type {boolean} */
     let snapshot;
     const result = await coord.run(async () => {
         snapshot = coord.isActive;
@@ -46,6 +47,7 @@ test("nested run() is re-entrant: joins the active run without throwing", async 
     const events = [];
     const bus = { trigger: (event) => events.push(event) };
     const coord = new UrgentSaveCoordinator(bus);
+    /** @type {boolean} */
     let innerActive;
     const result = await coord.run(async () => {
         const inner = await coord.run(async () => {

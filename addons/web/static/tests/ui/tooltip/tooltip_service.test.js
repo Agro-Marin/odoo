@@ -74,6 +74,7 @@ test("basic rendering 2", async () => {
 
 test.tags("desktop");
 test("remove element with opened tooltip", async () => {
+    /** @type {{ visible: boolean; }} */
     let compState;
     class MyComponent extends Component {
         static props = ["*"];

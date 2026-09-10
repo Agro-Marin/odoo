@@ -17,7 +17,7 @@ effectRegistry.addValidation((v) => typeof v === "function");
 /**
  * @param {import("@web/env").OdooEnv} env
  * @param {Object} [params={}]
- * @param {string} [params.message="Well
+ * @param {string} [params.message="Well Done!"]
  * @param {string} [params.img_url="/web/static/img/smile.svg"]
  * @param {"slow"|"medium"|"fast"|"no"} [params.fadeout="medium"]
  * @param {import("@odoo/owl").ComponentConstructor} [params.Component]

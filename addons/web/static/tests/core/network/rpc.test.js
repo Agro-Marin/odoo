@@ -25,16 +25,14 @@ import {
 } from "@web/core/network/rpc";
 import { RPCCache } from "@web/core/network/rpc_cache";
 
-const onRpcRequest = (listener) =>
-    after(on(rpcBus, /** @type {any} */ ("RPC:REQUEST"), listener));
-const onRpcResponse = (listener) =>
-    after(on(rpcBus, /** @type {any} */ ("RPC:RESPONSE"), listener));
+const onRpcRequest = (listener) => after(on(rpcBus, "RPC:REQUEST", listener));
+const onRpcResponse = (listener) => after(on(rpcBus, "RPC:RESPONSE", listener));
 
 describe.current.tags("headless");
 
 test("can perform a simple rpc", async () => {
     mockFetch((_, { body }) => {
-        const bodyObject = JSON.parse(body);
+        const bodyObject = JSON.parse(String(body));
         expect(bodyObject.jsonrpc).toBe("2.0");
         expect(bodyObject.method).toBe("call");
         expect(bodyObject.id).toBeOfType("integer");
@@ -62,7 +60,7 @@ test("trigger an error when response has 'error' key", async () => {
 
 test("rpc with simple routes", async () => {
     mockFetch((route, { body }) => ({
-        result: { route, params: JSON.parse(body).params },
+        result: { route, params: JSON.parse(String(body)).params },
     }));
 
     expect(await rpc("/my/route")).toEqual({ route: "/my/route", params: {} });
@@ -138,7 +136,7 @@ test("check connection aborted", async () => {
     onRpcRequest(() => expect.step("RPC:REQUEST"));
     onRpcResponse(() => expect.step("RPC:RESPONSE"));
 
-    const connection = rpc();
+    const connection = rpc("/test/");
     connection.abort();
     const error = new ConnectionAbortedError();
     await expect(connection).rejects.toThrow(/** @type {any} */ (error));
@@ -195,7 +193,7 @@ test("a 500 JSON response is a retryable ServerOverloadError", async () => {
     expect(error).toBeInstanceOf(ServerOverloadError);
 });
 
-/** @param {(url: string, init: RequestInit) => Promise<any>} fetchFn */
+/** @param {typeof browser.fetch} fetchFn */
 function patchBrowserFetch(fetchFn) {
     const originalFetch = browser.fetch;
     browser.fetch = fetchFn;
@@ -493,7 +491,7 @@ test("Dedup: concurrent identical rpcs share one fetch, not one promise", async 
 
 test("Dedup: different (url, params) do not collide", async () => {
     mockFetch((_, { body }) => {
-        const id = JSON.parse(body).params.id;
+        const id = JSON.parse(String(body)).params.id;
         expect.step(`Fetch:${id}`);
         return { result: { id } };
     });
@@ -840,24 +838,29 @@ test("envelope version: null result is not mutated", async () => {
 describe("CLEAR-CACHES bus handling", () => {
     function withStubCache() {
         const calls = { invalidate: [], invalidateByModel: [] };
-        const stub = {
-            invalidate: (tables) => calls.invalidate.push(tables),
-            invalidateByModel: (tables, model) =>
-                calls.invalidateByModel.push([tables, model]),
-        };
-        rpc.setCache(stub);
+        const cache = new RPCCache("mockRpc", 1);
+        patchWithCleanup(cache, {
+            invalidate: (tables) => {
+                calls.invalidate.push(tables);
+            },
+            invalidateByModel: (tables, model) => {
+                calls.invalidateByModel.push([tables, model]);
+            },
+        });
+        rpc.setCache(cache);
         after(() => rpc.setCache(undefined));
         return calls;
     }
 
     test("purgeCacheStorage delegates to the cache, and no-ops without one", async () => {
         let purged = 0;
-        rpc.setCache({
-            removeStorage: () => {
+        const cache = new RPCCache("mockRpc", 1);
+        patchWithCleanup(cache, {
+            removeStorage: async () => {
                 purged++;
-                return Promise.resolve();
             },
         });
+        rpc.setCache(cache);
         after(() => rpc.setCache(undefined));
 
         await rpc.purgeCacheStorage();

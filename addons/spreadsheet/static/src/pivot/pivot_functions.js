@@ -51,9 +51,7 @@ const ODOO_FILTER_VALUE_V18 = /** @satisfies {CustomFunctionDescription} */ ({
     category: "Odoo",
     hidden: true,
     compute: function (filterName) {
-        const filter = this.getters.getGlobalFilterByName(
-            toString(filterName, this.locale),
-        );
+        const filter = this.getters.getGlobalFilterByName(toString(filterName));
         const value = this["ODOO.FILTER.VALUE"](filterName);
         if (filter?.type === "relation") {
             const csvIds = toString(value[0][0]);
@@ -91,7 +89,7 @@ const ODOO_FILTER_VALUE_V18 = /** @satisfies {CustomFunctionDescription} */ ({
             const quarter = Math.floor(start.getMonth() / 3) + 1;
             return "Q" + quarter + "/" + start.getFullYear();
         } else if (start.getFullYear() === end.getFullYear()) {
-            return toString(start.getFullYear(), this.locale);
+            return toString(start.getFullYear());
         }
         return value;
     },

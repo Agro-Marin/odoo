@@ -33,4 +33,10 @@ export const FIELD_RECORD_SURFACE = [
 /** @type {string[]} */
 export const FIELD_OWN_VALUE_SURFACE = ["data", "update", "fields"];
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * data: Record<string, any>,
+ * update: (changes: Record<string, any>, options?: { save?: boolean }) => Promise<void>,
+ * fields: Record<string, any>,
+ * }} FieldOwnValueContract
+ */

@@ -13,6 +13,7 @@ import {
     parsePercentage,
 } from "@web/core/parsers";
 import { nbsp } from "@web/core/utils/format/strings";
+import { Operation } from "@web/core/utils/operation";
 
 beforeEach(makeMockEnv);
 
@@ -144,8 +145,7 @@ test("parsePercentage", () => {
 test("parsePercentage supports multi-edit operations", () => {
     expect(() => parsePercentage("+=5")).toThrow();
     const op = parsePercentage("+= 5", { allowOperation: true });
-    expect(op.operator).toBe("+");
-    expect(op.operand).toBe(5);
+    expect(op).toEqual(new Operation("+", 5));
     expect(parsePercentage("50", { allowOperation: true })).toBe(0.5);
 });
 

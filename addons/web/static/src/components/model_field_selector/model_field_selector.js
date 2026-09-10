@@ -42,7 +42,7 @@ export class ModelFieldSelector extends Component {
     keepLast;
     /** @type {ReturnType<typeof usePopover>} */
     popover;
-    /** @type {{ isInvalid: boolean; displayNames: never[] }} */
+    /** @type {{ isInvalid: boolean; displayNames: string[] }} */
     state;
 
     /** @type {string | null} */

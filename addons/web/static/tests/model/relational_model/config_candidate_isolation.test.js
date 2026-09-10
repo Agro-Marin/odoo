@@ -19,9 +19,11 @@ const POSTPROCESS_DEPS = {
     defaultGroupLimit: 10,
 };
 
+/** @returns {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
 function makeCommittedConfig() {
     return {
         isMonoRecord: false,
+        isRoot: true,
         resModel: "task",
         fields: { name: { type: "char", name: "name" } },
         activeFields: {},

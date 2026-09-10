@@ -4,20 +4,16 @@ import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 
+import { makeTestRelationalModel } from "./model_test_helpers.js";
+
 describe.current.tags("headless");
 
-function makeRecord(data = {}) {
-    const model = {
-        patchConfig: (config, patch) => Object.assign(config, patch),
-        urgentSave: {
-            isActive: false,
-            awaitUnlessUrgent: (promise) => promise,
-            unlessUrgent: (fn) => fn(),
-        },
-        multiEdit: false,
-        hasOnRecordChangedHook: false,
-    };
+async function makeRecord(data = {}) {
+    const model = await makeTestRelationalModel({});
+    /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
     const config = {
+        ...model.config,
+        isRoot: false,
         resModel: "test.model",
         resId: 1,
         resIds: [1],
@@ -37,17 +33,12 @@ function makeRecord(data = {}) {
             },
         },
     };
-    return new RelationalRecord(
-        /** @type {any} */ (model),
-        config,
-        { id: 1, ...data },
-        {},
-    );
+    return new RelationalRecord(model, config, { id: 1, ...data }, {});
 }
 
 describe("dirty rollback", () => {
     test("m2o re-set to its current value leaves the record clean", async () => {
-        const record = makeRecord({
+        const record = await makeRecord({
             foo: "yop",
             partner_id: { id: 7, display_name: "Partner" },
         });
@@ -60,7 +51,7 @@ describe("dirty rollback", () => {
     });
 
     test("a real change after the no-op still marks dirty", async () => {
-        const record = makeRecord({
+        const record = await makeRecord({
             foo: "yop",
             partner_id: { id: 7, display_name: "Partner" },
         });
@@ -72,7 +63,7 @@ describe("dirty rollback", () => {
     });
 
     test("a failing _onUpdate rolls dirty back on a pristine record", async () => {
-        const record = makeRecord({ foo: "yop" });
+        const record = await makeRecord({ foo: "yop" });
         record._onUpdate = () => {
             throw new Error("onUpdate boom");
         };
@@ -92,7 +83,7 @@ describe("dirty rollback", () => {
     });
 
     test("a failing _onUpdate keeps dirty when earlier edits exist", async () => {
-        const record = makeRecord({ foo: "yop" });
+        const record = await makeRecord({ foo: "yop" });
         await record.updateLocked({ foo: "first edit" });
         expect(record.dirty).toBe(true);
 
@@ -114,8 +105,8 @@ describe("dirty rollback", () => {
 });
 
 describe("undo invalid-field restore", () => {
-    test("undoChanges restores flags synchronously without side effects", () => {
-        const record = makeRecord({ foo: "yop" });
+    test("undoChanges restores flags synchronously without side effects", async () => {
+        const record = await makeRecord({ foo: "yop" });
         record.invalidFields.add("foo");
         record.dirty = true;
 

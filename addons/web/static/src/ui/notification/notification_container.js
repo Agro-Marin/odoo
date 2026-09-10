@@ -11,12 +11,14 @@ import { Notification } from "./notification.js";
 export class NotificationContainer extends Component {
     static serviceName = "notification";
     static itemsKey = "notifications";
+    /** @type {import("@odoo/owl").ComponentConstructor} */
     static notificationComponent = Notification;
     static props = {
         notifications: { type: Object, optional: true },
     };
 
     static template = "web.NotificationContainer";
+    /** @type {Record<string, import("@odoo/owl").ComponentConstructor>} */
     static components = { ErrorHandler, Notification, Transition };
 
     /** @type {any} */

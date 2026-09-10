@@ -3,7 +3,13 @@
 
 import { unaccent } from "./unaccent.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * match: string;
+ * start: number;
+ * end: number;
+ * }} NormalizedMatchResult
+ */
 
 /**
  * @param {string} str

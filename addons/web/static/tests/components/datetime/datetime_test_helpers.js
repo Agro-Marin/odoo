@@ -8,7 +8,17 @@ const PICKER_COLS = 7;
 
 /** @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps */
 
-/** @param {false | { */
+/**
+ * @param {false | {
+ * title?: string,
+ * date?: {
+ * cells: (number | string | [number] | [string])[][],
+ * daysOfWeek?: string[],
+ * weekNumbers?: number[],
+ * }[],
+ * time?: string[],
+ * }} expectedParams
+ */
 export function assertDateTimePicker(expectedParams) {
     if (expectedParams) {
         expect(".o_datetime_picker").toHaveCount(1);
@@ -81,9 +91,8 @@ export function assertDateTimePicker(expectedParams) {
         const expectedCells = cells.flatMap((row, rowIndex) =>
             row.map((cell, colIndex) => {
                 const cellEl = cellEls[rowIndex * PICKER_COLS + colIndex];
-                let value = cell;
+                let value = Array.isArray(cell) ? cell[0] : cell;
                 if (Array.isArray(cell)) {
-                    value = value[0];
                     selectedCells++;
                     expect(cellEl).toHaveClass("o_selected");
                 }
@@ -112,7 +121,7 @@ export function assertDateTimePicker(expectedParams) {
 }
 
 /**
- * @param {RegExp | string} expr
+ * @param {RegExp | string | number} expr
  * @param {boolean} [inBounds=false]
  */
 export function getPickerCell(expr, inBounds = false) {

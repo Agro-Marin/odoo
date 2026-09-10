@@ -989,7 +989,10 @@ test("settings views settle beforeLeave even when the Discard save fails", async
 });
 
 test("Auto save: don't save on closing tab/browser", async () => {
-    mockSendBeacon(() => expect.step("sendBeacon"));
+    mockSendBeacon(() => {
+        expect.step("sendBeacon");
+        return true;
+    });
     await mountView({
         type: "form",
         resModel: "res.config.settings",
@@ -1747,8 +1750,8 @@ test("execute action from settings view with several actions in the breadcrumb",
         },
     ]);
 
-    Task._views[["list", 1]] = `<list><field name="display_name"/></list>`;
-    ResConfigSettings._views[["form", 2]] = `
+    Task._views["list,1"] = `<list><field name="display_name"/></list>`;
+    ResConfigSettings._views["form,2"] = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block title="Title of group">
@@ -1759,7 +1762,7 @@ test("execute action from settings view with several actions in the breadcrumb",
             </app>
         </form>
     `;
-    Task._views[["list", 3]] = `<list><field name="display_name"/></list>`;
+    Task._views["list,3"] = `<list><field name="display_name"/></list>`;
 
     let def;
     onRpc("web_save", async () => {
@@ -1833,7 +1836,7 @@ test('call "call_button/execute" when clicking on a button in dirty settings', a
         },
     ]);
 
-    ResConfigSettings._views[["form", 1]] = `
+    ResConfigSettings._views["form,1"] = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -1889,7 +1892,7 @@ test("Discard button clean the settings view", async () => {
         },
     ]);
 
-    ResConfigSettings._views[["form", 1]] = `
+    ResConfigSettings._views["form,1"] = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -2035,7 +2038,8 @@ test("Settings with createLabelFromField", async () => {
 });
 
 test("standalone field labels with string inside a settings page", async () => {
-    let compiled = undefined;
+    /** @type {Element | undefined} */
+    let compiled;
     patchWithCleanup(SettingsFormCompiler.prototype, {
         compile() {
             const _compiled = super.compile(...arguments);
@@ -2069,6 +2073,10 @@ test("standalone field labels with string inside a settings page", async () => {
                     </SearchableSetting>
                 </SettingsApp>
             </SettingsPage>`;
+    expect(compiled).not.toBe(undefined);
+    if (!compiled) {
+        throw new Error("Expected compiled settings");
+    }
     expect(compiled.firstChild).toHaveInnerHTML(expectedCompiled);
 });
 
@@ -2097,7 +2105,8 @@ test("field and artificial label inside a settings page", async () => {
 });
 
 test("highlight Element with inner html/fields", async () => {
-    let compiled = undefined;
+    /** @type {Element | undefined} */
+    let compiled;
     patchWithCleanup(SettingsFormCompiler.prototype, {
         compile() {
             const _compiled = super.compile(...arguments);
@@ -2238,7 +2247,7 @@ test("server actions are called with the correct context", async () => {
         },
     ]);
 
-    ResConfigSettings._views[["form", 1]] = `
+    ResConfigSettings._views["form,1"] = `
         <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <button name="2" type="action"/>

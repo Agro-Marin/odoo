@@ -12,11 +12,40 @@ export const KANBAN_CARD_ATTRIBUTE = "card";
 export const KANBAN_MENU_ATTRIBUTE = "menu";
 
 export class KanbanArchParser extends ViewArchParser {
-    /** @typedef {{ */
+    /**
+     * @typedef {{
+     * xmlDoc: Element,
+     * models: Record<string, any>,
+     * modelName: string,
+     * jsClass: string | undefined,
+     * templateDocs: Record<string, any>,
+     * headerButtons: any[],
+     * controls: any[],
+     * fieldNodes: Record<string, any>,
+     * fieldNextIds: Record<string, number>,
+     * widgetNodes: Record<string, any>,
+     * widgetNextId: number,
+     * tooltipInfo: Record<string, any>,
+     * handleField: string | null,
+     * }} KanbanParseState
+     */
 
     /**
      * @param {Element} xmlDoc
      * @returns {{
+     * activeActions: any,
+     * className: string | null,
+     * canOpenRecords: boolean,
+     * defaultOrder: any[],
+     * limit: string | null,
+     * countLimit: string | null,
+     * recordsDraggable: boolean,
+     * groupsDraggable: boolean,
+     * defaultGroupBy: string[] | null,
+     * onCreate: string | null,
+     * quickCreateView: string | null,
+     * openAction: { action: string, type: string } | null,
+     * }}
      */
     parseRootAttributes(xmlDoc) {
         /** @type {any} */
@@ -201,6 +230,31 @@ export class KanbanArchParser extends ViewArchParser {
      * @param {Object} models
      * @param {string} modelName
      * @returns {{
+     * activeActions: Object,
+     * canOpenRecords: boolean,
+     * cardClassName: string,
+     * cardColorField: string | null,
+     * className: string | null,
+     * controls: Object[],
+     * defaultGroupBy: string[] | null,
+     * fieldNodes: Object,
+     * widgetNodes: Object,
+     * handleField: string | null,
+     * headerButtons: Object[],
+     * defaultOrder: Object[],
+     * onCreate: string | null,
+     * openAction: { action: string, type: string } | null,
+     * quickCreateView: string | null,
+     * recordsDraggable: boolean,
+     * groupsDraggable: boolean,
+     * limit: number | null,
+     * countLimit: number | null,
+     * progressAttributes: Object | false,
+     * templateDocs: Object,
+     * tooltipInfo: Object,
+     * examples: string | null,
+     * xmlDoc: Element,
+     * }}
      */
     parse(xmlDoc, models, modelName) {
         const root = this.parseRootAttributes(xmlDoc);

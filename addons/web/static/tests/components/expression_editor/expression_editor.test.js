@@ -62,6 +62,7 @@ async function editExpression(value) {
     await animationFrame();
 }
 
+/** @param {{ expression?: string, fieldFilters?: string[], update?: (expression: string) => void, isDebugMode?: boolean, readonly?: boolean }} [params] */
 async function makeExpressionEditor(params = {}) {
     const fieldFilters = params.fieldFilters;
     delete params.fieldFilters;
@@ -131,7 +132,10 @@ test("rendering of 'expr'", async () => {
         { value: "all", level: 0 },
         { value: "expr", level: 1 },
     ]);
-    expect(queryOne(SELECTORS.complexConditionInput).readOnly).toBe(true);
+    expect(
+        /** @type {HTMLInputElement} */ (queryOne(SELECTORS.complexConditionInput))
+            .readOnly,
+    ).toBe(true);
 });
 
 test("rendering of 'expr' in dev mode", async () => {
@@ -140,7 +144,10 @@ test("rendering of 'expr' in dev mode", async () => {
         { value: "all", level: 0 },
         { value: "expr", level: 1 },
     ]);
-    expect(queryOne(SELECTORS.complexConditionInput).readOnly).toBe(false);
+    expect(
+        /** @type {HTMLInputElement} */ (queryOne(SELECTORS.complexConditionInput))
+            .readOnly,
+    ).toBe(false);
 });
 
 test("edit a complex condition in dev mode", async () => {

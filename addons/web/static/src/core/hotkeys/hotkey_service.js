@@ -28,6 +28,10 @@ export { getActiveHotkey };
  * @property {() => HTMLElement} [withOverlay]
  * @property {() => Document | HTMLElement | null} [scope]
  * @typedef {HotkeyOptions & {
+ * hotkey: string,
+ * callback: HotkeyCallback,
+ * getScope: () => Document | HTMLElement,
+ * }} HotkeyRegistration
  */
 
 export class HotkeyService {
@@ -142,6 +146,12 @@ export class HotkeyService {
 
     /**
      * @param {{
+     * activeElement: HTMLElement,
+     * hotkey: string,
+     * isRepeated: boolean,
+     * target: EventTarget,
+     * shouldProtectEditable: boolean,
+     * }} infos
      * @returns {boolean}
      */
     dispatch(infos) {

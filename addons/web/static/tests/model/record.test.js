@@ -162,6 +162,7 @@ test(`predefined fields and values`, async () => {
 });
 
 test(`Record with onRootLoaded props`, async () => {
+    /** @type {import("@web/model/relational_model/record").RelationalRecord} */
     let record;
     class Parent extends Component {
         static props = ["*"];
@@ -637,6 +638,7 @@ test(`supports passing dynamic values -- full control to the user of Record`, as
                     type: "boolean",
                 },
             };
+            /** @type {{ foo: string | number, bar: boolean }} */
             this.values = useState({
                 foo: "abc",
                 bar: true,
@@ -657,7 +659,7 @@ test(`supports passing dynamic values -- full control to the user of Record`, as
     }
 
     onRpc(() => {
-        throw new makeServerError({ message: "should not do any rpc" });
+        throw makeServerError({ message: "should not do any rpc" });
     });
     await mountWithCleanup(Parent);
     expect(`[name='foo'] input`).toHaveValue("abc");
@@ -832,7 +834,7 @@ test(`don't duplicate a useRecordObserver effect when switching back and forth b
             };
             super(env, params, services);
         }
-        load(params = {}) {
+        async load(params = {}) {
             const data = params.values;
             const config = this._getNextConfig(this.config, params);
             this.root = this._createRoot(config, data);

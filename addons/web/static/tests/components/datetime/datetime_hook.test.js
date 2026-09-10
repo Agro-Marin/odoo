@@ -28,6 +28,7 @@ class Root extends Component {
 }
 
 test("reactivity: update inert object", async () => {
+    /** @type {import("@web/components/datetime/datetime_picker").DateTimePickerProps} */
     const pickerProps = {
         value: false,
         type: "date",
@@ -46,6 +47,7 @@ test("reactivity: update inert object", async () => {
 });
 
 test("reactivity: useState & update getter object", async () => {
+    /** @type {import("@web/components/datetime/datetime_picker").DateTimePickerProps} */
     const pickerProps = reactive({
         value: false,
         type: "date",
@@ -71,7 +73,9 @@ test("reactivity: useState & update getter object", async () => {
 });
 
 test("reactivity: update reactive object returned by the hook", async () => {
+    /** @type {import("@web/components/datetime/datetime_picker").DateTimePickerProps} */
     let pickerProps;
+    /** @type {import("@web/components/datetime/datetime_picker").DateTimePickerProps} */
     const defaultPickerProps = {
         value: false,
         type: "date",
@@ -91,7 +95,9 @@ test("reactivity: update reactive object returned by the hook", async () => {
 });
 
 test("returned value is updated when input has changed", async () => {
+    /** @type {import("@web/components/datetime/datetime_picker").DateTimePickerProps} */
     let pickerProps;
+    /** @type {import("@web/components/datetime/datetime_picker").DateTimePickerProps} */
     const defaultPickerProps = {
         value: false,
         type: "date",
@@ -107,13 +113,19 @@ test("returned value is updated when input has changed", async () => {
     await edit("06/06/2023");
     await click(document.body);
 
+    expect(DateTime.isDateTime(pickerProps.value)).toBe(true);
+    if (!pickerProps.value || Array.isArray(pickerProps.value)) {
+        throw new Error("Expected a single date");
+    }
     expect(pickerProps.value.toSQL().split(" ")[0]).toBe("2023-06-06");
 });
 
 test("value is not updated if it did not change", async () => {
     const getShortDate = (date) => date.toSQL().split(" ")[0];
 
+    /** @type {import("@web/components/datetime/datetime_picker").DateTimePickerProps} */
     let pickerProps;
+    /** @type {import("@web/components/datetime/datetime_picker").DateTimePickerProps} */
     const defaultPickerProps = {
         value: DateTime.fromSQL("2023-06-06"),
         type: "date",
@@ -209,8 +221,12 @@ test("popover closed on owner unmount does not apply against the destroyed owner
 
         setup() {
             useDateTimePicker({
-                onApply: (value) =>
-                    expect.step(`apply:${value ? value.toISODate() : value}`),
+                onApply: (value) => {
+                    if (Array.isArray(value)) {
+                        throw new Error("Expected a single date");
+                    }
+                    expect.step(`apply:${value ? value.toISODate() : value}`);
+                },
                 pickerProps: {
                     value: DateTime.fromSQL("2023-06-06"),
                     type: "date",

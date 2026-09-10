@@ -41,6 +41,7 @@ const DIRECT_JUMP_HOTKEYS = 9;
 
 /** @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp */
 
+/** @extends {Component<any, import("@web/env").OdooEnv>} */
 export class HomeMenu extends Component {
     static template = "web.HomeMenu";
     static appTemplate = "web.HomeMenu.App";
@@ -99,7 +100,14 @@ export class HomeMenu extends Component {
         },
     };
 
-    /** @type {{ */
+    /**
+     * @type {{
+     *  isIosApp: boolean;
+     *  editing: boolean;
+     *  badges: Record<string, number>;
+     *  layoutAnnouncement: string;
+     * }}
+     */
     state;
     /** @type {HomeMenuLayout} */
     layout;
@@ -147,7 +155,9 @@ export class HomeMenu extends Component {
             activate: (index) => this._activate(index),
             fallback: () => this._openFirstMatch(),
             escape: () => this._onEscape(),
-            isAvailable: (target) => !target?.closest?.(".o_app_edit_actions"),
+            isAvailable: (
+                /** @type {EventTarget & Partial<Pick<Element, "closest">> | null} */ target,
+            ) => !target?.closest?.(".o_app_edit_actions"),
             enterTarget: () => this.search.inputEl,
         });
 
@@ -401,14 +411,20 @@ export class HomeMenu extends Component {
                   .flatMap((item) => (item.xmlid ? [item.xmlid] : []));
     }
 
-    /** @param {HomeMenuApp} app */
+    /**
+     * @param {HomeMenuApp} app
+     * @param {number} delta
+     */
     canMoveApp(app, delta) {
         const order = this.appOrder(app);
         const index = order.indexOf(app.xmlid ?? "");
         return index >= 0 && index + delta >= 0 && index + delta < order.length;
     }
 
-    /** @param {HomeMenuApp} app */
+    /**
+     * @param {HomeMenuApp} app
+     * @param {number} delta
+     */
     moveApp(app, delta) {
         if (!this.canMoveApp(app, delta)) {
             return;

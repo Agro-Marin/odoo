@@ -2289,6 +2289,7 @@ test("embedded one2many with handle widget with minimum setValue calls", async (
         "kawa",
     ]);
 
+    /** @type {[number, number, string[]][]} */
     const positions = [
         [6, 0, ["3", "6", "1", "2", "5", "7", "4"]],
         [5, 1, ["7", "6", "1", "2", "5"]],
@@ -2507,6 +2508,7 @@ test("edition of one2many field with pager", async () => {
 
     let saveCount = 0;
     let checkRead = false;
+    /** @type {number[] | undefined} */
     let readIDs;
     onRpc("web_read", (args) => {
         if (checkRead) {
@@ -3848,7 +3850,7 @@ test("one2many list (editable): edition, part 2", async () => {
     });
     await contains(".o_field_x2many_list_row_add a").click();
     await contains(".o_selected_row > td input").edit("kartoffel", {
-        confirm: "false",
+        confirm: false,
     });
     expect("td .o_field_char input").toHaveValue("kartoffel");
 
@@ -3858,7 +3860,7 @@ test("one2many list (editable): edition, part 2", async () => {
     expect(".o_selected_row > td input").toHaveCount(1);
     expect("tr.o_data_row").toHaveCount(2);
 
-    await contains(".o_selected_row > td input").edit("gemuse", { confirm: "false" });
+    await contains(".o_selected_row > td input").edit("gemuse", { confirm: false });
     await clickSave();
     expect("tr.o_data_row").toHaveCount(2);
     expect(queryAllTexts(".o_data_cell")).toEqual(["gemuse", "kartoffel"]);
@@ -3883,7 +3885,7 @@ test("one2many list (editable): edition, part 3", async () => {
 
     expect("tr.o_data_row").toHaveCount(1);
     await contains(".o_field_x2many_list_row_add a").click();
-    await contains('div[name="turtle_foo"] input').edit("nora", { confirm: "false" });
+    await contains('div[name="turtle_foo"] input').edit("nora", { confirm: false });
     await contains(".o_field_x2many_list_row_add a").click();
     expect("tr.o_data_row").toHaveCount(3);
 
@@ -3953,7 +3955,7 @@ test("one2many list (editable): edition, part 5", async () => {
     expect(".o_data_cell").toHaveText("blip");
     await contains(".o_field_x2many_list_row_add a").click();
     await contains(".o_field_widget[name=turtle_foo] input").edit("aaa", {
-        confirm: "false",
+        confirm: false,
     });
     expect("tr.o_data_row").toHaveCount(2);
     await contains(".o_list_record_remove:eq(1)").click();
@@ -5850,7 +5852,7 @@ test("one2many list with action button", async () => {
 
     Partner._records[0].p = [2];
     mockService("action", {
-        doActionButton: (params) => {
+        doActionButton: async (params) => {
             expect(params.resId).toBe(2);
             expect(params.resModel).toBe("partner");
             expect(params.name).toBe("method_name");
@@ -5881,7 +5883,7 @@ test("one2many kanban with action button", async () => {
 
     Partner._records[0].p = [2];
     mockService("action", {
-        doActionButton: (params) => {
+        doActionButton: async (params) => {
             expect(params.resId).toBe(2);
             expect(params.resModel).toBe("partner");
             expect(params.name).toBe("method_name");
@@ -6644,7 +6646,7 @@ test("one2many field with virtual ids with kanban button", async () => {
         });
     });
     mockService("action", {
-        doActionButton: (params) => {
+        doActionButton: async (params) => {
             const { name, resModel, resId } = params;
             expect.step(`${name}_${resModel}_${resId}`);
             params.onClose();
@@ -7280,6 +7282,7 @@ test("editable list: onchange that returns a warning", async () => {
             expect.step(params.type);
             expect(message).toBe(warning.message);
             expect(params.title).toBe(warning.title);
+            return () => {};
         },
     });
     await mountView({
@@ -11599,14 +11602,14 @@ test("does not crash when you parse a tree arch containing another tree arch", a
 });
 test("open a one2many record containing a one2many", async () => {
     Partner._views = {
-        [["form", 5]]: `
+        ["form,5"]: `
             <form>
                 <field name="p" context="{ 'form_view_ref': 1234 }">
                     <list><field name="name" /></list>
                 </field>
             </form>
         `,
-        [["form", 1234]]: `
+        ["form,1234"]: `
             <form>
                 <field name="turtles" >
                     <list>
@@ -11663,16 +11666,16 @@ test("open a one2many record containing a one2many", async () => {
 
 test("open a one2many record with optional open record displayed", async () => {
     Partner._views = {
-        [["form", false]]: `<form>
+        ["form,false"]: `<form>
             <field name="p" context="{ 'form_view_ref': 1234 }">
                 <list editable="bottom"><field name="name" /></list>
             </field>
         </form>`,
-        [["form", 1234]]: `
+        ["form,1234"]: `
             <form>
                 <field name="name"/>
             </form>`,
-        [["search", false]]: `<search/>`,
+        ["search,false"]: `<search/>`,
     };
     let firstLoad = true;
 
@@ -11840,7 +11843,7 @@ test("toggle boolean in o2m with the formView in edition", async () => {
 
 test("Boolean toggle in x2many must not be editable if form is not editable", async () => {
     Turtle._views = {
-        [["form", false]]: `
+        ["form,false"]: `
             <form>
                 <field name="turtle_bar" widget="boolean_toggle"/>
                 <field name="partner_ids">
@@ -12357,7 +12360,7 @@ test("kanban one2many in opened view form", async () => {
 
 test("kanban one2many in opened view form (with _view_ref)", async () => {
     Partner._views = {
-        [["kanban", 1234]]: `
+        ["kanban,1234"]: `
             <kanban class="o-custom-class" can_open="0">
                 <templates>
                     <t t-name="card">
@@ -12488,7 +12491,7 @@ test("list one2many in opened view form", async () => {
 test.tags("desktop");
 test("list one2many in opened view form (with _view_ref)", async () => {
     Partner._views = {
-        [["list", 1234]]: `
+        ["list,1234"]: `
             <list editable="bottom" class="o-custom-class">
                 <field name="name"/>
             </list>
@@ -12600,6 +12603,7 @@ test('Add a line, click on "Save & New" with an invalid form', async () => {
         add: (message, params) => {
             expect.step(params.type);
             expect(message).toBe("Missing required fields");
+            return () => {};
         },
     });
     await mountView({
@@ -13382,7 +13386,7 @@ test.tags("desktop");
 test("expand record in dialog", async () => {
     Turtle._views["form, false"] = `<form><field name="name"/></form>`;
     mockService("action", {
-        doAction(actionRequest) {
+        async doAction(actionRequest) {
             expect.step([
                 actionRequest.res_id,
                 actionRequest.res_model,

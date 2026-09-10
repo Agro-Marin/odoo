@@ -21,17 +21,17 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
 
 const { DateTime } = luxon;
 
-/** @param {DateTimePickerProps["value"]} value */
+/** @param {import("@web/components/datetime/datetime_picker").DateTimePickerProps["value"]} value */
 const formatForStep = (value) =>
     ensureArray(value)
-        .map((val) => val.toISO().split(".")[0])
+        .map((val) => (val ? val.toISO().split(".")[0] : ""))
         .join(",");
 
 /** @param {any} value */
 const pad2 = (value) => String(value).padStart(2, "0");
 
 /**
- * @template {any}
+ * @template {any} [T=number]
  * @param {number} length
  * @param {(index: number) => T} mapping
  */
@@ -1407,7 +1407,7 @@ test("without isDateValid every in-month day stays selectable", async () => {
 
     const cells = queryAll(".o_date_item_cell:not(.o_out_of_range)");
     expect(cells.length).toBeGreaterThan(20);
-    expect(cells.filter((cell) => cell.disabled).length).toBe(0);
+    expect(cells.filter((cell) => cell.matches(":disabled")).length).toBe(0);
     expect(".o_date_item_cell:not(.o_out_of_range).opacity-50").toHaveCount(0);
 });
 

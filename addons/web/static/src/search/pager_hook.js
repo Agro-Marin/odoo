@@ -15,6 +15,7 @@ import { onWillRender, useEnv, useState, useSubEnv } from "@odoo/owl";
  * @property {number} limit
  * @property {number} total
  * @property {(params: PagerUpdateParams) => any} onUpdate
+ * @property {() => number | Promise<number>} [updateTotal]
  * @property {boolean} [isEditable]
  * @property {boolean} [withAccessKey]
  */

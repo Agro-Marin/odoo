@@ -183,7 +183,11 @@ describe("roundPrecision", () => {
         for (const value of [
             5.6e12, 1e13, 1.23456789e14, 1e15, -1e13, -1.23456789e14,
         ]) {
-            for (const method of ["HALF-UP", "HALF-DOWN", "HALF-EVEN"]) {
+            for (const method of /** @type {const} */ ([
+                "HALF-UP",
+                "HALF-DOWN",
+                "HALF-EVEN",
+            ])) {
                 expect(roundPrecision(value, 0.01, method)).toBe(value);
                 expect(roundPrecision(value, 1, method)).toBe(value);
             }
@@ -191,7 +195,7 @@ describe("roundPrecision", () => {
         expect(roundPrecision(1e13, 0.01)).toBe(1e13);
         expect(roundDecimals(1e13, 2)).toBe(1e13);
         expect(roundDecimals(-1.23456789e14, 2)).toBe(-1.23456789e14);
-        for (const method of ["UP", "DOWN"]) {
+        for (const method of /** @type {const} */ (["UP", "DOWN"])) {
             expect(roundPrecision(1e13, 0.01, method)).toBe(1e13);
             expect(roundPrecision(5.6e12, 0.01, method)).toBe(5.6e12);
             expect(roundPrecision(1e13, 1, method)).toBe(1e13);
@@ -490,7 +494,7 @@ describe("formatFloat", () => {
             { val: 1.925, decimals: 2, resFixed: "1.93", resHuman: "1.93" },
         ].forEach(({ val, decimals, resFixed, resHuman }) => {
             Object.assign(options, { decimals });
-            const value = parseFloat(val);
+            const value = val;
             expect(value.toFixed(decimals)).toBe(resFixed);
             expect(formatFloat(value, options)).toBe(resHuman);
         });

@@ -213,10 +213,12 @@ defineModels([ResPartner, Partner, Product, PartnerType, Turtle, Users]);
 test("many2ones in form views", async () => {
     expect.assertions(2);
     mockService("action", {
-        doAction(params) {
+        async doAction(params) {
             expect(params.res_id).toBe(17);
         },
-        loadState() {},
+        async loadState() {
+            return true;
+        },
     });
 
     Partner._views = {
@@ -2829,10 +2831,6 @@ test("no_quick_create option on a many2one when can_create is absent", async () 
 });
 
 test("can_create and can_write option on a many2one", async () => {
-    Product.options = {
-        can_create: "false",
-        can_write: "false",
-    };
     Product._views = {
         form: `
             <form>
@@ -3876,14 +3874,16 @@ test("external_button opens a FormViewDialog in dialogs", async () => {
 
 test("external_button opens a new tab when middle clicked or ctrl+click", async () => {
     mockService("action", {
-        doAction(params, options) {
+        async doAction(params, options) {
             if (options?.newWindow) {
                 expect.step("opened in a new window");
                 return;
             }
             super.doAction(params);
         },
-        loadState() {},
+        async loadState() {
+            return true;
+        },
     });
     Partner._views = {
         form: '<form><field name="trululu"/></form>',
@@ -3918,7 +3918,7 @@ test("external_button opens a new tab when middle clicked or ctrl+click", async 
 
 test("keep changes when editing related record in a dialog", async () => {
     Partner._views = {
-        [["form", 98]]: '<form><field name="int_field"/></form>',
+        ["form,98"]: '<form><field name="int_field"/></form>',
     };
     onRpc("get_formview_id", () => 98);
     onRpc("web_save", () => {
@@ -3955,8 +3955,8 @@ test("keep changes when editing related record in a dialog", async () => {
 });
 
 test("create and edit, save and then discard", async () => {
-    Partner.views = {
-        [[98, "form"]]: '<form><field name="name"/></form>',
+    Partner._views = {
+        ["form,98"]: '<form><field name="name"/></form>',
     };
     onRpc("get_formview_id", () => 98);
     await mountView({

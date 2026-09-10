@@ -150,7 +150,6 @@ test("can execute the callback of settings", async () => {
         async doAction(actionId) {
             expect.step(String(actionId.res_id));
             expect.step(actionId.name);
-            return true;
         },
     });
 
@@ -165,7 +164,10 @@ test("can execute the callback of settings", async () => {
 
 test("click on odoo account item", async () => {
     patchWithCleanup(browser, {
-        open: (url) => expect.step(`open ${url}`),
+        open: (url) => {
+            expect.step(`open ${url}`);
+            return window;
+        },
     });
     userMenuRegistry.add("odoo_account", odooAccountItem);
     await mountWithCleanup(UserMenu);

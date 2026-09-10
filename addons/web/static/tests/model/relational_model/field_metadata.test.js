@@ -25,6 +25,15 @@ describe("makeActiveField — defaults", () => {
 });
 
 describe("makeActiveField — boolean conversions", () => {
+    test("onChange normalizes boolean expressions", () => {
+        for (const onChange of [false, "0", "False", "false"]) {
+            expect(makeActiveField({ onChange }).onChange).toBe(false);
+        }
+        for (const onChange of [true, "1", "True", "true"]) {
+            expect(makeActiveField({ onChange }).onChange).toBe(true);
+        }
+    });
+
     test("boolean true → 'True' for invisible", () => {
         expect(makeActiveField({ invisible: true }).invisible).toBe("True");
     });

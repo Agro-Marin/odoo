@@ -28,7 +28,7 @@ import {
 /**
  * @param {Array} [values=[]]
  * @param {string[]} [labels=[]]
- * @returns {{ root: { values: Array, labels: string[] }, directSubTrees: Map }}
+ * @returns {{ root: { values: Array, labels: string[] }, directSubTrees: Map, sortedKeys?: any[] }}
  */
 function makeTree(values = [], labels = []) {
     return { root: { values, labels }, directSubTrees: new Map() };
@@ -716,6 +716,7 @@ describe("PivotModel.toggleMeasure — batching across concurrent toggles", () =
     });
 
     test("concurrent toggles still batch into a single measure set", async () => {
+        /** @type {(value?: unknown) => void} */
         let release;
         const gate = new Promise((resolve) => (release = resolve));
         let first = true;

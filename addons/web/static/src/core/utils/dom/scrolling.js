@@ -160,7 +160,7 @@ function scrollAndSettle(scrollable, targetTop, behavior) {
  * @param {boolean} [options.isAnchor]
  * @param {ScrollBehavior} [options.behavior]
  * @param {number} [options.offset]
- * @returns {Promise<any[]> | void}
+ * @returns {Promise<any[]> | undefined}
  */
 export function scrollTo(element, options = {}) {
     const { behavior = "auto", isAnchor = false, offset = 0 } = options;

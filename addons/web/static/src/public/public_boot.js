@@ -110,7 +110,6 @@ export async function startPublicApp() {
         );
         setupGlobalPageBehaviors();
         const root = await app.mount(document.body);
-        // @ts-expect-error -- debug property assigned to odoo global at runtime
         odoo.__WOWL_DEBUG__ = { root };
         /** @type {any} */ (odoo).isReady = true;
         return env;

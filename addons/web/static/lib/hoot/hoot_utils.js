@@ -16,27 +16,53 @@ import { getRunner } from "./main_runner.js";
 /**
  * @typedef {ArgumentPrimitive | `${ArgumentPrimitive}[]` | null} ArgumentType
  * @typedef {"any"
+ *  | "bigint"
+ *  | "boolean"
+ *  | "date"
+ *  | "error"
+ *  | "function"
+ *  | "integer"
+ *  | "node"
+ *  | "null"
+ *  | "number"
+ *  | "object"
+ *  | "regex"
+ *  | "string"
+ *  | "symbol"
+ *  | "url"
+ *  | "undefined"} ArgumentPrimitive
  * @typedef {{
+ *  ignoreOrder?: boolean;
+ *  partial?: boolean;
+ * }} DeepEqualOptions
  * @typedef {[string, ArgumentType]} Label
  * @typedef {"expected" | "group" | "received" | "technical"} MarkupType
- * @typedef {string | RegExp | { new(): any }} Matcher
+ * @typedef {string | RegExp | Error | (new (...args: never[]) => object)} Matcher
  * @typedef {QueryRegExp | QueryExactString | QueryPartialString} QueryPart
  * @typedef {{
+ *  assertions: number;
+ *  failed: number;
+ *  passed: number;
+ *  skipped: number;
+ *  suites: number;
+ *  tests: number;
+ *  todo: number;
+ * }} Reporting
  * @typedef {import("./core/runner").Runner} Runner
  */
 
 /**
- * @template {unknown[]}
+ * @template {unknown[]} T
  * @typedef {T extends [any, ...infer U] ? U : never} DropFirst
  */
 
 /**
- * @template
+ * @template T
  * @typedef {T | Iterable<T>} MaybeIterable
  */
 
 /**
- * @template
+ * @template T
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
@@ -140,7 +166,7 @@ function makeObjectCache() {
 }
 
 /**
- * @template
+ * @template T
  * @param {T | (() => T)} value
  * @returns {T}
  */
@@ -172,7 +198,7 @@ function truncate(value, length = MAX_HUMAN_READABLE_SIZE) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T} value
  * @param {ReturnType<makeObjectCache>} cache
  * @returns {T}
@@ -488,7 +514,7 @@ class QueryRegExp extends RegExp {
 }
 
 class QueryString extends String {
-    /** @type {(a: string; b: string) => boolean} */
+    /** @type {(a: string, b: string) => boolean} */
     compareFn;
 
     /**
@@ -1016,6 +1042,9 @@ export function getSyncValue(object, toStringValue) {
     const result = syncValues.get(object);
     if (!toStringValue) {
         return result;
+    }
+    if (syncValues.has(result)) {
+        return getSyncValue(result, true);
     }
     let textResult = "";
     if (isIterable(result)) {

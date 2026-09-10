@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { Interaction } from "@web/public/interaction" */
 import { Component, markup } from "@odoo/owl";
 
 const Markup = markup("").constructor;

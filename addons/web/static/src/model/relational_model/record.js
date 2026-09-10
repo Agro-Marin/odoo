@@ -59,6 +59,12 @@ import {
 
 /**
  * @typedef {{
+ * currentValues?: RecordType<string, unknown>;
+ * orderBys?: RecordType<string, unknown>;
+ * withInvisible?: boolean;
+ * withReadonly?: boolean;
+ * keepChanges?: boolean;
+ * }} FieldSpecifications
  * @typedef {"edit" | "readonly"} Mode
  */
 
@@ -80,7 +86,14 @@ function openMultiEditEnvelope(dispatched) {
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 
-    /** @type {typeof DataPoint.prototype.setup<{ */
+    /**
+     * @type {typeof DataPoint.prototype.setup<{
+     * manuallyAdded?: boolean;
+     * onUpdate?: (params?: { withoutParentUpdate?: boolean }) => any;
+     * parentRecord?: RelationalRecord;
+     * virtualId?: string;
+     * }>}
+     */
     setup(_config, data, options = {}) {
         this.manuallyAdded = options.manuallyAdded === true;
         this._onUpdate = options.onUpdate || (() => {});

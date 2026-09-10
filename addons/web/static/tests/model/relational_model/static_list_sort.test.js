@@ -5,8 +5,27 @@ import { sortBy, sortStaticList } from "@web/model/relational_model/static_list_
 
 describe.current.tags("headless");
 
+/**
+ * @param {[number, {resId: number, data: Record<string, unknown>, virtualId?: null}][]} entries
+ */
+function makeCache(entries) {
+    return new Map(
+        entries.map(([id, record]) => [
+            id,
+            {
+                ...record,
+                applyValues(values) {
+                    Object.assign(this.data, values);
+                },
+            },
+        ]),
+    );
+}
+
+/** @param {Partial<import("@web/model/relational_model/static_list_sort").SortableList>} [overrides] */
 function makeList(overrides = {}) {
     const loadCalls = [];
+    /** @type {import("@web/model/relational_model/static_list_sort").SortableList & {_loadCalls: Parameters<import("@web/model/relational_model/static_list").StaticList["loadLocked"]>[0][]}} */
     const list = {
         currentIds: [],
         _currentIds: [],
@@ -14,7 +33,20 @@ function makeList(overrides = {}) {
         _needsReordering: false,
         activeFields: {},
         fields: {},
-        config: {},
+        fieldNames: [],
+        evalContext: {},
+        config: {
+            resModel: "res.partner",
+            fields: {},
+            activeFields: {},
+            fieldsToAggregate: [],
+            isMonoRecord: false,
+            isRoot: false,
+            context: {},
+            domain: [],
+            groupBy: [],
+            orderBy: [],
+        },
         _cache: new Map(),
         _getResIdsToLoad: () => [],
         loadLocked: async (params) => {
@@ -58,9 +90,9 @@ describe("sort — empty orderBy", () => {
 describe("sort — with cached records", () => {
     test("sorts records by field and calls loadLocked with sorted IDs", async () => {
         const list = makeList({
-            fields: { name: { type: "char" } },
+            fields: { name: { name: "name", type: "char" } },
         });
-        list._cache = new Map([
+        list._cache = makeCache([
             [1, { resId: 1, virtualId: null, data: { name: "Zebra" } }],
             [2, { resId: 2, virtualId: null, data: { name: "Apple" } }],
             [3, { resId: 3, virtualId: null, data: { name: "Mango" } }],
@@ -74,10 +106,10 @@ describe("sort — with cached records", () => {
 
     test("clears _needsReordering flag after sort", async () => {
         const list = makeList({
-            fields: { name: { type: "char" } },
+            fields: { name: { name: "name", type: "char" } },
             _needsReordering: true,
         });
-        list._cache = new Map([[1, { resId: 1, data: { name: "A" } }]]);
+        list._cache = makeCache([[1, { resId: 1, data: { name: "A" } }]]);
 
         await sortStaticList(list, [1], [{ name: "name", asc: true }]);
 
@@ -86,9 +118,9 @@ describe("sort — with cached records", () => {
 
     test("descending sort reverses the order", async () => {
         const list = makeList({
-            fields: { name: { type: "char" } },
+            fields: { name: { name: "name", type: "char" } },
         });
-        list._cache = new Map([
+        list._cache = makeCache([
             [1, { resId: 1, data: { name: "Apple" } }],
             [2, { resId: 2, data: { name: "Zebra" } }],
         ]);
@@ -103,8 +135,8 @@ describe("sortBy — direction cycling", () => {
     test("new field sorts ascending", async () => {
         const list = makeList({
             orderBy: [],
-            fields: { name: { type: "char" } },
-            _cache: new Map([[1, { resId: 1, data: { name: "A" } }]]),
+            fields: { name: { name: "name", type: "char" } },
+            _cache: makeCache([[1, { resId: 1, data: { name: "A" } }]]),
         });
 
         await sortBy(list, "name");
@@ -117,8 +149,8 @@ describe("sortBy — direction cycling", () => {
         const list = makeList({
             orderBy: [{ name: "name", asc: true }],
             _needsReordering: false,
-            fields: { name: { type: "char" } },
-            _cache: new Map([[1, { resId: 1, data: { name: "A" } }]]),
+            fields: { name: { name: "name", type: "char" } },
+            _cache: makeCache([[1, { resId: 1, data: { name: "A" } }]]),
         });
 
         await sortBy(list, "name");
@@ -130,8 +162,8 @@ describe("sortBy — direction cycling", () => {
         const list = makeList({
             orderBy: [{ name: "name", asc: false }],
             _needsReordering: false,
-            fields: { id: { type: "integer" } },
-            _cache: new Map([[1, { resId: 1, data: {} }]]),
+            fields: { id: { name: "id", type: "integer" } },
+            _cache: makeCache([[1, { resId: 1, data: {} }]]),
         });
 
         await sortBy(list, "name");

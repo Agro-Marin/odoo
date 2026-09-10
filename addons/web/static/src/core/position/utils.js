@@ -10,6 +10,14 @@ import { viewOf } from "@web/core/utils/dom/ui";
  * @typedef {{[direction: string]: string}} DirectionFlipOrder
  * @typedef {{[variant in Variant]: string}} VariantFlipOrder
  * @typedef {{
+ * top: number,
+ * left: number,
+ * maxHeight?: number;
+ * direction: Direction,
+ * variant: Variant,
+ * variantOffset?: number,
+ * [key: string]: any,
+ * }} PositioningSolution
  * @typedef ComputePositionOptions
  * @property {HTMLElement | (() => HTMLElement)} [container]
  * @property {number} [margin=0]
@@ -81,7 +89,22 @@ export function reverseForRTL(direction, variant = "middle") {
     return [direction, variant];
 }
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *   popBox: DOMRect,
+ *   targetBox: DOMRect,
+ *   contBox: DOMRect,
+ *   targetBoxAbs: Pick<DOMRect, "top" | "bottom" | "left" | "right">,
+ *   contBoxAbs: Pick<DOMRect, "top" | "bottom" | "left" | "right">,
+ *   iframeBox: { top: number, left: number },
+ *   cont: HTMLElement,
+ *   containerIsHTMLNode: boolean,
+ *   containerIsInIframe: boolean,
+ *   shrink: boolean | undefined,
+ *   directionsData: Record<string, number>,
+ *   variantsData: Record<string, number>,
+ * }} PlacementMeasure
+ */
 
 /**
  * @param {string} d

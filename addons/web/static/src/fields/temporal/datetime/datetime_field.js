@@ -38,6 +38,21 @@ function getFormattedPlaceholder(value, type, options) {
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
+ * endDateField?: string;
+ * maxDate?: string;
+ * minDate?: string;
+ * placeholder?: string;
+ * required?: boolean;
+ * rounding?: number;
+ * startDateField?: string;
+ * warnFuture?: boolean;
+ * showSeconds?: boolean;
+ * showTime?: boolean;
+ * numeric?: boolean;
+ * minPrecision?: string;
+ * maxPrecision?: string;
+ * alwaysRange?: boolean;
+ * }} DateTimeFieldProps
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
  * @typedef {import("@web/core/l10n/dates").NullableDateRange} NullableDateRange
  */
@@ -414,7 +429,7 @@ function extractDateProps({ options, placeholder, type }, dynamicInfo, format) {
     };
 }
 
-/** @type {import("registries").FieldsRegistryItemShape} */
+/** @satisfies {import("registries").FieldsRegistryItemShape} */
 export const dateField = {
     component: DateTimeField,
     displayName: _t("Date"),
@@ -481,7 +496,7 @@ export const dateField = {
     },
 };
 
-/** @type {import("registries").FieldsRegistryItemShape} */
+/** @satisfies {import("registries").FieldsRegistryItemShape} */
 export const dateTimeField = {
     ...dateField,
     displayName: _t("Date & Time"),
@@ -526,7 +541,7 @@ export const dateTimeField = {
     listViewWidth: ({ options }) => dateTimeListViewWidth(options),
 };
 
-/** @type {import("registries").FieldsRegistryItemShape} */
+/** @satisfies {import("registries").FieldsRegistryItemShape} */
 export const dateRangeField = {
     ...dateTimeField,
     displayName: _t("Date Range"),

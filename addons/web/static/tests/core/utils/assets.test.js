@@ -17,12 +17,29 @@ import {
 describe.current.tags("headless");
 
 /**
+ * @param {Node} node
+ * @returns {node is HTMLLinkElement | HTMLScriptElement}
+ */
+function isAssetElement(node) {
+    return (
+        node.nodeType === Node.ELEMENT_NODE &&
+        ["LINK", "SCRIPT"].includes(node.nodeName)
+    );
+}
+
+/**
  * @param {(node: HTMLLinkElement | HTMLScriptElement) => any} callback
  * @param {HTMLHeadElement} [head]
  */
 const mockHeadAppendChild = (callback, head = document.head) => {
     patchWithCleanup(head, {
-        appendChild: callback,
+        appendChild(node) {
+            if (!isAssetElement(node)) {
+                throw new Error("Expected an asset element");
+            }
+            callback(node);
+            return node;
+        },
     });
 };
 
@@ -513,7 +530,12 @@ const makeCrossDocTarget = (modules) => {
     const captured = [];
     patchWithCleanup(targetDoc.head, {
         appendChild: (node) => {
-            captured.push(/** @type {HTMLScriptElement} */ (node));
+            if (!(node instanceof targetDoc.createElement("script").constructor)) {
+                throw new Error("Expected a script element");
+            }
+            captured.push(
+                /** @type {HTMLScriptElement} */ (/** @type {Node} */ (node)),
+            );
             return node;
         },
     });

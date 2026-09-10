@@ -586,7 +586,8 @@ describe("parseServerValues — x2many command list", () => {
 
 describe("parseServerValues — properties", () => {
     test("delegates to processProperties and merges its return into the parsed bag", () => {
-        let capturedArgs = null;
+        /** @type {{ value: unknown, fieldName: string, parent: unknown, currentValues: Record<string, unknown> }} */
+        let capturedArgs;
         const rec = makeParseRecord({
             activeFields: { props: {} },
             fields: {

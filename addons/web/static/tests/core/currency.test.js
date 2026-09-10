@@ -37,8 +37,8 @@ beforeEach(async () => {
 
 test("formatCurrency", async () => {
     serverState.currencies = [
-        { id: 1, position: "after", symbol: "€" },
-        { id: 2, position: "before", symbol: "$" },
+        { id: 1, name: "EUR", position: "after", symbol: "€" },
+        { id: 2, name: "USD", position: "before", symbol: "$" },
     ];
 
     expect(formatCurrency(200)).toBe("200.00");
@@ -72,8 +72,8 @@ test("formatCurrency without currency", async () => {
 
 test("getCurrencyRates hands every caller the same updated object", async () => {
     serverState.currencies = [
-        { id: 1, position: "after", symbol: "€" },
-        { id: 2, position: "before", symbol: "$" },
+        { id: 1, name: "EUR", position: "after", symbol: "€" },
+        { id: 2, name: "USD", position: "before", symbol: "$" },
     ];
     let inverseRate = 0.5;
     onRpc("read", ({ model }) => {

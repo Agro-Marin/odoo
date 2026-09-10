@@ -117,7 +117,13 @@ const useBlockSelection = /** @type {any} */ (makeDraggableHook)({
     },
 });
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * allSelectedCells: Set<Element>,
+ * prevSelectedCell: Element | null,
+ * action: "add" | "toggle" | "replace" | null,
+ * }} SquareSelectionState
+ */
 
 /**
  * @param {SquareSelectionState} state

@@ -20,7 +20,10 @@ function storageKey() {
     return `${KEY_PREFIX}:${session.db}:${user.userId}`;
 }
 
-/** @param {unknown} value */
+/**
+ * @param {unknown} value
+ * @returns {UsageTable}
+ */
 function asTable(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
         return {};

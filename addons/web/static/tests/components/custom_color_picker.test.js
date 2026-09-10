@@ -68,8 +68,13 @@ test("arrows move the picker's two axes, control+ moves them finely", async () =
     await animationFrame();
 
     const press = (/** @type {string} */ key, /** @type {boolean} */ ctrl = false) =>
-        picker.onPickerKeydown(
-            /** @type {any} */ ({ key, ctrlKey: ctrl, preventDefault: () => {} }),
+        queryOne("#picker_pointer").dispatchEvent(
+            new KeyboardEvent("keydown", {
+                key,
+                ctrlKey: ctrl,
+                bubbles: true,
+                cancelable: true,
+            }),
         );
 
     const before = { ...picker.colorComponents };

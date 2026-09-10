@@ -2,8 +2,9 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
-import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
+
+import { makeTestRelationalModel } from "./model_test_helpers.js";
 
 const UNLINK = 3;
 const SET = 6;
@@ -16,13 +17,14 @@ const SERVER_ROWS = {
     5: { id: 5, display_name: "Rec 5" },
 };
 
-function makeList({ resIds = [], limit = 2 } = {}) {
-    const model = {
-        Class: { Record: RelationalRecord, StaticList },
-        patchConfig: (config, patch) => Object.assign(config, patch),
+async function makeList({ resIds = [], limit = 2 } = {}) {
+    const model = await makeTestRelationalModel({
         loadRecords: async ({ resIds: ids }) => ids.map((id) => SERVER_ROWS[id]),
-    };
+    });
+    /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
     const config = {
+        ...model.config,
+        isRoot: false,
         resModel: "res.partner",
         activeFields: { display_name: makeActiveField() },
         fields: { display_name: { type: "char", name: "display_name" } },
@@ -47,7 +49,7 @@ function makeList({ resIds = [], limit = 2 } = {}) {
 
 describe("page offset after a shrinking command batch", () => {
     test("an onchange replacing the relation with a shorter one", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4], limit: 2 });
+        const list = await makeList({ resIds: [1, 2, 3, 4], limit: 2 });
         await list.loadLocked({ offset: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([3, 4]);
 
@@ -60,7 +62,7 @@ describe("page offset after a shrinking command batch", () => {
     });
 
     test("unlinking every record of the current page", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4], limit: 2 });
+        const list = await makeList({ resIds: [1, 2, 3, 4], limit: 2 });
         await list.loadLocked({ offset: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([3, 4]);
 
@@ -75,7 +77,7 @@ describe("page offset after a shrinking command batch", () => {
     });
 
     test("lands on the last page with data, not on the first", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 2 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5], limit: 2 });
         await list.loadLocked({ offset: 4 });
         expect(list.records.map((r) => r.resId)).toEqual([5]);
 
@@ -87,7 +89,7 @@ describe("page offset after a shrinking command batch", () => {
     });
 
     test("a page that still holds data keeps its offset", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 2 });
+        const list = await makeList({ resIds: [1, 2, 3, 4, 5], limit: 2 });
         await list.loadLocked({ offset: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([3, 4]);
 
@@ -99,7 +101,7 @@ describe("page offset after a shrinking command batch", () => {
     });
 
     test("emptying the relation returns to the first page", async () => {
-        const list = makeList({ resIds: [1, 2, 3, 4], limit: 2 });
+        const list = await makeList({ resIds: [1, 2, 3, 4], limit: 2 });
         await list.loadLocked({ offset: 2 });
 
         await list.applyCommandsLocked([

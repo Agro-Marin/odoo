@@ -11,6 +11,13 @@ import {
  * @param {object} config
  * @param {number} config.longTouchThreshold
  * @returns {ReturnType<typeof useRecordSelection> & {
+ * onRowTouchStart: (record: object, ev: TouchEvent) => void,
+ * onRowTouchEnd: (record: object) => void,
+ * onRowTouchMove: (record: object) => void,
+ * resetLongTouchTimer: () => void,
+ * onClickCapture: (record: object, ev: PointerEvent) => void,
+ * ignoreEventInSelectionMode: (ev: MouseEvent) => void,
+ * }}
  */
 export function useListSelection(ctx, { longTouchThreshold }) {
     const { getProps, getAllowSelectors, toggleRecordSelection, getEnv } = ctx;

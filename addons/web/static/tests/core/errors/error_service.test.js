@@ -83,6 +83,7 @@ test("handle RPC_ERROR of type='server' and no associated dialog class", async (
             });
             expect(props.traceback).toMatch(/RPC_ERROR/);
             expect(props.traceback).toMatch(/Some strange error occured/);
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -124,6 +125,7 @@ test("handle custom RPC_ERROR of type='server' and associated custom dialog clas
             });
             expect(props.traceback).toMatch(/RPC_ERROR/);
             expect(props.traceback).toMatch(/Some strange error occured/);
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -170,6 +172,7 @@ test("handle normal RPC_ERROR of type='server' and associated custom dialog clas
             });
             expect(props.traceback).toMatch(/RPC_ERROR/);
             expect(props.traceback).toMatch(/A normal error occured/);
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -198,6 +201,7 @@ test("session-expired RPC error (code 100) routes to SessionExpiredDialog", asyn
         add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(SessionExpiredDialog);
             expect(props.exceptionName).toBe("odoo.http.SessionExpiredException");
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -212,6 +216,7 @@ test("ServerActionWithWarningsError routes to WarningDialog", async () => {
         add(dialogClass, /** @type {any} */ props) {
             expect(dialogClass).toBe(WarningDialog);
             expect.step(props.exceptionName);
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -303,7 +308,7 @@ test("CONNECTION_LOST_ERROR reconnection backoff is capped at 60s", async () => 
     let versionInfoCalls = 0;
     mockService("notification", {
         add() {
-            return () => {};
+            return async () => {};
         },
     });
     onRpc("/web/webclient/version_info", async () => {
@@ -426,6 +431,7 @@ test("handle uncaught promise errors", async () => {
             });
             expect(props.traceback).toMatch(/TestError/);
             expect(props.traceback).toMatch(/This is an error test/);
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -450,6 +456,7 @@ test("handle uncaught client errors", async () => {
             expect(props.message).toBe(
                 "Uncaught Javascript Error > This is an error test",
             );
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -489,7 +496,7 @@ test("show dialog for errors in third-party scripts in debug mode", async () => 
     mockService("dialog", {
         add(_dialogClass, props) {
             expect.step("Dialog: " + props.message);
-            return () => {};
+            return async () => {};
         },
     });
     await makeMockEnv();
@@ -571,9 +578,11 @@ describe("Error Service Logs", () => {
             },
         });
 
-        const error = new Error("This is a wrapper error");
-        error.cause = new Error("This is a second wrapper error");
-        error.cause.cause = new Error("This is the original error");
+        const error = new Error("This is a wrapper error", {
+            cause: new Error("This is a second wrapper error", {
+                cause: new Error("This is the original error"),
+            }),
+        });
 
         await makeMockEnv();
         const errorEvent = new PromiseRejectionEvent("unhandledrejection", {
@@ -601,17 +610,18 @@ describe("Error Service Logs", () => {
             },
         });
 
-        const error = new Error("This is a wrapper error");
-        error.cause = new Error("This is a second wrapper error");
-        error.cause.cause = new Error("This is the original error");
+        const error = new Error("This is a wrapper error", {
+            cause: new Error("This is a second wrapper error", {
+                cause: new Error("This is the original error"),
+            }),
+        });
 
         await makeMockEnv();
-        const errorEvent = new Event("error", {
-            promise: null,
+        const errorEvent = new ErrorEvent("error", {
             cancelable: true,
+            error,
+            filename: "dummy_file.js",
         });
-        errorEvent.error = error;
-        errorEvent.filename = "dummy_file.js";
         await errorCb(errorEvent);
         expect(errorEvent.defaultPrevented).toBe(true);
     });
@@ -624,11 +634,13 @@ describe("Error Service Logs", () => {
         });
         patchWithCleanup(console, { error() {} });
         await makeMockEnv();
-        const errorEvent = new Event("error", { cancelable: true });
-        errorEvent.error = new Error("a real defect");
-        errorEvent.filename = "foo.js";
-        errorEvent.lineno = 7;
-        errorEvent.colno = 3;
+        const errorEvent = new ErrorEvent("error", {
+            cancelable: true,
+            error: new Error("a real defect"),
+            filename: "foo.js",
+            lineno: 7,
+            colno: 3,
+        });
         await errorCb(errorEvent);
         expect(beacons).toHaveLength(1);
         expect(beacons[0].url).toBe("/web/observability/js_error");
@@ -668,17 +680,17 @@ describe("Error Service Logs", () => {
         mockService("dialog", {
             add() {
                 dialogShown = true;
-                return () => {};
+                return async () => {};
             },
         });
         patchWithCleanup(console, { error() {} });
         await makeMockEnv();
 
-        const errorEvent = /** @type {any} */ (
-            new Event("error", { cancelable: true })
-        );
-        errorEvent.error = new Error("public page defect");
-        errorEvent.filename = "foo.js";
+        const errorEvent = new ErrorEvent("error", {
+            cancelable: true,
+            error: new Error("public page defect"),
+            filename: "foo.js",
+        });
         await errorCb(errorEvent);
 
         expect(dialogShown).toBe(false);
@@ -723,15 +735,14 @@ describe("Error Service Logs", () => {
         });
 
         await makeMockEnv();
-        /** @type {any} */
-        let errorEvent = new Event("error", {
-            promise: null,
+        /** @type {ErrorEvent | PromiseRejectionEvent} */
+        let errorEvent = new ErrorEvent("error", {
             cancelable: true,
+            error: Object.assign(new Error("Genuine Business Boom"), {
+                annotatedTraceback: "annotated",
+            }),
+            filename: "dummy_file.js",
         });
-
-        errorEvent.error = new Error("Genuine Business Boom");
-        errorEvent.error.annotatedTraceback = "annotated";
-        errorEvent.filename = "dummy_file.js";
         await errorCb(errorEvent);
         expect(errorEvent.defaultPrevented).toBe(true);
         expect(sawLaterHandler).toBe(true);
@@ -769,6 +780,7 @@ test("a 403 Forbidden routes to WarningDialog, not the session-expired dialog", 
             expect(dialogClass).toBe(WarningDialog);
             expect(dialogClass).not.toBe(SessionExpiredDialog);
             expect(props.exceptionName).toBe("werkzeug.exceptions.Forbidden");
+            return async () => {};
         },
     });
     await makeMockEnv();

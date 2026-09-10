@@ -17,7 +17,7 @@ import {
     setElementContent,
 } from "@web/core/utils/dom/html";
 
-const Markup = markup().constructor;
+const Markup = markup("").constructor;
 
 describe.current.tags("headless");
 

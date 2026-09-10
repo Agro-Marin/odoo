@@ -255,6 +255,7 @@ export class Many2XAutocomplete extends Component {
 
     /**
      * @param {{ name: string, limit: number, domain: any[], context: Object,
+     * specification?: Object }} params
      * @returns {Promise<Array<Object>>}
      */
     nameSearch({ name, limit, domain, context, specification }) {

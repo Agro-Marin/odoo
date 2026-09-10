@@ -8,7 +8,7 @@ import {
     installEditState,
     RECORD_STATE_TRANSITIONS,
 } from "@web/../tests/model/relational_model/record_doubles";
-import { makeMockEnv } from "@web/../tests/web_test_helpers";
+import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { FetchRecordError } from "@web/model/relational_model/errors";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
@@ -16,6 +16,8 @@ import { save } from "@web/model/relational_model/record_save";
 import { RecordSaveCoordinator } from "@web/model/relational_model/record_save_coordinator";
 import { computeChangeset } from "@web/model/relational_model/record_utils";
 import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
+
+import { makeTestRecordWithLines } from "./model_test_helpers.js";
 
 /**
  * @param {Object} [opts]
@@ -215,7 +217,8 @@ describe("onError callback", () => {
     test("calls onError with the thrown error and discard/retry helpers", async () => {
         const serverError = new Error("server error");
         let capturedError = null;
-        let capturedActions = null;
+        /** @type {{ discard: () => void, retry: () => unknown }} */
+        let capturedActions;
 
         const rec = makeRecord({
             resId: 1,
@@ -305,7 +308,8 @@ describe("FetchRecordError on empty reload response", () => {
 
 describe("urgent save (sendBeacon path)", () => {
     test("sends comparable changed fields as kwargs.known_values baseline", async () => {
-        let capturedBlob = null;
+        /** @type {BodyInit} */
+        let capturedBlob;
         mockSendBeacon((_url, blob) => {
             capturedBlob = blob;
             return true;
@@ -324,14 +328,15 @@ describe("urgent save (sendBeacon path)", () => {
 
         expect(result).toBe(true);
         expect(capturedBlob).not.toBe(null);
-        const payload = JSON.parse(await capturedBlob.text());
+        const payload = await new Response(capturedBlob).json();
         expect(payload.params.method).toBe("web_save");
         expect(payload.params.kwargs.known_values).toEqual({ name: "Original name" });
         expect(payload.params.kwargs.last_write_date).toBe(undefined);
     });
 
     test("omits non-comparable field types from kwargs.known_values", async () => {
-        let capturedBlob = null;
+        /** @type {BodyInit} */
+        let capturedBlob;
         mockSendBeacon((_url, blob) => {
             capturedBlob = blob;
             return true;
@@ -356,12 +361,13 @@ describe("urgent save (sendBeacon path)", () => {
 
         await save(rec, { reload: false });
 
-        const payload = JSON.parse(await capturedBlob.text());
+        const payload = await new Response(capturedBlob).json();
         expect(payload.params.kwargs.known_values).toEqual({ name: "orig" });
     });
 
     test("urgent beacon drops un-preprocessed m2o/x2many, keeps serializable fields", async () => {
-        let capturedBlob = null;
+        /** @type {BodyInit} */
+        let capturedBlob;
         mockSendBeacon((_url, blob) => {
             capturedBlob = blob;
             return true;
@@ -405,7 +411,7 @@ describe("urgent save (sendBeacon path)", () => {
 
         expect(result).toBe(true);
         expect(capturedBlob).not.toBe(null);
-        const payload = JSON.parse(await capturedBlob.text());
+        const payload = await new Response(capturedBlob).json();
         const sentChanges = payload.params.args[1];
         expect(sentChanges.name).toBe("kept");
         expect("partner_id" in sentChanges).toBe(false);
@@ -415,70 +421,25 @@ describe("urgent save (sendBeacon path)", () => {
     test("clears x2many list commands on beacon success", async () => {
         mockSendBeacon(() => true);
 
-        const list = {
-            clearCommandsCalls: 0,
+        const rec = await makeTestRecordWithLines(7);
+        const list = rec.data.lines;
+        await list.applyCommandsLocked([[0, "virt-1", { display_name: "child" }]]);
+        rec.applyChanges({ lines: list });
+        rec.model.useSendBeaconToSaveUrgently = true;
+        let clearCommandsCalls = 0;
+        patchWithCleanup(list, {
             clearCommands() {
-                this.clearCommandsCalls++;
+                clearCommandsCalls++;
+                return super.clearCommands();
             },
-            abandonRecords() {},
-            getCommands() {
-                return [[0, "virt-1", { name: "child" }]];
-            },
-        };
-        const rec = {
-            resId: 7,
-            resIds: [7],
-            resModel: "res.partner",
-            saveState: new RecordSaveCoordinator(),
-            context: {},
-            dirty: true,
-            activeFields: { lines: {} },
-            fields: { lines: { type: "one2many" } },
-            fieldNames: ["lines"],
-            data: { lines: list },
-            config: { isRoot: false, context: {} },
-            isInEdition: true,
-            changes: markRaw({ lines: list }),
-            _values: markRaw({}),
-            get savedData() {
-                return this._values;
-            },
-            _textValues: markRaw({}),
-            _initialTextValues: markRaw({}),
-            checkValidityLocked: () => true,
-            getChangesLocked: () => ({ lines: list.getCommands() }),
-            ...RECORD_STATE_TRANSITIONS,
-            discardLocked: () => {},
-            loadLocked: async () => {},
-            setData: () => {},
-            setEvalContext: () => {},
-            model: {
-                closeUrgentSaveNotification() {},
-                urgentSave: { isActive: true },
-                useSendBeaconToSaveUrgently: true,
-                env: { inDialog: false },
-                load: async () => {},
-                patchConfig: () => {},
-                updateSimilarRecords: () => {},
-                __proto__: MODEL_LIFECYCLE_PROTO,
-                hooks: {
-                    lifecycle: {
-                        onWillSaveRecord: async () => {},
-                        onRecordSaved: async () => {},
-                        onWillLoadRoot: () => {},
-                    },
-                    ui: {},
-                },
-                orm: { webSave: async () => [{ id: 7 }] },
-            },
-        };
-        installEditState(rec, { changes: { lines: list }, dirty: true });
-
-        const result = await save(rec, { reload: false });
+        });
+        const result = await rec.model.urgentSave.run(() =>
+            save(rec, { reload: false }),
+        );
 
         expect(result).toBe(true);
-        expect(list.clearCommandsCalls).toBe(1);
-        expect({ ...rec.changes }).toEqual({});
+        expect(clearCommandsCalls).toBe(1);
+        expect(Object.keys(rec.changes)).toEqual([]);
         expect(rec.dirty).toBe(false);
     });
 });

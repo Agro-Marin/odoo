@@ -3,19 +3,19 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
-import { StaticList } from "@web/model/relational_model/static_list";
+
+import { makeTestRelationalModel } from "./model_test_helpers.js";
 
 describe.current.tags("headless");
 
 const LINK = 4;
 
-function makeRecord({ lines = [] } = {}) {
-    const model = {
-        Class: { Record: RelationalRecord, StaticList },
-        patchConfig: (config, patch) => Object.assign(config, patch),
-        loadRecords: async () => [],
-    };
+async function makeRecord({ lines = [] } = {}) {
+    const model = await makeTestRelationalModel({ loadRecords: async () => [] });
+    /** @type {import("@web/model/relational_model/relational_model").RelationalModelConfig} */
     const config = {
+        ...model.config,
+        isRoot: false,
         resModel: "parent.model",
         resId: 1,
         resIds: [1],
@@ -45,7 +45,7 @@ function makeRecord({ lines = [] } = {}) {
 
 describe("applyValues x2many merge", () => {
     test("pending commands survive applyValues (list merged, not replaced)", async () => {
-        const record = makeRecord({ lines: [{ id: 10, name: "L1" }] });
+        const record = await makeRecord({ lines: [{ id: 10, name: "L1" }] });
         const list = record.data.lines;
 
         await list.applyCommandsLocked([[LINK, 11, { id: 11, name: "Linked" }]]);
@@ -63,8 +63,8 @@ describe("applyValues x2many merge", () => {
         expect(list._currentIds).toEqual([10, 11]);
     });
 
-    test("without pending commands the list is still replaced by fresh values", () => {
-        const record = makeRecord({ lines: [{ id: 10, name: "L1" }] });
+    test("without pending commands the list is still replaced by fresh values", async () => {
+        const record = await makeRecord({ lines: [{ id: 10, name: "L1" }] });
         const list = record.data.lines;
         record.applyChanges({ lines: list });
         expect(list._commands).toEqual([]);

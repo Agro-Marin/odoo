@@ -36,7 +36,7 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
  * @property {DateLimit} [minDate]
  * @property {PrecisionLevel} [minPrecision="days"]
  * @property {() => any} [onReset]
- * @property {(value: DateTime | DateRange, unit: "date" | "time") => any} [onSelect]
+ * @property {(value: NullableDateTime | NullableDateRange, unit: "date" | "time") => any} [onSelect]
  * @property {() => any} [onToggleRange]
  * @property {boolean} [range]
  * @property {number} [rounding=5]
@@ -618,6 +618,7 @@ export class DateTimePicker extends Component {
             return false;
         }
 
+        /** @type {[NullableDateTime] | NullableDateRange} */
         const result = [...this.values];
         result[valueIndex] = value;
 

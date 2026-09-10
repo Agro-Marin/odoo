@@ -111,7 +111,7 @@ const fieldRegistry = registry.category("fields");
 const viewRegistry = registry.category("views");
 const viewWidgetRegistry = registry.category("view_widgets");
 
-async function createFileInput({ mockPost, mockAdd, props }) {
+async function createFileInput({ mockPost, mockAdd = undefined, props }) {
     mockService("notification", {
         add: mockAdd || (() => {}),
     });
@@ -831,6 +831,7 @@ test("field with widget and dynamic attributes in kanban", async () => {
             expect.step(
                 `${attrs["dyn-bool"]}/${attrs["interp-str"]}/${attrs["interp-str2"]}/${attrs["interp-str3"]}`,
             );
+            return {};
         },
     };
     fieldRegistry.add("my_field", myField);
@@ -9839,7 +9840,7 @@ test("progress bar with aggregates: Archive all in a column", async () => {
 
 test.tags("desktop");
 test("load more should load correct records after drag&drop event", async () => {
-    Partner._order = ["sequence", "id"];
+    Partner._order = "sequence, id";
     Partner._records.forEach((r, i) => (r.sequence = i));
 
     await mountView({
@@ -11210,7 +11211,7 @@ test("empty-bar deselection reload failure does not raise an unhandled rejection
 
 test("stale in-flight _updateProgressBar does not clobber a reloaded domain's counts", async () => {
     let pbCall = 0;
-    /** @type {Deferred<unknown>} */
+    /** @type {InstanceType<typeof Deferred>} */
     let staleDef;
     onRpc("read_progress_bar", async () => {
         pbCall++;
@@ -13736,6 +13737,7 @@ test("kanban records are middle clickable by default", async () => {
     patchWithCleanup(browser, {
         open: (url) => {
             expect.step(`opened in new window: ${url}`);
+            return window;
         },
     });
     patchWithCleanup(browser.sessionStorage, {
@@ -15277,7 +15279,7 @@ test("limit is reset when restoring a view after ungrouping", async () => {
     });
 
     patchWithCleanup(user, {
-        hasGroup: () => true,
+        hasGroup: async () => true,
     });
 
     await mountWebClient();
@@ -15364,7 +15366,7 @@ test(`focusNextCard does not crash when the focused card is in no rendered group
     expect(document.activeElement).toBe(orphanCard);
 
     const mockRenderer = { props: { list: { isGrouped: true } } };
-    for (const direction of ["down", "up", "right", "left"]) {
+    for (const direction of /** @type {const} */ (["down", "up", "right", "left"])) {
         expect(
             KanbanRenderer.prototype.focusNextCard.call(mockRenderer, area, direction),
         ).toBe(undefined);

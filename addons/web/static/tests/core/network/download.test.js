@@ -89,6 +89,9 @@ test("handles success download", async () => {
 
     mockFetch((_, { body }) => {
         expect(body).toBeInstanceOf(FormData);
+        if (!(body instanceof FormData)) {
+            throw new Error("Expected FormData");
+        }
         expect(body.get("someKey")).toBe("someValue");
         expect(body.has("token")).toBe(true);
         expect(body.has("csrf_token")).toBe(true);
@@ -124,7 +127,9 @@ test("a FileReader failure rejects instead of hanging forever", async () => {
     mockFetch(() => new Blob(["boom"], { type: "text/html" }));
     patchWithCleanup(FileReader.prototype, {
         readAsText() {
-            Promise.resolve().then(() => this.onerror?.(new Event("error")));
+            Promise.resolve().then(() =>
+                this.dispatchEvent(new ProgressEvent("error")),
+            );
         },
     });
 

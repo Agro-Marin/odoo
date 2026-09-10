@@ -15,7 +15,7 @@ const KEY = "test.storage_json";
 
 /** @param {{ store?: Record<string, string>, throwOn?: string[] }} [options] */
 function mockStorage({ store = {}, throwOn = [] } = {}) {
-    /** @type {any[]} */
+    /** @type {string[]} */
     const calls = [];
     const guard = (/** @type {string} */ name) => {
         calls.push(name);
@@ -25,6 +25,18 @@ function mockStorage({ store = {}, throwOn = [] } = {}) {
     };
     patchWithCleanup(browser, {
         localStorage: {
+            get length() {
+                return Object.keys(store).length;
+            },
+            key(index) {
+                return Object.keys(store)[index] ?? null;
+            },
+            clear() {
+                guard("clear");
+                for (const key of Object.keys(store)) {
+                    delete store[key];
+                }
+            },
             getItem(key) {
                 guard("getItem");
                 return key in store ? store[key] : null;

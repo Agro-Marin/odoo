@@ -54,7 +54,13 @@ class ResUsersSettings extends webModels.ResUsersSettings {
 }
 defineModels([ResUsersSettings]);
 
-/** @param {Iterable<{ */
+/**
+ * @param {Iterable<{
+ *  index?: number;
+ *  key: import("@odoo/hoot").KeyStrokes;
+ *  shiftKey?: boolean;
+ * }>} steps
+ */
 async function walkOn(steps) {
     for (const step of steps) {
         await press(step.key);
@@ -523,7 +529,10 @@ test("a namespace character typed in the search reaches the palette as such", as
     expect.verifySteps(["@bob"], { message: "a plain query never opens the palette" });
 });
 
-/** @param {unknown} [raw] */
+/**
+ * @param {unknown} [raw]
+ * @returns {ReturnType<typeof getDefaultHomeMenuProps> & {config: import("@web/webclient/menus/menu_utils").HomeMenuConfig, defaultConfig?: import("@web/webclient/menus/menu_utils").HomeMenuConfig, personal?: boolean, resetApps: () => void}}
+ */
 function getLayoutProps(raw) {
     const props = getDefaultHomeMenuProps();
     patchWithCleanup(user, {
@@ -1236,7 +1245,10 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
     /** @type {(string | undefined)[]} */
     let counted = [];
     registry.category("home_menu_badges").add("recount", {
-        /** @param {any} env */
+        /**
+         * @param {any} env
+         * @param {{xmlid?: string}[]} apps
+         */
         provide: (env, apps) => {
             counted = apps.map((app) => app.xmlid);
             return {};
@@ -1507,7 +1519,7 @@ test("category headings follow the sequence, and fall back to the name", async (
     // The pin above cannot tell "sorted by sequence" from "sorted by name",
     // because Sales sorts before Supply Chain either way. Here the sequences
     // contradict the alphabet, and the equal pair settles what happens on a tie.
-    const make = (/** @type {{ */ heads) =>
+    const make = (/** @type {{ category: string, sequence: number }[]} */ heads) =>
         heads.flatMap(({ category, sequence }, group) =>
             Array.from({ length: 5 }, (_, i) => ({
                 actionID: 100 + group * 5 + i,
@@ -2012,7 +2024,10 @@ test("the capped menu list offers the complete query in the command palette", as
 
 test("metadata-only menu reload refreshes badge ownership", async () => {
     registry.category("home_menu_badges").add("metadata", {
-        /** @param {any} env */
+        /**
+         * @param {any} env
+         * @param {import("@web/webclient/home_menu/badges").BadgeApp[]} apps
+         */
         provide: (env, apps) => ({ "app.1": apps[0].models?.length || 0 }),
     });
     const base = getDefaultHomeMenuProps();

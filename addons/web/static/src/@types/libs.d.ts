@@ -8,10 +8,8 @@ declare const Modal: any;
 declare const Tooltip: any;
 declare const Dropdown: any;
 
-// @ts-expect-error -- QUnit type is augmented by hoot.d.ts, not the npm @types/qunit
 declare const QUnit: QUnit;
 
-// @ts-expect-error -- jQuery global is declared without a default export in @types/jquery
 declare const $: typeof import("jquery");
 
 declare const ace: any;

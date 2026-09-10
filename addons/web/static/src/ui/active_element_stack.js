@@ -1,7 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @returns {{ */
+/**
+ * @returns {{
+ * current: Document | HTMLElement,
+ * activate(el: HTMLElement): void,
+ * deactivate(el: HTMLElement): boolean,
+ * activeElementOf(node: Node): Document | HTMLElement | undefined,
+ * scopeOf(node: Node | null): Document | HTMLElement,
+ * reset(): void,
+ * }}
+ */
 export function makeActiveElementStack() {
     /** @type {(Document | HTMLElement)[]} */
     let stack = [document];

@@ -8,6 +8,7 @@ describe.current.tags("headless");
 
 test("memoize", () => {
     let callCount = 0;
+    /** @type {unknown[]} */
     let lastReceivedArgs;
     const func = function () {
         lastReceivedArgs = [...arguments];

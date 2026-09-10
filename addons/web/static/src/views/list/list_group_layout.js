@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @import { Group } from "@web/model/relational_model/group" */
+
 /** @typedef {import("@web/views/list/list_column_utils").Column} Column */
 
 import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model";
@@ -53,10 +55,15 @@ export function getAggregateColumns(columns, fields, aggregates) {
  * @param {Column[]} columns
  * @param {Record<string, any>} fields
  * @param {Object} aggregates
- * @param {{ hasSelectors: boolean }} options
+ * @param {{ hasSelectors?: boolean }} [options]
  * @returns {number}
  */
-export function getGroupNameCellColSpan(columns, fields, aggregates, { hasSelectors }) {
+export function getGroupNameCellColSpan(
+    columns,
+    fields,
+    aggregates,
+    { hasSelectors } = {},
+) {
     const firstAggregateIndex = getFirstAggregateIndex(columns, fields, aggregates);
     let colspan = firstAggregateIndex > -1 ? firstAggregateIndex : columns.length;
     if (hasSelectors) {

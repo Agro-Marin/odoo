@@ -24,8 +24,26 @@ class DialogWrapper extends Component {
     }
 }
 
-/** @typedef {{ */
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * onClose?(closeParams?: any): void;
+ * env?: object;
+ * rootId?: string;
+ * sequence?: number;
+ * }} DialogServiceInterfaceAddOptions
+ */
+
+/**
+ * @typedef {{
+ * add(
+ * Component: import("@odoo/owl").ComponentConstructor,
+ * props?: Record<string, any>,
+ * options?: DialogServiceInterfaceAddOptions
+ * ): (closeParams?: any) => Promise<void>;
+ * closeAll(params?: any): Promise<void>;
+ * destroy(): void;
+ * }} DialogServiceInterface
+ */
 
 export class DialogService {
     /**

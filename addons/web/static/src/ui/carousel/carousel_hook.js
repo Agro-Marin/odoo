@@ -5,7 +5,14 @@ import { onWillDestroy, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { clamp } from "@web/core/utils/format/numbers";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * count: () => number;
+ * startIndex?: number;
+ * interval?: number;
+ * wrap?: boolean;
+ * }} CarouselParams
+ */
 
 /** @param {CarouselParams} params */
 export function useCarousel({ count, startIndex = 0, interval = 0, wrap = true }) {

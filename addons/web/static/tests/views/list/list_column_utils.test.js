@@ -12,6 +12,7 @@ import {
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
+import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { getPropertyFieldColumns } from "@web/views/list/list_column_utils";
 import { ListRenderer } from "@web/views/list/list_renderer";
 
@@ -96,7 +97,8 @@ test("getPropertyFieldColumns is memoized per parent column and invalidated on d
         classNames: "",
         column_invisible: undefined,
     };
-    const relatedPropertyField = { name: "properties", id: "properties" };
+    const relatedPropertyField = { name: "properties", id: 1 };
+    /** @returns {import("@web/model/types").Field} */
     const makePropField = () => ({
         name: "properties.property_char",
         type: "char",
@@ -104,14 +106,15 @@ test("getPropertyFieldColumns is memoized per parent column and invalidated on d
         relatedPropertyField,
     });
     const propField = makePropField();
+    /** @type {Pick<import("@web/model/relational_model/static_list").StaticList, "fields" | "activeFields">} */
     const list = {
         fields: {
             properties: { name: "properties", type: "properties" },
             "properties.property_char": propField,
         },
         activeFields: {
-            properties: {},
-            "properties.property_char": { relatedPropertyField },
+            properties: makeActiveField(),
+            "properties.property_char": { ...makeActiveField(), relatedPropertyField },
         },
     };
 

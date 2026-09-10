@@ -13,6 +13,7 @@ import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { useBus } from "@web/core/utils/hooks";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
+/** @import { EnrichedSearchItem } from "@web/search/search_types" */
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import {
     editFavoriteFilter,

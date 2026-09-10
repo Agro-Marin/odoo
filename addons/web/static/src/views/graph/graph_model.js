@@ -54,7 +54,7 @@ export class GraphModel extends Model {
 
     /**
      * @param {Object} context
-     * @returns {string[]}
+     * @returns {ReturnType<typeof visibleArchGroupBys>}
      */
     _visibleArchGroupBy(context) {
         const { fieldAttrs, groupBy } = this.metaData;

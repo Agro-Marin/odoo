@@ -19,6 +19,8 @@ import { View } from "@web/views/view";
 
 const ControllerComponentTemplate = xml`<t t-component="Component" t-props="componentProps"/>`;
 
+/** @import { ActionManager } from "./action_service.js" */
+
 /**
  * @param {any} component
  * @param {any} action

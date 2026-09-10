@@ -69,7 +69,13 @@ function adjacentRow(row, direction) {
  * @param {Element} row
  * @param {number} index
  * @param {{
+ * direction: "up" | "down",
+ * cellIsInGroupRow: boolean,
+ * lastKnownIndex: number,
+ * isHeaderRow: boolean,
+ * }} params
  * @returns {{ cell: Element | undefined, lastKnownIndex: number,
+ * rememberColumn?: number } | undefined}
  */
 function verticalNeighbourCell(
     row,
@@ -138,7 +144,25 @@ function elementToFocusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
     return getElementToFocus(cell);
 }
 
-/** @typedef {Pick< */
+/**
+ * @typedef {Pick<
+ * import("./list_renderer").ListGridContext,
+ * | "getColumns"
+ * | "getProps"
+ * | "getEnv"
+ * | "getGridState"
+ * | "onToggleGroup"
+ * | "toggleRecordSelection"
+ * | "onOpenRecord"
+ * | "onDeleteRecord"
+ * | "isInlineEditable"
+ * | "expandCheckboxes"
+ * | "getSel"
+ * | "getVirtualization"
+ * | "findFocusFutureCell"
+ * | "setKeyboardNavigation"
+ * > & import("./list_keyboard_edit").ListEditContext} ListKeyboardContext
+ */
 
 export class ListKeyboardNavigation {
     /** @type {{ column: any, record: any } | null} */
@@ -146,7 +170,14 @@ export class ListKeyboardNavigation {
     /** @type {{ column: any, record: any, forward?: boolean } | null} */
     cellToFocus = null;
     lastIsDirty = false;
-    /** @type {{ */
+    /**
+     * @type {{
+     * cell: HTMLTableCellElement,
+     * cellIsInGroupRow: boolean,
+     * direction: string,
+     * move: { el: HTMLElement } | { pending: true } | null,
+     * } | null}
+     */
     _latchedMove = null;
     _lastKnownIndex = 0;
     /** @type {{ rowIndex: number, colIndex: number, recordId?: string, retries?: number, origin?: { cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right" } } | null} */

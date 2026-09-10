@@ -118,7 +118,7 @@ test("save and edit filter", async () => {
         return [7];
     });
     mockService("action", {
-        doAction(action) {
+        async doAction(action) {
             expect(action).toEqual({
                 context: {
                     form_view_ref: "base.ir_filters_view_edit_form",
@@ -253,6 +253,7 @@ test("undefined name for filter shows notification and not error", async () => {
             expect.step("notification");
             expect(message).toBe("A name for your favorite filter is required.");
             expect(options).toEqual({ type: "danger" });
+            return () => {};
         },
     });
 

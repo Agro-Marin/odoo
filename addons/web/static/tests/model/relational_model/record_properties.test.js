@@ -224,7 +224,8 @@ describe("processProperties — many2one value shaping", () => {
 
 describe("processProperties — many2many value shaping", () => {
     test("builds a new StaticList from server tuples [id, display_name]", () => {
-        let captured = null;
+        /** @type {{ data: { id: number, display_name: string }[], fieldName: string }} */
+        let captured;
         const rec = makePropertyRecord({
             createStaticList: (data, fieldName) => {
                 captured = { data, fieldName };
@@ -255,7 +256,8 @@ describe("processProperties — many2many value shaping", () => {
     });
 
     test("treats undefined value as an empty list (no crash on .map)", () => {
-        let captured = null;
+        /** @type {{ data: { id: number, display_name: string }[], fieldName: string }} */
+        let captured;
         const rec = makePropertyRecord({
             createStaticList: (data, fieldName) => {
                 captured = { data, fieldName };

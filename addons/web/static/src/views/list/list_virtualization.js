@@ -82,6 +82,9 @@ export class ListVirtualization {
 
     /**
      * @param {Pick<
+     * import("./list_renderer").ListGridContext,
+     * "getGridState" | "canResequence" | "getEditedRecord"
+     * >} ctx
      * @param {object} params
      * @param {any} params.rootRef
      * @param {any} params.component
@@ -309,6 +312,9 @@ export class ListVirtualization {
 
 /**
  * @param {Pick<
+ * import("./list_renderer").ListGridContext,
+ * "getGridState" | "canResequence" | "getEditedRecord"
+ * >} ctx
  * @param {ListVirtualizationConfig} config
  * @returns {ListVirtualization}
  */

@@ -11,6 +11,8 @@ registry
     .category("ir.actions.report handlers")
     .addValidation((entry) => typeof entry === "function");
 
+/** @import { ActionManager, ActionOptions, ReportAction as ReportActionType } from "../action_service.js" */
+
 /**
  * @param {ReportActionType} action
  * @param {ActionOptions} options

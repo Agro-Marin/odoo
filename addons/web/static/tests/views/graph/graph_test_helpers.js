@@ -10,7 +10,7 @@ import { GraphController } from "@web/views/graph/graph_controller";
 import { GraphRenderer } from "@web/views/graph/graph_renderer";
 
 /**
- * @typedef {"bar" | "line" | "pie"} GraphMode
+ * @typedef {"bar" | "line" | "pie" | "scatter"} GraphMode
  * @typedef {import("@web/views/view").View} GraphView
  */
 
@@ -95,7 +95,7 @@ export const getChart = (view) => getGraphRenderer(view).chart;
 export const getGraphModelMetaData = (view) => getGraphModel(view).metaData;
 
 /** @param {GraphMode} mode */
-export const getModeButton = (mode) => queryOne`.o_graph_button[data-mode=${mode}]`;
+export const getModeButton = (mode) => queryOne(`.o_graph_button[data-mode=${mode}]`);
 
 /** @param {GraphView} view */
 export const getScaleY = (view) => getChart(view).config.options.scales.y;
@@ -124,17 +124,20 @@ export function checkYTicks(view, expectedLabels) {
 /**
  * @param {GraphView} view
  * @param {string | Iterable<string>} expectedLabels
+ * @param {string} [message]
  */
-export function checkLegend(view, expectedLabels) {
+export function checkLegend(view, expectedLabels, message) {
     const chart = getChart(view);
     const labels = chart.config.options.plugins.legend.labels
         .generateLabels(chart)
         .map((o) => o.text);
     const expectedLabelsList = ensureArray(expectedLabels);
     expect(labels).toEqual(expectedLabelsList, {
-        message: `Legend should be matching: ${expectedLabelsList
-            .map((label) => `"${label}"`)
-            .join(", ")}`,
+        message:
+            message ||
+            `Legend should be matching: ${expectedLabelsList
+                .map((label) => `"${label}"`)
+                .join(", ")}`,
     });
 }
 

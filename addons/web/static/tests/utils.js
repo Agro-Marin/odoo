@@ -25,8 +25,7 @@ function createFakeDataTransfer(files) {
 
 /**
  * @param {string} selector
- * @param {ContainsOptions} [options]
- * @param {boolean} [options.shiftKey]
+ * @param {ContainsOptions & { shiftKey?: boolean }} [options]
  */
 export async function click(selector, options = {}) {
     const { shiftKey } = options;
@@ -90,8 +89,7 @@ export async function focus(selector, options) {
 /**
  * @param {string} selector
  * @param {string} content
- * @param {ContainsOptions} [options]
- * @param {boolean} [options.replace=false]
+ * @param {ContainsOptions & { replace?: boolean }} [options]
  */
 export async function insertText(selector, content, options = {}) {
     const { replace = false } = options;
@@ -145,7 +143,7 @@ let hasUsedContainsPositively = false;
  * @property {boolean} [setFocus]
  * @property {boolean} [shadowRoot]
  * @property {number|"bottom"} [setScroll]
- * @property {Element} [target=getFixture()]
+ * @property {Element | Document | ShadowRoot} [target=getFixture()]
  * @property {(import("@web/../tests/helpers/utils").EventType | [import("@web/../tests/helpers/utils").EventType, EventInit])[]} [triggerEvents]
  * @property {string} [text]
  * @property {string} [textContent]
@@ -161,7 +159,7 @@ class Contains {
         this.selector = selector;
         this.options = options;
         this.options.count ??= 1;
-        this.options.targetParam = this.options.target;
+        this.targetParam = this.options.target;
         this.options.target ??= getFixture();
         let selectorMessage = `${this.options.count} of "${this.selector}"`;
         if (this.options.visible !== undefined) {
@@ -169,7 +167,7 @@ class Contains {
                 this.options.visible ? "visible" : "invisible"
             }`;
         }
-        if (this.options.targetParam) {
+        if (this.targetParam) {
             selectorMessage = `${selectorMessage} inside a specific target`;
         }
         if (this.options.parent) {
@@ -197,9 +195,12 @@ class Contains {
             selectorMessage = `${selectorMessage} before a specified element`;
         }
         this.selectorMessage = selectorMessage;
-        if (this.options.contains && !Array.isArray(this.options.contains[0])) {
-            this.options.contains = [this.options.contains];
-        }
+        const nested = this.options.contains;
+        this.nestedContains = nested
+            ? typeof nested[0] === "string"
+                ? [/** @type {ContainsTuple} */ (nested)]
+                : /** @type {ContainsTuple[]} */ (nested)
+            : [];
         if (this.options.count) {
             hasUsedContainsPositively = true;
         } else if (!hasUsedContainsPositively) {
@@ -250,7 +251,7 @@ class Contains {
      * @param {Object} [options={}]
      * @param {boolean} [options.crashOnFail=false]
      * @param {boolean} [options.executeOnSuccess=true]
-     * @returns {HTMLElement[]|undefined}
+     * @returns {(Element | ShadowRoot)[] | undefined}
      */
     runOnce(whenMessage, { crashOnFail = false, executeOnSuccess = true } = {}) {
         const res = this.select();
@@ -297,7 +298,7 @@ class Contains {
         }
     }
 
-    /** @param {HTMLElement} el */
+    /** @param {Element | ShadowRoot} el */
     executeAction(el) {
         let message = this.successMessage;
         if (this.options.click) {
@@ -338,6 +339,9 @@ class Contains {
             for (const file of this.options.inputFiles) {
                 dataTransfer.items.add(file);
             }
+            if (!(el instanceof HTMLInputElement)) {
+                throw new Error("inputFiles requires an input element");
+            }
             el.files = dataTransfer.files;
             const versionRaw = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
             const chromeVersion = versionRaw ? parseInt(versionRaw[2], 10) : false;
@@ -346,6 +350,11 @@ class Contains {
             }
         }
         if (this.options.insertText !== undefined) {
+            if (!(
+                el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement
+            )) {
+                throw new Error("insertText requires an input or textarea");
+            }
             message = `${message} and inserted text "${this.options.insertText.content}" (replace: ${this.options.insertText.replace})`;
             el.focus();
             if (this.options.insertText.replace) {
@@ -376,9 +385,15 @@ class Contains {
         }
         if (this.options.setFocus) {
             message = `${message} and focused it`;
+            if (!(el instanceof HTMLElement)) {
+                throw new Error("setFocus requires an HTML element");
+            }
             el.focus();
         }
         if (this.options.setScroll !== undefined) {
+            if (!(el instanceof HTMLElement)) {
+                throw new Error("setScroll requires an HTML element");
+            }
             message = `${message} and set scroll to "${this.options.setScroll}"`;
             el.scrollTop =
                 this.options.setScroll === "bottom"
@@ -401,13 +416,15 @@ class Contains {
         this.def?.resolve();
     }
 
-    /** @returns {HTMLElement[]|undefined} */
+    /** @returns {(Element | ShadowRoot)[] | undefined} */
     select() {
         const target = this.selectParent();
         if (!target) {
             return;
         }
-        const baseRes = [...target.querySelectorAll(this.selector)]
+        const baseRes = [
+            .../** @type {ParentNode} */ (target).querySelectorAll(this.selector),
+        ]
             .map((el) => (this.options.shadowRoot ? el.shadowRoot : el))
             .filter((el) => el);
         /** @type {Contains[]} */
@@ -416,16 +433,19 @@ class Contains {
             let condition =
                 (this.options.textContent === undefined ||
                     el.textContent.trim() === this.options.textContent) &&
-                (this.options.value === undefined || el.value === this.options.value) &&
+                (this.options.value === undefined ||
+                    ("value" in el && el.value === this.options.value)) &&
                 (this.options.scroll === undefined ||
-                    (this.options.scroll === "bottom"
-                        ? Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <=
-                          1
-                        : Math.abs(el.scrollTop - this.options.scroll) <= 1));
+                    (el instanceof HTMLElement &&
+                        (this.options.scroll === "bottom"
+                            ? Math.abs(
+                                  el.scrollHeight - el.clientHeight - el.scrollTop,
+                              ) <= 1
+                            : Math.abs(el.scrollTop - this.options.scroll) <= 1)));
             if (condition && this.options.text !== undefined) {
                 if (
                     el.textContent.trim() !== this.options.text &&
-                    [...el.querySelectorAll("*")].every(
+                    [.../** @type {ParentNode} */ (el).querySelectorAll("*")].every(
                         (el) => el.textContent.trim() !== this.options.text,
                     )
                 ) {
@@ -433,7 +453,7 @@ class Contains {
                 }
             }
             if (condition && this.options.contains) {
-                for (const param of this.options.contains) {
+                for (const param of this.nestedContains) {
                     const childContains = new Contains(param[0], {
                         ...param[1],
                         target: el,
@@ -509,7 +529,7 @@ class Contains {
         return res;
     }
 
-    /** @returns {Element|undefined} */
+    /** @returns {Element | Document | ShadowRoot | undefined} */
     selectParent() {
         if (this.options.parent) {
             this.parentContains = new Contains(this.options.parent[0], {

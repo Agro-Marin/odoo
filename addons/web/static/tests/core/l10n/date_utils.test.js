@@ -125,6 +125,7 @@ describe("getLocalYearAndWeek", () => {
 
 describe("isInRange", () => {
     test("single DateTime value", () => {
+        /** @type {[import("luxon").DateTime, import("luxon").DateTime]} */
         const range = [
             DateTime.fromISO("2024-01-01T10:20:00Z"),
             DateTime.fromISO("2024-01-01T10:40:00Z"),
@@ -134,6 +135,7 @@ describe("isInRange", () => {
     });
 
     test("falsy value or range", () => {
+        /** @type {[import("luxon").DateTime, import("luxon").DateTime]} */
         const range = [
             DateTime.fromISO("2024-01-01T10:20:00Z"),
             DateTime.fromISO("2024-01-01T10:40:00Z"),
@@ -143,6 +145,7 @@ describe("isInRange", () => {
     });
 
     test("array with a single truthy value falls back to single-value check", () => {
+        /** @type {[import("luxon").DateTime, import("luxon").DateTime]} */
         const range = [
             DateTime.fromISO("2024-01-01T10:20:00Z"),
             DateTime.fromISO("2024-01-01T10:40:00Z"),
@@ -160,10 +163,12 @@ describe("isInRange", () => {
         const later = DateTime.fromISO("2024-01-01T11:00:00", { zone: "UTC" }).setZone(
             "UTC-10",
         );
+        /** @type {[import("luxon").DateTime, import("luxon").DateTime]} */
         const insideRange = [
             DateTime.fromISO("2024-01-01T10:20:00Z"),
             DateTime.fromISO("2024-01-01T10:40:00Z"),
         ];
+        /** @type {[import("luxon").DateTime, import("luxon").DateTime]} */
         const outsideRange = [
             DateTime.fromISO("2024-01-01T12:00:00Z"),
             DateTime.fromISO("2024-01-01T13:00:00Z"),

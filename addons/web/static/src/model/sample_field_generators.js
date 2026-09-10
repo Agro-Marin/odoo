@@ -68,7 +68,13 @@ export function sanitizeNumber(value) {
     return parseFloat(value.toFixed(FLOAT_PRECISION));
 }
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ * getRandomBool?: () => boolean;
+ * getRandomSubRecordId?: () => number;
+ * getRandomArrayEl?: <T>(array: T[]) => T;
+ * }} FieldGeneratorHooks
+ */
 
 /**
  * @param {string} modelName

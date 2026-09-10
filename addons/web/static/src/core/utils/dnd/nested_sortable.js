@@ -6,19 +6,25 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
 import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_utils";
 import { viewOf } from "@web/core/utils/dom/ui";
 
+/** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
+
 /** @typedef {DraggableHandlerParams & { group: HTMLElement | null }} NestedSortableHandlerParams */
 
 /**
- * @typedef {import("./sortable").SortableParams} NestedSortableParams
- * @property {(HTMLElement) => boolean} [preventDrag]
- * @property {boolean | () => boolean} [nest]
- * @property {string | () => string} [listTagName]
- * @property {number | () => number} [nestInterval]
- * @property {number | () => number} [maxLevels]
- * @property {(DraggableHookContext) => boolean} [isAllowed]
+ * @typedef NestedSortableOptions
+ * @property {(element: HTMLElement) => boolean} [preventDrag]
+ * @property {boolean} [nest]
+ * @property {string} [listTagName]
+ * @property {number} [nestInterval]
+ * @property {number} [maxLevels]
+ * @property {(current: Record<string, unknown>, selector: string) => boolean} [isAllowed]
  * @property {boolean} [useElementSize]
  * @property {string[] | (() => string[])} [inertSelectors]
  * @property {(params: MoveParams) => any} [onMove]
+ * @property {{el?: HTMLElement | null}} ref
+ * @property {string | (() => string)} [elements]
+ * @property {(params: Omit<MoveParams, "prevPos">) => void} [onDrop]
+ * @typedef {Omit<import("./sortable").SortableParams, "elements" | "ref" | "onDrop"> & NestedSortableOptions} NestedSortableParams
  */
 
 /**
@@ -28,8 +34,9 @@ import { viewOf } from "@web/core/utils/dom/ui";
  * @property {HTMLElement | null} previous
  * @property {HTMLElement | null} next
  * @property {HTMLElement | null} newGroup
- * @property {HTMLElement | null} parent
+ * @property {HTMLElement | null | false} parent
  * @property {HTMLElement} placeholder
+ * @property {{previous: Element | null, next: Element | null, parent: Element | null, group: Element | null | false}} prevPos
  */
 
 /**

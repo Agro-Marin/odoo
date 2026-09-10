@@ -5,6 +5,13 @@ import { applyTags } from "./tag.js";
 
 /**
  * @typedef {{
+ *  debug?: boolean;
+ *  multi?: number;
+ *  only?: boolean;
+ *  skip?: boolean;
+ *  timeout?: number;
+ *  todo?: boolean;
+ * }} JobConfig
  * @typedef {import("./tag").Tag} Tag
  */
 

@@ -202,6 +202,17 @@
 
     /**
      * @param {{
+     * message: unknown,
+     * kind?: string,
+     * phase?: string,
+     * filename?: string,
+     * line?: number,
+     * col?: number,
+     * stack?: string,
+     * cause?: unknown,
+     * reloaded?: boolean,
+     * dedup?: boolean,
+     * }} info
      * @returns {boolean}
      */
     function reportJsError(info) {

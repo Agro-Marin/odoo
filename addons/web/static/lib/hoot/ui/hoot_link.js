@@ -6,7 +6,18 @@ import { FILTER_SCHEMA } from "../core/config.js";
 import { createUrlFromId } from "../core/url.js";
 import { ensureArray, INCLUDE_LEVEL } from "../hoot_utils.js";
 
-/** @typedef {{ */
+/**
+ * @typedef {{
+ *  class?: string;
+ *  ids?: Record<import("../core/config").SearchFilter, string[]>;
+ *  onClick?: (event: PointerEvent) => any;
+ *  options?: import("../core/url").CreateUrlFromIdOptions;
+ *  slots: { default: any };
+ *  style?: string;
+ *  target?: string;
+ *  title?: string;
+ * }} HootLinkProps
+ */
 
 const {
     Object: { entries: $entries },

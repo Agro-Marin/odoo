@@ -15,6 +15,7 @@ test("execute an 'ir.actions.act_url' action with target 'self'", async () => {
     patchWithCleanup(browser.location, {
         assign: (url) => {
             expect.step(url);
+            return window;
         },
     });
     await makeMockEnv();
@@ -28,7 +29,10 @@ test("execute an 'ir.actions.act_url' action with target 'self'", async () => {
 
 test("execute an 'ir.actions.act_url' action with onClose option", async () => {
     patchWithCleanup(browser, {
-        open: () => expect.step("browser open"),
+        open: () => {
+            expect.step("browser open");
+            return window;
+        },
     });
     await makeMockEnv();
     const options = {
@@ -43,7 +47,10 @@ test("execute an 'ir.actions.act_url' action with onClose option", async () => {
 
 test("an 'ir.actions.act_url' action without url does nothing", async () => {
     patchWithCleanup(browser, {
-        open: (url) => expect.step(`open ${url}`),
+        open: (url) => {
+            expect.step(`open ${url}`);
+            return window;
+        },
     });
     patchWithCleanup(browser.location, {
         assign: (url) => expect.step(`assign ${url}`),
@@ -75,7 +82,10 @@ for (const url of UNSAFE_URLS) {
             assign: (assigned) => expect.step(`assign ${assigned}`),
         });
         patchWithCleanup(browser, {
-            open: (opened) => expect.step(`open ${opened}`),
+            open: (opened) => {
+                expect.step(`open ${opened}`);
+                return window;
+            },
         });
         await makeMockEnv();
         await mountWithCleanup(MainComponentsContainer);
@@ -95,7 +105,7 @@ test("a blob url is opened as-is, not turned into a relative path", async () => 
     patchWithCleanup(browser, {
         open: (url) => {
             expect.step(url);
-            return { closed: false };
+            return window;
         },
     });
     await makeMockEnv();
@@ -113,7 +123,7 @@ test("an absolute url keeps its scheme untouched", async () => {
     patchWithCleanup(browser, {
         open: (url) => {
             expect.step(url);
-            return { closed: false };
+            return window;
         },
     });
     await makeMockEnv();
@@ -160,6 +170,7 @@ test("execute an 'ir.actions.act_url' action with target 'download'", async () =
     patchWithCleanup(browser, {
         open: (url) => {
             expect.step(url);
+            return window;
         },
     });
     await makeMockEnv();

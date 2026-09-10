@@ -3,6 +3,8 @@
 
 import { x2ManyCommands } from "@web/core/network/commands";
 
+/** @import { X2ManyCommand, X2ManyRowId } from "@web/core/network/commands" */
+
 /** @typedef {{ command: X2ManyCommand, index: number }} LedgerEntry */
 
 const { CREATE, UPDATE, UNLINK, LINK, SET } = x2ManyCommands;

@@ -35,6 +35,19 @@ function computeCanCreateGroup(ctx) {
 /**
  * @param {GroupManagementContext} ctx
  * @returns {{
+ * canCreateGroup: () => boolean,
+ * getGroupConfigMenuProps: (group: any) => {
+ * activeActions: any,
+ * configItems: any[],
+ * deleteGroup: () => Promise<void>,
+ * dialogClose: any,
+ * group: any,
+ * list: any,
+ * },
+ * deleteGroup: (group: any) => Promise<void>,
+ * toggleGroup: (group: any) => any,
+ * createGroup: (value: string) => void,
+ * }}
  */
 export function useGroupManagement(ctx) {
     const self = {

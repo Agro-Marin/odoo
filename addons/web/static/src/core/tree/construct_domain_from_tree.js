@@ -3,6 +3,12 @@
 
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 
+/** @import { Tree } from "./condition_tree.js" */
+
+/** @import { Value } from "./condition_tree.js" */
+
+/** @import { Condition } from "./condition_tree.js" */
+
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 
 import { ASTType } from "../py_js/ast_type.js";
