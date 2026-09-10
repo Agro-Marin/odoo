@@ -74,10 +74,22 @@ export const loader = reactive({
     loadEmoji: () => loadBundle("web.assets_emoji"),
     /** @type {{ emojiValueToShortcodes: {[key: string]: string[]}, emojiRegex: RegExp } | undefined} */
     loaded: undefined,
+    // What the first successful load returned, final until
+    // resetLoadedEmojiData(). Every later loadEmoji() resolves in a microtask
+    // instead of going back through loadBundle and a dynamic import, both of
+    // which settle on a later task even when memoised -- and
+    // generateEmojisOnHtml sits on every message post, where that one task
+    // was enough to reorder the post RPC behind the store's 1 ms fetch
+    // debounce and to swap a livechat window in after the visitor had closed it.
+    /** @type {{ categories: any[], emojis: any[] } | undefined} */
+    data: undefined,
 });
 
 /** @returns {Promise<{ categories: any[], emojis: any[] }>} */
 export async function loadEmoji() {
+    if (loader.data) {
+        return loader.data;
+    }
     /** @type {{ categories: any[], emojis: any[] }} */
     const res = { categories: [], emojis: [] };
     try {
@@ -86,6 +98,7 @@ export async function loadEmoji() {
             await import("@web/components/emoji_picker/emoji_data");
         res.categories = getCategories();
         res.emojis = getEmojis();
+        loader.data = res;
         if (!loader.loaded) {
             /** @type {{[key: string]: string[]}} */
             const emojiValueToShortcodes = {};
@@ -114,6 +127,7 @@ export async function loadEmoji() {
 
 export async function resetLoadedEmojiData() {
     loader.loaded = undefined;
+    loader.data = undefined;
     try {
         const emojiData = await import("@web/components/emoji_picker/emoji_data");
         emojiData.resetEmojiData?.();

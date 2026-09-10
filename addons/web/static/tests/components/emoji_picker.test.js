@@ -26,6 +26,7 @@ test("frequent emojis with unknown codepoints do not crash the picker", async ()
 });
 
 test("fallback UI is displayed when the emoji bundle fails to load", async () => {
+    await resetLoadedEmojiData();
     patchWithCleanup(loader, {
         loadEmoji: () => Promise.reject(new Error("bundle load failure")),
     });
@@ -400,6 +401,7 @@ test("resetting the emoji data also drops what was derived from it", async () =>
 });
 
 test("keyboard navigation survives an emoji bundle that failed to load", async () => {
+    await resetLoadedEmojiData();
     patchWithCleanup(loader, {
         loadEmoji: () => Promise.reject(new Error("bundle load failure")),
     });

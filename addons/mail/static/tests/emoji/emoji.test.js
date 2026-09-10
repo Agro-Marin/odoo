@@ -255,6 +255,7 @@ test("shortcodes shown in emoji title in message", async () => {
 });
 
 test("Emoji picker shows failure to load emojis", async () => {
+    await resetLoadedEmojiData();
     patchWithCleanup(emojiLoader, {
         loadEmoji() {
             throw new Error("simulated emoji bundle loading failure");
