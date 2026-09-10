@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 from odoo import Command, _, api, fields, models
-from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, get_lang
 
 
 class PurchaseOrderGroup(models.Model):
@@ -319,52 +318,20 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.price_total_cc = line.price_subtotal / line.order_id.currency_rate
 
-    def _compute_price_unit_and_date_commitment_and_name(self):
-        po_lines_without_requisition = self.env["purchase.order.line"]
-        for pol in self:
-            if (
-                pol.product_id.id
-                not in pol.order_id.requisition_id.line_ids.product_id.ids
-            ):
-                po_lines_without_requisition |= pol
+    def _get_requisition_line(self):
+        self.check_singleton()
+        matched = None
+        for req_line in self.order_id.requisition_id.line_ids:
+            if req_line.product_id != self.product_id:
                 continue
+            matched = req_line
+            if req_line.product_uom_id == self.product_uom_id:
+                break
+        return matched or self.env["purchase.requisition.line"]
 
-            line = None
-            for req_line in pol.order_id.requisition_id.line_ids:
-                if req_line.product_id == pol.product_id:
-                    line = req_line
-                    if req_line.product_uom_id == pol.product_uom_id:
-                        break
-
-            pol.price_unit = line.product_uom_id._compute_price(
-                line.price_unit, pol.product_uom_id
-            )
-            partner = pol.order_id.partner_id or pol.order_id.requisition_id.vendor_id
-            params = {"order_id": pol.order_id}
-            seller = pol.product_id._select_seller(
-                partner_id=partner,
-                quantity=pol.product_qty,
-                date=pol.order_id.date_order and pol.order_id.date_order.date(),
-                uom_id=line.product_uom_id,
-                params=params,
-            )
-            if not pol.date_commitment:
-                pol.date_commitment = pol._get_date_commitment(seller).strftime(
-                    DEFAULT_SERVER_DATETIME_FORMAT
-                )
-            product_ctx = {
-                "seller_id": seller.id,
-                "lang": get_lang(pol.env, partner.lang).code,
-            }
-            name = pol._get_product_purchase_description(
-                pol.product_id.with_context(product_ctx)
-            )
-            if line.product_description_variants:
-                name += "\n" + line.product_description_variants
-            pol.name = name
-        super(
-            PurchaseOrderLine, po_lines_without_requisition
-        )._compute_price_unit_and_date_commitment_and_name()
+    def _get_line_description_from_product(self, product_lang):
+        name = super()._get_line_description_from_product(product_lang)
+        return self._get_requisition_line()._append_description_variants(name)
 
     def action_clear_quantities(self):
         zeroed_lines = self.filtered(lambda l: l.state not in ["done", "cancel"])

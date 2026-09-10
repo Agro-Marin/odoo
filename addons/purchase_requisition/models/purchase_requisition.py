@@ -270,7 +270,6 @@ class PurchaseRequisitionLine(models.Model):
     price_unit = fields.Float(
         string="Unit Price",
         min_display_digits="Product Price",
-        default=0.0,
         compute="_compute_price_unit",
         readonly=False,
         store=True,
@@ -358,7 +357,7 @@ class PurchaseRequisitionLine(models.Model):
                 line.requisition_id.requisition_type == "blanket_order"
                 and line.requisition_id.state not in ["draft", "done", "cancel"]
             ):
-                if vals["price_unit"] <= 0.0:
+                if line.price_unit <= 0.0:
                     raise UserError(
                         _(
                             "You cannot have a negative or unit price of 0 for an already confirmed blanket order."
@@ -413,16 +412,22 @@ class PurchaseRequisitionLine(models.Model):
                     "product_tmpl_id": self.product_id.product_tmpl_id.id,
                     "price": self.price_unit,
                     "currency_id": self.requisition_id.currency_id.id,
+                    "date_start": purchase_requisition.date_start,
+                    "date_end": purchase_requisition.date_end,
                     "purchase_requisition_line_id": self.id,
                 }
             )
+
+    def _append_description_variants(self, name):
+        if not self or not self.product_description_variants:
+            return name
+        return name + "\n" + self.product_description_variants
 
     def _prepare_purchase_order_line(
         self, name, product_qty=0.0, price_unit=0.0, taxes_ids=False
     ):
         self.check_singleton()
-        if self.product_description_variants:
-            name += "\n" + self.product_description_variants
+        name = self._append_description_variants(name)
         date_commitment = fields.Datetime.now()
         if self.requisition_id.date_start:
             date_commitment = max(

@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import models
 
 
 class StockRule(models.Model):
@@ -22,24 +22,3 @@ class StockRule(models.Model):
                 ("requisition_id", "=", values["supplier"].purchase_requisition_id.id),
             )
         return domain
-
-
-class StockMove(models.Model):
-    _inherit = "stock.move"
-
-    requisition_line_ids = fields.One2many("purchase.requisition.line", "move_dest_id")
-
-    def _get_upstream_documents_and_responsibles(self, visited):
-        requisition_lines_sudo = self.sudo().requisition_line_ids
-        if requisition_lines_sudo:
-            return [
-                (
-                    requisition_line.requisition_id,
-                    requisition_line.requisition_id.user_id,
-                    visited,
-                )
-                for requisition_line in requisition_lines_sudo
-                if requisition_line.requisition_id.state not in ("done", "cancel")
-            ]
-        else:
-            return super()._get_upstream_documents_and_responsibles(visited)

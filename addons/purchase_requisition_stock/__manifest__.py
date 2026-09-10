@@ -1,6 +1,6 @@
 {
     "name": "Purchase Requisition Stock",
-    "version": "1.2",
+    "version": "1.3",
     "category": "Supply Chain/Purchase",
     "sequence": 70,
     "author": "Odoo S.A.",

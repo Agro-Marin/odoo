@@ -44,8 +44,8 @@ class PurchaseOrder(models.Model):
             self.grid_update = False
             self.grid = json.dumps(self._get_matrix(self.grid_product_tmpl_id))
 
-    def _must_delete_date_planned(self, field_name):
-        return super()._must_delete_date_planned(field_name) or field_name == "grid"
+    def _must_delete_date_commitment(self, field_name):
+        return super()._must_delete_date_commitment(field_name) or field_name == "grid"
 
     @api.onchange("grid")
     def _apply_grid(self):
@@ -131,14 +131,11 @@ class PurchaseOrder(models.Model):
                             ),
                         )
                     )
-            if product_ids:
-                if new_lines:
-                    self.update({"line_ids": new_lines})
-
-                for line in self.line_ids.filtered(
-                    lambda line: line.product_id.id in product_ids
-                ):
-                    line._product_id_change()
+            if product_ids and new_lines:
+                # No per-line reset call follows: name, price_unit, tax_ids and
+                # date_commitment are computed from product_id, so the lines this
+                # onchange adds get them from their own computes.
+                self.update({"line_ids": new_lines})
 
     def _get_matrix(self, product_template):
         def has_ptavs(line, sorted_attr_ids):
@@ -207,23 +204,3 @@ class PurchaseOrderLine(models.Model):
     product_template_attribute_value_ids = fields.Many2many(
         related="product_id.product_template_attribute_value_ids", readonly=True
     )
-    product_no_variant_attribute_value_ids = fields.Many2many(
-        "product.template.attribute.value",
-        string="Product attribute values that do not create variants",
-        ondelete="restrict",
-    )
-
-    def _get_product_purchase_description(self, product):
-        name = super()._get_product_purchase_description(product)
-        product_lang_no_variant_attribute_value_ids = self.with_context(
-            product.env.context
-        ).product_no_variant_attribute_value_ids
-        for no_variant_attribute_value in product_lang_no_variant_attribute_value_ids:
-            name += (
-                "\n"
-                + no_variant_attribute_value.attribute_id.name
-                + ": "
-                + no_variant_attribute_value.name
-            )
-
-        return name

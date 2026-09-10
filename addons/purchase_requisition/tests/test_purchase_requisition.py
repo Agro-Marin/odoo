@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from odoo import Command, fields
+from odoo.exceptions import UserError
 from odoo.tests import Form
 from odoo.tests.common import tagged
 
@@ -876,10 +877,18 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         )
 
         line1 = Command.create(
-            {"product_id": self.product_09.id, "product_uom_id": self.product_uom_id.id}
+            {
+                "product_id": self.product_09.id,
+                "product_uom_id": self.product_uom_id.id,
+                "product_qty": 2.0,
+            }
         )
         line2 = Command.create(
-            {"product_id": self.product_13.id, "product_uom_id": self.product_uom_id.id}
+            {
+                "product_id": self.product_13.id,
+                "product_uom_id": self.product_uom_id.id,
+                "product_qty": 1.0,
+            }
         )
 
         purchase_template = self.env["purchase.requisition"].create(
@@ -890,8 +899,6 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
             }
         )
 
-        purchase_template.line_ids[0].product_qty = 2.0
-        purchase_template.line_ids[1].product_qty = 1.0
         self.assertEqual(
             purchase_template.line_ids[0].price_unit,
             self.supplierinfo10.price,
@@ -939,6 +946,176 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
             purchase_template.line_ids[1].product_qty,
             "The purchase template product quantity should have been copied to purchase order",
         )
+
+    def test_blanket_order_validity_reaches_the_supplierinfo(self):
+        requisition = self.env["purchase.requisition"].create(
+            {
+                "vendor_id": self.res_partner_1.id,
+                "requisition_type": "blanket_order",
+                "date_start": fields.Date.today() - timedelta(days=60),
+                "date_end": fields.Date.today() + timedelta(days=60),
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_09.id,
+                            "product_uom_id": self.product_uom_id.id,
+                            "product_qty": 100.0,
+                            "price_unit": 42.0,
+                        }
+                    )
+                ],
+            }
+        )
+        requisition.action_confirm()
+
+        supplierinfo = requisition.line_ids.supplier_info_ids
+        self.assertEqual(len(supplierinfo), 1)
+        self.assertEqual(supplierinfo.date_start, requisition.date_start)
+        self.assertEqual(supplierinfo.date_end, requisition.date_end)
+
+    def test_expired_blanket_order_does_not_price_anything(self):
+        requisition = self.env["purchase.requisition"].create(
+            {
+                "vendor_id": self.res_partner_1.id,
+                "requisition_type": "blanket_order",
+                "date_start": fields.Date.today() - timedelta(days=60),
+                "date_end": fields.Date.today() - timedelta(days=1),
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_09.id,
+                            "product_uom_id": self.product_uom_id.id,
+                            "product_qty": 100.0,
+                            "price_unit": 42.0,
+                        }
+                    )
+                ],
+            }
+        )
+        requisition.action_confirm()
+
+        seller = self.product_09._select_seller(
+            partner_id=self.res_partner_1,
+            quantity=1.0,
+            date=fields.Date.today(),
+        )
+        self.assertFalse(
+            seller,
+            "An agreement whose end date has passed must price nothing. Before the "
+            "validity window reached product.supplierinfo it kept pricing forever, "
+            "including unattended replenishment through stock.rule.",
+        )
+
+    def test_purchase_template_seeds_its_price_on_a_one_shot_create(self):
+        self.env["product.supplierinfo"].create(
+            {
+                "partner_id": self.res_partner_1.id,
+                "product_tmpl_id": self.product_09.product_tmpl_id.id,
+                "product_id": self.product_09.id,
+                "price": 55.0,
+            }
+        )
+        requisition = self.env["purchase.requisition"].create(
+            {
+                "vendor_id": self.res_partner_1.id,
+                "requisition_type": "purchase_template",
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_09.id,
+                            "product_uom_id": self.product_uom_id.id,
+                            "product_qty": 3.0,
+                        }
+                    )
+                ],
+            }
+        )
+        self.assertEqual(
+            requisition.line_ids.price_unit,
+            55.0,
+            "price_unit carried default=0.0 alongside its own compute, so a create "
+            "that passed every value at once wrote the default and skipped the "
+            "compute entirely.",
+        )
+
+    def test_line_added_to_a_confirmed_blanket_order_without_a_price(self):
+        requisition = self.env["purchase.requisition"].create(
+            {
+                "vendor_id": self.res_partner_1.id,
+                "requisition_type": "blanket_order",
+                "date_start": fields.Date.today(),
+                "date_end": fields.Date.today() + timedelta(days=30),
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_09.id,
+                            "product_uom_id": self.product_uom_id.id,
+                            "product_qty": 10.0,
+                            "price_unit": 5.0,
+                        }
+                    )
+                ],
+            }
+        )
+        requisition.action_confirm()
+
+        with self.assertRaises(UserError):
+            self.env["purchase.requisition.line"].create(
+                {
+                    "requisition_id": requisition.id,
+                    "product_id": self.product_13.id,
+                    "product_uom_id": self.product_uom_id.id,
+                    "product_qty": 5.0,
+                }
+            )
+
+    def test_description_variants_reach_the_order_line_on_both_paths(self):
+        requisition = self.env["purchase.requisition"].create(
+            {
+                "vendor_id": self.res_partner_1.id,
+                "requisition_type": "blanket_order",
+                "date_start": fields.Date.today(),
+                "date_end": fields.Date.today() + timedelta(days=30),
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_09.id,
+                            "product_uom_id": self.product_uom_id.id,
+                            "product_qty": 100.0,
+                            "price_unit": 42.0,
+                            "product_description_variants": "ENGRAVED",
+                        }
+                    )
+                ],
+            }
+        )
+        requisition.action_confirm()
+
+        order = self.env["purchase.order"].create(
+            {
+                "partner_id": self.res_partner_1.id,
+                "requisition_id": requisition.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": self.product_09.id, "product_qty": 5.0}
+                    )
+                ],
+            }
+        )
+        self.assertIn(
+            "ENGRAVED",
+            order.line_ids.name,
+            "The append lived only in the onchange path once the compute override "
+            "that carried it lost its hook.",
+        )
+
+        with Form(
+            self.env["purchase.order"].with_context(
+                default_requisition_id=requisition.id
+            )
+        ) as order_form:
+            order_from_ui = order_form.save()
+        self.assertIn("ENGRAVED", order_from_ui.line_ids[0].name)
 
     def test_purchase_requisition_with_same_product(self):
         self.bo_requisition.vendor_id = self.res_partner_1
