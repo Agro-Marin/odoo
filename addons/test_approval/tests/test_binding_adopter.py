@@ -69,6 +69,18 @@ class TestBindingOnAnAdopter(ApprovalCommon):
         self.doc.action_record_operation()
         self.assertEqual(self.doc.operation_count, 2)
 
+    def test_a_refused_document_shows_its_refusal_instead_of_failing(self):
+        """The document's own precondition refuses a second request while one exists,
+        so asking it again raised; the refusal is shown instead, and it stands."""
+        self.doc.action_record_operation()
+        first = self.doc.approval_request_id
+        first.with_user(self.approver_1).with_context(skip_wizard=True).action_refuse()
+        action = self.doc.action_record_operation()
+        self.assertEqual(self.doc.approval_request_id, first)
+        self.assertEqual(first.state, "refused")
+        self.assertEqual(action["res_id"], first.id)
+        self.assertEqual(self.doc.operation_count, 0)
+
     def test_a_document_back_in_draft_has_its_approval_reset_through_its_own_lifecycle(
         self,
     ):

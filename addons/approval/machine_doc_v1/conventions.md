@@ -461,7 +461,7 @@ factories) instead of rebuilding user fixtures.
 |------|---------------|---------------|
 | `approval_request.py` | Fields, CRUD, smart-copy, `ESCALATION_RULES` | `create`, `write`, `unlink`, `copy` |
 | `approval_request.py` | Fields, CRUD, copy, the state machine and the small computes, `_TERMINAL_STATES` / `_DECISION_STATES` | `_compute_*`, `create`/`write` |
-| `approval_request_access.py` | Who may write, unlink, decide, re-route; locked and compute-only fields | `_check_access_*`, `_check_locked_fields` |
+| `approval_request_access.py` | Who may write, unlink, decide, re-route, reopen a refusal, withdraw another's decision; locked and compute-only fields | `_check_access_*`, `_check_locked_fields`, `_check_reset_actor`, `_check_withdraw_actor`, `_is_later_step_member` |
 | `approval_request_lifecycle.py` | Every transition and what it touches: decisions, withdraw, cancel, reset, change requests, `_force_terminal`, activities, row locks | `action_*`, `_apply_decision`, `_force_terminal` |
 | `approval_request_routing.py` | Who approves: `_sync_approvers`, `_compute_desired_approvers`, rules, replacement bands, category snapshot | `_sync_*`, `_matched_*`, `_find_matching_replacement` |
 | `approval_request_escalation.py` | When: deadline, overdue, SLA compute and search, the three crons, reminders and escalation | `cron_*`, `_compute_sla_*`, `_send_reminder` |

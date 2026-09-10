@@ -547,7 +547,7 @@ class ApprovalRequestLifecycle(models.Model):
                     )
                 request._check_withdraw_allowed()
             else:
-                request._check_owner_or_manager(self.env._("reset to draft"))
+                request._check_reset_actor()
             request._check_reset_allowed()
             previous_state = request.state
             request._close_pending_change()
@@ -839,6 +839,19 @@ class ApprovalRequestLifecycle(models.Model):
             "has_reference": ("reference", self.env._("Reference")),
             "has_location": ("location", self.env._("Location")),
         }
+
+    def action_withdraw_approver(self, approver_id: int) -> None:
+        self.check_singleton()
+        approver = self.approver_ids.filtered(lambda a: a.id == approver_id)
+        if not approver:
+            raise UserError(
+                self.env._(
+                    "That approver is not on request %(name)s.",
+                    name=self.display_name,
+                ),
+            )
+        self._check_withdraw_actor(approver)
+        self.action_withdraw(approver)
 
     def _check_withdraw_allowed(self) -> None:
         pass

@@ -1,4 +1,4 @@
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import common, tagged
 
 
@@ -352,6 +352,29 @@ class TestApprovalBinding(common.TransactionCase):
             self.approver
         ).action_approve()
 
+    def _refuse(self, request, user=None):
+        user = user or self.approver
+        request.approver_ids.filtered(lambda a: a.user_id == user).with_user(
+            user
+        ).with_context(skip_wizard=True).action_refuse()
+
+    def _two_step_binding(self, peer, later):
+        category = self.env["approval.category"].create(
+            {"name": "Two Steps", "approval_minimum": 1}
+        )
+        for sequence, users in ((10, (self.approver, peer)), (20, (later,))):
+            self.env["approval.category.step"].create(
+                {
+                    "category_id": category.id,
+                    "name": f"Step {sequence}",
+                    "sequence": sequence,
+                    "member_ids": [(0, 0, {"user_id": user.id}) for user in users],
+                }
+            )
+        return self._bind(
+            mode="request", category_id=category.id, run_on_approval=False
+        )
+
     def test_request_mode_asks_for_approval_instead_of_running(self):
         binding = self._request_binding()
         requester = self._user("binding_req_a", "base.group_partner_manager")
@@ -451,6 +474,102 @@ class TestApprovalBinding(common.TransactionCase):
         self.assertFalse(partner.active)
 
     # -- approve on invoke, run on approval ----------------------------------
+
+    # -- a refusal stands ----------------------------------------------------
+
+    def test_a_refusal_stands_and_the_next_call_raises_no_new_request(self):
+        binding = self._request_binding()
+        requester = self._user("binding_ref_a", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._refuse(request)
+        action = partner.with_user(requester).action_archive()
+        self.assertTrue(partner.active)
+        self.assertEqual(self._requests_for(binding, partner), request)
+        self.assertEqual(action["res_id"], request.id, "the refusal is what is shown")
+
+    def test_the_refuser_does_not_pass_by_invoking_again(self):
+        """Studio's test_04: a manager cannot proceed past their own rejection."""
+        binding = self._request_binding(approve_on_invoke=True, run_on_approval=False)
+        requester = self._user("binding_ref_b", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._refuse(request)
+        partner.with_user(self.approver).action_archive()
+        self.assertTrue(partner.active, "approve on invoke must not undo a refusal")
+        self.assertEqual(request.state, "refused")
+        self.assertEqual(len(self._requests_for(binding, partner)), 1)
+
+    def test_the_requester_cannot_reopen_a_refusal(self):
+        binding = self._request_binding()
+        requester = self._user("binding_ref_c", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._refuse(request)
+        with self.assertRaises(AccessError):
+            request.with_user(requester).action_reset_to_draft()
+
+    def test_the_refuser_reopens_and_the_next_call_asks_again(self):
+        binding = self._request_binding()
+        requester = self._user("binding_ref_d", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._refuse(request)
+        request.with_user(self.approver).action_reset_to_draft()
+        self.assertEqual(request.state, "new")
+        partner.with_user(requester).action_archive()
+        self.assertEqual(self._requests_for(binding, partner), request)
+        self.assertEqual(request.state, "pending")
+
+    def test_a_later_step_member_may_reopen_a_refusal_and_a_peer_may_not(self):
+        peer = self._user("binding_ref_peer", "base.group_partner_manager")
+        later = self._user("binding_ref_later", "base.group_partner_manager")
+        binding = self._two_step_binding(peer, later)
+        requester = self._user("binding_ref_e", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._refuse(request)
+        with self.assertRaises(AccessError):
+            request.with_user(peer).action_reset_to_draft()
+        request.with_user(later).action_reset_to_draft()
+        self.assertEqual(request.state, "new")
+
+    # -- withdrawing across steps -------------------------------------------
+
+    def test_a_later_step_member_may_withdraw_an_earlier_approval_and_a_peer_may_not(
+        self,
+    ):
+        """Studio's test_can_revoke_approval_with_inferior_order."""
+        peer = self._user("binding_wd_peer", "base.group_partner_manager")
+        later = self._user("binding_wd_later", "base.group_partner_manager")
+        binding = self._two_step_binding(peer, later)
+        requester = self._user("binding_wd_a", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._approve(request)
+        row = request.approver_ids.filtered(lambda a: a.user_id == self.approver)
+        self.assertEqual(row.state, "approved")
+        with self.assertRaises(AccessError):
+            request.with_user(peer).action_withdraw_approver(row.id)
+        request.with_user(later).action_withdraw_approver(row.id)
+        self.assertEqual(row.state, "pending")
+
+    def test_an_approver_withdraws_their_own_approval_through_the_same_door(self):
+        binding = self._request_binding(run_on_approval=False)
+        requester = self._user("binding_wd_b", "base.group_partner_manager")
+        partner = self._partner()
+        partner.with_user(requester).action_archive()
+        request = self._requests_for(binding, partner)
+        self._approve(request)
+        row = request.approver_ids.filtered(lambda a: a.user_id == self.approver)
+        request.with_user(self.approver).action_withdraw_approver(row.id)
+        self.assertEqual(row.state, "pending")
 
     def _count_runs(self):
         """Record every time the gated method's body actually runs.

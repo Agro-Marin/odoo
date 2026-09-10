@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-10 19:39+0000\n"
-"PO-Revision-Date: 2026-09-10 19:39+0000\n"
+"POT-Creation-Date: 2026-09-10 20:04+0000\n"
+"PO-Revision-Date: 2026-09-10 20:04+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -597,6 +597,14 @@ msgstr ""
 msgid ""
 "A change is already pending on this request (field %(field)s). Wait for the "
 "requester to re-submit."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_access.py:0
+msgid ""
+"A refusal on %(name)s stands until whoever refused it, an approval manager, "
+"or a member of a later step reopens it."
 msgstr ""
 
 #. module: approval
@@ -3871,6 +3879,14 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
+#: code:addons/approval/models/approval_request_access.py:0
+msgid ""
+"Only %(approver)s, an approval manager, or a member of a later step can "
+"withdraw that decision on %(name)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
 #: code:addons/approval/models/ir_attachment.py:0
 msgid ""
 "Only a file attached to an approval request can satisfy one of its document "
@@ -5393,6 +5409,12 @@ msgstr ""
 #. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "That approver is not on request %(name)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "The '%(field)s' field is not available on category '%(category)s', so the requester would have nothing to change.\n"
 "\n"
@@ -6560,7 +6582,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_lifecycle.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid "reset to draft"
 msgstr ""
 

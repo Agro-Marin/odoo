@@ -285,6 +285,71 @@ class ApprovalRequestAccess(models.Model):
     def _skip_check_access(self) -> bool:
         return self.env.su or is_approval_manager(self.env)
 
+    def _check_reset_actor(self) -> None:
+        self.check_singleton()
+        if self._is_standing_refusal():
+            self._check_refusal_reopener()
+            return
+        self._check_owner_or_manager(self.env._("reset to draft"))
+
+    def _is_standing_refusal(self) -> bool:
+        self.check_singleton()
+        if self.state != "refused" or not self.binding_id:
+            return False
+        document = self.get_source_document()
+        return not (document and "approval_request_id" in document._fields)
+
+    def _check_refusal_reopener(self) -> None:
+        self.check_singleton()
+        if self.env.su or is_approval_manager(self.env):
+            return
+        refused = self.approver_ids.filtered(
+            lambda a: a.state == "refused" and a.decided_by_user_id,
+        )
+        user = self.env.user
+        if user in refused.decided_by_user_id or self._is_later_step_member(
+            refused, user
+        ):
+            return
+        raise AccessError(
+            self.env._(
+                "A refusal on %(name)s stands until whoever refused it, an approval "
+                "manager, or a member of a later step reopens it.",
+                name=self.display_name,
+            ),
+        )
+
+    def _check_withdraw_actor(self, approver) -> None:
+        self.check_singleton()
+        if self.env.su or is_approval_manager(self.env):
+            return
+        user = self.env.user
+        if approver._get_effective_approver() == user or self._is_later_step_member(
+            approver, user
+        ):
+            return
+        raise AccessError(
+            self.env._(
+                "Only %(approver)s, an approval manager, or a member of a later step "
+                "can withdraw that decision on %(name)s.",
+                approver=approver._get_effective_approver().name,
+                name=self.display_name,
+            ),
+        )
+
+    def _is_later_step_member(self, approvers, user) -> bool:
+        """Whether `user` may act on these rows as the approver of a later step."""
+        self.check_singleton()
+        own_steps = approvers.step_ids
+        if not own_steps:
+            return False
+        last = max(own_steps.mapped("sequence"))
+        return any(
+            user.id in step._get_pool_user_ids()
+            for step in self.approver_ids.step_ids
+            if step.sequence > last
+        )
+
     def _check_owner_or_manager(self, action_label: str) -> None:
         if self.env.su or is_approval_manager(self.env):
             return

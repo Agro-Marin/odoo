@@ -530,6 +530,9 @@ class ApprovalBinding(models.Model):
         if "approval_request_id" in records._fields:
             for record in records:
                 request = record.sudo().approval_request_id
+                if request.state == "refused":
+                    requests |= request
+                    continue
                 if request.state not in ("new", "pending"):
                     record.with_context(
                         approval_binding_for=(record._name, record.id, self.id),
@@ -540,20 +543,22 @@ class ApprovalBinding(models.Model):
                 requests |= request
             return requests
 
-        open_by_res_id = {
-            request.res_id: request
-            for request in Request.search(
-                [
-                    ("binding_id", "=", self.id),
-                    ("res_model", "=", records._name),
-                    ("res_id", "in", records.ids),
-                    ("state", "in", ("new", "pending")),
-                ],
-            )
-        }
+        latest_by_res_id = {}
+        for request in Request.search(
+            [
+                ("binding_id", "=", self.id),
+                ("res_model", "=", records._name),
+                ("res_id", "in", records.ids),
+            ],
+            order="id desc",
+        ):
+            latest_by_res_id.setdefault(request.res_id, request)
         for record in records:
-            request = open_by_res_id.get(record.id)
-            if not request:
+            request = latest_by_res_id.get(record.id)
+            if request and request.state == "refused":
+                requests |= request
+                continue
+            if not request or request.state not in ("new", "pending"):
                 request = Request.create(
                     {
                         "name": record.display_name,
