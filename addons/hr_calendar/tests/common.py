@@ -28,6 +28,7 @@ class TestHrCalendarCommon(common.TransactionCase):
                 {
                     "tz": "Europe/Brussels",
                     "name": "35h calendar",
+                    "company_id": False,
                     "hours_per_day": 7.0,
                     "attendance_ids": [
                         (
@@ -200,6 +201,7 @@ class TestHrCalendarCommon(common.TransactionCase):
                 {
                     "tz": "Europe/Brussels",
                     "name": "28h calendar",
+                    "company_id": False,
                     "attendance_ids": [
                         (
                             0,
@@ -338,6 +340,7 @@ class TestHrCalendarCommon(common.TransactionCase):
                 {
                     "tz": "Europe/Brussels",
                     "name": "night calendar",
+                    "company_id": False,
                     "attendance_ids": [
                         (
                             0,
@@ -500,6 +503,7 @@ class TestHrContractCalendarCommon(common.TransactionCase):
                 {
                     "tz": "Europe/Brussels",
                     "name": "35h calendar",
+                    "company_id": False,
                     "hours_per_day": 7.0,
                     "attendance_ids": [
                         (
@@ -672,6 +676,7 @@ class TestHrContractCalendarCommon(common.TransactionCase):
                 {
                     "tz": "Europe/Brussels",
                     "name": "28h calendar",
+                    "company_id": False,
                     "attendance_ids": [
                         (
                             0,
@@ -810,6 +815,7 @@ class TestHrContractCalendarCommon(common.TransactionCase):
                 {
                     "tz": "Europe/Brussels",
                     "name": "night calendar",
+                    "company_id": False,
                     "attendance_ids": [
                         (
                             0,
