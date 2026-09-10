@@ -28,8 +28,6 @@ class UiService {
         this.activeElements = makeActiveElementStack();
         /** @type {(() => void) | null} */
         this.withdrawScopeResolver = null;
-        /** @type {PropertyDescriptor | undefined} */
-        this._isSmallDescriptor = undefined;
 
         const initialSize = this.getSize();
         this.size = initialSize;
@@ -50,7 +48,6 @@ class UiService {
             media.addEventListener?.("change", this._onMediaChange);
         }
 
-        this._isSmallDescriptor = Object.getOwnPropertyDescriptor(this.env, "isSmall");
         Object.defineProperty(this.env, "isSmall", {
             configurable: true,
             get: () => this.isSmall,
@@ -141,11 +138,10 @@ class UiService {
         this.activeElement = this.activeElements.current;
         this.blockCount = 0;
         this.isBlocked = false;
-        if (this._isSmallDescriptor) {
-            Object.defineProperty(this.env, "isSmall", this._isSmallDescriptor);
-        } else {
-            delete (/** @type {any} */ (this.env).isSmall);
-        }
+        // deleting, not restoring makeEnv's throwing getter: a component that
+        // renders once more while the env is being torn down reads undefined
+        // instead of taking the teardown down with it
+        delete (/** @type {any} */ (this.env).isSmall);
     }
 }
 

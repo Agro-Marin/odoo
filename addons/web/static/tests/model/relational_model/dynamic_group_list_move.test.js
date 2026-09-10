@@ -11,13 +11,9 @@ function makeRec(id, steps, { updateResult = true, updateThrows = false } = {}) 
         discarded: false,
         /** @type {any} */
         updateChanges: null,
-        canSaveOnUpdate: true,
-        async updateLocked(changes) {
+        async update(changes) {
             steps.push(`${id}:update`);
             rec.updateChanges = changes;
-        },
-        async saveLocked() {
-            steps.push(`${id}:save`);
             if (updateThrows) {
                 throw new Error("save boom");
             }
@@ -72,7 +68,7 @@ function makeList(groups) {
 }
 
 describe("moveRecord cross-group success", () => {
-    test("persists the groupby change through the locked update and save without discarding", async () => {
+    test("persists the groupby change via update({save:true}) without discarding", async () => {
         const steps = [];
         const rA = makeRec("rA", steps, { updateResult: true });
         const g1 = makeGroup("g1", 1, [rA], steps);
@@ -83,13 +79,7 @@ describe("moveRecord cross-group success", () => {
 
         expect(rA.updateChanges).toEqual({ stage_id: { id: 2, display_name: "G-g2" } });
         expect(rA.discarded).toBe(false);
-        expect(steps).toEqual([
-            "g1:remove",
-            "g2:add",
-            "rA:update",
-            "rA:save",
-            "g2:reseq",
-        ]);
+        expect(steps).toEqual(["g1:remove", "g2:add", "rA:update", "g2:reseq"]);
     });
 });
 
@@ -108,7 +98,6 @@ describe("moveRecord failed-move revert", () => {
             "g1:remove",
             "g2:add",
             "rA:update",
-            "rA:save",
             "g2:remove",
             "g1:add",
             "rA:discard",
@@ -136,7 +125,6 @@ describe("moveRecord failed-move revert", () => {
             "g1:remove",
             "g2:add",
             "rA:update",
-            "rA:save",
             "g2:remove",
             "g1:add",
             "rA:discard",

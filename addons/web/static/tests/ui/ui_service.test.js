@@ -571,11 +571,13 @@ test("isBlocked is its own reactive key, so a nested block does not invalidate i
     expect.verifySteps(["render false"]);
 });
 
-test("destroy() restores the uninitialised isSmall guard makeEnv installs", async () => {
+test("destroy() removes isSmall rather than restoring makeEnv's throwing guard", async () => {
     const env = await makeMockEnv();
     expect(typeof env.isSmall).toBe("boolean");
 
     env.services.ui.destroy();
 
-    expect(() => env.isSmall).toThrow(/UI service not initialized/);
+    // a late render during teardown must read undefined, not throw
+    expect("isSmall" in env).toBe(false);
+    expect(env.isSmall).toBe(undefined);
 });
