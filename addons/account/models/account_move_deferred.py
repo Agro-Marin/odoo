@@ -14,6 +14,7 @@ DEFERRED_DATE_MAX = "9999-12-31"
 
 class AccountMove(models.Model):
     _inherit = "account.move"
+
     deferred_move_ids = fields.Many2many(
         string="Deferred Entries",
         comodel_name="account.move",
@@ -441,6 +442,7 @@ class AccountMove(models.Model):
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
+
     deferred_start_date = fields.Date(
         string="Start Date",
         compute="_compute_deferred_start_date",
@@ -457,10 +459,12 @@ class AccountMoveLine(models.Model):
         help="Date at which the deferred expense/revenue ends",
     )
     has_deferred_moves = fields.Boolean(
-        compute="_compute_has_deferred_moves", exportable=False
+        compute="_compute_has_deferred_moves",
+        exportable=False,
     )
     has_abnormal_deferred_dates = fields.Boolean(
-        compute="_compute_has_abnormal_deferred_dates", exportable=False
+        compute="_compute_has_abnormal_deferred_dates",
+        exportable=False,
     )
 
     def copy_data(self, default=None):

@@ -8,7 +8,8 @@ class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     exclude_bank_lines = fields.Boolean(
-        compute="_compute_exclude_bank_lines", store=True
+        compute="_compute_exclude_bank_lines",
+        store=True,
     )
 
     analytic_coverage = fields.Float(
@@ -32,10 +33,6 @@ class AccountMoveLine(models.Model):
 
     @api.depends("product_id", "product_uom_id", "move_id.closing_return_id")
     def _compute_tax_ids(self):
-        """Skip the default tax computation on tax closing entries."""
-        # EXTEND account
-        # Accounts used in tax closing may carry default taxes, which would trip
-        # _check_taxes_on_closing_entries; clear them instead of computing them.
         lines_to_compute = self.filtered(
             lambda line: not line.move_id.closing_return_id
         )
@@ -68,24 +65,6 @@ class AccountMoveLine(models.Model):
     def _prepare_aml_shadowing_for_report(
         self, change_equivalence_dict, prefix_fields=False, prefix_fields_to_insert=True
     ):
-        """Prepares the fields lists for a subquery shadowing the account_move_line table,
-        used to switch the computation mode of the reports (analytics, financial budgets, ...).
-
-        :param dict change_equivalence_dict: in the form {aml_field: sql_equivalence}, where:
-                                        - aml_field: is a string containing the name of field of account.move.line
-                                        - sql_equivalence: is the value to use to shadow aml_field. It can be an SQL object; if
-                                          it's not, it'll be escaped in the query.
-        :param bool prefix_fields: True if you want the returned stored fields to be prefixed with the `account_move_line` table.
-        :param bool prefix_fields_to_insert: True if you want the returned fields to insert to be prefixed with the `account_move_line` table
-        :return: A tuple of 2 SQL objects, so that:
-                 - The first one is the column list of the shadowing query
-                 - The second one contains the field values for the SELECT clause of that query, in the same order
-                   as in the first element of the returned tuple.
-        :rtype: tuple
-        """
-        # fields_get() answers membership and `translate` no differently from _fields,
-        # but builds a full description of all 105 fields -- translated labels and help
-        # included -- every time. It measured 27% of a budget report's render.
         line_fields = self.env["account.move.line"]._fields
         stored_fields = sorted(
             fld

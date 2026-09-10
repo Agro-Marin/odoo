@@ -48,10 +48,6 @@ class AccountTaxReportHandler(models.AbstractModel):
         if rows:
             warnings["account.tax_report_warning_inactive_tags"] = {}
 
-    # -------------------------------------------------------------------------
-    # TAX CLOSING
-    # -------------------------------------------------------------------------
-
     def _get_amls_with_archived_tags_domain(self, options):
         domain = [
             ("tax_tag_ids.active", "=", False),

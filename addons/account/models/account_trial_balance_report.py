@@ -11,10 +11,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
     _inherit = ["account.report.custom.handler"]
     _description = "Trial Balance Custom Handler"
 
-    ############################
-    #  OPTIONS INITIALIZATION  #
-    ############################
-
     def _custom_options_initializer(self, report, options, previous_options):
         super()._custom_options_initializer(
             report, options, previous_options=previous_options
@@ -252,9 +248,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
 
     @api.model
     def _display_single_column_for_initial_and_end_sections(self, options):
-        # Decide whether we want our Initial Balance and End Balance column groups to have a single 'Balance' column.
-        # If there is more than one header level, the front-end can't handle different number of columns depending
-        # on the column header, so we need to use 'debit' and 'credit' columns rather than a 'balance' column.
         return len(options["column_headers"]) == 1
 
     def _generate_column_group(
@@ -295,8 +288,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         )
 
         if create_single_column:
-            # _prepare_columns_from_column_group_vals creates a column group with all the columns defined in the report.
-            # But we'd like to have just one 'Balance' column, so we edit columns here.
             column_name = _("Balance")
             new_columns = [
                 {
@@ -335,10 +326,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         report = self.env["account.report"].browse(options["report_id"])
         return report.open_unallocated_items_journal_items(options, params)
 
-    ###################
-    #  REPORT ENGINE  #
-    ###################
-
     def _report_custom_engine_trial_balance(
         self,
         expressions,
@@ -350,19 +337,8 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         limit=None,
         warnings=None,
     ):
-        """The custom engine for the Trial Balance.
-
-        Aggregate the journal items selected by the options' domain and dates into values with
-        keys {'balance', 'debit', 'credit', 'has_sublines'}.
-
-        :return: a single values dict when there is no groupby, else a list of
-                 (grouping_key, values) tuples
-        :rtype: dict | list
-        """
         report = self.env["account.report"].browse(options["report_id"])
 
-        # This is because we want to pass a list of fields via the 'current_groupby' argument when calling this method
-        # from the _custom_unfold_all_batch_data_generator.
         current_groupbys = (
             [current_groupby]
             if current_groupby and not isinstance(current_groupby, list)
@@ -370,7 +346,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         )
         report._check_groupby_fields(current_groupbys)
 
-        # Never expand individual AMLs if we are in the Initial Balance.
         if (
             "id" in current_groupbys
             and options["trial_balance_column_type"] == "initial_balance"
@@ -378,11 +353,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             return []
 
         extra_domain = []
-        # Don't consider income and expense AMLs from previous fiscal years.
-        # (1) This is an optimization that speeds up the report but prevents expanding the Unaffected Earnings account.
-        # (2) This also has the functional purpose of ensuring that income and expense accounts only take into account AMLs
-        #     from the current fiscal year when coming from the `_expand_groupby`, because the `_expand_groupby` only adds
-        #     a forced_domain on 'account_id' and doesn't do any restriction based on date.
         if fiscalyear_start := options.get("trial_balance_block_fiscalyear_start"):
             extra_domain = [
                 "|",
@@ -419,12 +389,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                             OR  account_group.code_prefix_start ILIKE %(filter_search_bar)s)
                         )""",
                             lang=self.env.lang,
-                            # code_store is a jsonb keyed by *root* company id (see
-                            # account_coa.account.account._field_to_sql). Pass the key as
-                            # a plain (unquoted) text param: a '%(company_id)s' inside a
-                            # SQL string literal is not substituted under psycopg3, so the
-                            # lookup would silently read the literal key '%s' and match
-                            # nothing.
                             company_id=str(self.env.company.root_id.id),
                             filter_search_bar="%" + options["filter_search_bar"] + "%",
                         ),
@@ -489,7 +453,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         self.env.cr.execute(sql_query)
         query_results = self.env.cr.dictfetchall()
 
-        # Don't expand individual AMLs in the Initial Balance
         disable_expand = bool(
             (not next_groupby or next_groupbys[0] == "id")
             and options["trial_balance_column_type"] == "initial_balance"

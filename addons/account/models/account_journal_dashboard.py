@@ -169,7 +169,7 @@ class AccountJournal(models.Model):
                        AND move.made_sequence_gap IS TRUE
                        AND move.date > %(lock_date)s
                   GROUP BY move.journal_id, move.sequence_prefix
-                """,
+                    """,
                     journal_ids=journals.ids,
                     company_ids=companies.ids,
                     lock_date=lock_date,
@@ -244,24 +244,26 @@ class AccountJournal(models.Model):
             return
         sql_query = SQL(
             """
-                       SELECT j.id,
-                              posted.val,
-                              any_entry.val
-                         FROM account_journal j
+            SELECT
+                j.id,
+                posted.val,
+                any_entry.val
+            FROM
+              account_journal j
             LEFT JOIN LATERAL (
-                                  SELECT TRUE AS val
-                                    FROM account_move m
-                                   WHERE m.journal_id = j.id
-                                     AND m.state = 'posted'
-                                   LIMIT 1
+                SELECT TRUE AS val
+                FROM account_move m
+                WHERE m.journal_id = j.id
+                    AND m.state = 'posted'
+                LIMIT 1
                               ) AS posted ON TRUE
             LEFT JOIN LATERAL (
-                                  SELECT TRUE AS val
-                                    FROM account_move m
-                                   WHERE m.journal_id = j.id
-                                   LIMIT 1
+                SELECT TRUE AS val
+                FROM account_move m
+                WHERE m.journal_id = j.id
+                LIMIT 1
                               ) AS any_entry ON TRUE
-                        WHERE j.id = ANY(%(journal_ids)s)
+            WHERE j.id = ANY(%(journal_ids)s)
             """,
             journal_ids=self.ids,
         )
@@ -382,7 +384,7 @@ class AccountJournal(models.Model):
                AND move.move_type = ANY(%(invoice_types)s)
                AND move.company_id = ANY(%(company_ids)s)
           GROUP BY move.journal_id
-        """,
+            """,
             {
                 "invoice_types": list(self.env["account.move"].get_invoice_types(True)),
                 "journal_ids": self.ids,
@@ -496,7 +498,7 @@ class AccountJournal(models.Model):
                AND st_line_move.checked IS TRUE
                AND st_line_move.state = 'posted'
           GROUP BY st_line.journal_id
-        """,
+            """,
             [list(self.ids), list(self.env.companies.ids)],
         )
         return dict(self.env.cr.fetchall())

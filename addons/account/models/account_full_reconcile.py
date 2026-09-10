@@ -43,7 +43,7 @@ class AccountFullReconcile(models.Model):
                SET full_reconcile_id = source.full_id
               FROM (VALUES %s) AS source(full_id, line_ids)
              WHERE line.id = ANY(source.line_ids)
-        """,
+            """,
             [
                 (full.id, line_ids)
                 for full, line_ids in zip(fulls, move_line_ids, strict=True)
@@ -61,7 +61,7 @@ class AccountFullReconcile(models.Model):
                SET full_reconcile_id = source.full_id
               FROM (VALUES %s) AS source(full_id, partial_ids)
              WHERE partial.id = ANY(source.partial_ids)
-        """,
+            """,
             [
                 (full.id, line_ids)
                 for full, line_ids in zip(fulls, partial_ids, strict=True)

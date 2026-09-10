@@ -149,7 +149,6 @@ class AccountFollowupCustomHandler(models.AbstractModel):
                 )
             )
             lines.extend(overdue_lines)
-            # If we reached the limit just before the due line and have already loaded one extra line, we should skip the due line for now and add a "load more" line
             if (
                 self._is_report_limit_reached(report, options, treated_results_count)
                 and due_aml_values

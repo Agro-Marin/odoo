@@ -183,7 +183,7 @@ class AccountGroup(models.Model):
              WHERE child.id = relation.child_id
                AND child.parent_id IS DISTINCT FROM relation.parent_id
          RETURNING child.id
-        """,
+            """,
             list(company_ids),
         )
         self.env.cr.execute(query)

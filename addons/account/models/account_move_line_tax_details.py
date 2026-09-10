@@ -20,7 +20,8 @@ def _sql_affecting_base_tax_ids(alias: SQL, line_id: SQL) -> SQL:
                 WHERE affecting_tax.is_base_affected
                 AND tax_rel.account_move_line_id = %(line_id)s
             ) AS sub
-        ) %(alias)s ON TRUE""",
+        ) %(alias)s ON TRUE
+        """,
         alias=alias,
         line_id=line_id,
     )
@@ -28,10 +29,12 @@ def _sql_affecting_base_tax_ids(alias: SQL, line_id: SQL) -> SQL:
 
 def _sql_taxable_base(sign_of: SQL, amount: SQL) -> SQL:
     return SQL(
-        """CASE WHEN tax.amount_type = 'fixed'
-            THEN CASE WHEN %(sign_of)s < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
-            ELSE %(amount)s
-            END""",
+        """
+        CASE WHEN tax.amount_type = 'fixed'
+        THEN CASE WHEN %(sign_of)s < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
+        ELSE %(amount)s
+        END
+        """,
         sign_of=sign_of,
         amount=amount,
     )
