@@ -37,8 +37,6 @@ export class GoogleMapsOption extends BaseOptionComponent {
             if (this.autocompleteListener) {
                 this.getMapsAPI().event.removeListener(this.autocompleteListener);
             }
-            // Without this, the Google library injects elements inside the
-            // DOM but does not remove them once the option is closed.
             for (const container of document.body.querySelectorAll(".pac-container")) {
                 container.remove();
             }
@@ -46,8 +44,6 @@ export class GoogleMapsOption extends BaseOptionComponent {
     }
 
     /**
-     * Initialize Google Places API's autocompletion on the option's input.
-     *
      * @param {Element} inputEl
      */
     initializeAutocomplete(inputEl) {
@@ -74,11 +70,6 @@ export class GoogleMapsOption extends BaseOptionComponent {
         }
     }
 
-    /**
-     * Retrieve the new place given by Google Places API's autocompletion
-     * whenever it sends a signal that the place changed, and send it to the
-     * plugin.
-     */
     onPlaceChanged() {
         /** @type {Place | undefined} */
         const place = this.googleMapsAutocomplete.getPlace();

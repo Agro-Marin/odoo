@@ -43,7 +43,6 @@ class EventTrack(models.Model):
     def _default_stage_id(self):
         return self.env["event.track.stage"].search([], limit=1).id
 
-    # description
     name = fields.Char("Title", required=True, translate=True)
     event_id = fields.Many2one("event.event", "Event", required=True, index=True)
     active = fields.Boolean(default=True)
@@ -62,7 +61,6 @@ class EventTrack(models.Model):
         required=True,
         default="1",
     )
-    # management
     stage_id = fields.Many2one(
         "event.track.stage",
         string="Stage",
@@ -70,7 +68,7 @@ class EventTrack(models.Model):
         index=True,
         copy=False,
         default=_default_stage_id,
-        group_expand="_read_group_expand_full",  # Always display all stages
+        group_expand="_read_group_expand_full",
         required=True,
         tracking=True,
     )
@@ -105,7 +103,6 @@ class EventTrack(models.Model):
         tracking=True,
     )
     partner_id = fields.Many2one("res.partner", "Contact")
-    # speaker information
     partner_name = fields.Char(
         string="Name",
         compute="_compute_partner_name",
@@ -159,7 +156,6 @@ class EventTrack(models.Model):
         max_width=256,
         max_height=256,
     )
-    # contact information
     contact_email = fields.Char(
         string="Contact Email",
         compute="_compute_contact_email",
@@ -178,7 +174,6 @@ class EventTrack(models.Model):
         store=True,
     )
     location_id = fields.Many2one("event.track.location", "Location")
-    # time information
     date = fields.Datetime(
         "Track Date", compute="_compute_date", inverse="_inverse_date", store=True
     )
@@ -209,7 +204,6 @@ class EventTrack(models.Model):
         compute="_compute_track_time_data",
         help="Relative time compared to track start (seconds)",
     )
-    # frontend description
     website_image = fields.Image(
         string="Website Image", max_width=1024, max_height=1024
     )
@@ -221,7 +215,6 @@ class EventTrack(models.Model):
     )
     header_visible = fields.Boolean(related="event_id.header_visible", readonly=False)
     footer_visible = fields.Boolean(related="event_id.footer_visible", readonly=False)
-    # wishlist / visitors management
     event_track_visitor_ids = fields.One2many(
         "event.track.visitor",
         "track_id",
@@ -247,7 +240,6 @@ class EventTrack(models.Model):
         string="Always Wishlisted",
         help="""If set, the talk will be set as favorite for each attendee registered to the event.""",
     )
-    # Call to action
     website_cta = fields.Boolean(
         "Magic Button",
         help="Display a Call to Action button to your Attendees while they watch your Track.",
@@ -255,7 +247,6 @@ class EventTrack(models.Model):
     website_cta_title = fields.Char("Button Title")
     website_cta_url = fields.Char("Button Target URL")
     website_cta_delay = fields.Integer("Show Button")
-    # time information for CTA
     is_website_cta_live = fields.Boolean(
         "Is CTA Live", compute="_compute_cta_time_data", help="CTA button is available"
     )
@@ -275,8 +266,6 @@ class EventTrack(models.Model):
                     self.env["ir.http"]._slug(track),
                 )
 
-    # STAGES
-
     @api.depends("stage_id", "kanban_state")
     def _compute_kanban_state_label(self):
         for track in self:
@@ -286,8 +275,6 @@ class EventTrack(models.Model):
                 track.kanban_state_label = track.stage_id.legend_blocked
             else:
                 track.kanban_state_label = track.stage_id.legend_done
-
-    # SPEAKER
 
     @api.depends("partner_id")
     def _compute_partner_name(self):
@@ -363,8 +350,6 @@ class EventTrack(models.Model):
             if not track.image:
                 track.image = track.partner_id.image_256
 
-    # CONTACT
-
     @api.depends("partner_id", "partner_id.email")
     def _compute_contact_email(self):
         for track in self:
@@ -376,8 +361,6 @@ class EventTrack(models.Model):
         for track in self:
             if track.partner_id:
                 track.contact_phone_ids = track.partner_id.phone_ids._primary()
-
-    # TIME
 
     @api.depends("date_end", "duration")
     def _compute_date(self):
@@ -407,8 +390,6 @@ class EventTrack(models.Model):
             if track.date and track.date_end:
                 track.duration = (track.date_end - track.date).total_seconds() / 3600
 
-    # FRONTEND DESCRIPTION
-
     @api.depends("image", "partner_id.image_256")
     def _compute_website_image_url(self):
         for track in self:
@@ -421,8 +402,6 @@ class EventTrack(models.Model):
                     "/website_event_track/static/src/img/event_track_default_%d.jpeg"
                     % (track.id % 2)
                 )
-
-    # WISHLIST / VISITOR MANAGEMENT
 
     @api.depends(
         "wishlisted_by_default",
@@ -503,12 +482,8 @@ class EventTrack(models.Model):
         )
         return [("id", "in", subquery.subselect("track_id"))]
 
-    # TIME
-
     @api.depends("date", "date_end")
     def _compute_track_time_data(self):
-        """Compute start and remaining time for track itself. Do everything in
-        UTC as we compute only time deltas here."""
         now_utc = fields.Datetime.now().replace(microsecond=0).replace(tzinfo=UTC)
         for track in self:
             if not (track.date or track.date_end):
@@ -541,8 +516,6 @@ class EventTrack(models.Model):
 
     @api.depends("date", "date_end", "website_cta", "website_cta_delay")
     def _compute_cta_time_data(self):
-        """Compute start and remaining time for track itself. Do everything in
-        UTC as we compute only time deltas here."""
         now_utc = fields.Datetime.now().replace(microsecond=0).replace(tzinfo=UTC)
         for track in self:
             if not track.website_cta:
@@ -563,8 +536,6 @@ class EventTrack(models.Model):
     @api.depends("date", "date_end", "event_id")
     def _compute_is_one_day(self):
         for track in self:
-            # Need to localize because it could begin late and finish early in
-            # another timezone
             if not (track.date or track.date_end):
                 track.is_one_day = False
                 continue
@@ -572,10 +543,6 @@ class EventTrack(models.Model):
             begin_tz = fields.Datetime.context_timestamp(track, track.date)
             end_tz = fields.Datetime.context_timestamp(track, track.date_end)
             track.is_one_day = begin_tz.date() == end_tz.date()
-
-    # ------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -624,10 +591,6 @@ class EventTrack(models.Model):
         elif stage.is_cancel:
             self.is_published = False
 
-    # ------------------------------------------------------------
-    # MIXINS
-    # ------------------------------------------------------------
-
     @api.model
     def _search_get_detail(self, website, order, options):
         event_id = self.env["ir.http"]._unslug(options["event"])[1]
@@ -664,10 +627,6 @@ class EventTrack(models.Model):
             "order": order,
         }
 
-    # ------------------------------------------------------------
-    # MESSAGING
-    # ------------------------------------------------------------
-
     def _mail_get_timezone(self):
         return self.event_id._mail_get_timezone() or super()._mail_get_timezone()
 
@@ -687,12 +646,7 @@ class EventTrack(models.Model):
         return recipients
 
     def _message_post_after_hook(self, message, msg_vals):
-        #  OVERRIDE
-        #  If no partner is set on track when sending a message, then we create one from suggested contact selected.
-        #  If one or more have been created from chatter (Suggested Recipients) we search for the expected one and write the partner_id on track.
         if msg_vals.get("partner_ids") and not self.partner_id:
-            #  Contact(s) created from chatter set on track : we verify if at least one is the expected contact
-            #  linked to the track. (created from contact_email if any, then partner_email if any)
             main_email = self.contact_email or self.partner_email
             main_email_normalized = tools.email_normalize(main_email)
             new_partner = message.partner_ids.filtered(
@@ -750,10 +704,6 @@ class EventTrack(models.Model):
             return self.env.ref("website_event_track.mt_track_ready")
         return super()._track_subtype(init_values)
 
-    # ------------------------------------------------------------
-    # ACTION
-    # ------------------------------------------------------------
-
     def open_track_speakers_list(self):
         return {
             "name": _("Speakers"),
@@ -766,10 +716,6 @@ class EventTrack(models.Model):
 
     def get_backend_menu_id(self):
         return self.env.ref("event.event_main_menu").id
-
-    # ------------------------------------------------------------
-    # TOOLS
-    # ------------------------------------------------------------
 
     def _get_event_track_visitors(self, force_create=False):
         self.check_singleton()
@@ -819,8 +765,6 @@ class EventTrack(models.Model):
         return track_visitors
 
     def _get_ics_file(self):
-        """Return iCalendar file for the event track.
-        :return: a dict of .ics file content for each event track"""
         result = dict.fromkeys(self.ids, False)
         if not vobject:
             return result
@@ -851,21 +795,6 @@ class EventTrack(models.Model):
         return result
 
     def _get_track_suggestions(self, restrict_domain=None, limit=None):
-        """Returns the next tracks suggested after going to the current one
-        given by self. Tracks always belong to the same event.
-
-        Heuristic is
-
-          * live first;
-          * then ordered by start date, finished being sent to the end;
-          * wishlisted (manually or by default);
-          * tag matching with current track;
-          * location matching with current track;
-          * finally a random to have an "equivalent wave" randomly given;
-
-        :param restrict_domain: an additional domain to restrict candidates;
-        :param limit: number of tracks to return;
-        """
         self.check_singleton()
 
         base_domain = [
@@ -883,12 +812,10 @@ class EventTrack(models.Model):
         track_candidates = track_candidates.sorted(
             lambda track: (
                 track.is_published,
-                track.track_start_remaining
-                == 0  # First get the tracks that started less than 10 minutes ago ...
+                track.track_start_remaining == 0
                 and track.track_start_relative < (10 * 60)
-                and not track.is_track_done,  # ... AND not finished
-                track.track_start_remaining
-                > 0,  # Then the one that will begin later (the sooner come first)
+                and not track.is_track_done,
+                track.track_start_remaining > 0,
                 -1 * track.track_start_remaining,
                 track.is_reminder_on,
                 not track.wishlisted_by_default,
@@ -915,18 +842,12 @@ class EventTrack(models.Model):
         }
 
     def _get_track_calendar_reminder_dates(self):
-        """Get dates of the event if the track does not have any. A warning is
-        added in elements that display times of the event instead of those of
-        the track. This way, visitors can add a reminder and check later if the
-        track has been updated since the sending of the mail."""
         return {
             "date_begin": self.date or self.event_id.date_begin,
             "date_end": self.date_end or self.event_id.date_end,
         }
 
     def _get_track_calendar_reminder_times_warning(self):
-        """Generate a warning indicating that the times displayed correspond to those of
-        the event because the track does not have any, to avoid misunderstanding from visitors."""
         return (
             Markup("<strong><u>%(warning_title)s</u></strong>: %(warning_content)s")
             % {

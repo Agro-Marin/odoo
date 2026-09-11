@@ -5,8 +5,6 @@ from odoo.exceptions import ValidationError
 class ProductTemplate(models.Model):
     _inherit = "product.template"
 
-    # === CONSTRAINT METHODS === #
-
     @api.constrains("is_published")
     def _check_print_images_are_set_before_publishing(self):
         for product in self.filtered("gelato_template_ref"):
@@ -17,20 +15,13 @@ class ProductTemplate(models.Model):
                     )
                 )
 
-    # === ACTION METHODS === #
-
     def action_sync_gelato_template_info(self):
-        """Override of `sale_gelato` to unpublish products for which the synchronization with
-        Gelato led to new print images being created."""
         image_count_before_sync = len(self.gelato_image_ids)
         res = super().action_sync_gelato_template_info()
         if image_count_before_sync < len(self.gelato_image_ids):
             self.is_published = False
         return res
 
-    # === BUSINESS METHODS === #
-
     def _create_attributes_from_gelato_info(self, template_info):
-        """Override of `sale_gelato` to set the eCommerce description."""
         self.description_ecommerce = template_info["description"]
         return super()._create_attributes_from_gelato_info(template_info)

@@ -9,7 +9,6 @@
         </xpath>
     </template>
 
-    <!-- If the sale order line concerns an event, we want the "product" link to point to the event itself and not to the product on the ecommerce -->
     <template
         id="cart_line_product_link_inherit_website_event_sale"
         name="Event Shopping Cart Line Product Link"
@@ -22,7 +21,6 @@
         </xpath>
     </template>
 
-    <!-- If the sale order line concerns an event, we want to show an additional line with the event name even on small screens -->
     <template
         id="cart_summary_inherit_website_event_sale"
         inherit_id="website_sale.cart_summary_content">

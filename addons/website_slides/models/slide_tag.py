@@ -4,8 +4,6 @@ from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class SlideTag(models.Model):
-    """Tag to search slides across channels."""
-
     _name = "slide.tag"
     _description = "Slide Tag"
 

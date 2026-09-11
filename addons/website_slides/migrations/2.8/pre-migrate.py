@@ -1,14 +1,3 @@
-"""Migrate slide.question / slide.answer → survey.question / survey.question.answer.
-
-Quiz slides now use survey.survey to store their questions, unifying the data
-model with certifications. This pre-migration creates survey records for each
-quiz slide that has slide_question rows, copies questions and answers into
-survey models, remaps XML IDs, and cleans up.
-
-Uses temporary columns (_marin_from_*) for guaranteed correct ID mapping
-instead of fragile ROW_NUMBER approaches.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -18,7 +7,6 @@ def migrate(cr, version):
     if not version:
         return
 
-    # Check if old tables exist (they won't on fresh installs)
     cr.execute("""
         SELECT EXISTS (
             SELECT FROM information_schema.tables
@@ -39,7 +27,6 @@ def migrate(cr, version):
         "Migrating %d slide.question records to survey.question", question_count
     )
 
-    # Step 1: Add temp columns for safe ID mapping
     cr.execute(
         "ALTER TABLE survey_survey ADD COLUMN IF NOT EXISTS _marin_from_slide_id INTEGER"
     )
@@ -50,7 +37,6 @@ def migrate(cr, version):
         "ALTER TABLE survey_question_answer ADD COLUMN IF NOT EXISTS _marin_from_slide_answer_id INTEGER"
     )
 
-    # Step 2: Create survey.survey records for quiz slides that have questions but no survey
     cr.execute("""
         INSERT INTO survey_survey (
             title, survey_type, access_token, scoring_type, scoring_success_min,
@@ -78,7 +64,6 @@ def migrate(cr, version):
     surveys_created = cr.rowcount
     _logger.info("Created %d survey.survey records for quiz slides", surveys_created)
 
-    # Link surveys to slides
     cr.execute("""
         UPDATE slide_slide ss
         SET survey_id = sv.id
@@ -87,9 +72,6 @@ def migrate(cr, version):
           AND ss.survey_id IS NULL
     """)
 
-    # Step 3: Copy slide_question → survey_question
-    # Only migrate questions for slides whose survey was just created (step 2),
-    # not certification slides that already had their own survey with questions.
     cr.execute("""
         INSERT INTO survey_question (
             survey_id, title, sequence, question_type, is_page,
@@ -108,7 +90,6 @@ def migrate(cr, version):
     questions_migrated = cr.rowcount
     _logger.info("Migrated %d slide_question → survey_question", questions_migrated)
 
-    # Step 4: Copy slide_answer → survey_question_answer
     cr.execute("""
         INSERT INTO survey_question_answer (
             question_id, value, sequence, is_correct, answer_score, comment,
@@ -128,7 +109,6 @@ def migrate(cr, version):
     answers_migrated = cr.rowcount
     _logger.info("Migrated %d slide_answer → survey_question_answer", answers_migrated)
 
-    # Step 5: Remap XML IDs for demo/data records
     cr.execute("""
         UPDATE ir_model_data imd
         SET model = 'survey.question', res_id = sq.id
@@ -144,12 +124,10 @@ def migrate(cr, version):
           AND sqa._marin_from_slide_answer_id = imd.res_id
     """)
 
-    # Clean up remaining XML IDs that weren't remapped
     cr.execute(
         "DELETE FROM ir_model_data WHERE model IN ('slide.question', 'slide.answer')"
     )
 
-    # Step 6: Clean up ir_model and ir_model_fields
     cr.execute("DELETE FROM ir_model WHERE model IN ('slide.question', 'slide.answer')")
     cr.execute(
         "DELETE FROM ir_model_fields WHERE model IN ('slide.question', 'slide.answer')"
@@ -161,7 +139,6 @@ def migrate(cr, version):
         "UPDATE ir_model_fields SET relation = 'survey.question.answer' WHERE relation = 'slide.answer'"
     )
 
-    # Step 7: Drop temp columns and advance sequences
     cr.execute("ALTER TABLE survey_survey DROP COLUMN IF EXISTS _marin_from_slide_id")
     cr.execute(
         "ALTER TABLE survey_question DROP COLUMN IF EXISTS _marin_from_slide_question_id"

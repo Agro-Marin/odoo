@@ -34,7 +34,6 @@ export class SocialMediaLinks extends BaseOptionComponent {
         this.idsMediaMap = new Map();
         this.mediaIdsMap = new Map();
 
-        // hack to trigger the rebuild
         this.reorderTriggered = useState({ trigger: 0 });
 
         useSortable({
@@ -50,7 +49,6 @@ export class SocialMediaLinks extends BaseOptionComponent {
 
                 const oldIdx = this.ids.findIndex((id) => id === elId);
                 if (oldIdx < 0) {
-                    // Not found: `splice(-1, 1)` would drop the wrong (last) row.
                     return;
                 }
                 this.ids.splice(oldIdx, 1);
@@ -78,23 +76,20 @@ export class SocialMediaLinks extends BaseOptionComponent {
                     this.dependencies.history.addStep();
                 }
 
-                // hack to trigger the rebuild
                 this.reorderTriggered.trigger++;
             },
         });
     }
 
     /**
-     * Each item has at least one of `domPosition` or `media`
      * @typedef { Object } SocialMediaLinkItem
-     * @property { String } fabricatedKey a key that combines the `id` and the `domPosition` (this is a hack to trigger rebuild when domPosition changes, because `applyTo does not correctly support props updates)
-     * @property { int } id An arbitrary number to identify an item
-     * @property { int } [domPosition] The position of the link in the children list (if the item has a link in the dom), starting from 1 (to use `:nth-` selector)
-     * @property { string } [media] The name of the recorded social media (if the item is editing a link from the orm)
+     * @property { String } fabricatedKey
+     * @property { int } id
+     * @property { int } [domPosition]
+     * @property { string } [media]
      */
 
     /**
-     * Builds the list of items by reconciling what is present in the dom with what was previously computed
      * @returns { SocialMediaLinkItem[] }
      */
     computeItems() {
@@ -148,8 +143,6 @@ export class SocialMediaLinks extends BaseOptionComponent {
         this.ids = [];
         this.elIdsMap = new Map();
         this.idsMediaMap = new Map();
-        // Reset the reverse maps too, otherwise stale id→(detached element)
-        // entries accumulate across every recompute (detached-DOM leak).
         this.idsElMap = new Map();
         this.mediaIdsMap = new Map();
 
@@ -167,7 +160,6 @@ export class SocialMediaLinks extends BaseOptionComponent {
         let elementAfter = null;
         for (let i = items.length - 1; i >= 0; i--) {
             items[i].nextLink = elementAfter;
-            // This fabricated key is a hack. It is used as `t-key` in the component instead of the id in order to force re-creation of the components if the domPosition changes (this re-creation is a workaround for the applyTo that are not correctly updated)
             items[i].fabricatedKey = `${items[i].id}+${items[i].domPosition}`;
             if (items[i].element) {
                 elementAfter = items[i].element;

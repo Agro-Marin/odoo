@@ -6,7 +6,6 @@ from odoo.tests import HttpCase, tagged
 class TestWishlistProcess(HttpCase):
     def test_01_wishlist_tour(self):
         self.env["product.template"].search([]).write({"website_published": False})
-        # Setup attributes and attributes values
         attributes = self.env["product.attribute"].create(
             [
                 {
@@ -48,7 +47,6 @@ class TestWishlistProcess(HttpCase):
             ]
         )
 
-        # Create product template
         self.env["product.template"].create(
             {
                 "name": "Customizable Desk (TEST)",

@@ -8,7 +8,6 @@ from odoo.addons.mail.tests.common import MailCase
 @tagged("post_install", "-at_install")
 class TestMail(MailCase):
     def test_website_publish_notification(self):
-        """Test that the published/unpublished notifications are sent when publishing/unpublishing an event"""
         published_subtype = self.env.ref("website_event.mt_event_published")
         unpublished_subtype = self.env.ref("website_event.mt_event_unpublished")
         event = self.env["event.event"].create(

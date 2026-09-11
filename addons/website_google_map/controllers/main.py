@@ -6,22 +6,6 @@ from odoo.tools.json import scriptsafe
 
 
 class GoogleMap(http.Controller):
-    """
-    This class generates on-the-fly partner maps that can be reused in every
-    website page. To do so, just use an ``<iframe ...>`` whose ``src``
-    attribute points to ``/google_map`` (this controller generates a complete
-    HTML5 page).
-
-    URL query parameters:
-    - ``partner_ids``: a comma-separated list of ids (partners to be shown)
-    - ``partner_url``: the base-url to display the partner
-        (eg: if ``partner_url`` is ``/partners/``, when the user will click on
-        a partner on the map, it will be redirected to <myodoo>.com/partners/<id>)
-
-    In order to resize the map, simply resize the ``iframe`` with CSS
-    directives ``width`` and ``height``.
-    """
-
     def _get_gmap_domains(self, **kw):
         return [(0, "=", 1)]
 
@@ -42,7 +26,7 @@ class GoogleMap(http.Controller):
 
         limit = (post.get("limit") and int(post["limit"])) or 80
 
-        if domain:  # [] is not allowed
+        if domain:
             domain += [("website_published", "=", True)]
             partners = PartnerSudo.search(domain, limit=limit)
         else:

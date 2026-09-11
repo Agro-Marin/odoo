@@ -18,7 +18,6 @@ class TestUICommon(HttpCaseGamification, HttpCaseWithUserPortal):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # remove demo data
         cls.env["slide.channel"].search([]).unlink()
 
     def setUp(self):
@@ -29,7 +28,6 @@ class TestUICommon(HttpCaseGamification, HttpCaseWithUserPortal):
                 <img class="ms-3 img img-fluid" style="max-height: 72px;" src="/gamification/static/img/rank_misc_mug.png"/>
             </div>"""
 
-        # Load pdf and img contents
         pdf_content = base64.b64encode(
             file_open("website_slides/static/src/img/presentation.pdf", "rb").read()
         )
@@ -110,7 +108,6 @@ class TestUICommon(HttpCaseGamification, HttpCaseWithUserPortal):
             }
         )
 
-        # Create quiz survey for the quiz slide
         quiz_slide = self.channel.slide_ids.filtered(
             lambda s: s.slide_category == "quiz"
         )
@@ -191,7 +188,6 @@ class TestUICommon(HttpCaseGamification, HttpCaseWithUserPortal):
 class TestUi(TestUICommon):
     @mute_logger("odoo.http", "odoo.addons.base.models.ir_rule", "werkzeug")
     def test_course_access_fail_redirection(self):
-        """Test that the user is redirected to /slides with en error displayed instead of the standard error page."""
         self.channel.visibility = "members"
         urls = (
             f"/slides/aaa-{self.channel.id}",
@@ -209,7 +205,6 @@ class TestUi(TestUICommon):
                 response.headers.get("Location"), "/slides?invite_error=no_rights"
             )
 
-        # auth="user" has priority
         urls = (
             f"/slides/slide/aaa-{self.channel.slide_ids[0].id}/set_completed",
             f"/slides/slide/{self.channel.slide_ids[0].id}/set_completed",
@@ -256,7 +251,6 @@ class TestUi(TestUICommon):
         self.start_tour("/slides", "course_member", login=user_portal.login)
 
     def test_full_screen_edition_website_restricted_editor(self):
-        # group_website_designer
         user_demo = self.user_demo
         user_demo.write(
             {
@@ -308,7 +302,6 @@ class TestUi(TestUICommon):
             }
         )
 
-        # The user must be a course member before being able to post a log note.
         self.channel._action_add_members(user_demo.partner_id)
         self.channel.with_user(user_demo).message_post(
             body="Log note", subtype_xmlid="mail.mt_note", message_type="comment"
@@ -489,7 +482,6 @@ class TestUiMemberInvited(TestUICommon):
 @tests.common.tagged("external", "post_install", "-standard", "-at_install")
 class TestUiPublisherYoutube(HttpCaseGamification):
     def test_course_member_yt_employee(self):
-        # remove membership because we need to be able to join the course during the tour
         user_demo = self.user_demo
         user_demo.write(
             {"group_ids": [(5, 0), (4, self.env.ref("base.group_user").id)]}

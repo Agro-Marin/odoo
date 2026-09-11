@@ -23,8 +23,6 @@ export class DynamicSnippet extends Interaction {
         _window: { "t-on-resize": this.throttled(this.render) },
         _root: {
             "t-att-class": () => ({
-                // Compatibility code: A dynamic snippet may end up with one,
-                // several, or all of these classes as a default visibility one.
                 o_dynamic_empty: !this.isVisible,
                 s_dynamic_empty: !this.isVisible,
                 o_dynamic_snippet_empty: !this.isVisible,
@@ -40,10 +38,6 @@ export class DynamicSnippet extends Interaction {
 
     setup() {
         /**
-         * The dynamic filter data source data formatted with the chosen template.
-         * Can be accessed when overriding the _render_content() function in order to generate
-         * a new renderedContent from the original data.
-         *
          * @type {*|jQuery.fn.init|jQuery|HTMLElement}
          */
         this.data = [];
@@ -65,16 +59,10 @@ export class DynamicSnippet extends Interaction {
     }
 
     destroy() {
-        // Clear content.
         const templateAreaEl = this.el.querySelector(".dynamic_snippet_template");
-        // Nested interactions are stopped implicitly.
         templateAreaEl.replaceChildren();
     }
 
-    /**
-     * To be overridden
-     * Check if additional configuration elements are required in order to fetch data.
-     */
     isConfigComplete() {
         const data = this.el.dataset;
         const isSingleModeConfigComplete =
@@ -85,18 +73,10 @@ export class DynamicSnippet extends Interaction {
         );
     }
 
-    /**
-     * To be overridden
-     * Provide a search domain if needed.
-     */
     getSearchDomain() {
         return [];
     }
 
-    /**
-     * To be overridden
-     * Add custom parameters if needed.
-     */
     getRpcParameters() {
         return this.isSingleMode
             ? {
@@ -140,10 +120,6 @@ export class DynamicSnippet extends Interaction {
         }
     }
 
-    /**
-     * To be overridden
-     * Prepare the content before rendering.
-     */
     prepareContent() {
         this.renderedContentNode = renderToFragment(
             this.templateKey,
@@ -151,10 +127,6 @@ export class DynamicSnippet extends Interaction {
         );
     }
 
-    /**
-     * To be overridden
-     * Prepare QWeb options.
-     */
     getQWebRenderOptions() {
         const dataset = this.el.dataset;
         const numberOfRecords = parseInt(dataset.numberOfRecords);
@@ -191,26 +163,13 @@ export class DynamicSnippet extends Interaction {
             this.renderedContentNode = document.createDocumentFragment();
         }
         this.renderContent();
-        // TODO What was this about ? Rendered content is already started.
-        // for (const childEl of this.el.children) {
-        //     this.services["public.interactions"].startInteractions(childEl);
-        // }
     }
 
     renderContent() {
         const templateAreaEl = this.el.querySelector(".dynamic_snippet_template");
         this.services["public.interactions"].stopInteractions(templateAreaEl);
         templateAreaEl.replaceChildren(this.renderedContentNode);
-        // TODO this is probably not the only public widget which creates DOM
-        // which should be attached to another public widget. Maybe a generic
-        // method could be added to properly do this operation of DOM addition.
         this.services["public.interactions"].startInteractions(templateAreaEl);
-        // Same as above and probably should be done automatically for any
-        // bootstrap behavior (apparently needed since BS 5.3): start potential
-        // carousel in new content (according to their data-bs-ride and other
-        // dataset attributes). Note: done here and not in dynamic carousel
-        // extension, because: why not?
-        // (TODO review + See interaction with "slider" public widget).
         this.waitForTimeout(() => {
             templateAreaEl.querySelectorAll(".carousel").forEach((carouselEl) => {
                 if (carouselEl.dataset.bsInterval === "0") {
@@ -229,8 +188,6 @@ export class DynamicSnippet extends Interaction {
     }
 
     /**
-     * Navigates to the call to action url.
-     *
      * @param {Event} ev
      */
     callToAction(ev) {

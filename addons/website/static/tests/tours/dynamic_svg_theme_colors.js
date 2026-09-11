@@ -7,9 +7,6 @@ import {
 const IMG_SELECTOR =
     ":iframe .s_text_image img[src^='/html_editor/shape/illustration/dynamic-svg-test']";
 
-// The website's palette, read from the preview document once it exists: the
-// tour module evaluates before the iframe is there, and the backend page's
-// palette is not the website's.
 const theme = {};
 
 function readTheme(imgEl) {

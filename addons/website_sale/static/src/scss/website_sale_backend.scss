@@ -16,7 +16,6 @@
         @include media-breakpoint-up(xl) {
             flex: 0 0 percentage(1/6);
         }
-        // make the image square and in the center
         .o_squared_image {
             position: relative;
             overflow: hidden;

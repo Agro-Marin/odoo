@@ -4,7 +4,6 @@ from odoo import api, fields, models
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    # Groups
     group_show_uom_price = fields.Boolean(
         string="Base Unit Price",
         default=False,
@@ -26,11 +25,9 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
 
-    # Modules
     module_website_sale_autocomplete = fields.Boolean("Address Autocomplete")
     module_website_sale_collect = fields.Boolean("Click & Collect")
 
-    # Website-dependent settings
     add_to_cart_action = fields.Selection(
         related="website_id.add_to_cart_action", readonly=False
     )
@@ -70,7 +67,6 @@ class ResConfigSettings(models.TransientModel):
         related="website_id.confirmation_email_template_id", readonly=False
     )
 
-    # Additional settings
     account_on_checkout = fields.Selection(
         string="Customer Accounts",
         selection=[
@@ -88,8 +84,6 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
 
-    # === COMPUTE METHODS === #
-
     @api.depends("website_id.account_on_checkout")
     def _compute_account_on_checkout(self):
         for record in self:
@@ -101,7 +95,6 @@ class ResConfigSettings(models.TransientModel):
         for record in self:
             if not record.website_id:
                 continue
-            # account_on_checkout implies different values for `auth_signup_uninvited`
             if record.website_id.account_on_checkout != record.account_on_checkout:
                 if self.account_on_checkout in ["optional", "mandatory"]:
                     record.website_id.auth_signup_uninvited = "b2c"
@@ -109,29 +102,19 @@ class ResConfigSettings(models.TransientModel):
                     record.website_id.auth_signup_uninvited = "b2b"
             record.website_id.account_on_checkout = record.account_on_checkout
 
-    # === CRUD METHODS === #
-
     def set_values(self):
         super().set_values()
         if self.website_id:
             website = self.with_context(website_id=self.website_id.id).website_id
 
-            # Pre-populate the website feeds if none already exists.
             if self.group_gmc_feed and not self.env["product.feed"].search_count(
                 [("website_id", "=", website.id)], limit=1
             ):
                 website._create_product_feeds()
 
-            # Due to an earlier oversight, the GMC feature flag was implemented as website-specific,
-            # even though a group-based feature flag is global. This has been corrected in future
-            # versions, but fixing it here would require a model change, which cannot be backported.
-            # This line serves as a workaround to ensure that all websites share the same setting,
-            # providing consistent behavior across versions.
             self.env["website"].sudo().search_fetch(
                 [], []
             ).enabled_gmc_src = self.group_gmc_feed
-
-    # === ACTION METHODS === #
 
     def action_view_delivery_provider_modules(self):
         return self.env["delivery.carrier"].install_more_provider()
@@ -151,8 +134,6 @@ class ResConfigSettings(models.TransientModel):
 
     def action_view_extra_info(self):
         self.check_singleton()
-        # Add the "edit" parameter in the url to tell the controller
-        # that we want to edit even if we are not in a payment flow
         return self.env["website"].get_client_action(
             "/shop/extra_info?open_editor=true",
             mode_edit=True,
@@ -172,7 +153,6 @@ class ResConfigSettings(models.TransientModel):
 
     @api.readonly
     def action_view_product_feeds(self):
-        """Open the list view to manage the feed specific to the current website."""
         self.check_singleton()
         return {
             "name": self.env._("Product Feeds"),

@@ -38,8 +38,6 @@ registerWebsitePreviewTour(
             content: "Click on the display 'On Click' option",
             trigger: ".o_popover [data-action-id='copyAnchor']",
             async run(helpers) {
-                // Patch and ignore write on clipboard in tour as we don't have
-                // permissions.
                 browser.navigator.clipboard.writeText = () => {
                     console.info("Copy in clipboard ignored!");
                 };
@@ -50,7 +48,6 @@ registerWebsitePreviewTour(
             content: "Check the copied anchor from the notification toast",
             trigger: ".o_notification_manager .o_notification_content",
             run() {
-                // Cleanup the patched clipboard method
                 browser.navigator.clipboard.writeText = oldWriteText;
 
                 const notificationContent = this.anchor.innerText;

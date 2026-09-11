@@ -20,7 +20,6 @@ registry.category("web_tour.tours").add("course_reviews_comment", {
             trigger: "#chatterRoot:shadow .o-mail-Message .o-mail-Composer-input",
             run: "edit Putting a comment...",
         },
-        // When the comment box is closed, the content of the composer is preserved
         {
             trigger: "#chatterRoot:shadow .o-mail-Message button:contains('comment')",
             run: "click",
@@ -37,7 +36,6 @@ registry.category("web_tour.tours").add("course_reviews_comment", {
             trigger:
                 "#chatterRoot:shadow .o-mail-Message .o-mail-Composer-input:value('Putting a comment...')",
         },
-        // Send the comment
         {
             trigger: "#chatterRoot:shadow .o-mail-Message button:contains('save')",
             run: "click",

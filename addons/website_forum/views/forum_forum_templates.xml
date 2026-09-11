@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Specific Forum Layout -->
         <template id="forum_index" name="Forum">
             <t
                 t-set="no_filters"
@@ -18,7 +17,6 @@
             <t t-else="" t-set="_page_name" t-value="'list_questions'" />
 
             <t t-call="website_forum.header">
-                <!-- List questions or search/filters result -->
                 <table
                     t-if="question_count != 0"
                     class="o_wforum_table table mb-5"
@@ -70,7 +68,6 @@
                 <t t-call="website.pager" />
             </t>
         </template>
-        <!-- Edition: ask your question -->
         <template id="new_question" name="New Post">
             <t t-set="_page_name" t-value="'new_question'" />
             <t t-set="_page_name_label">Ask your question</t>
@@ -190,7 +187,6 @@
                 </form>
             </t>
         </template>
-        <!-- Edition: edit a post -->
         <template id="edit_post" name="Edit Post">
             <t t-if="is_answer">
                 <t t-set="_page_name" t-value="'edit_answer'" />

@@ -25,7 +25,6 @@ const websiteServiceWithUserModelName = {
     async getUserModelName() {
         return "Blog Post";
     },
-    // Minimal context to avoid crashes.
     context: {},
     websites: [
         {
@@ -63,7 +62,7 @@ test("Add image as cover", async () => {
     onRpc("/web/image/hoot.png", () => {
         const base64Image =
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYIIA" +
-            "A".repeat(1000); // converted image won't be used if original is not larger
+            "A".repeat(1000);
         return dataURItoBlob(base64Image);
     });
 
@@ -79,8 +78,6 @@ test("Add image as cover", async () => {
     await contains(":iframe h1").click();
     expect("[data-action-id='setCoverBackground'][data-action-param]").toHaveCount(1);
     await contains("[data-action-id='setCoverBackground'][data-action-param]").click();
-    // We use "click" instead of contains.click because contains wait for the image to be visible.
-    // In this test we don't want to wait ~800ms for the image to be visible but we can still click on it
     await click(".o_existing_attachment_cell .o_button_area");
     await waitSidebarUpdated();
     expect(":iframe .o_record_cover_image").toHaveStyle({

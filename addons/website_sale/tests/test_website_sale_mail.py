@@ -12,7 +12,6 @@ from odoo.addons.website_sale.tests.common import WebsiteSaleCommon
 @tagged("post_install", "-at_install", "mail_thread")
 class TestWebsiteSaleMail(HttpCaseWithUserPortal):
     def test_01_shop_mail_tour(self):
-        """The goal of this test is to make sure sending SO by email works."""
         self.env.ref("base.user_admin").write(
             {
                 "email": "mitchell.admin@example.com",
@@ -33,9 +32,7 @@ class TestWebsiteSaleMail(HttpCaseWithUserPortal):
             }
         )
 
-        # we override unlink because we don't want the email to be auto deleted
         MailMail = odoo.addons.mail.models.mail_mail.MailMail
-        # as we check some link content, avoid mobile doing its link management
         self.env["ir.config_parameter"].sudo().set_param(
             "mail_mobile.disable_redirect_firebase_dynamic_link", True
         )
@@ -43,8 +40,6 @@ class TestWebsiteSaleMail(HttpCaseWithUserPortal):
         main_website = self.env.ref("website.default_website")
         other_websites = self.env["website"].search([]) - main_website
 
-        # We change the domain of the website to test that the email that
-        # will be sent uses the correct domain for its links.
         main_website.domain = "my-test-domain.com"
         for w in other_websites:
             w.domain = f"domain-not-used-{w.id}.fr"
@@ -101,7 +96,6 @@ class TestWebsiteSaleMails(MailCommon, WebsiteSaleCommon):
         base_method = MixinMailThread._message_create
         superuser = self.env["res.users"].browse(SUPERUSER_ID)
 
-        # Public user
         with patch.object(
             MixinMailThread, "_message_create", autospec=True, side_effect=base_method
         ) as patcher:
@@ -124,7 +118,6 @@ class TestWebsiteSaleMails(MailCommon, WebsiteSaleCommon):
                 msg_values["subject"], f"You have been assigned to {order.name}"
             )
 
-        # Portal user
         user_portal = self._create_portal_user()
         portal_partner = user_portal.partner_id
         portal_user_cart = self.cart.copy(

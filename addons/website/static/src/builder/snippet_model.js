@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { SnippetModel } from "@html_builder/snippets/snippet_service";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { applyTextHighlight } from "@website/js/highlight_utils";
@@ -11,7 +10,6 @@ patch(SnippetModel.prototype, {
      */
     updateSnippetContent(snippetEl) {
         super.updateSnippetContent(...arguments);
-        // Build the highlighted text content for new added snippets.
         for (const textEl of snippetEl?.querySelectorAll(".o_text_highlight") || []) {
             applyTextHighlight(textEl);
         }
@@ -25,8 +23,6 @@ patch(SnippetModel.prototype, {
         if (!label) {
             const contentEl = snippetEl.children[0];
             const parallaxLabel = _t("Parallax");
-            // Retrieve the original snippet label when a snippet is a custom
-            // snippet.
             if (isCustom) {
                 const originalSnippetLabel = this.getOriginalSnippet(
                     contentEl.dataset.snippet,
@@ -35,10 +31,6 @@ patch(SnippetModel.prototype, {
                     label = originalSnippetLabel;
                 }
             }
-            // Check if any element in the snippet has the "parallax" class to
-            // show the "Parallax" label. This must be done this way because a
-            // theme or custom snippet may add or remove parallax elements. Note
-            // that if a label is already set, we do not change it.
             if (
                 !label &&
                 (contentEl.matches(".parallax") ||
@@ -50,11 +42,3 @@ patch(SnippetModel.prototype, {
         return label;
     },
 });
-
-registry
-    .category("html_builder.snippetsPreprocessor")
-    .add("website_snippets", (namespace, snippets) => {
-        if (namespace === "website.snippets") {
-            // This should be empty in master, it is used to fix snippets in stable.
-        }
-    });

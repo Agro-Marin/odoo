@@ -111,7 +111,6 @@ test("Product page options", async () => {
         };
     });
     onRpc("/web/image/hoot.png", () => {
-        // converted image won't be used if original is not larger
         return dataURItoBlob(base64Image + "A".repeat(1000));
     });
 
@@ -130,7 +129,6 @@ test("Product page options", async () => {
     ).toHaveCount(1);
     expect(":iframe img").toHaveCount(2);
     await contains("button#o_wsale_image_width").click();
-    // Avoid selecting the first option to prevent the image layout option from disappearing
     await contains(
         "[data-action-id=productPageImageWidth][data-action-value='50_pc']",
     ).click();
@@ -140,19 +138,8 @@ test("Product page options", async () => {
     await contains("button#o_wsale_image_layout").click();
     await contains("[data-action-id=productPageImageLayout]").click();
     await waitSidebarUpdated();
-    await expect.waitForSteps([
-        // Activate the carousel view and change the shop config
-        "config",
-        // Save the pending image width class changes
-        "save",
-        // Save the image changes
-        "save",
-        // Reload the view
-        "theme_customize_data_get",
-    ]);
+    await expect.waitForSteps(["config", "save", "save", "theme_customize_data_get"]);
 
-    // Make sure that clicking quickly on a builder button after an clicking on
-    // an action that reloads the editor does not produce a crash.
     await contains("[data-action-id=websiteConfig].o_we_buy_now_btn").click();
     await contains("button#o_wsale_image_layout").click();
     await expect.waitForSteps(["theme_customize_data", "theme_customize_data_get"]);

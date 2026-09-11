@@ -169,7 +169,6 @@
             eval="[(6, 0, [ref('product.product_product_7')])]" />
     </record>
 
-    <!-- product.public.category -->
     <record id="public_category_desks" model="product.public.category">
         <field name="name">Desks</field>
         <field name="sequence">15</field>
@@ -287,8 +286,6 @@
             file="product/static/img/product_product_43-image.jpg" />
     </record>
 
-    <!-- subcategories -->
-    <!-- subcategories for desks -->
     <record id="public_category_desks_components" model="product.public.category">
         <field name="parent_id" eval="ref('public_category_desks')" />
         <field name="name">Components</field>
@@ -333,7 +330,6 @@
         <field name="sequence">21</field>
     </record>
 
-    <!-- subcategories for furnitures -->
     <record id="public_category_furnitures_sofas" model="product.public.category">
         <field name="parent_id" eval="ref('public_category_furnitures')" />
         <field name="name">Sofas</field>
@@ -370,7 +366,6 @@
         <field name="sequence">28</field>
     </record>
 
-    <!-- subcategories for boxes -->
     <record id="public_category_boxes_vintage" model="product.public.category">
         <field name="parent_id" eval="ref('public_category_boxes')" />
         <field name="name">Vintage Boxes</field>
@@ -401,7 +396,6 @@
         <field name="sequence">34</field>
     </record>
 
-    <!-- subcategories for drawers -->
     <record id="public_category_drawers_nightstand" model="product.public.category">
         <field name="parent_id" eval="ref('public_category_drawers')" />
         <field name="name">Nightstand Drawers</field>
@@ -426,7 +420,6 @@
         <field name="sequence">39</field>
     </record>
 
-    <!-- subcategories for cabinets -->
     <record id="public_category_cabinets_kitchen" model="product.public.category">
         <field name="parent_id" eval="ref('public_category_cabinets')" />
         <field name="name">Kitchen Cabinets</field>
@@ -451,7 +444,6 @@
         <field name="sequence">44</field>
     </record>
 
-    <!-- subcategories for bins -->
     <record id="public_category_bins_laundry" model="product.public.category">
         <field name="parent_id" eval="ref('public_category_bins')" />
         <field name="name">Laundry Bins</field>
@@ -470,7 +462,6 @@
         <field name="sequence">48</field>
     </record>
 
-    <!-- subcategories for lamps -->
     <record id="public_category_lamps_desk" model="product.public.category">
         <field name="parent_id" eval="ref('public_category_lamps')" />
         <field name="name">Desk Lamps</field>
@@ -495,7 +486,6 @@
         <field name="sequence">53</field>
     </record>
 
-    <!-- subcategories for services -->
     <record
         id="public_category_services_design_and_planning"
         model="product.public.category">
@@ -528,7 +518,6 @@
         <field name="sequence">58</field>
     </record>
 
-    <!-- subcategories for lamps -->
     <record
         id="public_category_multimedia_virtual_design"
         model="product.public.category">
@@ -715,7 +704,6 @@
             eval="[(6,0,[                 ref('base.be'),ref('base.lu'),ref('base.nl')])]" />
     </record>
 
-    <!-- Since we are adding pricelists, we activate the feature -->
     <record id="base.group_user" model="res.groups">
         <field
             name="implied_ids"
@@ -768,7 +756,6 @@
         <field name="base">list_price</field>
     </record>
 
-    <!-- Add demo-data for pretty website sales graph (for the sales dashboard) -->
     <record id="website_sale_order_1" model="sale.order">
         <field name="create_date" eval="datetime.now() - timedelta(days=8)" />
         <field name="partner_id" ref="base.res_partner_3" />
@@ -947,7 +934,6 @@
         <field name="price_unit">120.50</field>
     </record>
 
-    <!-- Active Carts -->
     <record id="website_sale_order_10" model="sale.order">
         <field name="partner_id" ref="base.res_partner_3" />
         <field name="partner_invoice_id" ref="base.res_partner_address_25" />
@@ -966,7 +952,6 @@
         <field name="price_unit">33</field>
     </record>
 
-    <!-- Abandoned Carts -->
     <record id="website_sale_order_11" model="sale.order">
         <field name="partner_id" ref="base.res_partner_3" />
         <field name="partner_invoice_id" ref="base.res_partner_address_25" />
@@ -985,7 +970,6 @@
         <field name="price_unit">47.0</field>
     </record>
 
-    <!-- Payments to Capture -->
     <record id="website_sale_order_13" model="sale.order">
         <field name="partner_id" ref="base.res_partner_3" />
         <field name="partner_invoice_id" ref="base.res_partner_address_25" />
@@ -1006,7 +990,6 @@
         <field name="price_unit">1799.0</field>
     </record>
 
-    <!-- Order to Invoice -->
     <record id="website_sale_order_14" model="sale.order">
         <field name="partner_id" ref="base.res_partner_3" />
         <field name="partner_invoice_id" ref="base.res_partner_address_25" />
@@ -1083,7 +1066,6 @@
         <field name="invoice_state">to do</field>
     </record>
 
-    <!-- action_confirm for confirmation date -->
     <function
         model="sale.order"
         name="action_confirm"
@@ -1121,7 +1103,6 @@
             eval="[Command.set([                     ref('product.pav_duration_year_1'),                     ref('product.pav_duration_year_2'),                     ref('product.pav_duration_year_3'),                 ])]" />
     </record>
 
-    <!-- Handle automatically created product.template.attribute.value -->
     <function model="ir.model.data" name="_update_xmlids">
         <value
             model="base"
@@ -1215,7 +1196,6 @@
             eval="[Command.set([                     ref('product.product_product_11_product_template'),                     ref('website_sale.product_product_1_product_template'),                 ])]" />
     </record>
 
-    <!-- Products' secondary images -->
     <record id="product_delivery_01_extra_image" model="product.image">
         <field name="name">Office Chair - Context View</field>
         <field name="sequence">10</field>
@@ -1406,7 +1386,6 @@
             file="website_sale/static/src/img/products_demo/product_product_3-image_02.jpg" />
     </record>
 
-    <!-- Products' tertiary images -->
     <record id="product_product_4_extra_image_1" model="product.image">
         <field name="name">Customizable Desk Steel - Detail View</field>
         <field name="sequence">11</field>

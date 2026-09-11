@@ -29,14 +29,12 @@ class WebsiteSnippetFilter(models.Model):
         update_limit_cache = False
         product_limit = limit or self.limit
         if hide_variants and self.filter_id.model_id == "product.product":
-            # When hiding variants, temporarily update cache to increase `self.limit`
-            # so we hopefully end up with the correct amount of product templates
             update_limit_cache = partial(
                 self.env.cache.set,
                 record=self,
                 field=self._fields["limit"],
             )
-            limit = product_limit**2  # heuristic, may still be inadequate in some cases
+            limit = product_limit**2
             stored_limit = self.limit
             update_limit_cache(value=limit)
         res = super(
@@ -134,18 +132,14 @@ class WebsiteSnippetFilter(models.Model):
                 product = res_product.get("_record")
                 if not options.get("is_sample"):
                     if hide_variants and not product.has_configurable_attributes:
-                        # Still display a product.product if the template is not configurable
                         res_product["_record"] = product = product.product_variant_id
 
-                    # TODO VFE combination_info is only called to get the price here
-                    # factorize and avoid computing the rest
                     if product.is_product_variant:
                         res_product.update(product._get_combination_info_variant())
                     elif hide_variants:
                         res_product.update(
                             product._get_combination_info(only_template=True)
                         )
-                        # Re-add product_id since it is set to false and required by some tests
                         res_product["product_id"] = product.product_variant_id.id
                     else:
                         res_product.update(product._get_combination_info())
@@ -162,22 +156,14 @@ class WebsiteSnippetFilter(models.Model):
 
     @api.model
     def _prepare_category_list_data(self, parent_id=None):
-        """Return a list of categories to be displayed in the category list snippet.
-        If `parent_id` is provided, return it with its children, otherwise top-level categories.
-
-        :param int parent_id: ID of the parent category, if any.
-        :return: List of dictionaries containing category ID, name, and cover image URL.
-        :rtype: list[dict]
-        """
         CategorySudo = request.env["product.public.category"].sudo()
         domain = CategorySudo._get_domain_available_category(request.website.id)
         if parent_id:
             parent_category = CategorySudo.browse(parent_id)
-            # Parent category should be first.
             categories = parent_category | parent_category.child_id.filtered_domain(
                 domain
             )
-        else:  # Only top-level categories
+        else:
             categories = CategorySudo.search(domain & Domain("parent_id", "=", False))
 
         base_url = CategorySudo.get_base_url()
@@ -293,8 +279,6 @@ class WebsiteSnippetFilter(models.Model):
                 filtered_ids = set(
                     self.env["product.product"]._search(domain, limit=limit)
                 )
-                # `search` will not keep the order of tracked products; however, we want to keep
-                # that order (latest viewed first).
                 products = (
                     self.env["product.product"]
                     .with_context(

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Insert the donation form inside the payment form's <form/> element. -->
     <template id="website_payment.payment_form" inherit_id="payment.form">
         <xpath expr="//div[@id='o_payment_form_options']" position="before">
             <div class="mb-3" t-if="is_donation">
@@ -10,7 +9,6 @@
         </xpath>
     </template>
 
-    <!-- Display of /donation/pay -->
     <template id="website_payment.donation_pay" name="Donation payment">
         <t t-call="portal.frontend_layout">
             <t t-set="page_title">Donation</t>
@@ -20,9 +18,7 @@
                     class="oe_structure"
                     id="oe_structure_website_payment_donation_1" />
                 <div class="container mb-3">
-                    <!-- Portal breadcrumb -->
                     <t t-call="payment.portal_breadcrumb" />
-                    <!-- Payment page -->
                     <div class="row">
                         <div class="col-lg-7">
                             <div t-if="not amount" class="alert alert-info">

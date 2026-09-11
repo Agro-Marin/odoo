@@ -26,7 +26,6 @@ test(`owl components are neutered in edit mode`, async () => {
     const { core } = await startInteractions(html);
     await animationFrame();
 
-    // components are now mounted
     expect(`.test`).toHaveInnerHTML(`
         <owl-component name="my_public_comp">
             <owl-root contenteditable="false" data-oe-protected="true" style="display: contents;">
@@ -38,7 +37,6 @@ test(`owl components are neutered in edit mode`, async () => {
     await switchToEditMode(core);
     await animationFrame();
 
-    // in edit mode, we have pointer-events: none on owl-component
     expect(`.test`).toHaveInnerHTML(`
         <owl-component name="my_public_comp" style="pointer-events: none;">
             <owl-root contenteditable="false" data-oe-protected="true" style="display: contents;">
@@ -66,7 +64,6 @@ test(`edit owl components are not neutered in edit mode`, async () => {
     const { core } = await startInteractions(html);
     await animationFrame();
 
-    // components are now mounted
     expect(`.test`).toHaveInnerHTML(`
         <owl-component name="my_public_comp" >
             <owl-root contenteditable="false" data-oe-protected="true" style="display: contents;">
@@ -78,7 +75,6 @@ test(`edit owl components are not neutered in edit mode`, async () => {
     await switchToEditMode(core);
     await animationFrame();
 
-    // in edit mode, there should not be a pointer-events: none
     expect(`.test`).toHaveInnerHTML(`
         <owl-component name="my_public_comp" >
             <owl-root contenteditable="false" data-oe-protected="true" style="display: contents;">

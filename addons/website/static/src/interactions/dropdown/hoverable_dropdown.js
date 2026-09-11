@@ -24,7 +24,7 @@ export class HoverableDropdown extends Interaction {
 
     setup() {
         this.dropdownMenuEls = this.el.querySelectorAll(".dropdown-menu");
-        this.breakpointSize = SIZES.LG; // maybe need to check in .navbar elem like in BaseHeader?
+        this.breakpointSize = SIZES.LG;
     }
 
     start() {
@@ -61,12 +61,8 @@ export class HoverableDropdown extends Interaction {
             this.el.ownerDocument.querySelector(":focus") ||
             window.frameElement?.ownerDocument.querySelector(":focus");
 
-        // The user must click on the dropdown if he is on mobile (no way to
-        // hover) or if the dropdown is the (or in the) extra menu ('+').
         this.updateDropdownVisibility(currentTargetEl, true);
 
-        // Keep the focus on the previously focused element if any, otherwise do
-        // not focus the dropdown on hover.
         if (focusedEl) {
             focusedEl.focus({ preventScroll: true });
         } else {

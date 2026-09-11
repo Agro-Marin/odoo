@@ -25,7 +25,6 @@ class ProductAttribute(models.Model):
 
     @api.onchange("create_variant", "display_type")
     def _onchange_disable_preview_variants(self):
-        """The option to preview variants is only available for instantly created single variants."""
         if self.create_variant != "always" or self.display_type == "multi":
             self.preview_variants = "hidden"
             self.is_thumbnail_visible = False

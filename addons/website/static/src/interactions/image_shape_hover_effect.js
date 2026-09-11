@@ -16,8 +16,6 @@ export class ImageShapeHoverEffect extends Interaction {
         this.originalImgSrc = this.el.getAttribute("src");
         this.svgInEl = null;
         this.svgOutEl = null;
-        // Observe the src attribute for modifications made outside this
-        // interaction's scope.
         this.sourceObserver = new MutationObserver(() => {
             this.originalImgSrc = this.el.src;
         });
@@ -60,7 +58,6 @@ export class ImageShapeHoverEffect extends Interaction {
                                     resolve();
                                     return;
                                 }
-                                // Start animations.
                                 const animateEls = this.svgInEl.querySelectorAll(
                                     "#hoverEffects animateTransform, #hoverEffects animate",
                                 );
@@ -69,10 +66,7 @@ export class ImageShapeHoverEffect extends Interaction {
                                 });
                                 this.setImgSrc(this.svgInEl, resolve);
                             })
-                            .catch(() => {
-                                // Could be the case if somehow the `src` is an absolute
-                                // URL from another domain.
-                            });
+                            .catch(() => {});
                     } else {
                         this.setImgSrc(this.svgInEl, resolve);
                     }
@@ -93,7 +87,6 @@ export class ImageShapeHoverEffect extends Interaction {
                         return;
                     }
                     if (!this.svgOutEl) {
-                        // Reverse animations.
                         this.svgOutEl = this.svgInEl.cloneNode(true);
                         const animateTransformEls = this.svgOutEl.querySelectorAll(
                             "#hoverEffects animateTransform, #hoverEffects animate",
@@ -110,36 +103,23 @@ export class ImageShapeHoverEffect extends Interaction {
     }
 
     /**
-     * Converts the SVG to a data URI and set it as the image source.
-     *
      * @param {HTMLElement} svg
      * @param {Function} resolve
-￼    */
+     */
     setImgSrc(svg, resolve) {
         if (this.isDestroyed) {
             return;
         }
-        // Add random class to prevent browser from caching image. Otherwise the
-        // animations do not trigger more than once.
         const previousRandomClass = [...svg.classList].find((cl) =>
             cl.startsWith("o_shape_anim_random_"),
         );
         svg.classList.remove(previousRandomClass);
         svg.classList.add("o_shape_anim_random_" + Date.now());
-        // Convert the SVG element to a data URI. Percent-encode as UTF-8 rather
-        // than btoa(), which throws (InvalidCharacterError) on any non-Latin1
-        // glyph in the SVG (e.g. a Unicode character in a <text>).
         const svgString = new XMLSerializer().serializeToString(svg);
-        // The image is preloaded to avoid a flickering when it is added to the
-        // DOM.
         const preloadedImg = new Image();
         preloadedImg.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
         preloadedImg.onload = () => {
             if (this.isDestroyed) {
-                // In some cases, it is possible for the "preloadedImg" to
-                // finish loading while the widget has already been destroyed.
-                // So, we do not set the image source because that can cause
-                // unexpected reverse of the animation.
                 resolve();
                 return;
             }
@@ -152,9 +132,6 @@ export class ImageShapeHoverEffect extends Interaction {
     }
 
     /**
-     * Overridable method called once the preloadedImageEl is loaded in
-     * setImgSrc.
-     *
      * @param {HTMLImageElement} preloadedImageEl
      */
     adjustImageSourceFrom(preloadedImageEl) {

@@ -6,7 +6,6 @@ import { user } from "@web/core/user";
 export const websitePageService = {
     start() {
         const htmlEl = document.querySelector("html");
-        // TODO this is duplicated in website_service.js at least... to share
         const match = htmlEl.dataset.mainObject?.match(/(.+)\((-?\d+),(.*)\)/);
 
         return {

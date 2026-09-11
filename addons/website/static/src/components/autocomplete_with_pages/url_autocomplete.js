@@ -4,8 +4,6 @@ import { rpc } from "@web/core/network";
 import { useChildRef } from "@web/core/utils/hooks";
 import { AutoCompleteWithPages } from "@website/components/autocomplete_with_pages/autocomplete_with_pages";
 
-// TODO: we probably don't need it anymore after merging html_builder
-// see: https://github.com/odoo/odoo/pull/187091
 export class UrlAutoComplete extends Component {
     static props = {
         options: { type: Object },
@@ -55,7 +53,6 @@ export class UrlAutoComplete extends Component {
                             makeItem({ label: anchor, value: anchor }),
                         );
                     } else if (term.startsWith("http") || term.length === 0) {
-                        // avoid useless call to /website/get_suggested_links
                         return [];
                     }
                     if (this.props.options.isDestroyed?.()) {

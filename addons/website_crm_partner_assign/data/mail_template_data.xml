@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="0">
-        <!-- Technical template, keep updated -->
         <record id="email_template_lead_forward_mail" model="mail.template">
             <field name="name">Lead Forward: Send to partner</field>
             <field
@@ -23,7 +22,6 @@
                     width="590"
                     style="padding: 16px; background-color: white; color: #454748; border-collapse:separate;">
                 <tbody>
-                    <!-- HEADER -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -48,7 +46,6 @@
                             </table>
                         </td>
                     </tr>
-                    <!-- CONTENT -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -93,7 +90,6 @@
                             </table>
                         </td>
                     </tr>
-                    <!-- FOOTER -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -118,7 +114,6 @@
                 </tbody>
                 </table>
                 </td></tr>
-                <!-- POWERED BY -->
                 <tr><td align="center" style="min-width: 590px;">
                     <table
                         border="0"

@@ -59,7 +59,6 @@ export class WebsiteForumSpam extends Interaction {
             const childEl = cloneContentEls(post.content).firstElementChild;
             post.content = childEl.textContent.substring(0, 250);
         });
-        // No need for cleanup, it's already done above.
         this.renderAt("website_forum.spam_search_name", { posts }, postSpamEl);
     }
 

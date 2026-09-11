@@ -51,7 +51,6 @@
         </section>
     </template>
 
-    <!-- Assets -->
     <asset id="website.s_quadrant_000_scss" name="Quadrant 000 SCSS">
         <bundle>web.assets_frontend</bundle>
         <path>website/static/src/snippets/s_quadrant/000.scss</path>

@@ -14,12 +14,6 @@ export class SupportedPaymentMethods extends Interaction {
         await this.fetchPaymentMethods();
     }
 
-    /**
-     * Fetch the payment methods and cache them in the session.
-     *
-     * Caching limits the amount of rpc calls when switching pages, or when editing the snippet in
-     * the editor as any edit reloads the interaction.
-     */
     async fetchPaymentMethods() {
         this.payment_methods = await this.waitFor(
             this.services.http.get(

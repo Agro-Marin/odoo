@@ -2,7 +2,6 @@
 <templates xml:space="preserve">
 
 <t t-name="website.CreatePageMessage">
-    <!-- The wrapping <div> is necessary to avoid a traceback due to the dismiss -->
     <div>
         <div class="alert alert-warning alert-dismissible m-0 rounded-0 border-0">
             <div class="container d-flex align-items-center">

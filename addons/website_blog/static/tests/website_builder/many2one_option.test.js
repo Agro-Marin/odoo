@@ -39,7 +39,7 @@ test("Change contact oe-many2one-id of a blog author changes other instance of s
     await contains("span.o-dropdown-item.dropdown-item").click();
     expect(":iframe span.span-1 > span").toHaveText("The Name of 1");
     expect(":iframe span.span-2 > span").toHaveText("The Address of 1");
-    expect(":iframe span.span-3 > span").toHaveText("The Address of 3"); // author of other post is not changed
+    expect(":iframe span.span-3 > span").toHaveText("The Address of 3");
     expect(":iframe span.span-4").toHaveText("Hermit");
     expect(":iframe div > img").toHaveAttribute(
         "src",

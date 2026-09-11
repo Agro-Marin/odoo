@@ -4,12 +4,11 @@ import { Checkout } from "@website_sale/interactions/checkout";
 
 patch(Checkout.prototype, {
     /**
-     * @override method from `@website_sale/interactions/checkout`
+     * @override
      */
     _updateCartSummary(result, targetEl) {
         super._updateCartSummary(...arguments);
         if (result.amount_delivery_discounted) {
-            // Update discount of the order
             const cart_summary_shipping_reward = targetEl.querySelector(
                 '[data-reward-type="shipping"]',
             );
@@ -26,7 +25,6 @@ patch(Checkout.prototype, {
                 cart_summary_discount_rewards.length !==
                 result.discount_reward_amounts.length
             ) {
-                // refresh cart summary to sync number of discount items
                 location.reload();
             } else {
                 cart_summary_discount_rewards.forEach(

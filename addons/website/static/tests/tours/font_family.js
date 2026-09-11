@@ -33,9 +33,6 @@ registerWebsitePreviewTour(
         {
             trigger:
                 "[data-container-title='Headings'] [data-label='Font Family'] .dropdown-toggle",
-            // This is a workaround to prevent the _reloadBundles method from being called.
-            // It addresses the issue where selecting a we-button with data-no-bundle-reload,
-            // such as o_we_add_font_btn.
             run: function () {
                 const options = odoo.loader.modules.get(
                     "@website/builder/plugins/customize_website_plugin",

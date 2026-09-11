@@ -34,7 +34,6 @@ export class PublishSystrayItem extends Component {
             processing: false,
         });
 
-        // TODO: website service should share a reactive
         useBus(
             websiteSystrayRegistry,
             "CONTENT-UPDATED",

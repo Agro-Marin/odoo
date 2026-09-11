@@ -62,11 +62,8 @@ class SlideSlide(models.Model):
         "application/vnd.google-apps.presentation": "slides",
     }
 
-    # description
     name = fields.Char("Title", required=True, translate=True)
-    image_1920 = fields.Image(
-        compute="_compute_image_1920", store=True, readonly=False
-    )  # mixin.image override
+    image_1920 = fields.Image(compute="_compute_image_1920", store=True, readonly=False)
     active = fields.Boolean(default=True, tracking=100)
     sequence = fields.Integer("Sequence", default=0)
     user_id = fields.Many2one(
@@ -98,7 +95,6 @@ class SlideSlide(models.Model):
         readonly=False,
         store=True,
     )
-    # Categories
     is_category = fields.Boolean("Is a category", default=False)
     category_id = fields.Many2one(
         "slide.slide",
@@ -108,7 +104,6 @@ class SlideSlide(models.Model):
         index="btree_not_null",
     )
     slide_ids = fields.One2many("slide.slide", "category_id", string="Content")
-    # subscribers
     partner_ids = fields.Many2many(
         "res.partner",
         "slide_slide_partner",
@@ -132,7 +127,6 @@ class SlideSlide(models.Model):
         compute_sudo=False,
         help="Subscriber information for the current logged in user",
     )
-    # current user membership
     user_vote = fields.Integer(
         "User vote", compute="_compute_user_membership_id", compute_sudo=False
     )
@@ -142,7 +136,6 @@ class SlideSlide(models.Model):
     user_has_completed_category = fields.Boolean(
         "Is Category Completed", compute="_compute_category_completed"
     )
-    # Quiz / survey fields
     survey_id = fields.Many2one(
         "survey.survey", "Linked Survey", index="btree_not_null"
     )
@@ -164,7 +157,6 @@ class SlideSlide(models.Model):
     nbr_certification = fields.Integer(
         "Number of Certifications", compute="_compute_slides_statistics", store=True
     )
-    # content
     can_self_mark_completed = fields.Boolean(
         "Can Mark Completed",
         compute="_compute_mark_complete_actions",
@@ -196,7 +188,6 @@ class SlideSlide(models.Model):
         default="local_file",
         required=True,
     )
-    # generic
     url = fields.Char(
         "External URL", help="URL of the Google Drive file or URL of the YouTube video"
     )
@@ -212,11 +203,9 @@ class SlideSlide(models.Model):
         default=False,
         help="Allow the user to download the content of the slide.",
     )
-    # google
     google_drive_id = fields.Char(
         "Google Drive ID of the external URL", compute="_compute_google_drive_id"
     )
-    # content - webpage
     html_content = fields.Html(
         "HTML Content",
         translate=True,
@@ -225,17 +214,15 @@ class SlideSlide(models.Model):
         sanitize_overridable=True,
         help="Custom HTML content for slides of category 'Article'.",
     )
-    # content - images
     image_binary_content = fields.Binary(
         "Image Content", related="binary_content", readonly=False
-    )  # Used to filter file input to images only
+    )
     image_google_url = fields.Char(
         "Image Link",
         related="url",
         readonly=False,
         help="Link of the image (we currently only support Google Drive as source)",
     )
-    # content - documents
     slide_icon_class = fields.Char(
         "Slide Icon fa-class", compute="_compute_slide_icon_class"
     )
@@ -267,8 +254,7 @@ class SlideSlide(models.Model):
     )
     document_binary_content = fields.Binary(
         "PDF Content", related="binary_content", readonly=False
-    )  # Used to filter file input to PDF only
-    # content - videos
+    )
     video_url = fields.Char(
         "Video Link",
         related="url",
@@ -282,7 +268,6 @@ class SlideSlide(models.Model):
     )
     youtube_id = fields.Char("Video YouTube ID", compute="_compute_youtube_id")
     vimeo_id = fields.Char("Video Vimeo ID", compute="_compute_vimeo_id")
-    # website
     website_id = fields.Many2one(related="channel_id.website_id", readonly=True)
     date_published = fields.Datetime(
         "Publish Date", readonly=True, tracking=False, copy=False
@@ -304,7 +289,6 @@ class SlideSlide(models.Model):
         help="Same as 'Embed Code' but used to embed the content on an external website.",
     )
     website_share_url = fields.Char("Share URL", compute="_compute_website_share_url")
-    # views
     embed_ids = fields.One2many(
         "slide.embed", "slide_id", string="External Slide Embeds"
     )
@@ -318,18 +302,15 @@ class SlideSlide(models.Model):
     total_views = fields.Integer(
         "# Total Views", default="0", compute="_compute_total", store=True
     )
-    # comments
     comments_count = fields.Integer(
         "Number of comments", compute="_compute_comments_count"
     )
-    # channel
     channel_type = fields.Selection(
         related="channel_id.channel_type", string="Channel type"
     )
     channel_allow_comment = fields.Boolean(
         related="channel_id.allow_comment", string="Allows comment"
     )
-    # Statistics in case the slide is a category
     nbr_document = fields.Integer(
         "Number of Documents", compute="_compute_slides_statistics", store=True
     )
@@ -392,13 +373,7 @@ class SlideSlide(models.Model):
         "channel_id.slide_ids.slide_ids",
     )
     def _compute_category_id(self):
-        """Will take all the slides of the channel for which the index is higher
-        than the index of this category and lower than the index of the next category.
-
-        Lists are manually sorted because when adding a new browse record order
-        will not be correct as the added slide would actually end up at the
-        first place no matter its sequence."""
-        self.category_id = False  # initialize whatever the state
+        self.category_id = False
 
         channel_slides = {}
         for slide in self:
@@ -417,19 +392,12 @@ class SlideSlide(models.Model):
 
     @api.depends("survey_id.question_ids")
     def _compute_has_questions(self):
-        """Check whether the linked survey has at least one question."""
         for slide in self:
             slide.has_questions = bool(slide.survey_id.question_ids)
 
     @api.depends("slide_category", "has_questions", "channel_id.is_member")
     @api.depends_context("uid")
     def _compute_mark_complete_actions(self):
-        """Determine if the slide can be marked as (un)completed.
-
-        Slides with quiz questions cannot be manually completed — the quiz must
-        be passed first. They can still be marked as uncompleted (which resets
-        answers and removes karma).
-        """
         for slide in self:
             slide.can_self_mark_uncompleted = (
                 slide.website_published and slide.channel_id.is_member
@@ -458,9 +426,6 @@ class SlideSlide(models.Model):
         "website_message_ids.attachment_ids",
     )
     def _compute_comments_count(self):
-        # Count only the messages the portal chatter actually shows (excludes
-        # internal notes and empty messages), so the badge matches the comment
-        # list. Batched via read_group over the shared portal-fetch domain.
         counts = dict(
             self.env["mail.message"]
             .sudo()
@@ -497,7 +462,6 @@ class SlideSlide(models.Model):
 
     @api.depends("slide_partner_ids.slide_id")
     def _compute_slide_views(self):
-        # TODO awa: tried compute_sudo, for some reason it doesn't work in here...
         read_group_res = (
             self.env["slide.slide.partner"]
             .sudo()
@@ -513,8 +477,6 @@ class SlideSlide(models.Model):
 
     @api.depends("embed_ids.slide_id")
     def _compute_embed_count(self):
-        # sudo like its sibling _compute_slide_views: this is an aggregate over
-        # the slide's own statistics, and slide.embed is officer-scoped.
         read_group_res = (
             self.env["slide.embed"]
             .sudo()
@@ -539,8 +501,6 @@ class SlideSlide(models.Model):
         "slide_ids.is_category",
     )
     def _compute_slides_statistics(self):
-        # Do not use dict.fromkeys(self.ids, dict()) otherwise it will use the same dictionnary for all keys.
-        # Therefore, when updating the dict of one key, it updates the dict of all keys.
         keys = [
             "nbr_%s" % slide_category
             for slide_category in self.env["slide.slide"]
@@ -589,8 +549,6 @@ class SlideSlide(models.Model):
         "slide_ids.is_category",
     )
     def _compute_category_completion_time(self):
-        # We don't use read_group() function, otherwise we will have issue with flushing the
-        # data as completion_time is recursive and when it'll try to flush data before it is calculated
         for category in self.filtered(lambda slide: slide.is_category):
             filtered_slides = category.slide_ids.filtered(
                 lambda slide: slide.is_published
@@ -619,11 +577,6 @@ class SlideSlide(models.Model):
 
     @api.depends("slide_category", "source_type", "video_source_type")
     def _compute_slide_type(self):
-        """For 'local content' or specific slide categories, the slide type is directly derived
-        from the slide category.
-
-        For external content, the slide type is determined from the metadata and the mime_type.
-        (See #_get_google_drive_metadata() for more details)."""
 
         for slide in self:
             if slide.slide_category == "document":
@@ -708,8 +661,6 @@ class SlideSlide(models.Model):
                     ) % (slide.google_drive_id, _("Google Drive"))
                 elif slide.video_source_type == "vimeo":
                     if "/" in slide.vimeo_id:
-                        # in case of privacy 'with URL only', vimeo adds a token after the video ID
-                        # the embed url needs to receive that token as a "h" parameter
                         [vimeo_id, vimeo_token] = slide.vimeo_id.split("/")
                         embed_code = (
                             Markup("""
@@ -806,19 +757,14 @@ class SlideSlide(models.Model):
                 match = re.search(self.VIMEO_VIDEO_ID_REGEX, slide.video_url)
                 if match and len(match.groups()) == 3:
                     if match.group(3):
-                        # in case of privacy 'with URL only', vimeo adds a token after the video ID
-                        # the share url is then 'vimeo_id/token'
-                        # the token will be captured in the third group of the regex (if any)
                         slide.vimeo_id = "%s/%s" % (match.group(2), match.group(3))
                     else:
-                        # regular video, we just capture the vimeo_id
                         slide.vimeo_id = match.group(2)
             else:
                 slide.vimeo_id = False
 
     @api.depends("url", "document_google_url", "image_google_url", "video_url")
     def _compute_google_drive_id(self):
-        """Extracts the Google Drive ID from the url based on the slide category."""
 
         for slide in self:
             url = (
@@ -837,10 +783,6 @@ class SlideSlide(models.Model):
 
     @api.onchange("url", "document_google_url", "image_google_url", "video_url")
     def _on_change_url(self):
-        """Keeping a 'onchange' because we want this behavior for the frontend.
-        Changing the document / video external URL will populate some metadata on the form view.
-        We only populate the field that are empty to avoid overriding user assigned values.
-        The slide metadata are also fetched in create / write overrides to ensure consistency."""
 
         self.check_singleton()
         if (
@@ -874,7 +816,6 @@ class SlideSlide(models.Model):
 
     @api.onchange("slide_category")
     def _on_change_slide_category(self):
-        """Prevents mis-match when ones uploads an image and then a pdf without saving the form."""
         if self.slide_category != "infographic" and self.image_binary_content:
             self.image_binary_content = False
         elif self.slide_category != "document" and self.document_binary_content:
@@ -884,7 +825,7 @@ class SlideSlide(models.Model):
     def _compute_website_url(self):
         super()._compute_website_url()
         for slide in self:
-            if slide.id:  # avoid to perform a slug on a not yet saved record in case of an onchange.
+            if slide.id:
                 slide.website_url = f"/slides/slide/{self.env['ir.http']._slug(slide)}"
 
     @api.depends("channel_id.website_id.domain")
@@ -895,7 +836,7 @@ class SlideSlide(models.Model):
     def _compute_website_share_url(self):
         self.website_share_url = False
         for slide in self:
-            if slide.id:  # ensure we can build the URL
+            if slide.id:
                 base_url = slide.channel_id.get_base_url()
                 slide.website_share_url = "%s/slides/slide/%s/share" % (
                     base_url,
@@ -911,17 +852,8 @@ class SlideSlide(models.Model):
     def _get_can_publish_error_message(self):
         return self.env["slide.channel"]._get_can_publish_error_message()
 
-    # ---------------------------------------------------------
-    # ORM Overrides
-    # ---------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
-        # `channel_id` may legitimately come from the context rather than the
-        # vals: `default_channel_id` is how slide_channel.py and the backend
-        # views create slides. Reading vals['channel_id'] directly raised a
-        # KeyError on that documented path, since defaults are only applied
-        # inside super().create().
         default_channel_id = self.env.context.get("default_channel_id")
         channel_ids = [
             vals.get("channel_id") or default_channel_id for vals in vals_list
@@ -933,9 +865,7 @@ class SlideSlide(models.Model):
             .ids
         )
         for vals, channel_id in zip(vals_list, channel_ids, strict=True):
-            # Do not publish slide if user has not publisher rights
             if channel_id not in can_publish_channel_ids:
-                # 'website_published' is handled by mixin
                 vals["date_published"] = False
 
             if vals.get("is_category"):
@@ -947,8 +877,6 @@ class SlideSlide(models.Model):
         slides = super().create(vals_list)
 
         for slide, vals in zip(slides, vals_list, strict=True):
-            # avoid fetching external metadata when installing the module (i.e. for demo data)
-            # we also support a context key if you don't want to fetch the metadata when creating a slide
             if (
                 any(
                     vals.get(url_param)
@@ -964,7 +892,6 @@ class SlideSlide(models.Model):
             ):
                 slide_metadata, _error = slide._get_external_metadata()
                 if slide_metadata:
-                    # only update keys that are not set in the incoming vals
                     slide.update(
                         {
                             key: value
@@ -979,10 +906,6 @@ class SlideSlide(models.Model):
             if slide.is_published and not slide.is_category:
                 slide._post_publication()
 
-        # Recompute once for the whole batch rather than per slide: this walks
-        # every member of every touched channel, so importing N slides into a
-        # course with M members did N read_groups and up to N*M writes over the
-        # same rows. write() already batches it this way.
         published_slides = slides.filtered(
             lambda s: s.is_published and not s.is_category
         )
@@ -995,20 +918,12 @@ class SlideSlide(models.Model):
             values["is_preview"] = True
             values["is_published"] = True
 
-        # if the slide type is changed, remove incompatible url or html_content
-        # done here to satisfy the SQL constraint
-        # using a stored-computed field in place does not work
         if "slide_category" in values:
             if values["slide_category"] == "article":
                 values = {"url": False, **values}
             else:
                 values = {"html_content": False, **values}
 
-        # Capture before super(): afterwards every record reads as published and
-        # we can no longer tell which ones actually changed state. Re-publishing
-        # an already-live slide used to reset date_published (scrambling the
-        # "New" badge and the `latest` ordering) and re-notify every channel
-        # follower — one bulk "Publish" on a list view spammed the whole course.
         newly_published = (
             self.filtered(lambda slide: not slide.is_published)
             if values.get("is_published")
@@ -1021,8 +936,6 @@ class SlideSlide(models.Model):
             newly_published.date_published = datetime.datetime.now()
             newly_published._post_publication()
 
-        # avoid fetching external metadata when installing the module (i.e. for demo data)
-        # we also support a context key if you don't want to fetch the metadata when modifying a slide
         if (
             any(
                 values.get(url_param)
@@ -1036,15 +949,9 @@ class SlideSlide(models.Model):
             and not self.env.context.get("install_mode")
             and not self.env.context.get("website_slides_skip_fetch_metadata")
         ):
-            # Per record: _get_external_metadata() is check_singleton(), so a
-            # multi-record write touching a url field raised "Expected
-            # singleton" (reachable from list-view multi-edit). Applying one
-            # slide's fetched title/duration to the whole set would be wrong
-            # anyway, as would skipping a key because *any* record already has it.
             for slide in self:
                 slide_metadata, _error = slide._get_external_metadata()
                 if slide_metadata:
-                    # only update keys that are not set in the incoming values and for which we don't have a value yet
                     slide.update(
                         {
                             key: value
@@ -1054,20 +961,16 @@ class SlideSlide(models.Model):
                     )
 
         if "is_published" in values or "active" in values:
-            # archiving a channel unpublishes its slides
             self.filtered(
                 lambda slide: (
                     not slide.active and not slide.is_category and slide.is_published
                 )
             ).is_published = False
-            # recompute the completion for all partners of the channel
             self.channel_id.channel_partner_ids._recompute_completion()
 
         return res
 
     def copy_data(self, default=None):
-        """Sets the sequence to zero so that it always lands at the beginning
-        of the newly selected course as an uncategorized slide"""
         default = dict(default or {})
         if (
             "slide.channel" not in self.env.context.get("__copy_data_seen", {})
@@ -1085,28 +988,17 @@ class SlideSlide(models.Model):
         return res
 
     def _can_return_content(self, field_name=None, access_token=None):
-        # Override because the module `website` overrides `_can_return_content` to allow returning the content of any
-        # `website_published=True` record while the content of a course (`slide.slide`) can still be restricted
-        # despite it's website published, according if the course is on invitation and so on.
         if self.website_published:
             return self.has_access("read")
-        # if not `website_published`, the base `_can_return_content` returns `False``
         return super()._can_return_content(field_name, access_token)
-
-    # ---------------------------------------------------------
-    # Mail/Rating
-    # ---------------------------------------------------------
 
     def message_post(self, *, message_type="notification", **kwargs):
         self.check_singleton()
-        if (
-            message_type == "comment" and not self.channel_id.can_comment
-        ):  # user comments have a restriction on karma
+        if message_type == "comment" and not self.channel_id.can_comment:
             raise AccessError(_("Not enough karma to comment"))
         return super().message_post(message_type=message_type, **kwargs)
 
     def _get_access_action(self, access_uid=None, force_website=False):
-        """Instead of the classic form view, redirect to website if it is published."""
         self.check_singleton()
         if force_website or self.website_published:
             return {
@@ -1134,21 +1026,9 @@ class SlideSlide(models.Model):
 
         return groups
 
-    # ---------------------------------------------------------
-    # Business Methods
-    # ---------------------------------------------------------
-
     EMBED_URL_MAX_LENGTH = 512
 
     def _embed_increment(self, url):
-        """Increment the view count of the record we have based on the passed url.
-        If the url is empty, which typically happens if the browser does not pass the 'referer'
-        header properly, then we increment the entry that has 'False' as url value.
-
-        The url is normalised to scheme + host + path and truncated: it comes
-        from a request header, one row exists per distinct value, and nothing
-        else bounds how many rows a caller can create.
-        """
 
         self.check_singleton()
 
@@ -1159,8 +1039,6 @@ class SlideSlide(models.Model):
         )
 
         if embed_entry:
-            # Not `count_views += 1`: that is a read-modify-write, and two
-            # concurrent embeds of the same page lose one of the two views.
             embed_entry._increment_fields_skiplock("count_views")
             embed_entry.invalidate_recordset(["count_views"])
         else:
@@ -1175,7 +1053,6 @@ class SlideSlide(models.Model):
 
     @api.model
     def _normalize_embed_url(self, url):
-        """Reduce a Referer header to the identity of the embedding page."""
         split = urlsplit(url or "")
         if not split.netloc:
             return False
@@ -1194,9 +1071,6 @@ class SlideSlide(models.Model):
                 base_url=slide.get_base_url()
             )._render_field("body_html", slide.ids)[slide.id]
             subject = publish_template._render_field("subject", slide.ids)[slide.id]
-            # We want to use the 'reply_to' of the template if set. However, `mail.message` will check
-            # if the key 'reply_to' is in the kwargs before calling _get_reply_to. If the value is
-            # falsy, we don't include it in the 'message_post' call.
             kwargs = {}
             reply_to = publish_template._render_field("reply_to", slide.ids)[slide.id]
             if reply_to:
@@ -1243,11 +1117,6 @@ class SlideSlide(models.Model):
         return self._action_vote(upvote=False)
 
     def _action_vote(self, upvote=True):
-        """Private implementation of voting. It does not check for any real access
-        rights; public methods should grant access before calling this method.
-
-          :param upvote: if True, is a like; if False, is a dislike
-        """
         self_sudo = self.sudo()
         SlidePartnerSudo = self.env["slide.slide.partner"].sudo()
         slide_partners = SlidePartnerSudo.search(
@@ -1258,7 +1127,6 @@ class SlideSlide(models.Model):
         )
         new_slides = self_sudo - slide_partners.slide_id
 
-        # Grouped: one write per resulting vote value, not one per membership.
         target_vote = 1 if upvote else -1
         toggled_off = slide_partners.filtered(
             lambda partner: partner.vote == target_vote
@@ -1266,9 +1134,6 @@ class SlideSlide(models.Model):
         toggled_off.vote = 0
         (slide_partners - toggled_off).vote = target_vote
 
-        # One create for the whole batch, and with channel_id set -- the x2many
-        # command spelling left it to the related field and did one write per
-        # slide. `_action_set_viewed` right below already creates them this way.
         SlidePartnerSudo.create(
             [
                 {
@@ -1365,7 +1230,6 @@ class SlideSlide(models.Model):
 
         completed_slides = self.filtered(lambda slide: slide.user_has_completed)
 
-        # Remove the Karma point gained
         completed_slides._action_set_quiz_done(completed=False)
 
         self.env["slide.slide.partner"].sudo().search(
@@ -1376,14 +1240,6 @@ class SlideSlide(models.Model):
         ).completed = False
 
     def _get_quiz_gains(self):
-        """The reward ladder for this slide's quiz, best attempt first.
-
-        The single definition. This list used to be rebuilt at four call sites
-        (_action_set_quiz_done, _compute_quiz_info, slide.channel._get_earned_karma
-        and the controller's _get_channel_progress) and indexed by two different
-        rules, so "what is this attempt worth" had four answers that only
-        happened to agree.
-        """
         self.check_singleton()
         return [
             self.quiz_first_attempt_reward,
@@ -1393,13 +1249,6 @@ class SlideSlide(models.Model):
         ]
 
     def _get_quiz_reward(self, attempts_count, done=True):
-        """Karma for a quiz attempt.
-
-        :param attempts_count: how many attempts the attendee has *made*.
-        :param done: True for what a finished attempt earned, False for what the
-          next one would earn. Off by one, which is exactly the distinction the
-          four hand-written copies kept getting differently.
-        """
         self.check_singleton()
         if not self.has_questions:
             return 0
@@ -1408,12 +1257,6 @@ class SlideSlide(models.Model):
         return gains[max(0, min(index, len(gains) - 1))]
 
     def _action_set_quiz_done(self, completed=True):
-        """Add or remove karma points related to the quiz.
-
-        :param completed:
-            True if the quiz will be marked as completed (karma will be increased).
-            If False, karma is removed so users can retake without infinite gain.
-        """
         if any(
             not slide.channel_id.is_member or not slide.website_published
             for slide in self
@@ -1459,18 +1302,6 @@ class SlideSlide(models.Model):
         return action
 
     def _check_quiz_survey(self):
-        """Create a lightweight survey for quiz slides that don't have one yet.
-
-        Quiz surveys are single-page, all-or-nothing (100% pass threshold) with
-        no attempt limit. They exist solely to store questions as
-        ``survey.question`` records, unifying the data model with certifications.
-        """
-        # sudo: the backing survey is an implementation detail of the slide, not
-        # a survey the user owns. website_slides_survey confines eLearning
-        # officers to `certification = True` surveys, so an officer creating a
-        # quiz on their *own* course hit an AccessError here. Authorization for
-        # editing a quiz belongs to the slide's channel and is enforced by the
-        # can_publish check in the controller before we ever get here.
         for slide in self.filtered(lambda s: not s.survey_id):
             survey = (
                 self.env["survey.survey"]
@@ -1492,7 +1323,6 @@ class SlideSlide(models.Model):
             slide.survey_id = survey
 
     def _compute_quiz_info(self, target_partner, quiz_done=False):
-        """Compute quiz karma info for a given partner across slides in ``self``."""
         result = dict.fromkeys(self.ids, False)
         slide_partners = (
             self.env["slide.slide.partner"]
@@ -1520,41 +1350,16 @@ class SlideSlide(models.Model):
             attempts = slide_partner.quiz_attempts_count if slide_partner else 0
             if slide.has_questions and attempts:
                 info["quiz_attempts_count"] = attempts
-                # what the *next* attempt would earn
                 info["quiz_karma_gain"] = slide._get_quiz_reward(attempts, done=False)
                 if quiz_done or slide_partner.completed:
-                    # what the attempt just made earned
                     info["quiz_karma_won"] = slide._get_quiz_reward(attempts)
         return result
-
-    # --------------------------------------------------
-    # Parsing methods
-    # --------------------------------------------------
 
     EXTERNAL_FETCH_TIMEOUT = 3
     THUMBNAIL_MAX_BYTES = 5 * 1024 * 1024
 
     @api.model
     def _get_external_json(self, url, params=None, not_found_message=None):
-        """GET ``url`` and return ``(payload, error)``.
-
-        The three metadata fetchers each carried their own copy of this ladder
-        and each caught exactly ``HTTPError`` and ``ConnectionError``. That pair
-        does not cover the failure a 3-second timeout against a third-party API
-        actually produces: ``ReadTimeout`` subclasses ``Timeout``, not
-        ``ConnectionError``, and so escaped -- out of ``create()``, ``write()``
-        and the form's ``_on_change_url``, turning a slow YouTube into a failed
-        save. ``TooManyRedirects`` and ``ChunkedEncodingError`` escaped too.
-
-        Two more traps are closed here. ``headers.get("content-type")`` returns
-        ``None`` when the header is absent, and ``"application/json" in None``
-        is a ``TypeError``; and a 200 that is not JSON used to leave the raw
-        ``Response`` in place of the parsed payload, so the caller then called
-        ``.get()`` on it.
-
-        :param not_found_message: returned as the error on a 404, so the user is
-          told the link is wrong rather than shown a transport error.
-        """
         try:
             response = requests.get(
                 url, timeout=self.EXTERNAL_FETCH_TIMEOUT, params=params or {}
@@ -1593,13 +1398,6 @@ class SlideSlide(models.Model):
 
     @api.model
     def _get_thumbnail(self, url):
-        """Download a thumbnail, or return False. Never raises.
-
-        The three call sites did ``base64.b64encode(requests.get(url).content)``
-        with no error handling, no ``raise_for_status`` and no size cap, so a
-        transport error propagated out of a slide save and an HTML error page
-        was stored as ``image_1920``.
-        """
         try:
             response = requests.get(url, timeout=self.EXTERNAL_FETCH_TIMEOUT)
             response.raise_for_status()
@@ -1612,7 +1410,6 @@ class SlideSlide(models.Model):
         return base64.b64encode(content) if content else False
 
     def _set_thumbnail(self, slide_metadata, thumbnail_url, image_url_only):
-        """Put the thumbnail into ``slide_metadata``, as a url or as binary."""
         if not thumbnail_url:
             return
         if image_url_only:
@@ -1639,26 +1436,11 @@ class SlideSlide(models.Model):
             self.slide_category in ["document", "infographic"]
             and self.source_type == "external"
         ):
-            # external documents & google drive videos share the same method currently
             slide_metadata, error = self._get_google_drive_metadata(image_url_only)
 
         return slide_metadata, error
 
     def _get_youtube_metadata(self, image_url_only=False):
-        """Fetches video metadata from the YouTube API.
-
-        Returns a dict containing video metadata with the following keys (matching slide.slide fields):
-        - 'name' matching the video title
-        - 'description' matching the video description
-        - 'image_1920' binary data of the video thumbnail
-          OR 'image_url' containing an external link to the thumbnail when 'image_url_only' param is True
-        - 'completion_time' matching the video duration
-          The received duration is under a special format (e.g: PT1M21S15, meaning 1h 21m 15s).
-
-        :param image_url_only: if True, will return 'image_url' instead of binary data
-          Typically used when displaying a slide preview to the end user.
-        :return a tuple (values, error) containing the values of the slide and a potential error
-          (e.g: 'Video could not be found')"""
 
         self.check_singleton()
         response, error = self._get_external_json(
@@ -1720,20 +1502,6 @@ class SlideSlide(models.Model):
         )
 
     def _get_google_drive_metadata(self, image_url_only=False):
-        """Fetches document / video metadata from the Google Drive API.
-
-        Returns a dict containing metadata with the following keys (matching slide.slide fields):
-        - 'name' matching the external file title
-        - 'image_1920' binary data of the file thumbnail
-          OR 'image_url' containing an external link to the thumbnail when 'image_url_only' param is True
-        - 'completion_time' which is computed for 2 types of files:
-          - pdf files where we download the content and then use slide.slide#_get_completion_time_pdf()
-          - videos where we use the 'videoMediaMetadata' to extract the 'durationMillis'
-
-        :param image_url_only: if True, will return 'image_url' instead of binary data
-          Typically used when displaying a slide preview to the end user.
-        :return a tuple (values, error) containing the values of the slide and a potential error
-          (e.g: 'File could not be found')"""
 
         self.check_singleton()
         google_drive_values, error = self._get_external_json(
@@ -1750,7 +1518,6 @@ class SlideSlide(models.Model):
 
         thumbnail_link = google_drive_values.get("thumbnailLink")
         if thumbnail_link:
-            # small trick, we remove '=s220' to get a higher definition
             self._set_thumbnail(
                 slide_metadata, thumbnail_link.replace("=s220", ""), image_url_only
             )
@@ -1760,9 +1527,6 @@ class SlideSlide(models.Model):
             slide_type = self.GOOGLE_DRIVE_MIME_TYPES.get(mime_type)
             if not slide_type and mime_type:
                 if mime_type.startswith("image/"):
-                    # image and videos should be input using another
-                    # "slide_category" but let's be nice and assign them a
-                    # matching slide_type
                     slide_type = "image"
                 elif mime_type.startswith("video/"):
                     slide_type = "google_drive_video"
@@ -1786,14 +1550,13 @@ class SlideSlide(models.Model):
                     / (60 * 1000)
                 )
                 / 60
-            )  # millis to hours conversion rounded to the minute
+            )
             if completion_time:
                 slide_metadata["completion_time"] = completion_time
 
         return slide_metadata, None
 
     def _get_completion_time_google_drive_pdf(self, download_url):
-        """Estimate a PDF's duration from its page count. Nice to have; never raises."""
         try:
             pdf_response = requests.get(
                 download_url, timeout=self.EXTERNAL_FETCH_TIMEOUT
@@ -1809,20 +1572,6 @@ class SlideSlide(models.Model):
         return self._get_completion_time_pdf(pdf_response.content)
 
     def _get_vimeo_metadata(self, image_url_only=False):
-        """Fetches video metadata from the Vimeo API.
-        See https://developer.vimeo.com/api/oembed/showcases for more information.
-
-        Returns a dict containing video metadata with the following keys (matching slide.slide fields):
-        - 'name' matching the video title
-        - 'description' matching the video description
-        - 'image_1920' binary data of the video thumbnail
-          OR 'image_url' containing an external link to the thumbnail when 'image_url_only' param is True
-        - 'completion_time' matching the video duration
-
-        :param image_url_only: if True, will return 'image_url' instead of binary data
-          Typically used when displaying a slide preview to the end user.
-        :return a tuple (values, error) containing the values of the slide and a potential error
-          (e.g: 'Video could not be found')"""
 
         self.check_singleton()
         vimeo_values, error = self._get_external_json(
@@ -1842,7 +1591,6 @@ class SlideSlide(models.Model):
         if vimeo_values.get("description"):
             slide_metadata["description"] = vimeo_values["description"]
         if vimeo_values.get("duration"):
-            # seconds to hours conversion
             slide_metadata["completion_time"] = (
                 round(vimeo_values["duration"] / 60) / 60
             )
@@ -1866,20 +1614,13 @@ class SlideSlide(models.Model):
         res["default_meta_description"] = html2plaintext(self.description)
         return res
 
-    # ---------------------------------------------------------
-    # Data / Misc
-    # ---------------------------------------------------------
-
     def _get_completion_time_pdf(self, data_bytes):
-        """For PDFs, we assume that it takes 5 minutes to read a page.
-        This method receives the data of the PDF as bytes."""
 
         if data_bytes.startswith(b"%PDF-"):
             try:
                 pdf = PdfReader(io.BytesIO(data_bytes))
                 return (5 * len(pdf.pages)) / 60
             except Exception:
-                # as this is a nice to have, fail silently
                 _logger.debug(
                     "Could not read PDF to estimate its completion time", exc_info=True
                 )
@@ -1890,14 +1631,12 @@ class SlideSlide(models.Model):
         channel_category_ids = self.channel_id.slide_category_ids.ids
         if not channel_category_ids:
             return self.env["slide.slide"]
-        # If current slide is uncategorized and all the channel uncategorized slides are completed, return the first category
         if not self.category_id and all(
             self.channel_id.slide_ids.filtered(
                 lambda s: not s.is_category and not s.category_id
             ).mapped("user_has_completed")
         ):
             return self.env["slide.slide"].browse(channel_category_ids[0])
-        # If current category is completed and current category is not the last one, get next category
         elif (
             self.user_has_completed_category
             and self.category_id.id in channel_category_ids
@@ -1954,16 +1693,10 @@ class SlideSlide(models.Model):
     }
 
     def _search_render_results(self, fetch_fields, mapping, icon, limit):
-        # Keyed on slide_category, and only on values the selection actually
-        # holds: this table used to carry "presentation" and "link", which are
-        # not categories, and to omit "certification", which is.
         icon_per_category = self.ICON_PER_SLIDE_CATEGORY
         results_data = super()._search_render_results(
             fetch_fields, mapping, icon, limit
         )
-        # strict=False on purpose: the base _search_render_results truncates its
-        # output with [:limit] while `self` is not pre-limited, so results_data
-        # is legitimately shorter than self once more than `limit` slides match.
         for slide, data in zip(self, results_data, strict=False):
             data["_fa"] = icon_per_category.get(
                 slide.slide_category, "fa-regular fa-file-pdf"
@@ -1974,5 +1707,4 @@ class SlideSlide(models.Model):
         return results_data
 
     def get_base_url(self):
-        """As website_id is not defined on this record, we rely on channel website_id for base URL."""
         return self.channel_id.get_base_url()

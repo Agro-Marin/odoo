@@ -36,7 +36,6 @@ class TestDeliveryCarrier(ClickAndCollectCommon, WebsiteSaleStockCommon):
 
     def test_in_store_get_close_locations_returned_data(self):
         so = self._create_in_store_delivery_order()
-        # Create a partner for a warehouse.
         wh_address_partner = self.env["res.partner"].create(
             {
                 **self.dummy_partner_address_values,

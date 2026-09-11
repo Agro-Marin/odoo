@@ -36,11 +36,9 @@ export class SvgColorAction extends BuilderAction {
         if (cssVarMatch === null) {
             return normalizeCSSColor(color);
         }
-        // If it is a palette color, return the variable name
         if (/^o-color-[1-5]$/.test(cssVarMatch[1])) {
             return cssVarMatch[1];
         }
-        // If it is a CSS variable, extract the color value
         return getCSSVariableValue(cssVarMatch[1], getHtmlStyle(this.document));
     }
     async load({
@@ -51,7 +49,6 @@ export class SvgColorAction extends BuilderAction {
         const newURL = new URL(imgEl.src, window.location.origin);
         let colorValue = color ? this.colorToSearchParams(color) : "";
         if (!colorValue) {
-            // Reset uses theme palette colors to keep dynamic SVGs valid.
             const colorId = colorName.slice(1);
             colorValue =
                 getCSSVariableValue(

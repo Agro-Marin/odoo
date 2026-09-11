@@ -108,7 +108,6 @@
             groups="website_sale.group_product_feed" />
     </menuitem>
 
-    <!-- Reporting sub-menus -->
     <menuitem
         id="menu_report_sales"
         name="Online Sales"

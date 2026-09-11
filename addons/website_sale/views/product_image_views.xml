@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- This view should only be used from the product o2m because the required field product_tmpl_id has to be automatically set. -->
     <record id="view_product_image_form" model="ir.ui.view">
         <field name="name">product.image.view.form</field>
         <field name="model">product.image</field>
@@ -65,18 +64,15 @@
                                     name="name"
                                     class="small fs-5 text-truncate d-block" />
                             </div>
-                            <!-- below 100 Kb: good -->
                             <t t-if="record.image_1920.raw_value.length &lt; 100*1000">
                                 <t t-set="size_status" t-value="'text-bg-success'" />
                                 <t t-set="message">Acceptable file size</t>
                             </t>
-                            <!-- below 1000 Kb: decent -->
                             <t
                                 t-elif="record.image_1920.raw_value.length &lt; 1000*1000">
                                 <t t-set="size_status" t-value="'text-bg-warning'" />
                                 <t t-set="message">Huge file size. The image should be optimized/reduced.</t>
                             </t>
-                            <!-- above 1000 Kb: bad -->
                             <t t-else="1">
                                 <t t-set="size_status" t-value="'text-bg-danger'" />
                                 <t t-set="message">Optimization required! Reduce the image size or increase your compression settings.</t>

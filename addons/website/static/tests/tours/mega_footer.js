@@ -33,7 +33,7 @@ registerWebsitePreviewTour(
         ...clickToolbarButton(
             "copyright and company name text",
             ".o_footer_copyright span",
-            "bold", // could be any edit in that span
+            "bold",
         ),
         ...clickOnSave(),
         ...clickOnEditAndWaitEditMode(),

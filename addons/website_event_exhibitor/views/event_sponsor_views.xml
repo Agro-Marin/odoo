@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- EVENTS/CONFIGURATION/EVENT Sponsor Levels -->
         <record id="event_sponsor_type_view_form" model="ir.ui.view">
             <field name="name">Sponsor Levels</field>
             <field name="model">event.sponsor.type</field>
@@ -133,7 +132,6 @@
                                 <field name="event_id" placeholder="All Events" />
                                 <field name="sponsor_type_id" />
                                 <field name="exhibitor_type" required="1" />
-                                <!-- Use website_published because is_published already used and widget conflicts -->
                                 <field
                                     name="website_published"
                                     widget="boolean_toggle"

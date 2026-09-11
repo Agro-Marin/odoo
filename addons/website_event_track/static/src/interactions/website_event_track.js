@@ -77,25 +77,15 @@ export class WebsiteEventTrack extends Interaction {
         }
     }
 
-    /**
-     * Dynamic horizontal scrollbar.
-     * It's meant the show up as a sticky scrollbar at the bottom of the screen, to allow scrolling
-     * the agenda horizontally even if you've not reached the bottom of the agenda container.
-     * Makes the user experience much smoother.
-     *
-     * Technically, the code checks "what is the last agenda on the screen" and enables our sticky
-     * scrollbar based on that.
-     */
     updateAgendaScroll() {
         if (!this.agendaScroller) {
             return;
         }
 
-        // reverse the agendas, we always want the last agenda "on screen" to be the scrolled one
         this.visibleAgenda = this.agendas.toReversed().find((el) => {
             const rect = el.getBoundingClientRect();
             const containerOffset = {
-                top: rect.top + window.scrollY + 30, // some offset for a better experience
+                top: rect.top + window.scrollY + 30,
                 bottom: rect.bottom + window.scrollY,
             };
             const windowOffset = {
@@ -103,7 +93,6 @@ export class WebsiteEventTrack extends Interaction {
                 bottom: window.scrollY + window.innerHeight,
             };
 
-            // if the top of the container if visible but NOT the bottom
             return (
                 containerOffset.top < windowOffset.bottom &&
                 !(containerOffset.bottom < windowOffset.bottom)
@@ -138,7 +127,7 @@ export class WebsiteEventTrack extends Interaction {
      */
     onAgendaScroll(event, currentTargetEl) {
         const tableEl = currentTargetEl.querySelector("table");
-        const gutter = 4; // = map-get($spacers, 1)
+        const gutter = 4;
         const gap = tableEl.clientWidth - currentTargetEl.clientWidth - gutter;
 
         currentTargetEl.classList.add("o_we_online_agenda_is_scrolling");
@@ -163,7 +152,6 @@ export class WebsiteEventTrack extends Interaction {
             this.visibleAgenda &&
             this.visibleAgenda.classList.contains("o_we_online_agenda_has_scroll")
         ) {
-            // need to account for vertical scrollbar width
             const verticalScrollbarWidth =
                 window.innerWidth - document.documentElement.clientWidth;
             return this.visibleAgenda.scrollWidth + verticalScrollbarWidth + "px";

@@ -19,7 +19,7 @@ class BlogBlog(models.Model):
     ]
     _order = "name"
 
-    _CUSTOMER_HEADERS_LIMIT_COUNT = 0  # never use X-Msg-To headers
+    _CUSTOMER_HEADERS_LIMIT_COUNT = 0
 
     def _default_sequence(self):
         return (self.search([], order="sequence desc", limit=1).sequence or 0) + 1
@@ -35,7 +35,6 @@ class BlogBlog(models.Model):
     def write(self, vals):
         res = super().write(vals)
         if "active" in vals:
-            # archiving/unarchiving a blog does it on its posts, too
             post_ids = (
                 self.env["blog.post"]
                 .with_context(active_test=False)
@@ -46,9 +45,6 @@ class BlogBlog(models.Model):
         return res
 
     def message_post(self, *, parent_id=False, subtype_id=False, **kwargs):
-        """Temporary workaround to avoid spam. If someone replies on a channel
-        through the 'Presentation Published' email, it should be considered as a
-        note as we don't want all channel followers to be notified of this answer."""
         self.check_singleton()
         if parent_id:
             parent_message = self.env["mail.message"].sudo().browse(parent_id)
@@ -228,7 +224,6 @@ class BlogPost(models.Model):
         ]
     )
 
-    # creation / update stuff
     create_date = fields.Datetime("Created on", readonly=True)
     published_date = fields.Datetime("Published Date")
     post_date = fields.Datetime(
@@ -258,12 +253,6 @@ class BlogPost(models.Model):
     def _inverse_teaser(self):
         for blog_post in self:
             if not blog_post.with_context(lang="en_US").teaser_manual:
-                # By default, if no teaser is set in english, it will use the
-                # first 200 characters of the content. We don't want to break
-                # that when adding a manual teaser in a translation.
-                # That's how the ORM work: when setting a translation value, if
-                # there is no source value, the source will also receive the
-                # translation value
                 blog_post.update_field_translations("teaser_manual", {"en_US": ""})
             blog_post.teaser_manual = blog_post.teaser
 
@@ -304,7 +293,6 @@ class BlogPost(models.Model):
 
     def write(self, vals):
         result = True
-        # archiving a blog post, unpublished the blog post
         if "active" in vals and not vals["active"]:
             vals["is_published"] = False
         for post in self:
@@ -333,17 +321,12 @@ class BlogPost(models.Model):
         ]
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``name`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``name`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "name"))
         self._copy_translations_of_renamed_field(
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
 
     def _get_access_action(self, access_uid=None, force_website=False):
-        """Instead of the classic form view, redirect to the post on website
-        directly if user is an employee or if the post is published."""
         self.check_singleton()
         user = (
             self.env["res.users"].sudo().browse(access_uid)
@@ -379,9 +362,6 @@ class BlogPost(models.Model):
     def _notify_thread_by_inbox(
         self, message, recipients_data, msg_vals=False, **kwargs
     ):
-        # Override to avoid keeping all notified recipients of a comment.
-        # We avoid tracking needaction on post comments. Only emails should be
-        # sufficient.
         msg_vals = msg_vals or {}
         if msg_vals.get("message_type", message.message_type) == "comment":
             return None
@@ -398,7 +378,6 @@ class BlogPost(models.Model):
         res["default_opengraph"]["article:published_time"] = self.post_date
         res["default_opengraph"]["article:modified_time"] = self.write_date
         res["default_opengraph"]["article:tag"] = self.tag_ids.mapped("name")
-        # background-image might contain single quotes eg `url('/my/url')`
         res["default_opengraph"]["og:image"] = res["default_twitter"][
             "twitter:image"
         ] = (

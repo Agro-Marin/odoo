@@ -41,8 +41,6 @@ export class PageListController extends listView.Controller {
     }
 
     /**
-     * Adds a "Publish/Unpublish" button to the 'action' menu of the list view.
-     *
      * @override
      */
     getStaticActionMenuItems() {

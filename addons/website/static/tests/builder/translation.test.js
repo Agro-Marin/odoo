@@ -46,7 +46,6 @@ const websiteServiceInTranslateMode = {
             code: "en_US",
         },
     },
-    // Minimal context to avoid crashes.
     context: {},
     websites: [
         {
@@ -130,7 +129,6 @@ test("add text in translate mode do not split", async () => {
         editor.editable.querySelector("#wrap"),
         getTranslateEditable({ inWrap: "Hello[]" }),
     );
-    // Event trigger when you press "Enter" => create a new paragraph
     await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
         inputType: "insertParagraph",
     });
@@ -366,7 +364,6 @@ test("test that powerbox should not open in translate mode", async () => {
     const textNode = editor.editable.querySelector("span").firstChild;
     expect(textNode.nodeType).toBe(Node.TEXT_NODE);
     setSelection({ anchorNode: textNode, anchorOffset: 0 });
-    // Simulate typing `/`
     await insertText(editor, "/");
     await animationFrame();
     await expectElementCount(".o-we-powerbox", 0);
@@ -598,10 +595,6 @@ function getTranslateEditable({
 
 async function setupSidebarBuilderForTranslation(options) {
     const { websiteContent } = options;
-    // Hack: configure the snippets menu as in translate mode when clicking
-    // on the "Edit" button of the systray. The goal of this hack is to avoid
-    // the handling of an extra reload of the action to arrive in translate
-    // mode.
     patchWithCleanup(Builder.prototype, {
         setup() {
             super.setup();

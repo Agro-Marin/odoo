@@ -22,10 +22,6 @@ $o-wevent-color: o-palette-token(--o-text, $body-color);
         background-color: #e9e9e9;
     }
 
-    /*
-     * COMMON MENU STYLING
-     */
-
     .o_wevent_index_topbar_filters {
         .dropdown-menu {
             max-height: 250px;
@@ -33,12 +29,7 @@ $o-wevent-color: o-palette-token(--o-text, $body-color);
         }
     }
 
-    /*
-     * COMMON TO ALL ONLINE-* PAGES
-     */
-
     .o_wevent_online {
-        // unpublished badge: put opacity to distinguish form other badges
         .o_wevent_online_badge_unpublished {
             opacity: 0.4;
         }
@@ -48,7 +39,6 @@ $o-wevent-color: o-palette-token(--o-text, $body-color);
         }
 
         .o_wevent_online_page_container {
-            // Sponsor Avatar
             .o_wevent_online_page_avatar {
                 min-width: 64px;
                 img {
@@ -58,8 +48,6 @@ $o-wevent-color: o-palette-token(--o-text, $body-color);
         }
     }
 
-    // To be more efficiently implemented by using default Bootstrap accordion
-    // components
     .o_wevent_collapse_link:not(.collapsed) .oi {
         transform: rotate(180deg);
     }

@@ -42,9 +42,6 @@ class PopupOptionPlugin extends Plugin {
             dropIn: ":not(p).oe_structure:not(.oe_structure_solo):not([data-snippet] *), :not(.o_mega_menu):not(p)[data-oe-type=html]:not([data-snippet] *)",
         },
         builder_actions: {
-            // Moves the snippet in #o_shared_blocks to be common to all pages
-            // or inside the first editable oe_structure in the main to be on
-            // current page only.
             MoveBlockAction,
             SetBackdropAction,
             CopyAnchorAction,
@@ -110,9 +107,6 @@ class PopupOptionPlugin extends Plugin {
     }
 }
 
-// Moves the snippet in #o_shared_blocks to be common to all pages
-// or inside the first editable oe_structure in the main to be on
-// current page only.
 export class MoveBlockAction extends BuilderAction {
     static id = "moveBlock";
     isApplied({ editingElement, value }) {

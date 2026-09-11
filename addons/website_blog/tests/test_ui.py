@@ -40,10 +40,8 @@ class TestWebsiteBlogUi(odoo.tests.HttpCase, TestWebsiteBlogCommon):
                 "email": "mitchell.admin@example.com",
             }
         )
-        # Ensure at least two blogs exist for the step asking to select a blog
         self.env["blog.blog"].create({"name": "Travel"})
 
-        # Ensure at least one image exists for the step that chooses one
         self.env["ir.attachment"].create(
             {
                 "public": True,
@@ -97,7 +95,6 @@ class TestWebsiteBlogUi(odoo.tests.HttpCase, TestWebsiteBlogCommon):
         )
         portal_message = mail_message.portal_message_format()
         response = self.url_open(portal_message[0]["author_avatar_url"])
-        # Ensure that the avatar is visible
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers.get("Content-Type"), "image/svg+xml; charset=utf-8"
@@ -114,7 +111,6 @@ class TestWebsiteBlogUi(odoo.tests.HttpCase, TestWebsiteBlogCommon):
         Blog1 = Blog.create({"name": "Nature"})
         Blog2 = Blog.create({"name": "Space"})
 
-        # Create first blog post (Feb 2025)
         blog_post_1 = Post.create(
             {
                 "name": "First Blog Post",
@@ -125,7 +121,6 @@ class TestWebsiteBlogUi(odoo.tests.HttpCase, TestWebsiteBlogCommon):
             }
         )
 
-        # Create second blog post (Jan 2025)
         blog_post_2 = Post.create(
             {
                 "name": "Second Blog Post",
@@ -156,7 +151,6 @@ class TestWebsiteBlogUi(odoo.tests.HttpCase, TestWebsiteBlogCommon):
         )
 
     def test_blog_posts_dynamic_snippet_visibility(self):
-        # Checks snippets visibility with or without content.
         def start_visibility_tour(blog_posts, publish):
             url = self.env["website"].get_client_action_url("/")
             tour_before, tour_after = (
@@ -170,7 +164,6 @@ class TestWebsiteBlogUi(odoo.tests.HttpCase, TestWebsiteBlogCommon):
                 url, f"blog_posts_dynamic_snippet_{tour_after}", login="admin"
             )
 
-        # 1. Visibility for new snippets created starting from `19.0` (`o_dynamic_snippet_loading`):
         self.start_tour(
             self.env["website"].get_client_action_url("/"),
             "blog_posts_dynamic_snippet_edit",
@@ -182,7 +175,6 @@ class TestWebsiteBlogUi(odoo.tests.HttpCase, TestWebsiteBlogCommon):
                 ("key", "=", "website.homepage"),
             ]
         )
-        # Unpublish blog posts so the dynamic snippet can't show content.
         blog_posts = self.env["blog.post"].search([])
         blog_posts.write({"website_published": False})
         self.start_tour(
@@ -191,42 +183,36 @@ class TestWebsiteBlogUi(odoo.tests.HttpCase, TestWebsiteBlogCommon):
             login="admin",
         )
 
-        # 2. Compatibility for snippets created in `18.2` (`s_dynamic_empty`):
         homepage_view_arch_1 = homepage_view.arch_db.replace(
             "o_dynamic_snippet_loading", "s_dynamic_empty"
         )
         homepage_view.write({"arch": homepage_view_arch_1})
         start_visibility_tour(blog_posts, True)
 
-        # 3. Compatibility for snippets before `18.0` and never edited (`o_dynamic_empty`):
         homepage_view_arch_2 = homepage_view.arch_db.replace(
             "s_dynamic_empty", "o_dynamic_empty"
         )
         homepage_view.write({"arch": homepage_view_arch_2})
         start_visibility_tour(blog_posts, False)
 
-        # 4. Compatibility for snippets from before `18.0` and edited in `18.0` (`o_dynamic_empty` & `o_dynamic_snippet_empty`).
         homepage_view_arch_3 = homepage_view.arch_db.replace(
             "o_dynamic_empty", "o_dynamic_empty o_dynamic_snippet_empty"
         )
         homepage_view.write({"arch": homepage_view_arch_3})
         start_visibility_tour(blog_posts, True)
 
-        # 5. Compatibility for snippets created in `18.0` and never edited (`s_dynamic_empty` & `o_dynamic_snippet_empty`).
         homepage_view_arch_4 = homepage_view.arch_db.replace(
             "o_dynamic_empty", "s_dynamic_empty"
         )
         homepage_view.write({"arch": homepage_view_arch_4})
         start_visibility_tour(blog_posts, False)
 
-        # 6. Compatibility for snippets created in `19.0` and never edited (no visibility class).
         homepage_view_arch_5 = homepage_view.arch_db.replace(
             "s_dynamic_empty o_dynamic_snippet_empty", ""
         )
         homepage_view.write({"arch": homepage_view_arch_5})
         start_visibility_tour(blog_posts, True)
 
-        # Visibility for misconfigured snippets.
         homepage_view_arch_misconfigured = re.sub(
             r'data-filter-id="\d+"', 'data-filter-id="-1"', homepage_view.arch_db
         )

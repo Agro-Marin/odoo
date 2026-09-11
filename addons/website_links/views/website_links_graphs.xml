@@ -106,7 +106,6 @@
                     <div class="mb128">
                         <div class="tab-content">
                             <div class="website_links_charts_error d-none" />
-                            <!-- All Time Charts -->
                             <div
                                 role="tabpanel"
                                 class="tab-pane active"
@@ -125,7 +124,6 @@
                                 </div>
                             </div>
 
-                            <!-- Last Month Charts -->
                             <div
                                 role="tabpanel"
                                 class="tab-pane"
@@ -144,7 +142,6 @@
                                 </div>
                             </div>
 
-                            <!-- Last Week Charts -->
                             <div role="tabpanel" class="tab-pane" id="last_week_charts">
                                 <div
                                     class="website_links_click_chart mt32"

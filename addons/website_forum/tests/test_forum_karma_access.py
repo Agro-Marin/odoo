@@ -14,7 +14,6 @@ class TestForumCRUD(TestForumCommon):
         self.user_portal.karma = 500
         self.user_employee.karma = 500
 
-        # create some posts
         self.admin_post = self.post
         self.portal_post = Post.with_user(self.user_portal).create(
             {
@@ -31,7 +30,6 @@ class TestForumCRUD(TestForumCommon):
             }
         )
 
-        # vote on some posts
         self.employee_vote_on_admin_post = Vote.with_user(self.user_employee).create(
             {
                 "post_id": self.admin_post.id,
@@ -57,7 +55,6 @@ class TestForumCRUD(TestForumCommon):
             }
         )
 
-        # One should not be able to modify someone else's vote
         with self.assertRaises(UserError):
             self.admin_vote_on_portal_post.with_user(self.user_employee).write(
                 {
@@ -71,7 +68,6 @@ class TestForumCRUD(TestForumCommon):
                 }
             )
 
-        # One should not be able to give his vote to someone else
         self.employee_vote_on_admin_post.with_user(self.user_employee).write(
             {
                 "user_id": 1,
@@ -82,7 +78,6 @@ class TestForumCRUD(TestForumCommon):
             self.user_employee,
             "User employee should not be able to give its vote ownership to someone else",
         )
-        # One should not be able to change his vote's post to a post of his own (would be self voting)
         with self.assertRaises(UserError):
             self.employee_vote_on_admin_post.with_user(self.user_employee).write(
                 {
@@ -90,7 +85,6 @@ class TestForumCRUD(TestForumCommon):
                 }
             )
 
-        # One should not be able to give his vote to someone else
         self.portal_vote_on_admin_post.with_user(self.user_portal).write(
             {
                 "user_id": 1,
@@ -101,7 +95,6 @@ class TestForumCRUD(TestForumCommon):
             self.user_portal,
             "User portal should not be able to give its vote ownership to someone else",
         )
-        # One should not be able to change his vote's post to a post of his own (would be self voting)
         with self.assertRaises(UserError):
             self.portal_vote_on_admin_post.with_user(self.user_portal).write(
                 {
@@ -109,7 +102,6 @@ class TestForumCRUD(TestForumCommon):
                 }
             )
 
-        # One should not be able to vote for its own post
         with self.assertRaises(UserError):
             Vote.with_user(self.user_employee).create(
                 {
@@ -117,7 +109,6 @@ class TestForumCRUD(TestForumCommon):
                     "vote": "1",
                 }
             )
-        # One should not be able to vote for its own post
         with self.assertRaises(UserError):
             Vote.with_user(self.user_portal).create(
                 {
@@ -128,7 +119,6 @@ class TestForumCRUD(TestForumCommon):
 
         with mute_logger("odoo.db"):
             with self.assertRaises(IntegrityError):
-                # One should not be able to vote more than once on a same post
                 Vote.with_user(self.user_employee).create(
                     {
                         "post_id": self.admin_post.id,
@@ -136,7 +126,6 @@ class TestForumCRUD(TestForumCommon):
                     }
                 )
             with self.assertRaises(IntegrityError):
-                # One should not be able to vote more than once on a same post
                 Vote.with_user(self.user_employee).create(
                     {
                         "post_id": self.admin_post.id,
@@ -144,7 +133,6 @@ class TestForumCRUD(TestForumCommon):
                     }
                 )
 
-        # One should not be able to create a vote for someone else
         new_employee_vote = Vote.with_user(self.user_employee).create(
             {
                 "post_id": self.portal_post.id,
@@ -157,7 +145,6 @@ class TestForumCRUD(TestForumCommon):
             self.user_employee,
             "Creating a vote for someone else should not be allowed. It should create it for yourself instead",
         )
-        # One should not be able to create a vote for someone else
         new_portal_vote = Vote.with_user(self.user_portal).create(
             {
                 "post_id": self.employee_post.id,
@@ -171,13 +158,11 @@ class TestForumCRUD(TestForumCommon):
             "Creating a vote for someone else should not be allowed. It should create it for yourself instead",
         )
 
-        # One should not be able to access a vote from someone else
         with self.assertRaises(AccessError):
             new_employee_vote.with_user(self.user_portal).read(["vote"])
         with self.assertRaises(AccessError):
             new_portal_vote.with_user(self.user_employee).read(["vote"])
 
-        # Admins should be able to access all votes
         (new_employee_vote + new_portal_vote).with_user(self.user_admin).read(["vote"])
 
 
@@ -186,7 +171,6 @@ class TestForumKarma(TestForumCommon):
     def test_answer_question(self):
         Post = self.env["forum.post"]
 
-        # Answers its own question: not allowed, unsufficient karma
         with self.assertRaises(AccessError):
             Post.with_user(self.user_employee).create(
                 {
@@ -196,7 +180,6 @@ class TestForumKarma(TestForumCommon):
                 }
             )
 
-        # Answers on question: ok if enough karma
         self.user_employee.karma = KARMA["ans"]
         Post.with_user(self.user_employee).create(
             {
@@ -215,7 +198,6 @@ class TestForumKarma(TestForumCommon):
     def test_ask_question(self):
         Post = self.env["forum.post"]
 
-        # Public user asks a question: not allowed
         with self.assertRaises(AccessError):
             Post.with_user(self.user_public).create(
                 {
@@ -224,7 +206,6 @@ class TestForumKarma(TestForumCommon):
                 }
             )
 
-        # Portal user asks a question with tags: not allowed, unsufficient karma
         with self.assertRaises(AccessError):
             Post.with_user(self.user_portal).create(
                 {
@@ -234,7 +215,6 @@ class TestForumKarma(TestForumCommon):
                 }
             )
 
-        # Portal user asks a question with tags: ok if enough karma
         self.user_portal.karma = KARMA["tag_create"]
         Post.with_user(self.user_portal).create(
             {
@@ -263,7 +243,6 @@ class TestForumKarma(TestForumCommon):
             "website_forum: wrong karma generation when asking question",
         )
 
-        # check karma done on right forum, using context values
         self.user_portal.karma = KARMA["post"]
         for karma_value, has_nofollow in [
             (self.user_portal.karma + 1, True),
@@ -293,7 +272,6 @@ class TestForumKarma(TestForumCommon):
                         "nofollow" in post.content,
                         "website_forum: default_content in context should not bypass karma check.",
                     )
-                # reset karma
                 self.user_portal.karma = KARMA["post"]
 
                 post = (
@@ -316,7 +294,6 @@ class TestForumKarma(TestForumCommon):
                         "nofollow" in post.content,
                         "website_forum: default_forum_id in context should not bypass karma check.",
                     )
-                # reset karma
                 self.user_portal.karma = KARMA["post"]
 
     def test_close_post_all(self):
@@ -372,7 +349,6 @@ class TestForumKarma(TestForumCommon):
     def test_convert_answer_to_comment_crash(self):
         Post = self.env["forum.post"]
 
-        # converting a question does nothing
         new_msg = self.post.with_user(self.user_portal).convert_answer_to_comment()
         self.assertEqual(
             new_msg.id, False, "website_forum: question to comment conversion failed"
@@ -416,11 +392,9 @@ class TestForumKarma(TestForumCommon):
             {"name": "TestAnswer", "forum_id": self.forum.id, "parent_id": self.post.id}
         )
 
-        # downvote its own post
         with self.assertRaises(UserError):
             emp_answer.vote(upvote=False)
 
-        # not enough karma
         with self.assertRaises(AccessError):
             self.post.with_user(self.user_portal).vote(upvote=False)
 
@@ -446,11 +420,9 @@ class TestForumKarma(TestForumCommon):
             }
         )
 
-        # portal user flags a post: not allowed, unsufficient karma
         with self.assertRaises(AccessError):
             post.with_user(self.user_portal)._flag()
 
-        # portal user flags a post: ok if enough karma
         self.user_portal.karma = KARMA["flag"]
         post.state = "active"
         post.with_user(self.user_portal)._flag()
@@ -468,11 +440,9 @@ class TestForumKarma(TestForumCommon):
             }
         )
 
-        # portal user mark a post as offensive: not allowed, unsufficient karma
         with self.assertRaises(AccessError):
             post.with_user(self.user_portal)._mark_as_offensive(12)
 
-        # portal user mark a post as offensive
         self.user_portal.karma = KARMA["moderate"]
         post.state = "flagged"
         init_karma = post.create_uid.karma
@@ -498,11 +468,9 @@ class TestForumKarma(TestForumCommon):
             }
         )
 
-        # portal user validate a post: not allowed, unsufficient karma
         with self.assertRaises(AccessError):
             post.with_user(self.user_portal)._refuse()
 
-        # portal user validate a pending post
         self.user_portal.karma = KARMA["moderate"]
         post.state = "pending"
         init_karma = post.create_uid.karma
@@ -540,11 +508,9 @@ class TestForumKarma(TestForumCommon):
             }
         )
 
-        # portal user validate a post: not allowed, unsufficient karma
         with self.assertRaises(AccessError):
             post.with_user(self.user_portal).validate()
 
-        # portal user validate a pending post
         self.user_portal.karma = KARMA["moderate"]
         post.state = "pending"
         init_karma = post.create_uid.karma
@@ -560,7 +526,6 @@ class TestForumKarma(TestForumCommon):
             "website_forum: wrong karma when validate a post after pending",
         )
 
-        # portal user validate a flagged post: ok if enough karma
         self.user_portal.karma = KARMA["moderate"]
         post.state = "flagged"
         post.with_user(self.user_portal).validate()
@@ -570,7 +535,6 @@ class TestForumKarma(TestForumCommon):
             "website_forum: wrong state when validate a post after flagged",
         )
 
-        # portal user validate an offensive post: ok if enough karma
         self.user_portal.karma = KARMA["moderate"]
         post.state = "offensive"
         init_karma = post.create_uid.karma
@@ -607,21 +571,18 @@ class TestForumKarma(TestForumCommon):
             "website_forum: wrong karma generation of upvoted question author",
         )
 
-        # On voting again with the same value, nothing changes
         res = post_as_portal.vote(upvote=True)
         self.assertEqual(res["vote_count"], initial_vote_count + 1)
         self.assertEqual(res["user_vote"], "1")
         self.post.invalidate_recordset()
         self.assertEqual(post_as_portal.user_vote, 1)
 
-        # On reverting vote, vote cancels
         res = post_as_portal.vote(upvote=False)
         self.assertEqual(res["vote_count"], initial_vote_count)
         self.assertEqual(res["user_vote"], "0")
         self.post.invalidate_recordset()
         self.assertEqual(post_as_portal.user_vote, 0)
 
-        # Everything works from "0" too
         res = post_as_portal.vote(upvote=False)
         self.assertEqual(res["vote_count"], initial_vote_count - 1)
         self.assertEqual(res["user_vote"], "-1")
@@ -638,30 +599,14 @@ class TestForumKarma(TestForumCommon):
             {"name": "TestAnswer", "forum_id": self.forum.id, "parent_id": self.post.id}
         )
 
-        # upvote its own post
         with self.assertRaises(UserError):
             emp_answer.vote(upvote=True)
 
-        # not enough karma
         with self.assertRaises(AccessError):
             self.post.with_user(self.user_portal).vote(upvote=True)
 
 
 class TestForumMailOperationMap(TestForumCommon):
-    """The karma gate on message write/unlink must survive ``sudo()``.
-
-    ``_mail_get_operation_for_mail_message_operation`` is reached with two
-    environments: ``mail.message._get_accessible_documents`` calls it
-    on a plain recordset, while ``mail.message._get_with_access`` and the
-    chatter's ``_get_thread_with_access_for_post`` call it on a ``sudo()`` one.
-
-    The override used to filter on ``post.can_edit``, which folds in
-    ``env.is_admin() == env.su or user._is_admin()``. Under those sudo callers it
-    read True for everybody, so the karma restriction silently granted every user
-    what it meant to withhold -- while still applying on the batch path. The
-    invariant is that both environments give the same answer.
-    """
-
     def test_operation_map_is_not_widened_by_sudo(self):
         self.user_portal.karma = 0
         post = self.post
@@ -694,7 +639,6 @@ class TestForumMailOperationMap(TestForumCommon):
                 )
 
     def test_operation_map_still_grants_above_karma(self):
-        """Control: enough karma still grants the operation, sudo or not."""
         self.user_portal.karma = 10000
         post = self.post
         for operation in ("write", "unlink"):

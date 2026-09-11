@@ -67,7 +67,6 @@ class TestLivechatUI(HttpCaseWithUserDemo, TestLivechatCommon):
         )
 
     def test_empty_chat_request_flow_no_rating_no_close_ui(self):
-        # Open an empty chat request
         self.visitor_tour.with_user(self.operator).sudo().action_send_chat_request()
         chat_request = self.env["discuss.channel"].search(
             [
@@ -76,10 +75,8 @@ class TestLivechatUI(HttpCaseWithUserDemo, TestLivechatCommon):
             ]
         )
 
-        # Visitor ask a new livechat session before the operator start to send message in chat request session
         self.start_tour("/", "website_livechat_no_rating_no_close_tour")
 
-        # Visitor's session must be active (gets the priority)
         channel = self.env["discuss.channel"].search(
             [
                 ("livechat_visitor_id", "=", self.visitor_tour.id),
@@ -94,7 +91,6 @@ class TestLivechatUI(HttpCaseWithUserDemo, TestLivechatCommon):
             "Livechat must be active while the chat window is not closed.",
         )
 
-        # Check that the chat request has been canceled.
         chat_request.invalidate_recordset()
         self.assertTrue(
             chat_request.livechat_end_dt,
@@ -102,7 +98,6 @@ class TestLivechatUI(HttpCaseWithUserDemo, TestLivechatCommon):
         )
 
     def test_chat_request_flow_with_rating_ui(self):
-        # Open a chat request
         self.visitor_tour.with_user(self.operator).sudo().action_send_chat_request()
         chat_request = self.env["discuss.channel"].search(
             [
@@ -111,7 +106,6 @@ class TestLivechatUI(HttpCaseWithUserDemo, TestLivechatCommon):
             ]
         )
 
-        # Operator send a message to the visitor
         self._send_message(
             chat_request,
             self.operator.email,
@@ -122,7 +116,6 @@ class TestLivechatUI(HttpCaseWithUserDemo, TestLivechatCommon):
             len(chat_request.message_ids), 1, "Number of messages incorrect."
         )
 
-        # Visitor comes to the website and receives the chat request
         self.start_tour("/", "website_livechat_chat_request")
         self._check_end_of_rating_tours()
 

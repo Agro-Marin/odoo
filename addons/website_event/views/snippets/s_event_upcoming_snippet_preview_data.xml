@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Multi record preview -->
     <template
         id="s_event_upcoming_snippet_preview_data"
         name="Events Picture Preview Data">
@@ -200,7 +199,6 @@
         </div>
     </template>
 
-    <!-- Single record preview -->
     <template
         id="s_dynamic_snippet_events_single_offset_preview_data"
         name="Single Event Offset Preview Data">

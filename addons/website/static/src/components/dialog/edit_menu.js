@@ -25,8 +25,6 @@ import { WebsiteDialog } from "./dialog.js";
 function urlToCheck(url) {
     let relativeUrl;
 
-    // Do not check if the page exists if the input is empty, an anchor, an
-    // email, or a phone number.
     if (
         !url.trim() ||
         url.startsWith("#") ||
@@ -39,19 +37,14 @@ function urlToCheck(url) {
     try {
         relativeUrl = toRelativeIfSameDomain(url);
         if (relativeUrl === url) {
-            // External URL
             return false;
         }
     } catch {
-        // Relative or invalid URL; proceed with original.
         relativeUrl = url;
     }
 
-    // Remove query params and hash.
     relativeUrl = relativeUrl.split("?")[0].split("#")[0];
-    // Ensure the URL starts with "/".
     relativeUrl = relativeUrl.startsWith("/") ? relativeUrl : "/" + relativeUrl;
-    // Remove trailing slash if it's not the root "/".
     relativeUrl =
         relativeUrl.endsWith("/") && relativeUrl !== "/"
             ? relativeUrl.slice(0, -1)
@@ -69,10 +62,6 @@ async function checkUrlExists(link) {
 }
 
 const toRelativeIfSameDomain = (url) => {
-    // Remove domain from url to keep only the relative path if same domain.
-    // NB: `isAbsoluteURLInCurrentDomain` ignores its second argument; passing
-    // `this.env` from this module-scope arrow threw (top-level `this` is
-    // undefined), silently sending absolute same-domain menu URLs unstripped.
     const urlObj = new URL(url);
     const isSameDomain = isAbsoluteURLInCurrentDomain(url);
     return isSameDomain ? url.replace(urlObj.origin, "") : url;
@@ -150,17 +139,11 @@ export class MenuDialog extends Component {
         if (!this.props.isMegaMenu) {
             try {
                 url = toRelativeIfSameDomain(url);
-            } catch {
-                // Do nothing if URL is invalid.
-            }
+            } catch {}
         }
         this.props.save(this.state.name, url);
         this.props.close();
     }
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
 
     onUrlInput(ev) {
         this.state.invalidUrl = false;
@@ -243,13 +226,11 @@ export class EditMenuDialog extends Component {
             isAllowed: this._isAllowedMove.bind(this),
             useElementSize: true,
             /**
-             * @param {DOMElement} element - moved element
-             * @param {DOMElement} parent - parent element of where the element was moved
-             * @param {DOMElement} placeholder - hint element showing the current position
+             * @param {DOMElement} element
+             * @param {DOMElement} parent
+             * @param {DOMElement} placeholder
              */
             onMove: ({ element, placeholder, parent }) => {
-                // Adapt the dragged menu item to match the width and position
-                // of the placeholder.
                 element.style.width = getComputedStyle(placeholder).width;
                 element.style.marginLeft =
                     parent && element.parentElement === this.menuEditor.el
@@ -276,7 +257,7 @@ export class EditMenuDialog extends Component {
         }
         await Promise.all(
             menuFlattened(menu)
-                .slice(1) // exclude root menu
+                .slice(1)
                 .map(async (menu) => {
                     menu.page_not_found = !(await checkUrlExists(menu.fields["url"]));
                 }),
@@ -307,21 +288,18 @@ export class EditMenuDialog extends Component {
         const menuId = this._getMenuIdForElement(element);
         const menu = this.map.get(menuId);
 
-        // Remove element from parent's children (since we are moving it, this is the mandatory first step)
         const parentId = menu.fields["parent_id"] || this.state.rootMenu.fields["id"];
         let parentMenu = this.map.get(parentId);
         parentMenu.children = parentMenu.children.filter(
             (m) => m.fields["id"] !== menuId,
         );
 
-        // Determine next parent
         const menuParentId = parent
             ? this._getMenuIdForElement(parent.closest("li"))
             : this.state.rootMenu.fields["id"];
         parentMenu = this.map.get(menuParentId);
         menu.fields["parent_id"] = parentMenu.fields["id"];
 
-        // Determine at which position we should place the element
         if (previous) {
             const previousMenu = this.map.get(this._getMenuIdForElement(previous));
             const index = parentMenu.children.findIndex(
@@ -388,7 +366,6 @@ export class EditMenuDialog extends Component {
         log.logic("deleteMenu", () => ({ id, name: this.map.get(id)?.fields?.name }));
         const menuToDelete = this.map.get(id);
 
-        // Delete children first
         for (const child of menuToDelete.children) {
             this.deleteMenu(child.fields.id);
         }

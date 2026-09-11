@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        Base definition for the masonry snippet, not to be used as a snippet on its own.
-        Use t-snippet-call and fill it with its inner grid-mode row.
-    -->
     <template id="s_masonry_block" name="Masonry">
         <section class="s_masonry_block pt48 pb48" data-vcss="001" data-vxml="001">
             <t
@@ -264,7 +260,6 @@
         </t>
     </template>
 
-    <!-- Assets -->
     <asset
         id="website.s_masonry_block_000_scss"
         name="Masonry block 000 SCSS"

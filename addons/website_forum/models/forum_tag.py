@@ -49,10 +49,6 @@ class ForumTag(models.Model):
             self.with_context(mail_create_nolog=True, mail_create_nosubscribe=True),
         ).create(vals_list)
 
-    # ----------------------------------------------------------------------
-    # WEBSITE
-    # ----------------------------------------------------------------------
-
     @api.model
     def _search_get_detail(self, website, order, options):
         search_fields = ["name"]

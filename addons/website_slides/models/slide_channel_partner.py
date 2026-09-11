@@ -32,7 +32,6 @@ class SlideChannelPartner(models.Model):
         "res.partner", index=True, required=True, ondelete="cascade"
     )
     partner_email = fields.Char(related="partner_id.email", readonly=True)
-    # channel-related information (for UX purpose)
     channel_user_id = fields.Many2one(
         "res.users", string="Responsible", related="channel_id.user_id"
     )
@@ -46,7 +45,6 @@ class SlideChannelPartner(models.Model):
         "slide.slide", string="Next Lesson", compute="_compute_next_slide_id"
     )
 
-    # Invitation
     invitation_link = fields.Char("Invitation Link", compute="_compute_invitation_link")
     last_invitation_date = fields.Datetime("Last Invitation Date")
 
@@ -61,8 +59,6 @@ class SlideChannelPartner(models.Model):
 
     @api.depends("channel_id", "partner_id")
     def _compute_invitation_link(self):
-        """This sets the url used as hyperlink in the channel invitation email in template mail_notification_channel_invite.
-        The partner_id is given in the url, as well as a hash based on the partner and channel id."""
         for record in self:
             invitation_hash = record._get_invitation_hash()
             record.invitation_link = f"{record.channel_id.get_base_url()}/slides/{record.channel_id.id}/invite?invite_partner_id={record.partner_id.id}&invite_hash={invitation_hash}"
@@ -105,37 +101,11 @@ class SlideChannelPartner(models.Model):
             )
 
     def _is_finished(self):
-        """The single definition of "this attendee finished the course".
-
-        Counted in contents, never in the rounded percentage: the two must not
-        be allowed to drift apart again (see _recompute_completion).
-        """
         self.check_singleton()
         total_slides = self.channel_id.total_slides
         return bool(total_slides) and self.completed_slides_count >= total_slides
 
     def _recompute_completion(self):
-        """This method computes the completion and member_status of attendees that are neither
-        'invited' nor 'completed'. Indeed, once completed, membership should remain so.
-        We do not do any update on the 'invited' records.
-        One should first set member_status to 'joined' before recomputing those values
-        when enrolling an invited or archived attendee.
-        It takes into account the previous completion value to add or remove karma for
-        completing the course to the attendee (see _post_completion_update_hook)
-
-        "Finished" is decided **once**, by counting contents. It used to be
-        decided twice from the same data and the two answers disagreed: the
-        karma/mail hook asked `completed_slides_count >= total_slides` while
-        member_status asked `round(completion) == 100`. Rounding reaches 100 at
-        n-1 of n as soon as a course holds 200 contents, so on any such course
-        the attendee was flipped to 'completed' one content early, the hook
-        never fired, and -- because a record already 'completed' is skipped on
-        every later pass -- finishing the last content could not repair it. The
-        karma and the completion mail were lost permanently.
-
-        `completion` is now a display percentage only, floored so it can never
-        read 100 below completion.
-        """
         read_group_res = (
             self.env["slide.slide.partner"]
             .sudo()
@@ -168,7 +138,6 @@ class SlideChannelPartner(models.Model):
             record.completed_slides_count = mapped_data.get(
                 (record.channel_id.id, record.partner_id.id), 0
             )
-            # floor, not round: at 199 of 200 `round` answers 100.
             record.completion = (
                 math.floor(100.0 * record.completed_slides_count / total_slides)
                 if total_slides
@@ -198,15 +167,7 @@ class SlideChannelPartner(models.Model):
             uncompleted_records._post_completion_update_hook(completed=False)
 
     def unlink(self):
-        """
-        Override unlink method :
-        Remove attendee from a channel, then also remove slide.slide.partner related to.
-        """
         if self:
-            # One clause per (channel, partners) pair rather than per record,
-            # and the channel side expressed as a relation instead of an
-            # inlined list of slide ids: unlinking 1000 members of a 500-slide
-            # course used to build a domain with half a million terms in it.
             removed_slide_partner_domain = Domain.OR(
                 Domain("channel_id", "=", channel.id)
                 & Domain("partner_id", "in", channel_partners.partner_id.ids)
@@ -218,19 +179,11 @@ class SlideChannelPartner(models.Model):
         return super().unlink()
 
     def _get_invitation_hash(self):
-        """Returns the invitation hash of the attendee, used to access courses as invited / joined."""
         self.check_singleton()
         token = (self.partner_id.id, self.channel_id.id)
         return tools.hmac(self.env(su=True), "website_slides-channel-invite", token)
 
     def _post_completion_update_hook(self, completed=True):
-        """Post hook of _recompute_completion. Adds or removes
-        karma given for completing the course.
-
-        :param completed:
-            True if course is completed.
-            False if we remove an existing course completion.
-        """
         for channel, memberships in self.grouped("channel_id").items():
             karma = channel.karma_gen_channel_finish
             if karma <= 0:
@@ -249,7 +202,6 @@ class SlideChannelPartner(models.Model):
             self.env["res.users"]._add_karma_batch(karma_per_users)
 
     def _send_completed_mail(self):
-        """Send an email to the attendee when they have successfully completed a course."""
         template_to_records = {}
         for record in self:
             template = record.channel_id.completed_template_id
@@ -280,14 +232,8 @@ class SlideChannelPartner(models.Model):
                 ],
             )
             for res_id, values in record_values.items():
-                # attachments specific not supported currently, only attachment_ids
                 values.pop("attachments", False)
-                values["body"] = values.get("body_html")  # keep body copy in chatter
-                # Carry the template that produced these values. The second loop
-                # used to reach for `template`, which by then held whatever the
-                # *last* iteration of this loop had left behind -- so two courses
-                # with two different completion templates had one of them render
-                # both layouts.
+                values["body"] = values.get("body_html")
                 record_email_values[res_id] = (template, values)
 
         mail_mail_values = []
@@ -306,11 +252,7 @@ class SlideChannelPartner(models.Model):
             email_values["body_html"] = template._render_encapsulate(
                 "mail.mail_notification_light",
                 email_values["body_html"],
-                add_context={
-                    "model_description": _(
-                        "Completed Course"
-                    )  # tde fixme: translate into partner lang
-                },
+                add_context={"model_description": _("Completed Course")},
                 context_record=record.channel_id,
             )
             mail_mail_values.append(email_values)
@@ -320,8 +262,6 @@ class SlideChannelPartner(models.Model):
 
     @api.autovacuum
     def _gc_slide_channel_partner(self):
-        """The invitations of 'invited' attendees are only valid for 3 months. Remove outdated invitations
-        with no completion. A missing last_invitation_date is also considered as expired."""
         limit_dt = fields.Datetime.subtract(fields.Datetime.now(), months=3)
         expired_invitations = (
             self.env["slide.channel.partner"]

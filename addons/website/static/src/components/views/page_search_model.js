@@ -17,7 +17,6 @@ export class PageSearchModel extends SearchModel {
     async load() {
         await super.load(...arguments);
 
-        // Call `fetchWebsites` to populate `this.website.websites`.
         await this.website.fetchWebsites();
 
         if (this.searchViewFields.website_id) {
@@ -26,16 +25,12 @@ export class PageSearchModel extends SearchModel {
         }
     }
 
-    /**
-     * Creates filter for all available websites.
-     */
     async createFilterForAllWebsites() {
         const existingWebsiteFilters = this.getSearchItems(
             (searchItem) =>
                 searchItem.type === "filter" && searchItem.name.startsWith("website_"),
         );
 
-        // Check if filters are already created
         if (existingWebsiteFilters.length === this.website.websites.length) {
             return;
         }
@@ -68,9 +63,6 @@ export class PageSearchModel extends SearchModel {
         });
     }
 
-    /**
-     * Selects the current website filter if no other website filter is active.
-     */
     async selectCurrentWebsiteFilter() {
         const currentlySelectedWebsiteFilters = this.getSearchItems(
             (searchItem) =>
@@ -94,9 +86,7 @@ export class PageSearchModel extends SearchModel {
     }
 
     /**
-     * Retrieves the current website.
-     *
-     * @returns {Object} The current website.
+     * @returns {Object}
      */
     async getCurrentWebsite() {
         const currentWebsite = await this.orm.call("website", "get_current_website");

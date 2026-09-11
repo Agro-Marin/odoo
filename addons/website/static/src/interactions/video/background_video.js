@@ -13,8 +13,6 @@ export class BackgroundVideo extends Interaction {
     };
     dynamicContent = {
         _document: {
-            // We don't add the optional cookies warning for background videos
-            // so that the fallback message doesn't appear behind the content.
             "t-on-optionalCookiesAccepted.once": () =>
                 (this.iframeEl.src = this.videoSrc),
         },
@@ -54,13 +52,8 @@ export class BackgroundVideo extends Interaction {
         }
         this.__adjustIframe = this.throttled(this.adjustIframe);
         const resizeObserver = new ResizeObserver(this.__adjustIframe.bind(this));
-        // A change in an element padding does not trigger the resizeObserver so
-        // both inner and outer element are observed for any resizing.
         resizeObserver.observe(this.el.parentElement);
         resizeObserver.observe(this.el);
-        // The observer (and the iframe/closure it retains) must be torn down
-        // when the interaction is destroyed (edit-mode toggle, preview restart),
-        // otherwise it leaks on every re-init.
         this.registerCleanup(() => resizeObserver.disconnect());
     }
 
@@ -76,9 +69,6 @@ export class BackgroundVideo extends Interaction {
         const relativeRatio = wrapperWidth / wrapperHeight / (16 / 9);
 
         if (this.el.closest(".s_ecomm_categories_showcase_block")) {
-            // Chrome-only: percentage sizing makes the video in "Categories
-            // Showcase" snippet jitter on hover, so force pixel values while
-            // keeping the ratio.
             const iframeHeight = Math.round(
                 relativeRatio >= 1 ? wrapperWidth * (9 / 16) : wrapperHeight,
             );
@@ -101,7 +91,7 @@ export class BackgroundVideo extends Interaction {
             this.iframeEl.style.insetBlockStart = "0";
         }
 
-        void this.iframeEl.offsetWidth; // Force style addition
+        void this.iframeEl.offsetWidth;
         this.iframeEl.classList.add("show");
     }
 
@@ -130,9 +120,6 @@ export class BackgroundVideo extends Interaction {
             "load",
             () => {
                 this.bgVideoContainer.querySelector(".o_bg_video_loading")?.remove();
-                // When there is a "slide in (left or right) animation" element,
-                // we need to adjust the iframe size once it has been loaded,
-                // otherwise an horizontal scrollbar may appear.
                 this.adjustIframe();
             },
             { once: true },

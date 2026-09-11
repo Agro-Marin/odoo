@@ -45,7 +45,6 @@ export class SetGridLayoutAction extends BuilderAction {
     static id = "setGridLayout";
     static dependencies = ["selection"];
     apply({ editingElement }) {
-        // TODO no preview/apply if it s isApplied
         if (isGrid(editingElement)) {
             return;
         }
@@ -63,24 +62,18 @@ export class SetColumnLayoutAction extends BuilderAction {
     static id = "setColumnLayout";
     apply({ editingElement }) {
         const rowEl = getRow(editingElement);
-        // TODO no preview/apply if it s isApplied
         if (!isGrid(editingElement)) {
             return;
         }
 
-        // Removing the grid class
         rowEl.classList.remove("o_grid_mode");
         const columnEls = rowEl.children;
 
         for (const columnEl of columnEls) {
-            // Reloading the images.
             reloadLazyImages(columnEl);
-            // Removing the grid properties.
             convertToNormalColumn(columnEl, this.config.mobileBreakpoint);
         }
-        // Removing the grid properties.
         delete rowEl.dataset.rowCount;
-        // Kept for compatibility.
         rowEl.style.removeProperty("--grid-item-padding-x");
         rowEl.style.removeProperty("--grid-item-padding-y");
         rowEl.style.removeProperty("gap");

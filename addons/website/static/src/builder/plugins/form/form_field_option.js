@@ -127,7 +127,6 @@ export class FormFieldOption extends BaseOptionComponent {
             this.state.conditionValueList.length = 0;
             this.state.conditionValueList.push(...fieldOptionData.conditionValueList);
         });
-        // TODO select field's hack ?
     }
     get canHaveTextValidationCondition() {
         return ["text", "email", "tel", "url", "search", "password", "number"];
@@ -158,10 +157,7 @@ export class FormFieldOption extends BaseOptionComponent {
         );
     }
     /**
-     * Determines the visibility of the text condition input field used for
-     * validation.
-     *
-     * @returns {boolean} Whether the text condition input should be visible.
+     * @returns {boolean}
      */
     get isTextConditionForRequirementOptionVisible() {
         const el = this.env.getEditingElement();
@@ -201,8 +197,6 @@ export class FormFieldOption extends BaseOptionComponent {
         return !!getMultipleInputs(el);
     }
     get isMaxFilesVisible() {
-        // Do not display the option if only one file is supposed to be
-        // uploaded in the field.
         const el = this.env.getEditingElement();
         const fieldEl = el.closest(".s_website_form_field");
         return (

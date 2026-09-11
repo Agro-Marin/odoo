@@ -10,9 +10,7 @@
                 data-bs-ride="true"
                 data-bs-interval="10000"
                 data-option-name="CarouselBottomControllers">
-                <!-- Content -->
                 <div class="carousel-inner">
-                    <!-- #01 -->
                     <div
                         class="o_cc o_cc2 carousel-item active pt40 pb80 px-md-0"
                         data-name="Slide">
@@ -49,7 +47,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- #02 -->
                     <div
                         class="o_cc o_cc2 carousel-item pt40 pb80 px-md-0"
                         data-name="Slide">
@@ -86,7 +83,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- #03 -->
                     <div
                         class="o_cc o_cc2 carousel-item pt40 pb80 px-md-0"
                         data-name="Slide">
@@ -128,7 +124,6 @@
                     class="o_horizontal_controllers container position-absolute start-50 bottom-0 translate-middle-x w-100 mb-md-4 o_not_editable">
                     <div
                         class="o_horizontal_controllers_row row gap-3 gap-lg-5 justify-content-between flex-nowrap flex-row-reverse mx-0">
-                        <!-- Controls -->
                         <div class="o_arrows_wrapper gap-2 w-auto p-0">
                             <button
                                 class="carousel-control-prev o_not_editable"
@@ -155,7 +150,6 @@
                                 <span class="visually-hidden">Next</span>
                             </button>
                         </div>
-                        <!-- Indicators -->
                         <div
                             class="s_carousel_indicators_numbers carousel-indicators align-items-center flex-shrink-1 w-auto">
                             <button

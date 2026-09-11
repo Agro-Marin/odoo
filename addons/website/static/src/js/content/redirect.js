@@ -1,12 +1,6 @@
 /** @odoo-module native */
 import { session } from "@web/session";
 
-/**
- * This script, served with frontend pages, displays buttons in the top left
- * corner to provide the authenticated user an access to his odoo backend.
- * In the case of the page being viewed in the website_preview client action,
- * it will forward some events to its parent.
- */
 document.addEventListener("DOMContentLoaded", () => {
     if (session.is_website_user) {
         return;
@@ -20,7 +14,6 @@ document.addEventListener("DOMContentLoaded", () => {
             frontendToBackendNavEl.classList.add("d-flex");
             frontendToBackendNavEl.classList.remove("d-none");
         }
-        // Auto redirect to frontend if edit/translation mode is requested
         const currentUrl = new URL(window.location.href);
         currentUrl.pathname = `/@${currentUrl.pathname}`;
         if (
@@ -56,12 +49,6 @@ document.addEventListener("DOMContentLoaded", () => {
             backendUserDropdownLinkEl.classList.add("d-none");
             backendUserDropdownLinkEl.classList.remove("d-flex");
         }
-        // Multiple reasons to do this:
-        // - It seems like DOMContentLoaded doesn't always trigger when
-        //   listened from the parent window
-        // - Having an event that's fire only when the page is from Odoo avoids
-        //   weird behaviours. (e.g. if we want to clear out the iframe, it might
-        //   fire an DOMContentLoaded on a non odoo page)
         window.frameElement.dispatchEvent(new CustomEvent("OdooFrameContentLoaded"));
     }
 });

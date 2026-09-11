@@ -11,10 +11,6 @@ export class EmbedCode extends Interaction {
     }
 
     destroy() {
-        // Just before entering edit mode, reinitialize the snippet's content,
-        // without <script> elements. This is both done so that scripts don't
-        // affect the DOM in edit mode, and to remove elements that would have
-        // been introduced by a script.
         const templateContent = this.el.querySelector(
             "template.s_embed_code_saved",
         ).content;

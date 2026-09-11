@@ -9,7 +9,6 @@
         groups="website_slides.group_website_slides_officer"
         web_icon="website_slides,static/description/icon.png" />
 
-    <!-- Main top menu elements -->
     <menuitem
         id="website_slides_menu_courses"
         name="Courses"
@@ -29,7 +28,6 @@
         parent="website_slides_menu_root"
         sequence="99" />
 
-    <!-- Courses sub-menu -->
     <menuitem
         id="website_slides_menu_courses_courses"
         name="Courses"
@@ -44,7 +42,6 @@
         action="slide_slide_action"
         sequence="2" />
 
-    <!-- Reporting sub-menu -->
     <menuitem
         id="website_slides_menu_report_courses"
         name="Courses"
@@ -89,7 +86,6 @@
         action="slide_quiz_question_action_report"
         sequence="15" />
 
-    <!-- Settings sub-menu -->
     <menuitem
         id="website_slides_menu_config_settings"
         name="Settings"

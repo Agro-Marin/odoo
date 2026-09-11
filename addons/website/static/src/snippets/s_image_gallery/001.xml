@@ -41,30 +41,7 @@
         </div>
     </t>
 
-    <!--
-    The templates (website.gallery.slideshow and
-    website.gallery.slideshow.lightbox) have been moved from "./000.xml" to
-    here for compatibility with version 18.0.
 
-    Deprecation notice:
-    - These templates will be removed in version 19.1 as we always want to
-    use website.s_image_gallery_mirror and
-    website.gallery.s_image_gallery_mirror.lightbox instead.
-
-    Additionally:
-    - The content of this file will be moved to "000.xml" and file "001.xml"
-    will no longer exist.
-    -->
-
-    <!--
-        ========================================================================
-        Gallery Slideshow
-
-        This template is used to display a slideshow of images inside a
-        bootstrap carousel.
-
-        ========================================================================
-    -->
     <t t-name="website.gallery.slideshow">
         <div t-attf-id="#{id}" class="carousel slide" t-att-data-bs-ride="ride" t-attf-data-bs-interval="#{interval}" style="margin: 0 12px;">
             <div class="carousel-inner" style="padding: 0;">
@@ -98,16 +75,6 @@
         </div>
     </t>
 
-    <!--
-        ========================================================================
-        Gallery Slideshow LightBox
-
-        This template is used to display a lightbox with a slideshow.
-
-        This template wraps website.gallery.slideshow in a bootstrap modal
-        dialog.
-        ========================================================================
-    -->
     <t t-name="website.gallery.slideshow.lightbox">
         <div role="dialog" class="modal o_technical_modal fade s_gallery_lightbox p-0" aria-label="Image Gallery Dialog" tabindex="-1">
             <div class="modal-dialog m-0" role="Picture Gallery"

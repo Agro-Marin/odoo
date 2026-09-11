@@ -78,12 +78,6 @@ test("countdown is started when there is an element .s_countdown", async () => {
     expect(core.interactions).toHaveLength(1);
 });
 
-/**
- * This test use 2 timestamps because in the rare case when the
- * countdown is at xx:xx:00, the next frame will update the multiple
- * canvases, including the hours one. It won't happen a second time.
- * We compare the canvases twice to prevent the issue.
- */
 test("[time] countdown display is updated correctly when time pass", async () => {
     await startInteractions(getTemplate());
 
@@ -93,7 +87,6 @@ test("[time] countdown display is updated correctly when time pass", async () =>
     const canvasHoursCtx = canvasHours.getContext("2d");
     const canvasSecondsCtx = canvasSeconds.getContext("2d");
 
-    // time T
     const data1Hours = canvasHoursCtx.getImageData(
         0,
         0,
@@ -107,7 +100,6 @@ test("[time] countdown display is updated correctly when time pass", async () =>
         canvasSeconds.height,
     ).data;
 
-    // time T + 1s
     await advanceTime(1000);
     const data2Hours = canvasHoursCtx.getImageData(
         0,
@@ -122,7 +114,6 @@ test("[time] countdown display is updated correctly when time pass", async () =>
         canvasSeconds.height,
     ).data;
 
-    // time T + 2s
     await advanceTime(1000);
     const data3Hours = canvasHoursCtx.getImageData(
         0,
@@ -137,14 +128,10 @@ test("[time] countdown display is updated correctly when time pass", async () =>
         canvasSeconds.height,
     ).data;
 
-    // Check that the data are not empty & the same size
-
     const dataHoursLength = data1Hours.length;
     const dataSecondsLength = data1Seconds.length;
     expect(dataSecondsLength).toBe(dataHoursLength);
     expect(dataSecondsLength).not.toBe(0);
-
-    // Compare data
 
     const hoursUpdate12 = wasDataChanged(data1Hours, data2Hours, dataHoursLength);
     const hoursUpdate23 = wasDataChanged(data2Hours, data3Hours, dataHoursLength);
@@ -159,10 +146,8 @@ test("[time] countdown display is updated correctly when time pass", async () =>
         dataSecondsLength,
     );
 
-    // Hour canvas must not have changed twice
     expect(hoursUpdate12 && hoursUpdate23).toBe(false);
 
-    // Second canvas must have changed twice
     expect(secondsUpdate12 && secondsUpdate23).toBe(true);
 });
 

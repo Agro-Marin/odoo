@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- All Forums Layout -->
         <template id="forum_all" name="Forum Navigation">
 
             <t t-set="col_class" t-valuef="col-md col-xl-3 col-xxl-2 mb-3" />
@@ -32,7 +31,6 @@
             </t>
         </template>
         <template id="forum_all_all_entries">
-            <!-- Check if at least one forum without description exist -->
             <t
                 t-set="no_description_exist"
                 t-value="bool(_forums.filtered(lambda f: not f.description))" />
@@ -40,7 +38,6 @@
                 t-set="sorted_forums"
                 t-value="_forums.sorted(lambda f: (not f.description, f.sequence, f.id))" />
 
-            <!-- First, list all forums (those with descriptions first) -->
             <t t-foreach="sorted_forums" t-as="forum">
                 <t t-set="has_desc" t-value="forum.description" />
                 <div t-attf-class="#{col_class}">
@@ -80,10 +77,6 @@
                 </div>
             </t>
         </template>
-        <!--
-            (Options) Forum : List View
-            Display forums as a list
-        -->
         <template
             id="website_forum.opt_list_view"
             name="List View"
@@ -99,26 +92,16 @@
                 <attribute name="t-valuef">col-md-9</attribute>
             </xpath>
         </template>
-        <!--
-            (Options) Forum : Show Post Count
-            Show the number of post a forum has
-        -->
         <template
             id="website_forum.opt_post_count"
             name="Show Post Count"
             inherit_id="website_forum.forum_all"
             active="False" />
-        <!--
-            (Options) Forum : Show Last Post
-            Show the title of the latest post in each forum
-        -->
         <template
             id="website_forum.opt_last_post"
             name="Show Last Post"
             inherit_id="website_forum.forum_all"
             active="False" />
-        <!-- Default content for the "All Forums Layout" header above -->
-        <!-- (simulate an oe_structure edition) -->
         <template
             id="forum_all_oe_structure_forum_all_top"
             name="Forum Navigation (oe_structure_forum_all_top)"

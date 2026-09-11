@@ -2,13 +2,9 @@ import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 import * as tourUtils from "@website_sale/js/tours/tour_utils";
 
-/**
- * Patch tracking to avoid third party calls during tests.
- */
 function patchTracking() {
     const { Tracking } = odoo.loader.modules.get("@website_sale/interactions/tracking");
     patch(Tracking.prototype, {
-        // Don't call super to avoid third party calls (GA).
         onViewItem(event) {
             const productTrackingInfo = event.detail;
             document.body.setAttribute("view-event-id", productTrackingInfo.item_id);
@@ -54,7 +50,6 @@ registry.category("web_tour.tours").add("google_analytics_view_item", {
         },
         {
             content: "wait until `_getCombinationInfo()` rpc is done (2)",
-            // a new view event should have been generated, for another variant
             trigger: `body[view-event-id]:not([view-event-id="${itemId}"])`,
             timeout: 25000,
         },

@@ -13,15 +13,12 @@ class TestForumInternals(TestForumCommon):
 
     @users("admin")
     def test_assert_initial_values(self):
-        """To ease test setup we support tests only with base data, to avoid
-        having to deal with custom / existing data in various asserts."""
         forums = self.env["forum.forum"].search([])
         self.assertEqual(forums, self.base_forum + self.forum)
         self.assertFalse(forums.website_id)
 
     @users("admin")
     def test_website_forum_count(self):
-        """Test synchronization of website / forum counters."""
         base_website = self.base_website.with_env(self.env)
         website_2 = self.website_2.with_env(self.env)
 
@@ -58,7 +55,6 @@ class TestForumInternals(TestForumCommon):
         self.assertEqual(website_2.forum_count, 6, "6 global forums")
 
     def test_website_forum_last_post_id(self):
-        """Check that each forum's last post is computed correctly and efficiently."""
         test_forums = self.base_forum | self.forum
         new_posts = self.env["forum.post"].create(
             [
@@ -194,7 +190,6 @@ class TestTags(TestForumCommon):
         )
         self.env["forum.tag"].flush_model()
 
-        # trigger batch compute
         __ = (self.forum | self.base_forum).tag_most_used_ids
 
         self.assertEqual(self.forum.tag_most_used_ids, used_tag)

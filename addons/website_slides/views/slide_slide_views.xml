@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- SLIDE.TAG -->
         <record id="view_slide_tag_form" model="ir.ui.view">
             <field name="name">slide.tag.form</field>
             <field name="model">slide.tag</field>
@@ -38,7 +37,6 @@
                 </p>
             </field>
         </record>
-        <!-- SLIDE.SLIDE -->
         <record id="view_slide_slide_form" model="ir.ui.view">
             <field name="name">slide.slide.form</field>
             <field name="model">slide.slide</field>

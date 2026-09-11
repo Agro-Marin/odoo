@@ -33,11 +33,6 @@ class ProcessStepsOptionPlugin extends Plugin {
             ChangeConnectorAction,
             ChangeArrowColorAction,
         },
-        // The reload of the connectors is done at the
-        // 'content_updated_handlers' (each time there is a DOM mutation) and
-        // not at the normalize as there are cases where we want to reload the
-        // connectors even if there were no step added (e.g: a column of the
-        // snippet is being resized).
         content_updated_handlers: (rootEl) =>
             applyFunDependOnSelectorAndExclude(reloadConnectors, rootEl, {
                 selector: ProcessStepsOption.selector,
@@ -64,7 +59,6 @@ export class ChangeConnectorAction extends ClassAction {
             const arrowHeadEl = editingElement.querySelector(
                 ".s_process_steps_arrow_head",
             );
-            // The arrowhead id is set here so that they are different per snippet
             if (!arrowHeadEl.id) {
                 arrowHeadEl.id = uniqueId("s_process_steps_arrow_head");
             }
@@ -90,11 +84,6 @@ registry
     .category("website-plugins")
     .add(ProcessStepsOptionPlugin.id, ProcessStepsOptionPlugin);
 
-/**
- * Width and position of the connectors should be updated when one of the
- * steps is modified.
- *
- */
 function reloadConnectors(editingElement) {
     const connectorOptionClasses = connectorOptionParams.map(
         (connectorOptionParam) => connectorOptionParam.key,
@@ -105,8 +94,6 @@ function reloadConnectors(editingElement) {
                 connectorOptionClass &&
                 editingElement.classList.contains(connectorOptionClass),
         ) || "";
-    // As the connectors are only visible in desktop, we can ignore the
-    // steps that are only visible in mobile.
     const stepsEls = editingElement.querySelectorAll(
         ".s_process_step:not(.o_snippet_desktop_invisible)",
     );
@@ -143,8 +130,6 @@ function reloadConnectors(editingElement) {
             colsInRow + stepSize + stepOffset + nextStepSize + nextStepOffset;
         connectorEl.classList.toggle("d-none", isTheLastColOfRow);
         colsInRow = isTheLastColOfRow ? 0 : colsInRow + stepSize + stepOffset;
-        // When we are mobile view, the connector is not visible, here we
-        // display it quickly just to have its size.
         connectorEl.style.display = "block";
         const { height, width } = connectorEl.getBoundingClientRect();
         connectorEl.style.removeProperty("display");
@@ -172,8 +157,6 @@ function reloadConnectors(editingElement) {
     }
 }
 /**
- * Returns the number suffixed to the class given in parameter.
- *
  * @param {HTMLElement} el
  * @param {String} classNamePrefix
  * @returns {Integer}
@@ -183,9 +166,6 @@ function getClassSuffixedInteger(el, classNamePrefix) {
     return className ? parseInt(className.replace(classNamePrefix, "")) : 0;
 }
 /**
- * Returns the step's icon or content bounding rectangle.
- *
- * @param {HTMLElement}
  * @returns {object}
  */
 function getStepMainElementRect(stepEl) {
@@ -194,8 +174,6 @@ function getStepMainElementRect(stepEl) {
         return iconEl.getBoundingClientRect();
     }
     const contentEls = stepEl.querySelectorAll(".s_process_step_content > *");
-    // If there is no icon, the biggest text bloc in the content container
-    // will be chosen.
     if (contentEls.length) {
         const contentRects = [...contentEls].map((contentEl) => {
             const range = document.createRange();
@@ -209,8 +187,6 @@ function getStepMainElementRect(stepEl) {
     return {};
 }
 /**
- * Returns the svg path based on the type of connector.
- *
  * @param {string} type
  * @param {integer} width
  * @param {integer} height
@@ -240,9 +216,6 @@ function getPath(
             }`;
         }
         case "s_process_steps_connector_arrow": {
-            // When someone plays with the y-axis, it adds the padding in
-            // multiple of 8px. so here we devide it by 8 to calculate the
-            // number of padding steps has been added.
             const verticalPaddingFactor = (Math.abs(stepHeightDifference) / 8) * 1.5;
             if (stepHeightDifference >= 0) {
                 return `M ${0.05 * width} ${

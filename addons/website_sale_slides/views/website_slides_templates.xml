@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- LESSON -->
         <template
             id="lesson_content_quiz"
             inherit_id="website_slides.lesson_content_quiz">
@@ -58,7 +57,6 @@
                 </span>
             </xpath>
         </template>
-        <!-- Tweak "preview" badge: display Free Preview if payment-based course -->
         <template
             id="course_slides_list_slide"
             name="Slide template for a training channel (Sale)"
@@ -74,7 +72,6 @@
                 <span t-else="">Preview</span>
             </xpath>
         </template>
-        <!-- FULLSCREEN -->
         <template id="slide_fullscreen" inherit_id="website_slides.slide_fullscreen">
             <xpath expr="//div[hasclass('o_wslides_fs_main')]" position="attributes">
                 <attribute name="t-att-data-price">product_info['price'] if product_info else None</attribute>
@@ -102,7 +99,6 @@
                 </li>
             </xpath>
         </template>
-        <!-- COURSE -->
         <template
             id="course_main"
             name="Course Main"
@@ -126,7 +122,6 @@
             id="course_join"
             name="Course Sidebar (infos, CTA)"
             inherit_id="website_slides.course_join">
-            <!-- Channel main template: override button to join channel -->
             <xpath expr="//div[hasclass('o_wslides_js_course_join')]" position="inside">
                 <t
                     t-if="(not channel.is_member or channel.can_publish) and channel.enroll == 'payment'">
@@ -134,7 +129,6 @@
                 </t>
             </xpath>
         </template>
-        <!-- TOOLS -->
         <template id="course_buy_course_link" name="Buy Course Link">
             <form class="oe_website_sale">
                 <input
@@ -158,7 +152,6 @@
                 <div
                     t-attf-class="text-center d-flex align-items-center text-center pb-1 #{'justify-content-between' if product_info['has_discounted_price'] else 'justify-content-around'}">
                     <div class="css_editable_mode_hidden">
-                        <!-- real price -->
                         <div
                             t-attf-class="oe_price fw-bold text-nowrap my-2 #{'h4' if len(str(product_info['price'])) &gt; 10 else 'h2'}"
                             t-out="product_info['price']"
@@ -171,7 +164,6 @@
                             itemprop="priceCurrency"
                             style="display:none;"
                             t-out="product_info['currency'].name" />
-                        <!-- original discounted price, if any -->
                         <del
                             t-att-class="'text-600 text-nowrap oe_default_price %s' % ('' if product_info['has_discounted_price'] else 'd-none')"
                             t-out="product_info['list_price']"
@@ -232,7 +224,6 @@
                             class="btn btn-primary d-block">
                             <i class="fa-solid fa-shopping-cart" /> Add to Cart
                         </a>
-                        <!-- Hook for wishlist -->
                         <div id="product_option_block" />
                     </form>
                 </div>

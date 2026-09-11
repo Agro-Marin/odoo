@@ -57,9 +57,8 @@ export class WebsiteLoader extends Component {
         useEffect(
             (selectedFeatures) => {
                 if (this.state.showWaitingMessages) {
-                    const messagesToDisplay = [...defaultMessages]; // Start with defaultMessages
+                    const messagesToDisplay = [...defaultMessages];
                     if (selectedFeatures.length > 0) {
-                        // Merge defaultMessages with the relevant waitingMessages
                         messagesToDisplay.push(
                             ...this.getWaitingMessages(selectedFeatures),
                         );
@@ -71,8 +70,6 @@ export class WebsiteLoader extends Component {
                         ...messagesToDisplay,
                     );
 
-                    // Request the number of modules/dependencies to install
-                    // and already installed
                     this.trackModules(selectedFeatures).catch(console.error);
 
                     return () => {
@@ -84,7 +81,6 @@ export class WebsiteLoader extends Component {
             () => [this.state.selectedFeatures],
         );
 
-        // Cycle through the waitingMessages every 6s
         useEffect(
             () => {
                 if (this.state.showWaitingMessages) {
@@ -104,7 +100,6 @@ export class WebsiteLoader extends Component {
             () => [this.waitingMessages.length],
         );
 
-        // Prevent user from closing/refreshing the window
         useEffect(
             (isVisible) => {
                 if (isVisible) {
@@ -116,10 +111,6 @@ export class WebsiteLoader extends Component {
                         !this.state.selectedFeatures ||
                         this.state.selectedFeatures.length === 0
                     ) {
-                        // If there is no feature selected, we fake the progress
-                        // for theme installation and configurator_apply. If
-                        // there is at least 1 feature selected, the progress
-                        // bar will be initialized in trackModules().
                         this.initProgressBar();
                     }
                 } else {
@@ -145,10 +136,6 @@ export class WebsiteLoader extends Component {
             this.state.isVisible = true;
             for (const prop of [
                 "title",
-                // FIXME: website user/interactive tours are not properly
-                // working at the moment. This disables the "follow the tips"
-                // message in the website loader while waiting for a fix.
-                // "showTips",
                 "selectedFeatures",
                 "showWaitingMessages",
                 "bottomMessageTemplate",
@@ -170,31 +157,15 @@ export class WebsiteLoader extends Component {
             clearTimeout(this.trackModulesTimeout);
             clearInterval(this.updateProgressInterval);
         });
-        // Action needed if the app automatically refreshes or redirects the
-        // page without hiding/removing the WebsiteLoader. This should be
-        // called prior to any refresh/redirect if the loader is still visible.
         useBus(this.props.bus, "PREPARE-OUT-WEBSITE-LOADER", () => {
             window.removeEventListener("beforeunload", this.showRefreshConfirmation);
         });
     }
 
-    /**
-     * Initializes the progress bar.
-     */
     initProgressBar() {
-        // The progress speed decreases as it approaches its limit. This way,
-        // users have the feeling that the website creation progressing is fast
-        // and we prevent them from leaving the page too early (because they
-        // already did XX% of the process).
-        // If there is no module to install, we fake the progress from 0 to 100.
-        // If there is at least 1 module to install, we take 70% of the progress
-        // bar that we divide by the number of modules to install. We fake the
-        // progress of each module individually and when all modules are
-        // installed, we fake the progress of the remaining 30%.
         const nbModulesToInstall = this.featuresInstallInfo.total || 0;
         const isSomethingToInstall = nbModulesToInstall > 0;
         let currentProgress = 0;
-        // This controls the speed of the progress bar.
         const progressStep = isSomethingToInstall ? 0.04 : 0.02;
         const progressForAfterModules = isSomethingToInstall ? 30 : 100;
         const progressForAllModules = 100 - progressForAfterModules;
@@ -203,13 +174,9 @@ export class WebsiteLoader extends Component {
             ? progressForAllModules / nbModulesToInstall
             : 0;
 
-        // initProgressBar() is called repeatedly (every ~1s from trackModules()
-        // and from the visibility effect); clear any previous interval first so
-        // orphan timers don't accumulate and fight over state.progressPercentage.
         clearInterval(this.updateProgressInterval);
         this.updateProgressInterval = setInterval(() => {
             if (this.featuresInstallInfo.nbInstalled !== lastTotalInstalled) {
-                // A module just finished its install.
                 currentProgress = 0;
                 lastTotalInstalled = this.featuresInstallInfo.nbInstalled;
             }
@@ -224,10 +191,6 @@ export class WebsiteLoader extends Component {
         }, 100);
     }
     /**
-     * Makes a RPC call to track the features and dependencies being installed
-     * and, as long as the number of features installed is different from the
-     * total expected, recursively calls itself again after 1s.
-     *
      * @param {integer[]} selectedFeatures
      */
     async trackModules(selectedFeatures) {
@@ -255,10 +218,8 @@ export class WebsiteLoader extends Component {
     }
 
     /**
-     * Depending on the features selected, returns the right waiting messages.
-     *
      * @param {integer[]} selectedFeatures
-     * @returns {Object[]} - the messages filtered by the selected features
+     * @returns {Object[]}
      */
     getWaitingMessages(selectedFeatures) {
         const websiteFeaturesMessages = [
@@ -305,7 +266,6 @@ export class WebsiteLoader extends Component {
                 flag: "generic",
             },
             {
-                // Always the last message if there is at least 1 feature selected.
                 id: "last",
                 title: _t("Finalizing."),
                 description: _t("Activating the last features."),
@@ -327,24 +287,16 @@ export class WebsiteLoader extends Component {
     }
 
     /**
-     * Prevents refreshing/leaving the page if the loader is displayed (and
-     * thus some work is being done in the backend) by opening a prompt dialog.
-     *
      * @param {Event} ev
-     * @returns empty returnValue for Chrome & Safari
-     * cf. https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event#compatibility_notes
      */
     showRefreshConfirmation = (ev) => {
         if (this.state.isVisible) {
-            ev.preventDefault(); // Firefox
+            ev.preventDefault();
             ev.returnValue = "";
             return ev.returnValue;
         }
     };
 
-    /**
-     * Hide the loader.
-     */
     close() {
         this.website.hideLoader();
     }

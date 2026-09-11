@@ -48,13 +48,8 @@ class CardImageOptionPlugin extends Plugin {
         super.setup();
         this.classAction = new ClassAction(this);
     }
-    /**
-     * Change unsupported ratios to the square ratio when the cover image is
-     * positioned horizontally.
-     */
     adaptRatio(editingElement, imagePositionClass) {
         if (["card-img-top", "card-img-bottom"].includes(imagePositionClass)) {
-            // All ratios are supported for top/bottom image
             return;
         }
         const imageWrapper = editingElement.querySelector(".o_card_img_wrapper");
@@ -65,7 +60,6 @@ class CardImageOptionPlugin extends Plugin {
         for (const ratioClasses of ratiosOnlySupportedForTopBottomImage) {
             if (this.classAction.isApplied(asMainParam(ratioClasses))) {
                 this.classAction.clean(asMainParam(ratioClasses));
-                // Only square ratio is supported for horizontal image
                 this.classAction.apply(asMainParam("ratio ratio-1x1"));
                 return;
             }
@@ -92,7 +86,6 @@ export class RemoveCoverImageAction extends BuilderAction {
     apply({ editingElement }) {
         const imageWrapperEl = editingElement.querySelector(".o_card_img_wrapper");
         imageWrapperEl.remove();
-        // Remove the classes and styles linked to the wrapper.
         editingElement.classList.remove(...imageRelatedClasses);
         imageRelatedStyles.forEach((prop) => editingElement.style.removeProperty(prop));
     }

@@ -1,7 +1,3 @@
-// ======= Options
-
-// By default, hide `o_add_wishlist` buttons when inside a product
-// entry. Show them when `o_wsale_products_opt_has_wishlist` is applied.
 :where(.oe_product_cart) .o_add_wishlist {
     display: var(--o-wsale-wishlist-btn-display, none);
 }
@@ -33,7 +29,6 @@
 .o_wsale_products_opt_actions_subtle,
 .o_wsale_products_opt_actions_promote {
     .o_wsale_product_btn .o_add_wishlist {
-        // Hardcoded because cause `$danger` may differ from the desired "red"
         $_wish_red: #ff3d3a;
         --addWishlist-color-active: #{$_wish_red};
     }

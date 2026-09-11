@@ -13,13 +13,9 @@ export const VISIBILITY_DATASET = [
 ];
 
 /**
- * Returns the parsed data coming from the data-for element for the given form.
- * TODO we should rely on the same util as the website form interaction.
- * Maybe this will need to be deleted.
- *
  * @param {string} formId
  * @param {HTMLElement} parentEl
- * @returns {Object|undefined} the parsed data
+ * @returns {Object|undefined}
  */
 export function getParsedDataFor(formId, parentEl) {
     const dataForEl = parentEl.querySelector(`[data-for='${formId}']`);
@@ -28,25 +24,17 @@ export function getParsedDataFor(formId, parentEl) {
     }
     return JSON.parse(
         dataForEl.dataset.values
-            // replaces `True` by `true` if they are after `,` or `:` or `[`
             .replace(/([,:[]\s*)True/g, "$1true")
-            // replaces `False` and `None` by `""` if they are after `,` or `:` or `[`
             .replace(/([,:[]\s*)(False|None)/g, '$1""')
-            // replaces the `'` by `"` if they are before `,` or `:` or `]` or `}`
             .replace(/'(\s*[,:\]}])/g, '"$1')
-            // replaces the `'` by `"` if they are after `{` or `[` or `,` or `:`
             .replace(/([{[:,]\s*)'/g, '$1"'),
     );
 }
 
 /**
- * Returns a field object
- *
- * @param {string} type the type of the field
- * @param {string} label The label of the field. Also used as the field's
- *                       name if no `name` is provided.
- * @param {string} [name] The name of the field. Falls back to `label` if
- *                        not specified
+ * @param {string} type
+ * @param {string} label
+ * @param {string} [name]
  * @returns {Object}
  */
 export function getCustomField(type, label, name = "") {
@@ -55,7 +43,6 @@ export function getCustomField(type, label, name = "") {
         string: label,
         custom: true,
         type: type,
-        // Default values for x2many fields and selection
         records: [
             {
                 id: _t("Option 1"),
@@ -77,8 +64,6 @@ export const getMark = (el) => el.dataset.mark;
 export const isOptionalMark = (el) => el.classList.contains("o_mark_optional");
 export const isRequiredMark = (el) => el.classList.contains("o_mark_required");
 /**
- * Returns the default formatInfos of a field.
- *
  * @param {HTMLElement} el
  * @returns {Object}
  */
@@ -94,29 +79,14 @@ export function getDefaultFormat(el) {
 }
 
 /**
- * Replace all `"` character by `&quot;`.
- *
  * @param {string} name
  * @returns {string}
  */
 export function getQuotesEncodedName(name) {
-    // Browsers seem to be encoding the double quotation mark character as
-    // `%22` (URI encoded version) when used inside an input's name. It is
-    // actually quite weird as a sent `<input name='Hello "world" %22'/>`
-    // will actually be received as `Hello %22world%22 %22` on the server,
-    // making it impossible to know which is actually a real double
-    // quotation mark and not the "%22" string. Values do not have this
-    // problem: `Hello "world" %22` would be received as-is on the server.
-    // In the future, we should consider not using label values as input
-    // names anyway; the idea was bad in the first place. We should probably
-    // assign random field names (as we do for IDs) and send a mapping
-    // with the labels, as values (TODO ?).
     return name.replaceAll(/"/g, (character) => `&quot;`);
 }
 
 /**
- * Renders a field of the form based on its description
- *
  * @param {Object} field
  * @returns {HTMLElement}
  */
@@ -165,7 +135,6 @@ export function renderField(field, resetId = false) {
     template.content.querySelectorAll("[data-name]").forEach((el) => {
         el.dataset.name = getQuotesEncodedName(el.dataset.name);
     });
-    // TODO remove this part in master and add offset classes in xml
     template.content.querySelectorAll(".s_website_form_field").forEach((el) => {
         if (field.formatInfo.offset) {
             el.classList.add(field.formatInfo.offset);
@@ -175,8 +144,6 @@ export function renderField(field, resetId = false) {
 }
 
 /**
- * Returns true if the field is required by the model or by the user.
- *
  * @param {HTMLElement} fieldEl
  * @returns {boolean}
  */
@@ -189,8 +156,6 @@ export function isFieldRequired(fieldEl) {
 }
 
 /**
- * Returns the multiple checkbox/radio element if it exist else null
- *
  * @param {HTMLElement} fieldEl
  * @returns {HTMLElement}
  */
@@ -208,9 +173,6 @@ export function getLabelPosition(fieldEl) {
 }
 
 /**
- * Returns the format object of a field containing
- * the position, labelWidth and bootstrap col class
- *
  * @param {HTMLElement} fieldEl
  * @returns {Object}
  */
@@ -237,8 +199,6 @@ export function getFieldFormat(fieldEl) {
 }
 
 /**
- * Returns true if the field is a custom field, false if it is an existing field
- *
  * @param {HTMLElement} fieldEl
  * @returns {boolean}
  */
@@ -247,8 +207,6 @@ export function isFieldCustom(fieldEl) {
 }
 
 /**
- * Returns the name of the field
- *
  * @param {HTMLElement} fieldEl
  * @returns {string}
  */
@@ -259,8 +217,6 @@ export function getFieldName(fieldEl = this.$target[0]) {
         : fieldEl.querySelector(".s_website_form_input").name;
 }
 /**
- * Returns the type of the  field, can be used for both custom and existing fields
- *
  * @param {HTMLElement} fieldEl
  * @returns {string}
  */
@@ -269,10 +225,8 @@ export function getFieldType(fieldEl) {
 }
 
 /**
- * Set the active field properties on the field Object
- *
  * @param {HTMLElement} fieldEl
- * @param {Object} field Field to complete with the active field info
+ * @param {Object} field
  */
 export function setActiveProperties(fieldEl, field) {
     const classList = fieldEl.classList;
@@ -284,7 +238,6 @@ export function setActiveProperties(fieldEl, field) {
     const description = fieldEl.querySelector(".s_website_form_field_description");
     field.placeholder = input?.placeholder || "";
     if (input) {
-        // textarea value has no attribute,  date/datetime timestamp property is formated
         field.value = input.getAttribute("value") || input.value;
     } else if (field.type === "boolean") {
         field.value = !!fieldEl.querySelector('input[type="checkbox"][checked]');
@@ -292,7 +245,6 @@ export function setActiveProperties(fieldEl, field) {
         field.maxFilesNumber = fileInputEl.dataset.maxFilesNumber;
         field.maxFileSize = fileInputEl.dataset.maxFileSize;
     }
-    // property value is needed for date/datetime (formated date).
     field.propertyValue = input && input.value;
     field.description = description;
     field.rows = textarea && textarea.rows;
@@ -303,8 +255,6 @@ export function setActiveProperties(fieldEl, field) {
 }
 
 /**
- * Replaces the target with provided field.
- *
  * @param {HTMLElement} oldFieldEl
  * @param {HTMLElement} fieldEl
  */
@@ -335,10 +285,6 @@ export function replaceFieldElement(oldFieldEl, fieldEl) {
     const newName = newFormInputEl.name;
     const newType = newFormInputEl.type;
     if ((previousName !== newName || previousType !== newType) && dependentFieldEls) {
-        // In order to keep the visibility conditions consistent,
-        // when the name has changed, it means that the type has changed so
-        // all fields whose visibility depends on this field must be updated so that
-        // they no longer have conditional visibility
         for (const fieldEl of dependentFieldEls) {
             deleteConditionalVisibility(fieldEl);
         }
@@ -350,8 +296,6 @@ export function replaceFieldElement(oldFieldEl, fieldEl) {
 }
 
 /**
- * Returns the target as a field Object
- *
  * @param {HTMLElement} fieldEl
  * @param {boolean} noRecords
  * @returns {Object}
@@ -378,8 +322,6 @@ export function getActiveField(fieldEl, { noRecords, fields } = {}) {
 }
 
 /**
- * Deletes all attributes related to conditional visibility.
- *
  * @param {HTMLElement} fieldEl
  */
 export function deleteConditionalVisibility(fieldEl) {
@@ -390,8 +332,6 @@ export function deleteConditionalVisibility(fieldEl) {
 }
 
 /**
- * Returns the select element if it exist else null
- *
  * @param {HTMLElement} fieldEl
  * @returns {HTMLElement}
  */
@@ -400,8 +340,6 @@ export function getSelect(fieldEl) {
 }
 
 /**
- * Returns the next new record id.
- *
  * @param {HTMLElement} fieldEl
  */
 export function getNewRecordId(fieldEl) {
@@ -415,11 +353,9 @@ export function getNewRecordId(fieldEl) {
             ...multipleInputsEl.querySelectorAll(".checkbox input, .radio input"),
         ];
     }
-    // TODO: @owl-option factorize code above
     const targetEl = fieldEl.querySelector(".s_website_form_input");
     let id;
     if (["checkbox", "radio"].includes(targetEl.getAttribute("type"))) {
-        // Remove first checkbox/radio's id's final '0'.
         id = targetEl.id.slice(0, -1);
     } else {
         id = targetEl.id;
@@ -429,7 +365,7 @@ export function getNewRecordId(fieldEl) {
 
 /**
  * @param {HTMLElement} fieldEl
- * @returns {HTMLElement} The visibility dependency of the field
+ * @returns {HTMLElement}
  */
 export function getDependencyEl(fieldEl) {
     const dependencyName = fieldEl.dataset.visibilityDependency;
@@ -440,7 +376,7 @@ export function getDependencyEl(fieldEl) {
 
 /**
  * @param {HTMLElement} fieldEl
- * @returns {HTMLElement} The current field input
+ * @returns {HTMLElement}
  */
 export function getCurrentFieldInputEl(fieldEl) {
     return fieldEl.querySelector(".s_website_form_input");
@@ -449,33 +385,22 @@ export function getCurrentFieldInputEl(fieldEl) {
 /**
  * @param {HTMLElement} dependentFieldEl
  * @param {HTMLElement} targetFieldEl
- * @returns {boolean} "true" if adding "dependentFieldEl" or any other field
- * with the same label in the conditional visibility of "targetFieldEl"
- * would create a circular dependency involving "targetFieldEl".
+ * @returns {boolean}
  */
 export function findCircular(dependentFieldEl, targetFieldEl) {
     const formEl = targetFieldEl.closest("form");
-    // Keep a register of the already visited fields to not enter an
-    // infinite check loop.
     const visitedFields = new Set();
     const recursiveFindCircular = (dependentFieldEl, targetFieldEl) => {
         const dependentFieldName = getFieldName(dependentFieldEl);
-        // Get all the fields that have the same label as the dependent
-        // field.
         let dependentFieldEls = Array.from(
             formEl.querySelectorAll(
                 `.s_website_form_input[name="${CSS.escape(dependentFieldName)}"]`,
             ),
         ).map((el) => el.closest(".s_website_form_field"));
-        // Remove the duplicated fields. This could happen if the field has
-        // multiple inputs ("Multiple Checkboxes" for example.)
         dependentFieldEls = new Set(dependentFieldEls);
         const fieldName = getFieldName(targetFieldEl);
         for (const dependentFieldEl of dependentFieldEls) {
-            // Only check for circular dependencies on fields that do not
-            // already have been checked.
             if (!visitedFields.has(dependentFieldEl)) {
-                // Add the dependentFieldEl in the set of checked field.
                 visitedFields.add(dependentFieldEl);
                 if (dependentFieldEl.dataset.visibilityDependency === fieldName) {
                     return true;
@@ -498,19 +423,14 @@ export function findCircular(dependentFieldEl, targetFieldEl) {
 }
 
 /**
- * Returns the domain of a field.
- *
  * @param {HTMLElement} formEl
  * @param {String} name
  * @param {String} type
  * @param {String} relation
  * @returns {Object|false}
  */
-// TODO Solve this variable differently
 const allFormsInfo = new Map();
 export function getDomain(formEl, name, type, relation) {
-    // We need this because the field domain is in formInfo in the
-    // WebsiteFormEditor but we need it in the WebsiteFieldEditor.
     if (!allFormsInfo.get(formEl) || !name || !type || !relation) {
         return false;
     }
@@ -548,10 +468,8 @@ export function getListItems(fieldEl) {
 }
 
 /**
- * Sets the visibility dependency of the field.
- *
  * @param {HTMLElement} fieldEl
- * @param {string} value name of the dependency input
+ * @param {string} value
  */
 export function setVisibilityDependency(fieldEl, value) {
     delete fieldEl.dataset.visibilityCondition;
@@ -560,10 +478,8 @@ export function setVisibilityDependency(fieldEl, value) {
 }
 
 /**
- * Re-renders a form field in the DOM.
- *
- * @param {HTMLElement} fieldEl - The original field element to be re-rendered.
- * @param {Object<string, Object>} fields - A map of all fields in the form.
+ * @param {HTMLElement} fieldEl
+ * @param {Object<string, Object>} fields
  */
 export function rerenderField(fieldEl, fields) {
     const field = getActiveField(fieldEl, { fields });

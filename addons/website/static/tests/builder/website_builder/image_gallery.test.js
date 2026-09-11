@@ -63,8 +63,6 @@ test("Add image in gallery", async () => {
     await waitFor("[data-action-id='addImage']");
     expect("[data-action-id='addImage']").toHaveCount(1);
     await contains("[data-action-id='addImage']").click();
-    // We use "click" instead of contains.click because contains wait for the image to be visible.
-    // In this test we don't want to wait ~800ms for the image to be visible but we can still click on it
     await click(".o_existing_attachment_cell .o_button_area");
     await contains(".modal-footer button:not([disabled]):contains(Add)").click();
     await waitFor(":iframe .o_masonry_col img[data-index='6']");
@@ -86,7 +84,6 @@ test("Add image in gallery", async () => {
     );
 });
 
-// TODO Re-enable once interactions run within iframe in hoot tests.
 test.skip("Remove all images in gallery", async () => {
     await setupWebsiteBuilder(
         `
@@ -147,7 +144,6 @@ test("Change gallery restore the container to the cloned equivalent image", asyn
     await contains("[data-action-param='grid']").click();
     await waitFor(":iframe .o_grid");
 
-    // The container include the new image equivalent to the old selected image
     expectOptionContainerToInclude(queryOne(":iframe img[data-index='1']"));
 
     await contains(".o-snippets-top-actions .fa-undo").click();
@@ -214,12 +210,7 @@ test("Cloning an image gallery should produce a unique ID", async () => {
 });
 
 test("Change gallery layout still works when img.decode() fails", async () => {
-    // to handle the Chrome bug where img.decode() can fail with "EncodingError:
-    // The source image cannot be decoded" when decoding many images simultaneously.
-    // See: https://bugs.chromium.org/p/chromium/issues/detail?id=1256288
-    // To reproduce the issue in the test we will set image src = "".
     const builder = await setupWebsiteBuilderWithSnippet("s_images_wall");
-    // Change img source so decoding will fail
     const images = queryAll(":iframe img");
     images.forEach((imgEl) => {
         imgEl.src = "";
@@ -228,11 +219,9 @@ test("Change gallery layout still works when img.decode() fails", async () => {
     await builder.waitSidebarUpdated();
     await contains("[data-label='Mode'] .dropdown-toggle").click();
 
-    // This should NOT throw an error even img.decode() call will fail
     await contains("[data-action-param='grid']").click();
     await builder.waitSidebarUpdated();
 
-    // Verify the layout change worked despite decode failures
     expect(":iframe .o_grid").toHaveCount(1);
     expect(":iframe .o_masonry_col").toHaveCount(0);
     expect("[data-label='Mode'] .dropdown-toggle").toHaveText("Grid");

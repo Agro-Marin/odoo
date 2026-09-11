@@ -12,8 +12,6 @@ export class AddProductToWishlistButton extends Interaction {
     };
 
     /**
-     * Add a product to the wishlist.
-     *
      * @param {Event} ev
      */
     async addProduct(ev) {

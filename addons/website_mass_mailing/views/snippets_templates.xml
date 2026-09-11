@@ -72,10 +72,6 @@
         </xpath>
     </template>
 
-    <!--
-        Users upgraded from a version lower than 16.0 may have those blocks in their
-        database, without the s_newsletter_list class. See fixNewsletterListClass.
-    -->
     <template id="s_newsletter_subscribe_form" name="Newsletter">
         <div
             t-attf-class="s_newsletter_subscribe_form s_newsletter_list js_subscribe #{_contentClasses}"
@@ -99,10 +95,6 @@
         </div>
     </template>
 
-    <!--
-        Users upgraded from a version lower than 16.0 may have those blocks in their
-        database, without the s_newsletter_list class. See fixNewsletterListClass.
-    -->
     <template id="s_newsletter_block" name="Newsletter Block">
         <section
             class="s_newsletter_block s_newsletter_list o_cc o_cc2 pt64 pb64"
@@ -489,7 +481,6 @@
         </div>
     </template>
 
-    <!-- Extend default mass_mailing snippets with website feature -->
     <template
         id="s_mail_block_footer_social"
         inherit_id="mass_mailing.s_mail_block_footer_social">

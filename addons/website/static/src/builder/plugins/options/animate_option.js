@@ -52,8 +52,6 @@ export class AnimateOption extends BaseOptionComponent {
         });
     }
     get limitedEffects() {
-        // Animations for which the "On Scroll" and "Direction" options are not
-        // available.
         return [
             "o_anim_flash",
             "o_anim_pulse",

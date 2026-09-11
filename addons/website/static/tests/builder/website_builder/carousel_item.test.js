@@ -11,7 +11,6 @@ defineWebsiteModels();
 test("Reordering a carousel item should update the container title", async () => {
     const { getEditor, getEditableContent } =
         await setupWebsiteBuilderWithSnippet("s_carousel");
-    // Add a class on the first slide to identify it.
     const editableEl = getEditableContent();
     const firstItemEl = editableEl.querySelector(".carousel-item");
     firstItemEl.classList.add("first-slide");

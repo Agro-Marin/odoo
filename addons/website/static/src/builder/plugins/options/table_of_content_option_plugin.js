@@ -6,9 +6,7 @@ import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 
 /**
- * Returns the TOC id and the heading id from a header element.
- *
- * @param {HTMLElement} headingEl - A header element of the TOC.
+ * @param {HTMLElement} headingEl
  * @returns {Object}
  */
 function getTocAndHeadingId(headingEl) {
@@ -41,12 +39,10 @@ class TableOfContentOptionPlugin extends Plugin {
             NavbarPositionAction,
         },
         normalize_handlers: this.normalize.bind(this),
-        // Prevent dropping a table of content inside another table of content.
         dropzone_selector: {
             selector: ".s_table_of_content",
             excludeAncestor: ".s_table_of_content",
         },
-        // Only allow moving main parts of the table of content by using arrows.
         is_draggable_handlers: (el) => {
             if (
                 el.matches(
@@ -83,7 +79,6 @@ class TableOfContentOptionPlugin extends Plugin {
         }));
 
         if (tableOfContentMain.children.length === 0) {
-            // Remove the table of content if empty content.
             this.dependencies.remove.removeElement(tableOfContent);
             return;
         }
@@ -113,8 +108,6 @@ class TableOfContentOptionPlugin extends Plugin {
             const matchingLinkVisibilityId = matchingLinkEl
                 ? matchingLinkEl.getAttribute("data-visibility-id")
                 : null;
-            // Check if visibilityId matches matchingLinkVisibilityId or both
-            // are null/undefined
             return visibilityId === matchingLinkVisibilityId;
         });
 
@@ -149,7 +142,6 @@ class TableOfContentOptionPlugin extends Plugin {
         for (const { title, el } of currentHeadingItems) {
             let { headingId } = getTocAndHeadingId(el);
             if (headingId) {
-                // Reset headingId on duplicate.
                 if (uniqueHeadingIds.has(headingId)) {
                     headingId = 0;
                 } else {

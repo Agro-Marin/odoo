@@ -116,11 +116,6 @@ class TestConcurrencyPromoCode(BaseCase):
                 "partner_ids": [cls.partner_1.id, cls.partner_2.id],
                 "product_id": cls.product.id,
             }
-            # One execute per statement (FK-safe order preserved): psycopg3
-            # rejects multiple parameterised commands in a single prepared
-            # execute -- "cannot insert multiple commands into a prepared
-            # statement" -- unlike psycopg2, so joining them with ';' made this
-            # class-cleanup raise.
             statements = (
                 "DELETE FROM loyalty_card WHERE program_id = %(program_id)s",
                 "DELETE FROM loyalty_rule WHERE program_id = %(program_id)s",
@@ -139,9 +134,7 @@ class TestConcurrencyPromoCode(BaseCase):
 
     @mute_logger("odoo.db")
     def test_lock_concurrent_promo_code(self):
-        """Test that two cursors cannot lock the same row simultaneously"""
 
-        # A simple barrier to make sure threads start roughly at the same time
         start_barrier = threading.Barrier(2)
 
         def run(env, order_id):
@@ -151,28 +144,21 @@ class TestConcurrencyPromoCode(BaseCase):
             self.assertTrue(env.cr.fetchone())
             order = env["sale.order"].browse(order_id)
 
-            # Wait for the other threads to be ready
             start_barrier.wait()
 
             try:
                 order._try_apply_code(self.promo_code)
-                self._released_signal.wait(
-                    timeout=20
-                )  # Hold the lock for a moment to ensure overlap
+                self._released_signal.wait(timeout=20)
                 return True
 
-            except (
-                OperationalError
-            ):  # This catches the Postgres error when a row is locked
-                self._released_signal.set()  # Signal to release the lock
+            except OperationalError:
+                self._released_signal.set()
                 return False
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_1 = executor.submit(run, self.envs[0], self.order_partner_1.id)
             future_2 = executor.submit(run, self.envs[1], self.order_partner_2.id)
 
-        # One should go through, the other should be locked (does not matter
-        # which thread)
         res_1 = future_1.result(timeout=3)
         res_2 = future_2.result(timeout=3)
         self.assertNotEqual(res_1, res_2)

@@ -19,13 +19,6 @@ import {
 
 import { SlideShareDialog } from "../js/public/components/slide_share_dialog/slide_share_dialog.js";
 
-/**
- * Renders and drives the YouTube player for a video slide.
- *
- * Dispatches a bubbling `slide_mark_completed` event when the player is at
- * 30 sec before the end of the video (30 sec before is considered as
- * completed), and `slide_go_next` when the video is at its end.
- */
 export class VideoPlayerYouTube {
     youtubeUrl = "https://www.youtube.com/iframe_api";
 
@@ -51,8 +44,6 @@ export class VideoPlayerYouTube {
                 script.src = this.youtubeUrl;
                 document.head.appendChild(script);
 
-                // function called when the Youtube asset is loaded
-                // see https://developers.google.com/youtube/iframe_api_reference#Requirements
                 window.onYouTubeIframeAPIReady = () => resolve();
             } else {
                 resolve();
@@ -60,9 +51,6 @@ export class VideoPlayerYouTube {
         });
     }
 
-    /**
-     * Links the youtube api to the iframe present in the template.
-     */
     _setupYoutubePlayer() {
         this.player = new YT.Player("youtube-player" + this.slide.id, {
             playerVars: {
@@ -81,15 +69,6 @@ export class VideoPlayerYouTube {
     }
 
     /**
-     * Specific method of the youtube api.
-     * Whenever the player starts playing/pausing/buffering/..., a setinterval
-     * is created. This setinterval is used to check the user's progress in the
-     * video. Once the user reaches a particular time in the video (30s before
-     * end), the slide will be considered as completed if the video doesn't
-     * have a mini-quiz. This method also allows to automatically go to the
-     * next slide (or the quiz associated to the current video) once the video
-     * is over.
-     *
      * @param {*} event
      */
     _onPlayerStateChange(event) {
@@ -143,15 +122,6 @@ export class VideoPlayerYouTube {
     }
 }
 
-/**
- * Renders and drives the Vimeo player for a video slide.
- *
- * Similarly to the YouTube implementation, dispatches `slide_mark_completed`
- * when the player is at 30 sec before the end of the video, and
- * `slide_go_next` when the video is at its end.
- *
- * See https://developer.vimeo.com/player/sdk/reference for the API doc.
- */
 export class VideoPlayerVimeo {
     vimeoScriptUrl = "https://player.vimeo.com/api/player.js";
 
@@ -165,10 +135,6 @@ export class VideoPlayerVimeo {
         );
     }
 
-    /**
-     * Loads the Vimeo JS API (only if not already loaded), then instantiates
-     * the player.
-     */
     async start() {
         if (!document.querySelector(`script[src="${this.vimeoScriptUrl}"]`)) {
             await this.host.waitFor(loadJS(this.vimeoScriptUrl));
@@ -176,9 +142,6 @@ export class VideoPlayerVimeo {
         await this._setupVideoPlayer();
     }
 
-    /**
-     * Instantiate the Vimeo player and register the various events.
-     */
     async _setupVideoPlayer() {
         this.player = new Vimeo.Player(this.el.querySelector("iframe"));
         this.videoDuration = await this.host.waitFor(this.player.getDuration());
@@ -186,10 +149,6 @@ export class VideoPlayerVimeo {
         this.player.on("ended", this._onVideoEnded.bind(this));
     }
 
-    /**
-     * When the player triggers the 'ended' event, we go to the next slide if
-     * there is one.
-     */
     _onVideoEnded() {
         if (this.slide.hasNext) {
             this.el.dispatchEvent(
@@ -199,11 +158,7 @@ export class VideoPlayerVimeo {
     }
 
     /**
-     * Every time the video changes position, Vimeo triggers this 'timeupdate'
-     * event. We use it to set the slide as completed as soon as we reach the
-     * end (30 last seconds).
-     *
-     * @param {Object} eventData the 'timeupdate' event data
+     * @param {Object} eventData
      */
     _onVideoTimeUpdate(eventData) {
         if (eventData.seconds > this.videoDuration - 30) {
@@ -223,15 +178,6 @@ export class VideoPlayerVimeo {
     }
 }
 
-/**
- * Sidebar navigation from one slide to another:
- *  - by clicking on any slide list entry
- *  - by keyboard arrows (left / right)
- *  - by receiving the order to go to prev/next slide (`goPrevious` and
- *    `goNext` public methods)
- *
- * Calls the `onChangeSlide` callback with the new slide entry.
- */
 export class SidebarBehavior {
     constructor(host, el, slideList, defaultSlide, onChangeSlide) {
         this.host = host;
@@ -251,13 +197,6 @@ export class SidebarBehavior {
         host.addListener(document, "keydown", this._onKeyDown.bind(this));
     }
 
-    //--------------------------------------------------------------------------
-    // Public
-    //--------------------------------------------------------------------------
-
-    /**
-     * Change the current slide with the next one (if there is one).
-     */
     goNext() {
         const currentIndex = this._getCurrentIndex();
         if (currentIndex < this.slideEntries.length - 1) {
@@ -265,9 +204,6 @@ export class SidebarBehavior {
         }
     }
 
-    /**
-     * Change the current slide with the previous one (if there is one).
-     */
     goPrevious() {
         const currentIndex = this._getCurrentIndex();
         if (currentIndex >= 1) {
@@ -275,13 +211,6 @@ export class SidebarBehavior {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
-    /**
-     * Get the index of the current slide entry (slide and/or quiz)
-     */
     _getCurrentIndex() {
         const slide = this._slideEntry;
         return this.slideEntries.findIndex(
@@ -289,13 +218,7 @@ export class SidebarBehavior {
         );
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     /**
-     * Handler called when the user clicks on a normal slide tab.
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -311,9 +234,6 @@ export class SidebarBehavior {
     }
 
     /**
-     * Actively changes the active tab in the sidebar so that it corresponds
-     * to the slide currently displayed.
-     *
      * @param {Object} slide
      */
     _updateSlideEntry(slide) {
@@ -337,8 +257,6 @@ export class SidebarBehavior {
     }
 
     /**
-     * Binds left and right arrow to allow the user to navigate between slides.
-     *
      * @param {KeyboardEvent} ev
      */
     _onKeyDown(ev) {
@@ -353,13 +271,6 @@ export class SidebarBehavior {
     }
 }
 
-/**
- * Shows the content of a course, navigating through contents and correctly
- * displaying them. Also handles slide completion, course progress, ...
- *
- * The page skeleton (sidebar included) is rendered server side; the slide
- * content area is rendered client side on each slide change.
- */
 export class FullscreenPlayer extends CoursePage {
     static selector = ".o_wslides_fs_main";
 
@@ -404,15 +315,9 @@ export class FullscreenPlayer extends CoursePage {
         if (backendNavEl) {
             backendNavEl.remove();
         }
-        // To prevent double scrollbar due to footer overflow
         document.querySelector(".o_footer")?.classList.add("d-none");
-        // trigger manually once DOM ready, since slide content is not rendered server side
         this._onChangeSlide();
     }
-
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
 
     _extractChannelData() {
         return this.el.dataset;
@@ -425,9 +330,6 @@ export class FullscreenPlayer extends CoursePage {
         return parseInt(activeItem?.dataset.id);
     }
 
-    /**
-     * Creates slides objects from every slide-list-cells attributes.
-     */
     _getSlides() {
         const slideList = [];
         for (const el of this.el.querySelectorAll(
@@ -438,9 +340,6 @@ export class FullscreenPlayer extends CoursePage {
         return slideList;
     }
 
-    /**
-     * Fetches content with an rpc call for slides of category "article".
-     */
     _fetchHtmlContent() {
         const currentSlide = this._slideValue;
         return this.waitFor(
@@ -452,11 +351,6 @@ export class FullscreenPlayer extends CoursePage {
         });
     }
 
-    /**
-     * Fetches slide content depending on its category.
-     * If the slide doesn't need to fetch any content, return a resolved
-     * promise.
-     */
     _fetchSlideContent() {
         const slide = this._slideValue;
         if (slide.category === "article" && !slide.isQuiz) {
@@ -465,20 +359,13 @@ export class FullscreenPlayer extends CoursePage {
         return Promise.resolve();
     }
 
-    /**
-     * Extend the slide data list to add informations about rendering method,
-     * and other specific values according to their slide_category.
-     */
     _preprocessSlideData(slidesDataList) {
         slidesDataList.forEach(function (slideData, index) {
-            // compute hasNext slide
             slideData.hasNext = index < slidesDataList.length - 1;
-            // compute embed url
             if (
                 slideData.category === "video" &&
                 slideData.videoSourceType !== "vimeo"
             ) {
-                // embedCode contains an iframe tag, where src attribute is the url (youtube or embed document from odoo)
                 const tmp = document.createElement("div");
                 tmp.innerHTML = slideData.embedCode;
                 const iframe = tmp.querySelector("iframe");
@@ -512,21 +399,19 @@ export class FullscreenPlayer extends CoursePage {
                 const iframe = tmp.querySelector("iframe");
                 slideData.embedUrl = iframe?.getAttribute("src");
             }
-            // fill empty property to allow searching on it with list.filter(matcher)
             slideData.isQuiz = !!slideData.isQuiz;
             slideData.hasQuestion = !!slideData.hasQuestion;
-            // technical settings for the Fullscreen to work
             let autoSetDone = false;
             if (!slideData.hasQuestion) {
                 if (
                     ["infographic", "document", "article"].includes(slideData.category)
                 ) {
-                    autoSetDone = true; // images, documents (local + external) and articles are marked as completed when opened
+                    autoSetDone = true;
                 } else if (
                     slideData.category === "video" &&
                     slideData.videoSourceType === "google_drive"
                 ) {
-                    autoSetDone = true; // google drive videos do not benefit from the YouTube integration and are marked as completed when opened
+                    autoSetDone = true;
                 }
             }
             slideData._autoSetDone = autoSetDone;
@@ -534,10 +419,6 @@ export class FullscreenPlayer extends CoursePage {
         return slidesDataList;
     }
 
-    /**
-     * Changes the url whenever the user changes slides.
-     * This allows the user to refresh the page and stay on the right slide.
-     */
     _pushUrlState() {
         const urlParts = window.location.pathname.split("/");
         urlParts[urlParts.length - 1] = this._slideValue.slug;
@@ -555,16 +436,9 @@ export class FullscreenPlayer extends CoursePage {
     }
 
     /**
-     * Render the current slide content using specific mechanism according to
-     * slide category:
-     * - simply append content (for article)
-     * - template rendering (for image, document, ....)
-     * - using a sub behavior (quiz and video)
-     *
      * @returns {Promise}
      */
     async _renderSlide() {
-        // Avoid concurrent execution of the slide rendering as it writes the content at the same place anyway.
         if (this._renderSlideRunning) {
             return;
         }
@@ -572,24 +446,11 @@ export class FullscreenPlayer extends CoursePage {
         try {
             const slide = this._slideValue;
             const content = this.el.querySelector(".o_wslides_fs_content");
-            // Stop before replacing, not only start after: `startInteractions`
-            // refuses to start an interaction already active on an element, and
-            // `.o_wslides_fs_content` matches interactions itself (TextHighlight
-            // does) -- so one started on the empty container at page load stayed
-            // registered and the slide body rendered here never got its turn.
-            // That is why a saved `.o_text_highlight` reached fullscreen with no
-            // SVG. It also drops whatever the previous slide's body had started.
             this.services["public.interactions"].stopInteractions(content);
             content.replaceChildren();
 
-            // display quiz slide, or quiz attached to a slide
             if (slide.category === "quiz" || slide.isQuiz) {
                 content.classList.add("bg-white");
-                // Lazy import: the quiz module (and its course_join dependency)
-                // is only needed for quiz slides, and importing it eagerly
-                // pulls the whole chain into the fullscreen module's eager
-                // eval position, which reorders public.interactions
-                // registrations under the tour test bundle.
                 const { QuizBehavior } = await this.waitFor(
                     import("@website_slides/interactions/quiz"),
                 );
@@ -600,7 +461,6 @@ export class FullscreenPlayer extends CoursePage {
                 });
             }
 
-            // render slide content
             if (["document", "infographic"].includes(slide.category)) {
                 content.replaceChildren(
                     renderToElement("website.slides.fullscreen.content", {
@@ -650,38 +510,23 @@ export class FullscreenPlayer extends CoursePage {
         this._onChangeSlide();
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
-    /**
-     * Triggered whenever the user changes slides.
-     * When the current slide is changed, the player will be automatically
-     * updated and allowed to: fetch the content if needed, render it, update
-     * the url, and set slide as "completed" according to its category
-     * requirements. In mobile case (i.e. limited screensize), sidebar will be
-     * toggled since sidebar will block most or all of new slide visibility.
-     */
     _onChangeSlide() {
         const slide = this._slideValue;
         this._pushUrlState();
         return this._fetchSlideContent()
             .then(() => {
-                // render content
-                const websiteName = document.title.split(" | ").at(-1); // get the website name from title
+                const websiteName = document.title.split(" | ").at(-1);
                 document.title = websiteName
                     ? slide.name + " | " + websiteName
                     : slide.name;
                 if (uiUtils.getSize() < SIZES.MD) {
-                    this._toggleSidebar(); // hide sidebar when small device screen
+                    this._toggleSidebar();
                 }
                 return this._renderSlide();
             })
             .then(() => {
                 if (slide._autoSetDone && !session.is_website_user) {
-                    // no useless RPC call
                     if (slide.category === "document") {
-                        // only set the slide as completed after iFrame is loaded to avoid concurrent execution with 'embedUrl' controller
                         this.el
                             .querySelector("iframe.o_wslides_iframe_viewer")
                             .addEventListener("load", () =>
@@ -695,9 +540,6 @@ export class FullscreenPlayer extends CoursePage {
     }
 
     /**
-     * Changes current slide when the sidebar reports a slide change, with its
-     * id and whether it is its quiz we need to display.
-     *
      * @param {Object} slideData
      */
     _onChangeSlideRequest(slideData) {
@@ -709,13 +551,6 @@ export class FullscreenPlayer extends CoursePage {
     }
 
     /**
-     * After a slide has been marked as completed / uncompleted, update the
-     * state of this player and reload the slide if needed (e.g. to re-show
-     * the questions of a quiz).
-     *
-     * We might need to set multiple slides as completed, because of "isQuiz"
-     * set to True / False.
-     *
      * @override
      */
     async toggleSlideCompleted(slideData, completed = true) {
@@ -727,32 +562,19 @@ export class FullscreenPlayer extends CoursePage {
         const currentSlide = this._slideValue;
         if (currentSlide.id === slideData.id) {
             currentSlide.completed = completed;
-            // `_updateSlideValue(currentSlide)` used to sit here; it opens with
-            // `if (this._slideValue === slide) return`, and currentSlide *is*
-            // this._slideValue, so it was an unconditional no-op. Removed
-            // rather than repaired: the re-render below is the only thing it
-            // could have wanted, and it already happens.
             if (
                 (currentSlide.hasQuestion || currentSlide.type === "quiz") &&
                 !completed
             ) {
-                // Reload the quiz
                 await this._renderSlide();
             }
         }
     }
 
-    /**
-     * Go to the next slide.
-     */
     _onSlideGoToNext() {
         this.sidebar.goNext();
     }
 
-    /**
-     * Called when the sidebar toggle is clicked -> toggles the sidebar
-     * visibility.
-     */
     _onClickToggleSidebar() {
         this._toggleSidebar();
     }
@@ -772,9 +594,6 @@ export class FullscreenPlayer extends CoursePage {
         });
     }
 
-    /**
-     * Toggles sidebar visibility.
-     */
     _toggleSidebar() {
         this.el
             .querySelector(".o_wslides_fs_sidebar")

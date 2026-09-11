@@ -15,7 +15,6 @@ class TestWebsiteSaleStockAbandonedCartEmail(
     TestWebsiteSaleCartAbandonedCommon, WebsiteSaleStockCommon
 ):
     def test_website_sale_stock_abandoned_cart_email(self):
-        """Make sure the send_abandoned_cart_email method sends the correct emails."""
 
         website = self.env["website"].get_current_website()
         website.send_abandoned_cart_email = True
@@ -62,10 +61,8 @@ class TestWebsiteSaleStockAbandonedCartEmail(
         )
 
         self.assertFalse(self.send_mail_patched(sale_order.id))
-        # Reset cart_recovery sent state
         sale_order.cart_recovery_email_sent = False
 
-        # Replenish the stock of the product
         self._add_product_qty_to_wh(
             storable_product_product.id,
             10,

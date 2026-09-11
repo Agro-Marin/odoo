@@ -38,9 +38,6 @@ const GoogleMapEdit = (I) =>
         }
 
         /**
-         * Get the stored API key if any (or open a dialog to ask the user for one),
-         * load and configure the Google Maps API.
-         *
          * @param {boolean} [forceReconfigure=false]
          * @returns {Promise<void>}
          */
@@ -79,12 +76,8 @@ const GoogleMapEdit = (I) =>
         }
 
         /**
-         * Load the Google Maps API from the Google Map Service.
-         * This method is set apart so it can be overridden for testing.
-         *
          * @param {boolean} [shouldRefetch]
-         * @returns {Promise<string|undefined>} A promise that resolves to an API
-         *                                      key if found.
+         * @returns {Promise<string|undefined>}
          */
         async loadGoogleMapsAPIFromService(shouldRefetch) {
             const apiKey = await this.websiteMapService.loadGMapAPI(

@@ -15,8 +15,6 @@ export class CarouselProductCard extends Interaction {
     }
 
     /**
-     * Event triggered by a click on the Add to cart button
-     *
      * @param {Event} ev
      */
     async onClickAddToCart(ev) {
@@ -53,9 +51,6 @@ export class CarouselProductCard extends Interaction {
     }
 
     /**
-     * Event triggered by a click on the remove button on a "recently viewed"
-     * template.
-     *
      * @param {Event} ev
      */
     async onRemoveFromRecentlyViewed(ev) {

@@ -1,5 +1,5 @@
 .o_website_loader_container {
-    $-accent-color: #bb86fc; // dark mode primary color
+    $-accent-color: #bb86fc;
     background-color: o-token(--o-bg-view, $o-view-background-color);
     pointer-events: all;
     z-index: $zindex-modal - 1;
@@ -55,7 +55,6 @@
 
         animation: loaderDone 1s ease-out;
     }
-    // Animation Steps Container
     #o_website_loader_animations_steps {
         width: 55%;
         background: #111827;
@@ -69,10 +68,6 @@
             z-index: 1;
         }
     }
-
-    // =======================================
-    // Stages Timeline Definition
-    // =======================================
 
     #o_website_loader_step_colors,
     #o_website_loader_step_images,
@@ -89,7 +84,6 @@
         opacity: 0;
         transition-delay: 0.5s;
     }
-    // IMAGES Stage
     &.o_website_loader_container_images {
         #o_website_loader_step_colors span {
             opacity: 0;
@@ -105,7 +99,6 @@
             }
         }
     }
-    // TEXT Stage
     &.o_website_loader_container_text {
         #o_website_loader_step_colors {
             display: none;
@@ -126,7 +119,6 @@
         }
     }
 
-    // GENERIC Stage
     &.o_website_loader_container_generic {
         #o_website_loader_step_colors,
         #o_website_loader_step_images {
@@ -144,11 +136,6 @@
         }
     }
 
-    // =======================================
-    // Steps specific rules
-    // =======================================
-
-    // COLORS step
     #o_website_loader_step_colors {
         $-random-colors:
             #7d773c, #607944, #775c35, #3d6273, #5f414c, #805f54, #76527a, #56476e,
@@ -202,7 +189,6 @@
         }
     }
 
-    // IMAGES step
     #o_website_loader_step_images {
         display: flex;
         animation: 7s ease-in-out alternate imagesPlaneMotion forwards;
@@ -246,7 +232,6 @@
         }
     }
 
-    // TEXT step
     #o_website_loader_step_text {
         .o_website_loader_text_content {
             font-size: 180vh;
@@ -279,7 +264,6 @@
         }
     }
 
-    // GENERIC step
     .o_website_loader_loader {
         $-loader-size: 120px;
         $-loader-gap: $-loader-size * 0.5;
@@ -324,12 +308,8 @@
     }
 }
 
-// The dark half, folded in from `website_loader.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        // = Website Loader
-        // ============================================================================
-        // No CSS hacks, variables overrides only
         .o_website_loader_container {
             --website-loader-logo-filter: grayscale(1) brightness(4);
             --website-loader-color: #ffffff;

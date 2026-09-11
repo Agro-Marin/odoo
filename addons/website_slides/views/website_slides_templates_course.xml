@@ -2,12 +2,10 @@
 <odoo>
 
     <data>
-        <!-- Channels sub-template: header -->
         <template id="course_nav" name="Course Navigation Header">
             <div class="o_wslides_course_nav">
             <div class="container">
             <div class="row align-items-center justify-content-between">
-            <!-- Desktop Mode -->
             <nav aria-label="breadcrumb" class="col-md-8 d-none d-md-flex">
             <ol
                 class="breadcrumb flex-nowrap bg-transparent mb-0 ps-0 py-0 overflow-hidden">
@@ -50,7 +48,6 @@
 
             <div
                 class="col-md-4 d-none d-md-flex flex-row align-items-center justify-content-end">
-            <!-- search -->
             <t t-call="website.website_search_box_input">
             <t
                 t-set="_classes"
@@ -66,7 +63,6 @@
             </t>
             </div>
 
-            <!-- Mobile Mode -->
             <div class="col d-md-none py-1">
             <div
                 class="btn-group w-100 position-relative"
@@ -142,13 +138,7 @@
             </div>
             </div>
         </template>
-        <!-- Channel main template -->
         <template id="course_main" name="Course Main" track="1">
-            <!-- pdf.js used to be three eager head scripts (pdf.js + the 2.2 MB
-                worker evaluated on the main thread + PDFSlidesViewer). Slides are
-                viewed through the embed iframe (embed_slide template) and the
-                upload dialog lazy-loads pdf.js via @web/core/utils/pdfjs, so the
-                course page ships none of it anymore. -->
             <t t-set="body_classname" t-value="'o_wslides_body'" />
             <t t-call="website.layout">
             <div id="wrap" t-attf-class="wrap mt-0">
@@ -164,7 +154,6 @@
             <t t-call="website_slides.course_nav" />
             <div class="container mt-5 mt-md-3 mt-xl-4">
             <div class="row align-items-end align-items-md-stretch">
-            <!-- ==== Header Left ==== -->
             <div class="col-12 col-md-4 col-lg-3 position-relative">
             <div class="d-flex align-items-end justify-content-around h-100">
             <div
@@ -174,7 +163,6 @@
             </div>
             </div>
 
-            <!-- ==== Header Right ==== -->
             <div class="col-12 col-md-8 col-lg-9 d-flex flex-column">
             <div class="d-flex flex-column">
             <h1 t-field="channel.name" />
@@ -218,7 +206,6 @@
                 t-value="channel.tag_ids.filtered(lambda tag: tag.color)" />
             <div class="container mb-5">
             <div class="row">
-            <!-- Sidebar -->
             <div class="col-12 col-md-4 col-lg-3 mt-3 mt-md-0">
             <t t-call="website_slides.course_sidebar" />
             </div>
@@ -264,7 +251,6 @@
                 id="home"
                 role="tabpanel"
                 aria-labelledby="home-tab">
-            <!-- ==== Error notification ==== -->
             <div
                 t-if="access_error == 'course_content'"
                 class="alert alert-danger alert-dismissable mb-1"
@@ -276,7 +262,6 @@
                 aria-label="Close" />
             You need to join this course to access "<t t-out="access_error_content_name" />".
             </div>
-            <!-- ==== Invitation Banner ==== -->
             <div
                 t-if="invite_preview"
                 class="o_wslides_identification_banner alert alert-success mb-4 p-2 px-3"
@@ -338,7 +323,6 @@
             </t>
         </template>
         <template id="course_sidebar" name="Course Sidebar (infos, CTA)">
-            <!-- Channel sidebar (aka general information + CTAs) -->
             <div
                 class="o_wslides_course_sidebar bg-white px-3 py-2 py-md-3 mb-3 mb-md-5">
 
@@ -810,7 +794,6 @@
             </div>
             </li>
         </template>
-        <!-- ======= Documentation Course content: cards / categories======= -->
         <template
             id="course_promoted_slide"
             name="Documentation Course content: promoted slide">
@@ -1033,7 +1016,6 @@
             </div>
             </div>
             </div>
-            <!-- Featured lesson -->
             <t t-if="channel.promote_strategy != 'none'">
             <t t-call="website_slides.course_promoted_slide" />
             </t>

@@ -2,9 +2,6 @@ import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 import "@website/../tests/tours/configurator_translation";
 
-/*
- * @override of website tour to include eCommerce configuration steps
- */
 patch(registry.category("web_tour.tours").get("configurator_translation"), {
     steps() {
         const originalSteps = super.steps();
@@ -28,9 +25,6 @@ patch(registry.category("web_tour.tours").get("configurator_translation"), {
         return originalSteps;
     },
 });
-/*
- * @override of website tour to include eCommerce configuration steps
- */
 patch(registry.category("web_tour.tours").get("configurator_page_creation"), {
     steps() {
         const originalSteps = super.steps();

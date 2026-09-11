@@ -12,7 +12,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Check that the cover image option is only available when one blog post is displayed
         ...insertSnippet({
             id: "s_blog_posts_single_aside",
             name: "Blog Post",

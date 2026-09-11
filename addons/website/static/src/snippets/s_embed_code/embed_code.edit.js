@@ -7,8 +7,6 @@ const EmbedCodeEdit = (I) =>
     class extends I {
         start() {
             if (this.embedCodeEl.offsetHeight === 0) {
-                // Shows a placeholder message in edit mode to be able to select
-                // the snippet if it's visually empty.
                 const placeholderEl = document.createElement("div");
                 placeholderEl.classList.add(
                     "s_embed_code_placeholder",

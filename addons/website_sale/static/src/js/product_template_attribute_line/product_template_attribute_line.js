@@ -5,9 +5,7 @@ import { patch } from "@web/core/utils/patch";
 
 patch(ProductTemplateAttributeLine.prototype, {
     /**
-     * Return the display name of this PTAL.
-     *
-     * @return {String} - The display name of this PTAL.
+     * @return {String}
      */
     getPtalDisplayName() {
         const selectedPtavIds = new Set(this.props.selected_attribute_value_ids);
@@ -23,7 +21,6 @@ patch(ProductTemplateAttributeLine.prototype, {
     },
 
     get customValuePlaceholder() {
-        // The original definition of this placeholder is in `sale` module which is not a frontend module. However, it should be repeated here as translations are only fetched in the context of a frontend module, which is `website_sale` in this case.
         return _t("Enter a customized value");
     },
 });

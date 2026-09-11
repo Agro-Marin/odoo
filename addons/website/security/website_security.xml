@@ -23,10 +23,6 @@
             name="implied_ids"
             eval="[(4, ref('group_website_restricted_editor')), (4, ref('base.group_sanitize_override'))]" />
         <field name="privilege_id" ref="res_groups_privilege_website" />
-        <!--
-            NOTE: this group implication is needed so that any admin user can do the website onboarding
-            after website app installation.
-        -->
         <field name="implied_by_ids" eval="[(4, ref('base.group_system'))]" />
     </record>
 
@@ -99,7 +95,6 @@
         </record>
     </data>
 
-    <!-- Website Page Controller: exposing arbitrary models -->
     <record id="website_page_controller_expose" model="res.groups">
         <field name="name">Public access to arbitrary exposed model</field>
     </record>

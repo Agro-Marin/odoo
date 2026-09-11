@@ -14,7 +14,6 @@ export class MediaVideo extends Interaction {
     dynamicContent = {
         _popup: {
             "t-on-shown.bs.modal": () => {
-                // TODO still oeExpression to remove someday
                 this.services.website_cookies.manageIframeSrc(
                     this.el.querySelector("iframe"),
                     this.el.dataset.oeExpression || this.el.dataset.src,
@@ -41,9 +40,6 @@ export class MediaVideo extends Interaction {
     start() {
         let iframeEl = this.el.querySelector(":scope > iframe");
 
-        // Generate the video `<iframe/>` element when restarting interacions.
-        // In some cases (e.g., when adding a new video block), we don’t need
-        // to rebuild the same iframe while starting the widget.
         if (!iframeEl) {
             iframeEl = generateVideoIframe(
                 this.el,

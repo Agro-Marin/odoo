@@ -28,7 +28,6 @@
                     name="from_website"
                     domain="[('website_id', '!=', False)]" />
                 <separator />
-                <!-- Dashboard filter - used by context -->
                 <filter
                     string="Last Week"
                     invisible="1"
@@ -81,7 +80,6 @@
         </field>
     </record>
 
-    <!-- Dashboard Action -->
     <record id="action_unpaid_orders_ecommerce" model="ir.actions.act_window">
         <field name="name">Unpaid Orders</field>
         <field name="res_model">sale.order</field>
@@ -125,7 +123,6 @@
                         name="order_date"
                         context="{'group_by':'date_order'}" />
                 </group>
-                <!-- Dashboard filter - used by context -->
                 <filter
                     string="Last Week"
                     invisible="1"
@@ -145,7 +142,6 @@
         </field>
     </record>
 
-    <!-- Dashboard Action -->
     <record id="sale_order_action_to_invoice" model="ir.actions.act_window">
         <field name="name">Orders To Invoice</field>
         <field name="res_model">sale.order</field>
@@ -162,7 +158,6 @@
         </field>
     </record>
 
-    <!-- Server action to send multiple recovery email-->
     <record id="action_view_unpaid_quotation_tree" model="ir.actions.act_window">
         <field name="name">Unpaid Orders</field>
         <field name="res_model">sale.order</field>

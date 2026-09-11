@@ -6,7 +6,6 @@ import VariantMixin from "@website_sale_stock/js/variant_mixin";
 const oldGetUnavailableQty = VariantMixin._getUnavailableQty;
 
 /**
- * Get unavailable stock related to kit products of the cart.
  * @override
  */
 VariantMixin._getUnavailableQty = async function (combination) {

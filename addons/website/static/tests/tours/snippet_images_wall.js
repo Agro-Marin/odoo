@@ -8,7 +8,6 @@ const wallRaceConditionClass = "image_wall_race_condition";
 const preventRaceConditionSteps = [
     {
         content: "Wait a few ms to avoid race condition",
-        // Ensure the class is remove from previous call of those steps
         trigger: `body:not(.${wallRaceConditionClass})`,
         run() {
             setTimeout(() => {
@@ -35,12 +34,7 @@ const selectSignImageStep = [
         run: "click",
     },
 ];
-// Without reselecting the image, the tour manages to click on the
-// move button before the active image is updated.
 
-// We need to wait a few ms before clicking on the footer because after
-// clicking on reposition option, there may be a delay during the click on
-// another block would be ignored.
 const reselectSignImageSteps = [
     ...preventRaceConditionSteps,
     {
@@ -80,11 +74,6 @@ registerWebsitePreviewTour(
         {
             content: "Change the link of the image",
             trigger: "div[data-label='Your URL'] div[data-action-id='setUrl'] input",
-            // TODO: This should not be needed, but there seems to be an odd
-            // behavior with the input not properly blurring when clicking on
-            // the reorder buttons. However this is also the case in older
-            // versions. It only crashes here because there is also a change in
-            // the tour framework now using hoot.
             run: "edit /contactus && click body",
         },
         {

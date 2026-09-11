@@ -23,8 +23,6 @@ export class CookiesWarning extends Interaction {
         },
     };
     setup() {
-        // Keeps track of the initially found iframe so that it is still known
-        // after optionalCookiesAccepted.
         this.keptIframeEl = undefined;
     }
 }

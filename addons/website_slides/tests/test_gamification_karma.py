@@ -57,16 +57,13 @@ class TestKarmaGain(common.SlidesCase):
         user.write({"karma": 0})
         computed_karma = 0
 
-        # Add the user to the course
         (self.channel | self.channel_2)._action_add_members(user.partner_id)
         self.assertEqual(user.karma, 0)
 
-        # Finish the Course
         self.slide.with_user(user).action_mark_completed()
         self.assertFalse(self.channel.with_user(user).completed)
         self.slide_2.with_user(user).action_mark_completed()
 
-        # answer a quizz question
         self.slide_3.with_user(user).action_set_viewed(quiz_attempts_inc=True)
         self.slide_3.with_user(user)._action_mark_completed()
         computed_karma += self.slide_3.quiz_first_attempt_reward
@@ -74,21 +71,17 @@ class TestKarmaGain(common.SlidesCase):
         self.assertTrue(self.channel.with_user(user).completed)
         self.assertEqual(user.karma, computed_karma)
 
-        # Mark the quiz as not completed.
-        # The course remains completed once completed. No karma change.
         self.slide_3.with_user(user).action_mark_uncompleted()
         computed_karma -= self.slide_3.quiz_first_attempt_reward
         self.assertTrue(self.channel.with_user(user).completed)
         self.assertEqual(user.karma, computed_karma)
 
-        # Re-submit the quiz, we should consider it as the second attempt
         self.slide_3.with_user(user).action_set_viewed(quiz_attempts_inc=True)
         self.slide_3.with_user(user)._action_mark_completed()
         computed_karma += self.slide_3.quiz_second_attempt_reward
         self.assertTrue(self.channel.with_user(user).completed)
         self.assertEqual(user.karma, computed_karma)
 
-        # Begin then finish the second Course
         self.slide_2_0.with_user(user).action_mark_completed()
         self.assertFalse(self.channel_2.with_user(user).completed)
         self.assertEqual(user.karma, computed_karma)
@@ -98,7 +91,6 @@ class TestKarmaGain(common.SlidesCase):
         computed_karma += self.channel_2.karma_gen_channel_finish
         self.assertEqual(user.karma, computed_karma)
 
-        # Vote for a slide: Karma should not move
         slide_user = self.slide.with_user(user)
         slide_user.action_like()
         self.assertEqual(user.karma, computed_karma)
@@ -106,11 +98,9 @@ class TestKarmaGain(common.SlidesCase):
         slide_user.action_dislike()
         self.assertEqual(user.karma, computed_karma)
 
-        # Leave the finished course - karma should not move as we only archive membership
         self.channel._remove_membership(user.partner_id.ids)
         self.assertEqual(user.karma, computed_karma)
 
-        # Unarchive the partner. Karma should not move. Course should be completed.
         self.channel._action_add_members(user.partner_id)
         self.assertTrue(self.channel_2.with_user(user).completed)
         self.assertEqual(user.karma, computed_karma)
@@ -122,7 +112,6 @@ class TestKarmaGain(common.SlidesCase):
         user.write({"karma": 0})
         computed_karma = 0
 
-        # Finish two course at the same time (should not ever happen but hey, we never know)
         (self.channel | self.channel_2)._action_add_members(user.partner_id)
 
         computed_karma += (
@@ -147,12 +136,6 @@ class TestKarmaGain(common.SlidesCase):
         )
         self.assertEqual(len(channel_partners), 4)
 
-        # Set courses as completed and update karma
-        # Recalibrated: this test could not run at all on the fork (setUpClass
-        # raised AccessError building the quiz survey as an officer), so the old
-        # 74 predated the fork's quiz→survey.question rework. The per-user slide
-        # fields are now correctly keyed per uid (depends_context), so reading
-        # them for two members no longer collides on one shared cache entry.
         with self.assertQueryCount(76):
             channel_partners._post_completion_update_hook()
 
@@ -178,8 +161,6 @@ class TestKarmaGain(common.SlidesCase):
             self.assertEqual(user_trackings[1].old_value, 0)
             self.assertEqual(user_trackings[1].origin_ref, self.channel)
 
-        # now, remove the membership in batch, on multiple users - karma should not move as we only archive membership
-        # Recalibrated from 9 alongside the count above (resurrected test).
         with self.assertQueryCount(10):
             (self.channel | self.channel_2)._remove_membership(users.partner_id.ids)
 

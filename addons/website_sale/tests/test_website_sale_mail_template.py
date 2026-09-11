@@ -26,14 +26,12 @@ class TestWebsiteSaleOrderEmailTemplate(SaleCommon):
         )
 
     def test_website_specific_confirmation_template_is_used(self):
-        """Ensure _get_confirmation_template returns the website-specific template when set."""
         template = self._create_confirmation_template()
         self.website.confirmation_email_template_id = template
 
         self.assertEqual(self.sale_order._get_confirmation_template(), template)
 
     def test_confirmation_template_falls_back_when_website_sets_none(self):
-        """A website without its own template must not shadow `sale`'s default."""
         self.website.confirmation_email_template_id = False
 
         self.assertEqual(
@@ -43,7 +41,6 @@ class TestWebsiteSaleOrderEmailTemplate(SaleCommon):
         )
 
     def test_confirmation_template_is_not_used_off_website(self):
-        """The override keys on the order's website, not on the template existing."""
         self.website.confirmation_email_template_id = (
             self._create_confirmation_template()
         )

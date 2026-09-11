@@ -24,10 +24,6 @@ export class Popup extends Interaction {
             "t-on-hashchange": this.onHashChange,
         },
         ".modal:not(.s_popup_no_backdrop)": {
-            // Here, bootstrap's data-bs-backdrop attribute is not used and
-            // we use a custom click handler instead to dismiss the popup on
-            // click outside as we do not use bootstrap native backdrop.
-            // See MODAL_BACKDROP_WEBSITE.
             "t-on-click": this.onBackdropModalClick,
         },
     };
@@ -48,9 +44,6 @@ export class Popup extends Interaction {
             this.showModalBtnEl = document.querySelector(
                 `[href="#${this.modalShownOnClickEl.id}"]`,
             );
-            // Check if a hash exists and if the modal needs to be opened when
-            // the page loads (e.g. The user has clicked a button on the
-            // "Contact us" page to open a popup on the homepage).
             this.showPopupOnClick();
             return;
         }
@@ -59,10 +52,6 @@ export class Popup extends Interaction {
     }
 
     start() {
-        // Check if every child element of the popup is conditionally hidden,
-        // and if so, never show an empty popup.
-        // config.device.isMobile is true if the device is <= SM, but the device
-        // visibility option uses < LG to hide on mobile. So compute it here.
         const isMobile = uiUtils.getSize() < SIZES.LG;
         const emptyPopup = [
             ...this.el.querySelectorAll(".oe_structure > *:not(.s_popup_close)"),
@@ -113,11 +102,6 @@ export class Popup extends Interaction {
         }
         this.bsModal.show();
         this.registerCleanup(() => {
-            // Do not call .hide() directly, because it is queued whereas
-            // .dispose() is not, making it crash. As we don't have to wait for
-            // animations here, bypass the issue with ._hideModal().
-            // Additionally, .hide() triggers `hide.bs.modal`, which triggers
-            // onHideModal() and sets a cookie: we don't want that on destroy.
             this.modalEl.classList.remove("show");
             this.bsModal._hideModal();
         });
@@ -127,11 +111,7 @@ export class Popup extends Interaction {
      * @param {String} [hash]
      */
     showPopupOnClick(hash = browser.location.hash) {
-        // If a hash exists in the URL and it corresponds to the ID of the modal,
-        // then we open the modal.
         if (hash && hash.substring(1) === this.modalShownOnClickEl.id) {
-            // We remove the hash from the URL because otherwise the popup
-            // cannot open again after being closed.
             const urlWithoutHash = browser.location.href.replace(hash, "");
             browser.history.replaceState(null, null, urlWithoutHash);
             this.showPopup();
@@ -139,9 +119,6 @@ export class Popup extends Interaction {
     }
 
     /**
-     * Checks if the given primary button should allow or not to close the
-     * modal.
-     *
      * @param {HTMLElement} primaryBtnEl
      */
     canBtnPrimaryClosePopup(primaryBtnEl) {
@@ -152,10 +129,7 @@ export class Popup extends Interaction {
     }
 
     /**
-     * Traps the focus within the modal.
-     *
-     * @returns {Function} refocuses the element that was focused before the
-     * modal opened.
+     * @returns {Function}
      */
     trapFocus() {
         let tabableEls = getTabableElements(this.el);
@@ -171,7 +145,6 @@ export class Popup extends Interaction {
         } else {
             this.el.focus();
         }
-        // The focus should stay free for no backdrop popups.
         if (this.el.querySelector(".s_popup_no_backdrop")) {
             this.addListener(
                 this.el,
@@ -187,7 +160,6 @@ export class Popup extends Interaction {
             if (ev.key !== "Tab") {
                 return;
             }
-            // Update tabableEls: they might have changed in the meantime.
             tabableEls = getTabableElements(this.el);
             if (!tabableEls.length) {
                 ev.preventDefault();
@@ -238,17 +210,11 @@ export class Popup extends Interaction {
      */
     onHashChange(ev) {
         if (this.modalShownOnClickEl) {
-            // Keep the new hash from the event to avoid conflict with the eCommerce
-            // hash attributes managing.
-            // TODO : it should not have been a hash at all for ecommerce, but a
-            // query string parameter
             this.showPopupOnClick(new URL(ev.newURL).hash);
         }
     }
 
     /**
-     * Handles clicks outside the popup to dismiss it.
-     *
      * @param {MouseEvent} ev
      */
     onBackdropModalClick(ev) {

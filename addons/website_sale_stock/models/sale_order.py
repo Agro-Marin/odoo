@@ -26,7 +26,6 @@ class SaleOrder(models.Model):
 
             product_qty_in_cart, available_qty = self._get_cart_and_free_qty(product)
 
-            # Convert cart and available quantities to the requested uom
             product_qty_in_cart = product_uom_id._compute_quantity(
                 product_qty_in_cart, uom
             )
@@ -61,7 +60,6 @@ class SaleOrder(models.Model):
                             available_qty=format_qty(available_qty),
                         )
                 elif order_line:
-                    # Line will be deleted
                     warning = self.env._(
                         "Some products became unavailable and your cart has been updated. We're"
                         " sorry for the inconvenience."
@@ -77,14 +75,6 @@ class SaleOrder(models.Model):
         )
 
     def _get_cart_and_free_qty(self, product):
-        """Get cart quantity and free quantity for given product.
-
-        Note: self.check_singleton()
-
-        :param product: `product.product` record.
-        :returns: cart quantity and available quantity in the product uom
-        :rtype: tuple
-        """
         self.check_singleton()
         product.check_singleton()
 
@@ -94,26 +84,10 @@ class SaleOrder(models.Model):
         return product.with_context(warehouse_id=self._get_shop_warehouse_id()).qty_free
 
     def _get_shop_warehouse_id(self):
-        """Return the warehouse to use for shop availability checks.
-
-        If no warehouse is specified on the website, all warehouses are considered,
-        regardless of the warehouse automatically assigned to the order.
-
-        Note: self.check_singleton()
-
-        :returns: `stock.warehouse` id
-        :rtype: int or False
-        """
         self.check_singleton()
         return self.website_id.warehouse_id.id
 
     def _get_cart_qty(self, product_id):
-        """Return the quantity of the given product in the current cart, if any.
-
-        :param int product_id: `product.product` id
-        :return: product quantity in the product uom
-        :rtype: float
-        """
         if not self:
             return 0.0
         order_lines = self._get_common_product_lines(product_id)
@@ -127,7 +101,6 @@ class SaleOrder(models.Model):
         )
 
     def _get_common_product_lines(self, product_id=None):
-        """Get all the lines of the current order with the given product."""
         return self.line_ids.filtered(lambda sol: sol.product_id.id == product_id)
 
     def _check_cart_is_ready_to_be_paid(self):
@@ -141,7 +114,6 @@ class SaleOrder(models.Model):
         return super()._check_cart_is_ready_to_be_paid()
 
     def _filter_can_send_abandoned_cart_mail(self):
-        """Filter sale orders on their product availability."""
         return (
             super()
             ._filter_can_send_abandoned_cart_mail()

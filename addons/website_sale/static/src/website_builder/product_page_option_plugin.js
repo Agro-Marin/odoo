@@ -33,14 +33,7 @@ class ProductPageOptionPlugin extends Plugin {
             ProductRemoveAllExtraImagesAction,
         },
         clean_for_save_handlers: ({ root: el }) => {
-            // TODO the content of this clean_for_save_handlers should probably
-            // be a generic thing for the whole editor.
-
-            // Make sure that if the user removes the whole text of the
-            // breadcrumb, it is restored to the default value.
             if (
-                // TODO the "placeholder" feature should be reviewed, this is
-                // not a valid HTML attribute.
                 el.getAttribute("placeholder") &&
                 el.hasAttribute("data-oe-zws-empty-inline") &&
                 /^[\s\u200b]*$/.test(el.textContent)
@@ -99,7 +92,6 @@ class ProductPageOptionPlugin extends Plugin {
             if (this.productProductID) {
                 this.model = "product.product";
             }
-            // Different targets
             this.productDetailEl = mainEl.querySelector("#product_detail");
             this.productDetailMain = mainEl.querySelector("#product_detail_main");
             this.productPageCarousel = mainEl.querySelector("#o-carousel-product");
@@ -118,7 +110,6 @@ class ProductPageOptionPlugin extends Plugin {
     }
 }
 
-// Base class for product page configuration actions
 export class BasePreviewableProductPageAction extends PreviewableWebsiteConfigAction {
     static dependencies = [...super.dependencies, "productPageOption"];
     static rpcParameterName = null;
@@ -217,7 +208,6 @@ export class BaseProductPageAction extends BuilderAction {
             if (this.productProductID) {
                 this.model = "product.product";
             }
-            // Different targets
             this.productDetailMain = mainEl.querySelector("#product_detail_main");
             this.productPageCarousel = mainEl.querySelector("#o-carousel-product");
             this.productPageGrid = mainEl.querySelector("#o-grid-product");
@@ -253,14 +243,9 @@ export class BaseProductPageAction extends BuilderAction {
     }
 
     async convertAttachmentToWebp(attachment, imageEl) {
-        // This method is widely adapted from onFileUploaded in ImageField.
-        // Upon change, make sure to verify whether the same change needs
-        // to be applied on both sides.
         if (await isImageCorsProtected(imageEl)) {
-            // The image is CORS protected; do not transform it into webp
             return;
         }
-        // Generate alternate sizes and format for reports.
         const imgEl = document.createElement("img");
         imgEl.src = imageEl.src;
         await new Promise((resolve) => imgEl.addEventListener("load", resolve));
@@ -314,7 +299,7 @@ export class BaseProductPageAction extends BuilderAction {
                 attachment.image_src = `/web/image/${resizedId}-autowebp/${attachment.name}`;
                 attachment.mimetype = "image/webp";
             }
-            referenceId = referenceId || resizedId; // Keep track of original.
+            referenceId = referenceId || resizedId;
             await this.services.orm.call("ir.attachment", "create_unique", [
                 [
                     {
@@ -356,7 +341,6 @@ export class ProductReplaceMainImageAction extends BaseProductPageAction {
         this.canTimeout = false;
     }
     apply({ editingElement: productDetailMainEl }) {
-        // Emulate click on the main image of the carousel.
         const image = productDetailMainEl.querySelector(
             `[data-oe-model="${this.model}"][data-oe-field=image_1920] img`,
         );
@@ -404,7 +388,6 @@ export class ProductAddExtraImageAction extends BaseProductPageAction {
         this.canTimeout = false;
     }
     async apply({ editingElement: el }) {
-        // Prompts the user for images, then saves the new images.
         if (this.model === "product.template") {
             this.services.notification.add(
                 'Pictures will be added to the main image. Use "Instant" attributes to set pictures on each variants',
@@ -417,7 +400,6 @@ export class ProductAddExtraImageAction extends BaseProductPageAction {
                 multiImages: true,
                 visibleTabs: ["IMAGES", "VIDEOS"],
                 node: el,
-                // Kinda hack-ish but the regular save does not get the information we need
                 save: async (imgEls, selectedMedia, activeTab) => {
                     if (selectedMedia.length) {
                         const type =
@@ -433,7 +415,6 @@ export class ProductAddExtraImageAction extends BaseProductPageAction {
 export class ProductRemoveAllExtraImagesAction extends BaseProductPageAction {
     static id = "productRemoveAllExtraImages";
     async apply({ editingElement: el }) {
-        // Removes all extra-images from the product.
         await rpc(`/shop/product/clear-images`, {
             model: this.model,
             product_product_id: this.productProductID,

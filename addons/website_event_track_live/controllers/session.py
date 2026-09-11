@@ -15,8 +15,6 @@ class WebsiteEventSessionLiveController(EventTrackController):
                 or track.is_track_done
             )
         values = super()._event_track_page_get_values(event, track, **options)
-        # Youtube disables the chat embed on all mobile devices
-        # This regex is a naive attempt at matching their behavior (should work for most cases)
         values["is_mobile_chat_disabled"] = bool(
             re.match(
                 r"^.*(Android|iPad|iPhone).*",

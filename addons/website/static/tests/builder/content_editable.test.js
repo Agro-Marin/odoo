@@ -50,7 +50,6 @@ test("Check contenteditable attribute", async () => {
     expect(":iframe .o_we_shape[contenteditable=false]").toHaveCount(1);
 
     onRpc("ir.ui.view", "save", ({ args }) => {
-        // Make sure the content is saved and doesn't contain "contenteditable"
         expect(args[1].includes("<section")).toBe(true);
         expect(args[1].includes("contenteditable")).toBe(false);
         return true;
@@ -112,7 +111,6 @@ test("Set contenteditable to false on empty arch field", async () => {
 
 test("feff on links are cleaned up", async () => {
     onRpc("ir.ui.view", "save", ({ args }) => {
-        // Check that the saved content has no feff
         expect(args[1]).toBe(
             `<div id="wrap" class="oe_structure oe_empty" data-oe-model="ir.ui.view" data-oe-id="539" data-oe-field="arch"><section class="o_colored_level"><a href="http://test.test">texst</a></section></div>`,
         );

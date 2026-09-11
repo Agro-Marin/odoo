@@ -2,8 +2,6 @@
 <odoo>
 
     <data>
-        <!-- TOOLS / UTILS -->
-        <!-- ============================================================ -->
         <template id="show_flag_validator">
             <a
                 href="#"
@@ -44,9 +42,6 @@
             <t t-if="flag_validator" t-call="website_forum.show_flag_validator" />
             </form>
         </template>
-        <!-- FAQ LAYOUT -->
-        <!-- ============================================================ -->
-        <!-- FAQ Layout -->
         <template id="faq" name="Frequently Asked Questions">
             <t t-call="website_forum.header">
             <t t-set="_page_name" t-value="'guidelines'" />
@@ -55,7 +50,6 @@
             <div t-field="forum.faq" />
             </t>
         </template>
-        <!-- FAQ Karma Layout -->
         <template id="faq_karma" name="Karma">
             <t t-call="website_forum.header">
             <div class="card bg-white" data-name="Item">
@@ -110,12 +104,9 @@
             </div>
             </t>
         </template>
-        <!-- TOOLS / UTILS -->
-        <!-- ============================================================ -->
         <template id="vote">
             <t t-set="own_vote" t-value="post.user_vote" />
             <t t-set="forum" t-value="post.forum_id" />
-            <!-- can_upvote returns "true" for unregistered users -->
             <t t-set="can_upvote" t-value="post.can_upvote" />
             <t t-set="can_downvote" t-value="post.can_downvote" />
             <div

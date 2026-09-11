@@ -35,8 +35,6 @@ class BlockquoteOptionPlugin extends Plugin {
         ],
     };
 }
-// TODO: as in master, the position of a background image does not work
-// correctly.
 registry
     .category("website-plugins")
     .add(BlockquoteOptionPlugin.id, BlockquoteOptionPlugin);

@@ -37,7 +37,6 @@
                 name="act_window_id"
                 ref="website_livechat.website_visitor_livechat_session_action" />
         </record>
-        <!-- website visitor views -->
         <record id="website_visitor_view_kanban" model="ir.ui.view">
             <field
                 name="name">website.visitor.view.kanban.inherit.website.livechat</field>

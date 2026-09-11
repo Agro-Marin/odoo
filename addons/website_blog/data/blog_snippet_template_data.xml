@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Filters for Dynamic Filter -->
         <record id="dynamic_snippet_latest_blog_post_filter" model="ir.filters">
             <field name="name">Latest Blog Posts</field>
             <field name="model_id">blog.post</field>
@@ -20,7 +19,6 @@
             <field name="sort">["visits desc"]</field>
             <field name="action_id" ref="website.action_website" />
         </record>
-        <!-- Dynamic Filter -->
         <record id="dynamic_filter_latest_blog_posts" model="website.snippet.filter">
             <field name="name">Latest Blog Posts</field>
             <field

@@ -5,9 +5,6 @@ import { FullscreenPlayer } from "@website_slides/interactions/fullscreen_player
 
 patch(FullscreenPlayer.prototype, {
     /**
-     * Extend the _renderSlide method so that slides of category
-     * "certification" are also taken into account and rendered correctly.
-     *
      * @override
      */
     async _renderSlide() {

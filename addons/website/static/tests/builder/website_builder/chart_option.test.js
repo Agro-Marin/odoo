@@ -346,8 +346,8 @@ describe("Add & Delete buttons", () => {
         expect(data.datasets).toHaveLength(2);
         expect(data.datasets[0].label).toBe("One");
         await contains(".options-container table tbody tr:eq(2) input:last").focus();
-        await press("Tab"); // remove row button
-        await press("Tab"); // add row button
+        await press("Tab");
+        await press("Tab");
         await press("Tab");
         await press("Enter");
         data = JSON.parse(queryFirst(":iframe .s_chart").dataset.data);
@@ -377,7 +377,7 @@ test("Focusing input displays related data color/data border colorpickers", asyn
 test("CSS colors and CSS custom variables are correctly computed", async () => {
     const type = "bar";
     await setupWebsiteBuilder(chartTemplate(type, getData(type)), {
-        styleContent: /*css*/ `
+        styleContent: `
             html {
                 --o-color-1: rgb(255, 0, 0);
                 --o-color-2: rgb(0, 0, 255);
@@ -472,8 +472,6 @@ test("Removing a row with the current cell resets the current cell", async () =>
     await contains(
         ".options-container table tbody tr:last-child td:nth-child(3) button.o_builder_matrix_remove_col",
     ).click();
-    // After removal, the current cell should reset to default (first dataset, first data point)
-    // The color picker should now reflect the default cell's color
     expect(
         ".options-container [data-label='Data Color'] .o_we_color_preview",
     ).toHaveStyle({

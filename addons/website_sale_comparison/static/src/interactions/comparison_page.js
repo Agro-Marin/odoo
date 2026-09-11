@@ -27,10 +27,6 @@ export class ComparisonPage extends Interaction {
         _clearAllButton: { "t-on-click": this.clearAllProducts },
     };
 
-    // TODO the sticky logic could probably make use of the WebsiteSaleStickyObject
-    // interaction. We'd simply need to remove the offset that comes with the interaction
-    // and handle the fact that the sticky element is hidden and appears when the user scrolls.
-
     setup() {
         this.position = 0;
     }
@@ -46,14 +42,11 @@ export class ComparisonPage extends Interaction {
     }
 
     /**
-     * Adapt the position of elements when the header changes.
-     *
      * @private
      */
     _adaptToHeaderChange() {
         let position = 0;
 
-        // Calculate total height of fixed elements at top
         for (const el of this.el.ownerDocument.querySelectorAll(
             ".o_top_fixed_element",
         )) {
@@ -64,7 +57,6 @@ export class ComparisonPage extends Interaction {
             this.position = position;
             this.updateContent();
 
-            // Update mini sticky position if it exists
             const miniStickyEl = this.dynamicSelectors._miniSticky();
             if (miniStickyEl) {
                 miniStickyEl.style.top = `${position}px`;
@@ -72,17 +64,12 @@ export class ComparisonPage extends Interaction {
         }
     }
 
-    /**
-     * Clear all products from the comparison.
-     */
     clearAllProducts() {
         comparisonUtils.clearComparisonProducts(this.bus);
         redirect("/shop");
     }
 
     /**
-     * Initialize the mini sticky comparison overview.
-     *
      * @private
      */
     _initMiniStickyComparison() {
@@ -91,14 +78,11 @@ export class ComparisonPage extends Interaction {
 
         if (!miniStickyEl || !productImagesEl) return;
 
-        // Set initial position
         miniStickyEl.style.top = `${this.position}px`;
 
-        // Get scroll containers
         const mainScrollEl = this.dynamicSelectors._mainScroll();
         const miniScrollEl = this.dynamicSelectors._miniScroll();
 
-        // Handle vertical scroll (show/hide mini sticky)
         const handleVerticalScroll = () => {
             const rect = productImagesEl.getBoundingClientRect();
             const shouldShow = rect.bottom < this.position + 20;
@@ -106,13 +90,11 @@ export class ComparisonPage extends Interaction {
             miniStickyEl.classList.toggle("show", shouldShow);
             miniStickyEl.classList.toggle("d-none", !shouldShow);
 
-            // Sync horizontal position when showing
             if (shouldShow && mainScrollEl && miniScrollEl) {
                 miniScrollEl.scrollLeft = mainScrollEl.scrollLeft;
             }
         };
 
-        // Handle horizontal scroll sync
         const syncScroll = (source, target) => {
             if (!source._syncing) {
                 target._syncing = true;
@@ -121,7 +103,6 @@ export class ComparisonPage extends Interaction {
             }
         };
 
-        // Bind events
         window.addEventListener("scroll", handleVerticalScroll, { passive: true });
         if (mainScrollEl && miniScrollEl) {
             mainScrollEl.addEventListener(
@@ -136,18 +117,14 @@ export class ComparisonPage extends Interaction {
             );
         }
 
-        // Cleanup
         this.registerCleanup(() => {
             window.removeEventListener("scroll", handleVerticalScroll);
         });
 
-        // Initial check
         handleVerticalScroll();
     }
 
     /**
-     * Add a product to the cart from the comparison page.
-     *
      * @param {Event} ev
      */
     addToCart(ev) {
@@ -168,13 +145,11 @@ export class ComparisonPage extends Interaction {
     }
 
     /**
-     * Remove a product from the comparison.
-     *
      * @param {Event} ev
      */
     removeProduct(ev) {
         const productId = parseInt(ev.currentTarget.dataset.productProductId);
-        comparisonUtils.removeComparisonProduct(productId, null); // No bus needed on comparison page
+        comparisonUtils.removeComparisonProduct(productId, null);
 
         const productIds = comparisonUtils.getComparisonProductIds();
         if (productIds.length === 0) {

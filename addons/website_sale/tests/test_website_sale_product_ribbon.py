@@ -6,7 +6,6 @@ from odoo.addons.website_sale.tests.common import WebsiteSaleCommon
 class TestProductRibbon(WebsiteSaleCommon):
     def setUp(self):
         super().setUp()
-        # Manual ribbon
         self.manual_ribbon = self.env["product.ribbon"].create(
             {
                 "name": "Manual Ribbon",
@@ -14,7 +13,6 @@ class TestProductRibbon(WebsiteSaleCommon):
             }
         )
 
-        # Sale ribbon
         self.sale_ribbon = self.env["product.ribbon"].create(
             {
                 "name": "Sale Ribbon",
@@ -22,7 +20,6 @@ class TestProductRibbon(WebsiteSaleCommon):
             }
         )
 
-        # New ribbon
         self.new_ribbon = self.env["product.ribbon"].create(
             {
                 "name": "New Ribbon",
@@ -48,7 +45,7 @@ class TestProductRibbon(WebsiteSaleCommon):
 
     def test_sale_ribbon_assignment(self):
         self.product.list_price = 100
-        products_prices = {"base_price": 100, "price_reduce": 80}  # discounted
+        products_prices = {"base_price": 100, "price_reduce": 80}
         ribbon = self.product.product_tmpl_id._get_ribbon(
             products_prices, self.auto_assign_ribbon
         )
@@ -84,7 +81,7 @@ class TestProductRibbon(WebsiteSaleCommon):
     def test_ribbon_priority_assignment(self):
         self.product.website_ribbon_id = self.manual_ribbon.id
         self.product.publish_date -= timedelta(days=10)
-        products_prices = {"base_price": 100, "price_reduce": 80}  # discounted
+        products_prices = {"base_price": 100, "price_reduce": 80}
         self.sale_ribbon.sequence = 1
         self.new_ribbon.sequence = 2
         ribbon = self.product.product_tmpl_id._get_ribbon(

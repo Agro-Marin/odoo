@@ -14,7 +14,6 @@ registry.category("web_tour.tours").add("chatbot_fw_operator_matching_lang", {
             run: "click",
         },
         {
-            // Wait for the operator to be added: composer is only enabled at that point.
             trigger: ".o-livechat-root:shadow .o-mail-Composer-input:enabled",
         },
     ],

@@ -41,21 +41,14 @@ export class WebsiteEventTrackProposalForm extends Interaction {
     }
 
     /**
-     * Evaluate and return validity of form input fields:
-     * - 1) error "invalidFormInputs" : Invalid ones are marked as is-invalid and o_wetrack_input_error.
-     * - 2) error "noContactMean" : Contact mean fields are marked as is-invalid and contact
-     * section as o_wetrack_no_contact_mean_error if none of them is filled.
-     *
-     * @returns {Boolean} - True if no error remain, false otherwise
+     * @returns {Boolean}
      */
     isFormValid() {
         this.formErrors = [];
 
-        // 1) Valid Form Inputs
         this.el
             .querySelectorAll(".form-control:not(.o_wetrack_select_tags)")
             .forEach((formControl) => {
-                // Validate current input
                 const isValid = formControl.checkValidity();
                 formControl.classList.toggle("o_wetrack_input_error", !isValid);
                 formControl.classList.toggle("is-invalid", !isValid);
@@ -64,7 +57,6 @@ export class WebsiteEventTrackProposalForm extends Interaction {
                 }
             });
 
-        // 2) Advanced Contact Must Have a Contact Mean
         if (this.useAdvancedContact) {
             const phoneInput = this.el.querySelector(".o_wetrack_contact_phone_input");
             const emailInput = this.el.querySelector(".o_wetrack_contact_email_input");
@@ -76,15 +68,10 @@ export class WebsiteEventTrackProposalForm extends Interaction {
             }
         }
 
-        // Form Validity and Error Display
         this.updateErrorDisplay();
         return this.formErrors.length === 0;
     }
 
-    /**
-     * If there are still errors in form, display the error section and
-     * compose the error message accordingly.
-     */
     updateErrorDisplay() {
         const errorMessages = [];
 
@@ -109,10 +96,6 @@ export class WebsiteEventTrackProposalForm extends Interaction {
     }
 
     /**
-     * Display / Hide Additional Contact Information section when toggling
-     * the checkbox on the form o_wetrack_add_contact_information_checkbox.
-     * Also empty the email to prevent hidden email format error.
-     *
      * @param {Event} ev
      */
     onAdvancedContactToggle() {
@@ -127,9 +110,6 @@ export class WebsiteEventTrackProposalForm extends Interaction {
     }
 
     /**
-     * Propagates the new input on speaker name to contact name, as long as the latter
-     * is the start of partner name. Otherwise, do not modify existing contact name.
-     *
      * @param {Event} ev
      */
     onPartnerNameInput(ev) {
@@ -141,24 +121,13 @@ export class WebsiteEventTrackProposalForm extends Interaction {
     }
 
     /**
-     * Submits the form if no errors are present in the form after validation.
-     *
-     * If the submission succeeds, we replace the form with a template containing a small success
-     * message.
-     *
-     * Then we scroll to the position of the success message so that the user can see it.
-     * To do that we have to compute the position of the beginning of the element, relatively to its
-     * position and the amount already scrolled, then subtract the floating header menu.
-     *
      * @param {Event} ev
      */
     async onProposalFormSubmit() {
-        // Prevent further clicking
         const submitButton = this.el.querySelector(".o_wetrack_proposal_submit_button");
         submitButton.classList.add("disabled");
         submitButton.setAttribute("disabled", "disabled");
 
-        // Submission of the form if no errors remain
         if (this.isFormValid()) {
             const formData = new FormData(this.el);
             const eventId = encodeURIComponent(this.el.dataset.eventId);
@@ -168,8 +137,6 @@ export class WebsiteEventTrackProposalForm extends Interaction {
             );
             this.bindDeferred(() => {
                 if (jsonResponse.success) {
-                    // TODO we really should not remove the whole widget element
-                    // like that + probably restore the widget before edit mode etc.
                     const parentEl = this.el.parentNode;
                     this.services["public.interactions"].stopInteractions(this.el);
                     this.el.replaceWith(
@@ -183,7 +150,6 @@ export class WebsiteEventTrackProposalForm extends Interaction {
             })();
         }
 
-        // Restore button
         submitButton.classList.remove("disabled");
         submitButton.removeAttribute("disabled");
     }

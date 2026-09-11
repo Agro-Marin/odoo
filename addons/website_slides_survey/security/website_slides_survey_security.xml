@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Specific survey access rules for slide channel officer-->
         <record id="survey_user_input_rule_slide_channel_officer" model="ir.rule">
             <field
                 name="name">Survey user input: slide channel officer on certification: read</field>

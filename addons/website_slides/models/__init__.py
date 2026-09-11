@@ -1,9 +1,9 @@
 from . import gamification_challenge
 from . import gamification_karma_tracking
-from . import slide_slide_partner  # decorated m2m, import before
+from . import slide_slide_partner
 from . import slide_slide
 from . import slide_embed
-from . import slide_channel_partner  # decorated m2m, import before
+from . import slide_channel_partner
 from . import slide_channel
 from . import slide_channel_tag
 from . import slide_slide_resource

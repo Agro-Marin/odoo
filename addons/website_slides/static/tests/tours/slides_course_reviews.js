@@ -1,10 +1,5 @@
 import { registry } from "@web/core/registry";
 
-/**
- * This tour test that a log note isn't considered
- * as a course review. And also that a member can
- * add only one review and react to them.
- */
 registry.category("web_tour.tours").add("course_reviews", {
     url: "/slides",
     steps: () => [
@@ -22,7 +17,6 @@ registry.category("web_tour.tours").add("course_reviews", {
                 "#chatterRoot:shadow .o-mail-Chatter-content:not(:has(.o-mail-Message-content))",
         },
         {
-            // If it fails here, it means the log note is considered as a review
             trigger: "span:contains(Add Review)",
             run: "click",
         },
@@ -50,7 +44,6 @@ registry.category("web_tour.tours").add("course_reviews", {
                 "#chatterRoot:shadow .o-mail-Message-textContent:contains(Great course!)",
         },
         {
-            // If it fails here, it means the system is allowing you to add another review.
             trigger: "span:contains(Edit Review)",
             run: "click",
         },

@@ -8,8 +8,6 @@ class WebsiteEventBoothController(WebsiteEventController):
     def event_booth_registration_confirm(
         self, event, booth_category_id, event_booth_ids, **kwargs
     ):
-        """Override: Doesn't call the parent method because we go through the checkout
-        process which will confirm the booths when receiving the payment."""
         booths = self._get_requested_booths(event, event_booth_ids)
         booth_category = (
             request.env["event.booth.category"].sudo().browse(int(booth_category_id))

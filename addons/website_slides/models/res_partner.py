@@ -5,10 +5,6 @@ from odoo.fields import Domain
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    # The real relation behind the three computed fields below. It exists so
-    # they can declare a dependency on it: without one nothing invalidated them,
-    # and enrolling a partner left slide_channel_count reading 0 for the rest of
-    # the transaction.
     slide_channel_partner_ids = fields.One2many(
         "slide.channel.partner",
         "partner_id",
@@ -46,10 +42,6 @@ class ResPartner(models.Model):
         "slide_channel_partner_ids.active",
     )
     def _compute_slide_channel_values(self):
-        # These three non-stored fields carried no @api.depends at all, so
-        # nothing invalidated them: enrolling a partner left
-        # slide_channel_count reading 0 for the rest of the transaction, while
-        # the neighbouring _compute_slide_channel_company_count did declare one.
         data = {
             (partner.id, member_status): channel_ids
             for partner, member_status, channel_ids in self.env["slide.channel.partner"]
@@ -87,10 +79,6 @@ class ResPartner(models.Model):
         return [("id", "in", subquery.subselect("partner_id"))]
 
     def _search_slide_channel_ids(self, operator, value):
-        # Same shape as its sibling above: a subquery, and sudo. This used to
-        # materialise every matching partner id into the domain under the
-        # caller's own rights, so the two searches answered differently for the
-        # same user and the list was unbounded.
         subquery = (
             self.env["slide.channel.partner"]
             .sudo()
@@ -113,10 +101,6 @@ class ResPartner(models.Model):
                 partner.slide_channel_company_count = 0
 
     def action_view_courses(self):
-        """View partners courses. In singleton mode, return courses followed
-        by all its contacts (if company) or by themselves (if not a company).
-        Otherwise simply set a domain on required partners. The courses to which
-        the partner(s) is not enrolled (e.g. invited) are not shown."""
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.slide_channel_partner_action"
         )

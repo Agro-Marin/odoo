@@ -24,7 +24,6 @@
                 </xpath>
             </field>
         </record>
-        <!--Website visitor actions-->
         <record id="crm_lead_action_from_visitor" model="ir.actions.act_window">
             <field name="name">Leads</field>
             <field name="res_model">crm.lead</field>

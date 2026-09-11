@@ -48,8 +48,6 @@ class WebsiteSaleForm(WebsiteForm):
 
 class Website(main.Website):
     def _login_redirect(self, uid, redirect=None):
-        # If we are logging in, clear the current pricelist to be able to find
-        # the pricelist that corresponds to the user afterwards.
         request.session.pop(PRICELIST_SESSION_CACHE_KEY, None)
         request.session.pop(FISCAL_POSITION_SESSION_CACHE_KEY, None)
         request.session.pop(PRICELIST_SELECTED_SESSION_CACHE_KEY, None)

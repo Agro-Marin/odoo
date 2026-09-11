@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- FORUM VIEWS -->
         <record id="forum_forum_view_tree" model="ir.ui.view">
             <field name="name">forum.forum.view.list</field>
             <field name="model">forum.forum</field>

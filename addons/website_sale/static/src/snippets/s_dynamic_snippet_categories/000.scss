@@ -46,7 +46,7 @@
             }
 
             .s_dynamic_category_arrow {
-                transition: transform 0.2s ease-in-out; // $transition-base duration & bezier
+                transition: transform 0.2s ease-in-out;
             }
 
             &:hover .s_dynamic_category_arrow {

@@ -9,10 +9,6 @@ import { switchToEditMode } from "../../helpers.js";
 
 setupInteractionWhiteList("website.form");
 
-// `data-pre-fill="true"` below: `website.form`'s `willStart` reads `res.users`,
-// which the public-interaction harness does not seed by default. Registered via
-// `beforeEach` so the models stay scoped to this file's suite (a module-scope
-// call seeds them for every other `@website/interactions` suite as well).
 beforeEach(defineWebModels);
 
 describe.current.tags("interaction_dev");
@@ -76,7 +72,6 @@ test("form formats date in edit mode", async () => {
     await switchToEditMode(core);
     expect(core.interactions).toHaveLength(1);
     expect("form input[name=When]").toHaveValue("01/01/2025 10:00:00");
-    // Verify that non-edit code did not run.
     expect(".s_website_form_datetime").not.toHaveClass(
         "s_website_form_datepicker_initialized",
     );

@@ -1,5 +1,3 @@
-// Side-effect import: applies the website-livechat mock-server patch (attaches
-// visitor discuss channels to the livechat session-data route).
 import "@website/../tests/mock_server/website_livechat_mock_server";
 
 import {

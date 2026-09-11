@@ -1,8 +1,4 @@
-/*
- * EVENT TOOL: REMINDER WIDGET
- */
 .o_wevent_event .o_wetrack_js_reminder {
-    // Icon only
     &.btn-link {
         padding: 0;
     }
@@ -14,10 +10,6 @@
         }
     }
 }
-
-/*
- * AGENDA
- */
 
 .o_weagenda_index {
     hr {
@@ -156,7 +148,6 @@
                 > div {
                     padding: 0.3em;
                 }
-                // For unpublished tracks, opacity is already reduced
                 [data-publish="off"]
                     .o_weagenda_track_badges
                     > .o_wevent_online_badge_unpublished {

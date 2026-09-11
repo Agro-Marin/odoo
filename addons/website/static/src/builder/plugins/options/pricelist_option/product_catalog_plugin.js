@@ -44,8 +44,6 @@ class ProductCatalogOptionPlugin extends Plugin {
             selector: ".s_product_catalog_dish",
             direction: "vertical",
         },
-        // Protect pricelist item, price, and description blocks from being
-        // split/merged by the delete plugin.
         unsplittable_node_predicates: (node) =>
             isElement(node) &&
             node.matches(

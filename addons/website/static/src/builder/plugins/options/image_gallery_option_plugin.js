@@ -74,9 +74,6 @@ class ImageGalleryOption extends Plugin {
         on_snippet_dropped_handlers: ({ snippetEl }) => {
             const carousels = snippetEl.querySelectorAll(".s_image_gallery .carousel");
             for (const carousel of carousels) {
-                // TODO: Remove in master. This should be replaced with a simple
-                // `style="margin: 0 12px;"` in the snippet template, similar to
-                // the one used for building carousel items.
                 carousel.style.margin = "0 12px";
             }
             this.addCarouselListener(carousels);
@@ -89,10 +86,6 @@ class ImageGalleryOption extends Plugin {
     };
 
     setup() {
-        // A single bound handler + explicit set so the slid.bs.carousel listener
-        // is idempotent (never double-bound) and every element it was attached
-        // to is unbound on destroy — the editor tears down but the edited page
-        // DOM (the carousels) lives on, so a leaked listener retains `this`.
         this.onCarouselSlidBound = this.onCarouselSlid.bind(this);
         this.carouselsWithSlidListener = new Set();
         const slideshowCarousels = this.document.querySelectorAll(
@@ -129,10 +122,6 @@ class ImageGalleryOption extends Plugin {
     }
 
     bindCarouselSlid(el) {
-        // addDomListener registers a *new* auto-cleanup on every call and never
-        // dedupes, so repeated relayouts/drops leaked listeners + detached
-        // nodes; and the old removeEventListener(this.onCarouselSlid) never
-        // matched addDomListener's wrapped handler (a silent no-op).
         if (this.carouselsWithSlidListener.has(el)) {
             return;
         }
@@ -148,15 +137,12 @@ class ImageGalleryOption extends Plugin {
 
     restoreSelection(imageToSelect, isPreviewing) {
         if (imageToSelect && !isPreviewing) {
-            // Activate the containers of the equivalent cloned image.
             this.dependencies.builderOptions.setNextTarget(imageToSelect);
         }
     }
 
     /**
-     * Gets the gallery images to reorder.
-     *
-     * @param {HTMLElement} activeItemEl the current active image
+     * @param {HTMLElement} activeItemEl
      * @param {String} optionName
      * @returns {Array<HTMLElement>}
      */
@@ -171,17 +157,14 @@ class ImageGalleryOption extends Plugin {
     }
 
     /**
-     * Updates the DOM with the reordered images.
-     *
-     * @param {HTMLElement} activeItemEl the active item
-     * @param {Array<HTMLElement>} itemEls the reordered elements
+     * @param {HTMLElement} activeItemEl
+     * @param {Array<HTMLElement>} itemEls
      * @param {String} optionName
      */
     reorderGalleryItems(activeItemEl, itemEls, optionName) {
         if (optionName === "GalleryImageList") {
             const galleryEl = activeItemEl.closest(".s_image_gallery");
 
-            // Update the content with the new order.
             itemEls.forEach((itemEl, i) => {
                 const imgEl = this.getImageElement(itemEl);
                 imgEl.dataset.index = i;
@@ -189,7 +172,6 @@ class ImageGalleryOption extends Plugin {
             const mode = this.getMode(galleryEl);
             this.setImages(galleryEl, mode, itemEls);
 
-            // Update the active slide if it is a carousel.
             if (mode === "slideshow") {
                 const newPosition = itemEls.indexOf(activeItemEl);
                 const carouselEl = galleryEl.querySelector(".carousel");
@@ -199,7 +181,6 @@ class ImageGalleryOption extends Plugin {
                 });
                 updateCarouselIndicators(carouselEl, newPosition);
 
-                // Activate the active image.
                 const activeImageEl = galleryEl.querySelector(
                     ".carousel-item.active img",
                 );
@@ -209,7 +190,6 @@ class ImageGalleryOption extends Plugin {
     }
 
     /**
-     * Set the images in the gallery by following the wanted layout
      * @param {Element} imageGalleryElement
      * @param {String('slideshow'|'masonry'|'grid'|'nomode')} mode
      * @param {Element[]} images
@@ -260,7 +240,6 @@ class ImageGalleryOption extends Plugin {
             columns.push(column);
         }
 
-        // Dispatch images in columns by always putting the next one in the smallest height column
         for (const imageEl of images) {
             let min = Infinity;
             let smallestColEl;
@@ -282,8 +261,6 @@ class ImageGalleryOption extends Plugin {
     }
 
     /**
-     * Displays the images with the "grid" layout.
-     *
      * @param {Element} imageGalleryElement
      * @param {Element[]} images
      */
@@ -386,7 +363,6 @@ class ImageGalleryOption extends Plugin {
     }
 
     onCarouselSlid(ev) {
-        // When the carousel slides, update the builder options to select the active image
         const activeImageEl = ev.target.querySelector(".carousel-item.active img");
         this.dependencies.builderOptions.updateContainers(activeImageEl);
     }
@@ -425,7 +401,6 @@ class ImageGalleryOption extends Plugin {
                     mimetypeBeforeConversion,
                 )
             ) {
-                // Convert to webp but keep original width.
                 const update = await this.dependencies.imagePostProcess.processImage({
                     img,
                     newDataset: {
@@ -446,9 +421,6 @@ class ImageGalleryOption extends Plugin {
         let imageToSelect;
         const currentContainers = this.dependencies.builderOptions.getContainers();
         for (const image of imagesHolder) {
-            // Only on Chrome: appended images are sometimes invisible
-            // and not correctly loaded from cache, we use a clone of the
-            // image to force the loading.
             const newImg = image.cloneNode(true);
             const imgEl =
                 newImg.tagName === "IMG"
@@ -470,8 +442,6 @@ class ImageGalleryOption extends Plugin {
     }
 
     /**
-     * Get the image target's layout mode (slideshow, masonry, grid or nomode).
-     *
      * @returns {String('slideshow'|'masonry'|'grid'|'nomode')}
      */
     getMode(imageGalleryElement) {
@@ -514,16 +484,12 @@ class ImageGalleryOption extends Plugin {
     }
 
     onWillRemove(toRemoveEl) {
-        // If the removed element is an image from a gallery, store the gallery
-        // element for `onRemoved`.
         if (toRemoveEl.matches(".s_image_gallery img")) {
             this.imageRemovedGalleryElement = toRemoveEl.closest(".s_image_gallery");
         }
     }
 
     onRemoved() {
-        // If the removed element is an image from a gallery, relayout the
-        // gallery.
         if (this.imageRemovedGalleryElement) {
             const mode = this.getMode(this.imageRemovedGalleryElement);
             const images = this.getImageHolder(this.imageRemovedGalleryElement);

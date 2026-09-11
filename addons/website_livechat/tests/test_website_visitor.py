@@ -8,8 +8,6 @@ from odoo.addons.website.tests.test_website_visitor import WebsiteVisitorTestsCo
 @tagged("website_visitor")
 class WebsiteVisitorTestsLivechat(WebsiteVisitorTestsCommon):
     def test_link_to_visitor_livechat(self):
-        """Same as parent's 'test_link_to_visitor' except we also test that conversations
-        are merged into main visitor."""
         [main_visitor, linked_visitor] = self.env["website.visitor"].create(
             [self._prepare_main_visitor_data(), self._prepare_linked_visitor_data()]
         )
@@ -18,7 +16,6 @@ class WebsiteVisitorTestsLivechat(WebsiteVisitorTestsCommon):
 
         self.assertVisitorDeactivated(linked_visitor, main_visitor)
 
-        # conversations of both visitors should be merged into main one
         self.assertEqual(len(main_visitor.discuss_channel_ids), 2)
         self.assertEqual(main_visitor.discuss_channel_ids, all_discuss_channels)
 
@@ -66,7 +63,7 @@ class WebsiteVisitorTestsLivechat(WebsiteVisitorTestsCommon):
             visitor.with_user(operator).page_ids
 
     def test_visitor_id_continuity_across_sessions(self):
-        self.set_registry_readonly_mode(False)  # Allow creation of visitors
+        self.set_registry_readonly_mode(False)
 
         operator = self.user_admin
         livechat_channel = self.env["im_livechat.channel"].create(
@@ -77,8 +74,7 @@ class WebsiteVisitorTestsLivechat(WebsiteVisitorTestsCommon):
         )
         self.env["mail.presence"]._update_presence(operator)
 
-        # Anonymous user
-        self.url_open(self.tracked_page.url)  # visitor created
+        self.url_open(self.tracked_page.url)
         res_1 = self.call_jsonrpc(
             "/im_livechat/get_session",
             {
@@ -90,7 +86,6 @@ class WebsiteVisitorTestsLivechat(WebsiteVisitorTestsCommon):
         self.assertEqual(channel_1.livechat_visitor_id, visitor_1)
         channel_1._close_livechat_session()
 
-        # After login, the same visitor record is retained
         self._authenticate_via_web(self.user_portal.login, "portal")
         res_2 = self.call_jsonrpc(
             "/im_livechat/get_session",
@@ -104,7 +99,6 @@ class WebsiteVisitorTestsLivechat(WebsiteVisitorTestsCommon):
         self.assertEqual(visitor_2, visitor_1)
         channel_2._close_livechat_session()
 
-        # After logout, a new visitor is created and reassigned to the original session
         self.url_open("/web/session/logout")
         self.url_open(self.tracked_page.url)
         visitor_3 = self._get_last_visitor()

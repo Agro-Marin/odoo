@@ -14,7 +14,6 @@
         <div t-att-id="unique_id" t-attf-class="carousel slide #{extraCarouselClass || ''}"
              t-att-style="extraCarouselStyle"
              t-att-data-bs-interval="interval" data-bs-ride="carousel">
-            <!-- Content -->
             <t t-set="slideSize" t-value="rowSize * rowPerSlide" />
             <t t-set="slideIndexGenerator" t-value="Array.from(Array(Math.ceil(data.length/slideSize)).keys())"/>
             <t t-set="rowIndexGenerator" t-value="Array.from(Array(rowPerSlide).keys())"/>
@@ -42,7 +41,6 @@
                     </div>
                 </t>
             </div>
-            <!-- Controls -->
             <t t-if='slideIndexGenerator.length > minControlValue'>
                 <t t-if="arrowPosition === 'bottom'">
                     <div class="s_dynamic_snippet_arrow_bottom px-3 px-md-0 pt-2 d-flex justify-content-between">

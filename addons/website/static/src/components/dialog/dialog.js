@@ -41,13 +41,8 @@ export class WebsiteDialog extends Component {
         this.modalRef = useChildRef();
     }
     /**
-     * Disables the buttons of the dialog when a click is made.
-     * If a handler is provided, await for its call.
-     * If the prop closeOnClick is true, close the dialog.
-     * Otherwise, restore the button.
-     *
-     * @param handler {function|void} The handler to protect.
-     * @returns {function(): Promise} handler called when a click is made.
+     * @param {function|void} handler
+     * @returns {function(): Promise}
      */
     protectedClick(handler) {
         return async () => {

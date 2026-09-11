@@ -2,9 +2,6 @@
 
 import { registry } from "@web/core/registry";
 
-/**
- * This tour tests that a public user can not react to messages
- */
 registry.category("web_tour.tours").add("course_reviews_reaction_public", {
     url: "/slides",
     steps: () => [

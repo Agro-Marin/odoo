@@ -51,8 +51,6 @@ def MockRequest(
 
 
 class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
-    # Not based on SaleCommon as there is no need for SalesTeamCommon nor standard SaleCommon data
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -96,7 +94,6 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
             }
         )
 
-        # Publish tests products
         (cls.product + cls.service_product).website_published = True
         cls.pricelist.website_id = cls.website
 
@@ -133,30 +130,18 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
 
     @classmethod
     def _prepare_carrier(cls, product, website_published=True, **values):
-        """Override of `delivery` to auto-publish test delivery methods."""
         return super()._prepare_carrier(
             product, website_published=website_published, **values
         )
 
     @classmethod
     def _create_product(cls, **kwargs):
-        """Override of `product` to auto-publish test products by default."""
         if "website_published" not in kwargs:
             kwargs["website_published"] = True
         return super()._create_product(**kwargs)
 
     @classmethod
     def _create_public_category(cls, list_vals):
-        """Create a hierarchical chain of `public.product.category`.
-
-        For example::
-
-            # Furnitures / Sofas
-            self._create_public_category([{"name": "Furnitures"}, {"name": "Sofas"}])
-
-        :return: The created categories.
-        :rtype: public.product.category
-        """
         categs = cls.env["product.public.category"].create(list_vals)
         for i in range(len(categs) - 1):
             categs[i].parent_id = categs[i + 1]

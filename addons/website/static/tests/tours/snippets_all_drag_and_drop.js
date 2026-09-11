@@ -21,11 +21,8 @@ const DROP_IN_ONLY_SNIPPETS = {
     s_video: ".media_iframe_video",
 };
 
-// Extract the snippets names from the URL parameters.
 let snippetsNames =
     new URL(document.location.href).searchParams.get("snippets_names") || "";
-// When this test is loaded in the backend, the search params aren't as easy to
-// read as before. Little trickery to make this test run.
 const searchParams = new URLSearchParams(window.location.search).get("path");
 if (searchParams) {
     snippetsNames =
@@ -37,7 +34,6 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
     steps: () => {
         let steps = [];
         let n = 0;
-        // Generate the tour steps for each snippet.
         for (let snippet of snippetsNames) {
             n++;
             snippet = {
@@ -70,7 +66,7 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
                     run: "drag_and_drop :iframe #wrapwrap .oe_drop_zone",
                 },
                 {
-                    content: "Wait for the drag and drop to be over", // TODO find a better way
+                    content: "Wait for the drag and drop to be over",
                     trigger: ".o_block_tab:not(.o_we_ongoing_insertion)",
                 },
                 {
@@ -85,7 +81,7 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
                     trigger: ".o_customize_tab",
                 },
                 {
-                    content: `Remove the ${snippet.name} snippet`, // Avoid bad perf if many snippets
+                    content: `Remove the ${snippet.name} snippet`,
                     trigger: ".options-container .oe_snippet_remove:last",
                     run: "click",
                 },
@@ -112,9 +108,6 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
                     trigger: ":iframe body.modal-open",
                 });
             } else if (isDropInOnlySnippet) {
-                // The 'drop in only' snippets have their 'data-snippet' attribute
-                // removed once they are dropped, so we need to use a different
-                // selector.
                 snippetSteps[2].trigger = `:iframe #wrapwrap ${
                     DROP_IN_ONLY_SNIPPETS[snippet.name]
                 }`;
@@ -123,17 +116,11 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
         }
 
         return [
-            // To run the tour locally, you need to insert the URL sent by the python
-            // tour here. There is currently an issue with tours which don't have an URL
-            // url: '/?enable_editor=1&snippets_names=s_process_steps:columns,s_website_form:,s_...',
             ...clickOnEditAndWaitEditMode(),
             {
                 content: "Ensure snippets are actually passed at the test.",
                 trigger: "body",
                 run: function () {
-                    // Safety check, otherwise the test might "break" one day and
-                    // receive no steps. The test would then not test anything anymore
-                    // without us noticing it.
                     if (steps.length < 500) {
                         console.error(
                             `This test is not behaving as it should, got only ${steps.length} steps.`,
@@ -141,9 +128,6 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
                     }
                 },
             },
-            // This first step is needed as it will be used later for inner snippets.
-            // Without this, it will dropped inside the footer and will need an extra
-            // selector.
             ...insertSnippet({
                 id: "s_text_image",
                 name: "Text - Image",
@@ -158,10 +142,6 @@ registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
                 content: "Check settings are loaded, wait for panel to be visible",
                 trigger: ".o_customize_tab [data-container-title='Text - Image']",
             },
-            // We hide the header before starting to drop snippets. This prevents
-            // situations where the header's drop zones overlap with those of the #wrap,
-            // ensuring that a snippet is dropped in the #wrap as expected instead of
-            // the header.
             ...clickOnSnippet({ id: "o_header_standard", name: "Header" }),
             ...changeOptionInPopover("Header", "Header Position", "Hidden"),
             goBackToBlocks(),

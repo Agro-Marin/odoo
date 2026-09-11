@@ -57,13 +57,6 @@ class IrUiView(models.Model):
         crypt_context = self.env.user._get_crypt_context()
         for r in self:
             if r.type == "qweb":
-                # visibility_password is written via sudo() below (it has
-                # groups="base.group_system"), which bypasses the normal
-                # write ACL/record-rule check; check_access re-asserts that
-                # the current (non-sudo) user is actually allowed to write
-                # to this record at all, instead of a field self-assignment
-                # that only achieved this as a side effect of re-entering
-                # the full COW write() override.
                 r.check_access("write")
                 r.sudo().visibility_password = (
                     r.visibility_password_display
@@ -71,12 +64,7 @@ class IrUiView(models.Model):
                 ) or ""
 
     def _compute_first_page_id(self):
-        # One search for every view, not one per view. This backs the
-        # `first_page_id` column of the Website > Pages list, so the old
-        # `limit=1` per record cost a query per row on screen.
         pages = self.env["website.page"].search([("view_id", "in", self.ids)])
-        # `search` hands them back in the model's own order, so the first one
-        # seen per view is the one `limit=1` used to return.
         first_by_view = {}
         for page in pages:
             first_by_view.setdefault(page.view_id.id, page)
@@ -227,10 +215,6 @@ class IrUiView(models.Model):
     def unlink(self):
         current_website_id = self.env.context.get("website_id")
 
-        # ids of the per-other-website copies the COU loop below creates to
-        # preserve this generic view for websites other than the current
-        # one -- excluded from the install-time sweep further down so it
-        # cannot delete the very copies just created in this same call.
         preserved_view_ids = set()
         if current_website_id and not self.env.context.get("no_cow"):
             for view in self.filtered(lambda view: not view.website_id):

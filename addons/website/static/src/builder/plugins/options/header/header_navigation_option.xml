@@ -38,10 +38,6 @@
     ]"/>
 
     <BuilderRow label.translate="Desktop Menu" tooltip.translate="Change the burger button position/menu items alignment">
-        <!-- Reason why we enable this option for those templates only:
-            website.template_header_hamburger => Hamburger Icon Position
-            website.template_header_sidebar => Sidebar Position
-        -->
         <BuilderButtonGroup action="'websiteConfig'" t-if="hasSomeViews(['website.template_header_hamburger', 'website.template_header_sidebar'])">
             <BuilderButton
                 icon="'fa-long-arrow-left'"

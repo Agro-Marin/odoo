@@ -14,7 +14,6 @@ from odoo.addons.website_event.tests.common import TestEventOnlineCommon
 class TestTrackData(TestEventOnlineCommon):
     @users("user_eventmanager")
     def test_track_duration(self):
-        """Test updating duration / end date"""
         event = self.event_0.with_env(self.env)
         customer = self.event_customer.with_env(self.env)
 
@@ -85,10 +84,10 @@ class TestTrackData(TestEventOnlineCommon):
             [
                 (now, now + timedelta(hours=4, minutes=30), 4.5),
                 (now, now + timedelta(hours=6, minutes=15), 6.25),
-                (now, now, 0),  # duration False = 0 = end = start
-                (now, now + timedelta(minutes=30), 0.5),  # default duration is 0.5
+                (now, now, 0),
+                (now, now + timedelta(minutes=30), 0.5),
                 (False, False, 3.75),
-                (now, now, 0),  # duration False = 0 = end = start
+                (now, now, 0),
                 (now - timedelta(hours=2, minutes=30), now, 2.5),
                 (now, now + timedelta(hours=6, minutes=15), 6.25),
             ],
@@ -99,7 +98,6 @@ class TestTrackData(TestEventOnlineCommon):
                 self.assertEqual(track.date_end, exp_date_end)
                 self.assertEqual(track.duration, exp_duration)
 
-        # update duration to check start / end update
         tracks[0].duration = 12
         self.assertEqual(tracks[0].date, now)
         self.assertEqual(tracks[0].date_end, now + timedelta(hours=12))
@@ -107,16 +105,13 @@ class TestTrackData(TestEventOnlineCommon):
 
     @users("user_eventmanager")
     def test_track_partner_sync(self):
-        """Test registration computed fields about partner"""
         test_email = '"Nibbler In Space" <nibbler@futurama.example.com>'
         test_phone = "0456001122"
         test_bio = "<p>UserInput</p>"
-        # test_bio_void = '<p><br/></p>'
 
         event = self.env["event.event"].browse(self.event_0.ids)
         customer = self.env["res.partner"].browse(self.event_customer.id)
 
-        # take all from partner
         new_track = self.env["event.track"].create(
             {
                 "event_id": event.id,
@@ -135,7 +130,6 @@ class TestTrackData(TestEventOnlineCommon):
             "Low-level test: ensure correctly updated",
         )
 
-        # partial update
         new_track = self.env["event.track"].create(
             {
                 "event_id": event.id,
@@ -162,7 +156,6 @@ class TestTrackData(TestEventOnlineCommon):
             "Track should take partner value if not user input",
         )
 
-        # already filled information should not be updated
         new_track = self.env["event.track"].create(
             {
                 "event_id": event.id,
@@ -196,7 +189,6 @@ class TestTrackData(TestEventOnlineCommon):
             "Track customer should not take over existing value",
         )
 
-        # contacts fields should be updated with track customer
         new_track = self.env["event.track"].create(
             {
                 "event_id": event.id,
@@ -309,9 +301,7 @@ class TestTrackSuggestions(TestEventOnlineCommon):
             all_suggestions = current_track._get_track_suggestions()
             self.assertEqual(
                 all_suggestions.ids,
-                (
-                    track_3 + track_5 + track_4 + track_6 + track_2
-                ).ids,  # whlst / wishlst def / tags count / location
+                (track_3 + track_5 + track_4 + track_6 + track_2).ids,
             )
 
             track_suggestion = current_track._get_track_suggestions(limit=1)
@@ -321,7 +311,6 @@ class TestTrackSuggestions(TestEventOnlineCommon):
                 "Returned track should be the manually wishlisted one",
             )
 
-            # remove wishlist, keynote should be top
             visitor_track.unlink()
             track_suggestion = current_track._get_track_suggestions(limit=1)
             self.assertEqual(
@@ -330,7 +319,6 @@ class TestTrackSuggestions(TestEventOnlineCommon):
                 "Returned track should be the default wishlisted one",
             )
 
-            # toggle wishlisted by default off through blacklist
             track_5_visitor = (
                 self.env["event.track.visitor"]
                 .sudo()
@@ -350,9 +338,7 @@ class TestTrackSuggestions(TestEventOnlineCommon):
             )
             track_5_visitor.unlink()
 
-            # remove keynote default, now based on tags
             track_5.write({"wishlisted_by_default": False})
-            # all_suggestions.invalidate_model(['is_reminder_on'])
             track_suggestion = current_track._get_track_suggestions(limit=1)
             self.assertEqual(
                 track_suggestion,
@@ -360,7 +346,6 @@ class TestTrackSuggestions(TestEventOnlineCommon):
                 "Returned track should the one with the most common tags",
             )
 
-            # remove tags, now based on location
             all_suggestions.sudo().write({"tag_ids": [(5,)]})
             track_suggestion = current_track._get_track_suggestions(limit=1)
             self.assertEqual(
@@ -369,7 +354,6 @@ class TestTrackSuggestions(TestEventOnlineCommon):
                 "Returned track should the one with matching location",
             )
 
-            # remove location, now based o random
             all_suggestions.sudo().write({"location_id": False})
             track_suggestion = current_track._get_track_suggestions(limit=1)
             self.assertTrue(

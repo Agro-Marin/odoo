@@ -24,7 +24,6 @@ export class DynamicSnippetProducts extends DynamicSnippetCarousel {
                     }
                 }
                 if (!productCategoryId) {
-                    // Try with categories from product, unfortunately the category hierarchy is not matched with this approach
                     const productTemplateIdEl = this.el
                         .closest("body")
                         .querySelector("#product_details .product_category_id");
@@ -73,11 +72,9 @@ export class DynamicSnippetProducts extends DynamicSnippetCarousel {
         if (productNames) {
             const nameDomain = [];
             for (const productName of productNames.split(",")) {
-                // Ignore empty names
                 if (!productName.length) {
                     continue;
                 }
-                // Search on name, internal reference and barcode.
                 if (nameDomain.length) {
                     nameDomain.unshift("|");
                 }

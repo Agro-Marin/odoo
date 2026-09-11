@@ -4,13 +4,6 @@ import {
 } from "@website/js/tours/tour_utils";
 import slidesTourTools from "@website_slides/../tests/tours/slides_tour_tools";
 
-/**
- * Global use case:
- * a user (website publisher) creates a course;
- * they update it;
- * they create some lessons in it;
- * they publish it;
- */
 registerWebsitePreviewTour(
     "course_publisher_standard",
     {
@@ -98,7 +91,7 @@ registerWebsitePreviewTour(
                 run: "click",
             },
             {
-                trigger: ":iframe body:not(.editor_enable)", // wait for editor to close
+                trigger: ":iframe body:not(.editor_enable)",
             },
             {
                 content: "eLearning: course create with current member",

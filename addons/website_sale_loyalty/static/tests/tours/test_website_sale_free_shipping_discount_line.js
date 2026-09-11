@@ -55,8 +55,8 @@ webTours.add("check_shipping_discount", {
         waitForInteractionToLoad(),
         selectDelivery("delivery2"),
         ...assertCartAmounts({
-            delivery: "10.00", // delivery2 is $10, ignoring shipping discount
-            total: "304.00", // $100 per Plumbus, plus discounted delivery
+            delivery: "10.00",
+            total: "304.00",
         }),
         ...assertRewardAmounts({ shipping: "- 6.00" }),
         {
@@ -100,8 +100,8 @@ webTours.add("update_shipping_after_discount", {
         goToCheckout(),
         selectDelivery("delivery1"),
         ...assertCartAmounts({
-            total: "0.00", // $100 total is covered by eWallet
-            delivery: "0.00", // $100 is over $75 `free_over` amount, so free shipping
+            total: "0.00",
+            delivery: "0.00",
         }),
         ...assertRewardAmounts({ discount: "- 100.00" }),
         confirmOrder(),
@@ -117,8 +117,8 @@ webTours.add("update_shipping_after_discount", {
             expectUnloadPage: true,
         },
         ...assertCartAmounts({
-            total: "0.00", // $50 total is covered by eWallet
-            delivery: "5.00", // $50 is below $75 `free_over` amount, so no free shipping
+            total: "0.00",
+            delivery: "5.00",
         }),
         {
             content: "check discount code discount doesn't apply to shipping",

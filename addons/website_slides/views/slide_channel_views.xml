@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- SLIDE.CHANNEL VIEWS -->
         <record id="view_slide_channel_form" model="ir.ui.view">
             <field name="name">slide.channel.view.form</field>
             <field name="model">slide.channel</field>

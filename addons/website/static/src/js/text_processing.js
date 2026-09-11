@@ -1,9 +1,6 @@
 /** @odoo-module native */
 import { isVisible } from "@web/core/utils/dom/ui";
 
-//TODO: Delete higlight function (duplicate whith highlight_utils) when deleting snippets options
-// SVG generator: contains all information needed to draw highlight SVGs
-// according to text dimensions, highlight style,...
 const _textHighlightFactory = {
     underline: (targetEl) => drawPath(targetEl, { mode: "line" }),
     freehand_1: (targetEl) => {
@@ -249,25 +246,15 @@ const _textHighlightFactory = {
         });
     },
 };
-// Returns the width of the DOMRect object.
 export const getDOMRectWidth = (el) => el.getBoundingClientRect().width;
 
 /**
- * Draws one or many SVG paths using templates of path shape commands.
- *
  * @param {HTMLElement} textEl
- * @param {String} options.mode Specifies how to draw the path:
- * - "pattern": repeat the template along the horizontal axis.
- * - "line": draw a simple line (we specify the width & position).
- * - "free": draw the path shape using the template only.
- * - "fill": used for irregular shapes that do not follow the "stroke" design.
- * @param {Function} options.template Returns a list of SVG path
- * commands adapted to the container's size.
+ * @param {String} options.mode
+ * @param {Function} options.template
  * @returns {String[]}
  */
 function drawPath(textEl, options) {
-    // Note: cannot use getBoundingClientRect as we want to be able to draw
-    // text highlights in snippets/add page dialogs where iframe is scaled.
     const width = textEl.offsetWidth;
     const height = textEl.offsetHeight;
     options = { ...options, width, height };
@@ -294,10 +281,6 @@ function drawPath(textEl, options) {
 }
 
 /**
- * Used to build the SVG <path/>, it should mainly adapt it to take into
- * consideration some cases where the shape is a "filled path" instead
- * of a single line stroke.
- *
  * @param {String[]} templates
  * @param {Object} options
  * @returns {Element[]}
@@ -326,8 +309,6 @@ function buildPath(templates, options) {
 }
 
 /**
- * Returns a new highlight SVG adapted to the text container.
- *
  * @param {HTMLElement} textEl
  * @param {String} highlightID
  */
@@ -336,8 +317,6 @@ export function drawTextHighlightSVG(textEl, highlightID) {
     svg.setAttribute("fill", "none");
     svg.classList.add(
         "o_text_highlight_svg",
-        // Identifies DOM content that should not be merged by the editor, even
-        // on identical parents.
         "o_content_no_merge",
         "position-absolute",
         "overflow-visible",
@@ -355,27 +334,17 @@ export function drawTextHighlightSVG(textEl, highlightID) {
 }
 
 /**
- * Divides the content of a text container into multiple
- * `.o_text_highlight_item` units, and applies the highlight
- * on each unit.
- *
  * @param {HTMLElement} topTextEl
  * @param {String} highlightID
  */
 export function applyTextHighlight(topTextEl, highlightID) {
     const endHighlightUpdate = () =>
         topTextEl.dispatchEvent(new Event("text_highlight_added", { bubbles: true }));
-    // Don't reapply the effects to a highlighted text.
-    // If the target is invisible, we still need to notify the public widget
-    // that a highlight was detected (It's needed anyway, so the public widget
-    // can link the element to its observer, which tracks size changes and
-    // adapts the highlights accordingly).
     if (topTextEl.querySelector(".o_text_highlight_item") || !isVisible(topTextEl)) {
         return endHighlightUpdate();
     }
     const style = window.getComputedStyle(topTextEl);
     if (!style.getPropertyValue("--text-highlight-width")) {
-        // The default value for `--text-highlight-width` is 0.1em.
         topTextEl.style.setProperty(
             "--text-highlight-width",
             `${Math.round(parseFloat(style.fontSize) * 0.1)}px`,
@@ -387,43 +356,28 @@ export function applyTextHighlight(topTextEl, highlightID) {
     const isRTL = (el) => window.getComputedStyle(el).direction === "rtl";
 
     [...topTextEl.childNodes].forEach((child) => {
-        // We consider `<br/>` tags as full text lines to ease
-        // excluding them when the highlight is applied on the DOM.
         if (nodeIsBR(child)) {
             lines[++lineIndex] = [child];
             return lineIndex++;
         }
         const textLines = splitNodeLines(child);
 
-        // Special case: The text lines detection code in `splitNodeLines()`
-        // (based on `getClientRects()`) can't handle a situation when a line
-        // exactly ends with the current child node. We need to handle this
-        // manually by checking if the current child node is the last one in
-        // the line (taking into account the RTL direction).
-        // TODO: Improve this.
         let lastNodeInLine = false;
         if (child.textContent && child.nextSibling?.textContent) {
             const range = document.createRange();
             const lastCurrentText = selectAllTextNodes(child).at(-1);
             range.setStart(lastCurrentText, lastCurrentText.length - 1);
             range.setEnd(lastCurrentText, lastCurrentText.length);
-            // Get the "END" position of the last text node in current child.
             const currentEnd =
                 range.getBoundingClientRect()[isRTL(topTextEl) ? "left" : "right"];
             const firstnextText = selectAllTextNodes(child.nextSibling)[0];
             range.setStart(firstnextText, 0);
             range.setEnd(firstnextText, 1);
-            // Get the "START" position of the first text node in the next
-            // sibling.
             const nextStart =
                 range.getBoundingClientRect()[isRTL(topTextEl) ? "right" : "left"];
-            // The next sibling starts before the end of the current node
-            // => Line break detected.
             lastNodeInLine = nextStart + 1 < currentEnd;
         }
 
-        // for each text line detected, we add the content as new
-        // line and adjust the line index accordingly.
         textLines.map((node, i, { length }) => {
             if (!lines[lineIndex]) {
                 lines[lineIndex] = [];
@@ -436,12 +390,9 @@ export function applyTextHighlight(topTextEl, highlightID) {
     });
     topTextEl.replaceChildren(
         ...lines.map((textLine) =>
-            // First we add text content to be able to build svg paths
-            // correctly (`<br/>` tags are excluded).
             nodeIsBR(textLine[0]) ? textLine[0] : createHighlightContainer(textLine),
         ),
     );
-    // Build and set highlight SVGs.
     [...topTextEl.querySelectorAll(".o_text_highlight_item")].forEach((container) => {
         container.append(
             drawTextHighlightSVG(
@@ -454,24 +405,17 @@ export function applyTextHighlight(topTextEl, highlightID) {
 }
 
 /**
- * Used to rollback the @see applyTextHighlight behaviour.
- *
  * @param {HTMLElement} topTextEl
  */
 export function removeTextHighlight(topTextEl) {
     topTextEl.dispatchEvent(new Event("text_highlight_remove", { bubbles: true }));
-    // Simply replace every `<span class="o_text_highlight_item">
-    // textNode1 [textNode2,...]<svg .../></span>` by `textNode1
-    // [textNode2,...]`.
     [...topTextEl.querySelectorAll(".o_text_highlight_item")].forEach((unit) => {
         unit.after(...[...unit.childNodes].filter((node) => node.tagName !== "svg"));
         unit.remove();
     });
-    // Prevents incorrect text lines detection on the next updates.
     let child = topTextEl.firstElementChild;
     while (child) {
         const next = child.nextElementSibling;
-        // Merge identical elements.
         if (
             next &&
             next === child.nextSibling &&
@@ -487,11 +431,8 @@ export function removeTextHighlight(topTextEl) {
 }
 
 /**
- * Used to wrap text nodes in a single "text highlight" unit.
- *
  * @param {Node[]} nodes
- * @returns {HTMLElement} The one line text element that should contain
- * the highlight SVG.
+ * @returns {HTMLElement}
  */
 function createHighlightContainer(nodes) {
     const highlightContainer = document.createElement("span");
@@ -501,9 +442,6 @@ function createHighlightContainer(nodes) {
 }
 
 /**
- * Used to get the current text highlight id from the top `.o_text_highlight`
- * container class.
- *
  * @param {HTMLElement} el
  * @returns {String}
  */
@@ -518,8 +456,6 @@ export function getCurrentTextHighlight(el) {
 }
 
 /**
- * Returns a list of detected lines in the content of a text node.
- *
  * @param {Node} node
  */
 function splitNodeLines(node) {
@@ -541,7 +477,6 @@ function splitNodeLines(node) {
         const currentText = lines[lineIndex];
         lines[lineIndex] = (currentText || "") + text.charAt(i);
     }
-    // Return the original node when no lines were detected.
     if (lines.length === 1) {
         return [node];
     }
@@ -556,11 +491,8 @@ function splitNodeLines(node) {
 }
 
 /**
- * Get all text nodes inside a parent DOM element.
- *
  * @param {Node} topNode
- * @returns {Node[]} List of text "childNodes" or the element itself
- * (if it's a text node).
+ * @returns {Node[]}
  */
 export function selectAllTextNodes(topNode) {
     const textNodes = [];
@@ -576,12 +508,9 @@ export function selectAllTextNodes(topNode) {
 }
 
 /**
- * Used to get the node of a text element in which a selection starts/ends.
- *
- * @param {HTMLElement} textEl The parent text element.
- * @param {Number} offset The selection offset in parent element.
- * @returns {[Node, Number]} The node found in the cursor position
- * and the new offset compared to that node.
+ * @param {HTMLElement} textEl
+ * @param {Number} offset
+ * @returns {[Node, Number]}
  */
 export function getOffsetNode(textEl, offset) {
     let index = 0,

@@ -2,19 +2,8 @@
 import { registry } from "@web/core/registry";
 import { Parallax } from "@website/interactions/parallax/parallax";
 
-// A manual parallax implementation is required for snippet previews because
-// snippets are scaled down in preview, and `background-attachment: fixed`
-// (which enables the native parallax effect) does not work on transformed
-// elements.
-//
-// To simulate parallax behavior, we manually adjust the background position
-// relative to the scroll position.
-
 const ParallaxPreview = (I) =>
     class extends I {
-        // The PARALLAX_RATE controls how fast the background moves.
-        // A higher PARALLAX_RATE means faster movement, which requires a larger
-        // background SCALE to prevent background cutoff.
         PARALLAX_RATE = 16;
         SCALE = 2.4;
         dynamicContent = {};
@@ -60,11 +49,6 @@ const ParallaxPreview = (I) =>
             });
         }
 
-        /**
-         * Sets up an IntersectionObserver to detect when the element enters
-         * or leaves the viewport, ensuring the parallax effect is applied
-         * only when necessary.
-         */
         initializeIntersectionObserver() {
             this.observer = new IntersectionObserver((entries) => {
                 entries.forEach((entry) => {
@@ -86,10 +70,6 @@ const ParallaxPreview = (I) =>
             this.observer.observe(this.el);
         }
 
-        /**
-         * Updates the background position to create a parallax effect based on
-         * scroll position.
-         */
         updateParallaxPosition = () => {
             const clamp = (value) => Math.min(1, Math.max(0, value));
             const rect = this.el.getBoundingClientRect();

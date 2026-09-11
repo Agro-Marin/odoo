@@ -327,21 +327,9 @@ class TestPage(common.TransactionCase):
         self.assertEqual(new_view.website_id.id, 1)
 
     def test_cow_generic_parent_preserves_specific_child_page(self):
-        """A page whose view_id is an already-website-specific inheriting
-        child must survive a COW write on the generic parent view.
-
-        Regression test for a bug where reparenting an inherit_children_ids
-        entry that was already specific to the current website (copy +
-        unlink of the original) dropped its website.page: page.view_id is
-        ondelete="cascade" and the original was unlinked with no
-        replacement page created for the copy.
-        """
         Page = self.env["website.page"]
         View = self.env["ir.ui.view"]
 
-        # Make the extension view specific to website 1 first, and attach a
-        # page to it, so it is exactly the "already-specific inherit_child"
-        # scenario the bug required.
         self.extension_view.with_context(website_id=1).write(
             {"arch": "<div>website 1 extension content</div>"}
         )
@@ -359,8 +347,6 @@ class TestPage(common.TransactionCase):
             }
         )
 
-        # COW-write the generic base view under website 1 -- this reparents
-        # specific_extension_view (copy + unlink of the original).
         self.base_view.with_context(website_id=1).write(
             {"arch": "<div>website 1 base content</div>"}
         )

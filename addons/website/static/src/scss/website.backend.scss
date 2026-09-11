@@ -11,26 +11,24 @@
         background-color: o-token(--o-bg-view, $o-view-background-color);
     }
     &.has_plausible {
-        background-color: #f9fafb; // Copied from iframe.
+        background-color: #f9fafb;
         .o_website_dashboard {
-            background-color: #f9fafb; // Copied from iframe.
+            background-color: #f9fafb;
             iframe {
-                // TODO: Find another way to set the height, not robust enough,
-                // especially if plausible change those values later.
-                height: 2950px; // Copied from iframe.
-                top: 2px; // Do not cover eCommerce dashboard border.
+                height: 2950px;
+                top: 2px;
 
                 @include media-breakpoint-only(md) {
-                    height: 2855px; // Copied from iframe.
+                    height: 2855px;
                 }
                 @include media-breakpoint-only(lg) {
-                    height: 2040px; // Copied from iframe.
+                    height: 2040px;
                 }
                 @include media-breakpoint-only(xl) {
-                    height: 1875px; // Copied from iframe.
+                    height: 1875px;
                 }
                 @include media-breakpoint-only(xxl) {
-                    height: 1875px; // Copied from iframe.
+                    height: 1875px;
                 }
             }
         }
@@ -98,8 +96,6 @@
     top: 50%;
     height: 92%;
     width: auto;
-    // Width and height of phone.svg. Needed for the builder to recompute values
-    // when switching to mobile preview, otherwise the width is 0 for a moment.
     aspect-ratio: 368 / 763;
     transform: translate(-50%, -50%);
     box-shadow:
@@ -114,8 +110,6 @@
         top: 8%;
     }
 
-    // Loop through max-heights from 800px to 600px in steps of 25px,
-    // calculating scale and height for each value.
     @for $max-height from 800 through 600 {
         @if $max-height % 25 == 0 {
             $scale: 0.0016 * $max-height - 0.37;
@@ -124,7 +118,6 @@
                 height: calc(90 / $scale * 1%);
                 transform: translate(-50%, -50%) scale($scale);
                 border-radius: $adjusted-radius;
-                // Add min-height for 600px only.
                 @if $max-height == 600 {
                     min-height: 740px;
                 }
@@ -156,8 +149,6 @@
     }
 }
 
-// TODO adapt theme previews then remove this
-// ... or remove the feature entirely ? See task-3454790.
 .o_preview_frame::after {
     content: "";
     position: absolute;
@@ -165,13 +156,8 @@
     background-color: white;
 }
 
-// The dark half, folded in from `website.backend.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        // = Website Backend
-        // ============================================================================
-        // No CSS hacks, variables overrides only
-
         .o_demo_background {
             --Dashboard__demoBackground: url("/website/static/src/img/website_dashboard_visit_demo_dark_mode.png");
         }

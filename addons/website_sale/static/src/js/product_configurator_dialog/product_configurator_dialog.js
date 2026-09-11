@@ -41,18 +41,14 @@ patch(ProductConfiguratorDialog.prototype, {
     },
 
     /**
-     * Check whether all selected products can be sold.
-     *
-     * @return {Boolean} - Whether all selected products can be sold.
+     * @return {Boolean}
      */
     canBeSold() {
         return this.state.products.every((p) => p.can_be_sold);
     },
 
     /**
-     * Check whether to show the "shop" buttons in the dialog footer.
-     *
-     * @return {Boolean} - Whether to show the "shop" buttons in the dialog footer.
+     * @return {Boolean}
      */
     showShopButtons() {
         return this.props.isFrontend && !this.props.edit;
@@ -60,10 +56,6 @@ patch(ProductConfiguratorDialog.prototype, {
 
     get totalMessage() {
         if (this.env.isFrontend) {
-            // To be translated, the title must be repeated here. Indeed, only
-            // translations of "frontend modules" are fetched in the context of
-            // website. The original definition of the title is in "sale", which
-            // is not a frontend module.
             return _t("Total: %s", this.getFormattedTotal());
         }
         return super.totalMessage(...arguments);

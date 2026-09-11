@@ -16,27 +16,20 @@ export class ProductRow extends Component {
         currency_id: Number,
     };
 
-    /**
-     * Remove the product from the comparison.
-     */
     removeProduct() {
         comparisonUtils.removeComparisonProduct(this.props.id, this.env.bus);
         comparisonUtils.enableDisabledProducts([this.props.id], false);
     }
 
     /**
-     * Get the price, formatted using the provided currency.
-     *
-     * @return {string} The formatted price.
+     * @return {string}
      */
     get formattedPrice() {
         return formatCurrency(this.props.price, this.props.currency_id);
     }
 
     /**
-     * Get the strikethrough price, formatted using the provided currency.
-     *
-     * @return {string} The formatted strikethrough price.
+     * @return {string}
      */
     get formattedStrikethroughPrice() {
         return formatCurrency(this.props.strikethrough_price, this.props.currency_id);

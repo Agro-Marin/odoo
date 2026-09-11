@@ -42,7 +42,6 @@ class TestWebsiteBoothPriceList(TestEventBoothSaleCommon, TestWebsiteEventSaleCo
         )
         self.assertEqual(so_line.price_reduce_taxexcl, 40)
 
-        # set pricelist to 10% - without discount
         pl2 = self.pricelist.copy(
             {
                 "currency_id": self.currency_test.id,

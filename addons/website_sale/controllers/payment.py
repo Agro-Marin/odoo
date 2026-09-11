@@ -8,15 +8,9 @@ from odoo.tools import SQL
 
 from odoo.addons.payment.controllers import portal as payment_portal
 
-# TODO ANVFE part of payment routes ? /shop/payment ? express_checkout ?
-
 
 class PaymentPortal(payment_portal.PaymentPortal):
     def _check_transaction_for_order(self, transaction, sale_order):
-        """
-        Perform final checks against the transaction & sale_order.
-        Override me to apply payment unrelated checks & processing
-        """
         return
 
     @route(
@@ -26,19 +20,6 @@ class PaymentPortal(payment_portal.PaymentPortal):
         website=True,
     )
     def shop_payment_transaction(self, order_id, access_token, **kwargs):
-        """Create a draft transaction and return its processing values.
-
-        :param int order_id: The sales order to pay, as a `sale.order` id
-        :param str access_token: The access token used to authenticate the request
-        :param dict kwargs: Locally unused data passed to `_create_transaction`
-        :return: The mandatory values for the processing of the transaction
-        :rtype: dict
-        :raise: UserError if the order has already been paid or has an ongoing transaction
-        :raise: ValidationError if the access token is invalid or the order is not in the expected
-            state/configuration.
-        """
-        # Check the order id and the access token
-        # Then lock it during the transaction to prevent concurrent payments
         try:
             order_sudo = self._document_check_access(
                 "sale.order", order_id, access_token
@@ -66,7 +47,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
             {
                 "partner_id": order_sudo.partner_invoice_id.id,
                 "currency_id": order_sudo.currency_id.id,
-                "sale_order_id": order_id,  # Include the SO to allow Subscriptions to tokenize the tx
+                "sale_order_id": order_id,
             }
         )
         if not kwargs.get("amount"):
@@ -83,16 +64,12 @@ class PaymentPortal(payment_portal.PaymentPortal):
             )
 
         if delay_token_charge := kwargs.get("flow") == "token":
-            request.update_context(
-                delay_token_charge=True
-            )  # wait until after tx validation
+            request.update_context(delay_token_charge=True)
         tx_sudo = self._create_transaction(
             custom_create_values={"sale_order_ids": [Command.set([order_id])]},
             **kwargs,
         )
 
-        # Store the new transaction into the transaction list and if there's an old one, we remove
-        # it until the day the ecommerce supports multiple orders at the same time.
         request.session["__website_sale_last_tx_id"] = tx_sudo.id
 
         self._check_transaction_for_order(tx_sudo, order_sudo)

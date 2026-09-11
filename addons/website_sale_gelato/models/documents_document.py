@@ -5,8 +5,6 @@ from odoo.exceptions import ValidationError
 class DocumentsDocument(models.Model):
     _inherit = "document.document"
 
-    # === CONSTRAINT METHODS === #
-
     @api.constrains("datas")
     def _check_product_is_unpublished_before_removing_print_images(self):
         for print_image in self.filtered(lambda i: i.is_gelato):

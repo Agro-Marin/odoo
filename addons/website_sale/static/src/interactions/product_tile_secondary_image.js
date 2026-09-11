@@ -15,9 +15,6 @@ export class ProductTileSecondaryImage extends Interaction {
         this.isSecondImgInView = false;
     }
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
     onScroll(ev) {
         this.isSecondImgInView = ev.target.scrollLeft > ev.target.scrollWidth * 0.25;
     }

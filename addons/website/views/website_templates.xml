@@ -36,20 +36,17 @@
                 role="menuitem">
                 <span t-field="submenu.name" />
             </a>
-            <!-- Avoid rendering the mega menu element twice (Desktop + Mobile) -->
             <div
                 t-if="submenu.is_mega_menu and not is_mobile"
                 t-attf-class="o_mega_menu dropdown-menu #{submenu.mega_menu_classes} #{_extra_megamenu_classes or 'border-top-0'}"
                 data-name="Mega Menu"
                 t-field="submenu.mega_menu_content"
                 role="menuitem" />
-            <!-- Renders the back arrow if it's a mega menu in Mobile / Sidebar / Hamburger -->
             <div
                 t-if="submenu.is_mega_menu and is_vertical_nav"
                 t-attf-class="o_mega_nav o_cc1 position-fixed top-0 #{offcanvas_is_leftside and 'start-0' or 'end-0'} invisible d-flex align-items-center w-100">
                 <button class="btn nav-link oi oi-chevron-left ms-n2 px-2" />
             </div>
-            <!-- Is a dropdown in desktop -> becomes accordion in Mobile / Sidebar / Hamburger -->
             <div t-elif="is_accordion_nav" class="accordion-item">
                 <a
                     href="#"
@@ -158,7 +155,6 @@
                 name="default_description"
                 t-att-content="website_meta_description or website_meta.get('meta_description')"
                 groups="website.group_website_designer" />
-                <!-- OpenGraph tags for Facebook sharing -->
                 <t
                     t-set="opengraph_meta"
                     t-value="website_meta.get('opengraph_meta')" />
@@ -174,7 +170,6 @@
                 </t>
                 </t>
                 </t>
-                <!-- Twitter tags for sharing -->
                 <t t-set="twitter_meta" t-value="website_meta.get('twitter_meta')" />
                 <t t-if="opengraph_meta">
                     <t t-foreach="twitter_meta" t-as="t_meta">
@@ -183,7 +178,6 @@
                 </t>
             </t>
             <t t-set="canonical_domain" t-value="website.get_base_url()" />
-            <!-- no hreflang on non-canonical pages or if no alternate language -->
             <t
                 t-if="request.is_frontend_multilang and website._is_canonical_url() and len(frontend_languages) &gt; 1">
                 <t t-foreach="frontend_languages.values()" t-as="lg">
@@ -198,9 +192,6 @@
                 t-att-href="url_localized(lang_code=website.env['res.lang']._get_data(id=website._get_cached('default_lang_id')).code, canonical_domain=canonical_domain)" />
             </t>
             <link rel="canonical" t-att-href="website._get_canonical_url()" />
-            <!-- TODO: Once we have style in DB, add this preconnect only if a
-            google font is actually used. Note that if no font is used, the
-            preconnect is actually not connecting to the google servers. -->
             <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
         </xpath>
 
@@ -236,7 +227,6 @@
 
         <xpath expr="//footer" position="attributes">
             <attribute name="data-name">Footer</attribute>
-            <!-- Background now controlled by css configuration, using color combinations -->
             <attribute
                 name="t-attf-class"
                 add="o_colored_level o_cc"
@@ -245,7 +235,6 @@
         </xpath>
         <xpath expr="//div[hasclass('o_footer_copyright')]" position="attributes">
             <attribute name="data-name">Copyright</attribute>
-            <!-- Background now controlled by css configuration, using color combinations -->
             <attribute name="class" add="o_colored_level o_cc" separator=" " />
         </xpath>
         <xpath expr="//t[@t-call='web.brand_promotion']/.." position="attributes">
@@ -309,15 +298,11 @@
             </t>
         </xpath>
 
-        <!-- Page options -->
         <xpath expr="//div[@id='wrapwrap']" position="before">
-            <!-- Todo: Refactor this part. These inputs were initially used for multiple use cases but are now only used to determine if a given option is activated on the page. We should probably implement the feature using an RPC. -->
             <t groups="website.group_website_restricted_editor">
                 <t
                     t-foreach="['header_overlay', 'header_color', 'header_text_color', 'header_visible', 'footer_visible']"
                     t-as="optionName">
-                    <!-- Firefox autocomplete is too aggressive and works on hidden inputs,
-                    so we need to disable it (https://bugzilla.mozilla.org/show_bug.cgi?id=520561) -->
                     <input
                         t-if="optionName in main_object"
                         type="hidden"
@@ -468,7 +453,6 @@
         </xpath>
     </template>
 
-    <!-- Navbar -->
     <template id="navbar_toggler" name="Navbar Toggler">
         <button
             type="button"
@@ -507,8 +491,6 @@
         </div>
     </template>
 
-    <!-- Header templates -->
-    <!-- "mobile" template -->
     <template id="template_header_mobile" name="Template Header Mobile">
         <t t-set="is_mobile" t-value="True" />
 
@@ -520,7 +502,6 @@
 
             <div class="o_main_nav container flex-wrap justify-content-between">
                 <div class="d-flex flex-grow-1">
-                    <!-- Brand -->
                     <t t-call="website.placeholder_header_brand" />
                     <ul
                         class="o_header_mobile_buttons_wrap navbar-nav d-flex flex-row align-items-center gap-2 mb-0 ms-auto" />
@@ -548,21 +529,18 @@
                     <div
                         class="offcanvas-body d-flex flex-column justify-content-between h-100 w-100 pt-0">
                         <ul class="navbar-nav">
-                            <!-- Search bar -->
                             <t
                                 t-call="website.placeholder_header_search_box"
                                 _classes.f="mb-3"
                                 _input_classes.f="rounded-start-pill text-bg-light ps-3"
                                 _submit_classes.f="rounded-end-pill bg-o-color-3 pe-3"
                                 limit.f="0" />
-                            <!-- Navbar -->
                             <li>
                                 <t t-set="is_vertical_nav" t-valuef="True" />
                                 <t
                                     t-call="website.navbar_nav"
                                     _no_autohide_menu_mobile.f="True">
                                     <t t-set="offcanvas_is_leftside" t-valuef="" />
-                                    <!-- Menu -->
                                     <t
                                         t-foreach="website.menu_id.child_id"
                                         t-as="submenu">
@@ -575,17 +553,14 @@
                                     </t>
                                 </t>
                             </li>
-                            <!-- Text element -->
                             <t
                                 t-call="website.placeholder_header_text_element"
                                 _div_class.f="mt-2" />
-                            <!-- Social -->
                             <t
                                 t-call="website.placeholder_header_social_links"
                                 _div_class.f="mt-2" />
                         </ul>
                         <ul class="navbar-nav gap-2 mt-3 w-100">
-                            <!-- Language Selector -->
                             <t
                                 t-call="website.placeholder_header_language_selector"
                                 _btn_class.f="{{_additional_btn_color or 'nav-link'}} d-flex align-items-center w-100"
@@ -593,11 +568,9 @@
                                 _flag_class.f="me-2"
                                 _div_classes.f="dropup"
                                 _dropdown_menu_class.f="w-100" />
-                            <!-- Sign In -->
                             <t
                                 t-call="portal.placeholder_user_sign_in"
                                 _link_class.f="{{_additional_btn_color or 'nav-link o_nav_link_btn'}} w-100 border text-center" />
-                            <!-- User Dropdown -->
                             <t
                                 t-call="portal.user_dropdown"
                                 _icon="true"
@@ -607,7 +580,6 @@
                                 _icon_class.f="me-2"
                                 _item_class.f="dropdown dropup"
                                 _dropdown_menu_class.f="w-100" />
-                            <!-- Call To Action -->
                             <t t-call="website.header_call_to_action_large" />
                         </ul>
                     </div>
@@ -692,7 +664,6 @@
         </xpath>
     </template>
 
-    <!-- "Default" template -->
     <template
         id="template_header_default"
         name="Template Header Default"
@@ -703,11 +674,8 @@
                 <t t-set="_navbar_classes" t-valuef="d-none d-lg-block shadow-sm" />
 
                 <div id="o_main_nav" t-attf-class="o_main_nav #{header_content_width}">
-                    <!-- Brand -->
                     <t t-call="website.placeholder_header_brand" _link_class.f="me-4" />
-                    <!-- Navbar -->
                     <t t-call="website.navbar_nav" _nav_class.f="me-auto">
-                        <!-- Menu -->
                         <t t-foreach="website.menu_id.child_id" t-as="submenu">
                             <t
                                 t-call="website.submenu"
@@ -715,37 +683,29 @@
                                 link_class.f="nav-link" />
                         </t>
                     </t>
-                    <!-- Extra elements -->
                     <ul
                         class="navbar-nav align-items-center gap-2 flex-shrink-0 justify-content-end ps-3">
-                        <!-- Search Bar -->
                         <t
                             t-call="website.placeholder_header_search_box"
                             _layout.f="modal"
                             _input_classes.f="border border-end-0 p-3"
                             _submit_classes.f="border border-start-0 px-4 bg-o-color-4"
                             _button_classes.f="o_navlink_background text-reset" />
-                        <!-- Text element -->
                         <t t-call="website.placeholder_header_text_element" />
-                        <!-- Social -->
                         <t t-call="website.placeholder_header_social_links" />
-                        <!-- Language Selector -->
                         <t
                             t-call="website.placeholder_header_language_selector"
                             _btn_class="_additional_btn_color or 'nav-link'"
                             _dropdown_menu_class.f="dropdown-menu-end" />
-                        <!-- Sign In -->
                         <t
                             t-call="portal.placeholder_user_sign_in"
                             _link_class="_additional_btn_color or 'o_nav_link_btn nav-link border px-3'" />
-                        <!-- User Dropdown -->
                         <t
                             t-call="portal.user_dropdown"
                             _user_name="True"
                             _item_class.f="dropdown"
                             _link_class.f="{{_additional_btn_color or 'nav-link'}} border-0"
                             _dropdown_menu_class.f="dropdown-menu-end" />
-                        <!-- Call To Action -->
                         <t t-call="website.placeholder_header_call_to_action" />
                     </ul>
                 </div>
@@ -772,7 +732,6 @@
         </xpath>
     </template>
 
-    <!-- "Hamburger" template -->
     <template
         id="template_header_hamburger"
         name="Template Header Hamburger"
@@ -787,21 +746,17 @@
                 <div
                     id="o_main_nav"
                     t-attf-class="o_main_nav d-grid py-0 o_grid_header_3_cols #{header_content_width}">
-                    <!-- Nav Toggler -->
                     <t
                         t-call="website.navbar_toggler"
                         _toggler_class.f="btn me-auto p-2" />
-                    <!-- Brand -->
                     <t
                         t-call="website.placeholder_header_brand"
                         _link_class.f="mw-100 mx-auto" />
                     <ul
                         class="o_header_hamburger_right_col navbar-nav flex-row gap-2 align-items-center ms-auto">
-                        <!-- Sign In -->
                         <t
                             t-call="portal.placeholder_user_sign_in"
                             _link_class.f="o_navlink_background btn text-reset" />
-                        <!-- User Dropdown -->
                         <t
                             t-call="portal.user_dropdown"
                             _icon="true"
@@ -823,20 +778,17 @@
                         <div
                             class="offcanvas-body d-flex flex-column justify-content-between pt-0">
                             <ul class="navbar-nav">
-                                <!-- Search bar -->
                                 <t
                                     t-call="website.placeholder_header_search_box"
                                     _input_classes.f="rounded-start-pill ps-3 text-bg-light"
                                     _submit_classes.f="rounded-end-pill bg-o-color-3"
                                     limit.f="0" />
-                                <!-- Navbar -->
                                 <li>
                                     <t t-set="is_vertical_nav" t-valuef="True" />
                                     <t t-call="website.navbar_nav" _nav_class.f="mt-3">
                                         <t
                                             t-set="offcanvas_is_leftside"
                                             t-valuef="True" />
-                                        <!-- Menu -->
                                         <t
                                             t-foreach="website.menu_id.child_id"
                                             t-as="submenu">
@@ -849,18 +801,15 @@
                                         </t>
                                     </t>
                                 </li>
-                                <!-- Text element -->
                                 <t
                                     t-call="website.placeholder_header_text_element"
                                     _txt_elt_content.f="phone_mail"
                                     _div_class.f="mt-2" />
-                                <!-- Social -->
                                 <t
                                     t-call="website.placeholder_header_social_links"
                                     _div_class.f="mt-2" />
                             </ul>
                             <ul class="navbar-nav gap-2 mt-3 w-100">
-                                <!-- Language Selector -->
                                 <t
                                     t-call="website.placeholder_header_language_selector"
                                     _btn_class.f="{{_additional_btn_color or 'nav-link'}} d-flex align-items-center w-100"
@@ -868,7 +817,6 @@
                                     _flag_class.f="me-2"
                                     _div_classes.f="dropup"
                                     _dropdown_menu_class.f="w-100" />
-                                <!-- Call To Action -->
                                 <t t-call="website.header_call_to_action_large" />
                             </ul>
                         </div>
@@ -963,7 +911,6 @@
         </xpath>
     </template>
 
-    <!-- "Stretch" template -->
     <template
         id="template_header_stretch"
         name="Template Header Stretch"
@@ -977,15 +924,12 @@
                 <div
                     id="o_main_nav"
                     t-attf-class="o_main_nav align-items-stretch #{header_content_width}">
-                    <!-- Brand -->
                     <t
                         t-call="website.placeholder_header_brand"
                         _link_class.f="d-flex align-items-center me-4 p-2" />
-                    <!-- Navbar -->
                     <t
                         t-call="website.navbar_nav"
                         _nav_class.f="d-flex align-items-center me-auto border-end o_border_contrast">
-                        <!-- Menu -->
                         <t t-foreach="website.menu_id.child_id" t-as="submenu">
                             <t
                                 t-call="website.submenu"
@@ -993,44 +937,36 @@
                                 link_class.f="nav-link d-flex align-items-center h-100" />
                         </t>
                     </t>
-                    <!-- Extra elements -->
                     <ul class="o_header_stretch_elts navbar-nav flex-shrink-0 ps-2">
-                        <!-- Text element -->
-                            <t
-                                t-call="website.placeholder_header_text_element"
-                                _txt_elt_content.f="mail_stretched"
-                                _div_class.f="h-100 border-start o_border_contrast" />
-                        <!-- Search bar -->
+                        <t
+                            t-call="website.placeholder_header_text_element"
+                            _txt_elt_content.f="mail_stretched"
+                            _div_class.f="h-100 border-start o_border_contrast" />
                         <t
                             t-call="website.placeholder_header_search_box"
                             _input_classes.f="o_header_stretch_search_input border-0 rounded-0 bg-transparent text-reset"
                             _submit_classes.f="o_navlink_background_hover rounded-0 text-reset"
                             _form_classes.f="h-100 z-0"
                             _classes.f="h-100 border-start o_border_contrast" />
-                        <!-- Social -->
                         <t
                             t-call="website.placeholder_header_social_links"
                             _div_class.f="d-flex align-items-center h-100 border-start px-2 o_border_contrast" />
-                        <!-- Language Selector -->
                         <t
                             t-call="website.placeholder_header_language_selector"
                             _div_classes.f="h-100 border-start o_border_contrast"
                             _btn_class.f="o_navlink_background_hover btn h-100 rounded-0 text-reset"
                             _txt_class.f="small"
                             _dropdown_menu_class.f="dropdown-menu-end" />
-                        <!-- Sign In -->
                         <t
                             t-call="portal.placeholder_user_sign_in"
                             _item_class.f="border-start o_border_contrast"
                             _link_class.f="o_navlink_background_hover btn d-flex align-items-center h-100 rounded-0 fw-bold text-reset" />
-                        <!-- User Dropdown -->
                         <t
                             t-call="portal.user_dropdown"
                             _icon="true"
                             _item_class.f="dropdown border-start o_border_contrast"
                             _link_class.f="o_navlink_background_hover btn d-flex align-items-center h-100 rounded-0 text-reset"
                             _dropdown_menu_class.f="dropdown-menu-end" />
-                        <!-- Call To Action -->
                         <t
                             t-call="website.header_call_to_action_stretched"
                             _div_class.f="d-flex h-100 border-start o_border_contrast" />
@@ -1072,7 +1008,6 @@
         </xpath>
     </template>
 
-    <!-- "Vertical" template -->
     <template
         id="template_header_vertical"
         name="Template Header Vertical"
@@ -1089,51 +1024,41 @@
                     <div
                         class="o_header_hide_on_scroll d-grid align-items-center w-100 o_grid_header_3_cols pb-3">
                         <ul class="navbar-nav align-items-center gap-1">
-                            <!-- Search bar -->
                             <t
                                 t-call="website.placeholder_header_search_box"
                                 _layout.f="modal"
                                 _input_classes.f="border border-end-0 p-3"
                                 _submit_classes.f="border border-start-0 px-4 bg-o-color-4"
                                 _button_classes.f="o_navlink_background text-reset" />
-                            <!-- Social Links -->
                             <t t-call="website.placeholder_header_social_links" />
-                            <!-- Text element -->
                             <t t-call="website.placeholder_header_text_element" />
                         </ul>
-                        <!-- Brand -->
                         <t
                             t-call="website.placeholder_header_brand"
                             _link_class.f="mx-auto mw-100" />
                         <ul
                             class="navbar-nav align-items-center gap-1 flex-wrap justify-content-end ms-auto">
-                            <!-- Sign In -->
                             <t
                                 t-call="portal.placeholder_user_sign_in"
                                 _link_class.f="o_navlink_background btn border-0 text-reset" />
-                            <!-- User Dropdown -->
                             <t
                                 t-call="portal.user_dropdown"
                                 _icon="true"
                                 _item_class.f="dropdown"
                                 _link_class.f="o_navlink_background btn d-flex align-items-center border-0 text-reset"
                                 _dropdown_menu_class.f="dropdown-menu-end" />
-                            <!-- Language Selector -->
                             <t
                                 t-call="website.placeholder_header_language_selector"
                                 _btn_class.f="o_navlink_background btn text-reset"
                                 _flag_class.f="m-2"
                                 _dropdown_menu_class.f="dropdown-menu-end" />
-                            <!-- Call To Action -->
                             <t t-call="website.placeholder_header_call_to_action" />
                         </ul>
                     </div>
                     <t
                         t-call="website.navbar_nav_wrapper"
                         _wrapper_class.f="justify-content-start">
-                        <!-- Navbar -->
                         <t t-call="website.navbar_nav" _nav_class.f="pb-0">
-                            <!-- Menu -->
                             <t t-foreach="website.menu_id.child_id" t-as="submenu">
                                 <t
                                     t-call="website.submenu"
@@ -1166,7 +1091,6 @@
         </xpath>
     </template>
 
-    <!-- "Search" template -->
     <template
         id="template_header_search"
         name="Template Header Search"
@@ -1184,27 +1108,22 @@
                         <div
                             t-attf-class="#{header_content_width} d-flex justify-content-between flex-wrap w-100">
                             <ul class="o_header_search_left_col navbar-nav flex-wrap">
-                                <!-- Language Selector -->
                                 <t
                                     t-call="website.placeholder_header_language_selector"
                                     _div_classes.f="h-100 border-end o_border_contrast"
                                     _btn_class.f="o_navlink_background_hover btn btn-sm d-flex align-items-center h-100 rounded-0 p-2 text-reset" />
-                                <!-- Text element -->
                                 <t
                                     t-call="website.placeholder_header_text_element"
                                     _txt_elt_content.f="sentence"
                                     _div_class.f="d-flex align-items-center h-100 border-end p-2 text-muted o_border_contrast" />
                             </ul>
                             <ul class="navbar-nav flex-wrap">
-                                <!-- Social Links -->
                                 <t
                                     t-call="website.placeholder_header_social_links"
                                     _div_class.f="d-flex align-items-center h-100 border-start px-1 o_border_contrast" />
-                                <!-- Sign In -->
                                 <t
                                     t-call="portal.placeholder_user_sign_in"
                                     _link_class.f="o_navlink_background_hover btn btn-sm d-flex align-items-center h-100 rounded-0 border-0 border-start px-3 text-reset o_border_contrast" />
-                                <!-- User Dropdown -->
                                 <t
                                     t-call="portal.user_dropdown"
                                     _user_name="true"
@@ -1217,9 +1136,7 @@
                     <div
                         aria-label="Bottom"
                         t-attf-class="#{header_content_width} d-grid align-items-center w-100 py-2 o_grid_header_3_cols">
-                        <!-- Navbar -->
                         <t t-call="website.navbar_nav" _nav_class.f="me-4">
-                            <!-- Menu -->
                             <t t-foreach="website.menu_id.child_id" t-as="submenu">
                                 <t
                                     t-call="website.submenu"
@@ -1227,18 +1144,15 @@
                                     link_class.f="nav-link" />
                             </t>
                         </t>
-                        <!-- Brand -->
                         <t
                             t-call="website.placeholder_header_brand"
                             _link_class.f="mw-100 mx-auto" />
                         <ul
                             class="o_header_search_right_col navbar-nav align-items-center gap-2 ms-auto ps-3">
-                            <!-- Search bar -->
                             <t
                                 t-call="website.placeholder_header_search_box"
                                 _input_classes.f="rounded-start-pill ps-3 text-bg-light"
                                 _submit_classes.f="rounded-end-pill pe-3 bg-o-color-3" />
-                            <!-- Call To Action -->
                             <t t-call="website.placeholder_header_call_to_action" />
                         </ul>
                     </div>
@@ -1284,7 +1198,6 @@
         </xpath>
     </template>
 
-    <!-- "Sales one" template -->
     <template
         id="template_header_sales_one"
         name="Template Header Sale 1"
@@ -1298,13 +1211,10 @@
                     <div
                         aria-label="Top"
                         t-attf-class="#{header_content_width} d-flex align-items-center justify-content-between py-3">
-                        <!-- Brand -->
                         <t
                             t-call="website.placeholder_header_brand"
                             _link_class.f="me-4" />
-                        <!-- Navbar -->
                         <t t-call="website.navbar_nav" _nav_class.f="pe-2">
-                            <!-- Menu -->
                             <t t-foreach="website.menu_id.child_id" t-as="submenu">
                                 <t
                                     t-call="website.submenu"
@@ -1314,23 +1224,19 @@
                         </t>
                         <ul
                             class="o_header_sales_one_right_col navbar-nav align-items-center gap-1 flex-grow-1 justify-content-end">
-                            <!-- Call To Action -->
                             <t
                                 t-call="website.placeholder_header_call_to_action"
                                 _item_class.f="flex-grow-1"
                                 _div_class.f="d-flex align-items-center" />
-                            <!-- Search bar -->
                             <t
                                 t-call="website.placeholder_header_search_box"
                                 _layout.f="modal"
                                 _input_classes.f="border border-end-0 p-3"
                                 _submit_classes.f="border border-start-0 px-4 bg-o-color-4"
                                 _button_classes.f="o_navlink_background text-reset" />
-                            <!-- Sign In -->
                             <t
                                 t-call="portal.placeholder_user_sign_in"
                                 _link_class.f="btn rounded-circle text-reset fw-bold o_navlink_background" />
-                            <!-- User Dropdown -->
                             <t
                                 t-call="portal.user_dropdown"
                                 _icon="true"
@@ -1338,7 +1244,6 @@
                                 _icon_class.f="fa-stack"
                                 _link_class.f="btn d-flex align-items-center rounded-circle p-1 pe-3 text-reset o_navlink_background"
                                 _dropdown_menu_class.f="dropdown-menu-end" />
-                            <!-- Language Selector -->
                             <t
                                 t-call="website.placeholder_header_language_selector"
                                 _btn_class.f="btn rounded-circle text-reset o_navlink_background"
@@ -1352,12 +1257,10 @@
                         class="o_header_sales_one_bot o_header_hide_on_scroll gap-3 py-2">
                         <ul
                             t-attf-class="#{header_content_width} navbar-nav justify-content-between align-items-center">
-                            <!-- Text element -->
                             <t
                                 t-call="website.placeholder_header_text_element"
                                 _txt_elt_content.f="list"
                                 _item_class.f="flex-basis-0 flex-grow-1 flex-shrink-0" />
-                            <!-- Social -->
                             <t t-call="website.placeholder_header_social_links" />
                         </ul>
                     </div>
@@ -1393,7 +1296,6 @@
         </xpath>
     </template>
 
-    <!-- "Sales two" template -->
     <template
         id="template_header_sales_two"
         name="Template Header Sale 2"
@@ -1411,17 +1313,13 @@
                             class="o_header_sales_two_top py-1">
                             <ul
                                 t-attf-class="#{header_content_width} navbar-nav d-grid h-100 px-3 o_grid_header_3_cols">
-                                <!-- Return empty placeholder if the element is not active or if there is only one language to keep the right layout -->
                                 <li
                                     class="o_header_sales_two_lang_selector_placeholder"
                                     t-if="is_view_active('website.header_language_selector') == False or len(frontend_languages) == 1" />
-                                <!-- Language Selector -->
                                 <t
                                     t-call="website.placeholder_header_language_selector"
                                     _div_classes.f="d-flex align-items-center h-100"
                                     _btn_class.f="btn btn-sm btn-outline-secondary border-0" />
-                                <!-- Text element -->
-                                <!-- Return empty placeholder if the element is not active to keep the right layout -->
                                 <li
                                     class="o_header_sales_two_txt_elts_placeholder"
                                     t-if="is_view_active('website.header_text_element') == False" />
@@ -1430,8 +1328,6 @@
                                     _txt_elt_content.f="sentence"
                                     _div_class.f="d-flex align-items-center mx-auto"
                                     _item_class.f="d-flex align-items-center" />
-                                <!-- Social -->
-                                <!-- Return empty placeholder if the element is not active to keep the right layout -->
                                 <li
                                     class="o_header_sales_two_social_links_placeholder"
                                     t-if="is_view_active('website.header_social_links') == False" />
@@ -1443,21 +1339,17 @@
                         <div
                             aria-label="Middle"
                             t-attf-class="#{header_content_width} d-flex justify-content-between align-items-center py-1">
-                            <!-- Brand -->
                             <t
                                 t-call="website.placeholder_header_brand"
                                 _link_class.f="me-4" />
                             <ul class="navbar-nav align-items-center gap-1">
-                                <!-- Search bar -->
                                 <t
                                     t-call="website.placeholder_header_search_box"
                                     _input_classes.f="rounded-start-pill ps-3 text-bg-light"
                                     _submit_classes.f="rounded-end-pill p-3 bg-o-color-3 lh-1" />
-                                <!-- Sign In -->
                                 <t
                                     t-call="portal.placeholder_user_sign_in"
                                     _link_class.f="{{_additional_btn_color or 'nav-link o_nav_link_btn'}} ms-2 border px-3" />
-                                <!-- User Dropdown -->
                                 <t
                                     t-call="portal.user_dropdown"
                                     _user_name="true"
@@ -1473,11 +1365,9 @@
                     <div aria-label="Bottom" class="border-top o_border_contrast">
                         <div
                             t-attf-class="#{header_content_width} d-flex justify-content-between">
-                            <!-- Navbar -->
                             <t
                                 t-call="website.navbar_nav"
                                 _nav_class.f="align-items-center me-4 py-1">
-                                <!-- Menu -->
                                 <t t-foreach="website.menu_id.child_id" t-as="submenu">
                                     <t
                                         t-call="website.submenu"
@@ -1485,7 +1375,6 @@
                                         link_class.f="nav-link" />
                                 </t>
                             </t>
-                            <!-- Call To Action -->
                             <ul class="navbar-nav">
                                 <t
                                     t-call="website.header_call_to_action_stretched"
@@ -1520,7 +1409,6 @@
         </xpath>
     </template>
 
-    <!-- "Sales three" template -->
     <template
         id="template_header_sales_three"
         name="Template Header Sale 3"
@@ -1538,9 +1426,7 @@
                         <div
                             t-attf-class="#{header_content_width} d-flex justify-content-between gap-3 h-100">
                             <ul class="navbar-nav align-items-center gap-3 py-1">
-                                <!-- Social -->
                                 <t t-call="website.placeholder_header_social_links" />
-                                <!-- Text element -->
                                 <t
                                     t-call="website.placeholder_header_text_element"
                                     _txt_elt_content.f="list"
@@ -1548,14 +1434,12 @@
                                     _item_class.f="flex-basis-0 flex-grow-1 flex-shrink-0" />
                             </ul>
                             <ul class="navbar-nav">
-                                <!-- Search bar -->
                                 <t
                                     t-call="website.placeholder_header_search_box"
                                     _input_classes.f="border-0 border-start rounded-0"
                                     _submit_classes.f="rounded-0 bg-o-color-4"
                                     _form_classes.f="h-100 z-0"
                                     _classes.f="h-100" />
-                                <!-- Call To Action -->
                                 <t
                                     t-call="website.header_call_to_action_stretched"
                                     _div_class.f="d-flex h-100" />
@@ -1565,26 +1449,22 @@
                     <div
                         aria-label="Bottom"
                         t-attf-class="#{header_content_width} d-flex align-items-center py-2">
-                        <!-- Brand -->
                         <t
                             t-call="website.placeholder_header_brand"
                             _link_class.f="me-4" />
                         <div class="flex-fill min-w-0">
                             <ul
                                 class="o_header_sales_three_small_links navbar-nav justify-content-end align-items-center gap-2 w-100 o_header_separator">
-                                <!-- Language Selector -->
                                 <t
                                     t-call="website.placeholder_header_language_selector"
                                     _btn_class.f="nav-link d-flex align-items-center fw-bold text-uppercase o_nav-link_secondary"
                                     _txt_class.f="ms-1"
                                     _dropdown_menu_class.f="dropdown-menu-end"
                                     _item_class.f="position-relative" />
-                                <!-- Sign In -->
                                 <t
                                     t-call="portal.placeholder_user_sign_in"
                                     _item_class.f="position-relative"
                                     _link_class.f="nav-link fw-bold text-uppercase o_nav-link_secondary" />
-                                <!-- User Dropdown -->
                                 <t
                                     t-call="portal.user_dropdown"
                                     _user_name="true"
@@ -1592,11 +1472,9 @@
                                     _link_class.f="nav-link d-flex align-items-center fw-bold text-uppercase o_nav-link_secondary"
                                     _dropdown_menu_class.f="dropdown-menu-end" />
                             </ul>
-                            <!-- Navbar -->
                             <t
                                 t-call="website.navbar_nav"
                                 _nav_class.f="justify-content-start">
-                                <!-- Menu -->
                                 <t t-foreach="website.menu_id.child_id" t-as="submenu">
                                     <t
                                         t-call="website.submenu"
@@ -1633,7 +1511,6 @@
         </xpath>
     </template>
 
-    <!-- "Sales four" template -->
     <template
         id="template_header_sales_four"
         name="Template Header Sale 4"
@@ -1651,11 +1528,9 @@
                 _navbar_classes.f="o_header_sales_four_top o_header_force_no_radius d-none d-lg-block p-0 shadow-sm z-1">
                 <div id="o_main_nav" class="o_main_nav">
                     <div aria-label="Top" t-attf-class="#{header_content_width} d-flex">
-                        <!-- Navbar -->
                         <t
                             t-call="website.navbar_nav"
                             _nav_class.f="align-items-center me-auto pe-3">
-                            <!-- Menu -->
                             <t t-foreach="website.menu_id.child_id" t-as="submenu">
                                 <t
                                     t-call="website.submenu"
@@ -1665,23 +1540,19 @@
                         </t>
                         <ul
                             class="o_header_separator navbar-nav align-items-center gap-3 flex-shrink-0">
-                            <!-- Text element -->
                             <t
                                 t-call="website.placeholder_header_text_element"
                                 _txt_elt_content.f="mail"
                                 _div_class.f="d-flex align-items-center"
                                 _item_class.f="position-relative" />
-                            <!-- Social -->
                             <t
                                 t-call="website.placeholder_header_social_links"
                                 _div_class.f="d-flex align-items-center"
                                 _item_class.f="position-relative" />
-                            <!-- Sign In -->
                             <t
                                 t-call="portal.placeholder_user_sign_in"
                                 _item_class.f="position-relative small"
                                 _link_class.f="{{_additional_btn_color or 'nav-link'}} d-flex align-items-center h-100 border-0 px-2 text-decoration-none" />
-                            <!-- User Dropdown -->
                             <t
                                 t-call="portal.user_dropdown"
                                 _user_name="true"
@@ -1689,7 +1560,6 @@
                                 _link_class.f="nav-link border-0"
                                 _user_name_class.f="small"
                                 _dropdown_menu_class.f="dropdown-menu-end" />
-                            <!-- Language Selector -->
                             <t
                                 t-call="website.placeholder_header_language_selector"
                                 _div_classes.f="position-relative"
@@ -1704,7 +1574,6 @@
                         <div t-attf-class="#{header_content_width}">
                             <ul
                                 class="navbar-nav d-grid align-items-center py-2 o_grid_header_3_cols">
-                                <!-- Search bar -->
                                 <li
                                     class="o_header_sales_four_search_placeholder"
                                     t-if="is_view_active('website.header_search_box') == False" />
@@ -1714,7 +1583,6 @@
                                     _input_classes.f="rounded-start-pill ps-3 text-bg-light"
                                     _submit_classes.f="rounded-end-pill bg-o-color-3 lh-1"
                                     _item_class.f="d-flex" />
-                                <!-- Brand -->
                                 <li
                                     t-if="is_view_active('website.placeholder_header_brand')">
                                     <t
@@ -1724,7 +1592,6 @@
                                 <li
                                     class="d-flex align-items-center gap-3 ms-auto mb-0">
                                     <ul class="navbar-nav align-items-center gap-2">
-                                        <!-- Call To Action -->
                                         <t
                                             t-call="website.placeholder_header_call_to_action" />
                                     </ul>
@@ -1759,7 +1626,6 @@
         </xpath>
     </template>
 
-    <!-- "Sidebar" template -->
     <template
         id="template_header_sidebar"
         name="Template Header Sidebar"
@@ -1777,20 +1643,17 @@
                     class="o_main_nav navbar-nav d-flex flex-column justify-content-between h-100 w-100">
                     <div class="d-flex flex-column w-100 h-100">
                         <div class="d-flex pb-3">
-                            <!-- Brand -->
                             <t t-call="website.placeholder_header_brand" />
                         </div>
                         <div
                             class="d-flex flex-column justify-content-between h-100 w-100">
                             <ul class="navbar-nav p-0">
-                                <!-- Search bar -->
                                 <t
                                     t-call="website.placeholder_header_search_box"
                                     _classes.f="mb-3"
                                     _input_classes.f="rounded-start-pill ps-3 text-bg-light"
                                     _submit_classes.f="rounded-end-pill pe-3 bg-o-color-3"
                                     limit.f="0" />
-                                <!-- Navbar -->
                                 <li>
                                     <t t-set="is_vertical_nav" t-valuef="True" />
                                     <t
@@ -1799,7 +1662,6 @@
                                         <t
                                             t-set="offcanvas_is_leftside"
                                             t-valuef="True" />
-                                        <!-- Menu -->
                                         <t
                                             t-foreach="website.menu_id.child_id"
                                             t-as="submenu">
@@ -1812,18 +1674,15 @@
                                         </t>
                                     </t>
                                 </li>
-                                <!-- Text element -->
                                 <t
                                     t-call="website.placeholder_header_text_element"
                                     _txt_elt_content.f="phone_mail"
                                     _div_class.f="mt-2" />
-                                <!-- Social -->
                                 <t
                                     t-call="website.placeholder_header_social_links"
                                     _div_class.f="mt-2" />
                             </ul>
                             <ul class="navbar-nav gap-2 mt-3 w-100">
-                                <!-- Language Selector -->
                                 <t
                                     t-call="website.placeholder_header_language_selector"
                                     _btn_class.f="{{_additional_btn_color or 'nav-link'}} d-flex align-items-center w-100"
@@ -1831,11 +1690,9 @@
                                     _flag_class.f="me-2"
                                     _div_classes.f="dropup"
                                     _dropdown_menu_class.f="w-100" />
-                                <!-- Sign In -->
                                 <t
                                     t-call="portal.placeholder_user_sign_in"
                                     _link_class.f="{{_additional_btn_color or 'nav-link o_nav_link_btn'}} w-100 border text-center" />
-                                <!-- User Dropdown -->
                                 <t
                                     t-call="portal.user_dropdown"
                                     _icon="true"
@@ -1845,7 +1702,6 @@
                                     _icon_class.f="me-2"
                                     _item_class.f="dropdown dropup"
                                     _dropdown_menu_class.f="w-100" />
-                                <!-- Call To Action -->
                                 <t t-call="website.header_call_to_action_sidebar" />
                             </ul>
                         </div>
@@ -1913,7 +1769,6 @@
         </xpath>
     </template>
 
-    <!-- "Rounded box" template -->
     <template
         id="template_header_boxed"
         name="Template Header Rounded Box"
@@ -1927,13 +1782,10 @@
                     <div
                         id="o_main_nav"
                         t-attf-class="#{header_content_width} o_main_nav">
-                        <!-- Brand -->
                         <t
                             t-call="website.placeholder_header_brand"
                             _link_class.f="me-4" />
-                        <!-- Navbar -->
                         <t t-call="website.navbar_nav" _nav_class.f="me-auto">
-                            <!-- Menu -->
                             <t t-foreach="website.menu_id.child_id" t-as="submenu">
                                 <t
                                     t-call="website.submenu"
@@ -1942,31 +1794,24 @@
                                     _extra_megamenu_classes.f="rounded-2" />
                             </t>
                         </t>
-                        <!-- Extra elements -->
                         <ul
                             class="navbar-nav align-items-center gap-1 flex-wrap flex-shrink-0 justify-content-end ps-3">
-                            <!-- Search Bar -->
                             <t
                                 t-call="website.placeholder_header_search_box"
                                 _layout.f="modal"
                                 _input_classes.f="border border-end-0 p-3"
                                 _submit_classes.f="border border-start-0 px-4 bg-o-color-4"
                                 _button_classes.f="o_navlink_background text-reset" />
-                            <!-- Text element -->
                             <t t-call="website.placeholder_header_text_element" />
-                            <!-- Social -->
                             <t t-call="website.placeholder_header_social_links" />
-                            <!-- Language Selector -->
                             <t
                                 t-call="website.placeholder_header_language_selector"
                                 _btn_class.f="{{_additional_btn_color or 'nav-link'}} d-flex align-items-center gap-1 border-0 rounded-pill px-3"
                                 _txt_class.f="small"
                                 _dropdown_menu_class.f="dropdown-menu-end" />
-                            <!-- Sign In -->
                             <t
                                 t-call="portal.placeholder_user_sign_in"
                                 _link_class.f="{{_additional_btn_color or 'nav-link o_nav_link_btn'}} border px-3" />
-                            <!-- User Dropdown -->
                             <t
                                 t-call="portal.user_dropdown"
                                 _icon="true"
@@ -1975,7 +1820,6 @@
                                 _item_class.f="dropdown"
                                 _link_class.f="{{_additional_btn_color or 'nav-link'}} d-flex align-items-center border-0 rounded-pill px-3"
                                 _dropdown_menu_class.f="dropdown-menu-end" />
-                            <!-- Call To Action -->
                             <t t-call="website.placeholder_header_call_to_action" />
                         </ul>
                     </div>
@@ -2005,7 +1849,6 @@
         </xpath>
     </template>
 
-    <!-- Additional colors option -->
     <template
         id="template_header_additional_color_primary"
         inherit_id="website.layout"
@@ -2024,7 +1867,6 @@
         </xpath>
     </template>
 
-    <!-- Header options -->
     <template id="option_layout_hide_header" inherit_id="website.layout" active="False">
         <xpath expr="//header" position="before">
             <t t-set="no_header" t-value="True" />
@@ -2032,7 +1874,7 @@
     </template>
 
     <template id="placeholder_header_brand" name="Placeholder Header Brand">
-        <span id="o_fake_navbar_brand"/><!-- Need a fake element so that the menu is still placed correctly -->
+        <span id="o_fake_navbar_brand" />
     </template>
 
     <template
@@ -2045,26 +1887,6 @@
                 data-name="Navbar Logo"
                 href="/"
                 t-attf-class="navbar-brand logo #{_link_class}">
-                <!--
-                Note: setting width *and* height attributes allows to reserve some
-                space to avoid layout shift during page loading. Of course, CSS
-                rules set the height the user chose, while the width is set to
-                'auto'. But while the image is loading, it is best to already
-                reserve some width to reduce layout shift (like making the menu move
-                or even re-render itself into a "+" menu).
-
-                The chosen values for the space reservation are the ones of the
-                default logo and theme, but it does not really matter as long as
-                they are coherent. While the image is being loaded, the chosen user
-                height is still applied and the 'auto' width rule induces a width
-                that respects the aspect ratio set by the width and height
-                attributes. That could be a problem if the real logo has a larger
-                height than width, in which case the layout shift would be increased
-                because of the arbitrary values set as width and height, but in most
-                cases, this should reduce it.
-
-                This also allows to gain some page speed scoring.
-                -->
                 <t t-set="base_options" t-value="{'widget': 'image'}" />
                 <span
                     t-field="website.logo"
@@ -2166,7 +1988,6 @@
         </xpath>
     </template>
 
-    <!-- Features template -->
     <template
         id="login_layout"
         name="Website Login Layout"
@@ -2179,14 +2000,12 @@
         </xpath>
     </template>
 
-    <!-- Area for blocks shared by all pages (e.g. all pages popups) -->
     <template id="shared_blocks" name="Shared blocks" inherit_id="website.layout">
         <xpath expr="//main" position="inside">
             <div id="o_shared_blocks" class="oe_unremovable" />
         </xpath>
     </template>
 
-    <!-- Footer templates -->
     <template
         id="footer_custom"
         name="Default"
@@ -3474,7 +3293,6 @@
         </xpath>
     </template>
 
-    <!-- slideout effect -->
     <template
         id="template_footer_slideout"
         name="Template Footer Slideout"
@@ -3488,7 +3306,6 @@
         </xpath>
     </template>
 
-    <!-- Hide Copyright -->
     <template
         id="footer_no_copyright"
         name="Footer No Copyright"
@@ -3499,7 +3316,6 @@
         </xpath>
     </template>
 
-    <!-- Copyright Content Width -->
     <template
         id="footer_copyright_content_width_small"
         name="Footer Copyright Width Small"
@@ -3545,7 +3361,6 @@
         </xpath>
     </template>
 
-    <!-- Scroll to Top option -->
     <template id="option_footer_scrolltop" inherit_id="website.layout" active="False">
         <xpath expr="//div[@id='footer']" position="after">
             <div
@@ -3563,7 +3378,6 @@
         </xpath>
     </template>
 
-    <!-- Cookie Bar -->
     <template id="cookies_bar" name="Cookies Bar" inherit_id="website.layout">
         <xpath expr="//footer" position="after">
             <div
@@ -3585,7 +3399,6 @@
                     role="dialog">
                     <div class="modal-dialog d-flex s_popup_size_full">
                         <div class="modal-content oe_structure">
-                            <!-- Keep this section equivalent to the rendering of the `website.cookies_bar.discrete` client template -->
                             <section class="o_colored_level o_cc o_cc1">
                                 <div class="container">
                                     <div class="row">
@@ -3609,7 +3422,6 @@
         </xpath>
     </template>
 
-    <!-- Language selector templates -->
     <template id="lang_flag" name="Language Flag">
         <img
             t-attf-class="o_lang_flag #{_flag_class}"
@@ -3624,7 +3436,6 @@
             </t>
         </xpath>
 
-        <!-- Add the 'flags' possibility -->
         <xpath
             expr="//button[contains(@t-attf-class, 'dropdown-toggle')]/span"
             position="before">
@@ -3647,8 +3458,6 @@
         </xpath>
     </template>
 
-    <!-- Alternative extension of the language_selector to make it look like an -->
-    <!-- inline list instead of a dropdown -->
     <template
         id="language_selector_inline"
         inherit_id="website.language_selector"
@@ -3880,7 +3689,6 @@
         </div>
     </template>
 
-    <!-- Util template -->
     <template id="publish_management">
         <div
             groups="website.group_website_restricted_editor"
@@ -3912,7 +3720,6 @@
 
     <template id="pager" name="Pager" inherit_id="portal.pager" />
 
-    <!-- Effect options -->
     <asset id="website.ripple_effect_scss" name="Ripple effect SCSS" active="False">
         <field name="key">website.ripple_effect_scss</field>
         <bundle>web.assets_frontend</bundle>
@@ -3925,7 +3732,6 @@
         <path>/website/static/src/interactions/ripple_effect.js</path>
     </asset>
 
-    <!-- Error and special pages -->
     <template id="website_info" name="Odoo Information">
         <t t-call="website.layout">
             <div id="wrap" class="o_website_info" />
@@ -4041,7 +3847,6 @@
         <t t-translation="off">1,2,3</t>
     </template>
 
-    <!-- PAGE 404 -->
     <template id="page_404" name="Page Not Found">
         <t t-call="http_routing.404" />
     </template>
@@ -4104,12 +3909,6 @@
     </template>
 
     <template id="qweb_500" inherit_id="http_routing.500">
-        <!-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -->
-        <!-- This template should not use any variable except those provided by website.ir_http._handle_exception  -->
-        <!--    no request.crsf_token, no theme style, no assets, ... cursor can be broken during rendering !      -->
-        <!--    see test_05_reset_specific_view_controller_broken_request                                          -->
-        <!-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -->
-        <!-- Bootstrap ESM bundle (loaded in parent template) already includes all components -->
         <xpath expr="//style" position="after">
             <t t-if="view">
                 <script type="module">
@@ -4457,7 +4256,6 @@
         </a>
     </template>
 
-    <!-- Search Bar input-group template -->
     <template
         id="website_search_box_input"
         inherit_id="website.website_search_box"
@@ -4492,7 +4290,6 @@
     </template>
 
     <template id="step_wizard" name="Step Checkout">
-        <!-- wizard_step: A recordset of all published website.checkout.steps-->
         <div class="o_wizard d-flex flex-wrap row-gap-2 my-3 small">
             <t t-foreach="wizard_step" t-as="step">
                 <t
@@ -4538,7 +4335,6 @@
         </xpath>
     </template>
 
-    <!-- Extra element : Social links -->
     <template
         id="website.placeholder_header_social_links"
         name="Placeholder Header Social Links" />
@@ -4594,10 +4390,6 @@
         </xpath>
     </template>
 
-    <!--
-        This template allows to use the website_search_box_input many times keeping
-        the same parameters (eg. header desktop + header mobile)
-    -->
     <template id="header_search_box_input" name="Header Search Box Input">
         <t
             t-call="website.website_search_box_input"
@@ -4610,7 +4402,6 @@
             display_detail.f="true" />
     </template>
 
-    <!-- Extra element : Search -->
     <template
         id="website.placeholder_header_search_box"
         name="Placeholder Header Search Bar" />
@@ -4653,7 +4444,6 @@
         </xpath>
     </template>
 
-    <!-- Extra element : Text -->
     <template
         id="website.placeholder_header_text_element"
         name="Placeholder Header Text element" />
@@ -4695,7 +4485,7 @@
                             href="tel:+1 555-555-5556"
                             class="nav-link o_nav-link_secondary">
                             <small>
-                                <i class="fa-solid fa-phone fa-1x me-1"/>͏ <!-- Empty character needed to be able to delete the icon. -->
+                                <i class="fa-solid fa-phone fa-1x me-1" />͏
                                 <span class="o_force_ltr">+1 555-555-5556</span>
                             </small>
                         </a>

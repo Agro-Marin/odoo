@@ -62,8 +62,6 @@ export class WebsiteForum extends Interaction {
         "#post_reply": {
             "t-on-shown.bs.collapse.withTarget": this.onCollapseShown,
         },
-        // Not sure this is still needed.
-        // float-start class messes up the post layout OPW 769721
         "span[data-oe-model='forum.post'][data-oe-field='content'] img.float-start": {
             "t-att-class": () => ({ "float-start": false }),
         },
@@ -72,14 +70,12 @@ export class WebsiteForum extends Interaction {
     setup() {
         this.lastsearch = [];
 
-        // welcome message action button
         const forumRegisterUrlEl = this.el.querySelector(".forum_register_url");
         if (forumRegisterUrlEl) {
             const forumLogin = `${browser.location.origin}/odoo?redirect=${encodeURIComponent(browser.location.href)}`;
             forumRegisterUrlEl.href = forumLogin;
         }
 
-        // Initialize forum's tooltips
         this.el.querySelectorAll("[data-bs-toggle='tooltip']").forEach((el) => {
             const bsTooltip = Tooltip.getOrCreateInstance(el);
             this.registerCleanup(() => bsTooltip.dispose());
@@ -95,7 +91,6 @@ export class WebsiteForum extends Interaction {
         );
         if (selectMenuWrapperEl) {
             const isReadOnly = Boolean(selectMenuWrapperEl.dataset.readonly);
-            // Take default tags from the input value
             const defaulValue = JSON.parse(
                 selectMenuWrapperEl.dataset.initValue || "[]",
             ).map((x) => x.id);
@@ -107,7 +102,7 @@ export class WebsiteForum extends Interaction {
         }
 
         this.el.querySelectorAll("textarea.o_wysiwyg_loader").forEach((textareaEl) => {
-            const editorKarma = parseInt(textareaEl.dataset.karma || 0); // default value for backward compatibility
+            const editorKarma = parseInt(textareaEl.dataset.karma || 0);
             const hasFullEdit =
                 parseInt(this.el.querySelector("#karma").value) >= editorKarma;
             const isReply = !!textareaEl.closest("#post_reply");
@@ -117,10 +112,6 @@ export class WebsiteForum extends Interaction {
                 getRecordInfo: () => ({
                     context: this.services.website_page.context,
                     resModel: "forum.post",
-                    // Id is retrieved from URL, which is either:
-                    // - /forum/name-1/post/something-5
-                    // - /forum/name-1/post/something-5/edit
-                    // TODO: Make this more robust.
                     resId: +browser.location.pathname
                         .split("-")
                         .slice(-1)[0]
@@ -163,11 +154,8 @@ export class WebsiteForum extends Interaction {
     }
 
     /**
-     * Check if the user is public, if it's true send a warning alert saying the
-     * action cannot be performed.
-     *
      * @returns {boolean}
-     **/
+     */
     warnIfPublicUser() {
         if (session.is_website_user) {
             this.displayAccessDeniedNotification(
@@ -205,8 +193,6 @@ export class WebsiteForum extends Interaction {
             validForm = !!titleEl.value;
         }
 
-        // Because the textarea is hidden, we add the red or green border to its
-        // container.
         if (textareaEl?.required) {
             const textareaContainerEl = currentTargetEl.querySelector(
                 ".o_wysiwyg_textarea_wrapper",
@@ -221,7 +207,6 @@ export class WebsiteForum extends Interaction {
         }
 
         if (validForm) {
-            // Stores social share data to display modal on next page.
             if (currentTargetEl.querySelector(".oe_social_share_call")) {
                 sessionStorage.setItem(
                     "social_share",
@@ -233,8 +218,6 @@ export class WebsiteForum extends Interaction {
                 );
             }
         } else {
-            // No spinner to undo: the page-global submit indicator is not
-            // applied to a submit that has been cancelled.
             ev.preventDefault();
         }
     }
@@ -390,7 +373,7 @@ export class WebsiteForum extends Interaction {
                     "o_forum_vote_animate",
                 );
             });
-            void containerEl.offsetWidth; // Force a refresh
+            void containerEl.offsetWidth;
 
             if (userVote === 1) {
                 voteUpEl.classList.add("text-success");
@@ -417,9 +400,6 @@ export class WebsiteForum extends Interaction {
     }
 
     /**
-     * Call the route to moderate/validate the post, then hide the validated post
-     * and decrement the count in the appropriate queue badge of the sidebar on success.
-     *
      * @param {MouseEvent} ev
      * @param {HTMLElement} currentTargetEl
      */
@@ -433,9 +413,7 @@ export class WebsiteForum extends Interaction {
         try {
             ok = (await this.waitFor(fetch(currentTargetEl.href))).ok;
         } catch {
-            // Calling the endpoint like this returns an HTML page. As we can't
-            // extract the error message from that, we disregard it and simply
-            // restore the post's visibility. This __should__ be improved.
+            ok = false;
         }
         if (!ok) {
             postBeingValidated.classList.remove("d-none");

@@ -10,7 +10,6 @@ import {
 defineWebsiteModels();
 
 test("Toggle the overlays when clicking on an option element", async () => {
-    // TODO improve when more options will be defined.
     await setupWebsiteBuilder(`
         <section>
             <div class="container">
@@ -122,7 +121,6 @@ test("Resize horizontally (sizingX)", async () => {
     expect(".oe_overlay.oe_active").toHaveRect(":iframe .row > div");
 });
 
-// TODO to fix issue hoot (after rebase)?
 test("Resize in grid mode (sizingGrid)", async () => {
     await setupWebsiteBuilder(
         `
@@ -206,8 +204,6 @@ test("Mouse move on throttleForAnimation", async () => {
     p.dispatchEvent(keyDownEvent);
     expect(".oe_overlay.oe_active.o_overlay_hidden").toHaveCount(1);
     p.dispatchEvent(mouseMoveEvent);
-    // Due to throttleForAnimation, the second mousemove event listener call
-    // will be throttled at animationFrame time
     await animationFrame();
     expect(".oe_overlay.oe_active:not(.o_overlay_hidden)").toHaveCount(1);
 });

@@ -52,7 +52,6 @@ class WebsiteVisitor(models.Model):
             visitor.product_count = len(visitor_info["product_ids"])
 
     def _add_viewed_product(self, product_id):
-        """add a website_track with a page marked as viewed"""
         self.check_singleton()
         if (
             product_id

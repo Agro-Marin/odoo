@@ -7,35 +7,8 @@ import * as bootstrap from "@web/libs/bootstrap";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
 
-// Runtime channel for public frontend code that produces layout-only DOM
-// mutations and must keep them out of the edit history (currently
-// `auto_hide_menu.js`, whose "more" dropdown is layout, not content).
-//
-// Deliberately a `window` property and not an exported/imported symbol: the
-// consumer ships in `web.assets_frontend_minimal` while this file ships in
-// `website.assets_inside_builder_iframe`, and esbuild tree-shakes any export
-// only another bundle consumes. The import map cannot patch over it either --
-// by the time the builder bundle is lazily loaded the specifier is already
-// resolved, so the conflicting later rule is dropped. See the matching
-// comment in auto_hide_menu.js.
 const EDIT_HOOKS_KEY = "__odooWebsiteEditHooks";
 
-// Runtime channel publishing this document's Bootstrap components to the
-// builder, which runs in the *parent* window.
-//
-// Bootstrap components act on the ambient `document` of the realm their class
-// was defined in -- `Modal._showElement` even relocates its element with
-// `document.body.append(...)`. A builder plugin that drives an iframe element
-// with the backend realm's class therefore rips the popup out of the editable
-// and into the backend body. The class has to be this realm's.
-//
-// It used to be reachable as `iframeWindow.Modal`, because Bootstrap was a set
-// of globals. It is now an ES module bundle that exposes nothing on `window`,
-// and this document has no `odoo.loader.modules` registry to look it up in
-// either, so those reads silently became `undefined` and their callers threw
-// "Cannot read properties of undefined". Publish the namespace explicitly, on
-// the same window-property channel and for the same cross-bundle reason as
-// EDIT_HOOKS_KEY above.
 const EDIT_BOOTSTRAP_KEY = "__odooWebsiteEditBootstrap";
 window[EDIT_BOOTSTRAP_KEY] = bootstrap;
 
@@ -54,11 +27,6 @@ export function buildEditableInteractions(builders) {
             continue;
         }
         let I = makeEditable.Interaction;
-        // Collect mixins to up to Interaction class in reverse order.
-        // Compare by identity, not by `I.name`: a class that does not descend
-        // from `Interaction` (or a minified build) never matches the name, and
-        // the walk then runs off the end of the prototype chain and throws on
-        // `null.name`. The `I &&` guard stops at the chain's end instead.
         const mixins = [];
         while (I && I !== Interaction) {
             const mixin = mixinPerInteraction.get(I);
@@ -69,15 +37,11 @@ export function buildEditableInteractions(builders) {
             }
             I = I.__proto__;
         }
-        // Apply mixins from top-most class.
         let EI = makeEditable.Interaction;
         while (mixins.length) {
             EI = mixins.pop()(EI);
         }
         if (!EI.name) {
-            // if we get here, this is most likely because we have an anonymous
-            // class. To make it easier to work with, we can add the name property
-            // by doing a little hack
             const name = makeEditable.Interaction.name + "__mixin";
             EI = { [name]: class extends EI {} }[name];
         }
@@ -103,11 +67,6 @@ export const websiteEditService = {
                 target: target?.tagName,
                 refreshing: publicInteractions.isRefreshing,
             }));
-            // editMode = true;
-            // const currentEditMode = this.website_edit.mode === "edit";
-
-            // interactions are already started. we only restart them if the
-            // public root is not just starting.
             stopDisconnectedInteractions();
             publicInteractions.stopInteractions(target);
             if (mode === "edit") {
@@ -165,12 +124,8 @@ export const websiteEditService = {
             publicInteractions.domEffectScope = (fn) =>
                 historyCallbacks.ignoreDOMMutations(fn);
             patches.push(() => {
-                // Unshadow rather than reassign, so the service goes back to
-                // the prototype's identity scope instead of carrying a copy.
                 delete publicInteractions.domEffectScope;
             });
-
-            // Patch Colibri.
 
             patches.push(
                 patch(Colibri.prototype, {
@@ -195,7 +150,6 @@ export const websiteEditService = {
                 }),
                 patch(Interaction.prototype, {
                     setupConfigurationSnapshot() {
-                        // Track configuration values.
                         this.configurationSnapshot = this.getConfigurationSnapshot();
                     },
                     getConfigurationSnapshot() {
@@ -218,7 +172,6 @@ export const websiteEditService = {
                         if (!this.el.isConnected) {
                             return true;
                         }
-                        // Selector does not match anymore ?
                         const I = this.constructor;
                         let isMatch = this.el.matches(I.selector);
                         if (I.selectorHas) {
@@ -230,7 +183,6 @@ export const websiteEditService = {
                         if (!isMatch) {
                             return true;
                         }
-                        // Configuration changed ?
                         const snapshot = this.getConfigurationSnapshot();
                         if (snapshot === this.configurationSnapshot) {
                             return false;

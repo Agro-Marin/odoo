@@ -15,7 +15,6 @@ class WebsiteCheckoutStep(models.Model):
     website_id = fields.Many2one("website", ondelete="cascade")
 
     def _get_next_checkout_step(self, allowed_steps_domain):
-        """Get the next step in the checkout flow based on the sequence."""
 
         next_step_domain = Domain.AND(
             [allowed_steps_domain, [("sequence", ">", self.sequence)]]
@@ -23,7 +22,6 @@ class WebsiteCheckoutStep(models.Model):
         return self.search(next_step_domain, order="sequence", limit=1)
 
     def _get_previous_checkout_step(self, allowed_steps_domain):
-        """Get the previous step in the checkout flow based on the sequence."""
 
         previous_step_domain = Domain.AND(
             [allowed_steps_domain, [("sequence", "<", self.sequence)]]

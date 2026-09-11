@@ -104,16 +104,7 @@ export class CustomizeWebsitePlugin extends Plugin {
     pendingViewRequests = new Set();
     pendingAssetRequests = new Set();
     /**
-     * @typedef {{
-     *  isViewData: boolean,
-     *  shouldReset: boolean,
-     *  toEnable: Set<string>,
-     *  toDisable: Set<string>,
-     *  def: Deferred,
-     * }} pendingThemeRequest
-     */
-    /**
-     * @type pendingThemeRequest[]
+     * @typedef {{ isViewData: boolean, shouldReset: boolean, toEnable: Set<string>, toDisable: Set<string>, def: Deferred, }} pendingThemeRequest
      */
     pendingThemeRequests = [];
     variablesToCustomize = {};
@@ -128,21 +119,14 @@ export class CustomizeWebsitePlugin extends Plugin {
     getWebsiteVariableValue(variable) {
         const style = getHtmlStyle(this.document);
         let finalValue = getCSSVariableValue(variable, style);
-        /* TODO dedicated action ?
-        if (!params.colorNames) {
-            return finalValue;
-        }
-        */
         let tempValue = finalValue;
         while (tempValue) {
             finalValue = tempValue;
             tempValue = getCSSVariableValue(tempValue.replaceAll("'", ""), style);
             if (tempValue === finalValue) {
-                // the CSS variable value is identical to its name.
                 break;
             }
         }
-        // Unquote value
         if (finalValue.startsWith(`'`)) {
             finalValue = finalValue.substring(1, finalValue.length - 1);
         }
@@ -213,11 +197,6 @@ export class CustomizeWebsitePlugin extends Plugin {
                 finalColors[colorName] = "";
             }
         }
-        // Accumulate per target ``url``: ``debounce(..., 0)`` coalesces
-        // same-tick calls and keeps only the LAST call's args, so tracking
-        // colors in a single flat map would flush a second color-type's palette
-        // into the first url's SCSS file. Key by url so each SCSS file gets
-        // exactly its own colors.
         const pending = (this.colorsToCustomize[url] ??= { colors: {}, nullValue });
         Object.assign(pending.colors, finalColors);
         pending.nullValue = nullValue;
@@ -246,10 +225,6 @@ export class CustomizeWebsitePlugin extends Plugin {
 
     destroy() {
         super.destroy();
-        // Cancel pending trailing executions so a debounced SCSS/bundle flush
-        // cannot fire after teardown: _reloadBundles calls into edit_interaction
-        // (which throws "website edit service not loaded" once torn down) and
-        // issues RPCs on a dead plugin.
         this.debouncedSCSSVariablesCusto.cancel();
         this.debouncedSCSSColorsCusto.cancel();
         this.reloadBundles.cancel();
@@ -268,7 +243,7 @@ export class CustomizeWebsitePlugin extends Plugin {
                 const linkEl = this.document.createElement("link");
                 linkEl.setAttribute("type", "text/css");
                 linkEl.setAttribute("rel", "stylesheet");
-                linkEl.setAttribute("href", `${url}#t=${new Date().getTime()}`); // Ensures that the css will be reloaded.
+                linkEl.setAttribute("href", `${url}#t=${new Date().getTime()}`);
                 newLinkEls.push(linkEl);
                 proms.push(
                     new Promise((resolve) => {
@@ -294,16 +269,12 @@ export class CustomizeWebsitePlugin extends Plugin {
                 el.remove();
             }
         });
-        // The plugin may have been torn down while the RPC/link loads awaited.
         if (this.isDestroyed) {
             return;
         }
         this.dependencies.edit_interaction.restartInteractions();
     }
 
-    // -------------------------------------------------------------------------
-    // customize website action
-    // -------------------------------------------------------------------------
     loadConfigKey(actionParam) {
         const promises = [];
         for (const paramName of ["views", "assets"]) {
@@ -385,8 +356,6 @@ export class CustomizeWebsitePlugin extends Plugin {
 
     async loadTemplateKey(key) {
         if (!this.getTemplateKey(key)) {
-            // TODO: make a python method that can return several templates at
-            // once and batch the ORM call.
             this.activeTemplateViews[key] = await this.services.orm.call(
                 "ir.ui.view",
                 "render_public_asset",
@@ -397,15 +366,7 @@ export class CustomizeWebsitePlugin extends Plugin {
     }
     toggleTemplate(action, apply) {
         if (!apply) {
-            // Nothing saved means nothing was previewed -- an unapply with no
-            // preview before it, or a second unapply. Spreading null there
-            // threw "beforePreviewNodes is not iterable" out of the option.
             if (this.beforePreviewNodes) {
-                // Empty the container and restore the original content.
-                // ``beforePreviewNodes`` is an Array (see below); it MUST be
-                // spread — ``replaceChildren(array)`` would stringify it into a
-                // single text node ("[object HTMLElement],…"), destroying the
-                // saved content.
                 action.editingElement.replaceChildren(...this.beforePreviewNodes);
                 this.beforePreviewNodes = null;
             }
@@ -413,14 +374,9 @@ export class CustomizeWebsitePlugin extends Plugin {
         }
 
         if (!this.beforePreviewNodes) {
-            // We are about to apply a template on non-previewed content,
-            // save that content's nodes.
             this.beforePreviewNodes = [...action.editingElement.childNodes];
         }
 
-        // Empty the container and add the template content. Insert every parsed
-        // node (a template may render several top-level elements); taking only
-        // ``firstElementChild`` would silently drop the rest.
         const templateFragment = parseHTML(
             this.document,
             this.getTemplateKey(action.params.view),
@@ -456,7 +412,6 @@ export class CustomizeWebsitePlugin extends Plugin {
             }
         }
         return () => {
-            // "Undo" callback
             this.viewsToEnableOnSave = initialViewsToEnableOnSave;
             this.viewsToDisableOnSave = initialViewsToDisableOnSave;
         };
@@ -486,9 +441,7 @@ export class SwitchThemeAction extends BuilderAction {
         if (!save) {
             return;
         }
-        // TODO not reload in savePlugin.save ?
-        await this.dependencies.savePlugin.save(/* not in translation */);
-        // TODO doAction in savePlugin.save ?
+        await this.dependencies.savePlugin.save();
         this.services.action.doAction("website.theme_install_kanban_action", {});
     }
 }
@@ -502,8 +455,6 @@ export class AddLanguageAction extends BuilderAction {
     }
     async apply() {
         const def = new Deferred();
-        // Retrieve the website id to check by default the website checkbox in
-        // the dialog box 'action_view_base_language_install'
         const websiteId = this.services.website.currentWebsite.id;
         const save = await new Promise((resolve) => {
             this.services.dialog.add(ConfirmationDialog, {
@@ -529,9 +480,6 @@ export class AddLanguageAction extends BuilderAction {
                                     url_return: "[lang]",
                                 },
                             },
-                            // The `noReload` in the params of the close callback
-                            // are the only way we have to know whether the modal
-                            // dialog has been cancelled
                             onClose: (closeParams) =>
                                 def.resolve(!!closeParams?.noReload),
                         },
@@ -549,7 +497,6 @@ export class CustomizeBodyBgTypeAction extends BuilderAction {
     isApplied({ value }) {
         const getAction = this.dependencies.builderActions.getAction;
         const currentValue = getAction("customizeBodyBgType").getValue();
-        // NONE has no extra quote, other values have
         return [`'${value}'`, value].includes(currentValue);
     }
     getValue() {
@@ -667,10 +614,8 @@ export class WebsiteConfigAction extends BuilderAction {
     }
 
     async _toggleConfig(action, apply) {
-        // step 1: enable and disable records
         const updateViews = this._toggleTheme(action, "views", apply);
         const updateAssets = this._toggleTheme(action, "assets", apply);
-        // step 2: customize vars
         const updateVars =
             !apply && action.params.varsOnClean
                 ? this.dependencies.customizeWebsite.customizeWebsiteVariables(
@@ -713,14 +658,12 @@ export class WebsiteConfigAction extends BuilderAction {
         const getAction = this.dependencies.builderActions.getAction;
         if (action.selectableContext) {
             if (!apply) {
-                // do nothing, we will do it anyway in the apply call
                 return;
             }
             for (const item of action.selectableContext.items) {
                 for (const a of item.getActions()) {
                     if (getAction(a.actionId) instanceof WebsiteConfigAction) {
                         for (const record of a.actionParam[paramName] || []) {
-                            // disable all
                             prepareRecord(record, true);
                         }
                     } else if (getAction(a.actionId) instanceof CompositeAction) {
@@ -740,12 +683,10 @@ export class WebsiteConfigAction extends BuilderAction {
                 }
             }
             for (const record of records) {
-                // enable selected one
                 prepareRecord(record, false);
             }
         } else {
             for (const record of records) {
-                // enable on apply, disable on clear
                 prepareRecord(record, !apply);
             }
         }
@@ -753,16 +694,11 @@ export class WebsiteConfigAction extends BuilderAction {
     }
 
     /**
-     * Aggregates all sets of records `toEnable` / `toDisable` according to
-     * whether you are enabling/disabling view data and whether it should reset
-     * the arch, so that a RPC call is only done once per tick and per pair
-     * view/reset.
-     *
      * @param {boolean} isViewData
      * @param {boolean} shouldReset
      * @param {Set<string>} toEnable
      * @param {Set<string>} toDisable
-     * @returns {Promise} deferred function
+     * @returns {Promise}
      */
     async _customizeThemeData(isViewData, shouldReset, toEnable, toDisable) {
         const def = new Deferred();
@@ -779,12 +715,8 @@ export class WebsiteConfigAction extends BuilderAction {
             const defs = [];
             for (const req of this.dependencies.customizeWebsite.getPendingThemeRequests()) {
                 if (req.isViewData === isViewData && req.shouldReset === shouldReset) {
-                    // Synchronize with the last request: if a view was enabled
-                    // first and then disabled (or the other way around), the
-                    // final state should be disabled (or enabled).
                     aggregatedToEnable = aggregatedToEnable.difference(req.toDisable);
                     aggregatedToDisable = aggregatedToDisable.difference(req.toEnable);
-                    // Now aggregate.
                     aggregatedToEnable = aggregatedToEnable.union(req.toEnable);
                     aggregatedToDisable = aggregatedToDisable.union(req.toDisable);
                     defs.push(req.def);
@@ -821,7 +753,6 @@ export class PreviewableWebsiteConfigAction extends BuilderAction {
     static id = "previewableWebsiteConfig";
     static dependencies = ["customizeWebsite", "history"];
     setup() {
-        // we need this so autoHideMenu recomputes the layout after our changes
         this.dispatchResize = () => this.window.dispatchEvent(new Event("resize"));
     }
     getPriority({ params }) {
@@ -934,9 +865,6 @@ class TemplatePreviewableWebsiteConfigAction extends WebsiteConfigAction {
                 }
             }
         }
-        // Wait one frame to get the proper fade-in animation effect.
-        // The promise ensures this completes before continuing, avoiding a race
-        // that could mark the element o_dirty and trigger an unnecessary save.
         if (params.previewClass) {
             params.previewClass.split(/\s+/).forEach((cls) => el.classList.add(cls));
         }
@@ -975,10 +903,7 @@ export class CustomizeWebsiteVariableAction extends BuilderAction {
     isApplied({ params: { mainParam: variable } = {}, value }) {
         const currentValue =
             this.dependencies.customizeWebsite.getWebsiteVariableValue(variable);
-        return (
-            // There might be unquoted values in existing databases.
-            currentValue === value || `'${currentValue}'` === value
-        );
+        return currentValue === value || `'${currentValue}'` === value;
     }
     getValue({ params: { mainParam: variable } }) {
         const currentValue =
@@ -1012,10 +937,6 @@ export class CustomizeWebsiteColorAction extends BuilderAction {
                     gradientColor,
                 );
             if (gradientValue) {
-                // Pass through style to restore rgb/a which might
-                // have been lost during SCSS generation process.
-                // TODO Remove this once colorpicker will be able
-                // to cope with #rrggbb gradient color elements.
                 const el = document.createElement("div");
                 el.style.setProperty("background-image", gradientValue);
                 return el.style.getPropertyValue("background-image");
@@ -1050,9 +971,7 @@ export class CustomizeWebsiteColorAction extends BuilderAction {
                     colorType,
                     combinationColor,
                     nullValue,
-                    // Do not touch CC if a gradient is being set
                     resetCcOnEmpty: !gradientValue,
-                    // Reload bundle will be handled by setting gradient
                     reloadBundles: false,
                 },
             );
@@ -1060,7 +979,7 @@ export class CustomizeWebsiteColorAction extends BuilderAction {
                 [gradientColor]: isColorCombination
                     ? nullValue
                     : gradientValue || nullValue,
-            }); // reloads bundles
+            });
         } else {
             await this.dependencies.customizeWebsite.customizeWebsiteColors(
                 { [color]: value },

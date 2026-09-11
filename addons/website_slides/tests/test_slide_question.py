@@ -5,11 +5,8 @@ from odoo.addons.website_slides.tests import common as slides_common
 
 
 class TestSlideQuizSurvey(slides_common.SlidesCase):
-    """Test that quiz slides correctly use survey.question for their questions."""
-
     @users("user_officer")
     def test_ensure_quiz_survey_creates_survey(self):
-        """Calling _check_quiz_survey on a quiz slide without a survey creates one."""
         slide = self.env["slide.slide"].create(
             {
                 "name": "Test Quiz Slide",
@@ -27,7 +24,6 @@ class TestSlideQuizSurvey(slides_common.SlidesCase):
 
     @users("user_officer")
     def test_has_questions_computed(self):
-        """has_questions reflects whether the linked survey has questions."""
         slide = self.env["slide.slide"].create(
             {
                 "name": "Test Quiz Slide",
@@ -59,8 +55,6 @@ class TestSlideQuizSurvey(slides_common.SlidesCase):
 
     @users("user_officer")
     def test_quiz_info_uses_survey_questions(self):
-        """_compute_quiz_info returns correct karma info from survey-backed quiz."""
-        # slide_3 has a quiz survey with questions from common.py
         quiz_info = self.slide_3._compute_quiz_info(self.user_officer.partner_id)
         self.assertEqual(quiz_info[self.slide_3.id]["quiz_karma_max"], 42)
         self.assertEqual(quiz_info[self.slide_3.id]["quiz_karma_gain"], 42)

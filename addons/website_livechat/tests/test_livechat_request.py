@@ -9,22 +9,18 @@ class TestLivechatRequestHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
     def test_livechat_request_complete_flow(self):
         self._clean_livechat_sessions()
 
-        # Send first chat request - Open chat from operator side
         channel_1 = self._common_chat_request_flow()
         guest = channel_1.channel_member_ids.filtered(
             lambda member: member.guest_id
         ).guest_id
         self.opener.cookies[guest._cookie_name] = guest._format_auth_cookie()
-        # Visitor Rates the conversation (Good)
         self._send_rating(channel_1, self.visitor, 5)
 
-        # Operator Re-Send a chat request
         channel_2 = self._common_chat_request_flow()
         guest = channel_2.channel_member_ids.filtered(
             lambda member: member.guest_id
         ).guest_id
         self.opener.cookies[guest._cookie_name] = guest._format_auth_cookie()
-        # Visitor Rates the conversation (Bad)
         self._send_rating(
             channel_2, self.visitor, 1, "Stop bothering me! I hate you </3 !"
         )
@@ -42,7 +38,6 @@ class TestLivechatRequestHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             }
         )
 
-        # Open Chat Request
         self.visitor.with_user(self.operator_b).sudo().action_send_chat_request()
         chat_request = self.env["discuss.channel"].search(
             [
@@ -56,7 +51,6 @@ class TestLivechatRequestHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             "Operator for active livechat session must be Operator Marc",
         )
 
-        # Click on livechatbutton at client side
         res = self.url_open(url=self.open_chat_url, json=self.open_chat_params)
         self.assertEqual(res.status_code, 200)
         channel = self.env["discuss.channel"].search(
@@ -66,7 +60,6 @@ class TestLivechatRequestHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             ]
         )
 
-        # Check that the chat request has been canceled.
         self.assertTrue(
             chat_request.livechat_end_dt,
             "The livechat request must be inactive as the visitor started himself a livechat session.",
@@ -86,9 +79,7 @@ class TestLivechatRequestHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
                 ("livechat_end_dt", "=", False),
             ]
         )
-        chat_request.is_pending_chat_request = (
-            False  # Customer already accessed the chat.
-        )
+        chat_request.is_pending_chat_request = False
         self.url_open(url=self.open_chat_url, json=self.open_chat_params)
         self.assertFalse(chat_request.livechat_end_dt)
 
@@ -112,7 +103,6 @@ class TestLivechatRequestHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             f"Visitor #{self.visitor.id} ({self.visitor.country_id.name}), {self.operator.livechat_username}",
         )
 
-        # Operator Sends message
         self._send_message(
             channel,
             self.operator.email,
@@ -121,11 +111,9 @@ class TestLivechatRequestHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         )
         self.assertEqual(len(channel.message_ids), 1)
 
-        # Visitor Answers
         self._send_message(channel, self.visitor.display_name, "Answer from Visitor")
         self.assertEqual(len(channel.message_ids), 2)
 
-        # Visitor Leave the conversation
         channel._close_livechat_session()
         self.assertEqual(len(channel.message_ids), 3)
         self.assertEqual(
@@ -144,7 +132,6 @@ class TestLivechatRequestHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         return channel
 
     def _clean_livechat_sessions(self):
-        # clean every possible mail channel linked to the visitor
         active_channels = self.env["discuss.channel"].search(
             [
                 ("livechat_visitor_id", "=", self.visitor.id),

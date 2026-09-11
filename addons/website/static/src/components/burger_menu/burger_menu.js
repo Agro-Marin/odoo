@@ -36,17 +36,6 @@ patch(BurgerMenu.prototype, {
         return currentAppSections;
     },
 
-    /**
-     * No-op setter paired with the getter above — see the note on
-     * ``web``'s ``NavBar.set currentAppSections``. ``patch()`` installs
-     * descriptors verbatim, so a getter-only extension leaves the accessor
-     * without a setter and any assignment throws in strict mode.
-     *
-     * NB: unlike the navbar case there is no ancestor here — ``web``'s
-     * ``BurgerMenu`` declares no ``currentAppSections`` at all, so the
-     * ``super`` call in the getter above resolves to ``undefined`` unless
-     * another patch supplies it.
-     */
     set currentAppSections(_) {},
 
     /**

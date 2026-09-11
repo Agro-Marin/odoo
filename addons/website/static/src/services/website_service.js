@@ -12,7 +12,6 @@ import { WebsiteLoader } from "../components/website_loader/website_loader.js";
 
 const websiteSystrayRegistry = registry.category("website_systray");
 
-// TODO this is duplicated in website_root at least, it should be a shared util
 export const unslugHtmlDataObject = (repr) => {
     const match = repr && repr.match(/(.+)\((-?\d+),(.*)\)/);
     if (!match) {
@@ -62,15 +61,10 @@ export const websiteService = {
         hotkey.add(
             "escape",
             () => {
-                // Toggle fullscreen mode when pressing escape.
                 if (
                     (!currentWebsiteId && !fullscreen) ||
                     (pageDocument && isVisible(pageDocument.querySelector(".modal")))
                 ) {
-                    // Only allow to use this feature while on the website app, or
-                    // while it is already fullscreen (in case you left the website
-                    // app in fullscreen mode, thanks to CTRL-K), or if a modal
-                    // is open within the preview and could be closed with escape.
                     return;
                 }
                 fullscreen = !fullscreen;
@@ -125,12 +119,6 @@ export const websiteService = {
                 addWebsiteId(id);
                 websiteSystrayRegistry.trigger("EDIT-WEBSITE");
             },
-            /**
-             * This represents the current website being edited in the
-             * WebsitePreview client action. Multiple components based their
-             * visibility on this value, which is falsy if the client action is
-             * not displayed.
-             */
             get currentWebsite() {
                 const currentWebsite = websites.find((w) => w.id === currentWebsiteId);
                 if (currentWebsite) {
@@ -161,8 +149,6 @@ export const websiteService = {
                     return;
                 }
                 const { dataset } = document.documentElement;
-                // XML files have no dataset on Firefox, and an empty one on
-                // Chrome.
                 const isWebsitePage = dataset && dataset.websiteId;
                 if (!isWebsitePage) {
                     currentMetadata = {};
@@ -179,10 +165,6 @@ export const websiteService = {
                         defaultLangName,
                         langName,
                     } = dataset;
-                    // We ignore multiple menus with the same `content_menu_id`
-                    // in the DOM, since it's possible to have different
-                    // templates for the same content menu (E.g. used for a
-                    // different desktop / mobile UI).
                     const contentMenus = [
                         ...new Map(
                             [
@@ -207,10 +189,6 @@ export const websiteService = {
                         title: document.title,
                         translatable: !!translatable,
                         contentMenus,
-                        // TODO: Find a better way to figure out if
-                        // a page is editable or not. For now, we use
-                        // the editable selector because it's the common
-                        // denominator of editable pages.
                         editable: !!document.getElementById("wrapwrap"),
                         viewXmlid: viewXmlid,
                         lang: jsToPyLocale(
@@ -261,8 +239,6 @@ export const websiteService = {
                 if (!this.currentWebsite.metadata.translatable) {
                     return path;
                 }
-                // If the website is translatable, remove the /lang in the
-                // location pathname, e.g. /fr/hello-page -> /hello-page
                 const lang = path.split("/")[1];
                 return path.slice(lang.length + 1);
             },
@@ -311,7 +287,6 @@ export const websiteService = {
                 });
             },
             async fetchUserGroups() {
-                // Fetch user groups, before fetching the websites.
                 [isRestrictedEditor, isDesigner, hasMultiWebsites] = await Promise.all([
                     user.hasGroup("website.group_website_restricted_editor"),
                     user.hasGroup("website.group_website_designer"),
@@ -370,9 +345,6 @@ export const websiteService = {
                 bus.trigger("PREPARE-OUT-WEBSITE-LOADER");
             },
             /**
-             * Returns the (translated) "functional" name of a model
-             * (_description) given its "technical" name (_name).
-             *
              * @param {string} [model]
              * @returns {string}
              */
@@ -380,11 +352,6 @@ export const websiteService = {
                 model = this.currentWebsite.metadata.mainObject.model,
             ) {
                 if (!modelNamesProm) {
-                    // FIXME the `get_available_models` is to be removed/changed
-                    // in a near future. This code is to be adapted, probably
-                    // with another helper to map a model functional name from
-                    // its technical map without the need of the right access
-                    // rights (which is why I cannot use search_read here).
                     modelNamesProm = orm
                         .call("ir.model", "get_available_models")
                         .then((modelsData) => {
@@ -393,11 +360,6 @@ export const websiteService = {
                                     modelData["display_name"];
                             }
                         })
-                        // Precaution in case the util is simply removed without
-                        // adapting this method: not critical, we can restore
-                        // later and use the fallback until the fix is made.
-                        // Reset on failure so a later call retries instead of
-                        // caching an empty result and returning "Data" forever.
                         .catch(() => {
                             modelNamesProm = null;
                         });

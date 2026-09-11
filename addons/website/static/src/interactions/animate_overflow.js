@@ -28,11 +28,6 @@ export class AnimateOverflow extends Interaction {
     setup() {
         this.scrollingElement = getScrollingElement(this.el.ownerDocument);
         const animatedElements = this.el.querySelectorAll(".o_animate");
-        // Fix for "transform: none" not overriding keyframe transforms on
-        // some iPhone using Safari. All animated elements are checked
-        // (not only one) as the bug is not systematic and may depend on some
-        // other conditions (for example: an animated image in a block which is
-        // hidden on mobile would not have the issue).
         this.forceOverflowXYHidden = [...animatedElements].some(
             (el) => window.getComputedStyle(el).transform !== "none",
         );

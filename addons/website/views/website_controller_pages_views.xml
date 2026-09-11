@@ -62,10 +62,6 @@
         <field name="arch" type="xml">
             <list>
                 <field name="name" string="Page Title" />
-                <!-- website_id should be shown only in multi website environment
-                when the group is enabled, but we need the field to be there all the
-                time for `PageRendererMixin`'s `recordFilter' to be able to filter
-                correctly. -->
                 <field name="website_id" column_invisible="True" />
                 <field name="website_id" groups="website.group_multi_website" />
                 <field name="url_demo" />

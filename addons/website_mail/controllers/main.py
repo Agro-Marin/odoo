@@ -13,7 +13,6 @@ class WebsiteMail(http.Controller):
     def website_message_subscribe(
         self, id=0, object=None, message_is_follower="on", email=False, **post
     ):
-        # TDE FIXME: check this method with new followers
         res_id = int(id)
         is_follower = message_is_follower == "on"
         record = request.env[object].browse(res_id).exists()
@@ -22,7 +21,6 @@ class WebsiteMail(http.Controller):
 
         record.check_access("read")
 
-        # search partner_id
         if request.env.user != request.website.user_id:
             partner_ids = request.env.user.partner_id.ids
         else:
@@ -46,7 +44,6 @@ class WebsiteMail(http.Controller):
             )
             if not partner_ids:
                 return False
-        # add or remove follower
         if is_follower:
             record.sudo().message_unsubscribe(partner_ids)
             return False
@@ -63,20 +60,6 @@ class WebsiteMail(http.Controller):
         readonly=True,
     )
     def is_follower(self, records, **post):
-        """Given a list of `models` containing a list of res_ids, return
-        the res_ids for which the user is follower and some practical info.
-
-        :param records: dict of models containing record IDS, eg: {
-                'res.model': [1, 2, 3..],
-                'res.model2': [1, 2, 3..],
-                ..
-            }
-
-        :returns: [
-                {'is_user': True/False, 'email': 'admin@yourcompany.example.com'},
-                {'res.model': [1, 2], 'res.model2': [1]}
-            ]
-        """
         user = request.env.user
         partner = None
         public_user = request.website.user_id
@@ -104,7 +87,6 @@ class WebsiteMail(http.Controller):
                         ["res_id"],
                     )
                 )
-                # `_read_group` will filter out the ones not matching the domain
                 res[model].extend(res_id for [res_id] in mail_followers_ids)
 
         return [

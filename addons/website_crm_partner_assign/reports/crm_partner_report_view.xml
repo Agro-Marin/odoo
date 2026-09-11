@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--     Opportunity list view  -->
     <record id="view_report_crm_partner_assign_filter" model="ir.ui.view">
         <field name="name">crm.partner.report.assign.select</field>
         <field name="model">crm.partner.report.assign</field>
@@ -50,7 +49,6 @@
         </field>
     </record>
 
-    <!-- Leads by user and team Action -->
     <record id="action_report_crm_partner_assign" model="ir.actions.act_window">
         <field name="name">Partnership Analysis</field>
         <field name="res_model">crm.partner.report.assign</field>

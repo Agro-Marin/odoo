@@ -14,13 +14,9 @@ import {
 defineWebsiteModels();
 
 /**
- * This function is used to wait for expected bootstrap events that are
- * triggered by {@link callback}
- * @param {import("@odoo/hoot-dom").Target} target the element that should
- * receive the event
- * @param {String} type the type of event to expect
- * @param {Function} callback the callback that should trigger the event
- * @returns the result of {@link callback}
+ * @param {import("@odoo/hoot-dom").Target} target
+ * @param {String} type
+ * @param {Function} callback
  */
 async function expectToTriggerEvent(target, type, callback) {
     const el = await waitFor(target);
@@ -32,8 +28,6 @@ async function expectToTriggerEvent(target, type, callback) {
 }
 
 describe("Popup options: empty page before edit", () => {
-    // Note: for some reason, `before()` doesn't work.
-    // Done in `beforeEach` because frontend JS takes too much time to load.
     beforeEach(async () => {
         await setupWebsiteBuilder("", {
             loadIframeBundles: true,
@@ -43,31 +37,17 @@ describe("Popup options: empty page before edit", () => {
     test("dropping the popup snippet automatically displays it", async () => {
         await insertCategorySnippet({ group: "content", snippet: "s_popup" });
         expect(".o_add_snippet_dialog").toHaveCount(0);
-        // Check if the popup is visible.
         expect(":iframe .s_popup .modal").toHaveClass("show");
         expect(":iframe .s_popup .modal").toHaveStyle({ display: "block" });
     });
 });
 describe("Popup options: popup in page before edit", () => {
     let builder;
-    // Done in `beforeEach` because frontend JS takes too much time to load.
     beforeEach(async () => {
         addPlugin(
             class extends Plugin {
                 static id = "ignore_d-none_on_s_popup";
                 resources = {
-                    // NOTE: this plugin is here as a workaround to make the
-                    // test pass, because (at the time of this commit):
-                    // - the website_edit service is removed for the tests, thus
-                    //   the patch that wraps interaction's functions in
-                    //   `ignoreDOMMutation` is not applied
-                    // - the interaction SharedPopup adds and removes `d-none`
-                    //   on `.s_popup` element to track the visibility of the
-                    //   modal
-                    // - one of the tests here plays with the visibility of the
-                    //   modal, and verifies that it did not add mutations
-                    // TODO: once the service website_edit runs during the
-                    // tests, this plugin should be removed
                     savable_mutation_record_predicates: (record) =>
                         !(
                             record.target.matches?.(".s_popup") &&
@@ -112,8 +92,6 @@ describe("Popup options: popup in page before edit", () => {
         );
         expect(":iframe .s_popup .modal").not.toBeVisible();
         expect(".o_we_invisible_entry .fa").toHaveClass("fa-eye-slash");
-        // Ensure that no mutations were registered in the history.
-        // `addStep` return the created step, or false if there was no mutations
         expect(builder.getEditor().shared.history.addStep()).toBe(false);
     });
 
@@ -147,7 +125,7 @@ describe("Popup options: popup in page before edit", () => {
         await insertCategorySnippet({ group: "intro", snippet: "s_cover" });
         expect(".o_add_snippet_dialog").toHaveCount(0);
         await contains(":iframe .s_cover").click();
-        await contains("button:contains(Grid)").click(); // arbitrary thing to undo
+        await contains("button:contains(Grid)").click();
         await expectToTriggerEvent(":iframe .s_popup .modal", "shown.bs.modal", () =>
             contains(".o_we_invisible_entry .fa-eye-slash").click(),
         );
@@ -183,8 +161,6 @@ describe("Popup options: popup in page before edit", () => {
         await animationFrame();
         expect(":iframe .s_popup").toHaveCount(0);
         expect("div[data-container-title='Block']").toHaveCount(0);
-
-        // Undo -> Hide popup -> Redo -> Undo -> Popup expected to be visible
 
         expect(editor.shared.history.canUndo()).toBe(true);
         undo(editor);

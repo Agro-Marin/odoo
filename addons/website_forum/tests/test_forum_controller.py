@@ -37,7 +37,6 @@ class TestForumController(TestForumCommon):
         cls.controller = WebsiteForum()
 
     def _get_my_other_forums(self, forum):
-        """Get user other forums limited to the forums of the test (self.forums)."""
         return self.forums & self.controller._prepare_user_values(forum=forum).get(
             "my_other_forums"
         )
@@ -56,7 +55,6 @@ class TestForumController(TestForumCommon):
         )
 
     def test_prepare_user_values_my_other_forum(self):
-        """Test user other forums values (my_other_forums) in various contexts."""
         employee_2_forum_2_post = self.forum_post(self.user_employee_2, self.forum_2)
         employee_2_website_2_forum_2_post = self.forum_post(
             self.user_employee_2, self.forum_2_website_2
@@ -76,13 +74,11 @@ class TestForumController(TestForumCommon):
                 self.assertFalse(self._get_my_other_forums(True))
                 if user != self.user_public:
                     self.env.user.karma = self.minimum_karma_allowing_to_post
-                    # Like a post on forum 2 and verify that forum 2 is now in "my other forum"
                     employee_2_forum_2_post.favorite_user_ids += self.env.user
                     self.assertEqual(
                         self._get_my_other_forums(self.forum_1), self.forum_2
                     )
                     self.assertFalse(self._get_my_other_forums(self.forum_2))
-                    # Check similarly with posting and also checking that we don't see forum of website 2
                     self.forum_post(self.env.user, self.forum_3)
                     self.forum_post(self.env.user, self.forum_1_website_2)
                     self.assertEqual(

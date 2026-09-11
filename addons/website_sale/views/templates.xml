@@ -6,7 +6,7 @@
             t-set="website_sale_cart_quantity"
             t-value="request.session.get('website_sale_cart_quantity', request.cart.cart_quantity) or 0" />
         <t t-set="show_cart" t-value="website.has_ecommerce_access()" />
-        <li t-attf-class="#{_item_class} divider d-none"/> <!-- Make sure the cart and related menus are not folded (see autohideMenu) -->
+        <li t-attf-class="#{_item_class} divider d-none" />
         <li t-attf-class="o_wsale_my_cart #{not show_cart and 'd-none'} #{_item_class}">
             <a
                 href="/shop/cart"
@@ -34,7 +34,6 @@
         </xpath>
     </template>
 
-    <!-- Insert JSON-LD markup data for SEO. -->
     <template id="website_sale_layout" inherit_id="website.layout" priority="1">
         <body position="before">
             <t
@@ -43,7 +42,6 @@
                 t-value="'o_wsale_products_opt_thumb_' + website._get_product_image_ratio() + (' ' + body_classname if body_classname else '')" />
         </body>
         <head position="inside">
-            <!-- Company markup data, in all pages. -->
             <t t-set="base_url" t-value="website.get_base_url()" />
             <script t-if="res_company and website" type="application/ld+json">
         {
@@ -55,7 +53,6 @@
         }
             </script>
 
-                <!-- Product markup data, on product pages. -->
             <script
                 t-if="product_markup_data"
                 type="application/ld+json"
@@ -80,7 +77,6 @@
                     data-name="Container">
                     <div class="container s_allow_columns">
                         <div class="row">
-                            <!-- Column 1: Products -->
                             <div class="col-lg-3 pb32">
                                 <h5>Products</h5>
                                 <div
@@ -122,7 +118,6 @@
                                 </div>
                             </div>
 
-                            <!-- Column 2: Customer Care -->
                             <div class="col-lg-3 pb32">
                                 <h5>Customer Care</h5>
                                 <div
@@ -140,9 +135,7 @@
                                 </ul>
                             </div>
 
-                            <!-- Column 3: Badges, Social, Payments -->
                             <div class="col-lg-5 offset-lg-1 pb48">
-                                <!-- Payment Icons -->
                                 <h5>Our payment methods</h5>
                                 <div
                                     class="s_hr pb8"
@@ -163,7 +156,6 @@
                                     data-name="Separator">
                                     <hr class="w-100 mx-auto" />
                                 </div>
-                                <!-- Service Badges -->
                                 <span
                                     class="s_badge badge text-bg-primary o_animable"
                                     data-name="Badge">
@@ -189,7 +181,6 @@
                                         class="w-100 mx-auto"
                                         style="border-top-color: rgba(255, 255, 255, 0);" />
                                 </div>
-                                <!-- Social Media -->
                                 <div
                                     class="s_social_media text-start o_not_editable"
                                     data-snippet="s_social_media"
@@ -455,7 +446,6 @@
         </xpath>
     </template>
 
-    <!-- Search Bar input-group template -->
     <template id="search" name="Search Box" active="True">
         <t t-call="website.website_search_box_input">
             <t
@@ -473,7 +463,6 @@
     </template>
 
     <template id="product_variant_preview">
-        <!-- If gap-1 is changed make sure to update the margin in product_variant_preview.js -->
         <div
             t-attf-class="o_wsale_attribute_previewer d-flex align-items-center gap-1 flex-nowrap overflow-hidden {{                 'show_on_hover' if product_ptavs[0]['ptav'].attribute_id.preview_variants == 'hover' and layout_mode != 'list' else ''             }}"
             t-att-data-hidden-ptav-count="product_ptavs_data.get('hidden_ptavs_count')">
@@ -595,18 +584,14 @@
         </ol>
     </template>
 
-    <!-- /shop product listing -->
     <template id="products" name="Products">
         <t t-call="website.layout">
             <t t-set="additional_title" t-value="category.name" />
             <t t-set="grid_block_name">Grid</t>
             <t t-set="product_block_name">Product</t>
 
-            <!-- Qweb variable defining the class suffix for navbar items.
-                Change accordingly to the derired visual result (eg. `primary`, `dark`...)-->
             <t t-set="navClass" t-valuef="light" />
 
-            <!-- Check for active options: the stored value may be used in sub-templates too  -->
             <t
                 t-set="opt_wsale_fullwidth"
                 t-value="website.shop_page_container == 'fluid'" />
@@ -818,7 +803,6 @@
                                         <t
                                             t-set="_has_all_sibligns"
                                             t-value="hasPricelistDropdown and is_view_active('website_sale.sort') and wsale_has_filters_btn" />
-                                        <!-- Desktop Search button -->
                                         <div
                                             t-attf-class="o_wsale_products_header_search_form_container {{ _has_all_sibligns and 'd-none d-sm-inline-block'}} col-xl-5 me-auto {{not hasLeftColumn and 'col-xl-6'}}">
                                             <t t-set="search_term">Search in</t>
@@ -831,7 +815,6 @@
                                                 placeholder="placeholder"
                                                 search="original_search or search" />
                                         </div>
-                                        <!-- Mobile Search button -->
                                         <a
                                             t-attf-class="btn o_not_editable {{_has_all_sibligns and 'd-inline-block d-sm-none' or 'd-none'}} me-auto btn-{{navClass}}"
                                             data-bs-target="#o_wsale_search_modal"
@@ -1052,7 +1035,6 @@
         </div>
     </template>
 
-    <!-- (Option) Mobile: Show 1 product for row -->
     <template
         id="website_sale.products_mobile_cols_single"
         name="Mobile: Show 1 product for row"
@@ -1078,7 +1060,6 @@
                 <small class="d-none d-md-inline opacity-75"><t t-out="_sort_label" />:</small>
                 <span class="d-none d-md-inline">
                     <t t-if="isSortingBy" t-out="isSortingBy[0][1]" />
-                    <!-- Prevent editing the content in website builder -->
                     <span
                         t-else=""
                         t-out="dict(website_sale_sortable)[website.shop_default_sort]" />
@@ -1433,7 +1414,6 @@
         </form>
     </template>
 
-    <!-- OffCanvas Nav -->
     <template id="website_sale.o_wsale_offcanvas" name="Offcanvas">
         <aside
             id="o_wsale_offcanvas"
@@ -1461,7 +1441,6 @@
             <div
                 id="o_wsale_offcanvas_content"
                 class="accordion accordion-flush flex-grow-1 overflow-auto">
-                <!-- Show sorting only if it's not avavailbe in the topbar already -->
                 <div
                     t-if="not is_view_active('website_sale.sort')"
                     class="accordion-item">
@@ -1569,7 +1548,6 @@
         </aside>
     </template>
 
-    <!-- Top-Nav Categories -->
     <template id="website_sale.filmstrip_categories" name="Categories Filmstrip">
         <div
             id="o_wsale_categories_filmstrip"
@@ -1624,7 +1602,6 @@
         </div>
     </template>
 
-    <!-- Categories Variations -->
     <template
         id="website_sale.filmstrip_categories_bordered"
         name="Categories Filmstrip Bordered"
@@ -1722,7 +1699,6 @@
         </div>
     </template>
 
-    <!-- Floating Toolbar -->
     <template
         id="website_sale.floating_bar"
         name="Shop Floating Bar"
@@ -1793,17 +1769,14 @@
         </xpath>
     </template>
 
-    <!-- Add to cart button-->
     <template id="categories_recursive" name="Category list">
         <li
             class="nav-item mb-1"
             t-att-data-publish="c.has_published_products and 'on' or 'off'">
             <t t-call="website_sale.categorie_link" />
-            <!-- Dynamic category display based on search -->
             <t
                 t-set="children"
                 t-value="not search and c.child_id or c.child_id.filtered(lambda c: c.id in search_categories_ids)" />
-            <!-- Only show categories with published products to portal users preventing from access errors  -->
             <t
                 t-set="children"
                 t-value="request.env.user._is_internal() and children or children.filtered('has_published_products')" />
@@ -1829,10 +1802,6 @@
         id="website_sale.products_categories_list"
         name="eCommerce Categories"
         active="True">
-        <!--
-            We must keep `t-attf-class` attr. for both following divs to work correctly with
-            products_categories_list_collapsible and option_collapse_products_categories
-        -->
         <div t-attf-class="d-contents">
             <h6 t-attf-class="o_categories_collapse_title {{_titleClasses}}"><b>Categories</b></h6>
             <div
@@ -1895,11 +1864,9 @@
     <template
         id="option_collapse_categories_recursive"
         name="Collapse Category Recursive">
-        <!-- Dynamic category display based on search -->
         <t
             t-set="children"
             t-value="not search and c.child_id or c.child_id.filtered(lambda c: c.id in search_categories_ids)" />
-        <!-- Only show categories with published products to portal users preventing from access errors  -->
         <t
             t-set="children"
             t-value="request.env.user._is_internal() and children or children.filtered('has_published_products')" />
@@ -2122,15 +2089,9 @@
         inherit_id="website_sale.products"
         active="False">
         <xpath expr="//div[@id='products_grid']" position="after">
-            <!-- Nothing to do, this view is only meant to allow the server -->
-            <!-- to know if the list view layout should be used -->
         </xpath>
     </template>
 
-    <!--
-        Enable HTML previews in edition mode. The template is active by default, but can be
-        manually disabled for advanced debug if necessary
-    -->
     <template
         id="website_sale.editor_previews"
         name="Enable edit previews"
@@ -2143,7 +2104,6 @@
         </xpath>
     </template>
 
-    <!-- /shop/product page -->
     <template id="base_unit_price" name="Product Base unit price">
         <span
             class="o_base_unit_price"
@@ -2153,8 +2113,6 @@
     </template>
 
     <template id="website_sale.product" name="Product" track="1">
-        <!-- Qweb variable defining the class suffix for navbar items.
-            Change accordingly to the derired visual result (eg. `primary`, `dark`...)-->
         <t t-set="navClass" t-valuef="light" />
 
         <t
@@ -2247,7 +2205,6 @@
                                 id="o_wsale_product_details_content"
                                 t-attf-class="js_product js_main_product o_wsale_content_contained container">
 
-                                <!-- Product title (purchase not available)-->
                                 <t
                                     t-set="is_add_to_cart_possible"
                                     t-value="product._is_add_to_cart_possible()" />
@@ -2256,7 +2213,6 @@
                                     t-call="website_sale.product_title" />
 
                                 <form t-if="is_add_to_cart_possible">
-                                    <!-- Product title (purchase available)-->
                                     <t t-call="website_sale.product_title" />
 
                                     <div
@@ -2450,7 +2406,6 @@
     <template id="website_sale.product_title">
         <div
             t-attf-class="o_wsale_product_details_content_section o_wsale_product_details_content_section_title {{'mb-3' if not product.description_ecommerce else ''}}">
-            <!-- FIXME VCR variable seems unused -->
             <t t-set="base_url" t-value="website.get_base_url()" />
             <h1
                 t-attf-class="h3 {{'mb-3' if not product.description_ecommerce and not is_view_active('website_sale.product_comment') else ''}}"
@@ -2462,7 +2417,6 @@
                     href="#o_product_page_reviews"
                     class="o_product_page_reviews_link d-block mb-2 text-decoration-none">
                     <t t-call="portal_rating.rating_widget_stars_static">
-                        <!-- sudo: product.product - visitor can access product average rating -->
                         <t t-set="rating_avg" t-value="product.sudo().rating_avg" />
                         <t t-set="trans_text_plural">%s reviews</t>
                         <t t-set="trans_text_singular">%s review</t>
@@ -2731,7 +2685,6 @@
         </small>
     </template>
 
-    <!-- Product options: Zoom -->
     <template
         id="product_picture_magnify_click"
         name="Image Zoom On Click"
@@ -2744,7 +2697,6 @@
         </xpath>
     </template>
 
-    <!-- Product options: OpenChatter -->
     <template
         id="product_comment"
         name="Discussion and Rating"
@@ -2936,16 +2888,10 @@
         </t>
     </template>
 
-    <!-- /shop/extra_info route -->
     <template id="extra_info" name="Checkout Extra Info" active="False">
         <t t-call="website_sale.checkout_layout">
             <t t-set="redirect" t-valuef="/shop/extra_info" />
             <t t-set="oe_structure">
-                <!-- This is the drag-and-drop area for website building blocs at the end of each
-                    checkout page. This is append at the of the page in `checkout_layout`. The
-                    templates created in the database to store blocs are hooked using XPath on the
-                    `oe_struture` element ID. Therefore, we can't use dynamic IDs (like with
-                    t-att-id) and each template needs to define a div element. -->
                 <div class="oe_structure" id="oe_structure_website_sale_extra_info_1" />
             </t>
 
@@ -3034,10 +2980,6 @@
         </t>
     </template>
 
-    <!--
-        Encapsulate the content in a `a` tag with a link to the product page. Override this
-        template to change or remove the product link. Called in `website_sale.cart_lines`.
-    -->
     <template id="cart_line_product_link" name="Shopping Cart Line Product Link">
         <a
             t-if="line._is_sellable()"
@@ -3049,11 +2991,6 @@
         <t t-else="" t-out="0" />
     </template>
 
-    <!--
-        This template displays all the lines following the first one on the description of the sale
-        order line, with a muted style. For typical products this content will be the product
-        description_sale. Called in `website_sale.cart_lines`.
-    -->
     <template
         id="cart_line_description_following_lines"
         name="Shopping Cart Line Description Following Lines">
@@ -3068,7 +3005,6 @@
         </div>
     </template>
 
-    <!-- Lines that show items in the cart. Called in `website_sale.cart`. -->
     <template id="cart_lines" name="Shopping Cart Lines">
         <div
             t-if="not website_sale_order or not website_sale_order.website_order_line"
@@ -3104,12 +3040,6 @@
                     class="o_cart_product d-flex gap-3 pb-4"
                     t-attf-data-product-id="#{line.product_id and line.product_id.id}">
                     <div class="o_cart_product_image">
-                        <!--
-                            Unsellable lines can have unpublished products, but portal users have no
-                            access to unpublished product images. To ensure product images are
-                            always shown for unsellable lines, we use the raw image data as src
-                            (which doesn't require access, unlike the image URL).
-                        -->
                         <t t-call="website_sale.cart_line_product_link">
                             <img
                                 t-if="not line._is_sellable() and line.product_id.image_128"
@@ -3305,17 +3235,11 @@
             t-options="{'widget': 'monetary', 'display_currency': website_sale_order.currency_id}" />
     </template>
 
-    <!-- /shop/cart route -->
     <template id="cart" name="Shopping Cart">
         <t t-call="website_sale.checkout_layout">
             <t t-set="show_shorter_cart_summary" t-value="True" />
             <t t-set="show_footer" t-value="True" />
             <t t-set="oe_structure">
-                <!-- This is the drag-and-drop area for website building blocs at the end of each
-                    checkout page. This is append at the of the page in `checkout_layout`. The
-                    templates created in the database to store blocs are hooked using XPath on the
-                    `oe_struture` element ID. Therefore, we can't use dynamic IDs (like with
-                    t-att-id) and each template needs to define a div element. -->
                 <div class="oe_structure" id="oe_structure_website_sale_cart_2" />
             </t>
             <div id="shop_cart" class="col">
@@ -3323,7 +3247,10 @@
                     <h4 class="mb-0">Order summary</h4>
                     <div class="ms-3 border-start ps-2"><t t-call="website_sale.quick_reorder_button" /></div>
                 </div>
-                <div t-if="abandoned_proceed or access_token" class="alert alert-info mt8 mb8" role="alert"> <!-- abandoned cart choices -->
+                <div
+                    t-if="abandoned_proceed or access_token"
+                    class="alert alert-info mt8 mb8"
+                    role="alert">
                     <t t-if="abandoned_proceed">
                         <p>Your previous cart has already been completed.</p>
                         <p t-if="website_sale_order">Please proceed your current cart.</p>
@@ -3383,7 +3310,6 @@
                     aria-label="Close" />
             </div>
             <div class="offcanvas-body">
-                <!-- Parent element needed for proper JS side rendering -->
                 <t t-if="order_history" t-call="website_sale.quick_reorder_history" />
             </div>
         </div>
@@ -3469,7 +3395,6 @@
         </div>
     </template>
 
-    <!-- Deactivatable through the website editor. -->
     <template
         id="suggested_products_list"
         name="Accessory Products in my cart"
@@ -3542,12 +3467,7 @@
         </xpath>
     </template>
 
-    <!-- Called in `website_sale.reduction_code`. -->
     <template id="coupon_form" name="Coupon form">
-        <!-- Checkout context:
-            - redirect: The route to redirect to when a customer enters a coupon; default: `None`.
-            - website_sale_order: The current order.
-        -->
         <form
             class="mb-3"
             t-attf-action="/shop/pricelist#{redirect and '?r=' + redirect or ''}"
@@ -3569,14 +3489,7 @@
         </t>
     </template>
 
-    <!-- Called in `website_sale.checkout_layout`. -->
     <template id="navigation_buttons" name="Navigation buttons">
-        <!-- Layout customization parameters:
-            - hide_payment_button: Whether the payment button should be hidden; default: False.
-        -->
-        <!-- Checkout context:
-            - website_sale_order: The current order.
-        -->
         <div t-attf-class="#{_container_classes} d-flex flex-column gap-2">
             <t t-if="website_sale_order and website_sale_order.website_order_line">
                 <t
@@ -3642,7 +3555,6 @@
         </div>
     </template>
 
-    <!-- /shop/checkout route -->
     <template id="checkout">
         <t t-call="website_sale.checkout_layout">
             <t t-set="additional_title">Shop - Checkout</t>
@@ -3678,7 +3590,6 @@
         <div id="delivery_address_list">
             <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                 <h5 name="delivery_address_title" class="mb-0">Delivery address</h5>
-                <!-- We don't allow public users to have multiple delivery addresses. -->
                 <a
                     t-if="not order.website_id.is_public_user()"
                     role="button"
@@ -3747,7 +3658,6 @@
         primary="True">
         <t t-call="portal.address_card" position="replace">
             <t t-call="website_sale.address_card">
-                <!-- Drop show_removal and address_update_url which were in the base call to portal.address_card -->
                 <t
                     t-set="is_user_address"
                     t-value="address == request.env.user.partner_id" />
@@ -3760,13 +3670,11 @@
         </t>
     </template>
 
-    <!-- To ensure modification dones in the checkout are not applied on the portal -->
     <template
         id="website_sale.address_card"
         inherit_id="portal.address_card"
         primary="True" />
 
-    <!-- /shop/address route -->
     <template
         id="website_sale.address_form_fields"
         inherit_id="portal.address_form_fields"
@@ -3776,7 +3684,6 @@
         </t>
     </template>
 
-    <!-- /shop/address route -->
     <template id="website_sale.address" name="Address Management">
         <t t-call="website_sale.checkout_layout">
             <div class="o_customer_address_fill">
@@ -3798,7 +3705,7 @@
                             <a class="o_translate_inline" href="/shop/address?address_type=billing">new address</a>.
                         </p>
                     </div>
-                    <div id="errors"/> <!-- for js -->
+                    <div id="errors" />
                     <form
                         action="/shop/address/submit"
                         method="post"
@@ -3832,7 +3739,6 @@
         </t>
     </template>
 
-    <!-- Deactivatable through the website editor. -->
     <template
         id="address_b2b"
         name="Show b2b fields"
@@ -3855,7 +3761,6 @@
         </t>
     </template>
 
-    <!-- Called in `website_sale.payment` and `website_sale.confirmation`. -->
     <template id="address_on_checkout" name="Address on payment">
         <div class="card">
             <div class="card-body" id="delivery_and_billing">
@@ -3897,17 +3802,11 @@
         </div>
     </template>
 
-    <!-- /shop/payment route -->
     <template id="payment" name="Payment">
         <t t-call="website_sale.checkout_layout">
             <t t-set="additional_title">Shop - Select Payment Method</t>
             <t t-set="redirect" t-valuef="/shop/payment" />
             <t t-set="oe_structure">
-                <!-- This is the drag-and-drop area for website building blocs at the end of each
-                    checkout page. This is append at the of the page in `checkout_layout`. The
-                    templates created in the database to store blocs are hooked using XPath on the
-                    `oe_struture` element ID. Therefore, we can't use dynamic IDs (like with
-                    t-att-id) and each template needs to define a div element. -->
                 <div class="oe_structure" id="oe_structure_website_sale_payment_2" />
             </t>
             <div class="col-12" t-if="errors">
@@ -3945,7 +3844,6 @@
         </t>
     </template>
 
-    <!-- Activatable through the website editor. -->
     <template
         id="accept_terms_and_conditions"
         name="Accept Terms &amp; Conditions"
@@ -3966,24 +3864,7 @@
         </xpath>
     </template>
 
-    <!-- Template of the checkout pages. Should be called in every page of the checkout flow. -->
     <template id="checkout_layout" name="Checkout layout page">
-        <!-- Layout customization parameters:
-            - show_footer: Whether to show the website footer; default: `False`.
-            - show_navigation_button: Whether to show the navigation buttons; default: `True`.
-            - show_wizard_checkout: Whether to show the wizard checkout; default: `True`.
-            - show_shorter_cart_summary: Whether to show the shorter cart_summary (without items
-                summary and with express checkout buttons) or the full;
-                default: `None`.
-            - show_mobile_cart_summary: Whether to show the mobile offcanvas cart_summary;
-                default: `True`.
-            - oe_structure: The structure element to append at the bottom of the page;
-                default: `None`.
-        -->
-        <!-- Checkout context (non exhaustive):
-            - redirect: The route to redirect to when a customer enters a coupon; default: `None`.
-            - website_sale_order: The current order.
-        -->
         <t t-call="website.layout">
             <t
                 t-set="no_footer"
@@ -4006,20 +3887,16 @@
                         <div t-if="show_wizard_checkout" class="col-12">
                             <t t-call="website_sale.wizard_checkout" />
                         </div>
-                        <!-- Checkout Page Content | Left Column -->
                         <div
                             t-attf-class="oe_clear_stucture oe_cart col-12 #{'col-lg-7' if website_sale_order and website_sale_order.website_order_line else ''}">
                             <t t-out="0" />
                         </div>
 
-                        <!-- Short Checkout Summary displayed on /cart | Right Column -->
                         <div
                             t-if="show_shorter_cart_summary"
                             class="o_wsale_shorter_cart_summary offset-xxl-1 col-lg-5 col-xxl-4">
-                            <!-- Parent element needed for proper JS side rendering -->
                             <t t-call="website_sale.shorter_cart_summary" />
                         </div>
-                        <!-- Full Checkout Summary displayed on all checkout pages | Right Column -->
                         <div
                             t-else=""
                             class="d-none d-lg-block offset-xxl-1 col-12 col-lg-5 col-xxl-4 rounded">
@@ -4043,7 +3920,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Mobile Order Summary | Bottom of page and Offcanvas -->
                     <t
                         t-if="not show_shorter_cart_summary and show_mobile_cart_summary">
                         <div
@@ -4097,10 +3973,6 @@
                         </div>
                     </t>
                 </div>
-                <!-- This is the drag-and-drop area for website building blocs at the end of each
-                    checkout page. The templates created in the database to store blocs are hooked
-                    using XPath on the `oe_struture` element ID. Therefore, we can't use dynamic
-                    IDs (like with t-att-id) and each template needs to define a div element. -->
                 <t t-out="oe_structure" />
             </div>
         </t>
@@ -4121,7 +3993,6 @@
         </div>
     </template>
 
-    <!-- Called in `website_sale.checkout_layout` and `website_sale.confirmation`. -->
     <template id="website_sale.cart_summary_content">
         <div
             t-if="not website_sale_order or not website_sale_order.website_order_line"
@@ -4203,7 +4074,6 @@
         </div>
     </template>
 
-    <!-- /shop/confirmation route -->
     <template id="confirmation">
         <t t-call="website_sale.checkout_layout">
             <t t-set="show_wizard_checkout" t-value="False" />
@@ -4213,11 +4083,6 @@
             <t t-set="additional_title">Shop - Confirmed</t>
             <t t-set="hide_promotions" t-value="True" />
             <t t-set="oe_structure">
-                <!-- This is the drag-and-drop area for website building blocs at the end of each
-                    checkout page. This is append at the of the page in `checkout_layout`. The
-                    templates created in the database to store blocs are hooked using XPath on the
-                    `oe_struture` element ID. Therefore, we can't use dynamic IDs (like with
-                    t-att-id) and each template needs to define a div element. -->
                 <div
                     class="oe_structure"
                     id="oe_structure_website_sale_confirmation_3" />
@@ -4276,12 +4141,7 @@
         </t>
     </template>
 
-    <!-- Called in `website_sale.checkout_layout`. -->
     <template id="total">
-        <!-- Layout customization parameters:
-            - _cart_total_classes: CSS classes to append on the root div of the total template;
-                default `None`.
-        -->
         <div
             t-if="website_sale_order and website_sale_order.website_order_line"
             t-attf-class="o_cart_total #{_cart_total_classes}">
@@ -4343,13 +4203,7 @@
         </div>
     </template>
 
-    <!-- Deactivatable through the website editor. -->
     <template id="reduction_code" name="Promo Code" inherit_id="website_sale.total">
-        <!-- Checkout context:
-            - hide_promotions: Whether to hide promotion input; default: `None`.
-            - redirect: The route to redirect to when a customer enters a coupon; default: `None`.
-            - website_sale_order: The current order.
-        -->
         <xpath
             expr="//div[contains(@t-attf-class, 'o_cart_total')]//table/tr[last()]"
             position="after">
@@ -4368,7 +4222,6 @@
         </xpath>
     </template>
 
-    <!-- Called in `website_sale.confirmation`. -->
     <template id="payment_confirmation_status">
         <div
             name="order_confirmation"
@@ -4448,7 +4301,6 @@
         </xpath>
     </template>
 
-    <!-- Product page images -->
     <template id="website_sale.shop_product_images" name="Shop Product Images">
         <t
             t-set="product_images"
@@ -4490,7 +4342,6 @@
             t-options="{                 'widget': 'image',                 'preview_image': 'image_1024',                 'class': 'oe_unmovable product_detail_img w-100 h-100',                 'alt-field': 'name',                 'zoom': product_image.can_image_1024_be_zoomed and 'image_1920',             }" />
     </template>
 
-    <!-- Product page images: Carousel -->
     <template id="website_sale.shop_product_carousel" name="Shop Product Carousel">
         <t t-set="product_carousel_block_name">Product Carousel</t>
         <div
@@ -4599,7 +4450,6 @@
         </div>
     </template>
 
-    <!-- Product page images: Grid -->
     <template id="website_sale.shop_product_grid" name="Shop Product Grid">
         <t t-set="imagesCount" t-value="len(product_images)" />
         <div
@@ -4615,7 +4465,6 @@
                     t-attf-style="#{text_color and ('color: %s; ' % text_color)}#{bg_color and 'background-color:' + bg_color}"
                     t-out="ribbon.name or ''"
                     t-att-data-ribbon-id="ribbon.id" />
-                <!-- One row for every two images -->
                 <t t-set="image_classes" t-value="'w-100'" />
                 <div
                     t-attf-class="o_wsale_product_page_grid_row {{website._get_product_page_grid_image_spacing_classes()}}">

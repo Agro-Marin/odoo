@@ -12,18 +12,6 @@ export class HeaderStandard extends BaseHeader {
     }
 
     /**
-     * Checks if the size of the header will decrease by adding the
-     * 'o_header_is_scrolled' class. If so, we do not add this class if the
-     * remaining scroll height is not enough to stay above 'this.transitionPoint'
-     * after the transition, otherwise it causes the scroll position to move up
-     * again below 'this.transitionPoint' and trigger an infinite loop.
-     *
-     * @todo header effects should be improved in the future to not ever change
-     * the page scroll-height during their animation. The code would probably be
-     * simpler but also prevent having weird scroll "jumps" during animations
-     * (= depending on the logo height after/before scroll, a scroll step (one
-     * mousewheel event for example) can be bigger than other ones).
-     *
      * @returns {boolean}
      */
     canTransition() {
@@ -71,7 +59,7 @@ export class HeaderStandard extends BaseHeader {
             : reachHeaderBottom
               ? this.transformHide()
               : this.transformShow();
-        void this.el.offsetWidth; // Force a paint refresh
+        void this.el.offsetWidth;
 
         this.hideEl?.classList.toggle("hidden", reachHeaderBottom);
 
@@ -83,11 +71,9 @@ export class HeaderStandard extends BaseHeader {
     getHeaderHeight() {
         if (this.hideEl) {
             if (this.isSmall()) {
-                // Ensure we don't consider the hiddenOnScroll element on mobile
                 return this.el.getBoundingClientRect().height;
             }
             if (this.hideEl.classList.contains("hidden")) {
-                // Ensure the header height stays the same on desktop
                 return this.hideElHeight + this.el.getBoundingClientRect().height;
             }
             this.hideElHeight = this.hideEl?.getBoundingClientRect().height;

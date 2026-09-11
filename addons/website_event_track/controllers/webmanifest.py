@@ -17,10 +17,6 @@ class TrackManifest(http.Controller):
         readonly=True,
     )
     def webmanifest(self):
-        """Returns a WebManifest describing the metadata associated with a web application.
-        Using this metadata, user agents can provide developers with means to create user
-        experiences that are more comparable to that of a native application.
-        """
         website = request.website
         manifest = {
             "name": website.events_app_name,
@@ -59,7 +55,6 @@ class TrackManifest(http.Controller):
         readonly=True,
     )
     def service_worker(self):
-        """Returns a ServiceWorker javascript file scoped for website_event"""
         with file_open(
             "website_event_track/static/src/js/service_worker.js", "r"
         ) as fp:
@@ -87,5 +82,4 @@ class TrackManifest(http.Controller):
         readonly=True,
     )
     def offline(self):
-        """Returns the offline page used by the 'website_event' PWA"""
         return request.render("website_event_track.pwa_offline")

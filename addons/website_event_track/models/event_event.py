@@ -53,8 +53,6 @@ class EventEvent(models.Model):
 
     @api.depends("event_type_id", "website_menu")
     def _compute_website_track(self):
-        """Propagate event_type configuration (only at change); otherwise propagate
-        website_menu updated value. Also force True is track_proposal changes."""
         for event in self:
             if (
                 event.event_type_id
@@ -71,8 +69,6 @@ class EventEvent(models.Model):
 
     @api.depends("event_type_id", "website_track")
     def _compute_website_track_proposal(self):
-        """Propagate event_type configuration (only at change); otherwise propagate
-        website_track updated value (both together True or False at update)."""
         for event in self:
             if (
                 event.event_type_id
@@ -97,17 +93,9 @@ class EventEvent(models.Model):
                 .ids
             )
 
-    # ------------------------------------------------------------
-    # BUSINESS METHODS
-    # ------------------------------------------------------------
-
     def _has_published_track(self):
         self.check_singleton()
         return bool(self.track_ids.filtered("is_published"))
-
-    # ------------------------------------------------------------
-    # WEBSITE MENU MANAGEMENT
-    # ------------------------------------------------------------
 
     def toggle_website_track(self, val):
         self.website_track = val

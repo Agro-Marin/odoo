@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Inject the comparison button in products cards -->
     <template
         id="website_sale_comparison.add_to_compare"
         name="Comparison List Button"
@@ -40,10 +39,6 @@
 
             </t>
             <t t-else="" t-call="website_sale.product_tile_element_visibility">
-                <!--
-                    Render a placeholder to ensure alignment between entries with and without
-                    comparison button
-                -->
                 <div class="o_add_compare_placeholder pe-none opacity-0 btn">
                     <span class="fa-solid fa-right-left" />
                 </div>
@@ -224,7 +219,6 @@
                     t-attf-class="oe_website_sale o_wsale_comparison_page pb-5 #{website.shop_page_container == 'fluid' and 'container-fluid' or 'container'}">
                     <h1 class="h4 mt-4 mb-3">Compare Products</h1>
 
-                    <!-- Mini sticky product overview (initially hidden) -->
                     <div
                         class="o_wsale_comparison_mini_sticky fixed-top d-none bg-body"
                         id="miniStickyComparison">

@@ -86,9 +86,6 @@ const TRANSLATION_PLUGINS = [
     MonetaryFieldPlugin,
     Many2OneOptionPlugin,
     CustomizeTranslationTabPlugin,
-    // Those plugin are depended by other Plugin but not used in translation
-    // mode.
-    // Todo: find a better way to handle that.
     class FakeRemovePlugin extends Plugin {
         static id = "remove";
     },
@@ -185,7 +182,6 @@ export class WebsiteBuilder extends Component {
     reloadAfterTimeout() {
         if (this.editor.shared.operation.hasTimedOut()) {
             const currentUrl = new URL(window.location.href);
-            // A timed-out operation might still be running; reload the page to avoid side effects
             redirect(`/@${currentUrl.pathname}`);
         }
     }
@@ -213,7 +209,6 @@ export class WebsiteBuilder extends Component {
             }
         }
 
-        // TODO: handle the urgent save and the fail of the save operation
         const endSave = log.perf("save");
         await this.editor.shared.operation.next(
             async () => {
@@ -237,9 +232,7 @@ export class WebsiteBuilder extends Component {
                   ...registry.category("builder-plugins").getAll(),
                   ...registry.category("website-plugins").getAll(),
               ];
-        const builderPluginsToRemove = [
-            // Currently empty.
-        ];
+        const builderPluginsToRemove = [];
         const pluginsBlockedInTranslationMode = [
             "PowerboxPlugin",
             "SearchPowerboxPlugin",

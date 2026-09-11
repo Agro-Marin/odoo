@@ -20,7 +20,7 @@ export class TicketDetails extends Interaction {
             "t-on-click": (ev) => this.onClick(ev, 1),
         },
         ".o_wevent_input_nb_tickets": {
-            "t-on-input": this.onInput, // use updateContent() to enable/disable submit button
+            "t-on-input": this.onInput,
         },
         ".a-submit": {
             "t-on-click.prevent.stop": this.onSubmitClick,
@@ -72,7 +72,6 @@ export class TicketDetails extends Interaction {
         spinner_buttons[0].disabled = parseInt(inputComponent.value) <= 0;
         spinner_buttons[1].disabled = parseInt(inputComponent.value) >= maximumBound;
 
-        // Display/hide maximum ticket quantity if reached
         this.el.querySelector(`p[name=${inputComponent.name}]`).hidden =
             parseInt(inputComponent.value) < maximumBound;
     }
@@ -95,7 +94,6 @@ export class TicketDetails extends Interaction {
             inputComponent.value = inputValue < 0 ? 0 : maximumBound;
         }
 
-        // Triggers an input event to update the “Register” button accessibility
         inputComponent.dispatchEvent(new Event("input"));
     }
 

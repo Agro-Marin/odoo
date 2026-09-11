@@ -11,11 +11,6 @@ export class NewContentFormController extends formView.Controller {
     }
 
     /**
-     * Returns the URL to redirect to once the website content (blog, etc)
-     * record is created.
-     * Override this method to get the correct path for records without
-     * 'website_url' field.
-     *
      * @returns {String}
      */
     computePath() {

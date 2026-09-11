@@ -32,10 +32,10 @@ test("anchor_slide scrolls to targetted location", async () => {
     const targetEl = queryOne("div#target");
     expect(core.interactions).toHaveLength(1);
     expect(isElementVerticallyInViewportOf(targetEl, scrollEl)).toBe(false);
-    click("a[href]"); // Intentionally not awaited
+    click("a[href]");
     expect(isElementVerticallyInViewportOf(targetEl, scrollEl)).toBe(false);
     await animationFrame();
-    await advanceTime(500); // Duration defined in AnchorSlide.
+    await advanceTime(500);
     expect(isElementVerticallyInViewportOf(targetEl, scrollEl)).toBe(true);
 });
 
@@ -53,7 +53,7 @@ test("without anchor_slide, instantly reach the targetted location", async () =>
     core.stopInteractions();
     expect(core.interactions).toHaveLength(0);
     expect(isElementVerticallyInViewportOf(targetEl, scrollEl)).toBe(false);
-    click("a[href]"); // Intentionally not awaited
+    click("a[href]");
     await animationFrame();
     expect(isElementVerticallyInViewportOf(targetEl, scrollEl)).toBe(true);
 });
@@ -70,9 +70,9 @@ test("anchor_slide scrolls to targetted location - with non-ASCII7 characters", 
     const targetEl = queryOne("div.target");
     expect(core.interactions).toHaveLength(1);
     expect(isElementVerticallyInViewportOf(targetEl, scrollEl)).toBe(false);
-    click("a[href]"); // Intentionally not awaited
+    click("a[href]");
     expect(isElementVerticallyInViewportOf(targetEl, scrollEl)).toBe(false);
     await animationFrame();
-    await advanceTime(500); // Duration defined in AnchorSlide.
+    await advanceTime(500);
     expect(isElementVerticallyInViewportOf(targetEl, scrollEl)).toBe(true);
 });

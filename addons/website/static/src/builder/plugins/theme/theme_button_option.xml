@@ -73,7 +73,6 @@
         </BuilderRow>
         <BuilderRow label.translate="On Click Effect">
             <BuilderSelect action="'websiteConfig'">
-                <!-- TODO implicit removal of assets -->
                 <BuilderSelectItem actionParam="{vars: {'btn-ripple': 'false'}, assets: []}">None</BuilderSelectItem>
                 <BuilderSelectItem
                     actionParam="{vars: {'btn-ripple': 'true'}, assets: ['website.ripple_effect_scss', 'website.ripple_effect_js']}"

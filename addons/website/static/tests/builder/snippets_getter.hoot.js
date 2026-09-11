@@ -10,7 +10,7 @@ function removeImageSrc(xmlString) {
     );
     for (const el of elementsWithBackgroundImage) {
         const style = el.getAttribute("style");
-        const newStyle = style.replace(/background-image\s*:\s*url\([^)]+\);?/g, ""); // Remove background-image rule
+        const newStyle = style.replace(/background-image\s*:\s*url\([^)]+\);?/g, "");
         el.setAttribute("style", newStyle);
     }
     return new XMLSerializer().serializeToString(doc);

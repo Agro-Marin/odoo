@@ -8,7 +8,6 @@ patch(Product, {
         ...Product.props,
         strikethrough_price: { type: Number, optional: true },
         can_be_sold: { type: Boolean, optional: true },
-        // The following fields are needed for tracking.
         category_name: { type: String, optional: true },
         currency_name: { type: String, optional: true },
     },
@@ -16,9 +15,7 @@ patch(Product, {
 
 patch(Product.prototype, {
     /**
-     * Return the strikethrough price, formatted using the environment's currency.
-     *
-     * @return {String} - The formatted strikethrough price.
+     * @return {String}
      */
     get formattedStrikethroughPrice() {
         return formatCurrency(this.props.strikethrough_price, this.env.currency.id);

@@ -9,8 +9,6 @@ from odoo.addons.website_event.tests.common import TestEventOnlineCommon
 @tagged("website_visitor", "is_query_count")
 class WebsiteVisitorTestsEventTrack(TestEventOnlineCommon, WebsiteVisitorTestsCommon):
     def test_clean_inactive_visitors_event_track(self):
-        """Visitors that have wishlisted tracks should not be deleted even if not connected
-        recently."""
         track_1 = self.env["event.track"].create(
             {
                 "name": "Track 1",
@@ -37,8 +35,6 @@ class WebsiteVisitorTestsEventTrack(TestEventOnlineCommon, WebsiteVisitorTestsCo
         self._test_unlink_old_visitors(self.env["website.visitor"], active_visitors)
 
     def test_link_to_visitor_event_track(self):
-        """Same as parent's 'test_link_to_visitor' except we also test that tracks
-        that are wishlisted are merged into main visitor."""
 
         [track_1, track_2] = self.env["event.track"].create(
             [
@@ -76,5 +72,4 @@ class WebsiteVisitorTestsEventTrack(TestEventOnlineCommon, WebsiteVisitorTestsCo
 
         self.assertVisitorDeactivated(linked_visitor, main_visitor)
 
-        # wishlisted tracks of both visitors should be merged into main one
         self.assertEqual(main_visitor.event_track_wishlisted_ids, track_1 | track_2)

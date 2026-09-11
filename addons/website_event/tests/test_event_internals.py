@@ -249,7 +249,6 @@ class TestEventData(EventCase, MockVisitor):
         )
 
     def test_process_attendees_form_no_tickets(self):
-        """Check that registering with no ticket works."""
         event = self.env["event.event"].create(
             {
                 "name": "Test Event",
@@ -311,9 +310,6 @@ class TestEventData(EventCase, MockVisitor):
         )
 
     def test_registration_answer_search(self):
-        """Test our custom name_search implementation in 'event.registration.answer'.
-        We search on both the 'value_answer_id' and 'value_text_box' fields to allow users to easily
-        filter registrations based on the selected answers of the attendees."""
 
         event = self.env["event.event"].create(
             {
@@ -392,19 +388,15 @@ class TestEventData(EventCase, MockVisitor):
         search_res = self.env["event.registration"].search(
             [("registration_answer_ids", "ilike", "Answer1")]
         )
-        # should fetch "registration_1" because the answer to the first question is "Q1-Answer1"
         self.assertEqual(search_res, registration_1)
 
         search_res = self.env["event.registration"].search(
             [("registration_answer_ids", "ilike", "Answer2")]
         )
-        # should fetch "registration_2" because the answer to the first question is "Q1-Answer2"
-        # should fetch "registration_3" because the answer to the third question is "Answer2" (as free text)
         self.assertEqual(search_res, registration_2 | registration_3)
 
     @users("user_employee")
     def test_website_visibility_internal_user(self):
-        """Check website visibility value for an internal user"""
         visible_events = self.env["event.event"].search(
             [
                 ("id", "in", self.events_visibility_test.ids),
@@ -417,7 +409,6 @@ class TestEventData(EventCase, MockVisitor):
 
     @users("portal_test")
     def test_website_visibility_portal_user(self):
-        """Check website visibility value for a portal user"""
         visible_events = self.env["event.event"].search(
             [
                 ("id", "in", self.events_visibility_test.ids),
@@ -430,7 +421,6 @@ class TestEventData(EventCase, MockVisitor):
 
     @users("public_test")
     def test_website_visibility_public_user(self):
-        """Check website visibility value for public user"""
         visible_events = self.env["event.event"].search(
             [
                 ("id", "in", self.events_visibility_test.ids),
@@ -441,7 +431,6 @@ class TestEventData(EventCase, MockVisitor):
         self.assertNotIn(self.event_link_only, visible_events)
         self.assertNotIn(self.event_logged_users, visible_events)
 
-        # Check that a visitor can see event where he is participating
         website_visitor = (
             self.env["website.visitor"]
             .sudo()

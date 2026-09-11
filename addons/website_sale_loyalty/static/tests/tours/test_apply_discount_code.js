@@ -51,7 +51,6 @@ registry.category("web_tour.tours").add("apply_discount_code_program_multi_rewar
             trigger:
                 "#cart_products.js_cart_lines .o_cart_product h6:contains(10% on Super Chair)",
         },
-        // Try to reapply the same promo code
         {
             trigger: 'form[name="coupon_code"]',
         },

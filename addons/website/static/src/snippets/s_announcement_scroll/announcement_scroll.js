@@ -39,10 +39,7 @@ export class AnnouncementScroll extends Interaction {
 
     start() {
         this.updateMarqueeLayout();
-        // The animation should start when the computation is done,
-        // else the first element will be already further than its clones
         this.announcementScrollReady = true;
-        // TODO we might want to consider to make this automatic or something
         this.updateContent();
     }
 
@@ -50,9 +47,6 @@ export class AnnouncementScroll extends Interaction {
         this.undoMarqueeLayout();
     }
 
-    /**
-     * Handles window resize events, updating the marquee layout.
-     */
     onResize() {
         this.announcementScrollReady = false;
         this.updateContent();
@@ -61,12 +55,7 @@ export class AnnouncementScroll extends Interaction {
         this.announcementScrollReady = true;
     }
 
-    /**
-     * Handles scroll events for parallax effect when enabled.
-     */
     onScroll() {
-        // Needed even without parallax: scrolling, when the cursor passes over
-        // the element, it should not trigger the hover effect.
         this.announcementScrollPageScrolling = true;
         window.clearTimeout(this.scrollingTimeout);
         this.scrollingTimeout = this.waitForTimeout(() => {
@@ -76,10 +65,6 @@ export class AnnouncementScroll extends Interaction {
         this.setParallaxPosition();
     }
 
-    /**
-     * Sets the parallax position (if no parallax, reset it to the right static
-     * position).
-     */
     setParallaxPosition() {
         const MIN_LEFT_SHIFT = 50;
 
@@ -91,8 +76,6 @@ export class AnnouncementScroll extends Interaction {
             return;
         }
 
-        // One viewport worth of scroll (window.innerHeight) equals 50% parallax
-        // movement.
         const PARALLAX_AMOUNT = 50;
         const rect = this.el.getBoundingClientRect();
         const startScroll = window.scrollY + rect.top - window.innerHeight;
@@ -109,9 +92,6 @@ export class AnnouncementScroll extends Interaction {
         }
     }
 
-    /**
-     * Undo everything done by previous @see updateMarqueeLayout calls.
-     */
     undoMarqueeLayout() {
         while (this.marqueeContainerEl.children.length > 1) {
             this.marqueeContainerEl.lastChild.remove();
@@ -119,10 +99,6 @@ export class AnnouncementScroll extends Interaction {
         this.marqueeContainerEl.style.removeProperty("--marquee-item-size");
     }
 
-    /**
-     * Updates the marquee layout by calculating the items per container and
-     * cloning items as needed.
-     */
     updateMarqueeLayout() {
         const marqueeItemElWidth = this.marqueeItemEl.offsetWidth;
         const itemsPerContainer = Math.ceil(
@@ -139,13 +115,11 @@ export class AnnouncementScroll extends Interaction {
             marqueeItemElWidth,
         );
 
-        // * 2 to have 200% of the container width,
-        // + 1 for the reverse animation (see scss)
         const cloneCount = itemsPerContainer * 2 + 1;
         for (let i = 0; i < cloneCount; i++) {
             const cloneEl = this.marqueeItemEl.cloneNode(true);
             cloneEl.classList.add("s_announcement_scroll_marquee_item_clone");
-            cloneEl.prepend(document.createTextNode("\u00A0")); // NBSP
+            cloneEl.prepend(document.createTextNode("\u00A0"));
             this.marqueeContainerEl.appendChild(cloneEl);
         }
     }

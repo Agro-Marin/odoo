@@ -8,7 +8,6 @@
         --progress-font-size: #{$font-size-base};
     }
 
-    // Options
     &.s_progress_bar_label_inline {
         .progress {
             --progress-height: 1.6em;
@@ -17,7 +16,6 @@
 
     &.s_progress_bar_label_below {
         .s_progress_bar_text {
-            //Default alignment, can be override by the user
             text-align: right;
         }
     }

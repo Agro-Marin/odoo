@@ -7,22 +7,6 @@ from odoo.addons.website_slides.tests import common
 
 @tagged("post_install", "-at_install")
 class TestQuizEditing(HttpCase, common.SlidesCase):
-    """Who is allowed to see which answer is correct.
-
-    The read half of quiz editing (`_get_slide_quiz_data`) gated `is_correct` on
-    `website.group_website_designer` while the write half
-    (`slide_quiz_question_add_or_update`) gates on `can_publish`. Neither
-    eLearning group implies designer -- only `admin` holds it -- so a course
-    publisher received `is_correct: None` for every answer, the edit form loaded
-    with no radio preselected, and one click on Save stored
-    `is_correct=False, answer_score=0` across the board. The quiz became
-    unpassable and the course uncompletable, silently.
-
-    The two conditions were also mutually exclusive: the edit pencil renders only
-    while `not slide_completed`, and the old gate released `is_correct` only once
-    completed. So it failed every single time, for everyone but admin.
-    """
-
     def _answers_of(self, quiz_data, question):
         return next(q for q in quiz_data["slide_questions"] if q["id"] == question.id)[
             "answer_ids"
@@ -37,7 +21,6 @@ class TestQuizEditing(HttpCase, common.SlidesCase):
         return response.json()["result"]
 
     def test_the_gate_is_not_the_designer_group(self):
-        """The premise: publishers are not website designers, admin is."""
         self.assertFalse(
             self.user_officer.has_group("website.group_website_designer"),
             "an eLearning officer is not a website designer",
@@ -74,15 +57,7 @@ class TestQuizEditing(HttpCase, common.SlidesCase):
         )
 
     def test_editing_a_question_keeps_the_correct_answer(self):
-        """The end-to-end defect, expressed as the payload the edit form builds.
-
-        `_serializeForm` re-reads each radio's `.checked`; with none preselected
-        it sends `is_correct: false` for every answer. Feed the route exactly
-        what a correctly-populated form sends and the correct answer survives.
-        """
         self.authenticate("user_officer", "user_officer")
-        # The route replaces the question (delete + create), so capture what the
-        # correct answer *said* before calling it.
         correct_value = self.answer_1.value
         data = self._rpc("/slides/slide/quiz/get", {"slide_id": self.slide_3.id})
         question = next(

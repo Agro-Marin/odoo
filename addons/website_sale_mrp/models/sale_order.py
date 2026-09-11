@@ -8,19 +8,9 @@ class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     def _get_unavailable_quantity_from_kits(self, product):
-        """
-        If any line of the order refers to a kit product, the availability of the product
-        might be impacted (if the product is a kit or a component of one).
-
-        This method computes the quantity that becomes unavailable for the product because
-        of the order lines that do not refer to it directly.
-
-        :param ProductProduct product: the product for which the unavailability is computed.
-        """
         self.check_singleton()
         unavailable_qty = 0
         if product.is_kit:
-            # Explode the kit to fetch the set of relevant components to track.
             kit_bom = (
                 self.env["mrp.bom"]
                 .sudo()
@@ -33,14 +23,11 @@ class SaleOrder(models.Model):
             qty_per_kit = defaultdict(float)
             for bom_line, bom_line_data in bom_sub_lines:
                 if not bom_line.product_id.is_storable:
-                    # Relevant only for storable components.
                     continue
                 if float_is_zero(
                     bom_line_data["qty"],
                     precision_rounding=bom_line.product_uom_id.rounding,
                 ):
-                    # As BoMs allow components with a quantity of 0 (i.e., optional components), we
-                    # skip those to avoid a division by zero.
                     continue
                 component = bom_line.product_id
                 unavailable_component_qties[component] = sum(
@@ -56,7 +43,6 @@ class SaleOrder(models.Model):
         for line in self.line_ids:
             if not line.product_id.is_kit or line.product_id == product:
                 continue
-            # Other kit lines might influence the availability of the product.
             line_kit_bom = (
                 self.env["mrp.bom"]
                 .sudo()
@@ -71,7 +57,6 @@ class SaleOrder(models.Model):
                 component_qties.get(product, 0) * line.product_uom_qty / line_kit_qty
             )
             if product.is_kit:
-                # If the product is a kit, the availability of its components can be influenced by other kits.
                 for component in unavailable_component_qties:
                     unavailable_component_qties[component] += (
                         component_qties.get(component, 0)
@@ -80,7 +65,6 @@ class SaleOrder(models.Model):
                     )
 
         if product.is_kit:
-            # If the product is a kit, recompute availability based on the availability of its components.
             max_free_kit_qty = qty_free = product.sudo().qty_free
             for (
                 component,

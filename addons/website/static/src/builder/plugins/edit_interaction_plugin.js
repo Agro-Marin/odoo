@@ -86,7 +86,6 @@ export class EditInteractionPlugin extends Plugin {
 
     refreshInteractions(element) {
         if (!this.websiteEditService) {
-            // a normalize before the transfer; the transfer runs it
             this._refreshOwed = true;
             return;
         }

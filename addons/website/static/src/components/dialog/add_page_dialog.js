@@ -117,9 +117,6 @@ class AddPageTemplatePreview extends Component {
                 applyTextHighlight(targetEl);
             }
         });
-        // The observer is otherwise only disconnected in select(); a preview
-        // that is never selected (dialog closed / tab switched) leaks it and the
-        // retained iframe DOM. Also stop the adjustHeight poll on teardown.
         onWillUnmount(() => {
             this.resizeObserver.disconnect();
             clearTimeout(this._adjustHeightTimeout);
@@ -133,16 +130,12 @@ class AddPageTemplatePreview extends Component {
             }
             const previewEl = this.previewRef.el;
             const iframeEl = this.iframeRef.el;
-            // Firefox replaces the built content with about:blank.
             const isFirefox = isBrowserFirefox();
             if (isFirefox) {
-                // Make sure empty preview iframe is loaded.
-                // This event is never triggered on Chrome.
                 await new Promise((resolve) => {
                     iframeEl.contentDocument.body.onload = resolve;
                 });
             }
-            // Apply styles.
             for (const cssLinkEl of await this.env.getCssLinkEls()) {
                 const preloadLinkEl = document.createElement("link");
                 preloadLinkEl.setAttribute("rel", "preload");
@@ -151,9 +144,7 @@ class AddPageTemplatePreview extends Component {
                 iframeEl.contentDocument.head.appendChild(preloadLinkEl);
                 iframeEl.contentDocument.head.appendChild(cssLinkEl.cloneNode(true));
             }
-            // Adjust styles.
             const styleEl = document.createElement("style");
-            // Prevent successive resizes.
             const fullHeight = getComputedStyle(
                 document.querySelector(".o_action_manager"),
             ).height;
@@ -204,9 +195,6 @@ class AddPageTemplatePreview extends Component {
             const cssText = document.createTextNode(css);
             styleEl.appendChild(cssText);
             iframeEl.contentDocument.head.appendChild(styleEl);
-            // Put blocks.
-            // To preserve styles, the whole #wrapwrap > main > #wrap
-            // nesting must be reproduced.
             const mainEl = document.createElement("main");
             const wrapwrapEl = document.createElement("div");
             wrapwrapEl.id = "wrapwrap";
@@ -218,32 +206,24 @@ class AddPageTemplatePreview extends Component {
             );
             const wrapEl = templateDocument.getElementById("wrap");
             mainEl.appendChild(wrapEl);
-            // Make image loading eager.
             const lazyLoadedImgEls = wrapEl.querySelectorAll("img[loading=lazy]");
             for (const imgEl of lazyLoadedImgEls) {
                 imgEl.setAttribute("loading", "eager");
             }
             mainEl.appendChild(wrapEl);
-            // A single broken image must not reject and abort the rest of the
-            // setup (fonts.ready, o_loading removal, adjustHeight), which would
-            // leave the preview stuck loading.
             await onceAllImagesLoaded(wrapEl).catch(() => {});
-            // Restore image lazy loading.
             for (const imgEl of lazyLoadedImgEls) {
                 imgEl.setAttribute("loading", "lazy");
             }
             if (!this.previewRef.el) {
-                // Stop the process when preview is removed
                 return;
             }
-            // Wait for fonts.
             await iframeEl.contentDocument.fonts.ready;
             holderEl.classList.remove("o_loading");
             let lastHeight = -1;
             let stableCount = 0;
             const adjustHeight = () => {
                 if (!this.previewRef.el) {
-                    // Stop ajusting height when preview is removed.
                     return;
                 }
                 const outerWidth = parseInt(window.getComputedStyle(previewEl).width);
@@ -257,9 +237,6 @@ class AddPageTemplatePreview extends Component {
                     `${Math.round(innerHeight * ratio)}px`,
                 );
                 holderEl.classList.add("o_ready");
-                // Sometimes the final height is not ready yet, so keep polling —
-                // but stop once it has settled instead of running 20×/s forever
-                // for the whole life of the dialog (per visible preview).
                 stableCount = rounded === lastHeight ? stableCount + 1 : 0;
                 lastHeight = rounded;
                 if (stableCount < 5) {
@@ -314,8 +291,6 @@ class AddPageTemplatePreview extends Component {
             previewEl.remove();
         }
         this.resizeObserver.disconnect();
-        // Remove highlighted text content from the cloned page. The full
-        // highlight structure will be restored on page load.
         for (const textHighlightEl of wrapEl.querySelectorAll(".o_text_highlight")) {
             removeTextHighlight(textHighlightEl);
         }
@@ -384,7 +359,6 @@ class AddPageTemplates extends Component {
                     props: {
                         id: "basic",
                         title: _t("Basic"),
-                        // Blank and 5 preloading boxes.
                         templates: [{ isBlank: true }, {}, {}, {}, {}, {}],
                     },
                 },
@@ -400,17 +374,12 @@ class AddPageTemplates extends Component {
     }
 
     async preparePages() {
-        // Fetch templates without client-side caching to reflect recent changes
-        // to custom templates within the same session.
         const loadTemplates = rpc(
             "/website/get_new_page_templates",
             { context: { website_id: this.website.currentWebsiteId } },
             { silent: true },
         );
 
-        // Forces the correct website if needed before fetching the templates.
-        // Displaying the correct images in the previews also relies on the
-        // website id having been forced.
         await this.env.getCssLinkEls();
         if (status(this) === "destroyed") {
             return new Promise(() => {});
@@ -448,7 +417,7 @@ class AddPageTemplates extends Component {
         activeTabEl?.classList?.remove("active");
         activeTabEl?.setAttribute("tabIndex", "-1");
         activePaneEl?.classList?.remove("active");
-        activePaneEl?.setAttribute("inert", "inert"); // Make sure trapFocus() works.
+        activePaneEl?.setAttribute("inert", "inert");
         const tabEl = this.tabsRef.el.querySelector(`[data-id=${id}]`);
         const paneEl = this.panesRef.el.querySelector(`[data-id=${id}]`);
         tabEl.classList.add("active");
@@ -539,9 +508,6 @@ export class AddPageDialog extends Component {
 
     async addPage(sectionsArch, name, templateId) {
         if (this.props.forcedURL) {
-            // We also skip the possibility to choose to add in menu in that
-            // case (e.g. in creation from 404 page button). The user can still
-            // create its menu afterwards if needed.
             await this.createPage(
                 sectionsArch,
                 this.props.forcedURL,
@@ -565,13 +531,10 @@ export class AddPageDialog extends Component {
             pageTitle,
             sections: Boolean(sectionsArch),
         }));
-        // Remove any leading slash.
         const pageName = name.replace(/^\/*/, "") || _t("New Page");
         const data = await this.http.post(
             `/website/add/${encodeURIComponent(pageName)}`,
             {
-                // Needed to be passed as a (falsy) string because false would be
-                // converted to 'false' with a POST.
                 sections_arch: sectionsArch || "",
                 add_menu: addMenu || "",
 
@@ -609,14 +572,12 @@ export class AddPageDialog extends Component {
                     'iframe:not([src="/website/iframefallback"])',
                 );
                 if (iframe?.contentDocument.body.getAttribute("is-ready") === "true") {
-                    // If there is a fully loaded website preview, use it.
                     resolve(
                         iframe.contentDocument.head.querySelectorAll(
                             "link[type='text/css']",
                         ),
                     );
                 } else {
-                    // If there is no website preview or it was not ready yet, fetch page.
                     this.http
                         .get(`/website/force/${this.props.websiteId}?path=/`, "text")
                         .then((html) => {

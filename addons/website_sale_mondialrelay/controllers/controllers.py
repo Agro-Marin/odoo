@@ -62,7 +62,6 @@ class MondialRelay(http.Controller):
 
 class WebsiteSaleMondialrelay(WebsiteSale):
     def _prepare_address_update(self, *args, **kwargs):
-        """Updates of mondialrelay addresses are forbidden"""
         partner_sudo, _address_type = super()._prepare_address_update(*args, **kwargs)
 
         if partner_sudo and partner_sudo.is_mondialrelay:
@@ -71,7 +70,6 @@ class WebsiteSaleMondialrelay(WebsiteSale):
         return partner_sudo, _address_type
 
     def _check_delivery_address(self, partner_sudo):
-        # skip check for mondialrelay partners as the customer can not edit them
         if partner_sudo.is_mondialrelay:
             return True
         return super()._check_delivery_address(partner_sudo)

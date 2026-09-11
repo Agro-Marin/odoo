@@ -30,14 +30,14 @@ class CouponShare(models.TransientModel):
         required=True,
         domain=[
             "|",
-            ("program_type", "=", "coupons"),  # All coupons programs
+            ("program_type", "=", "coupons"),
             "|",
-            ("trigger", "=", "with_code"),  # All programs that require a code
+            ("trigger", "=", "with_code"),
             (
                 "rule_ids.code",
                 "!=",
                 False,
-            ),  # All programs that can not trigger without a code
+            ),
         ],
     )
     program_website_id = fields.Many2one(

@@ -94,23 +94,15 @@ export const PALETTE_NAMES = [
     "default-21",
 ];
 
-// Attributes for which background color should be retrieved
-// from CSS and added in each palette.
 export const CUSTOM_BG_COLOR_ATTRS = ["menu", "footer"];
 
 const MAX_NBR_DISPLAY_MAIN_THEMES = 3;
 
 /**
- * Returns a list of maximum "resultNbrMax" themes that depends on the wanted
- * industry and the color palette.
- *
- * @param {Object} orm - The orm used for the server call.
- * @param {Object} state - The state that contains the wanted industry and color
- * palette.
- * @param {Number} resultNbrMax - The number of different wanted themes.
- * @returns {Promise<Array>} A list of objects that contains the different
- * theme names and their related text svgs (as result of a Promise). The length
- * of the list is at most 'resultNbrMax'.
+ * @param {Object} orm
+ * @param {Object} state
+ * @param {Number} resultNbrMax
+ * @returns {Promise<Array>}
  */
 async function getRecommendedThemes(
     orm,
@@ -123,10 +115,6 @@ async function getRecommendedThemes(
         result_nbr_max: resultNbrMax,
     });
 }
-
-//------------------------------------------------------------------------------
-// Components
-//------------------------------------------------------------------------------
 
 export class SkipButton extends Component {
     static template = "website.Configurator.SkipButton";
@@ -167,7 +155,6 @@ export class DescriptionScreen extends Component {
 
         this.splitRegex = /[|\s,]+/;
 
-        // Get all words from the industry names and synonyms
         this.dictionarySet = new Set();
         for (const industry of this.state.industries) {
             let industryWords = this._splitToSet(industry.label);
@@ -181,12 +168,6 @@ export class DescriptionScreen extends Component {
 
         onMounted(() => this.onMounted());
 
-        // Autofocus the next field once the current one is confirmed.
-        // Guarded: this effect runs on every patch, including ones where the
-        // field it wants to focus is not in the DOM yet. An unguarded
-        // dereference threw out of `onPatched`, which Owl turns into an
-        // OwlError that takes the whole configurator down -- for a hint that
-        // is optional by nature.
         useEffect(
             (selectedType, selectedIndustry) => {
                 if (selectedType && !selectedIndustry) {
@@ -201,7 +182,6 @@ export class DescriptionScreen extends Component {
 
         this.typeDropdown = useDropdownState();
         this.purposeDropdown = useDropdownState();
-        // The guided flow leaves each menu open until its step is answered.
         useEffect(
             (selectedType) => {
                 if (selectedType) {
@@ -228,9 +208,6 @@ export class DescriptionScreen extends Component {
         this.selectWebsitePurpose();
     }
     /**
-     * Set the input's parent label value to automatically adapt input size
-     * and update the selected industry.
-     *
      * @private
      * @param {string} label
      * @param {number} id
@@ -253,22 +230,12 @@ export class DescriptionScreen extends Component {
         ];
     }
     /**
-     * Called each time the autocomplete input's value changes. Only industries
-     * having a label or a synonym containing all terms of the input value are
-     * kept.
-     * The order received from IAP is kept (expected to be on descending hit
-     * count) unless there are 7 or less matches in which case the results are
-     * sorted alphabetically.
-     * The result size is limited to 30.
-     *
-     * @param {String} term input current value
+     * @param {String} term
      */
     _autocompleteSearch(term) {
         this.state.selectedIndustry = undefined;
         const termsSet = this._splitToSet(term);
 
-        //-------words correction--------
-        // Check and correct all the terms
         const correctedSet = new Set();
         for (const term of termsSet) {
             if (this.dictionarySet.has(term)) {
@@ -280,29 +247,21 @@ export class DescriptionScreen extends Component {
         }
         let terms = Array.from(correctedSet);
         const limit = 30;
-        // `this.state.industries` is already sorted by hit count (from IAP).
-        // That order should be kept after manipulating the recordset.
         let matches = this.state.industries.filter((val, index) =>
-            // To match, every term should be contained in the label
             terms.every((term) => val.label.toLowerCase().includes(term)),
         );
 
         matches = matches.sort((x, y) => x.hitCountOrder - y.hitCountOrder);
         if (matches.length > limit) {
-            // Keep matches with the least number of words so that e.g.
-            // "restaurant" remains available even if there are 30 specific
-            // sub-types that have a higher hit count.
             matches = matches
                 .sort((x, y) => x.wordCount - y.wordCount)
                 .slice(0, limit)
                 .sort((x, y) => x.hitCountOrder - y.hitCountOrder);
         } else {
             let synonymMatches = this.state.industries.filter((val, index) => {
-                // To match, every term should be contained in the synonym
                 for (const candidate of [
                     ...(val.synonyms || "").split(this.splitRegex),
                 ]) {
-                    // Check if industry label has already matched
                     if (
                         terms.every((term) => candidate.toLowerCase().includes(term)) &&
                         !matches.includes(val)
@@ -332,15 +291,9 @@ export class DescriptionScreen extends Component {
     }
 
     /**
-     * Splits the string parameter 'label' into bits based on the location
-     * of the 'terms' typed by the user.
-     *
      * @param {string} label
      * @param {string[]} terms
      * @returns {object}
-     * The return object 'matchTermOrder' contains two lists:
-     * - 'labelBits' store all the segments of the split 'label'
-     * - 'searchTermIndexes' keeps the indexes of the bits that matches with the 'terms'
      */
     _getMatchTermOrder(label, terms) {
         const sortedTerms = terms.sort((a, b) => b.length - a.length);
@@ -364,7 +317,6 @@ export class DescriptionScreen extends Component {
                 bitIndex += splitBits.length;
             }
         }
-        // Saves the indexes of the segments matching the terms
         const labelBits = [];
         for (const i in matchTermOrder.labelBits) {
             labelBits.push({
@@ -392,8 +344,6 @@ export class DescriptionScreen extends Component {
     checkDescriptionCompletion() {
         const { selectedType, selectedPurpose, selectedIndustry } = this.state;
         if (selectedType && selectedPurpose && selectedIndustry) {
-            // If the industry name is not known by the server, send it to the
-            // IAP server.
             if (selectedIndustry.id === -1) {
                 this.orm.call("website", "configurator_missing_industry", [], {
                     unknown_industry: selectedIndustry.label,
@@ -404,7 +354,7 @@ export class DescriptionScreen extends Component {
     }
     onAutocompleteInput({ inputValue }) {
         if (!inputValue) {
-            this.state.selectIndustry(); // reset
+            this.state.selectIndustry();
         }
     }
 }
@@ -434,19 +384,15 @@ export class PaletteSelectionScreen extends Component {
     }
 
     /**
-     * Removes the previously uploaded logo.
-     *
      * @param {Event} ev
      */
     async removeLogo(ev) {
         ev.stopPropagation();
-        // Permit to trigger onChange even with the same file.
         this.logoInputRef.el.value = "";
         if (this.state.logoAttachmentId) {
             await this._removeAttachments([this.state.logoAttachmentId]);
         }
         this.state.changeLogo();
-        // Remove recommended palette.
         this.state.setRecommendedPalette();
     }
 
@@ -511,15 +457,10 @@ export class PaletteSelectionScreen extends Component {
     }
 
     /**
-     * Removes the attachments from the DB.
-     *
      * @private
-     * @param {Array<number>} ids the attachment ids to remove
+     * @param {Array<number>} ids
      */
     async _removeAttachments(ids) {
-        // Return the promise: callers `await` this to sequence the removal
-        // before the next logo/palette write, and to surface RPC errors instead
-        // of dropping them as an unhandled rejection.
         return rpc("/html_editor/attachment/remove", { ids: ids });
     }
 }
@@ -541,14 +482,9 @@ export class ApplyConfiguratorScreen extends Component {
             return this.props.navigate(ROUTES.paletteSelectionScreen);
         }
         if (!this.state.selectedPurpose && !this.state.formerSelectedPurpose) {
-            // Neither is set (e.g. browser back/forward through the flow);
-            // getConfigurationData would crash on WEBSITE_PURPOSES[undefined].name.
             return this.props.navigate(ROUTES.descriptionScreen);
         }
         if (!this.state.selectedType) {
-            // Same crash class as above: getConfigurationData reads
-            // WEBSITE_TYPES[this.state.selectedType].name, and selectedType is
-            // restored from sessionStorage so it can be undefined here.
             return this.props.navigate(ROUTES.descriptionScreen);
         }
 
@@ -561,7 +497,6 @@ export class ApplyConfiguratorScreen extends Component {
                     data,
                 );
             } catch (error) {
-                // Wait a bit before retrying or allowing manual retry.
                 await delay(5000);
                 if (retryCount < 3) {
                     return attemptConfiguratorApply(data, retryCount + 1);
@@ -597,9 +532,6 @@ export class ApplyConfiguratorScreen extends Component {
             this.props.clearStorage();
 
             this.websiteService.prepareOutLoader();
-            // Here the website service goToWebsite method is not used because
-            // the web client needs to be reloaded after the new modules have
-            // been installed.
             redirect(
                 `/odoo/action-website.website_preview?website_id=${encodeURIComponent(
                     resp.website_id,
@@ -638,9 +570,7 @@ export class FeaturesSelectionScreen extends Component {
     }
 
     /**
-     * Return the theme selection screen as the next step, unless overridden.
-     *
-     * @return {int} Next step route.
+     * @return {int}
      */
     static nextStep() {
         return ROUTES.themeSelectionScreen;
@@ -715,12 +645,6 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
         );
     }
 
-    /**
-     * The button should be shown if we never tried to load the extra themes and
-     * if they are enough main themes already displayed. If this last condition
-     * is not fulfilled, there is no need to display the button as no more will
-     * be displayed.
-     */
     get showViewMoreThemesButton() {
         return (
             !this.state.extraThemesLoaded &&
@@ -729,15 +653,11 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
     }
 
     /**
-     * Transforms text svgs into svg elements and adds a loading effect that
-     * blocks the UI during the loading of the images inside those svg elements.
-     *
-     * @param {Array<Object>} themes - The text svgs.
-     * @param {Array} themeSVGPreviews - A reference to the svg elements.
+     * @param {Array<Object>} themes
+     * @param {Array} themeSVGPreviews
      */
     blockUiDuringImageLoading(themes, themeSVGPreviews) {
         if (!themes.length) {
-            // There is no svg to transform
             return;
         }
         const proms = [];
@@ -769,8 +689,6 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
             }
             themeSVGPreviews[idx].el.appendChild(svgEl);
         });
-        // When all the images inside the svgs are loaded then remove the
-        // loading effect.
         Promise.allSettled(proms).then(() => {
             this.uiService.unblock();
         });
@@ -787,8 +705,6 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
             this.state,
             this.maxNbrDisplayExtraThemes,
         );
-        // Filter the extra themes to not propose a theme that is already
-        // present in the main themes.
         const mainThemeNames = this.state.themes.map((theme) => theme.name);
         this.state.extraThemes = themes.filter(
             (extraTheme) => !mainThemeNames.includes(extraTheme.name),
@@ -802,18 +718,10 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
     }
 }
 
-//------------------------------------------------------------------------------
-// Store
-//------------------------------------------------------------------------------
-
 export class Store {
     async start(getInitialState) {
         Object.assign(this, await getInitialState());
     }
-
-    //-------------------------------------------------------------------------
-    // Getters
-    //-------------------------------------------------------------------------
 
     getWebsiteTypes() {
         return Object.values(WEBSITE_TYPES);
@@ -851,10 +759,6 @@ export class Store {
         return palette ? palette.name || "recommendedPalette" : false;
     }
 
-    //-------------------------------------------------------------------------
-    // Actions
-    //-------------------------------------------------------------------------
-
     selectWebsiteType(id) {
         Object.values(this.features)
             .filter((feature) => feature.module_state !== "installed")
@@ -867,16 +771,12 @@ export class Store {
     }
 
     selectWebsitePurpose(id) {
-        // Keep track or the former selection in order to be able to keep
-        // the auto-advance navigation scheme while being able to use the
-        // browser's back and forward buttons.
         if (!id && this.selectedPurpose) {
             this.formerSelectedPurpose = this.selectedPurpose;
         }
         Object.values(this.features)
             .filter((feature) => feature.module_state !== "installed")
             .forEach((feature) => {
-                // need to check id, since we set to undefined in mount() to avoid the auto next screen on back button
                 feature.selected |=
                     id &&
                     feature.website_config_preselection.includes(
@@ -961,12 +861,8 @@ export class Configurator extends Component {
         this.action = useService("action");
         this.website = useService("website");
 
-        // Using the back button must update the router state.
         useExternalListener(window, "popstate", (ev) => {
-            // FIXME: this doesn't work unless this component is already mounted so navigating through
-            // history from a different client action will not work.
             if (ev.state && "configuratorStep" in ev.state) {
-                // Do not use navigate because URL is already updated.
                 this.state.currentStep = ev.state.configuratorStep;
             }
         });
@@ -990,9 +886,6 @@ export class Configurator extends Component {
             }
         });
 
-        // This is a hack to overwrite the history state, modified by the
-        // router service after executing an action. Ideally, the router
-        // service would let us push a state with a new pathname.
         onMounted(() => {
             setTimeout(() => {
                 router.cancelPushes();
@@ -1064,7 +957,6 @@ export class Configurator extends Component {
     }
 
     async getInitialState() {
-        // Load values from python and iap
         const results = await this.orm.call("website", "configurator_init");
         const r = {
             industries: results.industries,
@@ -1077,7 +969,6 @@ export class Configurator extends Component {
             hitCountOrder: index,
         }));
 
-        // Load palettes from the current CSS
         const palettes = {};
         const style = window.getComputedStyle(document.documentElement);
 
@@ -1120,8 +1011,6 @@ export class Configurator extends Component {
                 : [];
         });
 
-        // Palette color used by default as background color for menu and footer.
-        // Needed to build the recommended palette.
         const defaultColors = {};
         CUSTOM_BG_COLOR_ATTRS.forEach((attr) => {
             const color = getCSSVariableValue(`o-default-${attr}-bg`, style);
@@ -1166,9 +1055,6 @@ export class Configurator extends Component {
         this.website.showLoader({ showTips: true });
         const redirectUrl = await this.orm.call("website", "configurator_skip");
         this.clearStorage();
-        // Here the website service goToWebsite method is not used because
-        // the web client needs to be reloaded after the new modules have
-        // been installed.
         await this.action.doAction(redirectUrl);
     }
 }

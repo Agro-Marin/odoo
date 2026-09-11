@@ -48,7 +48,6 @@ class TestDynamicSnippetCategory(WebsiteSaleCommon):
         self.assertIn(self.category1.id, category_ids)
 
     def test_set_category_image(self):
-        """Test setting a cover image via JSON-RPC route"""
         attachment = self.env["ir.attachment"].create(
             {
                 "name": "test.png",

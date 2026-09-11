@@ -14,7 +14,6 @@ export class GridImageOption extends BaseOptionComponent {
 
     isOptionActive(editingElement) {
         const imageGridItemEl = editingElement.closest(".o_grid_item_image");
-        // Special conditions for the hover effects.
         const hasSquareShape =
             editingElement.dataset.shape === "html_builder/geometric/geo_square";
         const effectAllowsOption = ![

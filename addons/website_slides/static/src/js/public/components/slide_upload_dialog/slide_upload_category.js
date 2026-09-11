@@ -95,20 +95,11 @@ export class SlideUploadCategory extends Component {
         });
     }
 
-    /**
-     * To figure when to propose users to create a new category or tag
-     */
     choiceExists(input, choices) {
         return choices.some(
             (choice) => input.toLowerCase() === choice.label.toLowerCase(),
         );
     }
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
-    // Category and tag SelectMenus
 
     onCategorySelect(value) {
         this.state.choices.categoryId = value;
@@ -129,8 +120,6 @@ export class SlideUploadCategory extends Component {
         this.state.choices.tags.push({ value: tempId, label: tagName });
         this.state.choices.tagIds.push(tempId);
     }
-
-    // Form
 
     async onChangeFileInput(ev) {
         this._alertRemove();
@@ -172,11 +161,7 @@ export class SlideUploadCategory extends Component {
             this.canSubmitForm = false;
             const dataURL = await getDataURLFromFile(file);
             this.file.data = dataURL.split(",", 2)[1];
-            // pdf.js was previously an eager <script type="module"> in the
-            // course page head (window.pdfjsLib global); it is now
-            // lazy-loaded on the first PDF upload.
             const pdfjsLib = await loadPDFJS();
-            // pdf is stored in file.data in base64 and converted in binary (atob) to generate the preview
             const pdfTask = pdfjsLib.getDocument({ data: atob(this.file.data) });
             pdfTask.onPassword = () => {
                 this._alertDisplay(_t("You can not upload password protected file."));
@@ -192,7 +177,6 @@ export class SlideUploadCategory extends Component {
             const context = canvas.getContext("2d");
             canvas.height = viewport.height;
             canvas.width = viewport.width;
-            // Render PDF page into canvas context
             await page.render({
                 canvasContext: context,
                 viewport: viewport,
@@ -210,10 +194,6 @@ export class SlideUploadCategory extends Component {
         }
     }
 
-    /**
-     * When the URL changes for slides of categories infographic, document and video, we attempt to fetch
-     * some metadata on YouTube / Google Drive (such as a name, a title, a duration, ...).
-     */
     async onChangeUrl(url) {
         this._alertRemove();
         this.isValidUrl = false;
@@ -247,7 +227,6 @@ export class SlideUploadCategory extends Component {
             }
 
             if (data.completion_time) {
-                // hours to minutes conversion
                 this.state.form.duration = Math.round(data.completion_time * 60);
             }
             if (data.image_url) {
@@ -272,19 +251,9 @@ export class SlideUploadCategory extends Component {
         this.props.upload(values, this.props.slideCategory);
     }
 
-    /**
-     * When the user selects 'local_file' or 'external' as source type, we display the 'upload'
-     * field or the 'document_google_url' / 'image_google_url' fields respectively.
-     */
     onClickSourceType(isLocalSource) {
         this.state.form.isLocalSource = isLocalSource;
     }
-
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
-    // Alert messages
 
     /**
      * @param {string} message
@@ -301,14 +270,8 @@ export class SlideUploadCategory extends Component {
         this.state.alert.class = "";
     }
 
-    // Category and tag SelectMenus
-
-    /**
-     * Get value for category_id and tag_ids (ORM cmd) to send to server
-     */
     _getSelectMenuValues() {
         const result = {};
-        // tags
         if (this.state.choices.tagIds.length > 0) {
             const tags = Object.fromEntries(
                 this.state.choices.tags.map((tag) => [tag.value, tag.label]),
@@ -317,7 +280,6 @@ export class SlideUploadCategory extends Component {
                 this._toCreate(tagId) ? [0, 0, { name: tags[tagId] }] : [4, tagId],
             );
         }
-        // category
         if (!this.defaultCategoryId) {
             if (this._toCreate(this.state.choices.categoryId)) {
                 const category = this.state.choices.categories.find(
@@ -336,7 +298,6 @@ export class SlideUploadCategory extends Component {
     }
 
     /**
-     * Returns the id of the last section of the channel or null (no sections)
      * @returns {Number|Null}
      */
     _getDefaultCategoryId() {
@@ -346,9 +307,6 @@ export class SlideUploadCategory extends Component {
             : null;
     }
 
-    /**
-     * Fetch available course categories and tags
-     */
     async _fetch_choices(type, domain = [], fields = ["name"]) {
         const results = await rpc(`/slides/${type}/search_read`, { fields, domain });
 
@@ -358,14 +316,9 @@ export class SlideUploadCategory extends Component {
         }));
     }
 
-    /**
-     * Check whether it is a new category/tag or not
-     */
     _toCreate(value) {
         return typeof value === "string" && value.startsWith("temp");
     }
-
-    // Form
 
     _fileReset() {
         document.getElementById("upload").value = "";
@@ -381,14 +334,12 @@ export class SlideUploadCategory extends Component {
     }
 
     /**
-     * Extract values to submit from form, force the slide_category according to
-     * filled values.
      * @param {boolean} forcePublished
      */
     async _formValidateGetValues(forcePublished) {
         let sourceType;
         if (this.props.slideCategory === "video") {
-            sourceType = "external"; // force external for videos
+            sourceType = "external";
         } else {
             sourceType = this.state.form.isLocalSource ? "local_file" : "external";
         }
@@ -405,7 +356,7 @@ export class SlideUploadCategory extends Component {
                 video_url: this.state.form.url,
             },
             this._getSelectMenuValues(),
-        ); // add tags and category
+        );
 
         if (this.file.type === "application/pdf") {
             Object.assign(values, {

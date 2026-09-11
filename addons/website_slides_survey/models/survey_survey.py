@@ -5,13 +5,12 @@ from odoo.exceptions import ValidationError
 class SurveySurvey(models.Model):
     _inherit = "survey.survey"
 
-    # slide_ids is declared in website_slides, beside the many2one it inverts.
     slide_channel_ids = fields.One2many(
         "slide.channel",
         string="Certification Courses",
         compute="_compute_slide_channel_data",
-        help="The courses this survey is linked to through the e-learning application",
         groups="website_slides.group_website_slides_officer",
+        help="The courses this survey is linked to through the e-learning application",
     )
     slide_channel_count = fields.Count(
         "slide_channel_ids",
@@ -26,8 +25,6 @@ class SurveySurvey(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_linked_to_course(self):
-        # we consider it's ok to show certification names for people trying to delete courses
-        # even if they don't have access to those surveys hence the sudo usage
         certifications = (
             self.sudo()
             .slide_ids.filtered(lambda slide: slide.slide_type == "certification")
@@ -51,14 +48,7 @@ class SurveySurvey(models.Model):
                 )
             )
 
-    # ---------------------------------------------------------
-    # Actions
-    # ---------------------------------------------------------
-
     def action_survey_view_slide_channels(self):
-        """Redirect to the channels using the survey as a certification. Open
-        in no-create as link between those two comes through a slide, hard to
-        keep as default values."""
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.slide_channel_action_overview"
         )
@@ -77,14 +67,10 @@ class SurveySurvey(models.Model):
         action["context"] = dict(
             self.env["ir.actions.actions"]._eval_action_context(
                 action.get("context") or "{}"
-            ),  # sufficient in most cases
+            ),
             create=False,
         )
         return action
-
-    # ---------------------------------------------------------
-    # Business
-    # ---------------------------------------------------------
 
     def _prepare_challenge_category(self):
         slide_survey = self.env["slide.slide"].search([("survey_id", "=", self.id)])

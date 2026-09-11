@@ -7,7 +7,6 @@ export class PostLink extends Interaction {
     static selector = ".post_link";
     dynamicSelectors = {
         ...this.dynamicSelectors,
-        // Distinguish _root according to node type.
         _select: () => this.el.matches("select") && this.el,
         _nonSelect: () => !this.el.matches("select") && this.el,
     };
@@ -21,7 +20,6 @@ export class PostLink extends Interaction {
             "t-on-click.prevent": this.onClickPost,
         },
         _select: {
-            // In some browsers the click event is triggered when opening the select.
             "t-on-change.prevent": this.onClickPost,
         },
     };

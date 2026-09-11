@@ -19,7 +19,6 @@ class EventType(models.Model):
 
     @api.depends("website_menu")
     def _compute_website_track_menu_data(self):
-        """Simply activate or de-activate all menus at once."""
         for event_type in self:
             event_type.website_track = event_type.website_menu
             event_type.website_track_proposal = event_type.website_menu

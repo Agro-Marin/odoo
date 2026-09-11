@@ -18,7 +18,6 @@ export class Countdown extends Interaction {
     };
 
     setup() {
-        // Remove SVG previews (used to simulated canvas)
         this.el.querySelectorAll("svg").forEach((el) => el.parentNode.remove());
 
         this.wrapperEl = this.el.querySelector(".s_countdown_canvas_wrapper");
@@ -29,12 +28,6 @@ export class Countdown extends Interaction {
         this.display = this.el.dataset.display;
 
         if (!this.display && this.el.dataset.bsDisplay) {
-            // With the BS5 upgrade script of 16.0, countdowns' data-display may
-            // have been converted to data-bs-display by mistake. This will fix
-            // the DOM for good measures, maybe even allowing to remove this
-            // code in a few years as hopefully all current countdowns will have
-            // been removed or edited (or when a proper upgrade script in a
-            // future version of Odoo will be made, if necessary). TODO.
             this.display = this.el.dataset.bsDisplay;
             delete this.el.dataset.bsDisplay;
             this.el.dataset.display = this.display;
@@ -65,8 +58,6 @@ export class Countdown extends Interaction {
     }
 
     destroy() {
-        // The optional chaining is required because the queried element may not
-        // exist anymore if the interaction target has just been deleted
         this.el
             .querySelector(".s_countdown_canvas_wrapper")
             ?.classList.remove("d-none");
@@ -75,8 +66,6 @@ export class Countdown extends Interaction {
     }
 
     /**
-     * Ensures the input is a valid CSS color
-     *
      * @param {string} color
      * @returns {string}
      */
@@ -87,9 +76,6 @@ export class Countdown extends Interaction {
         return getCSSVariableValue(color, getHtmlStyle(document)) || this.defaultColor;
     }
 
-    /**
-     * Handles the action that should be executed once the countdown ends.
-     */
     handleEndCountdownAction() {
         if (this.endAction === "redirect") {
             const redirectUrl = verifyHttpsUrl(this.el.dataset.redirectUrl) || "/";
@@ -135,10 +121,6 @@ export class Countdown extends Interaction {
         return divEl;
     }
 
-    /**
-     * The timeDiff object will contains every visible time unit
-     * which will each contain its related canvas, total step, label..
-     */
     initTimeDiff() {
         const delta = this.getDelta();
         this.timeDiff = [];
@@ -147,8 +129,6 @@ export class Countdown extends Interaction {
             this.insert(divEl, this.wrapperEl);
             this.timeDiff.push({
                 canvas: divEl,
-                // There is no logical number of unit (total) on which day units
-                // can be compared against, so we use an arbitrary number.
                 total: 15,
                 label: _t("Days"),
                 nbSeconds: 86400,
@@ -209,7 +189,7 @@ export class Countdown extends Interaction {
     }
 
     /**
-     * @param {string} unit - either "d", "m", "h", or "s"
+     * @param {string} unit
      * @returns {boolean}
      */
     isUnitVisible(unit) {
@@ -220,9 +200,6 @@ export class Countdown extends Interaction {
         return this.isFinished && this.el.classList.contains("hide-countdown");
     }
 
-    /**
-     * Draws the whole countdown, including one countdown for each time unit.
-     */
     render() {
         if (this.onlyOneUnit && this.getDelta() < this.timeDiff[0].nbSeconds) {
             this.el.querySelector(".s_countdown_canvas_flex").remove();
@@ -266,7 +243,6 @@ export class Countdown extends Interaction {
                     continue;
                 }
 
-                // Draw canvas elements
                 if (this.layoutBackground !== "none") {
                     this.drawBgShape(ctx, this.layoutBackground === "plain");
                 }
@@ -293,15 +269,10 @@ export class Countdown extends Interaction {
 
         if (this.isFinished) {
             clearInterval(this.setInterval);
-            // Run the end action exactly once: render() is re-invoked on every
-            // resize below (to redraw the canvases), and re-running it would
-            // reschedule the redirect timeout and push a new cleanup each time.
             if (!this.endActionDone) {
                 this.endActionDone = true;
                 this.handleEndCountdownAction();
             }
-            // Re-render on resize when the countdown is finished. rAF-throttled:
-            // render() redraws every canvas, and resize can fire rapidly.
             if (!this.onResize) {
                 this.onResize = this.throttled(this.render);
                 window.addEventListener("resize", this.onResize);
@@ -310,7 +281,7 @@ export class Countdown extends Interaction {
     }
 
     /**
-     * @param {CanvasRenderingContext2D} ctx - Context of the canvas
+     * @param {CanvasRenderingContext2D} ctx
      */
     clearCanvas(ctx) {
         ctx.clearRect(0, 0, this.size, this.size);
@@ -318,9 +289,9 @@ export class Countdown extends Interaction {
 
     /**
      * @param {HTMLCanvasElement} canvas
-     * @param {string} textNb - text to display in the center of the canvas, in big
-     * @param {string} textUnit - text to display bellow `textNb` in small
-     * @param {boolean} full - if true, the shape will be drawn up to the progressbar
+     * @param {string} textNb
+     * @param {string} textUnit
+     * @param {boolean} full
      */
     drawText(canvas, textNb, textUnit, full = false) {
         const ctx = canvas.getContext("2d");
@@ -358,8 +329,8 @@ export class Countdown extends Interaction {
     }
 
     /**
-     * @param {CanvasRenderingContext2D} ctx - Context of the canvas
-     * @param {boolean} full - if true, the shape will be drawn up to the progressbar
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {boolean} full
      */
     drawBgShape(ctx, full = false) {
         ctx.fillStyle = this.layoutBackgroundColor;
@@ -404,10 +375,10 @@ export class Countdown extends Interaction {
     }
 
     /**
-     * @param {CanvasRenderingContext2D} ctx - Context of the canvas
-     * @param {number} nbUnit - how many unit should fill progress bar
-     * @param {number} totalUnit - number of unit to do a complete progress bar
-     * @param {boolean} useThinLine - if true, the progress bar will be thiner
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} nbUnit
+     * @param {number} totalUnit
+     * @param {boolean} useThinLine
      */
     drawProgressBar(ctx, nbUnit, totalUnit, useThinLine) {
         ctx.strokeStyle = this.progressBarColor;
@@ -426,7 +397,6 @@ export class Countdown extends Interaction {
             ctx.lineWidth *= 2;
             let pc = (nbUnit / totalUnit) * 100;
 
-            // Lines: Top(x1,y1,x2,y2) Right(x1,y1,x2,y2) Bottom(x1,y1,x2,y2) Left(x1,y1,x2,y2)
             const linesCoordFuncs = [
                 (linePc) => [
                     0 + ctx.lineWidth / 2,
@@ -471,7 +441,7 @@ export class Countdown extends Interaction {
     }
 
     /**
-     * @param {CanvasRenderingContext2D} ctx - Context of the canvas
+     * @param {CanvasRenderingContext2D} ctx
      * @param {boolean} useThinLine
      */
     drawProgressBarBg(ctx, useThinLine) {
@@ -491,7 +461,6 @@ export class Countdown extends Interaction {
         } else if (this.layout === "boxes") {
             ctx.lineWidth *= 2;
 
-            // Lines: Top(x1,y1,x2,y2) Right(x1,y1,x2,y2) Bottom(x1,y1,x2,y2) Left(x1,y1,x2,y2)
             const points = [
                 [0 + ctx.lineWidth / 2, 0, this.width, 0],
                 [this.width, 0 + ctx.lineWidth / 2, this.width, this.size],

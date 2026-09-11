@@ -23,10 +23,6 @@ class SaleOrderLine(models.Model):
         )
 
     def _get_max_available_qty(self):
-        """The max quantity of a combo product is the max quantity of its selected combo item with
-        the lowest max quantity. If none of the combo items has a max quantity, then the combo
-        product also has no max quantity.
-        """
         self.check_singleton()
         cart_and_free_quantities = [
             line.order_id._get_cart_and_free_qty(line.product_id)

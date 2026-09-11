@@ -1,9 +1,6 @@
-<!-- <?xml version="1.0" encoding="utf-8"?> -->
 <odoo>
 
     <data noupdate="1">
-        <!-- POPULARITY (VIEWS) -->
-        <!-- Popular: 150 views -->
         <record id="badge_q_1" model="gamification.badge">
             <field name="name">Popular Question</field>
             <field name="description">Asked a question with at least 150 views</field>
@@ -41,7 +38,6 @@
             <field name="challenge_id" ref="challenge_popular_question" />
             <field name="target_goal">1</field>
         </record>
-        <!-- Notable: 250 views -->
         <record id="badge_q_2" model="gamification.badge">
             <field name="name">Notable Question</field>
             <field name="description">Asked a question with at least 250 views</field>
@@ -79,7 +75,6 @@
             <field name="challenge_id" ref="challenge_notable_question" />
             <field name="target_goal">1</field>
         </record>
-        <!-- Famous: 500 views -->
         <record id="badge_q_3" model="gamification.badge">
             <field name="name">Famous Question</field>
             <field name="description">Asked a question with at least 500 views</field>
@@ -117,8 +112,6 @@
             <field name="challenge_id" ref="challenge_famous_question" />
             <field name="target_goal">1</field>
         </record>
-        <!-- FAVORITE -->
-        <!-- Credible: at least 1 user have it in favorite -->
         <record id="badge_q_4" model="gamification.badge">
             <field name="name">Credible Question</field>
             <field name="description">Question set as favorite by 1 user</field>
@@ -158,7 +151,6 @@
             <field name="challenge_id" ref="challenge_favorite_question_1" />
             <field name="target_goal">1</field>
         </record>
-        <!-- Favorite: at least 5 users have it in favorite -->
         <record id="badge_q_5" model="gamification.badge">
             <field name="name">Favorite Question</field>
             <field name="description">Question set as favorite by 5 users</field>
@@ -198,7 +190,6 @@
             <field name="challenge_id" ref="challenge_favorite_question_5" />
             <field name="target_goal">1</field>
         </record>
-        <!-- Stellar: at least 25 users have it in favorite -->
         <record id="badge_q_6" model="gamification.badge">
             <field name="name">Stellar Question</field>
             <field name="description">Question set as favorite by 25 users</field>
@@ -238,8 +229,6 @@
             <field name="challenge_id" ref="challenge_stellar_question_25" />
             <field name="target_goal">1</field>
         </record>
-        <!-- QUALITY (VOTES) -->
-        <!-- Student: at least 1 upvote -->
         <record id="badge_q_7" model="gamification.badge">
             <field name="name">Student</field>
             <field
@@ -279,7 +268,6 @@
             <field name="challenge_id" ref="challenge_student" />
             <field name="target_goal">1</field>
         </record>
-        <!-- Nice: at least 4 upvotes -->
         <record id="badge_q_8" model="gamification.badge">
             <field name="name">Nice Question</field>
             <field name="description">Question voted up 4 times</field>
@@ -318,7 +306,6 @@
             <field name="challenge_id" ref="challenge_nice_question" />
             <field name="target_goal">1</field>
         </record>
-        <!-- Good: at least 6 upvotes -->
         <record id="badge_q_9" model="gamification.badge">
             <field name="name">Good Question</field>
             <field name="description">Question voted up 6 times</field>
@@ -357,7 +344,6 @@
             <field name="challenge_id" ref="challenge_good_question" />
             <field name="target_goal">1</field>
         </record>
-        <!-- Great: at least 15 upvotes -->
         <record id="badge_q_10" model="gamification.badge">
             <field name="name">Great Question</field>
             <field name="description">Question voted up 15 times</field>
@@ -396,7 +382,6 @@
             <field name="target_goal">1</field>
             <field name="challenge_id" ref="challenge_great_question" />
         </record>
-        <!-- Question + Answer -->
         <record id="badge_26" model="gamification.badge">
             <field name="name">Scholar</field>
             <field name="description">Asked a question and accepted an answer</field>

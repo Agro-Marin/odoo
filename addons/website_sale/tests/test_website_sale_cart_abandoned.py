@@ -51,20 +51,20 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         cls.website0 = cls.env["website"].create(
             {
                 "name": "web0",
-                "cart_abandoned_delay": 1.0,  # 1 hour
+                "cart_abandoned_delay": 1.0,
             }
         )
         cls.website1 = cls.env["website"].create(
             {
                 "name": "web1",
-                "cart_abandoned_delay": 0.5,  # 30 minutes
+                "cart_abandoned_delay": 0.5,
             }
         )
         cls.website2 = cls.env["website"].create(
             {
                 "name": "web2",
-                "cart_abandoned_delay": 24.0,  # 1 day
-                "user_id": cls.public_user.id,  # specific public user
+                "cart_abandoned_delay": 24.0,
+                "user_id": cls.public_user.id,
             }
         )
         product = cls.env["product.product"].create({"name": "The Product"})
@@ -149,7 +149,6 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
             }
         )
 
-        # Must behave like so1before because public partner is not the one of website1
         cls.so1before_but_other_public = cls.env["sale.order"].create(
             {
                 "partner_id": cls.public_partner.id,
@@ -162,7 +161,6 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         )
 
     def test_search_abandoned_cart(self):
-        """Make sure the search for abandoned carts uses the delay and public partner specified in each website."""
         SaleOrder = self.env["sale.order"]
         abandoned = SaleOrder.search([("is_abandoned_cart", "=", True)]).ids
         self.assertTrue(self.so0before.id in abandoned)
@@ -185,7 +183,6 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         self.assertFalse(self.so2before_but_public.id in abandoned)
 
     def test_website_sale_abandoned_cart_email(self):
-        """Make sure the send_abandoned_cart_email method sends the correct emails."""
 
         website = self.env["website"].get_current_website()
         website.send_abandoned_cart_email = True
@@ -228,7 +225,6 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
 
         self.assertTrue(self.send_mail_patched(abandoned_sale_order.id))
 
-        # Test that no mail is sent if the partner has no email address.
         self.customer.email = False
         self.env["sale.order"].create(
             {
@@ -245,7 +241,6 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         )
         self.assertFalse(self.send_mail_patched(abandoned_sale_order.id))
 
-        # Test that no mail is sent if the recovery email of the sale order has already been sent.
         self.env["sale.order"].create(
             {
                 "partner_id": self.customer.id,
@@ -262,7 +257,6 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         )
         self.assertFalse(self.send_mail_patched(abandoned_sale_order.id))
 
-        # Test that no email is sent if the sale order contains product that are free.
         free_product_template = self.env["product.template"].create(
             {"list_price": 0.0, "name": "free_product"}
         )
@@ -293,7 +287,6 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         )
         self.assertFalse(self.send_mail_patched(abandoned_sale_order.id))
 
-        # Test that no email is sent if the sale order has no error in its transaction.
         abandoned_sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.customer.id,
@@ -321,8 +314,6 @@ class TestWebsiteSaleCartAbandoned(TestWebsiteSaleCartAbandonedCommon):
         abandoned_sale_order.transaction_ids += transaction
         self.assertFalse(self.send_mail_patched(abandoned_sale_order.id))
 
-        # Test that if the partner of the abandoned cart made an order ulterior to the abandoned cart create date,
-        # no email is sent.
         self.env["sale.order"].create(
             {
                 "partner_id": self.customer.id,

@@ -12,7 +12,6 @@ import { FormViewDialog } from "@web/views/view_dialogs";
 
 import { WebsiteDialog } from "./dialog.js";
 
-/** Content of the "Dependencies" popover; rendered by the popover service. */
 class PageDependenciesPopover extends Component {
     static template = "website.PageDependencies.Tooltip";
     static props = {

@@ -38,11 +38,9 @@ class TestEcommerceAccess(HttpCaseWithUserDemo, WebsiteSaleCommon):
             ]
         )
 
-        # Add one dummy product in one of the subcategories
         cls._create_product(public_categ_ids=[cls.filled_category.child_id[0].id])
 
     def test_ecommerce_access_public_user(self):
-        # By default, everyone has access to ecommerce
         self.assertTrue(self.website.with_user(self.public_user).has_ecommerce_access())
         self.website.ecommerce_access = "logged_in"
         self.assertFalse(
@@ -50,30 +48,20 @@ class TestEcommerceAccess(HttpCaseWithUserDemo, WebsiteSaleCommon):
         )
 
     def test_frontend_ecommerce_access_public_user(self):
-        """
-        Ensures that the '/shop' URL returns a 200 OK status code even if categories are empty when
-        not logged.
-        """
         self.quick_ref("website_sale.products_categories").active = True
         self.quick_ref(
             "website_sale.option_collapse_products_categories"
         ).active = False
 
         response = self.url_open("/shop")
-        self.assertEqual(response.status_code, 200)  # Check that customers can access
+        self.assertEqual(response.status_code, 200)
 
     def test_ecommerce_access_logged_user(self):
-        # By default, everyone has access to the ecommerce
         self.assertTrue(self.website.has_ecommerce_access())
         self.website.ecommerce_access = "logged_in"
-        # Check if logged-in users still have access to ecommerce after restricting it
         self.assertTrue(self.website.has_ecommerce_access())
 
     def test_frontend_ecommerce_access_portal_user(self):
-        """
-        Ensures that the '/shop' URL returns a 200 OK status code even if categories are empty when
-        logged as portal user.
-        """
         self.quick_ref("website_sale.products_categories").active = True
         self.quick_ref(
             "website_sale.option_collapse_products_categories"
@@ -82,7 +70,7 @@ class TestEcommerceAccess(HttpCaseWithUserDemo, WebsiteSaleCommon):
 
         self.authenticate(portal_user.login, portal_user.login)
         response = self.url_open("/shop")
-        self.assertEqual(response.status_code, 200)  # Check that customers can access
+        self.assertEqual(response.status_code, 200)
 
     def test_ecommerce_menu_visibility_public_user(self):
         self.menu = self.env["website.menu"].create(
@@ -95,11 +83,6 @@ class TestEcommerceAccess(HttpCaseWithUserDemo, WebsiteSaleCommon):
             }
         )
 
-        # The compute is env-user dependent, so it has to be triggered AND read
-        # on the same recordset: `_compute_is_visible()` writes into the cache
-        # of the environment it runs in, and reading `self.menu` back would ask
-        # the admin environment, for whom the menu is visible either way.
-        # Sudo because the public user cannot read what the compute reaches.
         menu_as_public = self.menu.with_user(self.public_user).sudo()
 
         menu_as_public._compute_is_visible()

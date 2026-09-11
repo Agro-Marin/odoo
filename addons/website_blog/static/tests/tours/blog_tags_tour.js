@@ -6,9 +6,6 @@ import {
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
-/**
- * Makes sure that blog tags can be created and removed.
- */
 registerWebsitePreviewTour(
     "blog_tags",
     {

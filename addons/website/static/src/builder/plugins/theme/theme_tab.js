@@ -7,12 +7,9 @@ export class ThemeTab extends Component {
     static template = "website.ThemeTab";
     static components = { OptionsContainer };
     static props = {
-        // optionsContainers: { type: Array, optional: true },
         colorPresetToShow: { type: Number | null, optional: true },
     };
-    static defaultProps = {
-        // optionsContainers: [],
-    };
+    static defaultProps = {};
 
     setup() {
         useOptionsSubEnv(() => [this.env.editor.document.body]);

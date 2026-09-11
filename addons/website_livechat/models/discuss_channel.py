@@ -17,13 +17,6 @@ class DiscussChannel(models.Model):
     )
 
     def channel_pin(self, pinned=False):
-        """Override to clean an empty livechat channel.
-        This is typically called when the operator send a chat request to a website.visitor
-        but don't speak to them and closes the chatter.
-        This allows operators to send the visitor a new chat request.
-        If active empty livechat channel,
-        delete discuss_channel as not useful to keep empty chat
-        """
         super().channel_pin(pinned=pinned)
         if self.channel_type == "livechat" and not pinned and not self.message_ids:
             self.sudo().unlink()
@@ -45,8 +38,6 @@ class DiscussChannel(models.Model):
                     and self.livechat_visitor_id.has_access("read")
                 ),
             ),
-            # sudo: discuss.channel - visitor can access to the channel member history of
-            # an accessible channel when computing requested_by_operator
             Store.Attr(
                 "requested_by_operator",
                 lambda channel: (
@@ -101,9 +92,6 @@ class DiscussChannel(models.Model):
         return fields_to_store
 
     def message_post(self, **kwargs):
-        """Override to mark the visitor as still connected.
-        If the message sent is not from the operator (so if it's the visitor or
-        odoobot sending closing chat notification, the visitor last action date is updated."""
         message = super().message_post(**kwargs)
         message_author_id = message.author_id
         visitor = self.livechat_visitor_id
@@ -112,6 +100,5 @@ class DiscussChannel(models.Model):
             and visitor
             and message_author_id != self.livechat_operator_id
         ):
-            # sudo: website.visitor: updating data of a specific visitor
             visitor.sudo()._update_visitor_last_visit()
         return message

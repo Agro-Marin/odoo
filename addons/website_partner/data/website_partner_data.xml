@@ -6,7 +6,6 @@
     </record>
 
     <data noupdate="1">
-        <!-- Partner page published/unpublished log in the chatter -->
         <record id="mt_partner_published" model="mail.message.subtype">
             <field name="name">Partner published</field>
             <field name="res_model">res.partner</field>

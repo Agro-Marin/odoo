@@ -19,93 +19,48 @@ const { DateTime } = luxon;
  * @property {String} custom_value
  */
 
-/**
- * Manages product addition via the {@link addToCart} function.
- *
- * This function handles the process of adding products to the cart, including:
- * - Opening configurators if needed;
- * - Updating the cart with the selected products;
- * - Updating the cart count in the navbar;
- * - Notifying the customer of successful additions;
- * - Track the added products.
- *
- * Override this class to implement additional checks or
- * provide relevant information when adding a product to the cart.
- */
 export class CartService {
     static dependencies = ["cartNotificationService", "dialog"];
 
     /**
-     * Creates an instance of the service and initializes it using the {@link setup} method.
-     *
-     * The constructor delegates initialization to {@link setup} to handle wiring up dependencies,
-     * setting up methods, and initializing global variables, as constructors themselves cannot be
-     * patched.
-     *
-     * @returns {Object} - The initialized service object returned by {@link setup}.
+     * @returns {Object}
      */
     constructor() {
         return this.setup(...arguments);
     }
 
     /**
-     * Initializes the service wiring up dependencies, setting up methods and initializing global
-     * variables.
-     *
-     * @param {import("@web/env").OdooEnv} _env - The environment object, not used here.
-     * @param {import("services").ServiceFactories} services - An object containing instances of the
-     *      required services specified in the {@link dependencies} array.
-     *
-     * @returns {Object} - An object exposing the public methods of the service.
+     * @param {import("@web/env").OdooEnv} _env
+     * @param {import("services").ServiceFactories} services
+     * @returns {Object}
      */
     setup(_env, services) {
         this.cartNotificationService = services.cartNotificationService;
         this.dialog = services.dialog;
-        this.rpc = rpc; // To be overridable in tests.
+        this.rpc = rpc;
 
-        // Only expose `add` in the service registry.
         return {
             add: (...args) => this.add(...args),
         };
     }
 
-    //--------------------------------------------------------------------------
-    // Methods exposed by the service.
-    //--------------------------------------------------------------------------
-
     /**
-     * Asynchronously adds a product to the shopping cart.
-     *
-     * @async
-     * @param {Object} product - The product details to add to the cart.
-     * @param {Number} product.productTemplateId - The product template's id, as a
-     *      `product.template` id.
-     * @param {Number} [product.productId=undefined] - The product's id, as a `product.product` id.
-     *      If not provided, selects the first available product or creates one if any attribute is
-     *      dynamic.
-     * @param {Number} [product.quantity=1] - The quantity of the product to add to the cart.
-     *      Defaults to 1.
-     * @param {Number} [product.uom_id=undefined] - The product's uom id, as a `uom.uom` id.
-     *      If not provided, considers the product default uom.
-     * @param {Number[]} [product.ptavs=[]] - The selected stored attribute(s), as a list of
-     *      `product.template.attribute.value` ids.
-     * @param {CustomAttributeValues[]} [product.productCustomAttributeValues=[]] - An
-     *      array of objects representing custom attribute values for the product.
-     * @param {Number[]} [product.noVariantAttributeValues=[]] - The selected non-stored
-     *      attribute(s), as a list of `product.template.attribute.value` ids.
-     * @param {Boolean} [product.isCombo=false] - Whether the product is part of a combo template.
-     *      Defaults to false.
-     * @param {*} [product.rest] - Locally unused data sent to the controllers.
-     * @param {Object} [options] - Define how to add products to the cart.
-     * @param {Boolean} [options.isBuyNow=false] - Whether the product should be added immediately,
-     *      bypassing optional configurations. Defaults to false.
-     * @param {Boolean} [options.redirectToCart=true] - When `isBuyNow` is `true`, whether to
-     *      redirect the customer to the cart. Defaults to true.
-     * @param {Boolean} [options.isConfigured=false] - Whether the product is already configured.
-     *      Defaults to false.
-     * @param {Boolean} [options.showQuantity=true] - Whether quantity selector should be shown
-     *      Defaults to true.
-     * @returns {Number} - The product's quantity added to the cart.
+     * @param {Object} product
+     * @param {Number} product.productTemplateId
+     * @param {Number} [product.productId=undefined]
+     * @param {Number} [product.quantity=1]
+     * @param {Number} [product.uom_id=undefined]
+     * @param {Number[]} [product.ptavs=[]]
+     * @param {CustomAttributeValues[]} [product.productCustomAttributeValues=[]]
+     * @param {Number[]} [product.noVariantAttributeValues=[]]
+     * @param {Boolean} [product.isCombo=false]
+     * @param {*} [product.rest]
+     * @param {Object} [options]
+     * @param {Boolean} [options.isBuyNow=false]
+     * @param {Boolean} [options.redirectToCart=true]
+     * @param {Boolean} [options.isConfigured=false]
+     * @param {Boolean} [options.showQuantity=true]
+     * @returns {Number}
      */
     async add(
         {
@@ -141,7 +96,6 @@ export class CartService {
                 {
                     product_tmpl_id: productTemplateId,
                     quantity: quantity,
-                    // NOTE: no uom for combos on purpose
                     date: serializeDateTime(DateTime.now()),
                     ...rest,
                 },
@@ -150,9 +104,6 @@ export class CartService {
                 .map((combo) => new ProductCombo(combo))
                 .map((combo) => combo.preselectedComboItem)
                 .filter(Boolean);
-            // If the combo product is already fully configured (i.e. a combo item has been
-            // preselected for each combo choice), then it can be added to the cart without
-            // opening the combo configurator.
             if (preselectedComboItems.length === combos.length) {
                 return this._makeRequest({
                     productTemplateId: productTemplateId,
@@ -170,7 +121,6 @@ export class CartService {
                     ...rest,
                 });
             }
-            // If some combo choices need to be configured, open the combo configurator.
             return this._openComboConfigurator(
                 productTemplateId,
                 productId,
@@ -233,31 +183,22 @@ export class CartService {
         });
     }
 
-    //--------------------------------------------------------------------------
-    // Configurators
-    //--------------------------------------------------------------------------
-
     /**
-     * Opens the combo configurator dialog.
-     *
      * @private
-     * @param {Number} productTemplateId - The product template id, as a `product.template` id.
-     * @param {Number} productId - The product's id, as a `product.product` id.
-     * @param {ProductCombo[]} combos - The combos of the product.
-     * @param {Object} remainingData - Other data needed to open the combo configurator.
-     * @param {Number} remainingData.currency_id - The currency's id, as a `res.currency` id.
-     * @param {String} remainingData.display_name - The name of the combo.
-     * @param {Number} remainingData.price - The price of the combo.
-     * @param {Number} remainingData.product_tmpl_id - The product template's id, as a
-     *      `product.template` id.
-     * @param {Number} remainingData.quantity - The quantity of the combo.
-     * @param {Object} [options] - Define how to add products to the cart.
-     * @param {Boolean} [options.isBuyNow] - Whether the product should be added immediately,
-     *      bypassing optional configurations.
-     * @param {Boolean} [options.showQuantity] - Whether to show the quantity in the configurator.
-     * @param {Object} [additionalData] - Additional data sent to the controllers.
-     *
-     * @returns {Number} - The product's quantity added to the cart.
+     * @param {Number} productTemplateId
+     * @param {Number} productId
+     * @param {ProductCombo[]} combos
+     * @param {Object} remainingData
+     * @param {Number} remainingData.currency_id
+     * @param {String} remainingData.display_name
+     * @param {Number} remainingData.price
+     * @param {Number} remainingData.product_tmpl_id
+     * @param {Number} remainingData.quantity
+     * @param {Object} [options]
+     * @param {Boolean} [options.isBuyNow]
+     * @param {Boolean} [options.showQuantity]
+     * @param {Object} [additionalData]
+     * @returns {Number}
      */
     async _openComboConfigurator(
         productTemplateId,
@@ -282,7 +223,6 @@ export class CartService {
                             productTemplateId: productTemplateId,
                             productId: productId,
                             quantity: comboProductData.quantity,
-                            // NOTE: no uom since not handled in combo configurator
                             linked_products: selectedComboItems.map((comboItem) =>
                                 this._serializeComboItem(
                                     comboItem,
@@ -301,25 +241,18 @@ export class CartService {
     }
 
     /**
-     * Opens the product configurator dialog.
-     *
      * @private
-     * @param {Number} productTemplateId - The product template id, as a `product.template` id.
-     * @param {Number} quantity - The quantity to add to the cart.
-     * @param {Number} [uomId] - The unit of measure of the added quantity, as a `uom.uom` id.
-     * @param {Number[]} combination - The combination of the product, as a list of
-     *      `product.template.attribute.value` ids.
-     * @param {CustomAttributeValues[]} productCustomAttributeValues - An array of objects
-     *      representing custom attribute values for the product.
-     * @param {Object} [options] - Define how to add products to the cart.
-     * @param {Boolean} [options.isBuyNow] - Whether the product should be added immediately,
-     *      bypassing optional configurations.
-     * @param {Boolean} [options.isMainProductConfigurable] - Whether the product should be
-     *      configurable.
-     * @param {Boolean} [options.showQuantity] - Whether to show the quantity in the configurator.
-     * @param {Object} [additionalData] - Additional data sent to the controllers.
-     *
-     * @returns {Number} - The product's quantity added to the cart.
+     * @param {Number} productTemplateId
+     * @param {Number} quantity
+     * @param {Number} [uomId]
+     * @param {Number[]} combination
+     * @param {CustomAttributeValues[]} productCustomAttributeValues
+     * @param {Object} [options]
+     * @param {Boolean} [options.isBuyNow]
+     * @param {Boolean} [options.isMainProductConfigurable]
+     * @param {Boolean} [options.showQuantity]
+     * @param {Object} [additionalData]
+     * @returns {Number}
      */
     async _openProductConfigurator(
         productTemplateId,
@@ -343,7 +276,7 @@ export class CartService {
                 soDate: serializeDateTime(DateTime.now()),
                 edit: false,
                 isFrontend: true,
-                selectedComboItems: [], // optional products for combo aren't supported on ecommerce for now.
+                selectedComboItems: [],
                 options,
                 ...additionalData,
                 save: async (mainProduct, optionalProducts, options) => {
@@ -372,12 +305,9 @@ export class CartService {
     }
 
     /**
-     * Serialize a product into a format understandable by the server.
-     *
      * @private
-     * @param {Object} product - The product to serialize.
-     *
-     * @returns {Object} - The serialized product.
+     * @param {Object} product
+     * @returns {Object}
      */
     _serializeProduct(product) {
         let serializedProduct = {
@@ -392,7 +322,6 @@ export class CartService {
             return serializedProduct;
         }
 
-        // Custom attributes.
         serializedProduct.product_custom_attribute_values = [];
         for (const ptal of product.attribute_lines) {
             const selectedCustomPtav = getSelectedCustomPtav(ptal);
@@ -404,7 +333,6 @@ export class CartService {
             }
         }
 
-        // No variant attributes.
         serializedProduct.no_variant_attribute_value_ids = product.attribute_lines
             .filter((ptal) => ptal.create_variant === "no_variant")
             .flatMap((ptal) => ptal.selected_attribute_value_ids);
@@ -413,15 +341,11 @@ export class CartService {
     }
 
     /**
-     * Serialize a combo item into a format understandable by the server.
-     *
      * @private
-     * @param {ProductComboItem} comboItem - The combo item to serialize.
-     * @param {Number} parentProductTemplateId - The parent's product template id, as a
-     *      `product.template` id.
-     * @param {Number} quantity - The quantity to add to the cart.
-     *
-     * @returns {Object} - The serialized combo item.
+     * @param {ProductComboItem} comboItem
+     * @param {Number} parentProductTemplateId
+     * @param {Number} quantity
+     * @returns {Object}
      */
     _serializeComboItem(comboItem, parentProductTemplateId, quantity) {
         return {
@@ -432,31 +356,18 @@ export class CartService {
         };
     }
 
-    //--------------------------------------------------------------------------
-    // Helpers
-    //--------------------------------------------------------------------------
-
     /**
-     * Make a request to the server to add the product to the cart.
-     *
-     * @async
      * @private
-     * @param {Object} data - Data containing product(s) to add to the cart and options for adding
-     *      them.
-     * @param {Number} data.productTemplateId - The product template's id, as a
-     *      `product.template` id.
-     * @param {Number} data.productId - The product's id, as a `product.product` id.
-     * @param {Number} data.uomId - The uom's id, as a `uom.uom` id.
-     * @param {Number} data.quantity - The quantity of the product to add to the cart.
-     * @param {CustomAttributeValues[]} [data.productCustomAttributeValues=[]] - An
-     *      array of objects representing custom attribute values for the product.
-     * @param {Number[]} [data.noVariantAttributeValues=[]] - The selected non-stored
-     *      attribute(s), as a list of `product.template.attribute.value` ids.
-     * @param {Boolean} [data.shouldRedirectToCart=false] - Whether to redirect the
-     *      customer to the cart. Defaults to false.
-     * @param {*} [data.rest] - Locally unused data sent to the controllers.
-     *
-     * @returns {Number} - The product's quantity in the cart.
+     * @param {Object} data
+     * @param {Number} data.productTemplateId
+     * @param {Number} data.productId
+     * @param {Number} data.uomId
+     * @param {Number} data.quantity
+     * @param {CustomAttributeValues[]} [data.productCustomAttributeValues=[]]
+     * @param {Number[]} [data.noVariantAttributeValues=[]]
+     * @param {Boolean} [data.shouldRedirectToCart=false]
+     * @param {*} [data.rest]
+     * @returns {Number}
      */
     async _makeRequest({
         productTemplateId,
@@ -477,7 +388,6 @@ export class CartService {
             no_variant_attribute_value_ids: noVariantAttributeValues,
             ...rest,
         });
-        // TODO should not redirect if errors in data.
         if (shouldRedirectToCart || session.add_to_cart_action === "go_to_cart") {
             redirect("/shop/cart");
             return data.quantity;
@@ -497,16 +407,12 @@ export class CartService {
     }
 
     /**
-     * Update the quantity on the cart icon in the navbar.
-     *
      * @private
-     * @param {Number} cartQuantity - The number of items currently in the cart.
-     *
+     * @param {Number} cartQuantity
      * @returns {void}
      */
     _updateCartIcon(cartQuantity) {
         browser.sessionStorage.setItem("website_sale_cart_quantity", cartQuantity);
-        // Mobile and Desktop elements have to be updated.
         const cartQuantityElements = document.querySelectorAll(".my_cart_quantity");
         for (const cartQuantityElement of cartQuantityElements) {
             if (cartQuantity === 0) {
@@ -525,12 +431,9 @@ export class CartService {
     }
 
     /**
-     * Show the notification about the cart.
-     *
      * @private
      * @param {Object} props
      * @param {Object} options
-     *
      * @returns {void}
      */
     _showCartNotification(props, options = {}) {
@@ -550,11 +453,8 @@ export class CartService {
     }
 
     /**
-     * Track the products added to the cart.
-     *
      * @private
-     * @param {Object[]} trackingInfo - A list of product tracking information.
-     *
+     * @param {Object[]} trackingInfo
      * @returns {void}
      */
     _trackProducts(trackingInfo) {

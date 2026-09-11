@@ -90,8 +90,6 @@ export function changeBackgroundColor(position = "bottom") {
     };
 }
 
-// TODO: RAHG: This function's trigger is same as above. need to be changed
-// to avoid duplication
 export function selectColorPalette(position = "left") {
     return {
         trigger: ".o_customize_tab .o_we_color_preview",
@@ -128,11 +126,6 @@ export function changeImage(snippet, position = "bottom") {
     ];
 }
 
-/**
-    wTourUtils.changeOption('HeaderTemplate', '[data-name="header_alignment_opt"]', _t('alignment')),
-    By default, prevents the step from being active if a palette is opened.
-    Set allowPalette to true to select options within a palette.
-*/
 export function changeOption(
     blockName,
     actionId = "",
@@ -158,32 +151,7 @@ export function changeOption(
     };
 }
 
-/*
- * This function is used when the desired UI control is embedded inside popover
- * (e.g., a dropdown that appears only after clicking a toggle).
- *
- * It constructs two steps:
- *   1. Clicks the dropdown toggle or control to open the popover.
- *   2. Clicks the target element (option) inside the popover.
- *
- * Note: This function assumes that the popover content is available and render
- *       immediately after the first click.
- *
- * @param {string} blockName - The name of the block (e.g., "Text - Image").
- * @param {string} optionName - The name of the option (e.g., "Visibility").
- * @param {string} elementName - The name of the element to be clicked inside
- *                               the popover (e.g., "Conditionally").
- *
- * Example:
- *      ...changeOptionInPopover("Text - Image", "Visibility", "Conditionally")
- */
 export function changeOptionInPopover(blockName, optionName, elementName) {
-    // `elementName` is either a human label ("Conditionally") or, for options
-    // that expose no readable text, a CSS selector ("[data-action-value='3']").
-    // Only the latter may be interpolated into selector position: a label such
-    // as "Product Yes Variant 2 (Pink)" carries CSS-significant characters and
-    // would compile to a selector that cannot match, so labels are matched by
-    // text/title instead.
     const isSelector = /^[[.#]/.test(elementName);
     const itemSelector = isSelector
         ? `.o_popover ${elementName}`
@@ -199,8 +167,6 @@ export function changeOptionInPopover(blockName, optionName, elementName) {
             content: `Check if "${elementName}" option is shown. If not, search for it.`,
             trigger: ".o_popover .o-dropdown-item",
             async run(helpers) {
-                // The fallback types the label into the popover's filter box; a
-                // selector is not text a user could type, so it never applies.
                 if (!isSelector && !helpers.queryFirst(itemSelector)) {
                     await helpers.edit(elementName, ".o_popover input");
                 }
@@ -248,11 +214,8 @@ export function changePaddingSize(direction) {
 }
 
 /**
- * Checks if an element is visible on the screen, i.e., not masked by another
- * element.
- *
- * @param {String} elementSelector The selector of the element to be checked.
- * @returns {Object} The steps required to check if the element is visible.
+ * @param {String} elementSelector
+ * @returns {Object}
  */
 export function checkIfVisibleOnScreen(elementSelector) {
     return {
@@ -274,7 +237,6 @@ export function checkIfVisibleOnScreen(elementSelector) {
 }
 
 /**
- * Simple click on an element in the page.
  * @param {*} elementName
  * @param {*} selector
  */
@@ -287,9 +249,7 @@ export function clickOnElement(elementName, selector) {
 }
 
 /**
- * Click on the top right edit button and wait for the edit mode
- *
- * @param {string} position Where the purple arrow will show up
+ * @param {string} position
  */
 export function clickOnEditAndWaitEditMode(position = "bottom") {
     return [
@@ -308,10 +268,7 @@ export function clickOnEditAndWaitEditMode(position = "bottom") {
 }
 
 /**
- * Click on the top right edit dropdown, then click on the edit dropdown item
- * and wait for the edit mode
- *
- * @param {string} position Where the purple arrow will show up
+ * @param {string} position
  */
 export function clickOnEditAndWaitEditModeInTranslatedPage(position = "bottom") {
     return [
@@ -335,7 +292,6 @@ export function clickOnEditAndWaitEditModeInTranslatedPage(position = "bottom") 
 }
 
 /**
- * Simple click on a snippet in the edition area
  * @param {*} snippet
  * @param {*} position
  */
@@ -385,9 +341,8 @@ export function clickOnSave(position = "bottom", timeout = 50000, withContains =
 }
 
 /**
- * Click on a snippet's text to modify its content
  * @param {*} snippet
- * @param {*} element Target the element which should be rewrite
+ * @param {*} element
  * @param {*} position
  */
 export function clickOnText(snippet, element, position = "bottom") {
@@ -410,12 +365,8 @@ export function clickOnText(snippet, element, position = "bottom") {
 }
 
 /**
- * Selects a category or an inner snippet from the snippets menu and insert it
- * in the page.
- * @param {*} snippet contain the id and the name of the targeted snippet. If it
- * contains a group it means that the snippet is shown in the "add snippets"
- * dialog.
- * @param {*} position Where the purple arrow will show up
+ * @param {*} snippet
+ * @param {*} position
  */
 export function insertSnippet(
     snippet,
@@ -443,8 +394,6 @@ export function insertSnippet(
                 content: markup(
                     _t("Click on the <b>%s</b> building block.", snippet.name),
                 ),
-                // FIXME `:not(.d-none)` should not be needed but it seems
-                // currently needed when using a tour in user/interactive mode.
                 trigger: `.modal .show:iframe .o_snippet_preview_wrap${snippetIDSelector}:not(.d-none)`,
                 noPrepend: true,
                 tooltipPosition: "top",
@@ -545,12 +494,9 @@ export function clickOnExtraMenuItem(stepOptions, backend = false) {
             content: "Click on the extra menu dropdown toggle if it is there",
             trigger: `${backend ? ":iframe" : ""} .top_menu`,
             async run(actions) {
-                // Note: the button might not exist (it only appear if there is
-                // many menu items).
                 const extraMenuButton = this.anchor.querySelector(
                     ".o_extra_menu_items a.nav-link",
                 );
-                // Don't click on the extra menu button if it's already visible.
                 if (extraMenuButton && !extraMenuButton.classList.contains("show")) {
                     await actions.click(extraMenuButton);
                 }
@@ -561,13 +507,11 @@ export function clickOnExtraMenuItem(stepOptions, backend = false) {
 }
 
 /**
- * Registers a tour that will go in the website client action.
- *
- * @param {string} name The tour's name
- * @param {object} options The tour options
- * @param {string} options.url The page to edit
- * @param {boolean} [options.edition] If the tour starts in edit mode
- * @param {() => TourStep[]} steps The steps of the tour. Has to be a function to avoid direct interpolation of steps.
+ * @param {string} name
+ * @param {object} options
+ * @param {string} options.url
+ * @param {boolean} [options.edition]
+ * @param {() => TourStep[]} steps
  */
 export function registerWebsitePreviewTour(name, options, steps) {
     if (typeof steps !== "function") {
@@ -579,11 +523,6 @@ export function registerWebsitePreviewTour(name, options, steps) {
         url: getClientActionUrl(options.url, !!options.edition),
         steps: () => {
             const tourSteps = [...steps()];
-            // Note: for both non edit mode and edit mode, we set a high timeout for the
-            // first step. Indeed loading both the backend and the frontend (in the
-            // iframe) and potentially starting the edit mode can take a long time in
-            // automatic tests. We'll try and decrease the need for this high timeout
-            // of course.
             if (options.edition) {
                 tourSteps.unshift({
                     content: "Wait for the edit mode to be started",
@@ -606,14 +545,12 @@ export function registerThemeHomepageTour(name, steps) {
         throw new Error(`tour.steps has to be a function that returns TourStep[]`);
     }
     return registerWebsitePreviewTour(
-        "homepage", // it overrides the community tour with the associated theme tour
+        "homepage",
         {
             url: "/",
         },
         () => [
             ...clickOnEditAndWaitEditMode(),
-            // FIXME(?) this should probably reuse the prepend_trigger function
-            // so that we do check that we are really on the homepage.
             ...steps(),
             ...goToTheme(),
             ...clickOnSave(),
@@ -644,11 +581,9 @@ export function registerBackendAndFrontendTour(name, options, steps) {
 }
 
 /**
- * Switches to a different website by clicking on the website switcher.
- *
- * @param {number} websiteId - The ID of the website to switch to.
- * @param {string} websiteName - The name of the website to switch to.
- * @returns {Array} - The steps required to perform the website switch.
+ * @param {number} websiteId
+ * @param {string} websiteName
+ * @returns {Array}
  */
 export function switchWebsite(websiteId, websiteName) {
     return [
@@ -667,8 +602,6 @@ export function switchWebsite(websiteId, websiteName) {
         },
         {
             content: "Wait for the iframe to be loaded",
-            // The page reload generates assets for the new website, it may take
-            // some time
             timeout: 20000,
             trigger: `:iframe html[data-website-id="${websiteId}"]`,
         },
@@ -676,12 +609,8 @@ export function switchWebsite(websiteId, websiteName) {
 }
 
 /**
- * Switches to a different website by clicking on the website switcher.
- * This function can only be used during test tours as it requires
- * specific cookies to properly function.
- *
- * @param {string} websiteName - The name of the website to switch to.
- * @returns {Array} - The steps required to perform the website switch.
+ * @param {string} websiteName
+ * @returns {Array}
  */
 export function testSwitchWebsite(websiteName) {
     const websiteIdMapping = JSON.parse(cookie.get("websiteIdMapping") || "{}");
@@ -690,10 +619,7 @@ export function testSwitchWebsite(websiteName) {
 }
 
 /**
- * Toggles the mobile preview on or off.
- *
- * @param {Boolean} toggleOn true to toggle the mobile preview on, false to
- *     toggle it off.
+ * @param {Boolean} toggleOn
  * @returns {Array}
  */
 export function toggleMobilePreview(toggleOn) {
@@ -717,13 +643,10 @@ export function toggleMobilePreview(toggleOn) {
 }
 
 /**
- * Opens the link popup for the specified link element.
- *
- * @param {string} triggerSelector - Selector for the link element.
- * @param {string} [linkName=""] - Name of the link.
- * @param {number} [focusNodeIndex=0] - Index of the child node to focus inside
- *                                      the link element.
- * @returns {TourStep[]} The tour steps that opens the link popup.
+ * @param {string} triggerSelector
+ * @param {string} [linkName=""]
+ * @param {number} [focusNodeIndex=0]
+ * @returns {TourStep[]}
  */
 export function openLinkPopup(
     triggerSelector,
@@ -753,7 +676,6 @@ export function openLinkPopup(
 }
 
 /**
- * Selects all the text of an element.
  * @param {*} elementName
  * @param {*} selector
  */
@@ -779,13 +701,11 @@ export function selectFullText(elementName, selector) {
 }
 
 /**
- * Click button from the toolbar, if expand is true, it will
- * first expand the toolbar.
  * @param {string} elementName
  * @param {string} selector
  * @param {string} button
- * @param {boolean} expand - Whether to expand the toolbar for more buttons.
- * @returns {Array} The steps to click the toolbar button.
+ * @param {boolean} expand
+ * @returns {Array}
  */
 export function clickToolbarButton(elementName, selector, button, expand = false) {
     const steps = [

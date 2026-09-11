@@ -23,7 +23,7 @@ registerWebsitePreviewTour(
             run: "dblclick",
         },
         {
-            content: "Search for 'banner' to call the media library", // Mocked call
+            content: "Search for 'banner' to call the media library",
             trigger: ".o_select_media_dialog .o_we_search",
             run: "edit banner",
         },

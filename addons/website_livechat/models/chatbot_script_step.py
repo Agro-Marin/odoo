@@ -10,7 +10,6 @@ class ChatbotScriptStep(models.Model):
         values = super()._chatbot_prepare_customer_values(
             discuss_channel, create_partner, update_partner
         )
-        # sudo - website.visitor: chat bot can access visitor information
         if visitor_sudo := discuss_channel.livechat_visitor_id.sudo():
             if not values.get("email") and visitor_sudo.email:
                 values["email"] = visitor_sudo.email

@@ -7,7 +7,6 @@ export class ScrollButton extends AnchorSlide {
     static selector = ".o_scroll_button";
 
     animateClick() {
-        // Scroll to the next visible element after the current one.
         const currentSectionEl = this.el.closest("section");
         let nextEl = currentSectionEl.nextElementSibling;
         while (nextEl) {

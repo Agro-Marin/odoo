@@ -7,7 +7,6 @@ from odoo.addons.website_slides.controllers.main import WebsiteSlides
 class WebsiteSaleSlides(WebsiteSlides):
     @route("/slides/get_course_products", type="jsonrpc", auth="user")
     def get_course_products(self):
-        """Return a list of the course products values with formatted price."""
         products = request.env["product.product"].search(
             [("service_tracking", "=", "course")]
         )
@@ -24,7 +23,6 @@ class WebsiteSaleSlides(WebsiteSlides):
         values = super()._prepare_additional_channel_values(values, **kwargs)
         channel = values["channel"]
         if channel.enroll == "payment":
-            # search the product to apply ACLs, notably on published status, to avoid access errors
             product = (
                 request.env["product.product"].search(
                     [("id", "=", channel.product_id.id)]

@@ -26,15 +26,11 @@ const makeSteps = (steps = []) => [
     ...clickOnSave(),
     ...clickOnEditAndWaitEditMode(),
     {
-        // This makes sure the last step about leaving edit mode at the end of
-        // this tour makes sense.
         content: "Confirm we are in edit mode",
         trigger: ":iframe #wrapwrap.odoo-editor-editable",
     },
     ...steps,
     {
-        // Makes sure the dirty flag does not happen after a setTimeout or
-        // something like that.
         content: "Click elsewhere and wait for a few ms",
         trigger: ":iframe body",
         async run(actions) {
@@ -79,22 +75,16 @@ registerWebsitePreviewTour(
     () =>
         makeSteps([
             {
-                // This has been known to mark the page as dirty because of the
-                // "drag the column on image move" feature.
                 content: "Click on default image",
                 trigger: ":iframe .s_text_image img",
                 run: "click",
             },
             {
-                // There was a feature that auto-selected default text and was
-                // known to break the dirty behavior. It was removed but it does
-                // not hurt to still click on default text anyway.
                 content: "Click on default paragraph",
                 trigger: ":iframe .s_text_image h2 + p",
                 run: "click",
             },
             {
-                // Link edition was also known to break the dirty behavior.
                 content: "Click on button",
                 trigger: ":iframe .s_text_image .btn",
                 async run(actions) {
@@ -133,12 +123,10 @@ registerWebsitePreviewTour(
             groupName: "Content",
         }),
         {
-            // Ensure the test keeps testing what it should test (eg if we ever
             trigger: ':iframe img.o_lang_flag[loading="lazy"]',
         },
         {
             content: "Replace first paragraph, to insert a new link",
-            // remove the lazy loading on those language img))
             trigger: ":iframe #wrap .s_text_image p",
             run: "editor SomeTestText",
         },

@@ -4,7 +4,6 @@ from odoo import api, fields, models
 class ProjectTask(models.Model):
     _inherit = "project.task"
 
-    # Used to submit tasks from a contact form
     partner_name = fields.Char(
         string="Customer Name",
         related="partner_id.name",

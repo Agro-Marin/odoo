@@ -75,8 +75,6 @@ export class CarouselOptionPlugin extends Plugin {
             props: {
                 addSlide: (editingElement) => this.addSlide(editingElement),
                 removeSlide: async (editingElement) => {
-                    // Check if the slide is still in the DOM
-                    // TODO: find a more general way to handle target element already removed by an option
                     if (editingElement.parentElement) {
                         await this.removeSlide(editingElement.closest(".carousel"));
                     }
@@ -103,11 +101,7 @@ export class CarouselOptionPlugin extends Plugin {
         is_unremovable_selector: carouselItemOptionSelector,
     };
 
-    /**
-     * Restores all the carousels so their first slide is the active one.
-     */
     restoreCarousels(rootEl = this.editable) {
-        // Set the first slide as the active one.
         for (const carouselEl of selectElements(rootEl, ".carousel")) {
             carouselEl.querySelectorAll(".carousel-item").forEach((itemEl, i) => {
                 itemEl.classList.remove("next", "prev", "left", "right");
@@ -128,45 +122,36 @@ export class CarouselOptionPlugin extends Plugin {
     getTitleExtraInfo(editingElement) {
         const itemEls = [...editingElement.parentElement.children];
         const activeIndex = itemEls.indexOf(editingElement);
-        // Updates the slide counter.
         const updatedText = ` (${activeIndex + 1}/${itemEls.length})`;
         return updatedText;
     }
 
     /**
-     * Adds a slide.
-     *
-     * @param {HTMLElement} editingElement the carousel element.
+     * @param {HTMLElement} editingElement
      */
     async addSlide(editingElement) {
-        // Clone the active item and remove the "active" class.
         const activeItemEl = editingElement.querySelector(".carousel-item.active");
         const newItemEl = await this.dependencies.clone.cloneElement(activeItemEl, {
             activateClone: false,
         });
         newItemEl.classList.remove("active");
 
-        // Show the controllers (now that there is always more than one item).
         const controlEls = editingElement.querySelectorAll(carouselControlsSelector);
         controlEls.forEach((controlEl) => {
             controlEl.classList.remove("d-none");
         });
 
-        // Add the new indicator.
         const indicatorsEl = editingElement.querySelector(".carousel-indicators");
         const newIndicatorEl = this.document.createElement("button");
         newIndicatorEl.setAttribute("data-bs-target", "#" + editingElement.id);
         newIndicatorEl.setAttribute("aria-label", _t("Carousel indicator"));
         indicatorsEl.appendChild(newIndicatorEl);
 
-        // Slide to the new item.
         await this.slide(editingElement, "next");
     }
 
     /**
-     * Removes the current slide.
-     *
-     * @param {HTMLElement} editingElement the carousel element.
+     * @param {HTMLElement} editingElement
      */
     async removeSlide(editingElement) {
         const itemEls = [...editingElement.querySelectorAll(".carousel-item")];
@@ -176,14 +161,11 @@ export class CarouselOptionPlugin extends Plugin {
             const activeIndicatorEl = editingElement.querySelector(
                 ".carousel-indicators > .active",
             );
-            // Slide to the previous item.
             await this.slide(editingElement, "prev");
 
-            // Remove the carousel item and the indicator.
             activeItemEl.remove();
             activeIndicatorEl.remove();
 
-            // Hide the controllers if there is only one slide left.
             const controlEls = editingElement.querySelectorAll(
                 carouselControlsSelector,
             );
@@ -194,29 +176,19 @@ export class CarouselOptionPlugin extends Plugin {
     }
 
     /**
-     * Slides the carousel.
-     *
-     * @param {HTMLElement} editingElement the carousel element.
-     * @param {String} direction "prev" or "next".
+     * @param {HTMLElement} editingElement
+     * @param {String} direction
      */
     async slideCarousel(editingElement, direction) {
         await this.slide(editingElement, direction);
     }
 
     /**
-     * Slides the carousel in the given direction.
-     *
-     * @param {String|Number} direction the direction in which to slide:
-     *     - "prev": the previous slide;
-     *     - "next": the next slide;
-     *     - number: a slide number.
-     * @param {Element} editingElement the carousel element.
+     * @param {String|Number} direction
+     * @param {Element} editingElement
      * @returns {Promise}
      */
     slide(editingElement, direction) {
-        // `{ once: true }` mirrors the `slid` handler below; without it every
-        // slide()/prev/next call leaves another permanent listener on the
-        // carousel for the whole edit session.
         editingElement.addEventListener(
             "slide.bs.carousel",
             () => {
@@ -232,20 +204,13 @@ export class CarouselOptionPlugin extends Plugin {
                     return;
                 }
                 settled = true;
-                // Setting the active indicator manually, as Bootstrap could not
-                // do it because the `data-bs-slide-to` attribute is not here in
-                // edit mode anymore.
                 const itemEls = editingElement.querySelectorAll(".carousel-item");
                 const activeItemEl = editingElement.querySelector(
                     ".carousel-item.active",
                 );
                 const activeIndex = [...itemEls].indexOf(activeItemEl);
-                // Full toggle (guards the index and, crucially, clears the
-                // previously-active indicator — the manual classList.add only
-                // ever added, leaving several indicators marked active).
                 updateCarouselIndicators(editingElement, activeIndex);
 
-                // Activate the active item.
                 this.dependencies["builderOptions"].setNextTarget(activeItemEl);
 
                 resolve();
@@ -253,27 +218,14 @@ export class CarouselOptionPlugin extends Plugin {
             editingElement.addEventListener(
                 "slid.bs.carousel",
                 () => {
-                    // slid.bs.carousel is most of the time fired too soon by
-                    // bootstrap since it emulates the transitionEnd with a
-                    // setTimeout. We wait here an extra 20% of the time before
-                    // retargeting edition, which should be enough...
                     const slideDuration =
                         window.performance.now() - this.slideTimestamp;
                     setTimeout(finalize, 0.2 * slideDuration);
                 },
                 { once: true },
             );
-            // Safety net: bootstrap may never emit `slid.bs.carousel` (the
-            // carousel gets detached mid-transition, or the emulated
-            // transitionEnd is suppressed), which would leave this promise —
-            // and every SlideCarouselAction/addSlide awaiting it — pending for
-            // the rest of the edit session. Resolve anyway after a bound well
-            // beyond any real transition.
             setTimeout(finalize, 3000);
 
-            // `editingElement` is in the edited document; its Carousel must come from that
-            // realm (see `bootstrap_realm`). Without the edit bundle there is nothing to
-            // drive, so settle the promise instead of waiting out the 3s bound above.
             const win = editingElement.ownerDocument.defaultView;
             const Carousel = getBootstrapComponent(win, "Carousel");
             if (!Carousel) {
@@ -306,15 +258,9 @@ export class CarouselOptionPlugin extends Plugin {
     }
 
     /**
-     * Creates a unique ID for the carousel and reassign data-attributes that
-     * depend on it.
-     *
-     * @param {HTMLElement} editingElement the carousel element.
+     * @param {HTMLElement} editingElement
      */
     assignUniqueID(editingElement) {
-        // uniqueId (not Date.now()) so cloning/dropping several carousels within
-        // the same millisecond can't produce duplicate ids that back
-        // data-bs-target and make controls act on the wrong carousel.
         const id = uniqueId("myCarousel");
         editingElement.querySelector(".carousel").setAttribute("id", id);
         editingElement.querySelectorAll("[data-bs-target]").forEach((el) => {
@@ -332,9 +278,7 @@ export class CarouselOptionPlugin extends Plugin {
     }
 
     /**
-     * Gets the carousel items to reorder.
-     *
-     * @param {HTMLElement} activeItemEl the current active item
+     * @param {HTMLElement} activeItemEl
      * @param {String} optionName
      * @returns {Array<HTMLElement>}
      */
@@ -348,39 +292,31 @@ export class CarouselOptionPlugin extends Plugin {
     }
 
     /**
-     * Updates the DOM with the reordered carousel items.
-     *
-     * @param {HTMLElement} activeItemEl the active item
-     * @param {Array<HTMLElement>} itemEls the reordered items
+     * @param {HTMLElement} activeItemEl
+     * @param {Array<HTMLElement>} itemEls
      * @param {String} optionName
      */
     reorderCarouselItems(activeItemEl, itemEls, optionName) {
         if (optionName === "Carousel") {
             const carouselEl = activeItemEl.closest(".carousel");
 
-            // Replace the content with the new slides.
             const carouselInnerEl = carouselEl.querySelector(".carousel-inner");
             const newCarouselInnerEl = document.createElement("div");
             newCarouselInnerEl.classList.add("carousel-inner");
             newCarouselInnerEl.append(...itemEls);
             carouselInnerEl.replaceWith(newCarouselInnerEl);
 
-            // Update the indicators.
             const newPosition = itemEls.indexOf(activeItemEl);
             updateCarouselIndicators(carouselEl, newPosition);
 
-            // Activate the active slide.
             this.dependencies.builderOptions.setNextTarget(activeItemEl);
         }
     }
 }
 
 /**
- * Updates the carousel indicators to make the one at the given index be the
- * active one.
- *
- * @param {HTMLElement} carouselEl the carousel element
- * @param {Number} newPosition the index
+ * @param {HTMLElement} carouselEl
+ * @param {Number} newPosition
  */
 export function updateCarouselIndicators(carouselEl, newPosition) {
     const indicatorEls = carouselEl.querySelectorAll(".carousel-indicators > *");

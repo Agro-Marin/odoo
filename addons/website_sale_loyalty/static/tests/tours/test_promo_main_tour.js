@@ -5,7 +5,6 @@ import * as tourUtils from "@website_sale/js/tours/tour_utils";
 registry.category("web_tour.tours").add("shop_sale_loyalty", {
     url: "/shop?search=Small%20Cabinet",
     steps: () => [
-        /* 1. Buy 1 Small Cabinet, enable coupon code & insert 10% code */
         {
             trigger: ".oe_search_found:not(:visible)",
         },
@@ -49,7 +48,6 @@ registry.category("web_tour.tours").add("shop_sale_loyalty", {
             trigger:
                 '.oe_website_sale_gift_card strong[name="o_loyalty_points"]:contains("372.03")',
         },
-        /* 2. Add some cabinet to get a free one, play with quantity */
         {
             content: "go to shop",
             trigger: 'div>h6:contains("10.0% discount on total amount")',
@@ -98,7 +96,6 @@ registry.category("web_tour.tours").add("shop_sale_loyalty", {
                 "check reduction amount got recomputed and merged both discount lines into one only",
             trigger: ".oe_website_sale .oe_cart",
         },
-        /* 3. Add some cabinet to get a free one, play with quantity */
         {
             content: "add one Small Cabinet",
             trigger: "#cart_products input.js_quantity",
@@ -126,7 +123,6 @@ registry.category("web_tour.tours").add("shop_sale_loyalty", {
             content: "check free product is removed",
             trigger: '#wrap:not(:has(div h6:contains("Free Product - Small Cabinet")))',
         },
-        /* 4. Check /shop/payment does not break the `merged discount lines split per tax` (eg: with _compute_tax_ids) */
         {
             content: "go to checkout",
             trigger: 'a[href="/shop/checkout?try_skip_step=true"]',

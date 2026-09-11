@@ -17,11 +17,7 @@ patch(PaymentForm.prototype, {
         });
     },
 
-    // #=== EVENT HANDLERS ===#
-
     /**
-     * Update the amount in the payment context with the user input.
-     *
      * @param {Event} ev
      * @return {void}
      */
@@ -46,12 +42,7 @@ patch(PaymentForm.prototype, {
     },
 
     /**
-     * Checks constraints on submit:
-     * 1. The value must be greater than the minimum value.
-     * 2. A radio button must be checked, if the custom amount is selected.
-     * 3. The custom input must have a value.
-     *
-     * @override method from payment.payment_form
+     * @override
      * @param {Event} ev
      */
     async submitForm(ev) {
@@ -69,7 +60,6 @@ patch(PaymentForm.prototype, {
             (!donationAmountInputEl.value ||
                 parseFloat(donationAmountInputEl.value) <= 0)
         ) {
-            // If the warning message is already displayed, we don't need to display it again.
             if (
                 this.el
                     .querySelector("#warning_min_message_id")
@@ -83,17 +73,13 @@ patch(PaymentForm.prototype, {
         await super.submitForm(...arguments);
     },
 
-    // #=== PAYMENT FLOW ===#
-
     /**
-     * Perform some validations for donations before processing the payment flow.
-     *
-     * @override method from @payment/js/payment_form
+     * @override
      * @private
-     * @param {string} providerCode - The code of the selected payment option's provider.
-     * @param {number} paymentOptionId - The id of the selected payment option.
-     * @param {string} paymentMethodCode - The code of the selected payment method, if any.
-     * @param {string} flow - The payment flow of the selected payment option.
+     * @param {string} providerCode
+     * @param {number} paymentOptionId
+     * @param {string} paymentMethodCode
+     * @param {string} flow
      * @return {void}
      */
     async _initiatePaymentFlow() {
@@ -123,8 +109,6 @@ patch(PaymentForm.prototype, {
                 return;
             }
 
-            // This prevents unnecessary toaster notifications on payment failure by catching the
-            // Promise.reject as we are already displaying error popup.
             await super._initiatePaymentFlow(...arguments).catch((error) => {
                 console.log(error.data.message);
             });
@@ -134,11 +118,9 @@ patch(PaymentForm.prototype, {
     },
 
     /**
-     * Add params used by the donation snippet for the RPC to the transaction route.
-     *
-     * @override method from @payment/js/payment_form
+     * @override
      * @private
-     * @return {object} The extended transaction route params.
+     * @return {object}
      */
     _prepareTransactionRouteParams() {
         const transactionRouteParams = super._prepareTransactionRouteParams(

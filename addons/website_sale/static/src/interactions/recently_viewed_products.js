@@ -13,22 +13,20 @@ export class RecentlyViewedProducts extends Interaction {
     };
 
     /**
-     * Mark the product as viewed.
-     *
      * @param {Event} ev
      * @param {HTMLElement} currentTargetEl
      */
     async onProductChange(ev, currentTargetEl) {
         if (!parseInt(this.el.querySelector("#product_detail").dataset.viewTrack)) {
-            return; // Product not tracked.
+            return;
         }
         const productId = parseInt(currentTargetEl.value);
         const cookieName = "seen_product_id_" + productId;
         if (cookie.get(cookieName)) {
-            return; // Product already tracked in the last 30 min.
+            return;
         }
         if (this.el.querySelector(".js_product.css_not_available")) {
-            return; // Product not available.
+            return;
         }
         await this.waitFor(
             rpc("/shop/products/recently_viewed_update", {

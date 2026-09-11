@@ -236,8 +236,6 @@ test("Use the 'remove' overlay buttons: removing a grid item", async () => {
     expect(".overlay .o_overlay_options").toHaveCount(1);
     expect(".overlay .oe_snippet_remove").toHaveCount(1);
 
-    // Check that the element was removed, the grid was resized and the overlay
-    // is now on the other grid item (= sibling).
     await contains(".overlay .oe_snippet_remove").click();
     expect(":iframe .g-height-14").toHaveCount(0);
     expect(":iframe .row.o_grid_mode").toHaveAttribute("data-row-count", "4");
@@ -270,7 +268,6 @@ test("Use the 'remove' overlay buttons: closes the link popover if it is open du
     expect(".overlay .o_overlay_options").toHaveCount(1);
     expect(".overlay .oe_snippet_remove").toHaveCount(1);
 
-    // Check that the link popover is closed and the element has been removed.
     await contains(".overlay .oe_snippet_remove").click();
     expect(".o-we-linkpopover").toHaveCount(0);
     expect(":iframe .g-height-14").toHaveCount(0);
@@ -299,7 +296,6 @@ test("Use the 'remove' overlay buttons: removing the last element will remove th
     await contains(".overlay .oe_snippet_remove").click();
     expect(":iframe .col-lg-6, :iframe .first-section").toHaveCount(0);
     expect(".overlay .oe_snippet_remove").toHaveCount(1);
-    // Check that the parent sibling is selected.
     expect(".oe_overlay.oe_active").toHaveRect(":iframe .second-section");
 });
 
@@ -454,15 +450,12 @@ test("The overlay buttons should only appear for elements in editable areas, unl
 
 test("An inner snippet alone in a column should not have overlay options", async () => {
     await setupWebsiteBuilderWithSnippet("s_banner");
-    // Clicking on the "Blockquote" should activate the column overlay.
     await contains(":iframe blockquote").click();
     expect(".oe_overlay").toHaveCount(3);
     expect(".oe_overlay.oe_active").toHaveCount(2);
-    // Clone the block so it is not alone anymore.
     await contains(
         ".options-container[data-container-title='Blockquote'] .oe_snippet_clone",
     ).click();
-    // Only the "Blockquote" should have an overlay.
     expect(".oe_overlay").toHaveCount(3);
     expect(".oe_overlay.oe_active").toHaveCount(1);
 });
@@ -483,9 +476,7 @@ test("Should hide 'move up' button when previous sibling is 'o_we_no_overlay'", 
     await contains(":iframe .first").click();
     expect(".overlay .o_overlay_options").toHaveCount(1);
 
-    // Can't move up since the previous sibling is excluded
     expect(".overlay .fa-angle-up").toHaveCount(0);
 
-    // Moving down is still valid
     expect(".overlay .fa-angle-down").toHaveCount(1);
 });

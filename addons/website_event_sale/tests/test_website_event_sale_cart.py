@@ -21,7 +21,7 @@ class TestWebsiteEventSaleCart(
         cls.website.write(
             {
                 "send_abandoned_cart_email": True,
-                "cart_abandoned_delay": 1.0,  # 1 hour
+                "cart_abandoned_delay": 1.0,
             }
         )
         cls.website.send_abandoned_cart_email_activation_time -= timedelta(weeks=1)
@@ -31,7 +31,6 @@ class TestWebsiteEventSaleCart(
             cls.partner_admin.email = "base@partner.admin"
 
     def test_sold_out_event_cart_reminder(self):
-        """Check that abandoned cart emails aren't sent for sold out tickets."""
         cart1, cart2 = self.env["sale.order"].create(
             [
                 {
@@ -66,13 +65,11 @@ class TestWebsiteEventSaleCart(
             "Abandoned cart email should be sent for availlable tickets",
         )
 
-        # Create registrations & confirm first order
         editor = Form(
             self.env["registration.editor"].with_context(default_sale_order_id=cart1.id)
         )
         editor.save().action_make_registration()
         cart1.action_confirm()
-        # command-created records won't trigger a recompute until flush
         self.env.flush_all()
         self.assertEqual(self.ticket.seats_available, 0)
         self.assertFalse(
@@ -80,7 +77,6 @@ class TestWebsiteEventSaleCart(
             "Abandoned cart email should not be sent when ticket has no seats available",
         )
 
-        # Reset sent state, increase seat limit, and try again
         cart2.cart_recovery_email_sent = False
         self.ticket.seats_max = 2
         self.assertTrue(
@@ -91,15 +87,12 @@ class TestWebsiteEventSaleCart(
 
 @tagged("post_install", "-at_install")
 class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
-    """Seat availability and event-ticket guards on cart quantity updates."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.partner_admin = cls.env.ref("base.partner_admin")
 
     def test_cart_add_unknown_ticket_raises(self):
-        """Adding a nonexistent ticket id to the cart raises UserError."""
         with self.assertRaises(UserError):
             self.empty_cart._cart_add(
                 self.product_event.id,
@@ -108,7 +101,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
             )
 
     def test_cart_add_unknown_slot_raises(self):
-        """Adding a valid ticket with a nonexistent slot id raises UserError."""
         with self.assertRaises(UserError):
             self.empty_cart._cart_add(
                 self.product_event.id,
@@ -118,7 +110,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
             )
 
     def test_cart_add_product_ticket_mismatch_raises(self):
-        """The provided product must match the ticket's product."""
         other_product = self.env["product.product"].create(
             {
                 "name": "Not an event product",
@@ -134,7 +125,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
             )
 
     def test_cart_add_sold_out_ticket_blocked(self):
-        """No quantity is added and a sold-out warning is returned."""
         ticket = self.env["event.event.ticket"].create(
             {
                 "event_id": self.event.id,
@@ -165,7 +155,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
         self.assertIn("sold out", res["warning"])
 
     def test_cart_add_clamped_to_available_seats(self):
-        """Requested quantity is clamped to the remaining seats."""
         ticket = self.env["event.event.ticket"].create(
             {
                 "event_id": self.event.id,
@@ -185,7 +174,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
         self.assertIn("only 2 seats", res["warning"])
 
     def test_cart_manual_quantity_raise_blocked(self):
-        """Raising an event line quantity without ticket context is refused."""
         res_add = self.empty_cart._cart_add(
             self.product_event.id,
             1,
@@ -200,8 +188,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
         self.assertEqual(line.product_uom_qty, 1)
 
     def test_cart_update_quantity_decrease_on_sold_out_ticket_is_honored(self):
-        """A decreasing quantity update on a sold-out ticket must not be
-        silently refused: the sold-out guard only concerns additions."""
         ticket = self.env["event.event.ticket"].create(
             {
                 "event_id": self.event.id,
@@ -249,10 +235,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
         self.assertFalse(warning)
 
     def test_prepare_order_line_values_unknown_ticket_raises(self):
-        """`_prepare_order_line_values` must reject a nonexistent
-        `event_ticket_id` with its own friendly `UserError`, not rely on
-        the ORM's generic `MissingError` triggered by the next line
-        reading a field off the browsed (nonexistent) ticket."""
         with self.assertRaisesRegex(UserError, "provided ticket doesn't exist"):
             self.empty_cart._prepare_order_line_values(
                 self.product_event.id,
@@ -262,7 +244,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
             )
 
     def test_cart_quantity_decrease_cancels_registrations(self):
-        """Decreasing an event line quantity cancels the newest registrations."""
         res_add = self.empty_cart._cart_add(
             self.product_event.id,
             2,
@@ -281,9 +262,6 @@ class TestWebsiteEventSaleCartSeats(TestWebsiteEventSaleCommon):
                 for _dummy in range(2)
             ]
         )
-        # Both rows share the transaction timestamp; the cleanup in
-        # _cart_update_order_line orders by create_date, so force distinct
-        # dates to make "newest registration" deterministic.
         self.env.cr.execute(
             "UPDATE event_registration SET create_date = create_date - interval '1 second'"
             " WHERE id = %s",

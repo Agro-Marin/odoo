@@ -26,7 +26,6 @@ class TestSitemap(HttpCase):
         self.cats[3].parent_id = self.cats[1].id
         self.cats[2].parent_id = self.cats[1].id
         self.cats[1].parent_id = self.cats[0].id
-        # 'Level 2' cetegory must have at least one published product to be visible by public users
         self.env["product.product"].create(
             {
                 "name": "Dummy product",
@@ -35,7 +34,6 @@ class TestSitemap(HttpCase):
                 "is_published": True,
             }
         )
-        # 'Level 2A' category will contains only archived products, so should be hidden to public users
         prodA = self.env["product.product"].create(
             {
                 "name": "Dummy product A",

@@ -88,7 +88,7 @@ function checkComputedFontSize(fontSizeClass, stage) {
             const computedFontSize = parseInt(getComputedStyle(this.anchor).fontSize);
             const expectedFontSize = classNameInfo.get(fontSizeClass)[stage];
             const gapBetweenSizes = Math.abs(computedFontSize - expectedFontSize);
-            const gapTolerance = 7; // Because the font size is responsive.
+            const gapTolerance = 7;
             if (gapBetweenSizes > gapTolerance) {
                 console.error(
                     `When applied class ${fontSizeClass}, the font size is ` +
@@ -134,7 +134,6 @@ function getFontSizeTestSteps(fontSizeClass) {
             trigger: `[data-action-param="${
                 classNameInfo.get(fontSizeClass).scssVariableName
             }"] input`,
-            // TODO: Remove "&& click body"
             run: `edit ${classNameInfo.get(fontSizeClass).end} && click body`,
         },
         {
@@ -182,7 +181,6 @@ function getFontSizeTestSteps(fontSizeClass) {
             trigger: `.oe_snippet_remove`,
             async run(helpers) {
                 await helpers.click();
-                // TODO: Remove the below setTimeout or understand why it should be required.
                 await new Promise((r) => setTimeout(r, 300));
             },
         },
@@ -192,9 +190,7 @@ function getFontSizeTestSteps(fontSizeClass) {
 function getAllFontSizesTestSteps() {
     const steps = [];
     const fontSizeClassesToSkip = [
-        // This option is hidden by default because same value as h6-fs.
         "base-fs",
-        // There is nothing related to these classes in the UI to test anymore.
         "small",
         "o_small_twelve-fs",
         "o_small_ten-fs",
@@ -217,7 +213,6 @@ registerWebsitePreviewTour(
     },
     () => [
         ...getAllFontSizesTestSteps(),
-        // The last step has to be a check.
         {
             content: "Verify that the text block has been deleted",
             trigger: ":iframe #wrap:not(:has(.s_text_block))",

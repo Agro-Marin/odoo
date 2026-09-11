@@ -7,9 +7,6 @@ import wishlistUtils from "@website_sale_wishlist/js/website_sale_wishlist_utils
 export class WishlistNavbar extends Interaction {
     static selector = ".o_wsale_my_wish";
 
-    /**
-     * Refresh the products in the wishlist.
-     */
     async willStart() {
         const wishCount = parseInt(
             this.el.querySelector(".my_wish_quantity")?.textContent,
@@ -21,9 +18,6 @@ export class WishlistNavbar extends Interaction {
         }
     }
 
-    /**
-     * Update the wishlist navbar.
-     */
     start() {
         wishlistUtils.updateWishlistNavBar();
     }

@@ -43,10 +43,6 @@ class WebsiteSlidesSurvey(WebsiteSlides):
             "can_create": can_create,
         }
 
-    # ------------------------------------------------------------
-    # Overrides
-    # ------------------------------------------------------------
-
     @http.route()
     def create_slide(self, *args, **post):
         create_new_survey = (
@@ -57,11 +53,9 @@ class WebsiteSlidesSurvey(WebsiteSlides):
         linked_survey_id = int(post.get("survey", {}).get("id") or 0)
 
         if create_new_survey:
-            # If user cannot create a new survey, no need to create the slide either.
             if not request.env["survey.survey"].has_access("create"):
                 return {"error": _("You are not allowed to create a survey.")}
 
-            # Create survey first as certification slide needs a survey_id (constraint)
             post["survey_id"] = (
                 request.env["survey.survey"]
                 .create(
@@ -89,11 +83,9 @@ class WebsiteSlidesSurvey(WebsiteSlides):
 
             post["survey_id"] = post["survey"]["id"]
 
-        # Then create the slide
         result = super().create_slide(*args, **post)
 
         if post["slide_category"] == "certification":
-            # Set the url to redirect the user to the survey
             slide = request.env["slide.slide"].browse(result["slide_id"])
             result["url"] = (
                 f"/slides/slide/{request.env['ir.http']._slug(slide)}?fullscreen=1"
@@ -101,8 +93,6 @@ class WebsiteSlidesSurvey(WebsiteSlides):
 
         return result
 
-    # Utils
-    # ---------------------------------------------------
     def _slide_mark_completed(self, slide):
         if slide.slide_category == "certification":
             raise werkzeug.exceptions.Forbidden(
@@ -115,15 +105,11 @@ class WebsiteSlidesSurvey(WebsiteSlides):
         result.append("survey_id")
         return result
 
-    # Profile
-    # ---------------------------------------------------
     def _prepare_user_slides_profile(self, user):
         values = super()._prepare_user_slides_profile(user)
         values.update({"certificates": self._get_users_certificates(user)[user.id]})
         return values
 
-    # All Users Page
-    # ---------------------------------------------------
     def _prepare_all_users_values(self, users):
         result = super()._prepare_all_users_values(users)
         certificates_per_user = self._get_users_certificates(users)
@@ -150,19 +136,13 @@ class WebsiteSlidesSurvey(WebsiteSlides):
             for user in users
         }
 
-    # Badges & Ranks Page
-    # ---------------------------------------------------
     def _prepare_ranks_badges_values(self, **kwargs):
-        """Extract certification badges, to render them in ranks/badges page in another section.
-        Order them by number of granted users desc and show only badges linked to opened certifications."""
         values = super()._prepare_ranks_badges_values(**kwargs)
 
-        # 1. Getting all certification badges, sorted by granted user desc
         domain = Domain.AND(
             [[("survey_id", "!=", False)], self._get_domain_badges(**kwargs)]
         )
         certification_badges = request.env["gamification.badge"].sudo().search(domain)
-        # keep only the badge with challenge category = slides (the rest will be displayed under 'normal badges' section
         certification_badges = certification_badges.filtered(
             lambda b: "slides" in b.challenge_ids.mapped("challenge_category")
         )
@@ -170,15 +150,12 @@ class WebsiteSlidesSurvey(WebsiteSlides):
         if not certification_badges:
             return values
 
-        # 2. sort by granted users (done here, and not in search directly, because non stored field)
         certification_badges = certification_badges.sorted(
             "granted_users_count", reverse=True
         )
 
-        # 3. Remove certification badge from badges
         badges = values["badges"] - certification_badges
 
-        # 4. Getting all course url for each badge
         certification_slides = (
             request.env["slide.slide"]
             .sudo()
@@ -189,7 +166,6 @@ class WebsiteSlidesSurvey(WebsiteSlides):
             for slide in certification_slides
         }
 
-        # 5. Applying changes
         values.update(
             {
                 "badges": badges,

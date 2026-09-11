@@ -2,10 +2,6 @@
 <odoo>
 
     <data>
-        <!--
-            ====== Actions ====================================================
-            ====================================================================
-        -->
         <record id="action_website_add_features" model="ir.actions.act_window">
             <field name="name">Apps</field>
             <field name="res_model">ir.module.module</field>
@@ -19,10 +15,6 @@
             <field name="name">View Hierarchy</field>
             <field name="tag">website_view_hierarchy</field>
         </record>
-        <!--
-            ====== website views ==============================================
-            ====================================================================
-        -->
         <record id="view_website_form" model="ir.ui.view">
             <field name="name">website.form</field>
             <field name="model">website</field>
@@ -119,10 +111,6 @@
             <field name="view_id" ref="view_website_tree" />
             <field name="target">current</field>
         </record>
-        <!--
-            ====== website.menu views =========================================
-            ====================================================================
-        -->
         <record id="website_menus_form_view" model="ir.ui.view">
             <field name="name">website.menu.form</field>
             <field name="model">website.menu</field>
@@ -227,10 +215,6 @@
             <field name="target">current</field>
             <field name="context">{'search_default_group_by_website_id':1}</field>
         </record>
-        <!--
-            ====== ir.ui.view views ============================================
-            ====================================================================
-        -->
         <record id="reset_view_arch_wizard_view" model="ir.ui.view">
             <field name="model">reset.view.arch.wizard</field>
             <field name="inherit_id" ref="base.reset_view_arch_wizard_view" />
@@ -251,10 +235,6 @@
                 </form>
             </field>
         </record>
-        <!--
-            ====== Dashboard ==================================================
-            ====================================================================
-        -->
         <record id="backend_dashboard" model="ir.actions.client">
             <field name="name">Analytics</field>
             <field name="tag">backend_dashboard</field>
@@ -284,12 +264,6 @@
                 name="code">action = model.env.ref('website.backend_dashboard').sudo().read()[0]</field>
             <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
         </record>
-        <!--
-            ====== Themes =====================================================
-            ====================================================================
-        -->
-        <!-- Custom module kanban : install button (even if already installed) which -->
-        <!-- redirects to website after (fake or not) installation + live preview button -->
         <record id="theme_view_kanban" model="ir.ui.view">
             <field name="name">Themes Kanban</field>
             <field name="model">ir.module.module</field>
@@ -391,11 +365,9 @@
                 </search>
             </field>
         </record>
-        <!-- themes should be installed through website settings -->
         <record id="base.open_module_tree" model="ir.actions.act_window">
             <field name="domain">['!', ('name', '=like', 'theme_%')]</field>
         </record>
-        <!-- Actions to list themes with custom kanban (launched on module installation) -->
         <record id="theme_view_form_preview" model="ir.ui.view">
             <field name="name">website.form</field>
             <field name="model">ir.module.module</field>
@@ -427,10 +399,6 @@
                 name="view_ids"
                 eval="[(5, 0, 0),                           (0, 0, {'view_mode': 'kanban', 'view_id': ref('website.theme_view_kanban')}),                           (0, 0, {'view_mode': 'form', 'view_id': ref('website.theme_view_form_preview')})]" />
         </record>
-        <!--
-            ====== Menu Items =================================================
-            ====================================================================
-        -->
         <menuitem
             id="menu_website_configuration"
             name="Website"
@@ -510,7 +478,6 @@
             parent="menu_content"
             action="action_website_technical_pages"
             sequence="90" />
-        <!-- Configurator actions -->
         <record id="website_configurator" model="ir.actions.client">
             <field name="name">Website Configurator</field>
             <field name="tag">website_configurator</field>

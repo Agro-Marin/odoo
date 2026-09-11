@@ -6,14 +6,6 @@ from odoo.addons.website_slides.tests import common
 
 @tagged("post_install", "-at_install")
 class TestQuizRewardLadder(common.SlidesCase):
-    """One definition of what a quiz attempt is worth.
-
-    The four-step ladder used to be rebuilt at four call sites and indexed by two
-    different rules -- `gains[min(count, len) - 1]` in two of them,
-    `gains[count] if count < len else gains[-1]` in the other two -- so "what is
-    this attempt worth" had four answers that only happened to agree.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -46,7 +38,6 @@ class TestQuizRewardLadder(common.SlidesCase):
             self.assertEqual(self.slide_3._get_quiz_reward(attempts), 10)
 
     def test_reward_for_the_next_attempt_is_off_by_one(self):
-        """`done=False` answers "what would the next attempt earn"."""
         slide = self.slide_3
         self.assertEqual(slide._get_quiz_reward(0, done=False), 40)
         self.assertEqual(slide._get_quiz_reward(1, done=False), 30)
@@ -58,7 +49,6 @@ class TestQuizRewardLadder(common.SlidesCase):
         self.assertEqual(self.slide._get_quiz_reward(1), 0)
 
     def test_every_reader_of_the_ladder_agrees(self):
-        """The four call sites must not drift apart again."""
         slide = self.slide_3.with_user(self.learner)
         slide._action_set_viewed(self.learner.partner_id, quiz_attempts_inc=True)
         slide._action_mark_completed()
@@ -80,12 +70,6 @@ class TestQuizRewardLadder(common.SlidesCase):
         )
 
     def test_quiz_reset_refunds_the_karma_it_granted(self):
-        """Otherwise every pass-then-reset cycle pays the first-attempt reward again.
-
-        The route used to clear `completed` *and* `quiz_attempts_count` without
-        refunding, so the ladder restarted and karma grew without bound
-        (measured 40, 80, 120, ...).
-        """
         slide = self.slide_3.with_user(self.learner)
         for _cycle in range(3):
             slide._action_set_viewed(self.learner.partner_id, quiz_attempts_inc=True)
@@ -104,7 +88,6 @@ class TestQuizRewardLadder(common.SlidesCase):
             )
 
     def test_reward_decays_across_retries(self):
-        """`quiz_attempts_count` is the ladder and must survive a reset."""
         slide = self.slide_3.with_user(self.learner)
         granted = []
         for _cycle in range(3):

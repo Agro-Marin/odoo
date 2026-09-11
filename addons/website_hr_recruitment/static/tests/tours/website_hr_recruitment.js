@@ -46,7 +46,6 @@ function applyForAJob(jobName, application) {
             run: `edit ${application.subject}`,
         },
         {
-            // TODO: Upload a file ?
             content: "Send the form",
             trigger: ".s_website_form_send",
             run: "click",
@@ -112,8 +111,6 @@ registerWebsitePreviewTour(
             content: "Add a fake default value for the job_id hidden field",
             trigger: ":iframe form input[name=job_id]:not(:visible)",
             run() {
-                // It must be done in this way because the editor does not allow to
-                // put a default value on a field with type="hidden".
                 this.anchor.value = "FAKE_JOB_ID_DEFAULT_VAL";
             },
         },
@@ -198,10 +195,6 @@ registerWebsitePreviewTour(
     ],
 );
 
-// This tour addresses an issue that occurred in a website form containing
-// the 'hide-change-model' attribute. Specifically, when a model-required
-// field is selected, the alert message should not display an undefined
-// action name.
 registerWebsitePreviewTour(
     "model_required_field_should_have_action_name",
     {

@@ -64,7 +64,6 @@ export class HighlightPlugin extends Plugin {
         ],
         normalize_handlers: (root) => {
             for (const node of root.querySelectorAll(".o_text_highlight")) {
-                // Signal to the interaction that there is (maybe) a new element
                 node.dispatchEvent(
                     new Event("text_highlight_added", { bubbles: true }),
                 );
@@ -74,7 +73,6 @@ export class HighlightPlugin extends Plugin {
             className.startsWith("o_text_highlight"),
         selectionchange_handlers: this.updateSelectedHighlight.bind(this),
         remove_all_formats_handlers: () => {
-            // we rely on the normalize handler to start it again
             this.dependencies.edit_interaction.stopInteraction(
                 "website.text_highlight",
             );
@@ -139,8 +137,6 @@ export class HighlightPlugin extends Plugin {
         this.highlightState.highlightId =
             uniqueNodes.size > 1 ? "multiple" : getCurrentTextHighlight(nodes[0]);
         if (this.highlightState.highlightId) {
-            // If multiple highlights are selected, either show the common highlight properties
-            // or nothing if none
             const style = nodes.map((node) =>
                 getComputedStyle(node).getPropertyValue("--text-highlight-color"),
             );
@@ -222,10 +218,6 @@ export class HighlightPlugin extends Plugin {
             .map((n) => closestElement(n, ".o_text_highlight"))
             .filter(Boolean);
     }
-    /**
-     * This method completes the selection by ensuring that the selection
-     * always cover all the text nodes within the highlighted elements.
-     */
     completeHighlightSelection() {
         const targetedNodes = this.dependencies.selection
             .getTargetedNodes()
@@ -273,7 +265,6 @@ export class HighlightPlugin extends Plugin {
 }
 registry.category("website-plugins").add(HighlightPlugin.id, HighlightPlugin);
 
-// Todo: formatsSpecs should allow to be register new formats through resources.
 formatsSpecs.highlight = {
     isFormatted: (node) => closestElement(node)?.classList.contains("o_text_highlight"),
     hasStyle: (node) => closestElement(node)?.classList.contains("o_text_highlight"),

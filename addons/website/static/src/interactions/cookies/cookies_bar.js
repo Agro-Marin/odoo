@@ -7,9 +7,6 @@ import { Popup } from "@website/interactions/popup/popup";
 import { cloneContentEls } from "@website/js/utils";
 import { setUtmsHtmlDataset } from "@website/utils/misc";
 
-// Extending the Popup class with cookiebar functionality.
-// This allows for refusing optional cookies for now and can be
-// extended to picking which cookies categories are accepted.
 export class CookiesBar extends Popup {
     static selector = "#website_cookies_bar";
     dynamicSelectors = {
@@ -25,14 +22,11 @@ export class CookiesBar extends Popup {
         "#cookies-consent-essential, #cookies-consent-all": {
             "t-on-click": this.onAcceptClick,
         },
-        // Override to avoid side effects on hide.
         ".js_close_popup": { "t-on-click": () => {} },
         ".btn-primary": { "t-on-click": () => {} },
         ".modal": {
             "t-on-keydown.capture": (ev) => {
                 if (ev.key === "Escape") {
-                    // Circumvent Bootstrap's keydown behavior which triggers a
-                    // UI glitch.
                     ev.stopImmediatePropagation();
                 }
             },
@@ -47,8 +41,6 @@ export class CookiesBar extends Popup {
     start() {
         super.start();
 
-        // Add a link to the cookie policy page in the copyright footer.
-        // TODO: In master, add this link via XML.
         const copyrightFooterContainerEl = document.querySelector(
             ".o_footer_copyright_name",
         )?.parentElement;
@@ -61,21 +53,15 @@ export class CookiesBar extends Popup {
             this.insert(cookiePolicyLinkEl, copyrightFooterContainerEl);
         }
 
-        // Since cookie preferences can be changed, update the gtag script that
-        // toggles the gtag consent. So, when the user modifies their cookie
-        // preference their gtag consent is also updated.
-        // TODO: In master, update the #tracking_code_config script via XML.
         const originalTrackingCodeScriptEl = document.querySelector(
             "#tracking_code_config",
         );
         if (originalTrackingCodeScriptEl) {
-            // Remove the one-time event listener added by the original script
             document.removeEventListener(
                 "optionalCookiesAccepted",
                 window.allConsentsGranted,
             );
 
-            // Create a new script element
             const updatedTrackingCodeScript = `
                 window.dataLayer = window.dataLayer || [];
                 function gtag() {
@@ -103,7 +89,6 @@ export class CookiesBar extends Popup {
             newScriptEl.id = "tracking_code_config";
             newScriptEl.textContent = updatedTrackingCodeScript;
 
-            // Replace the original script with the new one
             originalTrackingCodeScriptEl.parentNode.replaceChild(
                 newScriptEl,
                 originalTrackingCodeScriptEl,
@@ -136,8 +121,6 @@ export class CookiesBar extends Popup {
     onToggleCookiesBar() {
         this.cookieValue = cookie.get(this.el.id);
         this.bsModal.toggle();
-        // As we're using Bootstrap's events, the Popup class prevents the modal
-        // from being shown after hiding it: override that behavior.
         this.popupAlreadyShown = false;
     }
 
@@ -166,22 +149,13 @@ export class CookiesBar extends Popup {
         };
         for (const [key, value] of params) {
             if (key in trackingFields) {
-                // Using same cookie expiration value as in python side
                 cookie.set(trackingFields[key], value, 31 * 24 * 60 * 60, "optional");
             }
         }
         setUtmsHtmlDataset();
     }
 
-    /**
-     * Reopens the cookies bar if it was closed.
-     */
     onShowCookiesBar() {
-        // A malformed cookie must not throw here: this handler is what reopens
-        // the bar so the visitor can *change* their choice, and a parse error
-        // would leave them with no way to do it. An unreadable value means "no
-        // recorded consent", so the bar should open. Matches the same guard in
-        // `js/http_cookie.js` and in the server's `_is_allowed_cookie`.
         const currCookie = cookie.get(this.el.id);
         let optionalAccepted;
         try {
@@ -194,9 +168,6 @@ export class CookiesBar extends Popup {
         }
         this.bsModal.show();
 
-        // The cookies bar remains hidden, most probably because of the browser
-        // or an extension: notify the user because "nothing happens when I
-        // click" is never good.
         if (!isVisible(this.modalEl)) {
             window.alert(
                 _t("Our cookies bar was blocked by your browser or an extension."),

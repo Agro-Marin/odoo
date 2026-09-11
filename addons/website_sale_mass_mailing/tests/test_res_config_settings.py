@@ -20,7 +20,6 @@ class TestResConfigSettings(TransactionCase):
 
     @classmethod
     def _create_settings_for_website(cls, website, enable_newsletter):
-        """Create and execute settings for a given website."""
         settings = (
             cls.env["res.config.settings"]
             .with_context(website_id=website.id)
@@ -36,17 +35,13 @@ class TestResConfigSettings(TransactionCase):
         return settings
 
     def _get_newsletter_view_for_website(self, website_setting, website):
-        """Return the newsletter view associated with a specific website."""
         website = website_setting.with_context(website_id=website.id).website_id
         return website.viewref("website_sale_mass_mailing.newsletter")
 
     def test_newsletter_enabled_per_website(self):
-        """Test newsletter enablement per website and its effect on view activation."""
-        # Ensure initial state: newsletter is disabled for both websites
         self.assertFalse(self.site_one_settings.is_newsletter_enabled)
         self.assertFalse(self.site_two_settings.is_newsletter_enabled)
 
-        # Enable newsletter for site one
         self.site_one_settings.is_newsletter_enabled = True
         self.site_one_settings.execute()
 
@@ -60,7 +55,6 @@ class TestResConfigSettings(TransactionCase):
         self.assertTrue(self.site_one_settings.is_newsletter_enabled)
         self.assertFalse(self.site_two_settings.is_newsletter_enabled)
 
-        # Enable newsletter for site two
         self.site_two_settings.is_newsletter_enabled = True
         self.site_two_settings.execute()
 

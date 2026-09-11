@@ -3,15 +3,6 @@ import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import { initZoomOdoo } from "@website/libs/zoomodoo/zoomodoo";
 
-/**
- * Page-global website behaviors, historically installed by the legacy
- * WebsiteRoot widget: language switch links, publish toggle buttons, the
- * `modal_shown` marker class (relied upon by tours) and image zoom.
- *
- * Listeners are delegated on `document.body` (not the interaction root):
- * modals and language switchers may live outside #wrapwrap, as they did when
- * the legacy root was attached to the body.
- */
 export class WebsitePage extends Interaction {
     static selector = "#wrapwrap";
 
@@ -32,7 +23,6 @@ export class WebsitePage extends Interaction {
             ev.target.classList.add("modal_shown");
         });
 
-        // Enable magnify on zoomable img
         for (const imgEl of document.body.querySelectorAll(
             ".zoomable img[data-zoom]",
         )) {
@@ -40,22 +30,15 @@ export class WebsitePage extends Interaction {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     /**
      * @param {MouseEvent} ev
      * @param {HTMLElement} target
      */
     _onLangChangeClick(ev, target) {
         ev.preventDefault();
-        // In edit mode, the client action redirects the iframe to the correct
-        // location with the chosen language.
         if (document.body.classList.contains("editor_enable")) {
             return;
         }
-        // retrieve the hash before the redirect
         const redirect = {
             lang: encodeURIComponent(target.dataset.urlCode),
             url: encodeURIComponent(

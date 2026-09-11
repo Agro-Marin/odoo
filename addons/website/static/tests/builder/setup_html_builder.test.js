@@ -16,23 +16,18 @@ test("setup of the editable elements", async () => {
 
 test("history back", async () => {
     let builder;
-    // Patch to get the builder sidebar instance
     patchWithCleanup(WebsiteBuilder.prototype, {
         setup() {
             super.setup(...arguments);
             builder = this;
         },
     });
-    // Navigating back in the browser history should not lead to a warning popup
-    // if the website was not edited.
     const { getEditor, getEditableContent } = await setupWebsiteBuilder(exampleContent);
     builder.onBeforeLeave();
     await animationFrame();
     expect(
         ".modal-content:contains('If you proceed, your changes will be lost')",
     ).toHaveCount(0);
-    // Navigating back in the browser history should lead to a warning popup if
-    // the website was edited.
     await modifyText(getEditor(), getEditableContent());
     await animationFrame();
     builder.onBeforeLeave();
@@ -65,9 +60,6 @@ test("Admin navbar is hidden in edit mode", async () => {
 });
 
 test("saved translation branding is removed in edit mode", async () => {
-    // This situation should not happen with up-to-date code, but translation
-    // branding nodes could have been saved with code between d4d428ff1d (29th
-    // October 2025) and f09dc4d9d3 (19th November 2025)
     await setupWebsiteBuilder(`
         <h1 class="title">
             <span data-oe-model="ir.ui.view" data-oe-id="526"

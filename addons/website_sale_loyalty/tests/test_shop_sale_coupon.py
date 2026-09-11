@@ -215,7 +215,6 @@ class WebsiteSaleLoyaltyTestUi(TestSaleCommon, HttpCase):
                 "taxes_id": False,
             }
         )
-        # Disable any other program
         self.env["loyalty.program"].search([]).write({"active": False})
 
         gift_card_program = self.env["loyalty.program"].create(
@@ -252,7 +251,6 @@ class WebsiteSaleLoyaltyTestUi(TestSaleCommon, HttpCase):
                 ],
             }
         )
-        # Another program for good measure
         self.env["loyalty.program"].create(
             {
                 "name": "10% Discount",
@@ -283,7 +281,6 @@ class WebsiteSaleLoyaltyTestUi(TestSaleCommon, HttpCase):
                 ],
             }
         )
-        # Create a gift card to be used
         self.env["loyalty.card"].create(
             {
                 "program_id": gift_card_program.id,
@@ -318,7 +315,6 @@ class WebsiteSaleLoyaltyTestUi(TestSaleCommon, HttpCase):
                 "taxes_id": False,
             }
         )
-        # Disable any other program
         self.env["loyalty.program"].search([]).write({"active": False})
         ewallet_programs = self.env["loyalty.program"].create(
             [
@@ -389,7 +385,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         if "error" in status:
             raise ValidationError(status["error"])
         if not status and no_reward_fail:
-            # Can happen if global discount got filtered out in `_get_claimable_rewards`
             raise ValidationError("No reward to claim with this coupon")
         coupons = self.env["loyalty.card"]
         rewards = self.env["loyalty.reward"]
@@ -402,7 +397,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
                 raise ValidationError(status["error"])
 
     def test_01_gc_coupon(self):
-        # 1. Simulate a frontend order (website, product)
         order = self.empty_cart
         order.line_ids = [
             Command.create(
@@ -421,7 +415,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
             )
         ]
 
-        # 2. Apply the coupon
         self._apply_promo_code(order, self.coupon.code)
 
         self.assertEqual(
@@ -431,7 +424,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         )
         self.assertEqual(self.coupon, order.applied_coupon_ids)
 
-        # 3. Test recent order -> Should not be removed
         order._gc_abandoned_coupons()
 
         self.assertEqual(
@@ -440,7 +432,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
             "The coupon shouldn't have been removed from the order no more than 4 days",
         )
 
-        # 4. Test order not older than ICP validity -> Should not be removed
         ICP = self.env["ir.config_parameter"]
         icp_validity = ICP.create(
             {"key": "website_sale_coupon.abandonned_coupon_validity", "value": 5}
@@ -464,7 +455,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
             "The coupon shouldn't have been removed from the order the order is 4 days old but icp validity is 5 days",
         )
 
-        # 5. Test order with no ICP and older then 4 default days -> Should be removed
         icp_validity.unlink()
         order._gc_abandoned_coupons()
 
@@ -475,9 +465,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         )
 
     def test_02_apply_discount_code_program_multi_rewards(self):
-        """
-        Check the triggering of a promotion program based on a promo code with multiple rewards
-        """
         self.env["loyalty.program"].search([]).write({"active": False})
         chair = self.env["product.product"].create(
             {"name": "Super Chair", "list_price": 1000, "website_published": True}
@@ -527,7 +514,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         self.start_tour("/", "apply_discount_code_program_multi_rewards", login="admin")
 
     def test_03_remove_coupon(self):
-        # 1. Simulate a frontend order (website, product)
         order = self.empty_cart
         order.line_ids = [
             Command.create(
@@ -539,10 +525,8 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
             )
         ]
 
-        # 2. Apply the coupon
         self._apply_promo_code(order, self.coupon.code)
 
-        # 3. Remove the coupon
         coupon_line = order.website_order_line.filtered(
             lambda l: l.coupon_id and l.coupon_id.id == self.coupon.id
         )
@@ -559,11 +543,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         self.assertEqual(len(order.applied_coupon_ids), 0, msg=msg)
 
     def test_04_apply_coupon_code_twice(self):
-        """This test ensures that applying a coupon with code twice will:
-        1. Raise an error
-        2. Not delete the coupon
-        """
-        # Create product
         product = self.env["product.product"].create(
             {
                 "name": "Product",
@@ -593,23 +572,18 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         with MockRequest(
             self.env, website=self.website, sale_order_id=order.id
         ) as request:
-            # Check the base cart value
             self.assertEqual(
                 order.amount_total, 100.0, "The base cart value is incorrect."
             )
 
-            # Apply coupon for the first time
             WebsiteSaleController.pricelist(promo=self.coupon.code)
 
-            # Check that the coupon has been applied
             self.assertEqual(order.amount_total, 90.0, "The coupon is not applied.")
 
-            # Apply the coupon again
             WebsiteSaleController.pricelist(promo=self.coupon.code)
             Cart().cart()
             error_msg = request.session.get("error_promo_code")
 
-            # Check that the coupon stay applied
             self.assertEqual(
                 bool(error_msg),
                 True,
@@ -620,32 +594,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
             )
 
     def test_03_remove_coupon_with_different_taxes_on_products(self):
-        """
-        Tests the removal of a coupon from an order containing products with various tax rates,
-        ensuring that the system correctly handles multiple coupon lines created
-        for each unique tax scenario.
-
-        Background:
-            An order may include products with different tax implications,
-            such as non-taxed products, products with a single tax rate,
-            and products with multiple tax rates. When a coupon is applied,
-            it creates separate coupon lines for each distinct tax situation
-            (non-taxed, individual taxes, and combinations of taxes).
-            This test verifies that the coupon deletion process accurately removes
-            all associated coupon lines, maintaining the financial accuracy of the order.
-
-        Steps:
-            1. Create an order with products subject to different tax scenarios:
-            - Non-taxed product 'Product A'
-            - Product 'Product B' with Tax A
-            - Product 'Product C' with Tax B
-            - Product 'Product D' subject to both Tax A and Tax B
-            2. Apply a coupon, which generates four distinct coupon lines
-                to reflect each tax scenario.
-            3. Remove the coupon and verify that all coupon lines are removed and
-                that no coupons remain applied.
-        """
-        # Create 2 Taxes
         tax_a = self.env["account.tax"].create(
             {
                 "name": "Tax A",
@@ -656,7 +604,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         )
         tax_b = tax_a.copy({"name": "Tax B"})
 
-        # Create 4 products subject to different tax
         products_data = [
             ("Product A", []),
             ("Product B", [tax_a.id]),
@@ -684,7 +631,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         msg = "There should only be 4 lines for the 4 products."
         self.assertEqual(len(order.line_ids), 4, msg=msg)
 
-        # 2. Apply the coupon
         self._apply_promo_code(order, self.coupon.code)
 
         msg = (
@@ -693,7 +639,6 @@ class TestWebsiteSaleCoupon(HttpCase, WebsiteSaleCommon):
         )
         self.assertEqual(len(order.line_ids), 8, msg=msg)
 
-        # 3. Remove the coupon
         coupon_line = order.website_order_line.filtered(
             lambda line: line.coupon_id and line.coupon_id.id == self.coupon.id
         )

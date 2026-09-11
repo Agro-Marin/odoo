@@ -22,11 +22,6 @@ export class ProductComparisonBottomBar extends Component {
         onWillStart(this._loadProducts);
     }
 
-    /**
-     * Load the products to compare from the server.
-     *
-     * This method also removes any products that are no longer available from the comparison.
-     */
     async _loadProducts() {
         const productIds = comparisonUtils.getComparisonProductIds();
         if (!productIds.length) {
@@ -42,9 +37,7 @@ export class ProductComparisonBottomBar extends Component {
     }
 
     /**
-     * Get the URL of the comparison page with the selected products.
-     *
-     * @return {string} The URL of the comparison page.
+     * @return {string}
      */
     get comparisonUrl() {
         const productIds = Array.from(this.state.products.keys());
@@ -52,16 +45,12 @@ export class ProductComparisonBottomBar extends Component {
     }
 
     /**
-     * Get the count of products being compared.
-     * @return {number} The number of products.
+     * @return {number}
      */
     get productCount() {
         return this.state.products.size;
     }
 
-    /**
-     * Clear all products from comparison.
-     */
     clearAllProducts() {
         comparisonUtils.clearComparisonProducts(this.env.bus);
     }

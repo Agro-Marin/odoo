@@ -9,8 +9,6 @@ class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     def _compute_warehouse_id(self):
-        """Override of `website_sale_stock` to avoid recomputations for in_store orders
-        when the warehouse was set by the pickup_location_data"""
         in_store_orders_with_pickup_data = self.filtered(
             lambda so: (
                 so.carrier_id.delivery_type == "in_store" and so.pickup_location_data
@@ -23,8 +21,6 @@ class SaleOrder(models.Model):
             order.warehouse_id = order.pickup_location_data["id"]
 
     def _compute_fiscal_position_id(self):
-        """Override of `sale` to set the fiscal position matching the selected pickup location
-        for pickup in-store orders."""
         in_store_orders = self.filtered(
             lambda so: (
                 so.carrier_id.delivery_type == "in_store" and so.pickup_location_data
@@ -38,8 +34,6 @@ class SaleOrder(models.Model):
         super(SaleOrder, self - in_store_orders)._compute_fiscal_position_id()
 
     def _set_delivery_method(self, delivery_method, rate=None):
-        """Override of `website_sale` to recompute warehouse and fiscal position when a new
-        delivery method is not in-store anymore."""
 
         self.check_singleton()
         was_in_store_order = (
@@ -52,10 +46,6 @@ class SaleOrder(models.Model):
             self._compute_fiscal_position_id()
 
     def _set_pickup_location(self, pickup_location_data):
-        """Override `website_sale` to set the pickup location for in-store delivery methods.
-        Set account fiscal position depending on selected pickup location to correctly calculate
-        taxes.
-        """
         super()._set_pickup_location(pickup_location_data)
         if self.carrier_id.delivery_type != "in_store":
             return
@@ -68,12 +58,6 @@ class SaleOrder(models.Model):
             self._compute_warehouse_id()
 
     def _get_pickup_locations(self, zip_code=None, country=None, **kwargs):
-        """Override of `website_sale` to ensure that a country is provided when there is a zip
-        code.
-
-        If the country cannot be found (e.g., the GeoIP request fails), the zip code is cleared to
-        prevent the parent method's assertion to fail.
-        """
         if zip_code and not country:
             country_code = None
             if self.pickup_location_data:
@@ -84,23 +68,18 @@ class SaleOrder(models.Model):
                 [("code", "=", country_code)], limit=1
             )
             if not country:
-                zip_code = (
-                    None  # Reset the zip code to skip the `assert` in the `super` call.
-                )
+                zip_code = None
         return super()._get_pickup_locations(
             zip_code=zip_code, country=country, **kwargs
         )
 
     def _get_shop_warehouse_id(self):
-        """Override of `website_sale_stock` to consider the chosen warehouse."""
         self.check_singleton()
         if self.carrier_id.delivery_type == "in_store":
             return self.warehouse_id.id
         return super()._get_shop_warehouse_id()
 
     def _check_cart_is_ready_to_be_paid(self):
-        """Override of `website_sale` to check if all products are in stock in the selected
-        warehouse."""
         if (
             self._has_deliverable_products()
             and self.carrier_id.delivery_type == "in_store"
@@ -111,11 +90,7 @@ class SaleOrder(models.Model):
             )
         return super()._check_cart_is_ready_to_be_paid()
 
-    # === TOOLING ===#
-
     def _prepare_in_store_default_location_data(self):
-        """Prepare the default pickup location values for each in-store delivery method available
-        for the order."""
         default_pickup_locations = {}
         for dm in self._get_delivery_methods():
             if (
@@ -137,24 +112,9 @@ class SaleOrder(models.Model):
         return {"default_pickup_locations": default_pickup_locations}
 
     def _is_in_stock(self, wh_id):
-        """Check whether all storable products of the cart are in stock in the given warehouse.
-
-        :param int wh_id: The warehouse in which to check the stock, as a `stock.warehouse` id.
-        :return: Whether all storable products are in stock.
-        :rtype: bool
-        """
         return not self._get_insufficient_stock_data(wh_id)
 
     def _get_insufficient_stock_data(self, wh_id):
-        """Return the mapping of order lines with insufficient stock in the given warehouse to their
-        maximum available quantity in the line's UoM.
-        If there are multiple order lines for the same product, consider the sum of their
-        quantities.
-
-        :param int wh_id: The warehouse in which to check the stock, as a `stock.warehouse` id.
-        :return: The mapping of order lines to their maximum available quantity.
-        :rtype: dict
-        """
         insufficient_stock_data = {}
         for product, ols in self.line_ids.grouped("product_id").items():
             if not product.is_storable or product.allow_out_of_stock_order:
@@ -168,16 +128,9 @@ class SaleOrder(models.Model):
                         )
                     ),
                     0,
-                )  # Round down as only integer quantities can be sold.
-                # `product_qty` is the quantity in the line's own UoM, which is what
-                # this variable is named for and what `free_qty_in_uom` was just
-                # converted into. `product_uom_qty` is the same quantity converted to
-                # the *product's reference* UoM, so reading it here compared packs
-                # against units and, below, converted an already-converted number a
-                # second time.
+                )
                 line_qty_in_uom = ol.product_qty
-                if line_qty_in_uom > free_qty_in_uom:  # Not enough stock.
-                    # Set a warning on the order line.
+                if line_qty_in_uom > free_qty_in_uom:
                     insufficient_stock_data[ol] = free_qty_in_uom
                     ol.shop_warning = self.env._(
                         "%(available_qty)s/%(line_qty)s available at this location",
@@ -190,8 +143,6 @@ class SaleOrder(models.Model):
         return insufficient_stock_data
 
     def _get_updated_quantity(self, order_line, product_id, new_qty, uom_id, **kwargs):
-        """Override of `website_sale_stock` to skip the verification when click and collect
-        is activated. The quantity is verified later."""
         product = self.env["product.product"].browse(product_id)
         if (
             product.is_storable

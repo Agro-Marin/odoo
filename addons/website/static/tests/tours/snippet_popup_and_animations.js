@@ -53,9 +53,9 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        ...insertSnippet(snippets[1]), // Media List
-        ...insertSnippet(snippets[1]), // Media List
-        ...insertSnippet(snippets[2]), // Columns
+        ...insertSnippet(snippets[1]),
+        ...insertSnippet(snippets[1]),
+        ...insertSnippet(snippets[2]),
         clickOnElement("3rd columns", ":iframe .s_three_columns .row > :last-child"),
         ...setOnScrollAnim(),
         {
@@ -73,8 +73,6 @@ registerWebsitePreviewTour(
                 const animatedColumnEl = this.anchor.querySelector(
                     ".s_three_columns .row > :last-child",
                 );
-                // When the animated element is fully visible, its animation
-                // delay should be rounded to -1 in the following condition.
                 if (
                     Math.round(parseFloat(animatedColumnEl.style.animationDelay)) !== -1
                 ) {
@@ -107,8 +105,8 @@ registerWebsitePreviewTour(
             trigger: ".o_we_invisible_el_panel .o_we_invisible_entry",
             run: "click",
         },
-        ...insertSnippet(snippets[0]), // Popup
-        ...insertSnippet(snippets[1]), // Media List
+        ...insertSnippet(snippets[0]),
+        ...insertSnippet(snippets[1]),
         {
             content:
                 "Drag the Columns snippet group and drop it at the bottom of the popup.",
@@ -138,8 +136,6 @@ registerWebsitePreviewTour(
                 const animatedColumnEl = this.anchor.querySelector(
                     ".s_three_columns .row > :last-child",
                 );
-                // When the animated element is fully visible, its animation
-                // delay should be rounded to -1 in the following condition.
                 if (
                     Math.round(parseFloat(animatedColumnEl.style.animationDelay)) !== -1
                 ) {

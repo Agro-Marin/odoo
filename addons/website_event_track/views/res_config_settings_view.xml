@@ -7,7 +7,6 @@
         <field name="inherit_id" ref="website.res_config_settings_view_form" />
         <field name="priority" eval="20" />
         <field name="arch" type="xml">
-            <!-- TODO TDE there are two div with website_settings id in the website settings view -->
             <xpath expr="//block[@id='website_settings']" position="inside">
                 <setting
                     id="events_app_setting"

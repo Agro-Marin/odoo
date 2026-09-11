@@ -100,9 +100,6 @@ export class Chart extends Interaction {
         }
 
         const canvasEl = this.el.querySelector("canvas");
-        // `ChartJS.Tooltip` was a Chart.js v3 static; v4 exports the plugin
-        // separately (see `@web/core/lib/chartjs`), so reading it off the
-        // constructor yielded undefined and threw here.
         Tooltip.positioners.custom = (_, eventPosition) => eventPosition;
         this.chart = new ChartJS(canvasEl, chartData);
         this.registerCleanup(() => {

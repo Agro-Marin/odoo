@@ -19,9 +19,6 @@ class CrmTeam(models.Model):
     )
 
     def _compute_abandoned_carts(self):
-        # abandoned carts to recover are draft sales orders that have no order lines,
-        # a partner other than the public user, and created over an hour ago
-        # and the recovery mail was not yet sent
         website_teams = self.filtered(lambda team: team.website_ids)
         abandoned_carts_data = self.env["sale.order"]._read_group(
             [

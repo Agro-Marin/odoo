@@ -85,7 +85,6 @@
         </li>
     </template>
 
-    <!-- Assets -->
     <asset id="website.s_pricelist_cafe_000_scss" name="Pricelist Cafe 000 SCSS">
         <bundle>web.assets_frontend</bundle>
         <path>website/static/src/snippets/s_pricelist_cafe/000.scss</path>

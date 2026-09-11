@@ -19,10 +19,6 @@ registry.category("web_tour.tours").add("edit_translated_page_redirect", {
             content: "Go to /nl",
             trigger: "body",
             run: () => {
-                // After checking the presence of the editor dashboard, we visit
-                // a translated version of the homepage. The homepage is a
-                // special case (there is no trailing slash), so we test it
-                // separately.
                 location.href = "/nl";
             },
             expectUnloadPage: true,

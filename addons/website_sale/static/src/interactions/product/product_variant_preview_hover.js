@@ -20,11 +20,8 @@ export class ProductVariantPreviewImageHover extends Interaction {
     }
 
     /**
-     * Display the variant image on hover.
-     *
      * @private
      * @param {Event} ev
-     *
      * @returns {void}
      */
     _mouseEnter(ev) {
@@ -38,10 +35,7 @@ export class ProductVariantPreviewImageHover extends Interaction {
     }
 
     /**
-     * Reset the product image when mouse no longer hovers on the ptav.
-     *
      * @private
-     *
      * @returns {void}
      */
     _mouseLeave() {
@@ -51,8 +45,6 @@ export class ProductVariantPreviewImageHover extends Interaction {
     }
 
     /**
-     * Set the image source of the product to the given image source
-     *
      * @param {string} imageSrc
      */
     _setImgSrc(imageSrc) {
@@ -60,12 +52,7 @@ export class ProductVariantPreviewImageHover extends Interaction {
     }
 
     /**
-     * On mobile, when ptav is clicked simulate on hover behavior and change product image
-     * to variant image.
-     * The href of product card is changed to match that of the selected variant.
-     *
      * @param {Event} ev
-     * @returns
      */
     _onClick(ev) {
         if (this.env.isSmall) {

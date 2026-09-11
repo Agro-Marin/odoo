@@ -21,8 +21,6 @@ test("Change dynamic SVG colors", async () => {
     const svg = await waitFor(":iframe img");
     await contains(svg).click();
 
-    // The bigger timeout is there to prevent undetermistic behaviors linked to
-    // SVG being downloaded from the server when the <img> src attribute is modified.
     const colorPreviewButton = await waitFor(
         '[data-label="Dynamic Colors"] button.o_we_color_preview',
         { timeout: 1000 },

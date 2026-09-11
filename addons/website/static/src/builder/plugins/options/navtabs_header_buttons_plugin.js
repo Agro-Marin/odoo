@@ -44,12 +44,10 @@ class NavTabsOptionPlugin extends Plugin {
     }
 
     showTab(navLinkEl, paneEl) {
-        // Must come from the edited document's realm — see `bootstrap_realm`.
         const Tab = getBootstrapComponent(this.window, "Tab");
         if (Tab) {
             Tab.getOrCreateInstance(navLinkEl).show();
         }
-        // Immediately show the pane so the history remains consistent.
         paneEl.classList.add("show");
     }
 
@@ -60,8 +58,6 @@ class NavTabsOptionPlugin extends Plugin {
         const newPaneEl = await this.dependencies.clone.cloneElement(activePaneEl);
         const newNavItemEl = activeNavItemEl.cloneNode(true);
         activeNavItemEl.after(newNavItemEl);
-        // To make sure the DOM is clean and correct, leave it to Bootstrap to
-        // update it. We leave `.active` only on the former active elements.
         newPaneEl.classList.remove("active", "show");
         newNavItemEl.firstElementChild.classList.remove("active");
         this.generateUniqueIDs(editingElement);
@@ -71,13 +67,11 @@ class NavTabsOptionPlugin extends Plugin {
     removeItem(editingElement) {
         const activeLinkEl = this.getActiveLinkEl(editingElement);
         const activePaneEl = this.getActivePaneEl(editingElement);
-        // Show the next tab.
         const navLinkEls = [...this.getNavLinkEls(editingElement)];
         const index = (navLinkEls.indexOf(activeLinkEl) + 1) % navLinkEls.length;
         const nextActiveLinkEl = navLinkEls[index];
         const nextActivePaneEl = [...this.getPaneEls(editingElement)][index];
         this.showTab(nextActiveLinkEl, nextActivePaneEl);
-        // Remove the tab.
         activeLinkEl.parentElement.remove();
         activePaneEl.remove();
     }

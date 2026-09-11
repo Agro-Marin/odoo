@@ -48,8 +48,6 @@ export class CourseTagAddDialog extends Component {
         this.state.canCreateTagGroup = groups.can_create;
 
         if (this.props.defaultTag) {
-            // Note: when a default tag is passed to the props we want the tag SelectMenu to behave
-            // like a 'readonly' selectMenu dropdown (can see the options but cannot change the selection)
             this.createChoice(this.props.defaultTag);
             this.state.canCreateTag = false;
         }
@@ -68,10 +66,6 @@ export class CourseTagAddDialog extends Component {
             : _t("Select or create a tag group");
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     onClickFormSubmit() {
         this.state.alertMsg = "";
         if (!this._formValidate()) {
@@ -86,8 +80,6 @@ export class CourseTagAddDialog extends Component {
     }
 
     /**
-     * Create a new choice for a given select menu (type) and select it.
-     * Also display tag group select
      * @param {String} label
      * @param {String} type
      */
@@ -99,7 +91,6 @@ export class CourseTagAddDialog extends Component {
     }
 
     /**
-     * Set the tagId value and displays the tagGroup Select Menu when appropriate
      * @param {*} value
      */
     onTagSelect(value) {
@@ -110,16 +101,11 @@ export class CourseTagAddDialog extends Component {
     }
 
     /**
-     * Set the tagGroupId
      * @param {*} value
      */
     onTagGroupSelect(value) {
         this.choices.tagGroupId = value;
     }
-
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
 
     /**
      * @private
@@ -154,7 +140,6 @@ export class CourseTagAddDialog extends Component {
 
     /**
      * @private
-     * @returns Boolean
      */
     _formValidate() {
         for (const key in this.validation) {
@@ -180,7 +165,7 @@ export class CourseTagAddDialog extends Component {
      * @param {String} type
      * @param {Array} domain
      * @param {Array} fields
-     * @returns {Object} result
+     * @returns {Object}
      */
     async _fetchChoices(type, domain = [], fields = ["name"]) {
         const { read_results, can_create } = await rpc(
@@ -199,7 +184,6 @@ export class CourseTagAddDialog extends Component {
     }
 
     /**
-     * Get value for tagId and [when appropriate] tagGroupId to send to server
      * @private
      */
     _getSelectMenuValues() {
@@ -208,7 +192,6 @@ export class CourseTagAddDialog extends Component {
             return {};
         }
         if (!this._toCreate(tag.value)) {
-            // existing tag
             return { tag_id: [tag.value] };
         }
         const group = this.choices.tagGroupIds.find(
@@ -228,7 +211,6 @@ export class CourseTagAddDialog extends Component {
     /**
      * @private
      * @param {*} value
-     * @returns Boolean
      */
     _toCreate(value) {
         return typeof value === "string" && value.startsWith("temp");

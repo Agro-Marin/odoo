@@ -189,7 +189,6 @@ export class NewContentSystrayItem extends Component {
         await Promise.all(proms);
         this.dropdown.open();
 
-        // Preload the new page templates so they are ready as soon as possible
         rpc(
             "/website/get_new_page_templates",
             { context: { website_id: this.website.currentWebsiteId } },
@@ -224,8 +223,6 @@ export class NewContentSystrayItem extends Component {
             if (viewXmlid === "website.page_404") {
                 url.pathname = "";
             }
-            // A reload is needed after installing a new module, to instantiate
-            // the feature with patches from the installed module.
             this.website.prepareOutLoader();
             const encodedPath = encodeURIComponent(url.toString());
             redirect(
@@ -244,7 +241,6 @@ export class NewContentSystrayItem extends Component {
             title: element.title,
             installationText: sprintf(this.newContentText.installNeeded, name),
             installModule: async () => {
-                // Update the NewContentElement with installing icon and text.
                 this.state.newContentElements = this.state.newContentElements.map(
                     (el) => {
                         if (el.moduleXmlId === element.moduleXmlId) {
@@ -263,7 +259,6 @@ export class NewContentSystrayItem extends Component {
                     await this.installModule(id, element.redirectUrl);
                 } catch (error) {
                     this.website.hideLoader();
-                    // Update the NewContentElement with failure icon and text.
                     this.state.newContentElements = this.state.newContentElements.map(
                         (el) => {
                             if (el.moduleXmlId === element.moduleXmlId) {
@@ -281,12 +276,6 @@ export class NewContentSystrayItem extends Component {
         this.dialogs.add(InstallModuleDialog, dialogProps);
     }
 
-    /**
-     * This method registers the action to perform when a new content is
-     * saved. The path must be computed once the record is saved, to
-     * perform the 'ir.act_window_close' action, which will be used when
-     * the dialog is closed to go to the correct website page.
-     */
     async onAddContent(action, edition = false, context = null) {
         this.action.doAction(action, {
             additionalContext: context ? context : {},

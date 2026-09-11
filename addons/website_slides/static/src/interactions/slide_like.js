@@ -58,12 +58,10 @@ export class SlideLike extends Interaction {
             );
             const dislikesIcon = dislikeButtonEl.querySelector("i");
 
-            // update 'thumbs-up' button with latest state
             likeButtonEl.dataset.userVote = data.user_vote;
             likeButtonEl.querySelector("span").innerText = data.likes;
             likesIcon.classList.toggle("fa-solid", data.user_vote === 1);
             likesIcon.classList.toggle("fa-regular", data.user_vote !== 1);
-            // update 'thumbs-down' button with latest state
             dislikeButtonEl.dataset.userVote = data.user_vote;
             dislikeButtonEl.querySelector("span").innerText = data.dislikes;
             dislikesIcon.classList.toggle("fa-solid", data.user_vote === -1);

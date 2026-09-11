@@ -36,21 +36,14 @@ class ResPartner(models.Model):
         return None
 
     def _get_current_partner(self, *, order_sudo=False, **kwargs):
-        """Override `portal` to get current partner from order_sudo if user is not signed up."""
         if order_sudo:
             return (
-                (not order_sudo._is_anonymous_cart() and order_sudo.partner_id)
-                or self.env["res.partner"]  # Avoid returning public user's partner
-            )
+                not order_sudo._is_anonymous_cart() and order_sudo.partner_id
+            ) or self.env["res.partner"]
         return super()._get_current_partner(order_sudo=order_sudo, **kwargs)
 
     def _get_fields_frontend_writable(self):
-        """Override `portal` to make website whitelist fields writable in portal address."""
         frontend_writable_fields = super()._get_fields_frontend_writable()
-        # Internal submission path: run as SUPERUSER to satisfy the editor
-        # gate on ``get_fields_authorized`` (the field *names* are used as a
-        # whitelist here; no metadata is exposed to the requesting user), as
-        # ``extract_data`` already does.
         frontend_writable_fields.update(
             self.env["ir.model"]
             .with_user(SUPERUSER_ID)
@@ -62,7 +55,6 @@ class ResPartner(models.Model):
         return frontend_writable_fields
 
     def _get_domain_order_fiscal_position_recompute(self):
-        """Return a domain of sale orders for which we should recompute fiscal position after address update."""
         return Domain(
             [
                 ("state", "=", "draft"),
@@ -76,7 +68,6 @@ class ResPartner(models.Model):
     def write(self, vals):
         res = super().write(vals)
         if {"country_id", "vat", "zip"} & vals.keys() and self:
-            # Recompute fiscal position for open website orders
             order_fpos_recompute_domain = (
                 self._get_domain_order_fiscal_position_recompute()
             )
@@ -93,9 +84,6 @@ class ResPartner(models.Model):
                     lambda so: so not in orders_by_fpos.get(so.fiscal_position_id, []),
                 ):
                     fpos_changed._recompute_taxes()
-                    # other modules may extend the orders to recompute for
-                    # non-draft orders (for ex. sale_subscription), we need
-                    # to ensure to only recompute prices for draft orders
                     fpos_changed.filtered(
                         lambda order: order.state == "draft"
                     )._recompute_prices()

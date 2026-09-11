@@ -39,7 +39,7 @@
             t-on-focusout="onTableMouseoutOrFocusout">
         <thead>
             <tr>
-                <th></th> <!-- Empty cell in the top left corner -->
+                <th></th>
                 <t t-foreach="domState.data.datasets" t-as="dataset" t-key="dataset.key">
                     <th t-on-click.capture="onDatasetLabelClick">
                         <BuilderTextInput
@@ -107,7 +107,7 @@
                             preview="false"/>
                     </td>
                 </t>
-                <td></td> <!-- Empty cell in the bottom right corner -->
+                <td></td>
             </tr>
         </tbody>
     </table>

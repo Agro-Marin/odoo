@@ -2323,15 +2323,6 @@ class TestThemeViews(common.TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestFirstPageIdBatchCost(common.TransactionCase):
-    """`first_page_id` is a column of the Website > Pages list.
-
-    It used to run `website.page.search(..., limit=1)` once per view, so opening
-    that list cost a query per row on screen. The assertion is on the MARGINAL
-    cost between two sizes: an absolute query count at one size cannot tell a
-    flat cost from a linear one, and it breaks on every unrelated query added
-    elsewhere.
-    """
-
     def test_first_page_id_does_not_query_per_view(self):
         website = self.env["website"].search([], limit=1)
         pages = self.env["website.page"].create(
@@ -2358,11 +2349,6 @@ class TestFirstPageIdBatchCost(common.TransactionCase):
         views = pages.view_id
 
         def queries_for(count):
-            # Read through the field, not by calling the compute directly: a
-            # direct call runs outside `Field.compute_value`'s `env.protecting`,
-            # so assigning re-enters `__get__` per record and the compute is
-            # invoked once per view on top of the batch. That is an artefact of
-            # the measurement, and it hides what opening the list actually costs.
             self.env.invalidate_all()
             before = self.env.cr.sql_statement_count
             views[:count].mapped("first_page_id")

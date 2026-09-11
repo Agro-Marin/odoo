@@ -53,7 +53,6 @@
                         string="Order Date"
                         name="groupby_order_date"
                         context="{'group_by':'date_order'}" />
-                    <!-- Dashboard filter - used by context -->
                     <filter
                         string="Last Week"
                         invisible="1"

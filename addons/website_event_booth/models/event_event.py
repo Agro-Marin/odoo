@@ -7,7 +7,6 @@ class EventEvent(models.Model):
     exhibition_map = fields.Image(
         string="Exhibition Map", max_width=1024, max_height=1024
     )
-    # frontend menu management
     booth_menu = fields.Boolean(
         string="Booth Register",
         compute="_compute_booth_menu",
@@ -35,10 +34,6 @@ class EventEvent(models.Model):
                 event.booth_menu = True
             elif not event.website_menu:
                 event.booth_menu = False
-
-    # ------------------------------------------------------------
-    # WEBSITE MENU MANAGEMENT
-    # ------------------------------------------------------------
 
     def toggle_booth_menu(self, val):
         self.booth_menu = val

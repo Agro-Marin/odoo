@@ -33,10 +33,6 @@ class SupportedPaymentMethodsOptionPlugin extends Plugin {
         }),
     };
 
-    /**
-     * Add a reload button at the top in case the user made some changes to the supported payment
-     * methods. This only reloads the snippet element and not the entire editor page.
-     */
     getOptionButtons(editingElement) {
         if (editingElement.dataset.snippet !== "s_supported_payment_methods") {
             return [];
@@ -45,7 +41,6 @@ class SupportedPaymentMethodsOptionPlugin extends Plugin {
             {
                 class: "fa-solid fa-arrow-rotate-right btn btn-outline-info",
                 title: _t("Reload the payment methods"),
-                // Force the interaction to call the server again in case the user made backend changes.
                 handler: () =>
                     this.dependencies.edit_interaction.restartInteractions(
                         editingElement,

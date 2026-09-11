@@ -17,21 +17,11 @@ export class BottomFixedElement extends Interaction {
     }
 
     hideBottomFixedElements() {
-        // Note: check in the whole DOM instead of #wrapwrap as unfortunately
-        // some things are still put outside of the #wrapwrap (like the livechat
-        // button which is the main reason of this code).
         const bottomFixedEls = document.querySelectorAll(".o_bottom_fixed_element");
         if (!bottomFixedEls.length) {
             return;
         }
 
-        // The bottom fixed elements are always hidden when a modal is open
-        // thanks to the CSS that is based on the 'modal-open' class added to
-        // the body. However, when the modal does not have a backdrop (e.g.
-        // cookies bar), this 'modal-open' class is not added. That's why we
-        // handle it here. The popup widget code triggers a 'scroll'
-        // event when the modal is hidden to make the bottom fixed elements
-        // reappear.
         if (this.el.querySelector(".s_popup_no_backdrop.show")) {
             for (const bottomFixedEl of bottomFixedEls) {
                 bottomFixedEl.classList.add("o_bottom_fixed_element_hidden");

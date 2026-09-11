@@ -39,8 +39,6 @@ export class WebsiteBlog extends Interaction {
         blogNextContainerEl
             .querySelectorAll(".o_wblog_toggle")
             .forEach((el) => el.classList.toggle("d-none"));
-        // Appending a placeholder so that the cover can scroll to the top of the
-        // screen, regardless of its height.
         const placeholder = document.createElement("div");
         placeholder.style.minHeight = "100vh";
         this.insert(
@@ -113,9 +111,9 @@ export class WebsiteBlog extends Interaction {
     }
 
     /**
-     * @param {HTMLElement} el - the element we are scrolling to
-     * @param {Integer} duration - scroll animation duration
-     * @param {Function} callback - to be executed after the scroll is performed
+     * @param {HTMLElement} el
+     * @param {Integer} duration
+     * @param {Function} callback
      */
     async forumScrollAction(el, duration, callback) {
         await this.waitFor(scrollTo(el, { duration }));

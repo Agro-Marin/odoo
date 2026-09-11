@@ -35,7 +35,6 @@ export class StackingComponent extends Component {
         this.stack = useState(this.props.stackState.stack);
         useEffect(
             () => {
-                // Recompute the positioning of the popover if any.
                 this.env[POSITION_BUS]?.trigger("update");
             },
             () => [this.stack.length],

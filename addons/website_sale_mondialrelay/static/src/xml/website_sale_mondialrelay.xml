@@ -10,7 +10,6 @@
                     </div>
                     <div class="modal-body">
                         <div class="w-100" id="o_zone_widget">
-                            <!-- here will be instancied the  Widget -->
                         </div>
                     </div>
                     <footer class="modal-footer">

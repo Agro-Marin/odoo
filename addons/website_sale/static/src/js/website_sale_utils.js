@@ -5,10 +5,8 @@ import { _t } from "@web/core/translation";
 import { setElementContent } from "@web/core/utils/dom/html";
 
 /**
- * Animates a clone of the product image flying to the cart icon.
- *
- * @param {HTMLElement} cart - the cart icon element
- * @param {HTMLElement} elem - the product element containing the image
+ * @param {HTMLElement} cart
+ * @param {HTMLElement} elem
  * @param {number} offsetTop
  * @param {number} offsetLeft
  * @returns {Promise}
@@ -46,7 +44,6 @@ function animateClone(cart, elem, offsetTop, offsetLeft) {
             });
             document.body.appendChild(imgClone);
 
-            // Trigger reflow then animate
             imgClone.offsetHeight;
             Object.assign(imgClone.style, {
                 top: cartRect.top + offsetTop + "px",
@@ -59,7 +56,6 @@ function animateClone(cart, elem, offsetTop, offsetLeft) {
                 "transitionend",
                 function onEnd() {
                     imgClone.removeEventListener("transitionend", onEnd);
-                    // Shrink to 0
                     Object.assign(imgClone.style, {
                         width: "0px",
                         height: "0px",
@@ -84,11 +80,7 @@ function animateClone(cart, elem, offsetTop, offsetLeft) {
 }
 
 /**
- * Returns the closest product form to a given element if exists.
- * Required for product pages with full-width or no images where the "Add to cart" button can be
- * outside of the form.
- *
- * @param { HTMLElement } element - Reference to an HTML element in the DOM.
+ * @param { HTMLElement } element
  * @returns { HTMLFormElement|undefined }
  */
 function getClosestProductForm(element) {
@@ -98,13 +90,11 @@ function getClosestProductForm(element) {
 }
 
 /**
- * Updates both navbar cart
  * @param {Object} data
  * @return {void}
  */
 function updateCartNavBar(data) {
     browser.sessionStorage.setItem("website_sale_cart_quantity", data.cart_quantity);
-    // Mobile and Desktop elements have to be updated.
     const cartQuantityElements = document.querySelectorAll(".my_cart_quantity");
     for (const cartQuantityElement of cartQuantityElements) {
         if (data.cart_quantity === 0) {
@@ -130,9 +120,6 @@ function updateCartNavBar(data) {
 
     updateCartSummary(data);
 
-    // Adjust the cart's left column width to accommodate the cart summary (right column). The left
-    // column of an empty cart initially takes the full width, but adding products (e.g. via quick
-    // reorder) enables the cart summary on the right.
     document
         .querySelector(".oe_cart")
         ?.classList.toggle("col-lg-7", !!data.cart_quantity);
@@ -149,8 +136,6 @@ function updateCartNavBar(data) {
 }
 
 /**
- * Update the cart summary.
- *
  * @param {Object} data
  * @return {void}
  */
@@ -172,8 +157,6 @@ function updateCartSummary(data) {
 }
 
 /**
- * Update the quick reorder side panel.
- *
  * @param {Object} data
  * @return {void}
  */
@@ -201,9 +184,6 @@ function updateQuickReorderSidebar(data) {
 }
 
 /**
- * Displays `message` in an alert box at the top of the page if it's a
- * non-empty string.
- *
  * @param {string | null} message
  */
 function showWarning(message) {
@@ -228,9 +208,7 @@ function showWarning(message) {
 }
 
 /**
- * Return the selected attribute values from the given container.
- *
- * @param {Element} container the container to look into
+ * @param {Element} container
  */
 function getSelectedAttributeValues(container) {
     return Array.from(
@@ -241,16 +219,7 @@ function getSelectedAttributeValues(container) {
 }
 
 /**
- * Return the selected attribute values that take part in defining a variant.
- *
- * `variant_templates.xml` stamps `js_variant_change` on every attribute and appends the
- * attribute's `create_variant` as a second class, so the `no_variant` ones are
- * distinguishable in the DOM. They must be left out of anything compared against
- * `archived_combinations`, which the server builds from
- * `product.product_template_attribute_value_ids` of archived variants and therefore
- * never contains a `no_variant` value.
- *
- * @param {Element} container the container to look into
+ * @param {Element} container
  */
 function getSelectedVariantAttributeValues(container) {
     return Array.from(

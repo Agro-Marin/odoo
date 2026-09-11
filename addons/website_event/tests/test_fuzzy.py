@@ -22,7 +22,6 @@ class TestWebsiteEventAutocomplete(TestAutoComplete):
         )
 
     def test_autocomplete_search_for_multiple_spaces(self):
-        """Tests that autocomplete handles multiple spaces in the search term correctly."""
         with MockRequest(self.env, website=self.website):
             options = {
                 "allowFuzzy": True,

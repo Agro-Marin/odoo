@@ -6,10 +6,14 @@ class SlideSlidePartner(models.Model):
     _inherit = "slide.slide.partner"
 
     user_input_ids = fields.One2many(
-        "survey.user_input", "slide_partner_id", "Certification attempts"
+        "survey.user_input",
+        "slide_partner_id",
+        "Certification attempts",
     )
     survey_scoring_success = fields.Boolean(
-        "Certification Succeeded", compute="_compute_survey_scoring_success", store=True
+        "Certification Succeeded",
+        compute="_compute_survey_scoring_success",
+        store=True,
     )
 
     @api.depends("partner_id", "user_input_ids.scoring_success")
@@ -32,7 +36,6 @@ class SlideSlidePartner(models.Model):
 
     def _recompute_completion(self):
         super()._recompute_completion()
-        # Update certified partners
         certification_success_slides = self.filtered(
             lambda slide: slide.survey_scoring_success
         )
@@ -50,19 +53,9 @@ class SlideSlidePartner(models.Model):
 
 
 class SlideSlide(models.Model):
-    """Certification-specific extensions for slides.
-
-    Fields ``survey_id``, ``nbr_certification``, ``certification`` category/type,
-    and SQL constraints are declared in ``website_slides`` (which depends on
-    ``survey``). This module adds certification-specific behavior: auto-naming
-    from survey title, preview restrictions, gamification badge management,
-    and certification URL generation.
-    """
-
     _inherit = "slide.slide"
 
     name = fields.Char(compute="_compute_name", readonly=False, store=True)
-    # Override is_preview to uncheck it for certification slides.
     is_preview = fields.Boolean(
         compute="_compute_is_preview", readonly=False, store=True
     )
@@ -74,8 +67,6 @@ class SlideSlide(models.Model):
                 slide.name = slide.survey_id.title
 
     def _compute_mark_complete_actions(self):
-        """Certification slides cannot be manually (un)completed — the survey
-        completion flow handles this via ``survey_scoring_success``."""
         super()._compute_mark_complete_actions()
         for slide in self:
             if slide.slide_category == "certification":
@@ -112,9 +103,6 @@ class SlideSlide(models.Model):
         return result
 
     def _update_challenge_category(self, old_surveys=None, unlink=False):
-        """If a slide is linked to a survey that gives a badge, the challenge category of this badge must be
-        set to 'slides' in order to appear under the certification badge list on ranks_badges page.
-        If the survey is unlinked from the slide, the challenge category must be reset to 'certification'"""
         if old_surveys:
             old_certification_challenges = old_surveys.mapped(
                 "certification_badge_id"
@@ -127,15 +115,6 @@ class SlideSlide(models.Model):
             certification_challenges.write({"challenge_category": "slides"})
 
     def _generate_certification_url(self):
-        """get a map of certification url for certification slide from `self`. The url will come from the survey user input:
-            1/ existing and not done user_input for member of the course
-            2/ create a new user_input for member
-            3/ for no member, a test user_input is created and the url is returned
-        Note: the slide.slides.partner should already exist
-
-        We have to generate a new invite_token to differentiate pools of attempts since the
-        course can be enrolled multiple times.
-        """
         certification_urls = {}
         for slide in self.filtered(
             lambda slide: slide.slide_category == "certification" and slide.survey_id

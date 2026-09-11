@@ -21,7 +21,6 @@ class AnimateTextPopover extends BaseOptionComponent {
         animateOptionProps: AnimateOption.props,
         onReset: Function,
 
-        // Popover service
         close: { type: Function, optional: true },
     };
     static components = { AnimateOption };

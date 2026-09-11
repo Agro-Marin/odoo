@@ -30,7 +30,6 @@ export class ProductsItemOption extends BaseOptionComponent {
             .closest(".o_wsale_products_grid_table");
 
         this.domState = useDomState(() => {
-            // If /shop page layout is list, do not display Size option
             const displaySizeOption = !this.productsGridTableEl?.classList.contains(
                 "o_wsale_products_opt_layout_list",
             );
@@ -51,7 +50,6 @@ export class ProductsItemOption extends BaseOptionComponent {
         onWillStart(async () => {
             this.defaultSort = await loadInfo();
 
-            // need to display "re-order" option only if shop_default_sort is 'website_sequence asc'
             this.displayReOrder =
                 this.defaultSort[0].shop_default_sort === "website_sequence asc";
             const pprValue = this.productsGridTableEl.style
@@ -74,8 +72,6 @@ export class ProductsItemOption extends BaseOptionComponent {
     addClassToTableCells(x, y, className) {
         const table = this.tableRef.el;
 
-        // By default, this.domState.displaySizeOption is undefined, so the table is not displayed
-        // We need to check if the table is visible before adding classes to the cells
         if (!table) {
             return;
         }

@@ -10,20 +10,6 @@ import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
 import wUtils from "@website/js/utils";
 
-/**
- * The goal of this patch is to handle the URL autocomplete in the LinkPopover
- * component. The URL autocomplete is used to suggest internal links, anchors.
- * Before, the autocomplete was implemented as another OWL app. Now with this
- * patch, URL autocomplete is implemented as a child component.
- */
-
-/**
- * this class is used to create a new autocomplete component that will be used
- * in the LinkPopover component. Similar with AutoCompleteWithPages but it has
- * two new props:
- * - inputClass: to change the style of the input element in autocomplete
- * - updateValue: to update the URL of the link element
- */
 export class AutoCompleteInLinkPopover extends AutoComplete {
     static props = {
         ...AutoComplete.props,
@@ -32,12 +18,10 @@ export class AutoCompleteInLinkPopover extends AutoComplete {
     };
     static template = "website.AutoCompleteInLinkPopover";
 
-    // overwrite the div class to avoid breaking the popover style
     get autoCompleteRootClass() {
         return `${super.autoCompleteRootClass} col`;
     }
 
-    // apply classes on the input element in autocomplete
     get inputClass() {
         return this.props.inputClass || "o_input pe-3";
     }
@@ -55,11 +39,6 @@ patch(LinkPopover, {
     components: { ...LinkPopover.components, AutoCompleteInLinkPopover },
 });
 
-/* patch the LinkPopover component to maintain the option source for the
- * AutoCompleteInLinkPopover component. Also we make sure state.url is updated
- * when the user enters text in the autocomplete and selects an option from the
- * autocomplete.
- */
 patch(LinkPopover.prototype, {
     setup() {
         super.setup();
@@ -107,7 +86,6 @@ patch(LinkPopover.prototype, {
                 this,
             );
         } else if (term.startsWith("http") || term.length === 0) {
-            // avoid useless call to /website/get_suggested_links
             return [];
         }
 
@@ -151,7 +129,6 @@ patch(LinkPopover.prototype, {
         const parsedUrl = new URL(url);
         return (
             (browser.location.hostname === parsedUrl.hostname ||
-                // Also check if the odoo-hosted domain is the current domain of the url
                 new RegExp(`^https?://${session.db}\\.odoo\\.com(/.*)?$`).test(
                     parsedUrl.origin,
                 )) &&
@@ -163,7 +140,6 @@ patch(LinkPopover.prototype, {
     onClickForcePreviewMode(ev) {
         if (this.props.linkElement.href) {
             const currentUrl = new URL(this.props.linkElement.href);
-            // only when we are on a frontend page (in website builder) and the link is also a frontend link
             if (
                 this.isFrontendUrl(browser.location.href) &&
                 this.isFrontendUrl(this.props.linkElement.href)

@@ -19,13 +19,7 @@ export class ProductImageOptionPlugin extends Plugin {
     resources = {
         builder_options: [withSequence(REPLACE_MEDIA, ProductImageOption)],
         builder_actions: {
-            /*
-             * Change sequence of product page images
-             */
             SetPositionAction,
-            /*
-             * Removes the image in the back-end
-             */
             RemoveMediaAction,
         },
         patch_builder_options: [
@@ -39,9 +33,6 @@ export class ProductImageOptionPlugin extends Plugin {
     };
 }
 
-/*
- * Change sequence of product page images
- */
 export class SetPositionAction extends BuilderAction {
     static id = "setPosition";
     setup() {
@@ -57,10 +48,6 @@ export class SetPositionAction extends BuilderAction {
         await rpc("/shop/product/resequence-image", params);
     }
 }
-/*
- * Removes the image in the back-end if it is a "product.image" record, otherwise removes it
- * from the DOM only.
- */
 export class RemoveMediaAction extends BuilderAction {
     static id = "removeMedia";
     setup() {
@@ -68,7 +55,6 @@ export class RemoveMediaAction extends BuilderAction {
     }
     async apply({ editingElement: el }) {
         if (el.parentElement.dataset.oeModel === "product.image") {
-            // Unlink the "product.image" record as it is not the main product image.
             await this.services.orm.unlink("product.image", [
                 parseInt(el.parentElement.dataset.oeId),
             ]);

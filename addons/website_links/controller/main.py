@@ -7,9 +7,6 @@ class WebsiteUrl(http.Controller):
     def create_shorten_url(self, **post):
         if "url" not in post or post["url"] == "":
             return {"error": "empty_url"}
-        # This one link is created interactively and its title is shown straight
-        # away, so it is worth the fetch that `link.tracker.create` no longer does
-        # on its own -- a mailing send creating twenty links is not.
         return (
             request.env["link.tracker"]
             .with_context(link_tracker_fetch_title=True)
@@ -39,9 +36,6 @@ class WebsiteUrl(http.Controller):
             .search([("code", "=", post["init_code"])], limit=1)
             .link_id.id
         )
-        # `search_count` returns an int, and this branch used to call `.read()` on
-        # it -- so asking for a code the link already carries raised AttributeError
-        # instead of returning that code.
         existing = request.env["link.tracker.code"].search(
             [("code", "=", post["new_code"]), ("link_id", "=", link_id)], limit=1
         )

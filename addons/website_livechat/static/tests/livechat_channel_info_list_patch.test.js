@@ -25,8 +25,6 @@ test("shows recent page views", async () => {
         website_id,
     });
     const guestId = pyEnv["mail.guest"].create({ name: `Visitor #${visitorId}` });
-    // Do not add agent to the channel to ensure information is properly
-    // displayed, even when the agent is not a member.
     const channelId = pyEnv["discuss.channel"].create({
         channel_member_ids: [
             Command.create({ guest_id: guestId, livechat_member_type: "visitor" }),
@@ -50,8 +48,6 @@ test("Show recent conversations in channel info list", async () => {
         name: "Bob",
         user_ids: [pyEnv["res.users"].create({ name: "Bob" })],
     });
-    // At least two ongoing chats so that sort function ends up comparing two
-    // ongoing chats.
     const channelId = pyEnv["discuss.channel"]
         .create([
             {

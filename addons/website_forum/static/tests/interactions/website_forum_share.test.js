@@ -10,7 +10,7 @@ import { defineStyle } from "@web/../tests/web_test_helpers";
 setupInteractionWhiteList(["website_forum.website_forum_share", "website.share"]);
 describe.current.tags("interaction_dev");
 
-beforeEach(() => defineStyle(/* css */ `* { transition: none !important; }`));
+beforeEach(() => defineStyle(`* { transition: none !important; }`));
 afterEach(() => {
     document.body.querySelector("#oe_social_share_modal")?.remove();
 });

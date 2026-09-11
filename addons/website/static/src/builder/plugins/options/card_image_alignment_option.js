@@ -25,10 +25,6 @@ export class CardImageAlignmentOption extends BaseOptionComponent {
             const hasShape = hasCoverImage
                 ? !!coverImageWrapperEl.querySelector(".o_card_img[data-shape]")
                 : false;
-            // Sometimes the imageToWrapperRatio is very close to but not
-            // exactly 1. In this case, the image alignment slider would have no
-            // visible effect on the actual alignment. To avoid the slider to
-            // spawn in this case, we use a loose comparison.
             const hasSquareRatio = Math.abs(imageToWrapperRatio - 1) < 0.001;
             return {
                 imageToWrapperRatio,
@@ -38,13 +34,8 @@ export class CardImageAlignmentOption extends BaseOptionComponent {
     }
 
     /**
-     * Compares the aspect ratio of the card image to its wrapper.
-     *
      * @param {HTMLElement} editingElement
-     * @returns {number|null} Ratio comparison value:
-     *                   -  1: img and wrapper have identical aspect ratios
-     *                   - <1: img is more portrait (taller) than wrapper
-     *                   - >1: img is more landscape (wider) than wrapper
+     * @returns {number|null}
      */
     getImageToWrapperRatio(imageWrapperEl) {
         const imageEl = imageWrapperEl.querySelector(".o_card_img");

@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Share on social networks -->
         <template id="slide_share_social" name="Slides Media Share">
             <t t-if="not website_share_url">
             <t
@@ -58,7 +57,6 @@
             </div>
             </div>
         </template>
-        <!-- Slide sub-template: share: send by email -->
         <template id="slide_social_email" name="Share by Email">
             <h5 class="mt-4">Share by Email</h5>
             <div t-if="not is_public_user">
@@ -92,7 +90,6 @@
             <span t-field="record.name" t-if="record._name == 'slide.channel'" /> by email.</p>
             </div>
         </template>
-        <!-- Slide sub-template: share: embed in your website -->
         <template id="slide_social_embed" name="Share on Your Website">
             <div class="oe_slide_js_embed_code_widget mt-4">
             <h5 class="mt0">Embed in another Website</h5>
@@ -102,7 +99,6 @@
                 readonly="readonly"
                 onClick="this.select();"
                 t-attf-id="wslides_share_embed_id_{{record.id}}">
- <!-- Use the external embedding URL here, see python controller '_slide_embed' method for more details. -->
  <t t-out="slide.embed_code_external"/>
  </textarea>
             <button
@@ -119,7 +115,6 @@
             </div>
             </div>
         </template>
-        <!-- Share: social media -->
         <template id="slide_share_modal">
             <div
                 class="modal fade"
@@ -183,7 +178,6 @@
         <template id="join_course_link" name="Join Course Link">
             <a class="o_wslides_js_course_join_link" href="#" t-att-data-channel-enroll="slide.channel_id.enroll" t-att-data-channel-id="slide.channel_id.id">Join this Course</a><t t-if="for_resources"> to access resources</t>
         </template>
-        <!-- Python equivalent of the JS template "website.slides.sidebar.done.button" -->
         <template id="slide_sidebar_done_button" name="Sidebar Done Button">
             <t
                 t-set="uncompleted_icon"

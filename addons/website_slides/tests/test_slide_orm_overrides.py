@@ -6,20 +6,8 @@ from odoo.addons.website_slides.tests import common as slides_common
 
 
 class TestSlideOrmOverrides(slides_common.SlidesCase):
-    """Regressions in ``slide.slide``'s create/write overrides.
-
-    Each test pairs the failing case with a control that was always fine, so a
-    future refactor that re-breaks the batch path cannot pass by accident.
-    """
-
     @users("user_officer")
     def test_create_uses_default_channel_id_from_context(self):
-        """create() must honour ``default_channel_id``.
-
-        Defaults are applied inside super().create(), so reading
-        vals['channel_id'] up front raised KeyError on the very pattern
-        slide_channel.py and the backend views use.
-        """
         slide = (
             self.env["slide.slide"]
             .with_context(default_channel_id=self.channel.id)
@@ -32,7 +20,6 @@ class TestSlideOrmOverrides(slides_common.SlidesCase):
         )
         self.assertEqual(slide.channel_id, self.channel)
 
-        # control: the explicit form has always worked and must keep working
         explicit = self.env["slide.slide"].create(
             {
                 "name": "Explicit",
@@ -44,12 +31,6 @@ class TestSlideOrmOverrides(slides_common.SlidesCase):
 
     @users("user_officer")
     def test_write_url_on_multiple_slides(self):
-        """A multi-record write touching a url field must not check_singleton().
-
-        ``_get_external_metadata`` is singleton-only; calling it on the whole
-        recordset raised "Expected singleton", which is reachable from list-view
-        multi-edit.
-        """
         slides = self.env["slide.slide"].create(
             [
                 {
@@ -61,7 +42,6 @@ class TestSlideOrmOverrides(slides_common.SlidesCase):
             ]
         )
 
-        # must not raise
         slides.with_context(website_slides_skip_fetch_metadata=True).write(
             {
                 "url": "https://youtu.be/aaaaaaaaaaa",
@@ -71,12 +51,6 @@ class TestSlideOrmOverrides(slides_common.SlidesCase):
 
     @users("user_officer")
     def test_republish_is_idempotent(self):
-        """Re-publishing an already-published slide is a no-op.
-
-        It used to reset ``date_published`` (scrambling the "New" badge and the
-        `latest` ordering) and re-run ``_post_publication``, so a bulk Publish on
-        a list view re-notified every follower about old content.
-        """
         slide = self.env["slide.slide"].create(
             {
                 "name": "Already live",
@@ -105,7 +79,6 @@ class TestSlideOrmOverrides(slides_common.SlidesCase):
 
     @users("user_officer")
     def test_publishing_an_unpublished_slide_still_notifies(self):
-        """Control for the test above: a real state change must still fire."""
         slide = self.env["slide.slide"].create(
             {
                 "name": "Draft",
@@ -122,16 +95,7 @@ class TestSlideOrmOverrides(slides_common.SlidesCase):
 
 
 class TestSlideUserFieldsIsolation(slides_common.SlidesCase):
-    """``user_*`` fields must be keyed per user, not shared across a transaction."""
-
     def test_user_fields_are_not_shared_between_users(self):
-        """The per-user computes need depends_context('uid'), not depends('uid').
-
-        Stacking two @api.depends silently dropped the inner one (the decorator
-        is an attrsetter, so the outer call overwrites it), leaving the fields
-        with no context dependency and therefore a single cache entry shared by
-        every user in the transaction. Whoever read first won.
-        """
         member, other = self.user_emp, self.user_portal
         self.channel._action_add_members(member.partner_id | other.partner_id)
         self.env["slide.slide.partner"].create(
@@ -144,7 +108,6 @@ class TestSlideUserFieldsIsolation(slides_common.SlidesCase):
         )
         self.env.flush_all()
 
-        # read as the member FIRST: that is what used to poison the shared cache
         as_member = self.slide_2.with_user(member)
         self.assertTrue(as_member.user_has_completed)
         self.assertEqual(as_member.user_vote, 1)

@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- EVENT QUESTION : How did you learn about this event? (simple choice 0) -->
         <record id="event_question_about_0" model="event.question">
             <field name="title">How did you learn about this event?</field>
             <field name="question_type">simple_choice</field>
@@ -27,7 +26,6 @@
             <field name="sequence">3</field>
             <field name="question_id" ref="website_event.event_question_about_0" />
         </record>
-        <!-- EVENT QUESTION : How did you learn about this event? (simple choice 1) -->
         <record id="event_question_about_1" model="event.question">
             <field name="title">How did you learn about this event?</field>
             <field name="question_type">simple_choice</field>
@@ -50,7 +48,6 @@
             <field name="sequence">3</field>
             <field name="question_id" ref="website_event.event_question_about_1" />
         </record>
-        <!-- EVENT QUESTION : How did you learn about this event? (simple choice 0 + once_per_order) -->
         <record id="event_question_about_2" model="event.question">
             <field name="title">How did you learn about this event?</field>
             <field name="question_type">simple_choice</field>
@@ -75,7 +72,6 @@
             <field name="sequence">3</field>
             <field name="question_id" ref="website_event.event_question_about_2" />
         </record>
-        <!-- EVENT QUESTION : How did you hear about us? -->
         <record id="event_question_about_us" model="event.question">
             <field name="title">How did you hear about us?</field>
             <field name="question_type">text_box</field>
@@ -83,7 +79,6 @@
             <field name="event_ids" eval="[(5, 0, 0), (4, ref('event.event_7'))]" />
             <field name="is_reusable">False</field>
         </record>
-        <!-- EVENT QUESTION : Meal Type -->
         <record id="event_question_meal_type" model="event.question">
             <field name="title">Meal Type</field>
             <field name="question_type">simple_choice</field>
@@ -108,7 +103,6 @@
             <field name="sequence">3</field>
             <field name="question_id" ref="website_event.event_question_meal_type" />
         </record>
-        <!-- EVENT QUESTION : Allergies -->
         <record id="event_question_allergies" model="event.question">
             <field name="title">Allergies</field>
             <field name="question_type">text_box</field>
@@ -116,7 +110,6 @@
             <field name="event_ids" eval="[(5, 0, 0), (4, ref('event.event_0'))]" />
             <field name="is_reusable">False</field>
         </record>
-        <!-- EVENT QUESTION : Which field are you working in? -->
         <record id="event_question_working_field" model="event.question">
             <field name="title">Which field are you working in?</field>
             <field name="question_type">simple_choice</field>
@@ -151,7 +144,6 @@
                 name="question_id"
                 ref="website_event.event_question_working_field" />
         </record>
-        <!-- EVENT QUESTION : What's your Hockey level? -->
         <record id="event_question_hockey_level" model="event.question">
             <field name="title">What's your Hockey level?</field>
             <field name="question_type">text_box</field>

@@ -14,7 +14,6 @@ class ClickAndCollectCommon(PaymentCustomCommon, WebsiteSaleStockCommon):
             cls.storable_product.id, 10, cls.warehouse.lot_stock_id.id
         )
 
-        # Create the in-store delivery method.
         cls.dm_product = cls._prepare_carrier_product(list_price=0.0)
         cls.provider = cls._prepare_provider(code="custom", custom_mode="on_site")
         cls.in_store_dm = cls._prepare_carrier(

@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!--page history-->
         <record id="website_visitor_page_view_tree" model="ir.ui.view">
             <field name="name">website.track.view.list</field>
             <field name="model">website.track</field>
@@ -77,7 +76,6 @@
                 name="view_ids"
                 eval="[(5, 0, 0),             (0, 0, {'view_mode': 'list', 'view_id': ref('website_visitor_page_view_tree')}),             (0, 0, {'view_mode': 'graph', 'view_id': ref('website_visitor_page_view_graph')}),         ]" />
         </record>
-        <!--Website visitor actions-->
         <record id="website.visitor_partner_action" model="ir.actions.act_window">
             <field name="name">Partners</field>
             <field name="res_model">res.partner</field>
@@ -89,7 +87,6 @@
                 </p>
             </field>
         </record>
-        <!-- website visitor views -->
         <record id="website_visitor_view_kanban" model="ir.ui.view">
             <field name="name">website.visitor.view.kanban</field>
             <field name="model">website.visitor</field>
@@ -136,7 +133,6 @@
                                                     aria-label="Offline"
                                                     title="Offline" />
                                             </div>
-                                            <!-- Double check is necessary for sample view (or error image are shown) -->
                                             <div
                                                 t-if="record.country_id.raw_value and record.country_flag.raw_value">
                                                 <field
@@ -341,7 +337,6 @@
                         name="filter_type_customer"
                         domain="[('partner_id', '!=', False)]" />
                     <separator />
-                    <!-- connected in the last 5 minutes -->
                     <filter
                         string="Connected"
                         name="filter_is_connected"

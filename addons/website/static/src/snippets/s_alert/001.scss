@@ -21,7 +21,7 @@
     }
     .s_alert_icon {
         float: left;
-        background-color: rgba($black, 10%); // Fallback
+        background-color: rgba($black, 10%);
         background-color: fade-currentColor(15%);
     }
     .s_alert_content {

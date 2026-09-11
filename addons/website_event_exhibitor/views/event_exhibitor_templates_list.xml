@@ -4,11 +4,8 @@
     <template id="event_exhibitors" name="Event Exhibitors">
         <t t-call="website_event.layout">
             <div class="o_wevent_online o_wesponsor_index container">
-                <!-- Topbar -->
                 <t t-call="website_event_exhibitor.exhibitors_topbar" />
-                <!-- Drag/Drop Area -->
                 <div id="oe_structure_wesponsor_index_1" class="oe_structure" />
-                <!-- Content -->
                 <div class="o_wesponsor_container">
                     <div class="row">
                         <t t-call="website_event_exhibitor.exhibitors_search" />
@@ -17,17 +14,11 @@
                         <t t-call="website_event_exhibitor.exhibitors_main" />
                     </div>
                 </div>
-                <!-- Drag/Drop Area -->
                 <div id="oe_structure_wesponsor_index_2" class="oe_structure mb-5" />
             </div>
         </t>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- TOPBAR: BASE NAVIGATION -->
-    <!-- ============================================================ -->
-    <!-- TOPBAR: BASE NAVIGATION -->
-    <!-- Main topbar -->
     <template id="exhibitors_topbar" name="Exhibitor Tools">
         <div class="d-flex d-print-none justify-content-end flex-wrap gap-2 w-100 mt-3">
             <h1 class="my-0 me-auto pe-sm-4 h3-fs">Exhibitors</h1>
@@ -72,7 +63,6 @@
                 </button>
             </div>
         </div>
-        <!-- Off canvas filters on mobile-->
         <div
             id="o_wevent_exhibitors_offcanvas"
             class="o_website_offcanvas offcanvas offcanvas-end d-lg-none p-0 overflow-visible mw-75">
@@ -93,7 +83,6 @@
         </div>
     </template>
 
-    <!-- Topbar: optional country filters -->
     <template
         id="exhibitors_topbar_country"
         name="Filter by Country"
@@ -167,7 +156,6 @@
         </xpath>
     </template>
 
-    <!-- Topbar: optional sponsorship filters -->
     <template
         id="exhibitors_topbar_sponsorship"
         name="Filter by Sponsorship"
@@ -237,12 +225,7 @@
         </xpath>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- CONTENT: MAIN TEMPLATES -->
-    <!-- ============================================================ -->
-    <!-- Exhibitors Main Display -->
     <template id="exhibitors_main" name="Exhibitors: Main Display">
-        <!-- No exhibitors -->
         <div t-if="not sponsor_categories" class="col-12 text-center">
             <div class="my-4"><t t-call="website_event.event_empty_events_svg" /></div>
             <h2>No exhibitor found.</h2>
@@ -257,11 +240,9 @@
                 </a>
             </div>
         </div>
-        <!-- Cards -->
         <div class="col-12"><t t-call="website_event_exhibitor.exhibitors_display_cards" /></div>
     </template>
 
-    <!-- Exhibitors: Cards-based display -->
     <template id="exhibitors_display_cards" name="Exhibitors Cards">
         <div t-foreach="sponsor_categories" t-as="sponsor_category" class="row mb-3">
             <div class="col-12 mt-3 mb-2">
@@ -276,9 +257,6 @@
         </div>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- TOOL TEMPLATES -->
-    <!-- ============================================================ -->
     <template id="exhibitor_card" name="Exhibitor Card">
         <article class="o_wesponsor_card card h-100">
             <div
@@ -318,7 +296,6 @@
                 </header>
                 <div class="col-12 h-100 border-top">
                     <main class="card-body">
-                        <!-- Title -->
                         <h5
                             class="card-title d-flex align-items-start justify-content-between mt-0 mb-0">
                             <span t-field="sponsor.name" class="text-break fs-6 mb-2" />
@@ -328,7 +305,6 @@
                                 Live
                             </span>
                         </h5>
-                        <!-- Catchy sentence -->
                         <span class="text-muted" t-out="sponsor.subtitle" />
                     </main>
                 </div>
@@ -351,7 +327,6 @@
         </article>
     </template>
 
-    <!-- Searched terms -->
     <template id="exhibitors_search" name="Exhibitors: search terms">
         <div class="d-flex flex-wrap align-items-center mb-3">
             <t t-foreach="search_countries" t-as="country">

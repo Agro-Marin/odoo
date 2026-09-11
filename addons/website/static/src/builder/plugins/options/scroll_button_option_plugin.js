@@ -67,7 +67,7 @@ class ScrollButtonManager {
         const button = editingElement.querySelector(":scope > .o_scroll_button");
         if (button) {
             button.remove();
-            this.buttonCache.set(editingElement, button); // Cache for reuse
+            this.buttonCache.set(editingElement, button);
         }
     }
 

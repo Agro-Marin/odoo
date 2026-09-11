@@ -14,15 +14,12 @@ class TestSnippets(HttpCase):
     def test_snippet_newsletter_block_with_edit(self):
         self.env.ref("base.user_admin").email = "admin@yourcompany.example.com"
         admin_email = self.env.ref("base.user_admin").email
-        # Get contacts with this email
         mass_mailing_contacts = self.env["mailing.contact"].search(
             [("email", "=", admin_email)]
         )
         mailing_list = self.env["mailing.list"].search(
             [("contact_ids", "in", mass_mailing_contacts.ids)]
         )
-        # Unsubscribe the admin's email from every mailing list to ensure the
-        # tour can subscribe the admin again
         mailing_list.write(
             {
                 "contact_ids": [

@@ -51,7 +51,7 @@ class TestForumPerformance(UtilPerf):
                 {
                     "content": "You",
                     "forum_id": self.forum.id,
-                    "is_correct": i == 0,  # Ensure to have one accepted answer
+                    "is_correct": i == 0,
                     "name": f"TestAnswer {i}",
                     "parent_id": self.post.id,
                 }

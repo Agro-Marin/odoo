@@ -25,7 +25,6 @@ class Website(models.Model):
         return links
 
     def configurator_set_menu_links(self, menu_company, module_data):
-        # Forum menu should only be a footer link, not a menu
         forum_menu = self.env["website.menu"].search(
             [("url", "=", "/forum"), ("website_id", "=", self.id)]
         )
@@ -49,14 +48,6 @@ class Website(models.Model):
         return result
 
     def _update_forum_count(self):
-        """Update count of forum linked to some websites. This has to be
-        done manually as website_id=False on forum model means a shared forum.
-        There is therefore no straightforward relationship to be used between
-        forum and website.
-
-        This method either runs on self (if not void), either on all existing
-        websites (to update globally counters, notably when a new forum is
-        created)."""
         websites = self or self.search([])
         forums_all = self.env["forum.forum"].search([])
         for website in websites:

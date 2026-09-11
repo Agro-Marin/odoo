@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Completion of Quiz and Karma Generation -->
         <record id="slide_slide_1_4_partner_admin" model="slide.slide.partner">
             <field name="slide_id" ref="website_slides.slide_slide_demo_1_4" />
             <field name="partner_id" ref="base.partner_admin" />
@@ -17,7 +16,6 @@
                 eval="obj().env.ref('website_slides.slide_slide_demo_1_4')" />
             <value>Quiz completed</value>
         </function>
-        <!-- Completion of Course (Karma Generation Triggered in Python) -->
         <record id="slide_slide_1_3_partner_admin" model="slide.slide.partner">
             <field name="slide_id" ref="website_slides.slide_slide_demo_1_3" />
             <field name="partner_id" ref="base.partner_admin" />
@@ -28,7 +26,6 @@
             <field name="partner_id" ref="base.partner_admin" />
             <field name="completed" eval="True" />
         </record>
-        <!-- Demo join and leave a course -->
         <function model="res.users" name="_add_karma">
             <value eval="[ref('base.user_demo')]" />
             <value eval="30" />

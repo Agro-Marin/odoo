@@ -114,8 +114,6 @@
             }
 
             .media_iframe_video {
-                // 70% because the carousel controls are each 15% and the user
-                // must be able to click on the video buttons.
                 width: 70%;
                 height: 100%;
             }
@@ -128,7 +126,6 @@
         }
 
         > .container-fluid {
-            // keep image with a link centered with "full" content width.
             .carousel-item > a {
                 margin-right: auto;
                 margin-left: auto;
@@ -154,7 +151,7 @@
 
             align-items: center;
             min-width: 0;
-            overflow: auto hidden; // Force hidden on Y for mobile.
+            overflow: auto hidden;
             justify-content: flex-start;
             flex-wrap: nowrap;
             scrollbar-width: none;
@@ -190,7 +187,6 @@
             background-size: 50%;
         }
 
-        // Arrows - Default
         &.s_image_gallery_arrows_default {
             .carousel-control-prev,
             .carousel-control-next {
@@ -209,7 +205,6 @@
             }
         }
 
-        // Arrows - Boxed / Rounded
         &.s_image_gallery_arrows_boxed,
         &.s_image_gallery_arrows_rounded {
             .carousel-control-prev-icon,
@@ -228,7 +223,6 @@
             }
         }
 
-        // Arrows - Rounded
         &.s_image_gallery_arrows_rounded {
             .carousel-control-prev-icon,
             .carousel-control-next-icon {
@@ -236,7 +230,6 @@
             }
         }
 
-        // Arrows - Hidden
         &.s_image_gallery_arrows_hidden {
             .carousel-control-prev-icon,
             .carousel-control-next-icon {
@@ -244,12 +237,10 @@
             }
         }
 
-        // Indicators - Bars
         &.s_image_gallery_indicators_bars .carousel-indicators > button {
             background-image: none !important;
         }
 
-        // Indicators - Squared Miniatures / Rounded Miniatures
         &.s_image_gallery_indicators_squared,
         &.s_image_gallery_indicators_rounded {
             .carousel-indicators > button {
@@ -269,12 +260,10 @@
             }
         }
 
-        // Indicators - Rounded Miniatures
         &.s_image_gallery_indicators_rounded .carousel-indicators > button {
             border-radius: $border-radius-pill;
         }
 
-        // Indicators - Dots
         &.s_image_gallery_indicators_dots {
             .carousel-indicators > button {
                 width: $-o-carousel-indicators-dots-size;
@@ -285,9 +274,8 @@
                 transform: scale(0.5);
                 transition:
                     opacity 0.6s ease,
-                    transform 0.6s ease; // $carousel-indicator-transition values
+                    transform 0.6s ease;
 
-                // Increases the click area for easier navigation.
                 &:before {
                     position: absolute;
                     inset: $carousel-indicator-spacer * -4;
@@ -302,7 +290,6 @@
             }
         }
 
-        // Indicators - Numbers
         &.s_image_gallery_indicators_numbers {
             .carousel-indicators {
                 flex-wrap: wrap;
@@ -357,12 +344,10 @@
             }
         }
 
-        // Indicators - Hidden
         &.s_image_gallery_indicators_hidden .carousel-indicators {
             display: none;
         }
 
-        // Style - Indicators outside / Outside
         &.s_image_gallery_controllers_indicators_outside:where(
                 :not(.s_image_gallery_indicators_hidden)
             ),
@@ -382,7 +367,6 @@
             }
         }
 
-        // Style - Indicators outside
         &.s_image_gallery_controllers_indicators_outside {
             .o_carousel_controllers {
                 justify-content: center;
@@ -408,7 +392,6 @@
             }
         }
 
-        // Style - Outside
         &.s_image_gallery_controllers_outside {
             .o_carousel_controllers {
                 position: absolute;
@@ -435,7 +418,6 @@
             }
         }
 
-        // Style - Arrows left
         &.s_image_gallery_controllers_outside_arrows_left {
             .o_carousel_controllers {
                 justify-content: start;
@@ -452,7 +434,6 @@
             }
         }
 
-        // Style - Arrows right
         &.s_image_gallery_controllers_outside_arrows_right {
             .carousel-control-prev,
             .carousel-control-next {
@@ -471,8 +452,6 @@
     }
 }
 
-// TODO adapt in Master. Override Bootstrap's dark indicators without
-// out-prioritizing user overrides in stable versions.
 :where(
     .s_image_gallery[data-vcss="002"].s_image_gallery_indicators_squared,
     .s_image_gallery[data-vcss="002"].s_image_gallery_indicators_rounded

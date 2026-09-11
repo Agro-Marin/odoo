@@ -15,7 +15,6 @@ class ThemeUtils(models.AbstractModel):
 
     @api.model
     def enable_view(self, xml_id):
-        """Override of `theme.utils` to disable all category style templates when enabling one."""
         if xml_id in self.category_style_templates:
             for template in self.category_style_templates:
                 self.disable_view(template)

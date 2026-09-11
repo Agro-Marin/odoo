@@ -105,8 +105,6 @@
                 border: 1px solid #aaa;
             }
             .media_iframe_video {
-                // 70% because the carousel controls are each 15% and the user
-                // must be able to click on the video buttons.
                 width: 70%;
                 height: 100%;
             }
@@ -176,8 +174,6 @@
             .carousel {
                 .carousel-control-prev,
                 .carousel-control-next {
-                    // Directional icons replaced by oi but keeping fa here, it
-                    // is still used by already dropped snippet
                     .fa,
                     .oi {
                         text-shadow: none;

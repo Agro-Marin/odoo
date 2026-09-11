@@ -52,7 +52,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         self.channel.action_archive()
         self.assertFalse(self.channel.active)
         self.assertFalse(self.channel.is_published)
-        # channel_partner should still NOT be marked as completed
         self.assertFalse(channel_partner.member_status == "completed")
 
         for slide in self.channel.slide_ids:
@@ -72,8 +71,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
 
     @users("user_manager")
     def test_channel_partner_next_slide(self):
-        """Test the mechanic of the 'next_slide' field for memberships.
-        Next slide should be equal to the next slide in order (sequence, id) based on completion."""
 
         channel = self.env["slide.channel"].create(
             {
@@ -85,7 +82,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             }
         )
 
-        # test the behavior on both employees and portal users
         users = self.user_emp | self.user_portal
         channel.sudo()._action_add_members(users.partner_id)
         memberships = (
@@ -94,7 +90,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             .search([("partner_id", "in", users.partner_id.ids)])
         )
 
-        # with no slides, next_slide_id is False for all memberships
         self.assertFalse(memberships.next_slide_id)
 
         category_1, category_2 = self.env["slide.slide"].create(
@@ -109,7 +104,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             ]
         )
 
-        # create 2 slides within the first category
         slide_1, slide_2 = self.env["slide.slide"].create(
             [
                 {
@@ -123,7 +117,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             ]
         )
 
-        # create 2 slides within the second category
         slide_3, slide_4 = self.env["slide.slide"].create(
             [
                 {
@@ -140,7 +133,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         self.assertEqual(
             channel.slide_content_ids, slide_1 | slide_2 | slide_3 | slide_4
         )
-        # force recompute next slide based on added slides
         memberships.invalidate_recordset(fnames=["next_slide_id"])
 
         for membership in memberships:
@@ -166,11 +158,9 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
 
                 membership.invalidate_recordset(fnames=["next_slide_id"])
 
-            # we have gone through all the content, next slide should be False
             self.assertFalse(membership.next_slide_id)
 
     def test_mail_completed(self):
-        """When the slide.channel is completed, an email is supposed to be sent to people that completed it."""
         channel_2 = self.env["slide.channel"].create(
             {"name": "Test Course 2", "slide_ids": [(0, 0, {"name": "Test Slide 1"})]}
         )
@@ -191,7 +181,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         self.env["slide.slide.partner"].create(slide_slide_vals)
         created_mails = self.env["mail.mail"].search([])
 
-        # 2 'congratulations' emails are supposed to be sent to user_officer and user_emp
         for user in self.user_officer | self.user_emp:
             self.assertTrue(
                 any(
@@ -200,7 +189,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
                     for mail in created_mails
                 )
             )
-        # user_portal has not completed the course, they should not receive anything
         self.assertFalse(
             any(
                 mail.model == "slide.channel.partner"
@@ -210,7 +198,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         )
 
     def test_mail_completed_with_different_templates(self):
-        """When the completion email is generated, it must take into account different templates."""
 
         mail_template = self.env["mail.template"].create(
             {
@@ -228,7 +215,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
                 "completed_template_id": mail_template.id,
             }
         )
-        # sudo because creator has no rights to modify templates
         self.channel.sudo().completed_template_id.body_html = "<p>TestBodyTemplate</p>"
 
         all_channels = self.channel | channel_2
@@ -249,8 +235,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         slide_created_mails = self._new_mails.filtered(
             lambda m: m.model == "slide.channel.partner"
         )
-        # 2 mails should be generated from two different templates:
-        # the default template and the new one
         self.assertEqual(len(slide_created_mails), 2)
 
         self.assertEqual(
@@ -275,7 +259,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         )
         all_channels = self.channel | channel_without_template
 
-        # try sharing the course
         with self.assertRaises(UserError) as user_error:
             all_channels._send_share_email("test@test.com")
 
@@ -284,7 +267,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             f'Impossible to send emails. Select a "Channel Share Template" for courses {channel_without_template.name} first',
         )
 
-        # try sharing slides
         with self.assertRaises(UserError) as user_error:
             all_channels.slide_ids._send_share_email("test@test.com", False)
 
@@ -294,12 +276,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         )
 
     def test_add_slide_without_channel_returns_error(self):
-        """A POST missing (or with a falsy) ``channel_id`` used to 500 with an
-        uncaught ``KeyError`` (the post-values dict-comprehension drops falsy
-        keys, then the route indexed ``values["channel_id"]`` directly). It
-        must instead behave like the route's other bad-input cases and
-        return a clean ``{"error": ...}`` payload.
-        """
         self.authenticate("admin", "admin")
         response = self.call_jsonrpc(
             "/slides/add_slide",
@@ -318,14 +294,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
 
     @users("user_manager")
     def test_slides_prepare_preview(self):
-        """Ensure archived slides are not used during slide preview.
-
-        1) Create a channel and category for it
-        2) Go to website > courses > Open the channel
-        3) Add content > video > Add video link > Save and publish > delete
-        4) Repeat above step
-        5) Add content > video > Add any text in video link > Save and publish
-        """
         self.authenticate("admin", "admin")
 
         for _ in range(2):
@@ -377,8 +345,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         )
 
     def test_default_completion_time(self):
-        """Verify whether the system calculates the completion time when it is not specified,
-        but if the user does provide a completion time, the default time should not be applied."""
 
         def _get_completion_time_pdf(*args, **kwargs):
             return 13.37
@@ -415,7 +381,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
 
     @users("user_manager")
     def test_mail_completed_not_on_unpublishing_or_unlinking_slides(self):
-        """Check that participants do not receive a course completion email when slides are deleted/unpublished."""
 
         def were_emails_sent():
             new_mails = self._new_mails.filtered(
@@ -423,7 +388,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             )
             return len(new_mails) > 0
 
-        # Setup
         self.assertGreater(
             len(self.channel.channel_partner_ids),
             self.channel.members_completed_count,
@@ -436,7 +400,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             "The test requires at least two published slides.",
         )
 
-        # Unpublishing slides
         with self.mock_mail_gateway():
             slides_initially_published[:1].is_published = False
         self.assertFalse(
@@ -451,7 +414,6 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
             "Participants should not receive emails when all remaining slides are unpublished.",
         )
 
-        # Unlinking slides
         with self.mock_mail_gateway():
             self.channel.slide_ids[:1].with_user(self.user_manager).unlink()
         self.assertFalse(
@@ -543,7 +505,6 @@ class TestSequencing(slides_common.SlidesCase):
         )
         self.assertEqual(self.slide.sequence, 1)
 
-        # insert a new category and check resequence_slides does as expected
         new_category = self.env["slide.slide"].create(
             {
                 "name": "Sub-cooking Tips Category",
@@ -574,12 +535,6 @@ class TestSequencing(slides_common.SlidesCase):
 
     @users("user_officer")
     def test_move_category_slides_to_new_category(self):
-        """`_move_category_slides`'s `new_category` branch has no direct
-        caller (`slide.slide.unlink` always passes `False`) but is kept as
-        part of the method's documented meaning; exercise it directly so a
-        future regression there is caught instead of only being noticed if
-        and when a caller is added.
-        """
         channel = self.env["slide.channel"].create({"name": "Test Move Category"})
         category_a = self.env["slide.slide"].create(
             {

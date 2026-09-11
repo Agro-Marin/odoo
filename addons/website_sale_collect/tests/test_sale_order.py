@@ -28,7 +28,6 @@ class TestSaleOrder(ClickAndCollectCommon):
         warehouse_2 = self._create_warehouse()
         so = self._create_in_store_delivery_order(partner_id=self.public_user.id)
         so._set_pickup_location('{"id":' + str(warehouse_2.id) + "}")
-        # change the partner_id as would happen in a checkout
         so.partner_id = self.partner.id
         self.assertEqual(so.warehouse_id, warehouse_2)
 
@@ -150,10 +149,7 @@ class TestSaleOrder(ClickAndCollectCommon):
         self.assertEqual(insufficient_stock_data[cart.line_ids], 10)
 
     def test_insufficient_stock_with_mixed_uom_order_lines(self):
-        """Test that the insufficient stock is correctly computed when the order lines
-        use different UoMs."""
         pack_of_6_id = self.ref("uom.product_uom_pack_6")
-        # 1 pack of 6 + 5 units = 11 units in the cart
         cart = self._create_in_store_delivery_order(
             line_ids=[
                 Command.create(
@@ -172,19 +168,14 @@ class TestSaleOrder(ClickAndCollectCommon):
                 ),
             ]
         )
-        # 10 units available, 11 requested, so 1 unit short
         insufficient_stock_data = cart._get_insufficient_stock_data(self.warehouse.id)
         ol_unit = cart.line_ids.filtered(
             lambda l: l.product_uom_id == self.storable_product.uom_id
         )
-        # only 4 units are available for the second order line instead of 5
         self.assertEqual(insufficient_stock_data[ol_unit], 4)
 
     def test_product_in_stock_with_mixed_uom_order_lines_is_available(self):
-        """Test that if there is enough stock for all order lines the insufficient stock is
-        empty."""
         pack_of_6_id = self.ref("uom.product_uom_pack_6")
-        # 1 pack of 6 + 4 units = 10 units in the cart
         cart = self._create_in_store_delivery_order(
             line_ids=[
                 Command.create(
@@ -203,7 +194,6 @@ class TestSaleOrder(ClickAndCollectCommon):
                 ),
             ]
         )
-        # 10 units available, 10 requested
         insufficient_stock_data = cart._get_insufficient_stock_data(self.warehouse.id)
         self.assertFalse(insufficient_stock_data)
 

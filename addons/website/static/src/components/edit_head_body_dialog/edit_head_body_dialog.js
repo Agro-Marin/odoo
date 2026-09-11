@@ -4,11 +4,6 @@ import { CodeEditor } from "@web/components/code_editor";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 
-/**
- * A dialog that let the user edit the code that will be injected in the <head>
- * and before the </body> of every page of the website. This is a stable and
- * upgrade proof alternative to directly editing the website xml.
- */
 export class EditHeadBodyDialog extends Component {
     static template = "website.EditHeadBodyDialog";
     static components = { CodeEditor, Dialog };

@@ -14,9 +14,6 @@ export class DynamicSnippetOption extends BaseOptionComponent {
     setup() {
         super.setup();
         const { getModelNameFilter } = this.dependencies.dynamicSnippetOption;
-        // Specify model name in subclasses to filter the list of available
-        // model record filters. Indicates that some current options are a
-        // default selection.
         this.dynamicOptionParams = useDynamicSnippetOption(getModelNameFilter());
     }
 }

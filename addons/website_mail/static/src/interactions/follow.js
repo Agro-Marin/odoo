@@ -53,8 +53,6 @@ export class Follow extends Interaction {
     }
 
     /**
-     * Toggles subscription state for every given records.
-     *
      * @param {boolean} follow
      * @param {string} email
      * @param {HTMLElement} jsFollowEl
@@ -68,9 +66,6 @@ export class Follow extends Interaction {
     }
 
     /**
-     * Updates subscription DOM for every given records.
-     * This should not be called directly, use `toggleSubscription`.
-     *
      * @param {boolean} follow
      * @param {string} email
      * @param {HTMLElement} jsFollowEl

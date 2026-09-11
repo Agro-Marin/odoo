@@ -10,7 +10,6 @@ export class ForumFontPlugin extends FontPlugin {
         powerbox_items: this.resources.powerbox_items.filter(
             (item) => !excludedPowerboxCommands.includes(item.commandId),
         ),
-        // Remove font-size selector from toolbar
         toolbar_items: this.resources.toolbar_items.filter(
             (item) => item.object.id !== "font-size",
         ),

@@ -3,28 +3,20 @@ import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { renderToElement } from "@web/core/utils/render";
 
-/**
- * Displays the question inputs when adding a new question or when updating an
- * existing one in a quiz. When validating the question it makes an RPC call
- * to the server and notifies the owning quiz through the constructor
- * callbacks (the Interaction replacement for the legacy `trigger_up` flows).
- */
 export class QuestionFormBehavior {
     /**
      * @param {import("@web/public/interaction").Interaction} host
-     * @param {HTMLElement} targetEl where to insert the form
+     * @param {HTMLElement} targetEl
      * @param {"beforeend"|"afterend"} position
      * @param {Object} options
-     * @param {HTMLElement} [options.editedQuestionEl] the question being edited
-     * @param {Object} [options.question] existing question values
-     * @param {boolean} [options.update] whether this edits an existing question
+     * @param {HTMLElement} [options.editedQuestionEl]
+     * @param {Object} [options.question]
+     * @param {boolean} [options.update]
      * @param {integer} options.sequence
      * @param {integer} options.slideId
-     * @param {Function} options.onDisplayCreated called with the rendered
-     *   question markup after a successful creation
-     * @param {Function} options.onDisplayUpdated called with (renderedMarkup,
-     *   editedQuestionEl) after a successful update
-     * @param {Function} options.onResetDisplay called when the user cancels
+     * @param {Function} options.onDisplayCreated
+     * @param {Function} options.onDisplayUpdated
+     * @param {Function} options.onResetDisplay
      */
     constructor(host, targetEl, position, options) {
         this.host = host;
@@ -81,14 +73,7 @@ export class QuestionFormBehavior {
         this.el.remove();
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     /**
-     * Updates the comment icon styling based on whether the comment input has
-     * a value.
-     *
      * @param {Event} ev
      */
     _onCommentChanged(ev) {
@@ -106,9 +91,6 @@ export class QuestionFormBehavior {
     }
 
     /**
-     * Toggle the input for commenting the answer line which will be seen by
-     * the frontend user when submitting the quiz.
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -123,8 +105,6 @@ export class QuestionFormBehavior {
     }
 
     /**
-     * Adds a new answer line after the element the user clicked on.
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -135,8 +115,6 @@ export class QuestionFormBehavior {
     }
 
     /**
-     * Removes an answer line. Can't remove the last answer line.
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -147,8 +125,6 @@ export class QuestionFormBehavior {
     }
 
     /**
-     * Removes an answer line comment and resets its input value.
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -161,8 +137,6 @@ export class QuestionFormBehavior {
     }
 
     /**
-     * Handler when user click on 'Save' or 'Update' buttons.
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -172,22 +146,11 @@ export class QuestionFormBehavior {
         });
     }
 
-    /**
-     * Handler when user click on the 'Cancel' button. The owning quiz handles
-     * the reset of the question display.
-     */
     _cancelValidation() {
         this.onResetDisplay(this);
     }
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
     /**
-     * RPC call to create or update a question, then notifies the owning quiz
-     * so it correctly displays the question.
-     *
      * @param {Object} options
      */
     async _createOrUpdateQuestion(options) {
@@ -227,8 +190,6 @@ export class QuestionFormBehavior {
     }
 
     /**
-     * Check if the Question has been filled up.
-     *
      * @param {HTMLFormElement} form
      * @returns {boolean}
      */
@@ -241,9 +202,6 @@ export class QuestionFormBehavior {
     }
 
     /**
-     * Serialize the form into a JSON object to send it to the server through
-     * a RPC call.
-     *
      * @param {HTMLFormElement} form
      * @returns {{existing_question_id: *, sequence: *, question: *, slide_id: *, answer_ids: Array}}
      */

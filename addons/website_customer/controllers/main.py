@@ -94,7 +94,6 @@ class WebsiteCustomer(GoogleMap):
             tag_id = request.env["ir.http"]._unslug(tag_id)[1] or 0
             domain += [("website_tag_ids", "in", tag_id)]
 
-        # group by industry, based on customers found with the search(domain)
         industry_groups = Partner.sudo()._read_group(
             domain, ["primary_industry_id"], ["__count"], order="primary_industry_id"
         )
@@ -125,7 +124,6 @@ class WebsiteCustomer(GoogleMap):
                 }
             )
 
-        # group by country, based on customers found with the search(domain)
         country_groups = Partner.sudo()._read_group(
             domain, ["country_id"], ["__count"], order="country_id"
         )
@@ -135,8 +133,6 @@ class WebsiteCustomer(GoogleMap):
             if country_groups and country.id not in (
                 country.id for country, __ in country_groups
             ):
-                # fallback on all countries if no customer found for the country
-                # and there are matching customers for other countries
                 fallback_all_countries = True
                 country = None
             else:
@@ -157,10 +153,8 @@ class WebsiteCustomer(GoogleMap):
                 }
             )
 
-        # search customers to display
         partner_count = Partner.sudo().search_count(domain)
 
-        # pager
         url = "/customers"
         if industry:
             url += "/industry/%s" % industry.id
@@ -204,7 +198,6 @@ class WebsiteCustomer(GoogleMap):
         }
         return request.render("website_customer.index", values)
 
-    # Do not use semantic controller due to SUPERUSER_ID
     @http.route(["/customers/<partner_id>"], type="http", auth="public", website=True)
     def customers_detail(self, partner_id, **post):
         current_slug = partner_id

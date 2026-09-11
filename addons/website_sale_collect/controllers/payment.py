@@ -6,20 +6,8 @@ from odoo.addons.website_sale.controllers.payment import PaymentPortal
 
 class OnSitePaymentPortal(PaymentPortal):
     def _check_transaction_for_order(self, transaction, sale_order):
-        """Override of `website_sale` to ensure the on-site payment provider is not used without
-        the in-store pickup delivery method.
-
-        This also sets the warehouse of the selected pickup location on the sales order.
-
-        :param payment.transaction transaction: The transaction used to make the payment.
-        :param sale.order sale_order: The sales order to pay.
-        :return: None
-        :raises ValidationError: If the user tries to pay on site without the in-store pickup
-                                 delivery method.
-        """
         super()._check_transaction_for_order(transaction, sale_order)
 
-        # This should never be triggered unless the user intentionally forges a request.
         provider = transaction.provider_id
         if (
             sale_order.carrier_id.delivery_type != "in_store"

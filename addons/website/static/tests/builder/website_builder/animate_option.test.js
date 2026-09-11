@@ -282,9 +282,6 @@ test("visibility of animation animation=onHover", async () => {
     await contains(":iframe .test-options-target img").click();
     await waitSidebarUpdated();
 
-    // NOTE: we use waitSidebarUpdated because setting the hover effect may
-    // take some time (and setting "On Hover" sets a default)
-
     await contains(
         ".options-container [data-label='Animation'] .dropdown-toggle",
     ).click();
@@ -461,7 +458,6 @@ test("o_animate should be normalized with loading=eager", async () => {
             <img class="o_animate" src='${base64Img}'>
         </div>
     `);
-    // Should be normalized
     expect(":iframe .test-options-target img").toHaveProperty("loading", "eager");
 });
 
@@ -472,23 +468,19 @@ describe("animate text in toolbar", () => {
         const editor = websiteBuilder.getEditor();
         const selection = editable.ownerDocument.getSelection();
 
-        // Move the selection to open the toolbar
         let textNode = editable.querySelector(".test").childNodes[0];
         selection.setBaseAndExtent(textNode, 1, textNode, 3);
 
-        // click on animate and it create a span with the animation
         await expandToolbar();
         expect("button[title='Animate Text']").not.toHaveClass("active");
         await contains("button[title='Animate Text']").click();
         expect(":iframe span").toHaveText("bc");
         expect(":iframe span:contains('bc')").toHaveClass("o_animate");
 
-        // Move the selection to close the animate popover and the span is still there
         textNode = editable.querySelector(".test").childNodes[0];
         selection.setBaseAndExtent(textNode, 0, textNode, 0);
         expect(":iframe span:contains('bc')").toHaveClass("o_animate");
 
-        // undo removes the span
         editor.shared.history.undo();
         expect(":iframe span").toHaveCount(0);
     });
@@ -499,18 +491,15 @@ describe("animate text in toolbar", () => {
         );
         const editable = websiteBuilder.getEditableContent();
 
-        // put cursor inside the text in the span
         const textNode = editable.querySelector(".test span").childNodes[0];
         setSelection({ anchorNode: textNode, anchorOffset: 1 });
 
-        // animate is marked active
         await expandToolbar();
         expect("button[title='Animate Text']").toHaveClass("active");
         await contains("button[title='Animate Text']").click();
         expect(":iframe span:contains('bc')").not.toHaveClass("o_anim_rotate_in");
         expect(":iframe span:contains('bc')").toHaveClass("o_anim_fade_in");
 
-        // "reset" removes the animation on the whole span
         await contains("button[title=Reset]").click();
         expect(":iframe span").toHaveCount(0);
         expect(":iframe .test").toHaveText("abcd");
@@ -523,18 +512,15 @@ describe("animate text in toolbar", () => {
         const editable = websiteBuilder.getEditableContent();
         const selection = editable.ownerDocument.getSelection();
 
-        // select the text in the span
         const textNode = editable.querySelector(".test span").childNodes[0];
         selection.setBaseAndExtent(textNode, 0, textNode, 2);
 
-        // animate is marked active
         await expandToolbar();
         expect("button[title='Animate Text']").toHaveClass("active");
         await contains("button[title='Animate Text']").click();
         expect(":iframe span:contains('bc')").not.toHaveClass("o_anim_rotate_in");
         expect(":iframe span:contains('bc')").toHaveClass("o_anim_fade_in");
 
-        // click on an animation effect and it is changed on the span
         await contains(
             "div:has(>div[data-action-value=o_anim_rotate_in]) + button",
         ).click();
@@ -544,13 +530,11 @@ describe("animate text in toolbar", () => {
         expect(":iframe span:contains('bc')").toHaveClass("o_anim_rotate_in");
         expect(":iframe span:contains('bc')").not.toHaveClass("o_anim_fade_in");
 
-        // undo restore the classes
         await contains("button.fa-undo").click();
         expect(":iframe span:contains('bc')").not.toHaveClass("o_anim_rotate_in");
         expect(":iframe span:contains('bc')").toHaveClass("o_anim_fade_in");
 
-        // reset removes the span
-        await contains(":iframe span").click(); // move the selection around to make the toolbar re-appear
+        await contains(":iframe span").click();
         selection.setBaseAndExtent(textNode, 0, textNode, 2);
         await expandToolbar();
         await contains("button[title='Animate Text']").click();
@@ -566,11 +550,9 @@ describe("animate text in toolbar", () => {
         const editable = websiteBuilder.getEditableContent();
         const selection = editable.ownerDocument.getSelection();
 
-        // select the text in the span
         const textNode = editable.querySelector(".test span").childNodes[0];
         selection.setBaseAndExtent(textNode, 0, textNode, 2);
 
-        // animate is marked active
         await expandToolbar();
         expect("button[title='Animate Text']").toHaveClass("active");
         await contains("button[title='Animate Text']").click();
@@ -660,7 +642,6 @@ describe("animate text in toolbar", () => {
         expect(":iframe span:eq(1)").toHaveText("cdefgh");
         expect(":iframe span:eq(2)").toHaveText("i");
 
-        // click reset to remove the selected span
         await contains("button[title=Reset]").click();
         expect(":iframe span:eq(0)").toHaveText("b");
         expect(":iframe span:eq(1)").toHaveText("i");
@@ -698,20 +679,16 @@ describe("animate text in toolbar", () => {
         await waitFor(".o-we-toolbar");
         await expandToolbar();
 
-        // Apply text highlight from the floating toolbar.
         await contains(".o-we-toolbar button[title='Apply highlight']").click();
         await contains(".o_popover .o_text_highlight_underline").click();
 
-        // Reselect all the text in the paragraph and reopen toolbar.
         await thirdClick(paragraphEl);
         await advanceTime(500);
         await waitFor(".o-we-toolbar");
         await expandToolbar();
 
-        // Apply the default animation to the selected text.
         await contains(".o-we-toolbar button[title='Animate Text']").click();
 
-        // Reselect all the text again and verify animate button remains active.
         await thirdClick(paragraphEl);
         await advanceTime(500);
         await waitFor(".o-we-toolbar");

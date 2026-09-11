@@ -13,10 +13,6 @@ export class AnchorSlide extends Interaction {
     };
 
     setup() {
-        /**
-         * It expands the corresponding accordion item if the target element
-         * matches the hash.
-         */
         const hash = window.location.hash.substring(1);
         const anchorEl = document.getElementById(hash);
         if (anchorEl && anchorEl.classList.contains("accordion-item")) {
@@ -25,8 +21,8 @@ export class AnchorSlide extends Interaction {
     }
 
     /**
-     * @param {HTMLElement} el the element to scroll to.
-     * @param {string} [scrollValue='true'] scroll value
+     * @param {HTMLElement} el
+     * @param {string} [scrollValue='true']
      * @returns {Promise}
      */
     scrollTo(el, scrollValue = "true") {
@@ -41,9 +37,7 @@ export class AnchorSlide extends Interaction {
     }
 
     /**
-     * Automatically opens the specific accordion item and closes the others.
-     *
-     * @param {HTMLElement} anchorEl - The accordion item element to handle.
+     * @param {HTMLElement} anchorEl
      */
     handleAccordionAnchor(anchorEl) {
         const accordionCollapseEl = anchorEl.querySelector(".accordion-collapse");
@@ -60,7 +54,6 @@ export class AnchorSlide extends Interaction {
         if (ensureSlash(this.el.pathname) !== ensureSlash(window.location.pathname)) {
             return;
         }
-        // Avoid flicker at destination in case of ending "/" difference.
         if (this.el.pathname !== window.location.pathname) {
             this.el.pathname = window.location.pathname;
         }
@@ -68,11 +61,9 @@ export class AnchorSlide extends Interaction {
         if (!hash.length) {
             return;
         }
-        // Escape special characters to make the selector work.
         hash = "#" + CSS.escape(hash.substring(1));
         const anchorEl = this.el.ownerDocument.querySelector(hash);
         const scrollValue = anchorEl?.dataset.anchor;
-        // No need to scroll when target is _blank as it should open in new tab
         if (!anchorEl || !scrollValue || this.el.target === "_blank") {
             return;
         }
@@ -82,18 +73,12 @@ export class AnchorSlide extends Interaction {
         }
         const offcanvasEl = this.el.closest(".offcanvas.o_navbar_mobile");
         if (offcanvasEl && offcanvasEl.classList.contains("show")) {
-            // Special case for anchors in offcanvas in mobile: we can't just
-            // scrollTo() after preventDefault because preventDefault would
-            // prevent the offcanvas to be closed. The choice is then to close
-            // it ourselves manually and once it's fully closed, then start our
-            // own smooth scrolling.
             ev.preventDefault();
             Offcanvas.getInstance(offcanvasEl).hide();
             this.addListener(
                 offcanvasEl,
                 "hidden.bs.offcanvas",
                 () => this.manageScroll(hash, anchorEl, scrollValue),
-                // the listener must be automatically removed when invoked
                 { once: true },
             );
         } else {
@@ -104,17 +89,11 @@ export class AnchorSlide extends Interaction {
 
     /**
      * @param {string} hash
-     * @param {HTMLElement} anchorEl the element to scroll to.
-     * @param {string} [scrollValue='true'] scroll value
+     * @param {HTMLElement} anchorEl
+     * @param {string} [scrollValue='true']
      */
     manageScroll(hash, anchorEl, scrollValue = "true") {
         if (hash === "#top" || hash === "#bottom") {
-            // If the anchor targets #top or #bottom, directly call the
-            // "scrollTo" function. The reason is that the header or the footer
-            // could have been removed from the DOM. By receiving a string as
-            // parameter, the "scrollTo" function handles the scroll to the top
-            // or to the bottom of the document even if the header or the
-            // footer is removed from the DOM.
             this.scrollTo(hash);
         } else {
             this.scrollTo(anchorEl, scrollValue);

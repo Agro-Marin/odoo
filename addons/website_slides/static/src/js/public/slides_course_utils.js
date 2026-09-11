@@ -14,7 +14,7 @@ export const SLIDE_BOOLEAN_KEYS = [
 ];
 
 /**
- * @param {string|boolean} value a raw dataset value
+ * @param {string|boolean} value
  * @returns {boolean}
  */
 export function parseSlideBoolean(value) {
@@ -62,7 +62,7 @@ export function parseQuestionMarkup(rendered) {
 
 /**
  * @param {Document} [doc]
- * @returns {number|undefined} the page count, or undefined when it cannot be read
+ * @returns {number|undefined}
  */
 export function getDocumentMaxPage(doc = document) {
     const iframe = doc.querySelector("iframe.o_wslides_iframe_viewer");

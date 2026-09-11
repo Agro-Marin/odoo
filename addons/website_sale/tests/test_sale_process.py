@@ -70,7 +70,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
                 "list_price": 12.0,
             }
         )
-        # Crappy hack: But otherwise the "Proceed To Checkout" modal button won't be displayed
         if "optional_product_ids" in cls.env["product.template"]:
             cls.conference_chair.optional_product_ids = [
                 Command.set(cls.chair_floor_protection.ids)
@@ -84,7 +83,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
             }
         )
 
-        # Avoid Shipping/Billing address page
         cls.env.ref("base.partner_admin").write(cls.dummy_partner_address_values)
         cls.partner_website_user.write(cls.dummy_partner_address_values)
 
@@ -135,7 +133,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
                 "tax_group_id": tax_group.id,
             }
         )
-        # storage box
         self.product_product_7 = self.env["product.product"].create(
             {
                 "name": "Storage Box Test",
@@ -162,7 +159,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
         self.start_tour("/", "website_sale_tour_2", login="admin")
 
     def test_05_google_analytics_tracking(self):
-        # Data for google_analytics_view_item
         attribute = self.env["product.attribute"].create(
             {
                 "name": "Color",
@@ -201,7 +197,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
         )
         self.env["website"].browse(1).write({"google_analytics_key": "G-XXXXXXXXXXX"})
         self.start_tour("/shop", "google_analytics_view_item")
-        # Data for google_analytics_add_to_cart
         self.env["product.template"].create(
             {
                 "name": "Basic Shirt",
@@ -213,7 +208,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
         self.start_tour("/shop", "google_analytics_add_to_cart")
 
     def test_06_public_user_shop_repair(self):
-        """Public user purchasing repair service products in website shop."""
         if self.env["ir.module.module"]._get("repair").state != "installed":
             self.skipTest("Repair is not installed")
 
@@ -229,7 +223,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
         self.start_tour("/", "shop_repair_product", login=None)
 
     def test_checkout_with_rewrite(self):
-        # check that checkout page can be open with step rewritten
         self.env["website.rewrite"].create(
             {
                 "name": "Test Address Rename",
@@ -252,7 +245,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.url[-13:], "/test/address")
 
-        # check that navigation (next and previous checkout steps) are correct
         allowed_steps_domain = self.website._get_domain_allowed_steps()
         checkout_step = self.env.ref("website_sale.checkout_step_delivery")
         previous_step = checkout_step._get_previous_checkout_step(allowed_steps_domain)
@@ -276,7 +268,6 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
         )
 
     def test_update_same_address_billing_shipping_edit(self):
-        """Phone field should be required when updating an adress for billing and shipping"""
         self.env["product.product"].create(
             {
                 "name": "Office Chair Black TEST",

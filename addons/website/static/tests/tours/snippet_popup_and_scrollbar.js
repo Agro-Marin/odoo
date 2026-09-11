@@ -63,15 +63,15 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        ...insertSnippet(snippets[1]), // Media List
-        ...insertSnippet(snippets[0]), // Popup
+        ...insertSnippet(snippets[1]),
+        ...insertSnippet(snippets[0]),
         checkScrollbar(false),
         {
             content: "Click on the s_popup snippet",
             trigger: ":iframe .s_popup .modal",
             run: "click",
         },
-        toggleBackdrop("Popup"), // hide Popup backdrop
+        toggleBackdrop("Popup"),
         checkScrollbar(true),
         goBackToBlocks(),
         {
@@ -101,7 +101,7 @@ registerWebsitePreviewTour(
             run: "click",
         },
         checkScrollbar(true),
-        toggleBackdrop("Popup"), // show Popup backdrop
+        toggleBackdrop("Popup"),
         {
             content: "Close the Popup that has now backdrop.",
             trigger: ".o_we_invisible_el_panel .o_we_invisible_entry:first",
@@ -114,8 +114,8 @@ registerWebsitePreviewTour(
             run: "click",
         },
         checkScrollbar(true),
-        toggleBackdrop("Cookies Bar"), // show Cookies Bar backdrop
-        toggleBackdrop("Cookies Bar"), // hide Cookies Bar backdrop
+        toggleBackdrop("Cookies Bar"),
+        toggleBackdrop("Cookies Bar"),
         checkScrollbar(true),
         {
             content: "Open the Popup that has backdrop.",

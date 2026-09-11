@@ -14,7 +14,6 @@ class EventTrackStage(models.Model):
         domain=[("model", "=", "event.track")],
         help="If set an email will be sent to the customer when the track reaches this step.",
     )
-    # legends
     color = fields.Integer(string="Color")
     description = fields.Text(string="Description", translate=True)
     legend_blocked = fields.Char(
@@ -28,7 +27,6 @@ class EventTrackStage(models.Model):
     legend_normal = fields.Char(
         "Grey Kanban Label", default=lambda s: s.env._("In Progress"), translate=True
     )
-    # pipe
     fold = fields.Boolean(
         string="Folded in Kanban",
         help="This stage is folded in the kanban view when there are no records in that stage to display.",

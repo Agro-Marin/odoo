@@ -21,7 +21,6 @@ export class FormModelRequiredFieldAlert extends BaseOptionComponent {
         onWillUpdateProps(async (props) => this.handleProps(props));
     }
     async handleProps(props) {
-        // Get list of website_form compatible models, needed for alert message.
         const el = this.env.getEditingElement();
         const models = await this.fetchModels(el);
         const model = models.find((model) => model.model === props.modelName);

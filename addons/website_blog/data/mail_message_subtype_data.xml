@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Blog-related subtypes for messaging / Chatter -->
         <record id="mt_blog_blog_published" model="mail.message.subtype">
             <field name="name">Published Post</field>
             <field name="res_model">blog.blog</field>

@@ -24,7 +24,6 @@ export class EditWebsiteSystrayItem extends Component {
         this.websiteService = useService("website");
         this.notification = useService("notification");
         this.websiteContext = useState(this.websiteService.context);
-        // TODO: website service should share a reactive
         useBus(websiteSystrayRegistry, "CONTENT-UPDATED", () =>
             this.checkPendingTranslations(),
         );
@@ -49,7 +48,6 @@ export class EditWebsiteSystrayItem extends Component {
     }
 
     async attemptStartTranslate() {
-        // TODO: move on the website part (not html_builder) and add a test tour
         if (this.websiteService.isRestrictedEditor && !this.websiteService.isDesigner) {
             const pageModelAndId =
                 this.websiteService.currentWebsite.metadata.mainObject;
@@ -62,7 +60,6 @@ export class EditWebsiteSystrayItem extends Component {
             for (const el of otherRecordEls) {
                 const model = el.dataset.resModel || el.dataset.oeModel;
                 if (!recordsOnPage[model]) {
-                    // Keep one record of each type.
                     recordsOnPage[model] = parseInt(
                         el.dataset.resId || el.dataset.oeId,
                     );
@@ -83,9 +80,6 @@ export class EditWebsiteSystrayItem extends Component {
     }
 
     editFromTranslate() {
-        // We are in translate mode, the pathname starts with '/<url_code>'. By
-        // adding a trailing slash we can simply search for the first slash
-        // after the language code to remove the language part.
         const { pathname, search, hash } = this.getLocation();
         const languagePrefix = `${pathname}/`.indexOf("/", 1);
         const defaultLanguagePathname = pathname.substring(languagePrefix);

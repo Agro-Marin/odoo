@@ -2,24 +2,16 @@
 <odoo>
 
     <data>
-        <!--
-            This template is the PDF Viewer. It will mostly rendered throught an iFrame.
-            The js file to bind event is slides_embed.js
-        -->
         <template id="embed_slide" name="Embedded Slide Page">
             <html>
                 <head>
                     <title><t t-out="slide.name" /></title>
-                    <!-- pdf.js is lazy-loaded by slides_embed.js via a
-                        dynamic import("pdfjs-dist") resolved through the
-                        bundle's import map; no eager script tags needed. -->
                     <t t-call-assets="website_slides.slide_embed_assets" />
                 </head>
                 <body>
                     <div
                         id="PDFViewer"
                         class="o_wslides_fs_pdf_viewer d-flex flex-column h-100">
-                        <!-- PDF Viewer Header : contains the name, and the share links -->
                         <div t-if="is_external_embed" class="oe_slides_share_bar">
                             <div class="container-fluid">
                                 <div class="row align-items-center">
@@ -51,7 +43,6 @@
                                 </div>
                             </div>
                         </div>
-                        <!--  PDF Viewer Body : contains the canvas, the loader, or the image-->
                         <div
                             id="PDFSlideViewer"
                             class="d-flex align-items-start position-relative flex-grow-1 overflow-auto"
@@ -137,7 +128,6 @@
                                     alt="Slide image" />
                             </t>
                         </div>
-                        <!-- Fixed bottom navbar -->
                         <div
                             id="PDFViewerNav"
                             class="pt-2 pb-2 bg-light text-white"
@@ -210,10 +200,6 @@
                 </body>
             </html>
         </template>
-        <!--
-            Template render isntead of Embedded Slide, it this one is forbidden.
-            So, it will mostly be rendered throught an iFrame
-        -->
         <template id="embed_slide_forbidden" name="Forbidden Embedded Slide">
             <html>
                 <head>

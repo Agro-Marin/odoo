@@ -38,7 +38,6 @@ class TestWebsiteHrRecruitmentForm(odoo.tests.HttpCase):
         with odoo.tests.RecordCapturer(self.env["hr.applicant"]) as capt:
             self.start_tour("/", "website_hr_recruitment_tour")
 
-        # check result
         self.assertEqual(len(capt.records), 2)
 
         guru_applicant = capt.records[0]
@@ -62,7 +61,6 @@ class TestWebsiteHrRecruitmentForm(odoo.tests.HttpCase):
         self.assertEqual(internship_applicant.job_id, job_intern)
 
     def test_jobs_listing_city_unspecified(self):
-        """Test that the jobs listing page does not crash when a job has no address."""
         an_address, no_address = self.env["res.partner"].create(
             [
                 {
@@ -96,7 +94,6 @@ class TestWebsiteHrRecruitmentForm(odoo.tests.HttpCase):
         self.assertEqual(response.status, "200 OK")
 
     def test_apply_job(self):
-        """Test a user can apply to a job via the website form and add extra information inside custom field"""
         research_and_development_department = self.env["hr.department"].create(
             {
                 "name": "R&D",

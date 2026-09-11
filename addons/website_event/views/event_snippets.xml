@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Snippets and options -->
-    <!--
-        FIXME this template has no effect as the app already contains an earlier
-        `website_event.snippets` view definition. It is kept in stable to be
-        extra-careful (who knows...) and that snippet code will totally disappear in
-        master (indeed, it is not really important and its structure does not seem
-        perfect and nobody missed this for 4+ major versions).
-    -->
     <template id="snippets" inherit_id="website.snippets">
         <xpath expr="//t[@id='event_speaker_bio_hook']" position="replace">
             <t
@@ -18,7 +10,6 @@
         </xpath>
     </template>
 
-    <!-- Snippet - Speaker Bio -->
     <template id="s_speaker_bio" name="Speaker Bio">
         <div
             class="s_speaker_bio"

@@ -36,7 +36,6 @@
         </Dialog>
     </t>
 
-    <!-- Slide Category templates -->
     <t t-name="website_slides.SlideCategoryTutorial.Document">
         <div class="h5">How to Add New Content:</div>
         <p>Upload a PDF file from your computer or share a Google Drive link.</p>
@@ -103,7 +102,6 @@
         <img src="/website_slides/static/src/img/onboarding-quiz.png" title="Quiz Demo Data" class="img-fluid"/>
     </t>
 
-    <!-- Misc -->
     
     <t t-name="website_slides.UploadInProgressDialog">
         <div class="text-center" role="status">

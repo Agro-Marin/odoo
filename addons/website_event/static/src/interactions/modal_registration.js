@@ -42,8 +42,6 @@ export class ModalRegistration extends Interaction {
         });
 
         const form = this.el.querySelector("form#attendee_registration");
-        // the turnstile container needs to be already appended to the dom before rendering
-        // see modal.js for events
         this.el.addEventListener("shown.bs.modal", () => {
             this._addTurnstile(form);
         });

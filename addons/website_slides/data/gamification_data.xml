@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Get started: register to the platform -->
     <record id="badge_data_register" model="gamification.badge">
         <field name="name">Get started</field>
         <field name="description">Register to the platform</field>
@@ -51,7 +50,6 @@
         <field name="target_goal">1</field>
     </record>
 
-    <!-- Know yourself: complete your profile -->
     <record id="badge_data_profile" model="gamification.badge">
         <field name="name">Know yourself</field>
         <field name="description">Complete your profile</field>
@@ -102,7 +100,6 @@
         <field name="target_goal">1</field>
     </record>
 
-    <!-- Power User: complete a course -->
     <record id="badge_data_course" model="gamification.badge">
         <field name="name">Power User</field>
         <field name="description">Complete a course</field>
@@ -151,7 +148,6 @@
         <field name="target_goal">1</field>
     </record>
 
-    <!-- Certified Knowledge: get a certification -->
     <record id="badge_data_certification" model="gamification.badge">
         <field name="name">Certified Knowledge</field>
         <field name="description">Get a certification</field>
@@ -203,7 +199,6 @@
         <field name="target_goal">1</field>
     </record>
 
-    <!-- Community hero: reach 2000 XP -->
     <record id="badge_data_karma" model="gamification.badge">
         <field name="name">Community hero</field>
         <field name="description">Reach 2000 XP</field>

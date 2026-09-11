@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Event CRM Rule 1 -->
         <record id="event_lead_rule_1" model="event.lead.rule">
             <field name="name">Rule per order</field>
             <field name="lead_creation_basis">order</field>

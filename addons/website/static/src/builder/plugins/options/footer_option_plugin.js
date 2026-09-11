@@ -27,11 +27,7 @@ import {
  * @property { FooterOptionPlugin['getFooterTemplates'] } getFooterTemplates
  */
 /**
- * @typedef {(() => Promise<{
- *     key: string,
- *     Component: Component,
- *     props: any,
- * }[]>)[]} footer_templates_providers
+ * @typedef {(() => Promise<{ key: string, Component: Component, props: any, }[]>)[]} footer_templates_providers
  */
 
 const [
@@ -158,8 +154,6 @@ class FooterOptionPlugin extends Plugin {
     };
 
     prepareDrag() {
-        // Remove the footer scroll effect if it has one (because the footer
-        // dropzone flickers otherwise when it is in grid mode).
         let restore = () => {};
         const wrapwrapEl = this.editable;
         const hasFooterScrollEffect = wrapwrapEl.classList.contains(
@@ -177,8 +171,6 @@ class FooterOptionPlugin extends Plugin {
     getFooterTemplates() {
         const templates = reactive([]);
 
-        // we don't wait for all promises to resolve and show the ones available
-        // as soon as they are (and keep them in the order of the providers)
         const templatesByProvider = this.getResource("footer_templates_providers").map(
             (p) => {
                 const provided = [];

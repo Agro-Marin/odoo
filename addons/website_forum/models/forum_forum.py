@@ -6,9 +6,7 @@ from markupsafe import Markup
 from odoo import _, api, fields, models
 from odoo.tools.translate import html_translate
 
-MOST_USED_TAGS_COUNT = (
-    5  # Number of tags to track as "most used" to display on frontend
-)
+MOST_USED_TAGS_COUNT = 5
 
 
 class ForumForum(models.Model):
@@ -46,7 +44,6 @@ class ForumForum(models.Model):
             "register_text": _("Sign up"),
         }
 
-    # description and use
     name = fields.Char("Forum Name", required=True, translate=True)
     sequence = fields.Integer("Sequence", default=1)
     mode = fields.Selection(
@@ -102,7 +99,6 @@ class ForumForum(models.Model):
         "or answer on social networks, enabling social network propagation "
         "of the forum content.",
     )
-    # posts statistics
     post_ids = fields.One2many("forum.post", "forum_id", string="Posts")
     last_post_id = fields.Many2one("forum.post", compute="_compute_last_post_id")
     total_posts = fields.Integer("# Posts", compute="_compute_forum_statistics")
@@ -116,7 +112,6 @@ class ForumForum(models.Model):
     count_flagged_posts = fields.Integer(
         string="Number of flagged posts", compute="_compute_moderation_counts"
     )
-    # karma generation
     karma_gen_question_new = fields.Integer(string="Asking a question", default=2)
     karma_gen_question_upvote = fields.Integer(string="Question upvoted", default=5)
     karma_gen_question_downvote = fields.Integer(
@@ -127,7 +122,6 @@ class ForumForum(models.Model):
     karma_gen_answer_accept = fields.Integer(string="Accepting an answer", default=2)
     karma_gen_answer_accepted = fields.Integer(string="Answer accepted", default=15)
     karma_gen_answer_flagged = fields.Integer(string="Answer flagged", default=-100)
-    # karma-based actions
     karma_ask = fields.Integer(string="Ask questions", default=3)
     karma_answer = fields.Integer(string="Answer questions", default=3)
     karma_edit_own = fields.Integer(string="Edit own posts", default=1)
@@ -175,7 +169,6 @@ class ForumForum(models.Model):
         string="Is a moderator", compute="_compute_can_moderate"
     )
 
-    # tags
     tag_ids = fields.One2many("forum.tag", "forum_id", string="Tags")
     tag_most_used_ids = fields.One2many(
         "forum.tag", string="Most used tags", compute="_compute_tag_ids_usage"
@@ -232,7 +225,7 @@ class ForumForum(models.Model):
             )(tag_data)
             if tag_forum_id[0] != current_forum_id:
                 current_forum_id = tag_forum_id[0]
-            if not posts_count:  # Could be 0 or None
+            if not posts_count:
                 forum_tags[current_forum_id]["unused_ids"].append(tag_id)
             elif (
                 len(forum_tags[current_forum_id]["most_used_ids"])
@@ -323,16 +316,10 @@ class ForumForum(models.Model):
             forum.count_posts_waiting_validation = counts.get((forum.id, "pending"), 0)
             forum.count_flagged_posts = counts.get((forum.id, "flagged"), 0)
 
-    # EXTENDS WEBSITE.MULTI.MIXIN
-
     def _compute_website_url(self):
         if not self.id:
             return False
         return f"/forum/{self.env['ir.http']._slug(self)}"
-
-    # ----------------------------------------------------------------------
-    # CRUD
-    # ----------------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -355,7 +342,6 @@ class ForumForum(models.Model):
 
         res = super().write(vals)
         if "active" in vals:
-            # archiving/unarchiving a forum does it on its posts, too
             self.env["forum.post"].with_context(active_test=False).search(
                 [("forum_id", "in", self.ids)]
             ).write({"active": vals["active"]})
@@ -370,10 +356,6 @@ class ForumForum(models.Model):
                 "website_forum.faq_accordion", {"forum": forum}
             )
 
-    # ----------------------------------------------------------------------
-    # TOOLS
-    # ----------------------------------------------------------------------
-
     def _tag_to_write_vals(self, tags=""):
         Tag = self.env["forum.tag"]
         post_tags = []
@@ -382,15 +364,13 @@ class ForumForum(models.Model):
         for tag_id_or_new_name in (
             tag.strip() for tag in tags.split(",") if tag and tag.strip()
         ):
-            if tag_id_or_new_name.startswith("_"):  # it's a new tag
+            if tag_id_or_new_name.startswith("_"):
                 tag_name = tag_id_or_new_name[1:]
-                # check that not already created meanwhile or maybe excluded by the limit on the search
                 tag_ids = Tag.search(
                     [("name", "=", tag_name), ("forum_id", "=", self.id)], limit=1
                 )
                 if tag_ids:
                     existing_keep.append(tag_ids.id)
-                # check if user have Karma needed to create need tag
                 elif user.exists() and user.karma >= self.karma_tag_create and tag_name:
                     post_tags.append((0, 0, {"name": tag_name, "forum_id": self.id}))
             else:
@@ -399,16 +379,8 @@ class ForumForum(models.Model):
         return post_tags
 
     def _get_tags_first_char(self, tags=None):
-        """Get set of first letter of forum tags.
-
-        :param tags: tags recordset to further filter forum's tags that are also in these tags.
-        """
         tag_ids = self.tag_ids if tags is None else (self.tag_ids & tags)
         return sorted({tag.name[0].upper() for tag in tag_ids if len(tag.name)})
-
-    # ----------------------------------------------------------------------
-    # WEBSITE
-    # ----------------------------------------------------------------------
 
     def go_to_website(self):
         self.check_singleton()

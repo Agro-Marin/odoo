@@ -48,7 +48,6 @@ class TestEventRegisterUTM(HttpCase, TestEventOnlineCommon):
         name_question = event_questions.filtered(lambda q: q.question_type == "name")
         email_question = event_questions.filtered(lambda q: q.question_type == "email")
         self.assertTrue(name_question and email_question)
-        # get 1 free ticket
         self.url_open(
             f"/event/{self.event_0.id}/registration/confirm",
             data={
@@ -108,8 +107,6 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
         self.assertEqual(event.website_meta_title, False)
 
     def test_website_event_questions(self):
-        """Will execute the tour that fills up two tickets with a few questions answers
-        and then assert that the answers are correctly saved for each attendee."""
 
         self.design_fair_event = self.env["event.event"].create(
             {
@@ -271,7 +268,6 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
         )
 
     def test_website_event_search(self):
-        """Ensure filters are not reset when changing pages or performing a search."""
         tag_category = self.env["event.tag.category"].create({"name": "Test Category"})
 
         tags = self.env["event.tag"].create(
@@ -281,7 +277,6 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
             ]
         )
 
-        # Need to create a bunch of events to have severals pages
         self.env["event.event"].create(
             [
                 {
@@ -349,7 +344,6 @@ class TestWebsiteAccess(HttpCaseWithUserDemo, OnlineEventCase):
         )
 
     def test_website_access_event_manager(self):
-        """Event managers are allowed to access both published and unpublished events"""
         self.authenticate("user_eventmanager", "user_eventmanager")
         published_events = self.events.filtered(lambda event: event.website_published)
         resp = self.url_open("/event/%i" % published_events[0].id)
@@ -376,7 +370,6 @@ class TestWebsiteAccess(HttpCaseWithUserDemo, OnlineEventCase):
         )
 
     def test_website_access_event_uer(self):
-        """Event users are allowed to access both published and unpublished events"""
         self.authenticate("user_eventuser", "user_eventuser")
         published_events = self.events.filtered(lambda event: event.website_published)
         resp = self.url_open("/event/%i" % published_events[0].id)
@@ -404,7 +397,6 @@ class TestWebsiteAccess(HttpCaseWithUserDemo, OnlineEventCase):
 
     @mute_logger("odoo.http")
     def test_website_access_portal(self):
-        """Portal users access only published events"""
         self.authenticate("user_portal", "user_portal")
         published_events = self.events.filtered(lambda event: event.website_published)
         resp = self.url_open("/event/%i" % published_events[0].id)
@@ -434,7 +426,6 @@ class TestWebsiteAccess(HttpCaseWithUserDemo, OnlineEventCase):
 
     @mute_logger("odoo.http")
     def test_website_access_public(self):
-        """Public users access only published events"""
         published_events = self.events.filtered(lambda event: event.website_published)
         resp = self.url_open("/event/%i" % published_events[0].id)
         self.assertEqual(

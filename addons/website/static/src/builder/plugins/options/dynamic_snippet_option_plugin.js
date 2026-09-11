@@ -44,10 +44,7 @@ import { DynamicSnippetOption } from "./dynamic_snippet_option.js";
  */
 
 /**
- * @typedef {((arg: {
- *      el: HTMLElement;
- *      template: Template;
- * }) => void)[]} dynamic_snippet_template_updated
+ * @typedef {((arg: { el: HTMLElement; template: Template; }) => void)[]} dynamic_snippet_template_updated
  */
 
 export const DYNAMIC_SNIPPET = SNIPPET_SPECIFIC_END;
@@ -107,9 +104,6 @@ class DynamicSnippetOptionPlugin extends Plugin {
         if (snippetEl.matches(DynamicSnippetOption.selector)) {
             await this.setOptionsDefaultValues(snippetEl, this.modelNameFilter);
         }
-        // TODO (adapt for master): Dynamic snippets should display the
-        // placeholder by default. Their visibility should then be controlled
-        // by the interaction behavior.
         if (snippetEl.classList.contains("s_dynamic")) {
             snippetEl.classList.remove("o_dynamic_snippet_empty");
             snippetEl.classList.add("o_dynamic_snippet_loading");
@@ -140,8 +134,6 @@ class DynamicSnippetOptionPlugin extends Plugin {
             ...snippetEl.dataset,
             snippetModel: defaultModelName,
         });
-        // The snippet simply gets its template from a "template class"
-        // when provided. Otherwise, it will use a default template.
         let defaultTemplate = this.fetchedDynamicFilterTemplates.find((template) =>
             snippetEl.classList.contains(this.getTemplateClass(template.key)),
         );
@@ -269,9 +261,6 @@ class DynamicSnippetOptionPlugin extends Plugin {
         return rpc("/website/snippet/filter_templates", params);
     }
     isSingleModeSnippet({ numberOfRecords, ...params }) {
-        // TODO: Currently, we need to verify that at least one template is
-        // available for single record mode to be enabled. This check should be
-        // removed once all single record templates have been added.
         return !!(
             parseInt(numberOfRecords) === 1 &&
             this.getDefaultSnippetTemplate(this.getSnippetModelName(params), true) &&
@@ -286,8 +275,6 @@ class DynamicSnippetOptionPlugin extends Plugin {
     }
     getDefaultSnippetTemplate(modelName, singleMode) {
         if (modelName) {
-            // Return the default snippet template associated with the current
-            // model for either single or multi-record modes.
             return this.fetchedDynamicFilterTemplates.find((template) => {
                 const isSingleTemplate = this.isSingleModeSnippetTemplate(template.key);
                 return (
@@ -307,7 +294,6 @@ class DynamicSnippetOptionPlugin extends Plugin {
         return defaultRecrod[0]?.id || "";
     }
     getDefaultSnippetFilterId(modelName) {
-        // Guard the lookup: no matching filter would otherwise throw on `.id`.
         return (
             this.fetchedDynamicFilters.find(
                 ({ model_name }) => model_name === modelName,
@@ -342,7 +328,6 @@ export class DynamicFilterAction extends BuilderAction {
         const utils = this.dependencies.dynamicSnippetOption;
         let defaultTemplate = params.defaultTemplate;
         el.dataset.filterId = params.id;
-        // Only if filter's model name changed
         if (
             !el.dataset.templateKey ||
             !utils.isModelSnippetTemplate(el.dataset.templateKey, params.model_name)
@@ -397,8 +382,6 @@ export class DynamicModelAction extends BuilderAction {
     }
     async apply({ editingElement: el, params: { mainParam: modelName } }) {
         const utils = this.dependencies.dynamicSnippetOption;
-        // Update the snippet data attributes (only available in the
-        // "single record" mode).
         if (el.dataset.snippetModel !== modelName) {
             el.dataset.snippetModel = modelName;
             el.dataset.snippetResId = await utils.getDefaultSnippetRecordId(modelName);
@@ -440,10 +423,6 @@ export class NumberOfRecordsAction extends BuilderAction {
     apply({ editingElement: el, params }) {
         const isSingleModeBefore = this.utils.isSingleModeSnippet(el.dataset);
         el.dataset.numberOfRecords = params.mainParam;
-        // Changing the number of records should automatically switch to a
-        // "single record" filter mode if only one record is selected, and
-        // conversely, revert to the default filter mode when more than one
-        // record is selected.
         const isSingleModeAfter = this.utils.isSingleModeSnippet(el.dataset);
         const switchMode = isSingleModeBefore !== isSingleModeAfter;
         if (switchMode) {
@@ -463,8 +442,6 @@ export class NumberOfRecordsAction extends BuilderAction {
                 : this.previousTemplate;
             this.previousTemplate = this.utils.getTemplateByKey(el.dataset.templateKey);
             if (isSingleModeAfter) {
-                // Remove useless data on the target and set the single
-                // record default values.
                 delete el.dataset.filterId;
                 el.dataset.snippetModel = this.modelName;
                 el.dataset.snippetResId = this.defaultRecordId;
@@ -475,7 +452,6 @@ export class NumberOfRecordsAction extends BuilderAction {
                 delete el.dataset.snippetModel;
                 delete el.dataset.snippetResId;
             }
-            // Update the snippet title section.
             const titleEl = el.querySelector(".s_dynamic_snippet_title");
             const classAction =
                 this.dependencies.builderActions.getAction("classAction");

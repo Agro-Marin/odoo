@@ -31,10 +31,10 @@ import { SocialMediaLinks } from "./social_media_links.js";
 
 /**
  * @typedef { Object } SocialMediaInfo
- * @property { boolean } [recorded] whether the social media is one from the orm
+ * @property { boolean } [recorded]
  * @property { import("plugins").TranslatedString } label
- * @property { string } iconClass the icon class to use for the social media
- * @property { RegExp } [extraHostnameRegex] a regex for host names that belongs to this social media, but are not catch by the default mechanism
+ * @property { string } iconClass
+ * @property { RegExp } [extraHostnameRegex]
  */
 
 /** @type { Map<string, SocialMediaInfo> } */
@@ -87,7 +87,6 @@ const socialMediaInfo = new Map(
         "google-play": {
             label: _t("Google Play"),
             iconClass: "fa-google-play",
-            // Without this, the default finds 'google' instead
             extraHostnameRegex: /(^|\.)play\.google\.com$/,
         },
         google: {
@@ -169,13 +168,10 @@ class SocialMediaOptionPlugin extends Plugin {
         ],
     };
 
-    /** The social media's name for which there is an entry in the orm */
     async getRecordedSocialMediaNames() {
         await this.fetchRecordedSocialMedia();
         return this.recordedSocialMedia.keys();
     }
-
-    // TODO: a method to give access to the `recordedSocialMedia` for facebook page and instagram page
 
     setup() {
         this.recordedSocialMedia = new Map();
@@ -233,7 +229,6 @@ class SocialMediaOptionPlugin extends Plugin {
     }
 
     normalize(root) {
-        // Add https:// if needed, to the links from db, and the links from dom
         if (this.recordedSocialMediaAreEdited) {
             for (const [name, value] of this.recordedSocialMedia.entries()) {
                 const newValue = this.addHttpsIfNeeded(value);
@@ -250,7 +245,6 @@ class SocialMediaOptionPlugin extends Plugin {
             }
         }
 
-        // ensure one '\n' between each element + before and after
         for (const element of selectElements(root, ".s_social_media > *")) {
             if (element.nextSibling?.nodeType === Node.TEXT_NODE) {
                 while (element.nextSibling.nextSibling?.nodeType === Node.TEXT_NODE) {
@@ -269,9 +263,9 @@ class SocialMediaOptionPlugin extends Plugin {
     }
 
     /**
-     * @param { HTMLElement } editingElement The element edited
-     * @param { HTMLElement } element The element that is moved (a child of `editingElement`)
-     * @param { HTMLElement } [elementAfter] The element that should be after the moved element (not present if moved to the end)
+     * @param { HTMLElement } editingElement
+     * @param { HTMLElement } element
+     * @param { HTMLElement } [elementAfter]
      */
     reorderSocialMediaLink({ editingElement, element, elementAfter }) {
         element.remove();
@@ -283,9 +277,9 @@ class SocialMediaOptionPlugin extends Plugin {
     }
 
     /**
-     * @param { HTMLElement } [other] a link element to clone to use as base (use the template if none)
-     * @param { String } [socialMediaName] the name of the social media to use if any
-     * @returns { HTMLElement } a new link element
+     * @param { HTMLElement } [other]
+     * @param { String } [socialMediaName]
+     * @returns { HTMLElement }
      */
     newLinkElement(other, socialMediaName) {
         const el =
@@ -311,7 +305,6 @@ class SocialMediaOptionPlugin extends Plugin {
     }
 
     /**
-     * Strip an element from the classes associated to social media
      * @param { HTMLElement } el
      */
     removeSocialMediaClasses(el) {
@@ -322,13 +315,11 @@ class SocialMediaOptionPlugin extends Plugin {
         }
     }
     /**
-     * Strip an element from the classes associated to an icon (keeps the size)
      * @param { HTMLElement } el
      */
     removeIconClasses(el) {
         const iconEl = el.querySelector(ICON_SELECTOR);
         if (iconEl) {
-            // Remove every fa classes except fa-x sizes.
             for (const c of iconEl.classList) {
                 if (/^fa-[^0-9]/.test(c)) {
                     iconEl.classList.remove(c);
@@ -339,8 +330,8 @@ class SocialMediaOptionPlugin extends Plugin {
 
     /**
      * @typedef { Object } AssociatedSocialMediaReturn
-     * @property { String } [name] the name of the social media
-     * @property { SocialMediaInfo } [media] the info about the social media (an entry of `socialMediaInfo`) @see socialMediaInfo
+     * @property { String } [name]
+     * @property { SocialMediaInfo } [media]
      */
     /**
      * @param { String } link
@@ -350,7 +341,7 @@ class SocialMediaOptionPlugin extends Plugin {
         try {
             const url = new URL(this.addHttpsIfNeeded(link));
             if (url.protocol && !url.protocol.startsWith("http")) {
-                return {}; // no mailto, etc
+                return {};
             }
             const hostname = url.hostname;
             for (const [name, media] of socialMediaInfo.entries()) {
@@ -358,7 +349,6 @@ class SocialMediaOptionPlugin extends Plugin {
                     return { name, media };
                 }
             }
-            // Retrieve the domain of the given url.
             const name = hostname
                 .replace(/\.co\.uk$/, ".co")
                 .split(".")
@@ -371,11 +361,9 @@ class SocialMediaOptionPlugin extends Plugin {
 
     /**
      * @param { String } link
-     * @returns { String } the same link, prefixed with 'https://' if none is set
+     * @returns { String }
      */
     addHttpsIfNeeded(link) {
-        // We permit every protocol (http:, https:, ftp:, mailto:,...).
-        // If none is explicitly specified, we assume it is a https.
         if (link && !/^(([a-zA-Z]+):|\/)/.test(link)) {
             return `https://${link}`;
         } else {
@@ -442,8 +430,6 @@ export class EditSocialMediaLinkAction extends BuilderAction {
     static dependencies = ["socialMediaOptionPlugin"];
     apply({ editingElement, params: { mainParam }, value }) {
         if (!value) {
-            // The element is gone; everything below mutates it, so stop here
-            // rather than doing work on a detached node.
             editingElement.remove();
             return;
         }

@@ -121,9 +121,7 @@ test("elements within iframe can't be clicked while the builder is being set up"
     iframeEl.contentWindow.step = () => expect.step("button clicked");
     await contains(":iframe .test-section button").click();
     expect.verifySteps(["button clicked"]);
-    // Reimplementation of openBuilderSidebar().
     await click(".o-website-btn-custo-primary");
-    // The button should not be clickable.
     await expect(click(":iframe .test-section button")).rejects.toThrow(
         `found 0 elements instead of 1: 1 matching ":iframe .test-section button" (1 iframe element), including 0 interactive elements`,
     );
@@ -176,11 +174,6 @@ describe("BuilderMany2One: exit editor when previewing", () => {
 
         await setupWebsiteBuilder(`<div class="test-options-target">Homepage</div>`);
         await contains(":iframe .test-options-target").click();
-        // Scope to the builder sidebar. Unlike the `html_builder` harness this
-        // test was adapted from, `setupWebsiteBuilder` mounts a full WebClient,
-        // whose navbar contributes a second `.btn.o-dropdown` (the "New"
-        // content systray toggle). `contains()` clicks the *first* match, so an
-        // unscoped selector opened the systray dropdown instead of this option.
         await contains(".o_customize_tab .btn.o-dropdown").click();
         await waitFor(".o-dropdown-item:contains(First)");
         await animationFrame();

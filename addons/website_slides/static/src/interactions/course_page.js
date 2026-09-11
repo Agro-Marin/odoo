@@ -4,17 +4,6 @@ import { renderToElement } from "@web/core/utils/render";
 import { Interaction } from "@web/public/interaction";
 import { session } from "@web/session";
 
-/**
- * Abstract base for both the fullscreen view and non-fullscreen view of a
- * slide course (NOT registered). Contains general methods to update the UI
- * elements (progress bar, sidebar...) as well as methods to mark a slide as
- * completed / uncompleted.
- *
- * Descendants of the course page (join button, quiz, ...) communicate
- * completion through bubbling DOM CustomEvents carrying their payload in
- * `detail` (`slide_completed`, `slide_mark_completed`) — the Interaction
- * replacement for the legacy widget `trigger_up` flows.
- */
 export class CoursePage extends Interaction {
     dynamicContent = {
         "button.o_wslides_button_complete": {
@@ -27,8 +16,6 @@ export class CoursePage extends Interaction {
     };
 
     /**
-     * Collapse the next category when the current one has just been completed.
-     *
      * @param {Integer} nextCategoryId
      */
     collapseNextCategory(nextCategoryId) {
@@ -44,8 +31,6 @@ export class CoursePage extends Interaction {
     }
 
     /**
-     * Greens up the bullet when the slide is completed.
-     *
      * @param {Object} slideData
      * @param {Boolean} completed
      */
@@ -70,8 +55,6 @@ export class CoursePage extends Interaction {
     }
 
     /**
-     * Updates the progressbar whenever a lesson is completed.
-     *
      * @param {Integer} channelCompletion
      */
     updateProgressbar(channelCompletion) {
@@ -100,12 +83,8 @@ export class CoursePage extends Interaction {
     }
 
     /**
-     * Once the completion conditions are filled, rpc call to set the relation
-     * between the slide and the user as "completed".
-     *
-     * @param {Object} slideData slide to set as completed
-     * @param {Boolean} completed true to mark the slide as completed,
-     *     false to mark the slide as not completed
+     * @param {Object} slideData
+     * @param {Boolean} completed
      */
     async toggleSlideCompleted(slideData, completed = true) {
         if (
@@ -113,7 +92,6 @@ export class CoursePage extends Interaction {
             !slideData.isMember ||
             !slideData.canSelfMarkCompleted
         ) {
-            // no useless RPC call
             return;
         }
         const data = await this.waitFor(
@@ -129,9 +107,6 @@ export class CoursePage extends Interaction {
     }
 
     /**
-     * Retrieve the slide data corresponding to the slide id given in argument.
-     * The data comes from the "slide_sidebar_done_button" template dataset.
-     *
      * @param {Integer} slideId
      * @returns {DOMStringMap|undefined}
      */
@@ -143,9 +118,6 @@ export class CoursePage extends Interaction {
     }
 
     /**
-     * We clicked on the "done" button: RPC call to update the slide state,
-     * then update the UI.
-     *
      * @param {MouseEvent} ev
      */
     onClickComplete(ev) {
@@ -156,9 +128,7 @@ export class CoursePage extends Interaction {
     }
 
     /**
-     * The slide has been completed, update the UI.
-     *
-     * @param {Object} detail `slide_completed` event payload
+     * @param {Object} detail
      * @param {Integer} detail.slideId
      * @param {Boolean} detail.completed
      * @param {Integer} detail.channelCompletion
@@ -166,21 +136,17 @@ export class CoursePage extends Interaction {
     onSlideCompleted({ slideId, completed, channelCompletion }) {
         const slideData = this.getSlide(slideId);
         if (slideData) {
-            // Just joined the course (e.g. When "Submit & Join" action), update the UI
             this.toggleCompletionButton(slideData, completed);
         }
         this.updateProgressbar(channelCompletion);
     }
 
     /**
-     * Make a RPC call to complete the slide then update the UI.
-     *
-     * @param {Object} detail `slide_mark_completed` event payload
-     * @param {Integer} detail.id the slide id
+     * @param {Object} detail
+     * @param {Integer} detail.id
      */
     onSlideMarkCompleted(detail) {
         if (!session.is_website_user) {
-            // no useless RPC call
             const slideData = this.getSlide(detail.id);
             this.toggleSlideCompleted(slideData, true);
         }

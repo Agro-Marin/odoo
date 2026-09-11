@@ -18,9 +18,6 @@ def _post_init_hook(env):
 
 
 def uninstall_hook(env):
-    """Need to reenable the `product` pricelist multi-company rule that were
-    disabled to be 'overridden' for multi-website purpose
-    """
     pl_rule = env.ref("product.product_pricelist_comp_rule", raise_if_not_found=False)
     pl_item_rule = env.ref(
         "product.product_pricelist_item_comp_rule", raise_if_not_found=False

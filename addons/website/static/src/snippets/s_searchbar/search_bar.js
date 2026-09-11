@@ -47,7 +47,6 @@ export class SearchBar extends Interaction {
             displayExtraLink:
                 dataset.displayExtraLink && JSON.parse(dataset.displayExtraLink),
             displayDetail: dataset.displayDetail && JSON.parse(dataset.displayDetail),
-            // Make it easy for customization to disable fuzzy matching on specific searchboxes
             allowFuzzy: !(dataset.noFuzzy && JSON.parse(dataset.noFuzzy)),
         };
         for (const fieldEl of form.querySelectorAll("input[type='hidden']")) {
@@ -61,7 +60,6 @@ export class SearchBar extends Interaction {
             for (const keyValue of urlParams.split("&")) {
                 const [key, value] = keyValue.split("=");
                 if (value && key !== "search") {
-                    // Decode URI parameters: revert + to space then decodeURIComponent.
                     this.options[decodeURIComponent(key.replace(/\+/g, "%20"))] =
                         decodeURIComponent(value.replace(/\+/g, "%20"));
                 }
@@ -72,7 +70,6 @@ export class SearchBar extends Interaction {
             const value = decodeURIComponent(pathParts[index]);
             const indexNumber = parseInt(index);
             if (indexNumber > 0 && /-[0-9]+$/.test(value)) {
-                // is sluggish
                 this.options[decodeURIComponent(pathParts[indexNumber - 1])] = value;
             }
         }
@@ -201,7 +198,7 @@ export class SearchBar extends Interaction {
                 }
                 break;
             case "Enter":
-                this.limit = 0; // prevent autocomplete
+                this.limit = 0;
                 break;
         }
     }
@@ -211,11 +208,9 @@ export class SearchBar extends Interaction {
      */
     onSearch(ev) {
         if (this.inputEl.value) {
-            // actual search
-            this.limit = 0; // prevent autocomplete
+            this.limit = 0;
         } else {
-            // clear button clicked
-            this.render(); // remove existing suggestions
+            this.render();
             ev.preventDefault();
         }
     }

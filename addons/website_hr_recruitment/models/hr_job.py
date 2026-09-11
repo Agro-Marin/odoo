@@ -82,7 +82,6 @@ class HrJob(models.Model):
     def _compute_website_url(self):
         super()._compute_website_url()
         for job in self:
-            # _slug call will fail with newId records.
             if not job.id:
                 continue
             job.website_url = f"/jobs/{self.env['ir.http']._slug(job)}"
@@ -126,7 +125,6 @@ class HrJob(models.Model):
         if requires_sudo and not self.env.user.has_group(
             "hr_recruitment.group_hr_recruitment_user"
         ):
-            # Rule must be reinforced because of sudo.
             domain.append([("website_published", "=", True)])
 
         search_fields = ["name"]

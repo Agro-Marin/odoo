@@ -31,7 +31,6 @@ export class BaseWebsiteBackgroundOption extends BaseOptionComponent {
         this.showColorFilter = () =>
             showColorFilter() || this.isActiveItem("toggle_bg_video_id");
         this.websiteBgOptionDomState = useDomState((el) => ({
-            // Only search for .s_parallax_bg that are direct children
             applyTo: el.querySelector(":scope > .s_parallax_bg")
                 ? ".s_parallax_bg"
                 : "",

@@ -15,13 +15,11 @@ registerWebsitePreviewTour(
             content: "Check the current page has not the elements that will be added",
             trigger: ":iframe body:not(:has(.s_text_image)):not(:has(.s_hr))",
         },
-        // Edit the main element of the page
         ...insertSnippet({
             id: "s_text_image",
             name: "Text - Image",
             groupName: "Content",
         }),
-        // Edit another part in the page, like the footer
         {
             trigger: ".o-website-builder_sidebar.o_builder_sidebar_open .o_snippet",
         },

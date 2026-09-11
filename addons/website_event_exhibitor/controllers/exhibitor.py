@@ -25,15 +25,9 @@ class ExhibitorController(WebsiteEventController):
             )
         return search_domain_base
 
-    # ------------------------------------------------------------
-    # MAIN PAGE
-    # ------------------------------------------------------------
-
     @http.route(
         [
-            # TDE BACKWARD: exhibitors is actually a typo
             '/event/<model("event.event"):event>/exhibitors',
-            # TDE BACKWARD: matches event/event-1/exhibitor/exhib-1 sub domain
             '/event/<model("event.event"):event>/exhibitor',
         ],
         type="http",
@@ -50,14 +44,12 @@ class ExhibitorController(WebsiteEventController):
         )
 
     def _event_exhibitors_get_values(self, event, **searches):
-        # init and process search terms
         searches.setdefault("search", "")
         searches.setdefault("countries", "")
         searches.setdefault("sponsorships", "")
         search_domain_base = self._get_domain_event_sponsors_base(event)
         search_domain = search_domain_base
 
-        # search on content
         if searches.get("search"):
             search_domain = Domain.AND(
                 [
@@ -70,21 +62,18 @@ class ExhibitorController(WebsiteEventController):
                 ]
             )
 
-        # search on countries
         search_countries = self._get_search_countries(searches["countries"])
         if search_countries:
             search_domain = Domain.AND(
                 [search_domain, [("partner_id.country_id", "in", search_countries.ids)]]
             )
 
-        # search on sponsor types
         search_sponsorships = self._get_search_sponsorships(searches["sponsorships"])
         if search_sponsorships:
             search_domain = Domain.AND(
                 [search_domain, [("sponsor_type_id", "in", search_sponsorships.ids)]]
             )
 
-        # fetch data to display; use sudo to allow reading partner info, be sure domain is correct
         event = event.with_context(tz=event.date_tz or "UTC")
         sorted_sponsors = (
             request.env["event.sponsor"]
@@ -97,7 +86,6 @@ class ExhibitorController(WebsiteEventController):
         sponsors_all = request.env["event.sponsor"].sudo().search(search_domain_base)
         sponsor_types = sponsors_all.mapped("sponsor_type_id")
         sponsor_countries = sponsors_all.mapped("partner_id.country_id").sorted("name")
-        # organize sponsors into categories to help display
         sponsor_categories_dict = OrderedDict()
         sponsor_categories = []
         is_event_user = request.env.user.has_group(
@@ -111,7 +99,6 @@ class ExhibitorController(WebsiteEventController):
             sponsor_categories_dict[sponsor.sponsor_type_id] |= sponsor
 
         for sponsor_category, sponsors in sponsor_categories_dict.items():
-            # To display random published sponsors first and random unpublished sponsors last
             if is_event_user:
                 published_sponsors = sponsors.filtered(lambda s: s.website_published)
                 unpublished_sponsors = sponsors - published_sponsors
@@ -127,15 +114,12 @@ class ExhibitorController(WebsiteEventController):
                 }
             )
 
-        # return rendering values
         return {
-            # event information
             "event": event,
             "main_object": event,
             "slots": event.event_slot_ids._filter_open_slots().grouped("date"),
             "sponsor_categories": sponsor_categories,
             "hide_sponsors": True,
-            # search information
             "searches": searches,
             "search_count": len(sorted_sponsors),
             "search_key": searches["search"],
@@ -143,14 +127,9 @@ class ExhibitorController(WebsiteEventController):
             "search_sponsorships": search_sponsorships,
             "sponsor_types": sponsor_types,
             "sponsor_countries": sponsor_countries,
-            # environment
             "hostname": request.httprequest.host.split(":")[0],
             "is_event_user": is_event_user,
         }
-
-    # ------------------------------------------------------------
-    # FRONTEND FORM
-    # ------------------------------------------------------------
 
     @http.route(
         [
@@ -172,7 +151,6 @@ class ExhibitorController(WebsiteEventController):
         )
 
     def _event_exhibitor_get_values(self, event, sponsor, **options):
-        # search for exhibitor list
         search_domain_base = self._get_domain_event_sponsors_base(event)
         search_domain_base = Domain.AND(
             [search_domain_base, [("id", "!=", sponsor.id)]]
@@ -197,18 +175,14 @@ class ExhibitorController(WebsiteEventController):
         )
 
         return {
-            # event information
             "event": event,
             "main_object": sponsor,
             "slots": event.event_slot_ids._filter_open_slots().grouped("date"),
             "sponsor": sponsor,
             "hide_sponsors": True,
-            # sidebar
             "sponsors_other": sponsors_other[:30],
-            # options
             "option_widescreen": option_widescreen,
             "option_can_edit": request.env.user.has_group("event.group_event_user"),
-            # environment
             "hostname": request.httprequest.host.split(":")[0],
             "is_event_user": request.env.user.has_group(
                 "event.group_event_registration_desk"
@@ -218,10 +192,6 @@ class ExhibitorController(WebsiteEventController):
             ]._get_visitor_timezone(),
         }
 
-    # ------------------------------------------------------------
-    # BUSINESS / MISC
-    # ------------------------------------------------------------
-
     @http.route(
         "/event_sponsor/<int:sponsor_id>/read",
         type="jsonrpc",
@@ -229,7 +199,6 @@ class ExhibitorController(WebsiteEventController):
         website=True,
     )
     def event_sponsor_read(self, sponsor_id):
-        """Marshmalling data for "event not started / sponsor not available" modal"""
         sponsor = request.env["event.sponsor"].browse(sponsor_id)
         sponsor_data = sponsor.read(
             [
@@ -253,7 +222,6 @@ class ExhibitorController(WebsiteEventController):
         else:
             sponsor_data["country_name"] = False
             sponsor_data["country_id"] = False
-        # needs sudo access as public users can't read the model
         sponsor_type_sudo = sponsor.sponsor_type_id.sudo()
         sponsor_data["sponsor_type_name"] = sponsor_type_sudo.name
         sponsor_data["sponsor_type_id"] = sponsor_type_sudo.id
@@ -268,26 +236,18 @@ class ExhibitorController(WebsiteEventController):
 
         return sponsor_data
 
-    # ------------------------------------------------------------
-    # TOOLS
-    # ------------------------------------------------------------
-
     def _get_search_countries(self, country_search):
-        # TDE FIXME: make me generic (slides, event, ...)
         country_ids = set(request.httprequest.form.getlist("sponsor_country"))
         with contextlib.suppress(Exception):
             country_ids.update(literal_eval(country_search))
-        # perform a search to filter on existing / valid tags implicitly
         return (
             request.env["res.country"].sudo().search([("id", "in", list(country_ids))])
         )
 
     def _get_search_sponsorships(self, sponsorship_search):
-        # TDE FIXME: make me generic (slides, event, ...)
         sponsorship_ids = set(request.httprequest.form.getlist("sponsor_type"))
         with contextlib.suppress(Exception):
             sponsorship_ids.update(literal_eval(sponsorship_search))
-        # perform a search to filter on existing / valid tags implicitly
         return (
             request.env["event.sponsor.type"]
             .sudo()

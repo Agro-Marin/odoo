@@ -5,13 +5,6 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { AddPageDialog } from "@website/components/dialog/add_page_dialog";
 
-/**
- * Used to share code and keep the same behaviour on different types of 'website
- * content' views:
- * - Trigger the 'new content' dialogs when 'CREATE' button is clicked.
- * - Add a website selector on ControlPanel (that will be used by the renderer
- * to filter content).
- */
 export function usePageManager({ resModel, createAction }) {
     const env = useEnv();
     const website = useService("website");
@@ -23,7 +16,6 @@ export function usePageManager({ resModel, createAction }) {
     });
 
     onWillStart(async () => {
-        // `fetchWebsites()` already done by parent PageSearchModel
         websiteSelection.push(...website.websites);
         state.activeWebsite = await env.searchModel.getCurrentWebsite();
     });

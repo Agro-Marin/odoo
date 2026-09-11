@@ -6,7 +6,6 @@ class ResUsers(models.Model):
 
     create_date = fields.Datetime("Create Date", readonly=True, index=True)
 
-    # Wrapper for call_kw with inherits
     def open_website_url(self):
         return self.mapped("partner_id").open_website_url()
 

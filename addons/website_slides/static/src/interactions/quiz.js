@@ -13,32 +13,15 @@ import { QuestionFormBehavior } from "@website_slides/interactions/quiz_question
 import { SlideQuizFinishDialog } from "@website_slides/js/public/components/slide_quiz_finish_dialog/slide_quiz_finish_dialog";
 import { parseQuestionMarkup } from "@website_slides/js/public/slides_course_utils";
 
-/**
- * Displays quiz questions and propositions. Submitting the quiz will fetch
- * the correction and decorate the answers according to the result. Error
- * message or modal can be displayed.
- *
- * Attaches to DOM rendered server-side by `website_slides.slide_category_quiz`
- * (QuizNoFullscreen below) or renders the "slide.slide.quiz" template client
- * side (fullscreen player).
- *
- * Completion is signaled through bubbling DOM CustomEvents:
- * - `slide_go_next`: need to go to the next slide, when quiz is done.
- * - `slide_completed`: when the quiz is passed and completed by the user.
- */
 export class QuizBehavior {
     /**
-     * Fetches the quiz data if not given, then instantiates the behavior.
-     * Rendering mode: pass `targetEl` to render the "slide.slide.quiz"
-     * template; pass `el` to attach to existing server-rendered DOM.
-     *
      * @param {import("@web/public/interaction").Interaction} host
      * @param {Object} params
-     * @param {HTMLElement} [params.el] existing quiz element (attach mode)
-     * @param {HTMLElement} [params.targetEl] where to render (render mode)
-     * @param {Object} params.slideData holding all the classic slide information
+     * @param {HTMLElement} [params.el]
+     * @param {HTMLElement} [params.targetEl]
+     * @param {Object} params.slideData
      * @param {Object} params.channelData
-     * @param {Object} [params.quizData] optional quiz data. Fetched if absent.
+     * @param {Object} [params.quizData]
      * @returns {Promise<QuizBehavior>}
      */
     static async create(host, params) {
@@ -103,12 +86,6 @@ export class QuizBehavior {
         this._bindEvents();
     }
 
-    /**
-     * Custom rendering behavior upon start.
-     *
-     * If the user has answered the quiz before having joined the course, we
-     * check their answers (saved into their session) here as well.
-     */
     start() {
         this._renderValidationInfo();
         this._bindSortable();
@@ -121,10 +98,6 @@ export class QuizBehavior {
         }
     }
 
-    /**
-     * Re-renders the whole quiz from its template (render mode re-render, or
-     * after the slide was marked "Not Done" to re-show the questions).
-     */
     rerender() {
         const newEl = renderToElement("slide.slide.quiz", { widget: this });
         this.el.replaceWith(newEl);
@@ -132,10 +105,6 @@ export class QuizBehavior {
         this._bindEvents();
         this._bindSortable();
     }
-
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
 
     _bindEvents() {
         for (const remove of this.eventRemovers) {
@@ -192,9 +161,6 @@ export class QuizBehavior {
         }
     }
 
-    /**
-     * Allows to reorder the questions.
-     */
     _bindSortable() {
         this.bindedSortable?.cleanup();
         this.bindedSortable = this.host.services.sortable
@@ -216,8 +182,6 @@ export class QuizBehavior {
     }
 
     /**
-     * Get all the questions ID from the displayed Quiz.
-     *
      * @returns {Array}
      */
     _getQuestionsIds() {
@@ -226,10 +190,6 @@ export class QuizBehavior {
         ).map((el) => el.dataset.questionId);
     }
 
-    /**
-     * Modify visually the sequence of all the questions after calling the
-     * _reorderQuestions RPC call.
-     */
     _modifyQuestionsSequence() {
         this.el
             .querySelectorAll(".o_wslides_js_lesson_quiz_question")
@@ -243,19 +203,12 @@ export class QuizBehavior {
             });
     }
 
-    /**
-     * RPC call to resequence all the questions. It is called after modifying
-     * the sequence of a question and also after deleting a question.
-     */
     _reorderQuestions() {
         this.host.services.orm
             .webResequence("survey.question", this._getQuestionsIds())
             .then(this._modifyQuestionsSequence.bind(this));
     }
 
-    /**
-     * Fetch the quiz for a particular slide.
-     */
     _fetchQuiz() {
         return this.host
             .waitFor(rpc("/slides/slide/quiz/get", { slide_id: this.slide.id }))
@@ -275,10 +228,6 @@ export class QuizBehavior {
             });
     }
 
-    /**
-     * Hide the edit and delete button and also the handler to resequence the
-     * question.
-     */
     _hideEditOptions() {
         for (const el of this.el.querySelectorAll(
             ".o_wslides_js_lesson_quiz_question .o_wslides_js_quiz_edit_del," +
@@ -288,9 +237,6 @@ export class QuizBehavior {
         }
     }
 
-    /**
-     * Decorate the answers according to state.
-     */
     _disableAnswers() {
         for (const el of this.el.querySelectorAll(
             ".o_wslides_js_lesson_quiz_question",
@@ -302,10 +248,6 @@ export class QuizBehavior {
         }
     }
 
-    /**
-     * Decorate the answer inputs according to the correction and adds the
-     * answer comment if any.
-     */
     _renderAnswersHighlightingAndComments() {
         for (const question of this.el.querySelectorAll(
             ".o_wslides_js_lesson_quiz_question",
@@ -366,9 +308,6 @@ export class QuizBehavior {
         }
     }
 
-    /**
-     * Will check if we have answers coming from the session and re-apply them.
-     */
     _applySessionAnswers() {
         if (!this.slide.sessionAnswers || this.slide.sessionAnswers.length === 0) {
             return;
@@ -391,13 +330,9 @@ export class QuizBehavior {
             }
         }
 
-        // reset answers coming from the session
         this.slide.sessionAnswers = false;
     }
 
-    /**
-     * Update validation box (karma, buttons) according to state.
-     */
     _renderValidationInfo() {
         const validationElem = this.el.querySelector(
             ".o_wslides_js_lesson_quiz_validation",
@@ -410,9 +345,7 @@ export class QuizBehavior {
     }
 
     /**
-     * Toggle additional resource info box.
-     *
-     * @param {Boolean} show - Whether show or hide the information
+     * @param {Boolean} show
      */
     _toggleAdditionalResourceInfo(show) {
         const resourceInfo = document.getElementsByClassName(
@@ -424,12 +357,6 @@ export class QuizBehavior {
                 : resourceInfo.classList.add("d-none"));
     }
 
-    /**
-     * Renders the button to join a course.
-     * If the user is logged in, the course is public, and the user has
-     * previously tried to submit answers, we automatically attempt to join
-     * the course.
-     */
     _renderJoinWidget() {
         const widgetLocation = this.el.querySelector(".o_wslides_join_course_widget");
         if (widgetLocation) {
@@ -454,19 +381,12 @@ export class QuizBehavior {
         }
     }
 
-    /**
-     * Get the quiz answers filled in by the User.
-     */
     _getQuizAnswers() {
         return Array.from(this.el.querySelectorAll("input[type=radio]:checked")).map(
             (el) => parseInt(el.value),
         );
     }
 
-    /**
-     * Submit a quiz and get the correction. It will display messages
-     * according to quiz result.
-     */
     async _submitQuiz() {
         const data = await this.host.waitFor(
             rpc("/slides/slide/quiz/submit", {
@@ -482,7 +402,6 @@ export class QuizBehavior {
         }
         Object.assign(this.quiz, data);
         const { rankProgress, completed, channel_completion: completion } = this.quiz;
-        // three of the rankProgress properties are HTML messages, mark if set
         if ("description" in rankProgress) {
             rankProgress["description"] = markup(rankProgress["description"] || "");
             rankProgress["previous_rank"]["motivational"] = markup(
@@ -519,8 +438,6 @@ export class QuizBehavior {
     }
 
     /**
-     * Get all the question information after clicking on the edit button.
-     *
      * @param {HTMLElement} questionEl
      * @returns {{id: *, sequence: number, text: *, answers: Array}}
      */
@@ -543,10 +460,6 @@ export class QuizBehavior {
         };
     }
 
-    /**
-     * If the slides has been called with the Add Quiz button on the slide
-     * list it goes straight to the 'Add Quiz' button and clicks on it.
-     */
     _checkLocationHref() {
         if (
             window.location.href.includes("quiz_quick_create") &&
@@ -556,13 +469,7 @@ export class QuizBehavior {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     /**
-     * When clicking on an answer, this one should be marked as "checked".
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -576,9 +483,6 @@ export class QuizBehavior {
         }
     }
 
-    /**
-     * Signal to switch to the next slide.
-     */
     _onClickNext() {
         if (this.slide.hasNext) {
             this.el.dispatchEvent(
@@ -587,9 +491,6 @@ export class QuizBehavior {
         }
     }
 
-    /**
-     * Resets the completion of the slide so the user can take the quiz again.
-     */
     _onClickReset() {
         rpc("/slides/slide/quiz/reset", {
             slide_id: this.slide.id,
@@ -598,9 +499,6 @@ export class QuizBehavior {
         });
     }
 
-    /**
-     * Saves the answers from the user in the session.
-     */
     _saveQuizAnswersToSession() {
         this._hideErrorMessage();
 
@@ -612,20 +510,12 @@ export class QuizBehavior {
         });
     }
 
-    /**
-     * After joining the course, we save the questions in the session and
-     * reload the page to update the view.
-     */
     _afterJoin() {
         this._saveQuizAnswersToSession().then(() => {
             window.location.reload();
         });
     }
 
-    /**
-     * When clicking on 'Add a Question' or 'Add Quiz', initialize a new
-     * question form to input the new question.
-     */
     _onCreateQuizClick() {
         const newQuestionEl = this.el.querySelector(
             ".o_wslides_js_lesson_quiz_new_question",
@@ -642,9 +532,6 @@ export class QuizBehavior {
     }
 
     /**
-     * When clicking on the edit button of a question, initialize a question
-     * form with the existing question as inputs.
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -671,9 +558,6 @@ export class QuizBehavior {
     }
 
     /**
-     * When clicking on the delete button of a question it toggles a modal to
-     * confirm the deletion.
-     *
      * @param {Event} ev
      * @param {HTMLElement} target
      */
@@ -696,10 +580,6 @@ export class QuizBehavior {
     }
 
     /**
-     * Displays the created Question at the correct place (after the last
-     * question or at the first place if there is no questions yet). It also
-     * displays the 'Add Question' button back.
-     *
      * @param {QuestionFormBehavior} questionForm
      * @param {String} newQuestionRenderedTemplate
      */
@@ -723,8 +603,6 @@ export class QuizBehavior {
     }
 
     /**
-     * Replace the edited question by the new question and destroy the form.
-     *
      * @param {QuestionFormBehavior} questionForm
      * @param {String} newQuestionRenderedTemplate
      * @param {HTMLElement} editedQuestionEl
@@ -739,9 +617,6 @@ export class QuizBehavior {
     }
 
     /**
-     * If the user cancels the creation or update of a Question it resets the
-     * display of the updated Question or it displays back the buttons.
-     *
      * @param {QuestionFormBehavior} questionForm
      */
     _resetDisplay(questionForm) {
@@ -766,10 +641,6 @@ export class QuizBehavior {
     }
 
     /**
-     * After deletion of a Question the display is refreshed with the removal
-     * of the Question, the reordering of all the remaining Questions and the
-     * change of the new Question sequence if a question form is open.
-     *
      * @param {Integer} questionId
      */
     _deleteQuestion(questionId) {
@@ -811,12 +682,7 @@ export class QuizBehavior {
     }
 }
 
-/**
- * Course lesson page (non-fullscreen): completion handling from the base
- * CoursePage, plus the embedded quiz when the lesson has one.
- */
 export class QuizNoFullscreen extends CoursePage {
-    // selector of complete page, as we need slide content and aside content table
     static selector = ".o_wslides_lesson_main";
 
     dynamicContent = {
@@ -835,7 +701,6 @@ export class QuizNoFullscreen extends CoursePage {
         }
         const slideData = quizEl.dataset;
         const channelData = this._extractChannelData(slideData);
-        // dataset values are strings; parse numeric/boolean fields
         const parsedSlideData = {
             id: parseInt(slideData.id),
             name: slideData.name || "",
@@ -854,9 +719,6 @@ export class QuizNoFullscreen extends CoursePage {
         };
         const quizData = {
             questions: this._extractQuestionsAndAnswers(),
-            // NB: kept on quizData (not slideData) as historically — the
-            // session-answers auto-submit only runs on the fullscreen fetch
-            // path, which sets `slide.sessionAnswers` itself.
             sessionAnswers: slideData.sessionAnswers
                 ? JSON.parse(slideData.sessionAnswers)
                 : [],
@@ -883,12 +745,6 @@ export class QuizNoFullscreen extends CoursePage {
     }
 
     /**
-     * Get the slide data from the elements in the DOM.
-     *
-     * We need this overwrite because a documentation in non-fullscreen view
-     * doesn't have the standard "done" button and so in that case the slide
-     * data can not be retrieved.
-     *
      * @override
      */
     getSlide(slideId) {
@@ -896,7 +752,6 @@ export class QuizNoFullscreen extends CoursePage {
         if (slide) {
             return slide;
         }
-        // A quiz in a documentation on non fullscreen view
         const el = document.querySelector(
             `.o_wslides_js_lesson_quiz[data-id="${slideId}"]`,
         );
@@ -904,10 +759,6 @@ export class QuizNoFullscreen extends CoursePage {
     }
 
     /**
-     * After a slide has been marked as completed / uncompleted, update the
-     * state of this page and reload the quiz if needed (e.g. to re-show the
-     * questions of a quiz).
-     *
      * @override
      */
     toggleCompletionButton(slideData, completed = true) {
@@ -919,7 +770,6 @@ export class QuizNoFullscreen extends CoursePage {
             !completed &&
             this.quiz.quiz.questionsCount
         ) {
-            // The quiz has been marked as "Not Done", re-load the questions
             this.quiz.quiz.answers = null;
             this.quiz.slide.sessionAnswers = null;
             this.quiz.slide.completed = false;
@@ -929,8 +779,6 @@ export class QuizNoFullscreen extends CoursePage {
             });
         }
 
-        // The quiz has been submitted in a documentation and in non fullscreen view,
-        // should update the button "Mark Done" to "Mark To Do"
         const doneButton = document.querySelector(".o_wslides_done_button");
         if (doneButton && completed) {
             doneButton.classList.remove(
@@ -961,11 +809,7 @@ export class QuizNoFullscreen extends CoursePage {
     }
 
     /**
-     * Extract data from existing DOM rendered server-side, to have the list
-     * of questions with their relative answers.
-     * This method should return the same format as /slide/quiz/get controller.
-     *
-     * @return {Array<Object>} list of questions with answers
+     * @return {Array<Object>}
      */
     _extractQuestionsAndAnswers() {
         const questions = [];

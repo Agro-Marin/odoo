@@ -166,7 +166,6 @@ registry
                     "check the price of 1 website_sale_cart_notification_product_1",
                 trigger: '.toast-body div:contains("$ 1,000.00")',
             },
-            // Again add same product
             {
                 content: "change quantity",
                 trigger: "#product_detail form input[name=add_qty]",

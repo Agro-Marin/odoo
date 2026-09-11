@@ -46,7 +46,6 @@ registerWebsitePreviewTour(
                 ':iframe .o_add_snippets_preview [data-snippet="s_table_of_content"]',
             run: "click",
         },
-        // To make sure that the public widgets of the two previous ones started.
         ...insertSnippet({ id: "s_banner", name: "Banner", groupName: "Intro" }),
         {
             content: "Drag the Intro snippet group and drop it.",
@@ -80,7 +79,6 @@ registerWebsitePreviewTour(
             trigger: '[data-action-param="no_mobile"]',
             run: "click",
         },
-        // Go back to blocks tabs to avoid changing the first ToC options
         goBackToBlocks(),
         {
             content: "Click on the second TOC's title",

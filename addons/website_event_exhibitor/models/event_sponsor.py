@@ -11,7 +11,6 @@ class EventSponsor(models.Model):
     _name = "event.sponsor"
     _description = "Event Sponsor"
     _order = "sequence, sponsor_type_id"
-    # _order = 'sponsor_type_id, sequence' TDE FIXME
     _rec_name = "name"
     _inherit = [
         "mixin.mail.thread",
@@ -38,7 +37,6 @@ class EventSponsor(models.Model):
     )
     sequence = fields.Integer("Sequence")
     active = fields.Boolean(default=True)
-    # description
     subtitle = fields.Char("Slogan")
     exhibitor_type = fields.Selection(
         [
@@ -60,7 +58,6 @@ class EventSponsor(models.Model):
         store=True,
     )
     show_on_ticket = fields.Boolean("Show on ticket", default=True)
-    # contact information
     partner_id = fields.Many2one(
         "res.partner", "Partner", required=True, bypass_search_access=True
     )
@@ -83,7 +80,6 @@ class EventSponsor(models.Model):
         readonly=False,
         store=True,
     )
-    # image
     image_512 = fields.Image(
         string="Logo",
         max_width=512,
@@ -104,7 +100,6 @@ class EventSponsor(models.Model):
         compute_sudo=True,
         store=False,
     )
-    # live mode
     hour_from = fields.Float("Opening hour", default=8.0)
     hour_to = fields.Float("End hour", default=18.0)
     event_date_tz = fields.Selection(
@@ -113,7 +108,6 @@ class EventSponsor(models.Model):
     is_in_opening_hours = fields.Boolean(
         "Within opening hours", compute="_compute_is_in_opening_hours"
     )
-    # country information (related to ease frontend templates)
     country_id = fields.Many2one(
         "res.country", string="Country", related="partner_id.country_id", readonly=True
     )
@@ -149,7 +143,6 @@ class EventSponsor(models.Model):
     def _compute_website_image_url(self):
         for sponsor in self:
             if sponsor.image_512:
-                # image_512 is stored, image_256 is derived from it dynamically
                 sponsor.website_image_url = self.env["website"].image_url(
                     sponsor, "image_256", size=256
                 )
@@ -163,8 +156,6 @@ class EventSponsor(models.Model):
                 )
 
     def _sync_with_partner(self, fname):
-        """Synchronize with partner if not set. Setting a value does not write
-        on partner as this may be event-specific information."""
         for sponsor in self:
             if not sponsor[fname]:
                 sponsor[fname] = sponsor.partner_id[fname]
@@ -183,8 +174,6 @@ class EventSponsor(models.Model):
         "event_id.date_end",
     )
     def _compute_is_in_opening_hours(self):
-        """Opening hours: hour_from and hour_to are given within event TZ or UTC.
-        Now() must therefore be computed based on that TZ."""
         for sponsor in self:
             if not sponsor.event_id.is_ongoing:
                 sponsor.is_in_opening_hours = False
@@ -192,7 +181,6 @@ class EventSponsor(models.Model):
                 sponsor.is_in_opening_hours = True
             else:
                 event_tz = timezone(sponsor.event_id.date_tz)
-                # localize now, begin and end datetimes in event tz
                 dt_begin = sponsor.event_id.date_begin.astimezone(event_tz)
                 dt_end = sponsor.event_id.date_end.astimezone(event_tz)
                 now_utc = (
@@ -200,7 +188,6 @@ class EventSponsor(models.Model):
                 )
                 now_tz = now_utc.astimezone(event_tz)
 
-                # compute opening hours
                 opening_from_tz = datetime.combine(
                     now_tz.date(), float_to_time(sponsor.hour_from)
                 ).replace(tzinfo=event_tz)
@@ -208,7 +195,6 @@ class EventSponsor(models.Model):
                     now_tz.date(), float_to_time(sponsor.hour_to)
                 ).replace(tzinfo=event_tz)
                 if sponsor.hour_to == 0:
-                    # when closing 'at midnight', we consider it's at midnight the next day
                     opening_to_tz += timedelta(days=1)
 
                 opening_from = max([dt_begin, opening_from_tz])
@@ -224,15 +210,11 @@ class EventSponsor(models.Model):
             else:
                 sponsor.country_flag_url = False
 
-    # ------------------------------------------------------------
-    # MIXINS
-    # ---------------------------------------------------------
-
     @api.depends("name", "event_id.name")
     def _compute_website_url(self):
         super()._compute_website_url()
         for sponsor in self:
-            if sponsor.id:  # avoid to perform a slug on a not yet saved record in case of an onchange.
+            if sponsor.id:
                 sponsor.website_url = f"/event/{self.env['ir.http']._slug(sponsor.event_id)}/exhibitor/{self.env['ir.http']._slug(sponsor)}"
 
     @api.depends("event_id.website_id.domain")
@@ -264,17 +246,8 @@ class EventSponsor(models.Model):
             "order": order,
         }
 
-    # ------------------------------------------------------------
-    # ACTIONS
-    # ---------------------------------------------------------
-
     def get_backend_menu_id(self):
         return self.env.ref("event.event_main_menu").id
 
-    # ------------------------------------------------------------
-    # Misc
-    # ------------------------------------------------------------
-
     def get_base_url(self):
-        """As website_id is not defined on this record, we rely on event website_id for base URL."""
         return self.event_id.get_base_url()

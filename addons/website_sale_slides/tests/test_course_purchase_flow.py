@@ -30,7 +30,6 @@ class TestCoursePurchaseFlow(common.SlidesCase):
         )
 
     def test_course_purchase_flow(self):
-        # Step1: assign a course product to 2 slide.channels
         self.channel.write({"enroll": "payment", "product_id": self.course_product.id})
 
         self.channel_2 = (
@@ -46,7 +45,6 @@ class TestCoursePurchaseFlow(common.SlidesCase):
             )
         )
 
-        # Step 2: create a sale_order with the course product
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.customer.id,
@@ -67,11 +65,9 @@ class TestCoursePurchaseFlow(common.SlidesCase):
 
         sale_order.action_confirm()
 
-        # Step 3: check that the customer is now a member of both channel
         self.assertIn(self.customer, self.channel.partner_ids)
         self.assertIn(self.customer, self.channel_2.partner_ids)
 
-        # Step 4: Same test as salesman
         salesman_sale_order = (
             self.env["sale.order"]
             .with_user(self.user_salesman)
@@ -101,7 +97,6 @@ class TestCoursePurchaseFlow(common.SlidesCase):
 
     @users("user_officer")
     def test_course_product_published_synch(self):
-        """Test the synchronization between a course and its product"""
         course_1 = self.env["slide.channel"].create(
             {
                 "name": "Test Channel 1",
@@ -118,19 +113,16 @@ class TestCoursePurchaseFlow(common.SlidesCase):
             }
         )
 
-        # The course_1 is not published by default which doesn't impact the product
         self.assertFalse(course_1.is_published)
         self.assertTrue(self.course_product.is_published)
 
         course_1.is_published = True
 
-        # The course_1 and the product are published
         self.assertTrue(course_1.is_published)
         self.assertTrue(self.course_product.is_published)
 
         self.course_product.is_published = False
 
-        # Unpublishing the product should not change the course_1
         self.assertTrue(course_1.is_published)
         self.assertFalse(self.course_product.is_published)
 
@@ -141,13 +133,11 @@ class TestCoursePurchaseFlow(common.SlidesCase):
 
         course_1.is_published = True
 
-        # Publishing the course_1 should publish the product
         self.assertTrue(course_1.is_published)
         self.assertTrue(self.course_product.is_published)
 
         (course_1 + course_2).write({"is_published": False})
 
-        # If all course linked to a product are unpublished, we unpublished the product
         self.assertFalse(course_1.is_published)
         self.assertFalse(course_2.is_published)
         self.assertFalse(self.course_product.is_published)

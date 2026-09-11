@@ -17,7 +17,6 @@ class ProductRibbon(models.Model):
     )
 
     def _is_applicable_for(self, product, price_data):
-        """Override of `website_sale` to handle `out_of_stock` ribbons."""
         return super()._is_applicable_for(product, price_data) or (
             product
             and self.assign == "out_of_stock"

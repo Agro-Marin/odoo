@@ -46,7 +46,6 @@ class ForumPostVote(models.Model):
     )
 
     def _get_karma_value(self, old_vote, new_vote, up_karma, down_karma):
-        """Return the karma to add / remove based on the old vote and on the new vote."""
         karma_values = {"-1": down_karma, "0": 0, "1": up_karma}
         karma = karma_values[new_vote] - karma_values[old_vote]
 
@@ -65,7 +64,6 @@ class ForumPostVote(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # can't modify owner of a vote
         if not self.env.is_admin():
             for vals in vals_list:
                 vals.pop("user_id", None)
@@ -84,12 +82,10 @@ class ForumPostVote(models.Model):
             vote._check_general_rights()
             vote._check_karma_rights(vote.vote == "1")
 
-            # karma update
             vote._vote_update_karma("0", vote.vote)
         return votes
 
     def write(self, vals):
-        # can't modify owner of a vote
         if not self.env.is_admin():
             vals.pop("user_id", None)
             vals.pop("recipient_id", None)
@@ -101,7 +97,6 @@ class ForumPostVote(models.Model):
                 upvote = vote.vote == "-1" if vote_value == "0" else vote_value == "1"
                 vote._check_karma_rights(upvote)
 
-                # karma update
                 vote._vote_update_karma(vote.vote, vote_value)
 
         return super().write(vals)
@@ -113,15 +108,12 @@ class ForumPostVote(models.Model):
         if vals.get("post_id"):
             post = self.env["forum.post"].browse(vals.get("post_id"))
         if not self.env.is_admin():
-            # own post check
             if self.env.uid == post.create_uid.id:
                 raise UserError(_("It is not allowed to vote for its own post."))
-            # own vote check
             if self.env.uid != self.user_id.id:
                 raise UserError(_("It is not allowed to modify someone else's vote."))
 
     def _check_karma_rights(self, upvote=False):
-        # karma check
         if upvote and not self.post_id.can_upvote:
             raise AccessError(
                 _("%d karma required to upvote.", self.post_id.forum_id.karma_upvote)

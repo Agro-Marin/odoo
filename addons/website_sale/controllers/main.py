@@ -30,22 +30,6 @@ _lt = LazyTranslate(__name__)
 
 
 def handle_product_params_error(exc, product, category=None, **kwargs):
-    """Handle access and missing errors related to product or category on the eCommerce.
-
-    This function is intended to prevent access-related exceptions when a user attempts to view a
-    product or category page. It checks if the provided product and category records still exist and
-    are accessible, and then attempts to redirect to a valid fallback route if possible. If no valid
-    route is found, it returns a 404 response code (instead of a 403).
-
-    :param odoo.exceptions.AccessError | odoo.exceptions.MissingError exc: The exception thrown
-            by _check_access `base.models.ir_http._pre_dispatch`.
-    :param product.template product: The product the user is trying to access.
-    :param product.public.category category: The category the user is trying to access, if any.
-    :param dict kwargs: Optional data. This parameter is not used here.
-    :return: A redirect response to a valid shop or product page, or a 404 error code if no valid
-             fallback is found.
-    :rtype: int | Response
-    """
     product = product.exists()
     if category:
         category = category.exists()
@@ -56,7 +40,7 @@ def handle_product_params_error(exc, product, category=None, **kwargs):
     if not category and product and product.has_access("read"):
         return request.redirect(product._get_product_url())
 
-    return NotFound.code  # 404
+    return NotFound.code
 
 
 class TableCompute:
@@ -79,7 +63,6 @@ class TableCompute:
         return res
 
     def process(self, products, ppg=20, ppr=4):
-        # Compute products positions on the grid
         minpos = 0
         maxy = 0
         x = 0
@@ -92,15 +75,10 @@ class TableCompute:
             pos = minpos
             while not self._check_place(pos % ppr, pos // ppr, x, y, ppr):
                 pos += 1
-            # if 21st products (index 20) and the last line is full (ppr products in it), break
-            # (pos + 1.0) / ppr is the line where the product would be inserted
-            # maxy is the number of existing lines
-            # + 1.0 is because pos begins at 0, thus pos 20 is actually the 21st block
-            # and to force python to not round the division operation
             if index >= ppg and ((pos + 1.0) // ppr) > maxy:
                 break
 
-            if x == 1 and y == 1:  # simple heuristic for CPU optimization
+            if x == 1 and y == 1:
                 minpos = pos // ppr
 
             for y2 in range(y):
@@ -115,7 +93,6 @@ class TableCompute:
             if index <= ppg:
                 maxy = max(maxy, y + (pos // ppr))
 
-        # Format table according to HTML needs
         rows = sorted(self.table.items())
         rows = [r[1] for r in rows]
         for col in range(len(rows)):
@@ -143,8 +120,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
     ]
 
     def _get_search_order(self, post):
-        # OrderBy will be parsed in orm and so no direct sql injection
-        # id is added to be sure that order is a unique sort key
         order = (
             post.get("order")
             or request.env["website"].get_current_website().shop_default_sort
@@ -192,8 +167,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def sitemap_shop(env, rule, qs):
         website = env["website"].get_current_website()
         if website and website.ecommerce_access == "logged_in" and not qs:
-            # Make sure urls are not listed in sitemap when restriction is active
-            # and no autocomplete query string is provided
             return
 
         if not qs or qs.lower() in SHOP_PATH:
@@ -211,8 +184,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def sitemap_products(env, rule, qs):
         website = env["website"].get_current_website()
         if website and website.ecommerce_access == "logged_in" and not qs:
-            # Make sure urls are not listed in sitemap when restriction is active
-            # and no autocomplete query string is provided
             return
 
         ProductTemplate = env["product.template"]
@@ -249,7 +220,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         }
 
     def _shop_lookup_products(self, options, post, search, website):
-        # No limit because attributes are obtained from complete product list
         product_count, details, fuzzy_search_term = website._search_with_fuzzy(
             "products_only",
             search,
@@ -279,11 +249,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
         }
 
     def _get_additional_shop_values(self, values, **kwargs):
-        """Hook to update values used for rendering website_sale.products template"""
         return {}
 
     def _get_product_query_params(self, **kwargs):
-        """Allow to configure the product page URL's query string."""
         return {}
 
     @route(
@@ -298,7 +266,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         website=True,
         list_as_website_content=_lt("Shop"),
         sitemap=sitemap_shop,
-        # Sends a 404 error in case of any Access error instead of 403.
         handle_params_access_error=lambda e, **kwargs: NotFound.code,
     )
     def shop(
@@ -316,9 +283,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         is_category_in_query = category and isinstance(category, str)
         category = self._get_category(category)
-        # If the category is provided as a query parameter (which is deprecated), we redirect to the
-        # "correct" shop URL, where the category has been removed from the query parameters and
-        # added to the path.
         if is_category_in_query:
             query = self._get_filtered_query_string(
                 request.httprequest.query_string.decode(), keys_to_remove=["category"]
@@ -372,13 +336,11 @@ class WebsiteSale(payment_portal.PaymentPortal):
             url, **self._shop_get_query_url_kwargs(search, min_price, max_price, **post)
         )
 
-        # Check if we need to refresh the cached pricelist
         now = datetime.timestamp(datetime.now())
         if "website_sale_pricelist_time" in request.session:
             pricelist_save_time = request.session["website_sale_pricelist_time"]
             if pricelist_save_time < now - 60 * 60:
                 request.session.pop(PRICELIST_SESSION_CACHE_KEY, None)
-                # restart the counter
                 request.session["website_sale_pricelist_time"] = now
 
         filter_by_price_enabled = website.is_view_active(
@@ -415,12 +377,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
             "website_sale.filter_products_price"
         )
         if filter_by_price_enabled:
-            # TODO Find an alternative way to obtain the domain through the search metadata.
             Product = request.env["product.template"].with_context(bin_size=True)
             search_term = fuzzy_search_term or search
             domain = self._get_domain_shop(search_term, category, attribute_value_dict)
 
-            # This is ~4 times more efficient than a search for the cheapest and most expensive products
             query = Product._search(domain)
             sql = query.select(
                 SQL(
@@ -431,12 +391,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             available_min_price, available_max_price = request.env.execute_query(sql)[0]
 
             if min_price or max_price:
-                # The if/else condition in the min_price / max_price value assignment
-                # tackles the case where we switch to a list of products with different
-                # available min / max prices than the ones set in the previous page.
-                # In order to have logical results and not yield empty product lists, the
-                # price filter is set to their respective available prices when the specified
-                # min exceeds the max, and / or the specified max is lower than the available min.
                 if min_price:
                     min_price = (
                         min_price
@@ -471,8 +425,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         else:
             all_tags = ProductTag
 
-        # categories
-
         Category = request.env["product.public.category"]
         categs_domain = Domain("parent_id", "=", False) & website_domain
         if not self.env.user._is_internal():
@@ -501,8 +453,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if not request.env.user._is_internal():
             category_entries = category_entries.filtered("has_published_products")
 
-        # products for current pager
-
         pager = website.pager(
             url=url, total=product_count, page=page, step=ppg, scope=5, url_args=post
         )
@@ -510,7 +460,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         products = search_product[offset : offset + ppg]
         products.fetch()
 
-        # map each product to its variant, and prefetch the variants
         variants = (
             request.env["product.product"]
             .sudo()
@@ -521,7 +470,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         ProductAttribute = request.env["product.attribute"]
         if products:
-            # get all products without limit
             attributes_grouped = request.env[
                 "product.template.attribute.line"
             ]._read_group(
@@ -566,7 +514,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             "products": products,
             "product_variants": product_variants,
             "search_product": search_product,
-            "search_count": product_count,  # common for all searchbox
+            "search_count": product_count,
             "bins": TableCompute().process(products, ppg, ppr),
             "ppg": ppg,
             "ppr": ppr,
@@ -633,15 +581,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
         query = self._get_filtered_query_string(
             request.httprequest.query_string.decode(), keys_to_remove=["category"]
         )
-        # If the product doesn't belong to the category, we redirect to the canonical product URL,
-        # which doesn't include the category.
         if category and not product.filtered_domain(
             [("public_categ_ids", "child_of", category.id)]
         ):
             return request.redirect(f"{product._get_product_url()}?{query}", code=301)
-        # If the category is provided as a query parameter (which is deprecated), we redirect to the
-        # "correct" shop URL, where the category has been removed from the query parameters and
-        # added to the path.
         if is_category_in_query:
             return request.redirect(
                 f"{product._get_product_url(category)}?{query}", code=301
@@ -649,8 +592,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return request.render(
             "website_sale.product",
             self._prepare_product_values(
-                # request context must be given to ensure context updates in overrides are correctly
-                # forwarded to `_get_combination_info` call
                 product.with_context(request.env.context),
                 category,
                 **kwargs,
@@ -694,9 +635,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         sitemap=False,
     )
     def old_product(self, product, category="", **kwargs):
-        # Compatibility pre-v14
-        # Redirect to the "correct" product URL, which doesn't include `/product`, and where the
-        # category has been removed from the query parameters and added to the path.
         category = int(category) if str(category).isdigit() else False
         category = self._get_category(category)
         query = self._get_filtered_query_string(
@@ -710,22 +648,16 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def add_product_media(
         self, media, type, product_product_id, product_template_id, combination_ids=None
     ):
-        """
-        Handles adding both images and videos to product variants or templates,
-        links all of them to product.
-        :param type: [...] can be either image or video
-        :raises NotFound : If the user is not allowed to access Attachment model
-        """
 
         if not request.env.user.has_group("website.group_website_restricted_editor"):
             raise NotFound
 
-        if type == "image":  # Image case
+        if type == "image":
             image_ids = request.env["ir.attachment"].browse(i["id"] for i in media)
             media_create_data = [
                 Command.create(
                     {
-                        "name": image.name,  # Images uploaded from url do not have any datas. This recovers them manually
+                        "name": image.name,
                         "image_1920": image.datas
                         or request.env["ir.qweb.field.image"].load_remote_url(
                             image.url
@@ -734,10 +666,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 )
                 for image in image_ids
             ]
-        elif type == "video":  # Video case
+        elif type == "video":
             video_data = media[0]
             thumbnail = None
-            if video_data.get("src"):  # Check if a valid video URL is provided
+            if video_data.get("src"):
                 try:
                     thumbnail = base64.b64encode(get_video_thumbnail(video_data["src"]))
                 except Exception:
@@ -789,9 +721,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
     @route(["/shop/product/clear-images"], type="jsonrpc", auth="user", website=True)
     def clear_product_images(self, product_product_id, product_template_id):
-        """
-        Unlinks all images from the product.
-        """
         if not request.env.user.has_group("website.group_website_restricted_editor"):
             raise NotFound
 
@@ -814,20 +743,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         ["/shop/product/resequence-image"], type="jsonrpc", auth="user", website=True
     )
     def resequence_product_image(self, image_res_model, image_res_id, move):
-        """
-        Move the product image in the given direction and update all images' sequence.
-
-        :param str image_res_model: The model of the image. It can be 'product.template',
-                                    'product.product', or 'product.image'.
-        :param str image_res_id: The record ID of the image to move.
-        :param str move: The direction of the move. It can be 'first', 'left', 'right', or 'last'.
-        :raises NotFound: If the user does not have the required permissions, if the model of the
-                          image is not allowed, or if the move direction is not allowed.
-        :raise ValidationError: If the product is not found.
-        :raise ValidationError: If the image to move is not found in the product images.
-        :raise ValidationError: If a video is moved to the first position.
-        :return: None
-        """
         if (
             not request.env.user.has_group("website.group_website_restricted_editor")
             or image_res_model
@@ -866,17 +781,11 @@ class WebsiteSale(payment_portal.PaymentPortal):
         elif move == "last":
             new_image_idx = len(product_images) - 1
 
-        # no-op resequences
         if new_image_idx == image_idx:
             return
 
-        # Reorder images locally.
         product_images.insert(new_image_idx, product_images.pop(image_idx))
 
-        # If the main image has been reordered (i.e. it's no longer in first position), use the
-        # image that's now in first position as main image instead.
-        # Additional images are product.image records. The main image is a product.product or
-        # product.template record.
         main_image_idx = next(
             idx
             for idx, image in enumerate(product_images)
@@ -889,21 +798,16 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 raise ValidationError(
                     _("You can't use a video as the product's main image.")
                 )
-            # Swap records.
             product_images[main_image_idx], product_images[0] = (
                 additional_image,
                 main_image,
             )
-            # Swap image data.
             main_image.image_1920, additional_image.image_1920 = (
                 additional_image.image_1920,
                 main_image.image_1920,
             )
-            additional_image.name = (
-                main_image.name
-            )  # Update image name but not product name.
+            additional_image.name = main_image.name
 
-        # Resequence additional images according to the new ordering.
         for idx, product_image in enumerate(product_images):
             if product_image._name == "product.image":
                 product_image.sequence = idx
@@ -917,7 +821,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
     )
     def is_add_to_cart_allowed(self, product_id, **kwargs):
         product = request.env["product.product"].browse(product_id)
-        # In sudo mode to check fields and conditions not accessible to the customer directly.
         return product.sudo()._is_add_to_cart_allowed()
 
     def _prepare_product_values(self, product, category, **kwargs):
@@ -927,7 +830,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             category and ProductCategory.browse(int(category)).exists()
         ) or product.public_categ_ids[:1]
         if category:
-            # Add breadcrumb's SEO data.
             product_markup_data.append(
                 self._prepare_breadcrumb_markup_data(
                     request.website.get_base_url(), category, product.name
@@ -965,7 +867,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         else:
             combination_info = product._get_combination_info()
 
-        # Needed to trigger the recently viewed product rpc
         view_track = request.website.viewref("website_sale.product").track
 
         return {
@@ -984,16 +885,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         }
 
     def _prepare_breadcrumb_markup_data(self, base_url, category, product_name):
-        """Generate JSON-LD markup data for the given product category.
-
-        See https://schema.org/BreadcrumbList.
-
-        :param str base_url: The base URL of the current website.
-        :param product.public.category category: The current product category.
-        :param str product_name: The name of the current product.
-        :return: The JSON-LD markup data.
-        :rtype: dict
-        """
         return {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
@@ -1035,7 +926,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             and website.is_view_active("website_sale.filter_products_price")
             and prev_pricelist != pricelist
         ):
-            # Convert prices to the new priceslist currency in the query params of the referrer
             decoded_url = urlsplit(redirect_url)
             args = dict(parse_qsl(decoded_url.query))
             min_price = args.get("min_price")
@@ -1088,22 +978,11 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
             self._apply_pricelist(pricelist=pricelist_sudo)
         else:
-            # Reset the pricelist if empty promo code is given
             self._apply_pricelist(pricelist=None)
 
         return request.redirect(redirect)
 
     def _apply_selectable_pricelist(self, pricelist_id):
-        """Change the request pricelist if selectable on the website.
-
-        A pricelist is applied if:
-        - it is available on the current website
-        - it is selectable or on the current partner
-
-        :param int pricelist_id: the pricelist ID
-        :return: True or False if the pricelist was applied or not
-        :rtype: bool
-        """
         if (
             request.env["website"]
             .get_current_website()
@@ -1119,11 +998,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return False
 
     def _apply_pricelist(self, pricelist=None):
-        """Changes the pricelist of the request and recomputes the current cart prices.
-
-        :param 'product.pricelist'|None pricelist: The new pricelist. If None resets the pricelist.
-        """
-        if pricelist is None:  # Reset the pricelist
+        if pricelist is None:
             request.session.pop(PRICELIST_SESSION_CACHE_KEY, None)
             request.session.pop(PRICELIST_SELECTED_SESSION_CACHE_KEY, None)
             request.pricelist = lazy(request.website._get_and_cache_current_pricelist)
@@ -1138,7 +1013,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         pricelist.check_singleton()
 
         if pricelist.id == request.pricelist.id:
-            # Nothing to do
             return
 
         request.session[PRICELIST_SESSION_CACHE_KEY] = pricelist.id
@@ -1154,12 +1028,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         assert layout_mode in ("grid", "list"), "Invalid shop layout mode"
         request.session["website_sale_shop_layout_mode"] = layout_mode
 
-    # ------------------------------------------------------
-    # Checkout
-    # ------------------------------------------------------
-
-    # === CHECKOUT FLOW - ADDRESS METHODS === #
-
     @route(
         "/shop/checkout",
         type="http",
@@ -1170,15 +1038,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         list_as_website_content=_lt("Shop Checkout"),
     )
     def shop_checkout(self, try_skip_step=None, **query_params):
-        """Display the checkout page.
-
-        :param str try_skip_step: Whether the user should immediately be redirected to the next step
-                                  if no additional information (i.e., address or delivery method) is
-                                  required on the checkout page. 'true' or 'false'.
-        :param dict query_params: The additional query string parameters.
-        :return: The rendered checkout page.
-        :rtype: str
-        """
         try_skip_step = _parse_bool_param(try_skip_step)
         order_sudo = request.cart
         request.session["sale_last_order_id"] = order_sudo.id
@@ -1186,14 +1045,12 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if redirection := self._check_cart_and_addresses(order_sudo):
             return redirection
 
-        # `**query_params` reaches `_prepare_address_data(partner_sudo, **kwargs)`;
-        # see `_get_reserved_address_form_keys`.
         query_params = self._sanitize_client_address_params(query_params)
         checkout_page_values = self._prepare_checkout_page_values(
             order_sudo, **query_params
         )
 
-        can_skip_delivery = True  # Delivery is only needed for deliverable products.
+        can_skip_delivery = True
         if order_sudo._has_deliverable_products():
             can_skip_delivery = False
             available_dms = order_sudo._get_delivery_methods()
@@ -1218,17 +1075,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return request.render("website_sale.checkout", checkout_page_values)
 
     def _prepare_checkout_page_values(self, order_sudo, **kwargs):
-        """Provide the data used to render the /shop/checkout page.
-
-        :param sale.order order_sudo: The current cart.
-        :param dict kwargs: unused parameters available for potential overrides.
-        :return: The checkout page rendering values.
-        :rtype: dict
-        """
         partner_sudo = order_sudo.partner_id
         return {
             "order": order_sudo,
-            "website_sale_order": order_sudo,  # Compatibility with other templates.
+            "website_sale_order": order_sudo,
             "use_delivery_as_billing": (
                 order_sudo.partner_shipping_id == order_sudo.partner_invoice_id
             ),
@@ -1252,43 +1102,25 @@ class WebsiteSale(payment_portal.PaymentPortal):
         use_delivery_as_billing=None,
         **query_params,
     ):
-        """Display the address form.
-
-        A partner and/or an address type can be given through the query string params to specify
-        which address to update or create, and its type.
-
-        :param str partner_id: The partner whose address to update with the address form, if any.
-        :param str address_type: The type of the address: 'billing' or 'delivery'.
-        :param str use_delivery_as_billing: Whether the provided address should be used as both the
-                                            delivery and the billing address. 'true' or 'false'.
-        :param dict query_params: The additional query string parameters forwarded to
-                                  `_prepare_address_form_values`.
-        :return: The rendered address form.
-        :rtype: str
-        """
         use_delivery_as_billing = _parse_bool_param(use_delivery_as_billing)
 
         order_sudo = request.cart
         if redirection := self._check_cart(order_sudo):
             return redirection
 
-        # Retrieve the partner whose address to update, if any, and its address type.
         partner_sudo, address_type = self._prepare_address_update(
             order_sudo,
             partner_id=_parse_record_id(partner_id),
             address_type=address_type,
         )
 
-        if partner_sudo:  # If editing an existing partner.
+        if partner_sudo:
             use_delivery_as_billing = (
                 partner_sudo
                 == order_sudo.partner_shipping_id
                 == order_sudo.partner_invoice_id
             )
 
-        # Render the address form. `order_sudo` is passed explicitly just below,
-        # so a query param of that name would be a duplicate keyword argument;
-        # see `_get_reserved_address_form_keys`.
         query_params = self._sanitize_client_address_params(query_params)
         address_form_values = self._prepare_address_form_values(
             partner_sudo,
@@ -1303,21 +1135,13 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def _prepare_address_form_values(
         self, *args, callback="", order_sudo=False, **kwargs
     ):
-        """Prepare the rendering values of the address form.
-
-        :param str callback: The URL to redirect to in case of successful address creation/update.
-        :param sale.order order_sudo: The current cart.
-        :return: The checkout page values.
-        :rtype: dict
-        """
         rendering_values = super()._prepare_address_form_values(
             *args, order_sudo=order_sudo, callback=callback, **kwargs
         )
-        if not order_sudo:  # Return portal address values if not order
+        if not order_sudo:
             return rendering_values
 
         is_anonymous_cart = order_sudo._is_anonymous_cart()
-        # Display b2b field is feature is enabled on given website
         rendering_values["display_b2b_fields"] = rendering_values.get(
             "display_b2b_fields", False
         ) or request.website.is_view_active("website_sale.address_b2b")
@@ -1338,7 +1162,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         }
 
     def _get_default_country(self, order_sudo=False, **kwargs):
-        """Override `portal` to return country of customer if customer is not logged in."""
         is_anonymous_cart = order_sudo and order_sudo._is_anonymous_cart()
         if is_anonymous_cart and request.geoip.country_code:
             return (
@@ -1369,26 +1192,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
         callback=None,
         **form_data,
     ):
-        """Create or update an address.
-
-        If it succeeds, it returns the URL to redirect (client-side) to. If it fails (missing or
-        invalid information), it highlights the problematic form input with the appropriate error
-        message.
-
-        :param str partner_id: The partner whose address to update with the address form, if any.
-        :param str address_type: The type of the address: 'billing' or 'delivery'.
-        :param str use_delivery_as_billing: Whether the provided address should be used as both the
-                                            billing and the delivery address. 'true' or 'false'.
-        :param str callback: The URL to redirect to in case of successful address creation/update.
-        :param dict form_data: The form data to process as address values.
-        :return: A JSON-encoded feedback, with either the success URL or an error message.
-        :rtype: str
-        """
         order_sudo = request.cart
         if redirection := self._check_cart(order_sudo):
             return request.prepare_json_response({"redirectUrl": redirection.location})
 
-        # Retrieve the partner whose address to update, if any, and its address type.
         partner_sudo, address_type = self._prepare_address_update(
             order_sudo,
             partner_id=_parse_record_id(partner_id),
@@ -1401,11 +1208,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         else:
             callback = callback or "/shop/checkout"
 
-        # This route passes `order_sudo=` explicitly and splats the rest of the
-        # form in, so a field literally named `order_sudo` (or any other name the
-        # address flow uses internally) becomes a duplicate keyword argument --
-        # `TypeError`, i.e. HTTP 500 on an `auth="public"` route. Same guard as
-        # portal's `/my/address/submit`; see `_get_reserved_address_form_keys`.
         form_data = self._sanitize_client_address_params(form_data)
 
         partner_sudo, feedback_dict = self._create_or_update_address(
@@ -1418,24 +1220,19 @@ class WebsiteSale(payment_portal.PaymentPortal):
         )
 
         if feedback_dict.get("invalid_fields"):
-            return request.prepare_json_response(
-                feedback_dict
-            )  # Return if error when creating/updating partner.
+            return request.prepare_json_response(feedback_dict)
 
         is_anonymous_cart = order_sudo._is_anonymous_cart()
         is_main_address = (
             is_anonymous_cart or order_sudo.partner_id.id == partner_sudo.id
         )
         partner_fnames = set()
-        if is_main_address:  # Main customer address updated.
-            partner_fnames.add(
-                "partner_id"
-            )  # Force the re-computation of partner-based fields.
+        if is_main_address:
+            partner_fnames.add("partner_id")
 
         if address_type == "billing":
             partner_fnames.add("partner_invoice_id")
             if is_new_address and order_sudo.only_services:
-                # The delivery address is required to make the order.
                 partner_fnames.add("partner_shipping_id")
         elif address_type == "delivery":
             partner_fnames.add("partner_shipping_id")
@@ -1445,7 +1242,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         order_sudo._update_address(partner_sudo.id, partner_fnames)
 
         if order_sudo._is_anonymous_cart():
-            # Unsubscribe the public partner if the cart was previously anonymous.
             order_sudo.message_unsubscribe(order_sudo.website_id.partner_id.ids)
 
         return request.prepare_json_response(feedback_dict)
@@ -1456,15 +1252,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return super()._is_address_required()
 
     def _prepare_address_update(self, order_sudo, partner_id=None, address_type=None):
-        """Find the partner whose address to update and return it along with its address type.
-
-        :param sale.order order_sudo: The current cart.
-        :param int partner_id: The partner whose address to update, if any, as a `res.partner` id.
-        :param str address_type: The type of the address: 'billing' or 'delivery'.
-        :return: The partner whose address to update, if any, and its address type.
-        :rtype: tuple[res.partner, str]
-        :raise Forbidden: If the customer is not allowed to update the given address.
-        """
         PartnerSudo = request.env["res.partner"].with_context(show_address=1).sudo()
         if order_sudo._is_anonymous_cart():
             partner_sudo = PartnerSudo
@@ -1474,13 +1261,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 order_sudo.partner_id,
                 order_sudo.partner_invoice_id,
                 order_sudo.partner_shipping_id,
-            }:  # The partner is not yet linked to the SO.
+            }:
                 partner_sudo = partner_sudo.exists()
 
-        if (
-            partner_sudo and not address_type
-        ):  # The desired address type was not specified.
-            # Identify the address type based on the cart's billing and delivery partners.
+        if partner_sudo and not address_type:
             if partner_id == order_sudo.partner_invoice_id.id:
                 address_type = "billing"
             elif partner_id == order_sudo.partner_shipping_id.id:
@@ -1496,16 +1280,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return partner_sudo, address_type
 
     def _get_reserved_address_form_keys(self):
-        """Override `portal` to reserve website_sale's own trusted kwarg.
-
-        ``order_sudo`` is threaded through the address flow by this controller
-        (``_complete_address_values``, ``_can_be_edited_by_current_customer``,
-        ``res.partner._get_current_partner``) and is always a ``sale.order``
-        recordset. A form field or query param of the same name would reach
-        those methods as a plain string -- ``AttributeError: 'str' object has
-        no attribute '_is_anonymous_cart'``, i.e. an HTTP 500 on
-        ``/my/address`` and ``/my/address/submit`` for any logged-in customer.
-        """
         return super()._get_reserved_address_form_keys() | {"order_sudo"}
 
     def _complete_address_values(
@@ -1534,18 +1308,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def _create_new_address(
         self, address_values, address_type, use_delivery_as_billing, order_sudo
     ):
-        """Create a new partner, must be called after the data has been verified
-
-        NB: to verify (and preprocess) the data, please call `_parse_form_data` first.
-
-        :param order_sudo: the current cart, as a sudoed `sale.order` recordset
-        :param str address_type: 'billing' or 'delivery'
-        :param bool use_delivery_as_billing: Whether the address must be used as the billing and the
-                                             delivery address.
-        :param dict address_values: values to use to create the partner
-
-        :return: The created address, as a sudoed `res.partner` recordset.
-        """
         self._complete_address_values(
             address_values, address_type, use_delivery_as_billing, order_sudo=order_sudo
         )
@@ -1553,7 +1315,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         creation_context.update(
             {
                 "tracking_disable": True,
-                # 'no_vat_validation': True,  # TODO VCR VAT validation or not ?
             }
         )
         return (
@@ -1574,26 +1335,11 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def process_express_checkout(
         self, billing_address, shipping_address=None, shipping_option=None, **kwargs
     ):
-        """Records the partner information on the order when using express checkout flow.
-
-        Depending on whether the partner is registered and logged in, either creates a new partner
-        or uses an existing one that matches all received data.
-
-        :param dict billing_address: Billing information sent by the express payment form.
-        :param dict shipping_address: Shipping information sent by the express payment form.
-        :param dict shipping_option: Carrier information sent by the express payment form.
-        :param dict kwargs: Optional data. This parameter is not used here.
-        :return int: The order's partner id.
-        """
         order_sudo = request.cart
 
-        # Update the partner with all the information
         self._include_country_and_state_in_address(billing_address)
         billing_address, _side_values = self._parse_form_data(billing_address)
         if order_sudo._is_anonymous_cart():
-            # Pricelist are recomputed every time the partner is changed. We don't want to recompute
-            # the price with another pricelist at this state since the customer has already accepted
-            # the amount and validated the payment.
             new_partner_sudo = self._create_new_address(
                 billing_address,
                 address_type="billing",
@@ -1607,9 +1353,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         elif not self._are_same_addresses(
             billing_address, order_sudo.partner_invoice_id
         ):
-            # Check if a child partner doesn't already exist with the same informations. The
-            # phone isn't always checked because it isn't sent in shipping information with
-            # Google Pay.
             child_partner_id = self._find_child_partner(
                 order_sudo.partner_id.commercial_partner_id.id, billing_address
             )
@@ -1623,19 +1366,13 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 )
             )
 
-        # In a non-express flow, `sale_last_order_id` would be added in the session before the
-        # payment. As we skip all the steps with the express checkout, `sale_last_order_id` must be
-        # assigned to ensure the right behavior from `shop_payment_confirmation()`.
         request.session["sale_last_order_id"] = order_sudo.id
 
         if shipping_address:
-            # in order to not override shippig address, it's checked separately from shipping option
             self._include_country_and_state_in_address(shipping_address)
             shipping_address, _side_values = self._parse_form_data(shipping_address)
 
             if order_sudo.name in order_sudo.partner_shipping_id.name:
-                # The existing partner was created by `process_express_checkout_delivery_choice`, it
-                # means that the partner is missing information, so we update it.
                 order_sudo.partner_shipping_id.write(
                     self._phone_to_address_values(
                         shipping_address, order_sudo.partner_shipping_id
@@ -1647,10 +1384,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             elif not self._are_same_addresses(
                 shipping_address, order_sudo.partner_shipping_id
             ):
-                # The sale order's shipping partner's address is different from the one received. If
-                # all the sale order's child partners' address differs from the one received, we
-                # create a new partner. The phone isn't always checked because it isn't sent in
-                # shipping information with Google Pay.
                 child_partner_id = self._find_child_partner(
                     order_sudo.partner_id.commercial_partner_id.id, shipping_address
                 )
@@ -1663,7 +1396,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
                         order_sudo=order_sudo,
                     )
                 )
-            # Process the delivery method.
             if shipping_option:
                 dm_id = int(shipping_option["id"])
                 available_dms = order_sudo._get_delivery_methods()
@@ -1674,16 +1406,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return order_sudo.partner_id.id
 
     def _find_child_partner(self, commercial_partner_id, address):
-        """Find a child partner for a specified address
-
-        Compare all keys in the `address` dict with the same keys on the partner object and return
-        the id of the first partner that have the same value than in the dict for all the keys.
-
-        :param int commercial_partner_id: The commercial partner whose child to find.
-        :param dict address: The address fields.
-        :return: The ID of the first child partner that match the criteria, if any.
-        :rtype: int
-        """
         partners_sudo = (
             request.env["res.partner"]
             .with_context(show_address=1)
@@ -1700,14 +1422,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return False
 
     def _include_country_and_state_in_address(self, address):
-        """This function is used to include country_id and state_id in address.
-
-        Fetch country and state and include the records in address. The object is included to
-        simplify the comparison of addresses.
-
-        :param dict address: An address with country and state defined in ISO 3166.
-        :return None:
-        """
         country = request.env["res.country"].search(
             [
                 ("code", "=", address.pop("country")),
@@ -1754,8 +1468,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         order_sudo._update_address(partner_id, partner_fnames)
 
-    # === CHECKOUT FLOW - EXTRA STEP METHODS === #
-
     @route(
         ["/shop/extra_info"],
         type="http",
@@ -1765,17 +1477,13 @@ class WebsiteSale(payment_portal.PaymentPortal):
         list_as_website_content=_lt("Shop Checkout - Extra Information"),
     )
     def extra_info(self, **post):
-        # Check that this option is activated
         extra_step = request.website.viewref("website_sale.extra_info")
         if not extra_step.active:
             return request.redirect("/shop/payment")
 
-        # check that cart is valid
         order_sudo = request.cart
         redirection = self._check_cart(order_sudo)
         open_editor = request.params.get("open_editor") == "true"
-        # Do not redirect if it is to edit
-        # (the information is transmitted via the "open_editor" parameter in the url)
         if not open_editor and redirection:
             return redirection
 
@@ -1791,8 +1499,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         return request.render("website_sale.extra_info", values)
 
-    # === CHECKOUT FLOW - PAYMENT/CONFIRMATION METHODS === #
-
     def _get_shop_payment_values(self, order, **kwargs):
         checkout_page_values = {
             "sale_order": order,
@@ -1806,10 +1512,10 @@ class WebsiteSale(payment_portal.PaymentPortal):
             **sale_portal.CustomerPortal._get_payment_values(
                 self, order, website_id=request.website.id
             ),
-            "display_submit_button": False,  # The submit button is re-added outside the form.
+            "display_submit_button": False,
             "transaction_route": f"/shop/payment/transaction/{order.id}",
             "landing_route": "/shop/payment/validate",
-            "sale_order_id": order.id,  # Allow Stripe to check if tokenization is required.
+            "sale_order_id": order.id,
         }
         return checkout_page_values | payment_form_values
 
@@ -1829,12 +1535,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         )
 
     def _get_shop_payment_errors(self, order):
-        """Check that there is no error that should block the payment.
-
-        :param sale.order order: The sales order to pay
-        :return: A list of errors (error_title, error_message)
-        :rtype: list[tuple]
-        """
         errors = []
 
         if order._has_deliverable_products() and not order._get_delivery_methods():
@@ -1858,15 +1558,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         list_as_website_content=_lt("Shop Payment"),
     )
     def shop_payment(self, **post):
-        """Payment step. This page proposes several payment means based on available
-        payment.provider. State at this point :
-
-         - a draft sales order with lines; otherwise, clean context / session and
-           back to the shop
-         - no transaction in context / session, or only a draft one, if the customer
-           did go to a payment.provider website but closed the tab without
-           paying / canceling
-        """
         order_sudo = request.cart
 
         if redirection := self._check_cart_and_addresses(order_sudo):
@@ -1892,15 +1583,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
         sitemap=False,
     )
     def shop_payment_validate(self, sale_order_id=None, **post):
-        """Method that should be called by the server when receiving an update
-        for a transaction.
-        """
         if sale_order_id is None:
             order_sudo = request.cart
             if not order_sudo and "sale_last_order_id" in request.session:
-                # Retrieve the last known order from the session if the session key `sale_order_id`
-                # was prematurely cleared. This is done to prevent the user from updating their cart
-                # after payment in case they don't return from payment through this route.
                 last_order_id = request.session["sale_last_order_id"]
                 order_sudo = (
                     request.env["sale.order"].sudo().browse(last_order_id).exists()
@@ -1918,7 +1603,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             else []
         )
         if errors:
-            first_error = errors[0]  # only display first error
+            first_error = errors[0]
             error_msg = f"{first_error[0]}\n{first_error[1]}"
             raise ValidationError(error_msg)
 
@@ -1928,10 +1613,8 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         if not order_sudo.amount_total and not tx_sudo and order_sudo.state != "done":
             order_sudo._check_cart_is_ready_to_be_paid()
-            # Only confirm the order if it wasn't already confirmed.
             order_sudo._confirm_order()
 
-        # clean context and session, then redirect to the confirmation page
         request.website.sale_reset()
         if tx_sudo and tx_sudo.state == "draft":
             return request.redirect(self._get_shop_path())
@@ -1947,13 +1630,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         list_as_website_content=_lt("Shop Confirmation"),
     )
     def shop_payment_confirmation(self, **post):
-        """End of checkout process controller. Confirmation shows
-        the status of a sale.order. State at this point :
-
-         - should not have any context / session info: clean them
-         - take a sale.order id, because we request a sale.order and are not
-           session dependant anymore
-        """
         sale_order_id = request.session.get("sale_last_order_id")
         if sale_order_id:
             order = request.env["sale.order"].sudo().browse(sale_order_id)
@@ -1962,10 +1638,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return request.redirect(self._get_shop_path())
 
     def _prepare_shop_payment_confirmation_values(self, order):
-        """
-        This method is called in the payment process route in order to prepare the dict
-        containing the values to be rendered by the confirmation template.
-        """
         return {
             "order": order,
             "website_sale_order": order,
@@ -1988,16 +1660,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             return request.prepare_response(pdf, headers=pdfhttpheaders)
         return request.redirect(self._get_shop_path())
 
-    # === CHECK METHODS === #
-
     def _check_cart_and_addresses(self, order_sudo):
-        """Check whether the cart and its addresses are valid, and redirect to the appropriate page
-        if not.
-
-        :param sale.order order_sudo: The cart to check.
-        :return: None if both the cart and its addresses are valid; otherwise, a redirection to the
-                 appropriate page.
-        """
         if redirection := self._check_cart(order_sudo):
             return redirection
 
@@ -2006,28 +1669,14 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return None
 
     def _check_cart(self, order_sudo):
-        """Check whether the cart is a valid, and redirect to the appropriate page if not.
-
-        The cart is only valid if:
-
-        - it exists and is in the draft state;
-        - it contains products (i.e., order lines);
-        - either the user is logged in, or public orders are allowed.
-
-        :param sale.order order_sudo: The cart to check.
-        :return: None if the cart is valid; otherwise, a redirection to the appropriate page.
-        """
-        # Check that the cart exists and is in the draft state.
         if not order_sudo or order_sudo.state != "draft":
             request.session["sale_order_id"] = None
             request.session["sale_transaction_id"] = None
             return request.redirect(self._get_shop_path())
 
-        # Check that the cart is not empty.
         if not order_sudo.line_ids:
             return request.redirect("/shop/cart")
 
-        # Check that public orders are allowed.
         if (
             request.env.user._is_public()
             and request.website.account_on_checkout == "mandatory"
@@ -2036,24 +1685,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return None
 
     def _check_addresses(self, order_sudo):
-        """Check whether the cart's addresses are complete and valid.
-
-        The addresses are complete and valid if:
-
-        - at least one address has been added;
-        - the delivery address is complete;
-        - the billing address is complete.
-
-        :param sale.order order_sudo: The cart whose addresses to check.
-        None if the cart is valid; otherwise, a redirection to the appropriate page.
-        :return: None if the cart's addresses are complete and valid; otherwise, a redirection to
-                 the appropriate page.
-        """
-        # Check that an address has been added.
         if order_sudo._is_anonymous_cart():
             return request.redirect("/shop/address")
 
-        # Check that the delivery address is complete.
         delivery_partner_sudo = order_sudo.partner_shipping_id
         if (
             not order_sudo.only_services
@@ -2065,7 +1699,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             return request.redirect(
                 f"/shop/address?partner_id={delivery_partner_sudo.id}&address_type=delivery"
             )
-        # Check that the billing address is complete.
         invoice_partner_sudo = order_sudo.partner_invoice_id
         if not self._check_billing_address(
             invoice_partner_sudo
@@ -2076,10 +1709,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 f"/shop/address?partner_id={invoice_partner_sudo.id}&address_type=billing"
             )
         return None
-
-    # ------------------------------------------------------
-    # Edit
-    # ------------------------------------------------------
 
     @route(["/shop/config/product"], type="jsonrpc", auth="user")
     def change_product_config(self, product_id, **options):
@@ -2118,7 +1747,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             raise NotFound
 
         current_website = request.env["website"].get_current_website()
-        # Restrict options we can write to.
         writable_fields = {
             "shop_page_container",
             "shop_ppg",
@@ -2137,7 +1765,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             "product_page_image_roundness",
             "product_page_cta_design",
         }
-        # Default ppg to 1.
         if "ppg" in options and not options["ppg"]:
             options["ppg"] = 1
         if "product_page_grid_columns" in options:
@@ -2145,7 +1772,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 options["product_page_grid_columns"]
             )
 
-        # Checkout Extra Step
         if "extra_step" in options:
             extra_step_view = current_website.viewref("website_sale.extra_info")
             extra_step = current_website._get_checkout_step("/shop/extra_info")
@@ -2165,7 +1791,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if not category.exists():
             raise NotFound
 
-        # Restrict options we can write to.
         targeted_options = {
             "show_category_title",
             "show_category_description",
@@ -2180,7 +1805,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             category.write(modified_options)
 
     def order_lines_2_google_api(self, order_lines):
-        """Transforms a list of order lines into a dict for google analytics"""
         ret = []
         for line in order_lines.filtered(lambda line: not line.is_delivery):
             product = line.product_id
@@ -2196,7 +1820,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
         return ret
 
     def order_2_return_dict(self, order):
-        """Returns the tracking_cart dict of the order for Google analytics, defined to be inherited"""
         tracking_cart_dict = {
             "transaction_id": order.id,
             "affiliation": order.company_id.name,
@@ -2210,9 +1833,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
             tracking_cart_dict["shipping"] = delivery_line.price_unit
         return tracking_cart_dict
 
-    # --------------------------------------------------------------------------
-    # Products Recently Viewed
-    # --------------------------------------------------------------------------
     @route(
         "/shop/products/recently_viewed_update",
         type="jsonrpc",
@@ -2256,13 +1876,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
     @route("/snippets/category/set_image", type="jsonrpc", auth="user")
     def set_category_image(self, category_id, attachment_id):
-        """
-        Set the cover image on the category.
-
-        :param int category_id: ID of the category to set the cover image.
-        :param int attachment_id: ID of the attachment containing the image data.
-        :raise Forbidden: If the user does not have website editing access
-        """
         if not request.env.user.has_group("website.group_website_restricted_editor"):
             raise Forbidden
         category = request.env["product.public.category"].browse(category_id).exists()
@@ -2282,17 +1895,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
     @staticmethod
     def _get_category(category):
-        """Validate and return the `product.public.category` record corresponding to the provided
-        category, which can be a record, a record id, or a slug.
-
-        - If no category is provided, return an empty recordset.
-        - If a category is provided, but it doesn't exist or can't be accessed, raise a 404.
-        - If a valid category is provided, return the corresponding record.
-
-        :param str|product.public.category category: The category to validate and return.
-        :return: The validated category.
-        :rtype: product.public.category
-        """
         ProductCategory = request.env["product.public.category"]
         if (
             not isinstance(category, ProductCategory.__class__)
@@ -2319,16 +1921,6 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
     @staticmethod
     def _get_filtered_query_string(query_string, keys_to_remove):
-        """Return a filtered copy of the provided query string, where all keys in `keys_to_remove`
-        are removed.
-
-        Note: the query string shouldn't include the leading '?'.
-
-        :param str query_string: The query string to filter.
-        :param list(str) keys_to_remove: The keys to remove from the query string.
-        :return: The filtered query string.
-        :rtype: str
-        """
         query = dict(parse_qsl(query_string))
         for key in keys_to_remove:
             query.pop(key, False)
@@ -2336,35 +1928,17 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
     @staticmethod
     def _get_attribute_value_dict(attribute_values):
-        """Parses a list of attribute value query params, and returns a dict grouping attribute
-        value ids by attribute id.
-
-        Entries that are not a well-formed ``<attribute_id>-<value_id>[,...]``
-        pair are skipped rather than raising. These come straight off the query
-        string of the public ``/shop`` listing, so anything a hand-edited (or
-        truncated, or crawler-mangled) URL can carry has to be survivable:
-        ``?attribute_values=5`` used to raise ``IndexError`` and
-        ``?attribute_values=abc-1`` ``ValueError``, both HTTP 500 on a page
-        reached by clicking a link. A filter that cannot be parsed selects
-        nothing, so dropping it degrades to "no filter" -- the same result the
-        shopper would get by removing it -- while any well-formed sibling
-        entries still apply.
-
-        :param list(str) attribute_values: The list of attribute value query parameters to parse.
-        :return: A dict grouping attribute value ids by attribute id.
-        :rtype: dict(int, list(int))
-        """
         result = {}
         for value in attribute_values:
             if not value:
                 continue
             pair = value.split("-")
             if len(pair) < 2:
-                continue  # No separator: not an "<attribute>-<values>" pair.
+                continue
             try:
                 result[int(pair[0])] = [
                     int(value_id) for value_id in pair[1].split(",")
                 ]
             except ValueError:
-                continue  # Non-numeric id somewhere in the pair.
+                continue
         return result

@@ -145,7 +145,6 @@ test("Drag and drop an inner content as a grid item", async () => {
         `,
         { loadIframeBundles: true },
     );
-    // Drag over the grid and drop it as an inner content.
     let dragUtils = await contains(
         "#snippet_content [name='Alert'] .o_snippet_thumbnail",
     ).drag();
@@ -164,7 +163,6 @@ test("Drag and drop an inner content as a grid item", async () => {
     await contains(".o-website-builder_sidebar .fa-undo").click();
     expect(":iframe div.s_alert").toHaveCount(0);
 
-    // Drag over the grid and drop it as a grid item.
     dragUtils = await contains(
         "#snippet_content [name='Alert'] .o_snippet_thumbnail",
     ).drag();
@@ -190,7 +188,6 @@ test("Drag and drop an inner content as a grid item", async () => {
     await contains(".o-website-builder_sidebar .fa-undo").click();
     expect(":iframe div.s_alert").toHaveCount(0);
 
-    // Drop near the grid (should become a grid item in the top left corner).
     dragUtils = await contains(
         "#snippet_content [name='Alert'] .o_snippet_thumbnail",
     ).drag();
@@ -218,7 +215,6 @@ test("Dragging an inner content from the sidebar in mobile view should not make 
     await waitForEndOfOperation();
     expect(":iframe .s_alert").toHaveCount(0);
 
-    // Toggle the mobile preview.
     await contains(".o-snippets-top-actions [data-action='mobile']").click();
     expect(".o_website_preview").toHaveClass("o_is_mobile");
     dragUtils = await contains(
@@ -230,7 +226,6 @@ test("Dragging an inner content from the sidebar in mobile view should not make 
 
 test("Dragging an inner content from the page should not make grid dropzones appear", async () => {
     await setupWebsiteBuilderWithSnippet("s_banner", { loadIframeBundles: true });
-    // Add an inner snippet in the first column.
     let dragUtils = await contains(
         "#snippet_content [name='Alert'] .o_snippet_thumbnail",
     ).drag();
@@ -240,7 +235,6 @@ test("Dragging an inner content from the page should not make grid dropzones app
     await waitForEndOfOperation();
     expect(":iframe .o_grid_item:nth-child(1) > .s_alert").toHaveCount(1);
 
-    // Redrag the snippet.
     await contains(":iframe .s_alert").click();
     dragUtils = await contains(".o_overlay_options .o_move_handle").drag();
     expect(":iframe .oe_grid_zone").toHaveCount(0);
@@ -248,7 +242,6 @@ test("Dragging an inner content from the page should not make grid dropzones app
     await dragUtils.drop(getDragMoveHelper());
     await waitForEndOfOperation();
 
-    // Check in mobile view.
     await contains(".o-snippets-top-actions [data-action='mobile']").click();
     expect(".o_website_preview").toHaveClass("o_is_mobile");
     const { cancel } = await contains(".o_overlay_options .o_move_handle").drag();

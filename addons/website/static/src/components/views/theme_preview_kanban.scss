@@ -2,7 +2,6 @@
     $o-theme-kanban-gray: #fcfcfc;
     --KanbanRecord-width: 100%;
 
-    /// Un-grouped Layout (default)
     &.o_kanban_ungrouped {
         display: grid !important;
         grid-template-columns: 1fr;
@@ -75,7 +74,6 @@
         }
     }
 
-    /// Grouped Layout
     &.o_kanban_grouped {
         .o_kanban_group {
             background-color: $o-theme-kanban-gray;

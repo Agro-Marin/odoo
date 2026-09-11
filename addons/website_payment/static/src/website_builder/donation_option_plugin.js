@@ -11,7 +11,6 @@ import { renderToElement, renderToFragment } from "@web/core/utils/render";
 export class DonationOption extends BaseOptionComponent {
     static template = "website_payment.DonationOption";
     static selector = ".s_donation";
-    // TODO AGAU: remove when merging https://github.com/odoo-dev/odoo/pull/4240
     static cleanForSave(editingElement) {
         delete editingElement.dataset.prefilledOptionsList;
     }
@@ -39,7 +38,6 @@ export class BaseDonationAction extends BuilderAction {
     getPrefilledOptionsList({ editingElement }) {
         const savedOptions = editingElement.dataset.prefilledOptionsList;
 
-        // TODO AGAU: remove when merging https://github.com/odoo-dev/odoo/pull/4240
         {
             if (savedOptions) {
                 return savedOptions;
@@ -66,9 +64,6 @@ export class BaseDonationAction extends BuilderAction {
                 return JSON.stringify(options);
             }
         }
-
-        // TODO AGAU: uncomment when merging https://github.com/odoo-dev/odoo/pull/4240
-        // return savedOptions || "[]";
     }
 
     rebuildPrefilledOptions(editingElement, options) {
@@ -76,7 +71,6 @@ export class BaseDonationAction extends BuilderAction {
             options = this.getPrefilledOptionsList({ editingElement });
         }
 
-        // TODO AGAU: remove when merging https://github.com/odoo-dev/odoo/pull/4240
         editingElement.dataset.prefilledOptionsList = options;
 
         options = JSON.parse(options);
@@ -88,7 +82,6 @@ export class BaseDonationAction extends BuilderAction {
         const showDescriptions =
             prefilledOptions && editingElement.dataset.descriptions;
 
-        // Slider
         const layout = editingElement.dataset.customAmount;
         const sliderEl = editingElement.querySelector(".s_donation_range_slider_wrap");
         if (layout !== "slider" || !displayOptions) {
@@ -102,7 +95,6 @@ export class BaseDonationAction extends BuilderAction {
             formEl.insertBefore(sliderEl, donateButtonEl);
         }
 
-        // Hidden inputs for descriptions translation
         const descriptionInputContainerEl = editingElement.querySelector(
             "#s_donation_description_inputs",
         );
@@ -119,10 +111,8 @@ export class BaseDonationAction extends BuilderAction {
             );
         }
 
-        // Displayed prefilled options
         editingElement.querySelector(".s_donation_prefilled_buttons")?.remove();
         if (displayOptions) {
-            // TODO AGAU: remove when merging https://github.com/odoo-dev/odoo/pull/4240
             {
                 if (!showDescriptions) {
                     options = options.map((option) => option.value);
@@ -149,8 +139,8 @@ export class BaseDonationAction extends BuilderAction {
 
 export class ToggleDataAttributeAction extends BaseDonationAction {
     /**
-     * @param {string} dataAttributeName - The data attribute to toggle (without "data-" prefix)
-     * @param {Function} toggleFunction - Function to call when applying or cleaning
+     * @param {string} dataAttributeName
+     * @param {Function} toggleFunction
      */
     setup(dataAttributeName, toggleFunction) {
         this.dataAttributeName = dataAttributeName;
@@ -158,8 +148,6 @@ export class ToggleDataAttributeAction extends BaseDonationAction {
     }
 
     /**
-     * Determine if the data attribute is applied.
-     *
      * @param {Object} context
      * @param {HTMLElement} context.editingElement
      * @returns {boolean}
@@ -169,11 +157,9 @@ export class ToggleDataAttributeAction extends BaseDonationAction {
     }
 
     /**
-     * Apply the data attribute and call the toggle function.
-     *
      * @param {Object} context
      * @param {HTMLElement} context.editingElement
-     * @param {...*} restArgs - Extra args for toggleFunction
+     * @param {...*} restArgs
      */
     apply(context, ...restArgs) {
         const { editingElement } = context;
@@ -182,11 +168,9 @@ export class ToggleDataAttributeAction extends BaseDonationAction {
     }
 
     /**
-     * Remove the data attribute and call the toggle function.
-     *
      * @param {Object} context
      * @param {HTMLElement} context.editingElement
-     * @param {...*} restArgs - Extra args for toggleFunction
+     * @param {...*} restArgs
      */
     clean(context, ...restArgs) {
         const { editingElement } = context;
@@ -245,7 +229,6 @@ export class SetPrefilledOptionsAction extends BaseDonationAction {
     }
 
     apply({ editingElement, value }) {
-        // TODO AGAU: remove when merging https://github.com/odoo-dev/odoo/pull/4240
         {
             const options = JSON.parse(value);
             const amounts = options.map((option) => option.value);

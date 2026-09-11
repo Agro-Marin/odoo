@@ -24,7 +24,6 @@ export class ChartOption extends BaseOptionComponent {
     setup() {
         super.setup();
 
-        // Here for compatibility with previous versions (< 18.3).
         this.env.getEditingElement().dataset.data = JSON.stringify(
             this.prepareData(this.env.getEditingElement()),
         );
@@ -38,10 +37,6 @@ export class ChartOption extends BaseOptionComponent {
         this.setDefaultState();
     }
 
-    /**
-     * Resets the current cell to the topleft cell
-     * and sets the colorpicker labels based on chart type.
-     */
     setDefaultState() {
         const { backgroundLabel, borderLabel } = this.getColorpickersLabels(
             this.domState.isPieChart,
@@ -58,9 +53,6 @@ export class ChartOption extends BaseOptionComponent {
         return JSON.parse(editingElement.dataset.data);
     }
     /**
-     * Parse the data from the DOM and make sure there are `key` properties
-     * where needed by the component API.
-     *
      * @param {HTMLElement} editingElement
      * @returns {Object}
      */
@@ -70,10 +62,6 @@ export class ChartOption extends BaseOptionComponent {
             if (dataset.key) {
                 return dataset;
             }
-            // `Date.now()` alone is identical for every keyless dataset produced
-            // in the same synchronous tick, collapsing their keys and making
-            // find()/findIndex() resolve to the wrong series. Disambiguate by
-            // index so each dataset gets a distinct key.
             return {
                 ...dataset,
                 key: `${DATASET_KEY_PREFIX}${Date.now()}_${index}`,
@@ -85,8 +73,6 @@ export class ChartOption extends BaseOptionComponent {
         const isPieChart =
             this.dependencies.chartOptionPlugin.isPieChart(editingElement);
         if (!this.domState || this.domState.isPieChart !== isPieChart) {
-            // Pie charts set color on a data cell basis, whereas the
-            // other ones set it on a dataset basis
             const { backgroundLabel, borderLabel } =
                 this.getColorpickersLabels(isPieChart);
             this.updateCurrentCell({ backgroundLabel, borderLabel });
@@ -102,9 +88,7 @@ export class ChartOption extends BaseOptionComponent {
         return getColor(color, this.window, this.document);
     }
     /**
-     * Retrieve the colors already in use in the chart.
-     *
-     * @returns {Set} set of hexadecimal colors
+     * @returns {Set}
      */
     getColorPalette() {
         const editingElement = this.env.getEditingElement();
@@ -123,7 +107,7 @@ export class ChartOption extends BaseOptionComponent {
                 colorSet.add(this.getColor(dataset.borderColor));
             }
         }
-        colorSet.delete(""); // No color, remove to avoid bugs.
+        colorSet.delete("");
         return colorSet;
     }
 
@@ -141,14 +125,8 @@ export class ChartOption extends BaseOptionComponent {
     }
 
     /**
-     * Extracts information about the table cell from a table event.
-     *
-     * @param {Event} ev - The event triggered on the table.
-     * @returns {Object} Containing:
-     *   - cellEl: The cell element (td or th) that was interacted.
-     *   - cellSectionEl: The section element (THEAD or TBODY) containing the cell.
-     *   - datasetIndex: The column index of the cell (excluding label column).
-     *   - dataIndex: The row index of the cell (only for TBODY rows).
+     * @param {Event} ev
+     * @returns {Object}
      */
     getCellInfo(ev) {
         const cellEl = ev.target.closest("td, th");
@@ -171,8 +149,6 @@ export class ChartOption extends BaseOptionComponent {
         );
     }
     /**
-     * Store in the state the coords of the cell that is currently focused.
-     *
      * @param {Event} ev
      */
     onTableFocusin(ev) {
@@ -180,8 +156,6 @@ export class ChartOption extends BaseOptionComponent {
         this.handleCellFocus(ev);
     }
     /**
-     * Used to display the corresponding colorpickers.
-     *
      * @param {Event} ev
      */
     handleCellFocus(ev) {
@@ -198,9 +172,7 @@ export class ChartOption extends BaseOptionComponent {
                 datasetIndex: this.domState.isPieChart ? null : datasetIndex,
                 dataIndex: this.domState.isPieChart ? null : 0,
             });
-        }
-        // click on a table inner cell
-        else if (
+        } else if (
             datasetIndex !== -1 &&
             datasetIndex !== cellRowEl.children.length - 2
         ) {
@@ -208,9 +180,7 @@ export class ChartOption extends BaseOptionComponent {
         }
     }
     /**
-     * Handles the click on table buttons.
-     *
-     * @param {Event} ev - The event triggered on the table cell button.
+     * @param {Event} ev
      */
     onButtonCellClick(ev) {
         if (!this.isTableButton(ev.target)) {
@@ -223,9 +193,7 @@ export class ChartOption extends BaseOptionComponent {
         if (isColumnButton) {
             if (ev.target.classList.contains("add_row")) {
                 this.updateCurrentCell({ datasetIndex: 0, dataIndex });
-            }
-            // if we delete a column with the current cell
-            else if (datasetIndex === this.state.currentCell.datasetIndex) {
+            } else if (datasetIndex === this.state.currentCell.datasetIndex) {
                 this.setDefaultState();
             } else if (datasetIndex < this.state.currentCell.datasetIndex) {
                 this.updateCurrentCell({
@@ -238,9 +206,7 @@ export class ChartOption extends BaseOptionComponent {
         if (isRowButton) {
             if (ev.target.classList.contains("add_column")) {
                 this.updateCurrentCell({ datasetIndex, dataIndex: 0 });
-            }
-            // if we delete a row with the current cell
-            else if (dataIndex === this.state.currentCell.dataIndex) {
+            } else if (dataIndex === this.state.currentCell.dataIndex) {
                 this.setDefaultState();
             } else if (dataIndex < this.state.currentCell.dataIndex) {
                 this.updateCurrentCell({
@@ -251,9 +217,7 @@ export class ChartOption extends BaseOptionComponent {
     }
 
     /**
-     * Handles the click on the THEAD (Dataset Labels).
-     *
-     * @param {Event} ev - The event triggered on the thead cell.
+     * @param {Event} ev
      */
     onDatasetLabelClick(ev) {
         const { datasetIndex } = this.getCellInfo(ev);
@@ -276,8 +240,6 @@ export class ChartOption extends BaseOptionComponent {
             ?.classList.add("visually-hidden-focusable");
     }
     /**
-     * Compute the column that is hovered and show the remove_col button.
-     *
      * @param {Event} ev
      */
     onTableMouseover(ev) {
@@ -290,10 +252,8 @@ export class ChartOption extends BaseOptionComponent {
         const rowEl = cellEl.closest("tr");
         const columnIndex = [...rowEl.children].indexOf(cellEl);
 
-        // Remove column: allowed if more than 1 dataset & on dataset columns (
-        // not on the labels column nor the buttons column).
         if (
-            rowEl.children.length > 3 && // label + value + button
+            rowEl.children.length > 3 &&
             columnIndex > 0 &&
             columnIndex < rowEl.children.length - 1
         ) {
@@ -302,10 +262,8 @@ export class ChartOption extends BaseOptionComponent {
                 [columnIndex - 1].classList.remove("visually-hidden-focusable");
         }
 
-        // Remove row: allowed if more than 1 label & on actual data rows (not
-        // on the header row nor the buttons row).
         if (
-            rowEl.parentElement.children.length > 2 && // value + button
+            rowEl.parentElement.children.length > 2 &&
             cellEl.closest("tbody") &&
             rowEl.nextElementSibling
         ) {

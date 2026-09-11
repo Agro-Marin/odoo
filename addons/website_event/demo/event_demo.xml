@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Event Event -->
     <record id="event.event_0" model="event.event">
         <field name="website_published" eval="True" />
         <field name="subtitle">Get Inspired • Stay Connected • Have Fun</field>

@@ -56,8 +56,6 @@
                     placeholder="All Categories"
                     widget="many2many_tags"
                     options="{'no_create': True}" />
-                <!-- The `o_field_handle` class disables the o-text-overflow styling added by the
-                    list renderer, which, if not disabled, causes misalignment of the icon. -->
                 <field
                     name="url"
                     string="Copy URL"

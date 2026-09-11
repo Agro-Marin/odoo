@@ -83,7 +83,6 @@ export class MenuDataPlugin extends Plugin {
                 {
                     rootID: isNaN(rootID) ? null : rootID,
                     save: async (newPageUrl) => {
-                        // Save the page before reloading the editor.
                         await this.dependencies.savePlugin.save();
                         await this.config.reloadEditor();
                         if (newPageUrl) {
@@ -106,10 +105,8 @@ export class MenuDataPlugin extends Plugin {
     }
 
     /**
-     * This predicate is used to determine if the link element is editable.
-     * It checks if the link element is a menu item or a nav link
-     * @param {HTMLElement} linkElement - The link element to check.
-     * @returns {boolean} - True if the link element is editable, false otherwise.
+     * @param {HTMLElement} linkElement
+     * @returns {boolean}
      */
     isMenuLink(linkElement) {
         return (

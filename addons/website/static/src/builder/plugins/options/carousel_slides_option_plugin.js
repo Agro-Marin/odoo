@@ -27,13 +27,6 @@ export class CarouselSlidesOptionPlugin extends Plugin {
     };
 
     /**
-     * Remove `clickable-slide` class from slides when there is no link element.
-     * TODO: Find a better approach. The class is currently used so the "active"
-     * state of the `BuilderCheckbox` can be taken into account.
-     * It would probably be better to handle this via an option state, or adapt
-     * the`BuilderCheckbox to expose its 'checkbox active state' when no action
-     * is linked to it...
-     *
      * @param {HTMLElement} root
      */
     cleanForSave({ root }) {
@@ -52,16 +45,11 @@ class MakeSlideClickableAction extends BuilderAction {
         this.preview = false;
     }
     clean({ editingElement }) {
-        // Remove unnecessary link from the slide when toggled off.
         const linkEl = editingElement.querySelector("a.slide-link");
         linkEl?.remove();
     }
 }
 
-/**
- * Custom action to add, update, or remove a slide-link for clickable carousel
- * slides.
- */
 class SetSlideAnchorUrlAction extends BuilderAction {
     static id = "setSlideAnchorUrl";
     setup() {

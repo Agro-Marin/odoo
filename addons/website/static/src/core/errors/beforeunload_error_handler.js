@@ -7,13 +7,10 @@ const errorHandlerRegistry = registry.category("error_handlers");
 let isUnloadingPage = false;
 window.addEventListener("beforeunload", () => {
     isUnloadingPage = true;
-    // restore after 10 seconds
     browser.setTimeout(() => (isUnloadingPage = false), 10000);
 });
 
 /**
- * Handles the errors trigger after the before unload event.
- *
  * @param {OdooEnv} env
  * @param {UncaughError} error
  * @returns {boolean}

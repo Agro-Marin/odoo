@@ -16,8 +16,6 @@ const toggleMegaMenu = (stepOptions) =>
             content: "Toggles the mega menu.",
             trigger: ":iframe .top_menu .nav-item a.o_mega_menu_toggle",
             run(helpers) {
-                // If the mega menu is displayed inside the extra menu items, it should
-                // already be displayed.
                 if (!this.anchor.closest(".o_extra_menu_items")) {
                     helpers.click();
                 }
@@ -33,7 +31,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Add a megamenu item to the top menu.
         {
             content: "Click on a menu item",
             trigger:
@@ -81,13 +78,12 @@ registerWebsitePreviewTour(
         {
             trigger: ".o_builder_open .o_website_preview:not(.o_is_blocked)",
         },
-        // Edit a menu item
         clickOnExtraMenuItem({}, true),
         toggleMegaMenu({}),
         {
             content: "Select the last menu link of the first column",
             trigger:
-                ":iframe .s_mega_menu_odoo_menu .row > div:first-child .nav > :nth-child(6)", // 6th is the last one
+                ":iframe .s_mega_menu_odoo_menu .row > div:first-child .nav > :nth-child(6)",
             run: "click",
         },
         {
@@ -120,11 +116,9 @@ registerWebsitePreviewTour(
         {
             content: "The menu should still be visible. Edit a menu item.",
             trigger: ":iframe .o_mega_menu h4",
-            // The content is removed in the previous step so it's now invisible.
             run: "editor New Menu Item",
         },
         {
-            // If this step fails, it means that a patch inside bootstrap was lost.
             content: "Press the 'down arrow' key.",
             trigger: ":iframe .o_mega_menu h4",
             run: "press ArrowDown",
@@ -145,7 +139,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Add a megamenu item to the top menu.
         ...openLinkPopup(":iframe .top_menu .nav-item a:contains('Home')", "Home"),
         {
             content: "Click on 'Link' to open Link Dialog",
@@ -223,7 +216,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Add a megamenu item to the top menu.
         ...openLinkPopup(":iframe .top_menu .nav-item a", "Home"),
         {
             content: "Click on 'Link' to open Link Dialog",
@@ -265,7 +257,6 @@ registerWebsitePreviewTour(
             trigger:
                 ':iframe .top_menu:has(.nav-item a.o_mega_menu_toggle:contains("Megaaaaa2!"))',
         },
-        // Edit a menu item
         clickOnExtraMenuItem({}, true),
         toggleMegaMenu({}),
         {
@@ -274,7 +265,6 @@ registerWebsitePreviewTour(
                 ":iframe .s_mega_menu_odoo_menu .row > div:first-child .nav > :first-child",
             run: "click",
         },
-        // Change MegaMenu template
         ...changeOptionInPopover(
             "Mega Menu",
             "Template",
@@ -438,7 +428,6 @@ registerWebsitePreviewTour(
         },
 
         openMenu(),
-        // Mega Menu 1: Desktop Only
         {
             content: "Open the first mega menu",
             trigger: ":iframe header#top span:contains('MM des')",
@@ -454,7 +443,6 @@ registerWebsitePreviewTour(
                 '.options-container [data-label="Visibility"] button[data-action-param="no_mobile"]',
             run: "click",
         },
-        // Mega Menu 2: Mobile Only
         {
             content: "Open the second mega menu",
             trigger: ":iframe header#top span:contains('MM mob')",
@@ -470,7 +458,6 @@ registerWebsitePreviewTour(
                 '.options-container [data-label="Visibility"] button[data-action-param="no_desktop"]',
             run: "click",
         },
-        // Mega Menu 3: Logged Out Only
         {
             content: "Open the third mega menu",
             trigger: ":iframe header#top span:contains('MM cond')",
@@ -484,7 +471,6 @@ registerWebsitePreviewTour(
         ...changeOptionInPopover("Block", "Visibility", "Conditionally"),
         ...changeOptionInPopover("Block", "Users", "Visible for Logged Out"),
         ...clickOnSave(),
-        // Check desktop visibility while NOT editing
         openMenu(),
         ...testHeaderNavVisibility({
             "MM des": true,
@@ -499,7 +485,6 @@ registerWebsitePreviewTour(
             run: "click",
         },
         openMenu(),
-        // Check mobile visibility while NOT editing
         ...testHeaderNavVisibility({
             "MM des": false,
             "Drop 1": true,
@@ -508,7 +493,6 @@ registerWebsitePreviewTour(
             "MM cond": false,
         }),
         ...clickOnEditAndWaitEditMode(),
-        // Check mobile visibility while editing
         ...testHeaderNavVisibility({
             "MM des": true,
             "Drop 1": true,
@@ -521,7 +505,6 @@ registerWebsitePreviewTour(
             trigger: "button:has(> span.fa-mobile)",
             run: "click",
         },
-        // Check desktop visibility while editing
         openMenu(),
         ...testHeaderNavVisibility({
             "MM des": true,

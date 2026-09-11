@@ -19,22 +19,6 @@ class Website(models.Model):
         sections_arch=None,
         page_title=None,
     ):
-        """Override the page creation in the context of events.
-
-        An event page must be embedded inside the 'website_event.layout' template,
-        otherwise it is not visually contained within its event. To create an event
-        page, one has to first create a menu entry in that event.
-
-        :param str name: page URL path; used to detect whether this is an event page
-        :param str template: template to instantiate; forced to
-            'website_event.layout' when a website.event.menu already exists for
-            this path
-        :param str sections_arch: extra content injected into the page; also used
-            to relocate sections into the event content container
-        :return: the created page's values
-        :rtype: dict
-
-        See: website.menu#save override"""
 
         website_event_menu = False
         if template == "website.default_page" and name and name.startswith("event/"):
@@ -72,7 +56,6 @@ class Website(models.Model):
                     '//div[@id="oe_structure_website_event_layout_1"]'
                 )
                 if content_container:
-                    # remove ID and editor sub-message for custom pages as it doesn't apply
                     wrap = tree.xpath('//div[@id="wrap"]')[0]
                     content_container = content_container[0]
                     content_container.attrib.pop("t-att-data-editor-sub-message", None)
@@ -83,8 +66,6 @@ class Website(models.Model):
 
                     if sections_arch:
                         for section in wrap.xpath("./section"):
-                            # to be properly editable, the content needs to be contained within a
-                            # single empty oe_structure, unlike 'wrap' that has the event menu inside
                             wrap.remove(section)
                             content_container.append(section)
 

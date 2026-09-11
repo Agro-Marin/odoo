@@ -28,10 +28,7 @@ class WebsiteVisitor(models.Model):
 
     @api.depends("partner_id", "event_registration_ids.name")
     def _compute_display_name(self):
-        """If there is an event registration for an anonymous visitor, use that
-        registered attendee name as visitor name."""
         super()._compute_display_name()
-        # sudo is needed for `event_registration_ids`
         for visitor in self.sudo().filtered(
             lambda v: not v.partner_id and v.event_registration_ids
         ):
@@ -72,16 +69,11 @@ class WebsiteVisitor(models.Model):
 
     @api.depends("event_registration_ids")
     def _compute_event_registered_ids(self):
-        # include parent's registrations in a visitor o2m field. We don't add
-        # child one as child should not have registrations (moved to the parent)
         for visitor in self:
             all_registrations = visitor.event_registration_ids
             visitor.event_registered_ids = all_registrations.mapped("event_id")
 
     def _search_event_registered_ids(self, operator, operand):
-        """Search visitors with terms on events within their event registrations. E.g. [('event_registered_ids',
-        'in', [1, 2])] should return visitors having a registration on events 1, 2 as
-        well as their children for notification purpose."""
         if operator in ("not in", "not any"):
             raise UserError(
                 self.env._("Unsupported 'Not In' operation on visitors registrations")
@@ -102,13 +94,11 @@ class WebsiteVisitor(models.Model):
         return [("id", "in", visitor_ids)]
 
     def _get_domain_inactive_visitors(self):
-        """Visitors registered to events are considered always active and should not be deleted."""
         return super()._get_domain_inactive_visitors() & Domain(
             "event_registration_ids", "=", False
         )
 
     def _merge_visitor(self, target):
-        """Override linking process to link registrations to the final visitor."""
         if not target.partner_id:
             raise ValueError("The `target` visitor should be linked to a partner.")
         self.event_registration_ids.visitor_id = target.id

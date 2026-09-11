@@ -4,14 +4,12 @@
         <div class="o_dialog" t-att-id="id" t-att-class="{ o_inactive_modal: !data.isActive }">
             <div role="dialog" class="modal" t-ref="modalRef">
                 <div class="o_wsale_image_viewer flex-column align-items-center d-flex w-100 h-100" t-on-mousemove="onGlobalMousemove">
-                    <!-- Header -->
                     <div class="o_wsale_image_viewer_header d-flex w-100 text-white">
                         <div class="flex-grow-1"/>
                         <div class="d-flex align-items-center mb-0 px-3 h4 text-reset cursor-pointer">
                             <span class="fa-solid fa-times" t-on-click="data.close"/>
                         </div>
                     </div>
-                    <!-- Content -->
                     <div class="o_wsale_image_viewer_image position-absolute top-0 bottom-0 start-0 end-0 align-items-center justify-content-center d-flex o_with_img overflow-hidden">
                         <div class="o_wsale_image_viewer_void position-absolute align-items-center justify-content-center d-flex w-100 h-100" t-ref="imageContainer" t-att-style="imageContainerStyle">
                             <img
@@ -27,7 +25,6 @@
                         </div>
                     </div>
                     <t t-if="images.length > 1">
-                        <!-- Footer -->
                         <div
                             class="o_wsale_image_viewer_carousel position-absolute bottom-0 d-flex"
                             t-attf-class="o_wsale_image_viewer_ratio_#{props.imageRatio ?? 'auto'}"
@@ -49,7 +46,6 @@
                                 </t>
                             </ol>
                         </div>
-                        <!-- Controls -->
                         <div class="o_wsale_image_viewer_control position-absolute d-flex align-items-center me-2 h-100 w-100">
                             <a
                                 class="carousel-control-prev"

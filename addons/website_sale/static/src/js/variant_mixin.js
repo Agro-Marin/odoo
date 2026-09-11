@@ -11,8 +11,6 @@ import wSaleUtils from "@website_sale/js/website_sale_utils";
 
 const VariantMixin = {
     /**
-     * @see onChangeVariant
-     *
      * @private
      * @param {Event} ev
      * @returns {Deferred}
@@ -46,8 +44,6 @@ const VariantMixin = {
     },
 
     /**
-     * Hook to add optional info to the combination info call.
-     *
      * @param {Element} product
      */
     _getOptionalCombinationInfoParam() {
@@ -55,9 +51,6 @@ const VariantMixin = {
     },
 
     /**
-     * Will add the "custom value" input for this attribute value if
-     * the attribute value is configured as "custom" (see product_attribute_value.is_custom)
-     *
      * @param {Element} el
      */
     handleCustomValues(el) {
@@ -108,8 +101,6 @@ const VariantMixin = {
     },
 
     /**
-     * Triggers the price computation and other variant specific changes
-     *
      * @param {Element} container
      */
     triggerVariantChange(container) {
@@ -124,20 +115,9 @@ const VariantMixin = {
     },
 
     /**
-     * Will disable attribute value's inputs based on combination exclusions
-     * and will disable the "add" button if the selected combination
-     * is not available
-     *
-     * This will check both the exclusions within the product itself and
-     * the exclusions coming from the parent product (meaning that this product
-     * is an option of the parent product)
-     *
-     * It will also check that the selected combination does not exactly
-     * match a manually archived product
-     *
      * @private
-     * @param {Element} parent the parent container to apply exclusions
-     * @param {Array} combination the selected combination of product attribute values
+     * @param {Element} parent
+     * @param {Array} combination
      */
     _checkExclusions(parent, combination) {
         const combinationDataJson = parent.querySelector(
@@ -159,17 +139,11 @@ const VariantMixin = {
                 li.dataset.excludedBy = "";
             }
         });
-        // exclusion rules: array of ptav
-        // for each of them, contains array with the other ptav they exclude
         if (combinationData.exclusions) {
-            // browse all the currently selected attributes
             Object.values(combination).forEach((current_ptav) => {
                 if (Object.hasOwn(combinationData.exclusions, current_ptav)) {
-                    // for each exclusion of the current attribute:
                     Object.values(combinationData.exclusions[current_ptav]).forEach(
                         (excluded_ptav) => {
-                            // disable the excluded input (even when not already selected)
-                            // to give a visual feedback before click
                             this._disableInput(
                                 parent,
                                 excluded_ptav,
@@ -181,17 +155,7 @@ const VariantMixin = {
                 }
             });
         }
-        // combination exclusions: array of array of ptav
-        // for example a product with 3 attributes of which 1 combination is unavailable (archived)
-        // requires the first 2 to be selected for the third to be grayed out
         if (combinationData.archived_combinations) {
-            // Compare like with like. `archived_combinations` holds the PTAVs of archived
-            // *variants*, so it never contains a `no_variant` selection, while
-            // `combination` is every `js_variant_change` input and does. Measuring one
-            // against the other makes both branches below unreachable the moment the
-            // template carries a `no_variant` attribute (engraving, gift message, any
-            // `multi` attribute): the archived value is then never greyed out, the
-            // shopper picks it, and "Add to cart" silently disables instead.
             const variantCombination =
                 wSaleUtils.getSelectedVariantAttributeValues(parent);
             combinationData.archived_combinations.forEach((excludedCombination) => {
@@ -202,7 +166,6 @@ const VariantMixin = {
                     variantCombination.length === excludedCombination.length &&
                     ptavCommon.length === variantCombination.length
                 ) {
-                    // Selected combination is archived, all attributes must be disabled from each other
                     variantCombination.forEach((ptav) => {
                         variantCombination.forEach((ptavOther) => {
                             if (ptav === ptavOther) {
@@ -220,7 +183,6 @@ const VariantMixin = {
                     variantCombination.length === excludedCombination.length &&
                     ptavCommon.length === variantCombination.length - 1
                 ) {
-                    // In this case we only need to disable the remaining ptav
                     const unavailablePtav = excludedCombination.find(
                         (ptav) => !variantCombination.includes(ptav),
                     );
@@ -241,8 +203,6 @@ const VariantMixin = {
     },
 
     /**
-     * Extracted to a method to be extendable by other modules
-     *
      * @param {Element} parent
      */
     _getProductId(parent) {
@@ -250,22 +210,12 @@ const VariantMixin = {
     },
 
     /**
-     * Will gray out the input/option that refers to the passed attributeValueId.
-     * This is used for showing the user that some combinations are not available.
-     *
-     * It will also display a message explaining why the input is not selectable.
-     * Based on the "excludedBy" and the "productName" params.
-     * e.g: Not available with Color: Black
-     *
      * @private
      * @param {Element} parent
      * @param {integer} attributeValueId
-     * @param {integer} excludedBy The attribute value that excludes this input
-     * @param {Object} attributeNames A dict containing all the names of the attribute values
-     *   to show a human readable message explaining why the input is grayed out.
-     * @param {string} [productName] The parent product. If provided, it will be appended before
-     *   the name of the attribute value that excludes this input
-     *   e.g: Not available with Customizable Desk (Color: Black)
+     * @param {integer} excludedBy
+     * @param {Object} attributeNames
+     * @param {string} [productName]
      */
     _disableInput(parent, attributeValueId, excludedBy, attributeNames, productName) {
         const input = parent.querySelector(
@@ -297,8 +247,6 @@ const VariantMixin = {
     },
 
     /**
-     * @see onChangeVariant
-     *
      * @private
      * @param {MouseEvent} ev
      * @param {Element} parent
@@ -332,10 +280,6 @@ const VariantMixin = {
             }
         }
 
-        // Triggers a new JS event with the correct payload, which is then handled
-        // by the google analytics tracking code.
-        // Indeed, every time another variant is selected, a new view_item event
-        // needs to be tracked by google analytics.
         if ("product_tracking_info" in combination) {
             const product = document.querySelector("#product_detail");
             product.dispatchEvent(
@@ -401,10 +345,6 @@ const VariantMixin = {
 
         this._toggleDisable(parent, isCombinationPossible);
 
-        // update images & tags only when changing product
-        // or when either ids are 'false', meaning dynamic products.
-        // Dynamic products don't have images BUT they may have invalid
-        // combinations that need to disable the image.
         if (!combination.no_product_change) {
             this._updateProductImage(
                 parent.closest("tr.js_product, .oe_website_sale"),
@@ -426,8 +366,6 @@ const VariantMixin = {
     },
 
     /**
-     * returns the formatted price
-     *
      * @private
      * @param {float} price
      * @param {integer} precision
@@ -447,23 +385,6 @@ const VariantMixin = {
     },
 
     /**
-     * Returns a throttled `_getCombinationInfo` with a leading and a trailing
-     * call, which is memoized per `uniqueId`, and for which previous results
-     * are dropped.
-     *
-     * The uniqueId is needed because on the configurator modal there might be
-     * multiple elements triggering the rpc at the same time, and we need each
-     * individual product rpc to be executed, but only once per individual
-     * product.
-     *
-     * The leading execution is to keep good reactivity on the first call, for
-     * a better user experience. The trailing is because ultimately only the
-     * information about the last selected combination is useful. All
-     * intermediary rpc can be ignored and are therefore best not done at all.
-     *
-     * The keepLast is to make sure we only consider the result of the last call, when several
-     * (asynchronous) calls are done in parallel.
-     *
      * @private
      * @param {string} uniqueId
      * @returns {function}

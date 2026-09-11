@@ -11,7 +11,6 @@ const CarouselSliderEdit = (I) =>
                 "t-on-content_changed": this.onContentChanged,
             },
         };
-        // Pause carousel in edit mode.
         carouselOptions = { ride: false, pause: true, keyboard: false };
         showClickableSlideLinks = false;
 

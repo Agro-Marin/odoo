@@ -9,6 +9,4 @@ export async function openCustomMenu(env, action) {
     }
 }
 
-// TODO we should probably have a more standard system for this
-// "website_custom_menus" feature.
 registry.category("actions").add("open_website_custom_menu", openCustomMenu);

@@ -6,11 +6,6 @@ import {
     registerWebsitePreviewTour,
 } from "@website/js/tours/tour_utils";
 
-// TODO: Remove following steps once fix of task-3212519 is done.
-// Those steps are preventing a race condition to happen in the meantime: when
-// the tour was clicking on the toggle to hide facebook in the next step, it
-// would actually "ignore" the result of the click on the toggle and would just
-// consider the action of focusing out the input.
 const socialRaceConditionClass = "social_media_race_condition";
 const preventRaceConditionStep = [
     {
@@ -18,7 +13,6 @@ const preventRaceConditionStep = [
     },
     {
         content: "Wait a few ms to avoid race condition",
-        // Ensure the class is remove from previous call of those steps
         trigger: ":iframe .s_social_media",
         run() {
             setTimeout(() => {
@@ -128,9 +122,7 @@ registerWebsitePreviewTour(
             trigger: ".o_social_media_list tr:eq(8) div[data-action-param='facebook']",
         },
         ...preventRaceConditionStep,
-        // Create a Link for which we don't have an icon to propose.
         ...addNewSocialNetwork(9, 8, "https://whatever.it/1EdSw9X"),
-        // Create a custom instagram link.
         ...addNewSocialNetwork(10, 9, "https://instagr.am/odoo.official/"),
         {
             content: "Check if the result is correct before removing",
@@ -147,7 +139,6 @@ registerWebsitePreviewTour(
                 ":has(a:eq(8)[href='https://whatever.it/1EdSw9X']:has(i.fa-pencil))" +
                 ":has(a:eq(9)[href='https://instagr.am/odoo.official/']:has(i.fa-instagram))",
         },
-        // Create a custom link, not officially supported, ensure icon is found.
         {
             content: "Change custom social to unsupported link",
             trigger: ".o_social_media_list tr:eq(7) input",
@@ -229,10 +220,7 @@ registerWebsitePreviewTour(
                 ":has(a:eq(8)[href='https://whatever.it/1EdSw9X']:has(i.fa-heart))" +
                 ":has(a:eq(9)[href='https://instagr.am/odoo.official/']:has(i.fa-instagram))",
         },
-        // Create a social network but replace its icon by an image before setting
-        // the link (`replaceIcon` parameter set to `true`).
         ...addNewSocialNetwork(10, 10, "https://google.com", true),
-        // Create a social network after replacing the first icon by an image.
         ...replaceIconByImage("/website/social/twitter"),
         ...addNewSocialNetwork(11, 11, "https://facebook.com"),
         {

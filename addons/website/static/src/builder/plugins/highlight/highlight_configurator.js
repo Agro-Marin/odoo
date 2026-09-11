@@ -59,7 +59,6 @@ export class HighlightConfigurator extends Component {
     }
 
     openHighlightPicker(withPrevious = true) {
-        // Picker's samples use the fs-3 class
         const fs3 = document.createElement("div");
         fs3.classList.add("fs-3");
         document.body.append(fs3);

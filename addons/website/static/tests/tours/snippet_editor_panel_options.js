@@ -41,7 +41,6 @@ registerWebsitePreviewTour(
             name: "Text - Image",
             groupName: "Content",
         }),
-        // Test keeping the text selection when using the width option.
         selectFullText(
             "first paragraph",
             ".s_text_image p:not([data-selection-placeholder])",
@@ -62,13 +61,10 @@ registerWebsitePreviewTour(
         checkIfParagraphSelected(
             ":iframe .s_text_image p:not([data-selection-placeholder])",
         ),
-        // Test the anchor option.
         {
             content: "Click on the anchor option",
             trigger: "[data-container-title='Text - Image'] .oe_snippet_anchor",
             async run(helpers) {
-                // Patch and ignore write on clipboard in tour as we don't have
-                // permissions.
                 browser.navigator.clipboard.writeText = () => {
                     console.info("Copy in clipboard ignored!");
                 };
@@ -79,13 +75,11 @@ registerWebsitePreviewTour(
             content: "Check the copied url from the notification toast",
             trigger: ".o_notification_manager .o_notification_content",
             run() {
-                // Cleanup the patched clipboard method
                 browser.navigator.clipboard.writeText = oldWriteText;
 
                 const { textContent } = this.anchor;
                 const url = textContent.substring(textContent.indexOf("/"));
 
-                // The url should not target the client action
                 if (url.startsWith("/@")) {
                     console.error("The anchor option should target the frontend");
                 }
@@ -101,8 +95,6 @@ registerWebsitePreviewTour(
                 }
             },
         },
-        // Test keeping the text selection when adding columns to a snippet with
-        // none.
         goBackToBlocks(),
         ...insertSnippet({
             id: "s_text_block",
@@ -113,7 +105,6 @@ registerWebsitePreviewTour(
             content: "Wait for the Scroll to finish",
             trigger: ":iframe .s_text_block",
             run: async function () {
-                // Default scroll duration is 600ms
                 await delay(610);
             },
         },
@@ -144,8 +135,6 @@ registerWebsitePreviewTour(
         checkIfParagraphSelected(
             ":iframe .s_text_block p:not([data-selection-placeholder])",
         ),
-        // Test keeping the text selection when removing all columns of a
-        // snippet.
         ...changeOptionInPopover("Text", "Layout", "[data-action-value='0']"),
         {
             content: "The snippet should have the correct number of columns.",
@@ -154,7 +143,6 @@ registerWebsitePreviewTour(
         checkIfParagraphSelected(
             ":iframe .s_text_block p:not([data-selection-placeholder])",
         ),
-        // Test keeping the text selection when toggling the grid mode.
         changeOption("Text", "[data-action-id='setGridLayout']"),
         {
             content: "The snippet row should have the grid mode class.",
@@ -163,7 +151,6 @@ registerWebsitePreviewTour(
         checkIfParagraphSelected(
             ":iframe .s_text_block p:not([data-selection-placeholder])",
         ),
-        // Test keeping the text selection when toggling back the column mode.
         changeOption("Text", "[data-action-id='setColumnLayout']"),
         {
             content: "The snippet row should not have the grid mode class anymore.",

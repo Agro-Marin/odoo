@@ -102,10 +102,8 @@ export class BoothRegistration extends Interaction {
     }
 
     /**
-     * Check if the confirmation form is valid by testing each of its inputs
-     *
      * @param formEl
-     * @return {boolean} - true if no errors else false
+     * @return {boolean}
      */
     checkConfirmationForm(formEl) {
         const formControlEls = formEl.querySelectorAll(".form-control");
@@ -135,9 +133,6 @@ export class BoothRegistration extends Interaction {
     }
 
     /**
-     * Display the errors with a custom message when confirming
-     * the registration if there is any.
-     *
      * @param errors
      */
     updateErrorDisplay(errors) {
@@ -169,13 +164,6 @@ export class BoothRegistration extends Interaction {
         errorMessageEl.dispatchEvent(new Event("change"));
     }
 
-    /**
-     * Load all the booths related to the activeBoothCategoryId booth category and
-     * add them to a local dictionary to avoid making rpc each time the
-     * user change the booth category.
-     *
-     * Then the selection input will be filled with the fetched booth values.
-     */
     async updateAvailableBoothsUI() {
         if (this.boothCache[this.activeBoothCategoryId] === undefined) {
             const data = await this.waitFor(

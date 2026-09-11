@@ -29,8 +29,6 @@ class EmbedCodeOptionPlugin extends Plugin {
     };
 
     cleanForSave({ root }) {
-        // Saving Embed Code snippets with <script> in the database, as these
-        // elements are removed in edit mode.
         for (const embedCodeEl of root.querySelectorAll(".s_embed_code")) {
             const embedTemplateEl = embedCodeEl.querySelector(".s_embed_code_saved");
             if (embedTemplateEl) {
@@ -66,9 +64,6 @@ export class EditCodeAction extends BuilderAction {
         if (!content) {
             return;
         }
-        // Remove scripts tags from the DOM as we don't want them to
-        // interfere during edition, but keeps them in a
-        // `<template>` that will be saved to the database.
         this.getTemplateEl(editingElement).content.replaceChildren(
             cloneContentEls(content, true),
         );

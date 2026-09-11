@@ -81,8 +81,6 @@ registerWebsitePreviewTour(
             trigger: ":iframe .s_cover:not(:has(.o_text_highlight))",
         },
         {
-            // On muti-line text, the highlight effect is added on every
-            // detected line (using the `.o_text_highlight_item` span).
             content: "Update and select the snippet paragraph content",
             trigger: ":iframe .s_cover p",
             run() {
@@ -100,7 +98,6 @@ registerWebsitePreviewTour(
                 );
                 const editor = editorsWeakMap.get(this.anchor.ownerDocument);
                 editor.shared.history.addStep();
-                // Select the whole content.
                 const range = iframeDOC.createRange();
                 const selection = iframeDOC.getSelection();
                 range.selectNodeContents(this.anchor);

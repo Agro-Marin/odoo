@@ -66,7 +66,6 @@ export class ListingLayoutAction extends BuilderAction {
             layout_mode: value,
             view_id: el.dataset.viewId,
         };
-        // Save the default layout display, and set the layout for the current user
         await Promise.all([
             this.services.orm.write("website.controller.page", this.resIds, {
                 default_layout: value,

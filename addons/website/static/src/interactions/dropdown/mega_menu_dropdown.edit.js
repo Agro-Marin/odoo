@@ -13,7 +13,6 @@ const MegaMenuDropdownEdit = (I) =>
                     const toggleEl = ev.currentTarget;
                     const megaMenuEl =
                         toggleEl.parentElement.querySelector(".o_mega_menu");
-                    // Activate the mega menu options when shown.
                     if (!megaMenuEl || !megaMenuEl.classList.contains("show")) {
                         this.websiteEditService.callShared(
                             "builderOptions",
@@ -34,7 +33,6 @@ const MegaMenuDropdownEdit = (I) =>
             super.setup();
             this.websiteEditService = this.services.website_edit;
 
-            // Hide all the open mega menus when destroying the interaction.
             this.registerCleanup(() => {
                 const megaMenuToggleEls = this.el.querySelectorAll(
                     ".o_mega_menu_toggle.show",

@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- FORUM MENUS -->
         <menuitem
             id="menu_website_forum_global"
             name="Forum"
@@ -39,7 +38,6 @@
             parent="menu_website_forum_global"
             action="forum_post_reason_action"
             sequence="50" />
-        <!-- WEBSITE MENUS -->
         <menuitem
             id="menu_forum_post_pages"
             name="Forum Posts"

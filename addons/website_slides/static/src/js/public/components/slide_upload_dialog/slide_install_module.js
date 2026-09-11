@@ -18,7 +18,7 @@ export class SlideInstallModule extends Component {
     setup() {
         this.orm = useService("orm");
         this.state = useState({
-            status: "start", // "failure", "installing"
+            status: "start",
             message: _t('Do you want to install "%s"?', this.props.moduleData.name),
         });
     }

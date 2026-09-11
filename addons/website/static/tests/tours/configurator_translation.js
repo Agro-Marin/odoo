@@ -5,13 +5,11 @@ import { clickOnEditAndWaitEditMode } from "@website/js/tours/tour_utils";
 
 function runConfiguratorFlow(industrySearchText, featureOrPageName) {
     return [
-        // Configurator first screen
         {
             content: "Click next",
             trigger: "button.o_configurator_show",
             run: "click",
         },
-        // Make sure "Back" works
         {
             content: "Use browser's Back",
             trigger: "button.o_change_website_type",
@@ -24,7 +22,6 @@ function runConfiguratorFlow(industrySearchText, featureOrPageName) {
             trigger: "button.o_configurator_show",
             run: "click",
         },
-        // Description screen
         {
             content: "Select a website type",
             trigger: "button.o_change_website_type",
@@ -45,13 +42,11 @@ function runConfiguratorFlow(industrySearchText, featureOrPageName) {
             trigger: "button.o_change_website_purpose",
             run: "click",
         },
-        // Palette screen
         {
             content: "Choose a palette card",
             trigger: ".palette_card",
             run: "click",
         },
-        // Features screen
         {
             content: "Select feature or page",
             trigger: `.card:contains(${featureOrPageName})`,
@@ -94,9 +89,6 @@ registry.category("web_tour.tours").add("configurator_translation", {
         },
         ...clickOnEditAndWaitEditMode(),
         {
-            // Check the content of the save button to make sure the website is
-            // in Parseltongue. (The editor should be in the website's default
-            // language, which should be parseltongue in this test.)
             content: "exit edit mode",
             trigger:
                 ".o-snippets-top-actions button.btn-success:contains('Save_Parseltongue')",
@@ -113,7 +105,6 @@ registry.category("web_tour.tours").add("configurator_page_creation", {
     url: "/website/configurator",
     steps: () => [
         ...runConfiguratorFlow("abbey", "Pricing"),
-        // Verify configurator page templates exist in landing pages category.
         {
             content: "Open create content menu",
             trigger: ".o_new_content_container button",

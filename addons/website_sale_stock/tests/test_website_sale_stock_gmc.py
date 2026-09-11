@@ -31,13 +31,10 @@ class TestWebsiteSaleStockGMC(WebsiteSaleGMCCommon):
 
         self.assertEqual("in_stock", self.blue_sofa_item["availability"])
         self.assertEqual("out_of_stock", self.items[self.blanket]["availability"])
-        self.assertEqual(
-            "in_stock", self.red_sofa_item["availability"]
-        )  # allow_out_of_stock_order
+        self.assertEqual("in_stock", self.red_sofa_item["availability"])
 
     def test_gmc_items_keep_website_stock_separate(self):
         self.blue_sofa.allow_out_of_stock_order = False
-        # setup second website with seperate stock
         warehouse2 = self.env["stock.warehouse"].create(
             {"name": "Stock 2", "code": "WH2"}
         )

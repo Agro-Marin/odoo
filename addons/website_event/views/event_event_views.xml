@@ -55,7 +55,6 @@
                 <div name="event_menu_configuration" groups="base.group_no_one">
                     <label for="website_menu" string="Website Submenu" class="me-1" />
                     <field name="website_menu" class="me-3" />
-                    <!-- hidden sub-menus, they are triggered all at once based on "website_menu" -->
                     <field name="introduction_menu" invisible="1" />
                     <field name="register_menu" invisible="1" />
                     <label

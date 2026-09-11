@@ -4,7 +4,6 @@ import * as tourUtils from "@website_sale/js/tours/tour_utils";
 registry.category("web_tour.tours").add("shop_sale_gift_card", {
     url: "/shop",
     steps: () => [
-        // Add a small drawer to the order (50$)
         ...tourUtils.addToCart({
             productName: "TEST - Small Drawer",
             expectUnloadPage: true,

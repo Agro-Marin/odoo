@@ -34,9 +34,6 @@ export class TextHighlight extends Interaction {
     destroy() {
         this.resizeObserver.disconnect();
         this.mutationObserver.disconnect();
-        // The SVGs are inserted with removeOnClean=false (see _updateEntries) to
-        // avoid piling up one never-pruned cleanup per SVG per update cycle on
-        // this page-lifetime interaction; clean them all here in one pass.
         for (const svg of this.el.querySelectorAll(".o_text_highlight_svg")) {
             svg.remove();
         }
@@ -71,10 +68,6 @@ export class TextHighlight extends Interaction {
                 }
                 const svgs = makeHighlightSvgs(el, highlightID);
                 for (const svg of svgs) {
-                    // removeOnClean=false: these SVGs are already explicitly
-                    // removed above on the next cycle and in destroy(); letting
-                    // insert() register a per-SVG cleanup leaks (the colibri
-                    // cleanups array is append-only until teardown).
                     this.insert(svg, el, "beforeend", false);
                     adaptHighlightPosition(el, svg);
                 }
@@ -82,8 +75,6 @@ export class TextHighlight extends Interaction {
         }
     }
     /**
-     * TODO: Remove in master (left in stable for compatibility)
-     *
      * @param {HTMLElement} el
      */
     closestToObserve(el) {
@@ -91,8 +82,6 @@ export class TextHighlight extends Interaction {
     }
 
     /**
-     * TODO: Remove in master (left in stable for compatibility)
-     *
      * @param {HTMLElement} el
      */
     getObservedEls(el) {
@@ -103,10 +92,6 @@ export class TextHighlight extends Interaction {
      * @param {HTMLElement} el
      */
     handleEl(el) {
-        // The `ResizeObserver` cannot detect the width change on highlight
-        // units (`.o_text_highlight_item`) as long as the width of the entire
-        // `.o_text_highlight` element remains the same, so we need to observe
-        // each one of them and do the adjustment only once for the whole text.
         for (const elToObserve of this.getObservedEls(el)) {
             this.resizeObserver.observe(elToObserve);
         }
@@ -126,8 +111,6 @@ export class TextHighlight extends Interaction {
      * @param {HTMLElement} el
      */
     onTextHighlightAdded(el) {
-        // todo: what was the purpose of this?
-        // this.lockTextHighlightObserver(el);
         this.handleEl(el);
     }
 }

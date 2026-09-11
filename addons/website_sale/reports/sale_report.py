@@ -12,7 +12,6 @@ class SaleReport(models.Model):
     )
 
     def _get_fields_select(self):
-        """Add website_id and is_abandoned_cart to SELECT fields."""
         fields = super()._get_fields_select()
         fields["website_id"] = "o.website_id"
         fields["is_abandoned_cart"] = f"""
@@ -23,13 +22,11 @@ class SaleReport(models.Model):
         return fields
 
     def _get_from_tables(self):
-        """Add website table JOIN to FROM clause."""
         tables = super()._get_from_tables()
         tables.append(("website", "w", "LEFT JOIN", "w.id = o.website_id"))
         return tables
 
     def _get_fields_group_by(self):
-        """Add website_id and cart_abandoned_delay to GROUP BY fields."""
         fields = super()._get_fields_group_by()
         fields.extend(
             [

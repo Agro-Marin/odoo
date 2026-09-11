@@ -25,7 +25,6 @@ registerWebsitePreviewTour(
 registry.category("web_tour.tours").add("donation_snippet_use", {
     url: "/",
     steps: () => [
-        // -- Testing the minimum amount --
         {
             content:
                 "Enter a custom amount smaller than the minimum, testing the minimum amount",
@@ -41,7 +40,6 @@ registry.category("web_tour.tours").add("donation_snippet_use", {
             content: "Check if alert-danger element exists",
             trigger: "p.alert-danger",
         },
-        // -- End of testing the minimum amount --
         {
             content: "Enter a custom amount",
             trigger: "#s_donation_amount_input",

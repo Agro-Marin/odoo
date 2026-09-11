@@ -7,9 +7,6 @@ import { SIZES, utils as uiUtils } from "@web/ui/viewport";
 export class BaseHeader extends Interaction {
     dynamicContent = {
         _document: {
-            // rAF-throttled: scroll fires many times per frame and every header
-            // variant's onScroll reads layout (header_standard even clones the
-            // header + reads offsetHeight); coalesce to one run per frame.
             "t-on-scroll": this.throttled(this.onScroll),
         },
         _window: {
@@ -36,17 +33,11 @@ export class BaseHeader extends Interaction {
             "t-on-show.bs.offcanvas": this.disableScroll,
             "t-on-hide.bs.offcanvas": this.enableScroll,
         },
-        // Compatibility: can probably be removed, there is no such elements in
-        // default navbars... although it could be used by custo.
         ".navbar-collapse": {
             "t-on-show.bs.collapse": this.disableScroll,
             "t-on-hide.bs.collapse": this.enableScroll,
         },
     };
-
-    //--------------------------------------------------------------
-    // Life Cycle
-    //--------------------------------------------------------------
 
     setup() {
         this.topGap = 0;
@@ -96,10 +87,6 @@ export class BaseHeader extends Interaction {
         return uiUtils.getSize() < this.breakpointSize;
     }
 
-    //--------------------------------------------------------------
-    // Event Handlers
-    //--------------------------------------------------------------
-
     disableScroll() {
         if (this.isSmall()) {
             this.bodyNoScroll = true;
@@ -117,8 +104,6 @@ export class BaseHeader extends Interaction {
             for (const offCanvasEl of offCanvasEls) {
                 Offcanvas.getOrCreateInstance(offCanvasEl).hide();
             }
-            // Compatibility: can probably be removed, there is no such elements in
-            // default navbars... although it could be used by custo.
             const collapseEls = this.el.querySelectorAll(".navbar-collapse.show");
             for (const collapseEl of collapseEls) {
                 Collapse.getOrCreateInstance(collapseEl).hide();
@@ -131,7 +116,6 @@ export class BaseHeader extends Interaction {
     onScroll() {
         const scroll = this.scrollingElement.scrollTop;
 
-        // Disable css transition if refresh with scrollTop > 0
         if (!this.hasScrolled) {
             this.hasScrolled = true;
             if (scroll > 0) {
@@ -151,10 +135,6 @@ export class BaseHeader extends Interaction {
         }
     }
 
-    //--------------------------------------------------------------
-    // Animation Handlers
-    //--------------------------------------------------------------
-
     adaptToHeaderChange() {
         this.services.website_menus.triggerCallbacks();
         this.adjustMainPadding();
@@ -167,14 +147,10 @@ export class BaseHeader extends Interaction {
         this.adaptToHeaderChange();
         this.transitionCount = Math.max(0, this.transitionCount + addCount);
 
-        // As long as we detected a transition start without its related
-        // transition end, keep updating the main padding top.
         if (this.transitionCount > 0) {
             this.el.classList.add("o_transitioning");
             this.waitForAnimationFrame(() => this.adaptToHeaderChangeLoop());
 
-            // The normal case would be to have the transitionend event to be
-            // fired but we cannot rely on it, so we use a timeout as fallback.
             if (addCount !== 0) {
                 clearTimeout(this.changeLoopTimer);
                 this.changeLoopTimer = this.waitForTimeout(
@@ -183,16 +159,10 @@ export class BaseHeader extends Interaction {
                 );
             }
         } else {
-            // When we detected all transitionend events, we need to stop the
-            // setTimeout fallback.
             this.el.classList.remove("o_transitioning");
             clearTimeout(this.changeLoopTimer);
         }
     }
-
-    //--------------------------------------------------------------
-    // Animation Trigger
-    //--------------------------------------------------------------
 
     transformShow() {
         this.isVisible = true;
@@ -208,13 +178,7 @@ export class BaseHeader extends Interaction {
         this.adaptToHeaderChangeLoop(1);
     }
 
-    //--------------------------------------------------------------
-    // Change Handlers
-    //--------------------------------------------------------------
-
     adjustPosition() {
-        // When the url contains #aRandomSection, prevent the navbar to overlap
-        // on the section, for this, we scroll as many px as the navbar height.
         this.scrollingElement.scrollBy(0, -this.el.offsetHeight);
     }
 
@@ -231,10 +195,6 @@ export class BaseHeader extends Interaction {
             this.cssAffixed ? this.getHeaderHeight() + "px" : "",
         );
     }
-
-    //--------------------------------------------------------------
-    // Utils
-    //--------------------------------------------------------------
 
     getHeaderHeight() {
         return this.el.getBoundingClientRect().height;

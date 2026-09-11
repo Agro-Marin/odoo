@@ -35,7 +35,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         )
 
     def test_visitor_banner_history(self):
-        # create visitor history
         self.env["website.track"].create(
             [
                 {
@@ -82,7 +81,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         self.assertEqual(history, handmade_history)
 
     def test_livechat_username(self):
-        # Open a new live chat
         res = self.url_open(url=self.open_chat_url, json=self.open_chat_params)
         self.assertEqual(res.status_code, 200)
         channel_1 = self.env["discuss.channel"].search(
@@ -93,7 +91,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             limit=1,
         )
 
-        # Check Channel naming
         self.assertEqual(
             channel_1.name,
             "%s %s"
@@ -104,16 +101,10 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         )
         channel_1.unlink()
 
-        # Remove livechat_username
         self.operator.livechat_username = False
 
-        # This fixes an issue in the controller, possibly related to the testing
-        # environment.  The business code unexpectedly uses two cache objects
-        # (env.cache), which triggers cache misses: a field is computed with its
-        # value stored into one cache and retrieved from another cache :-/
         self.operator.name
 
-        # Open a new live chat
         res = self.url_open(url=self.open_chat_url, json=self.open_chat_params)
         self.assertEqual(res.status_code, 200)
         channel_2 = self.env["discuss.channel"].search(
@@ -124,7 +115,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             limit=1,
         )
 
-        # Check Channel naming
         self.assertEqual(
             channel_2.name,
             "%s %s"
@@ -157,7 +147,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
     def test_basic_flow_without_rating(self):
         channel = self._common_basic_flow()
 
-        # left the conversation
         channel._close_livechat_session()
         self.assertEqual(len(channel.message_ids), 3)
         self.assertEqual(
@@ -177,7 +166,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         channel = self._common_basic_flow()
         self.authenticate(self.operator.login, "ideboulonate")
 
-        # Retrieve channels information, visitor info should be there
         init_messaging = self.call_jsonrpc(
             f"{self.livechat_base_url}/mail/data",
             {"fetch_params": ["channels_as_member"]},
@@ -187,7 +175,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         )
         self.assertIn("livechat_visitor_id", livechat_info)
 
-        # Remove access to visitors and try again, visitors info shouldn't be included
         self.operator.group_ids -= self.group_livechat_user
         init_messaging = self.call_jsonrpc(
             f"{self.livechat_base_url}/mail/data",
@@ -199,7 +186,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         self.assertNotIn("livechat_visitor_id", livechat_info)
 
     def _common_basic_flow(self):
-        # Open a new live chat
         res = self.url_open(url=self.open_chat_url, json=self.open_chat_params)
         self.assertEqual(res.status_code, 200)
 
@@ -211,7 +197,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             limit=1,
         )
 
-        # Check Channel and Visitor naming
         self.assertEqual(
             self.visitor.display_name,
             "%s #%s" % (_("Website Visitor"), self.visitor.id),
@@ -225,7 +210,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             ),
         )
 
-        # Post Message from visitor
         self._send_message(channel, self.visitor.display_name, "Message from Visitor")
 
         self.assertEqual(len(channel.message_ids), 1)
@@ -245,7 +229,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
             "The livechat session must be active as the visitor did not left the conversation yet.",
         )
 
-        # Post message from operator
         self._send_message(
             channel,
             self.operator.email,
@@ -542,8 +525,6 @@ class TestLivechatBasicFlowHttpCase(HttpCaseWithUserDemo, TestLivechatCommon):
         self.assertEqual(result["Store"]["livechat_available"], False)
 
     def test_livechat_visitor_to_store(self):
-        """Test livechat_visitor_id is sent with livechat channels data even when there is no
-        visitor."""
         self.target_visitor = None
         channel_data = self.call_jsonrpc(
             "/im_livechat/get_session",

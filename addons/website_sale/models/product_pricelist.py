@@ -7,10 +7,7 @@ from odoo.addons.website.models import ir_http
 class ProductPricelist(models.Model):
     _inherit = "product.pricelist"
 
-    # === DEFAULT METHODS ===#
-
     def _default_website_id(self):
-        """Find the first company's website, if there is one."""
         company_id = self.env.company.id
 
         if self.env.context.get("default_company_id"):
@@ -18,8 +15,6 @@ class ProductPricelist(models.Model):
 
         domain = [("company_id", "=", company_id)]
         return self.env["website"].search(domain, limit=1)
-
-    # === FIELDS ===#
 
     website_id = fields.Many2one(
         string="Website",
@@ -35,14 +30,8 @@ class ProductPricelist(models.Model):
     code = fields.Char(string="E-commerce Promotional Code", groups="base.group_user")
     selectable = fields.Boolean(help="Allow the end user to choose this price list")
 
-    # === CONSTRAINT METHODS ===#
-
     @api.constrains("company_id", "website_id")
     def _check_websites_in_company(self):
-        """Prevent misconfiguration multi-website/multi-companies.
-
-        If the record has a company, the website should be from that company.
-        """
         for record in self.filtered(lambda pl: pl.website_id and pl.company_id):
             if record.website_id.company_id != record.company_id:
                 raise ValidationError(
@@ -52,17 +41,10 @@ class ProductPricelist(models.Model):
                     )
                 )
 
-    # === CRUD METHODS ===#
-
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get("company_id") and not vals.get("website_id"):
-                # l10n modules install will change the company currency, creating a
-                # pricelist for that currency. Do not use user's company in that
-                # case as module install are done with OdooBot (company 1)
-                # YTI FIXME: The fix is not at the correct place
-                # It be set when we actually create the pricelist
                 self = self.with_context(default_company_id=vals["company_id"])
         pricelists = super().create(vals_list)
         if pricelists:
@@ -79,8 +61,6 @@ class ProductPricelist(models.Model):
         self and self.env.registry.clear_cache()
         return res
 
-    # === BUSINESS METHODS ===#
-
     def _get_domain_partner_pricelist_multi_search(self, company_id):
         domain = super()._get_domain_partner_pricelist_multi_search(company_id)
         website = ir_http.get_request_website()
@@ -96,17 +76,6 @@ class ProductPricelist(models.Model):
         return res
 
     def _is_available_on_website(self, website):
-        """To be able to be used on a website, a pricelist should either:
-        - Have its `website_id` set to current website (specific pricelist).
-        - Have no `website_id` set and should be `selectable` (generic pricelist)
-          or should have a `code` (generic promotion).
-        - Have no `company_id` or a `company_id` matching its website one.
-
-        Note: A pricelist without a website_id, not selectable and without a
-              code is a backend pricelist.
-
-        Change in this method should be reflected in `_get_domain_website_pricelists`.
-        """
         self.check_singleton()
         if self.company_id and self.company_id != website.company_id:
             return False
@@ -121,9 +90,6 @@ class ProductPricelist(models.Model):
         return country_code in self.country_group_ids.country_ids.mapped("code")
 
     def _get_domain_website_pricelists(self, website):
-        """Check above `_is_available_on_website` for explanation.
-        Change in this method should be reflected in `_is_available_on_website`.
-        """
         return [
             ("active", "=", True),
             ("company_id", "in", [False, website.company_id.id]),

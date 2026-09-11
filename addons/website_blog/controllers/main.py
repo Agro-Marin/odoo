@@ -16,11 +16,11 @@ _lt = LazyTranslate(__name__)
 
 
 class WebsiteBlog(http.Controller):
-    _blog_post_per_page = 12  # multiple of 2,3,4
+    _blog_post_per_page = 12
     _post_comment_per_page = 10
 
     def tags_list(self, tag_ids, current_tag):
-        tag_ids = list(tag_ids)  # required to avoid using the same list
+        tag_ids = list(tag_ids)
         if current_tag in tag_ids:
             tag_ids.remove(current_tag)
         else:
@@ -92,11 +92,9 @@ class WebsiteBlog(http.Controller):
         search=None,
         **post,
     ):
-        """Prepare all values to display the blogs index page or one specific blog"""
         BlogPost = request.env["blog.post"]
         BlogTag = request.env["blog.tag"]
 
-        # prepare domain
         domain = request.website.website_domain()
 
         if blog:
@@ -122,7 +120,7 @@ class WebsiteBlog(http.Controller):
                     (fixed_tag_slug and "/tag/%s" % fixed_tag_slug) or "",
                     1,
                 )
-                if new_url != path:  # check that really replaced and avoid loop
+                if new_url != path:
                     return request.redirect(new_url, 301)
             domain &= Domain("tag_ids", "in", active_tags.ids)
 
@@ -209,8 +207,7 @@ class WebsiteBlog(http.Controller):
             )
         )
         nav_list = tools.lazy(lambda: self.nav_list(blog))
-        # and avoid accessing related blogs one by one
-        _ = posts.blog_id  # prefetch blog_id for the whole recordset in one query
+        _ = posts.blog_id
 
         return {
             "date_begin": date_begin,
@@ -271,7 +268,6 @@ class WebsiteBlog(http.Controller):
         date_begin, date_end = opt.get("date_begin"), opt.get("date_end")
 
         if tag and request.httprequest.method == "GET":
-            # redirect get tag-1,tag-2 -> get tag-1
             tags = tag.split(",")
             if len(tags) > 1:
                 url = QueryURL(
@@ -289,7 +285,6 @@ class WebsiteBlog(http.Controller):
             blogs=blogs, blog=blog, tags=tag, page=page, search=search, **opt
         )
 
-        # in case of a redirection need by `_prepare_blog_values` we follow it
         if isinstance(values, werkzeug.wrappers.Response):
             return values
 
@@ -340,7 +335,6 @@ class WebsiteBlog(http.Controller):
         sitemap=False,
     )
     def old_blog_post(self, blog, blog_post, **post):
-        # Compatibility pre-v14
         return request.redirect(
             "/blog/%s/%s"
             % (
@@ -362,19 +356,6 @@ class WebsiteBlog(http.Controller):
     def blog_post(
         self, blog, blog_post, tag_id=None, page=1, enable_editor=None, **post
     ):
-        """Prepare all values to display the blog.
-
-        :return dict values: values for the templates, containing
-
-         - 'blog_post': browse of the current post
-         - 'blog': browse of the current blog
-         - 'blogs': list of browse records of blogs
-         - 'tag': current tag, if tag_id in parameters
-         - 'tags': all tags, for tag-based navigation
-         - 'pager': a pager on the comments
-         - 'nav_list': a dict [year][month] for archives navigation
-         - 'next_post': next blog post, to direct the user towards the next interesting post
-        """
         BlogPost = request.env["blog.post"]
         date_begin, date_end = post.get("date_begin"), post.get("date_end")
 
@@ -405,7 +386,6 @@ class WebsiteBlog(http.Controller):
 
         tags = request.env["blog.tag"].search([])
 
-        # Find next Post
         blog_post_domain = [("blog_id", "=", blog.id)]
         if not request.env.user.has_group("website.group_website_designer"):
             blog_post_domain += [("post_date", "<=", fields.Datetime.now())]
@@ -417,7 +397,6 @@ class WebsiteBlog(http.Controller):
                 "/blog/%s" % (request.env["ir.http"]._slug(blog_post.blog_id))
             )
 
-        # should always return at least the current post
         all_post_ids = all_post.ids
         current_blog_post_index = all_post_ids.index(blog_post.id)
         nb_posts = len(all_post_ids)

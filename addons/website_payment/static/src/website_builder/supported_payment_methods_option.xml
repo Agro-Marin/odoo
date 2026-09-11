@@ -12,7 +12,6 @@
             />
         </BuilderRow>
         <BuilderRow label.translate="Height">
-            <!-- The `image` field on payment methods is max 64px tall. -->
             <BuilderRange
                 min="16"
                 max="64"

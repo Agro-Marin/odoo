@@ -15,15 +15,11 @@ class SlideChannel(models.Model):
     _inherit = "slide.channel"
 
     members_certified_count = fields.Integer(
-        "# Certified Attendees", compute="_compute_members_certified_count"
+        "# Certified Attendees",
+        compute="_compute_members_certified_count",
     )
 
     def _remove_membership(self, partner_ids):
-        """Remove the relationship between the user_input and the slide_partner_id.
-
-        Removing the relationship between the user_input from the slide_partner_id allows to keep
-        track of the current pool of attempts allowed since the user (last) joined
-        the course, as only those will have a slide_partner_id."""
         if self:
             removed_channel_partner_domain = Domain.OR(
                 Domain("partner_id", "in", partner_ids)

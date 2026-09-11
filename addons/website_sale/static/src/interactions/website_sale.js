@@ -59,18 +59,15 @@ export class WebsiteSale extends Interaction {
     start() {
         this._applySearch();
 
-        // This has to be triggered to compute the "out of stock" feature and the hash variant changes
         this.triggerVariantChange(this.el);
 
         this._startZoom();
 
-        // Triggered when selecting a variant of a product in a carousel element
         window.addEventListener("hashchange", () => {
             this._applySearch();
             this.triggerVariantChange(this.el);
         });
 
-        // This allows conditional styling for the filmstrip
         const filmstripContainer = this.el.querySelector(
             "#o_wsale_categories_filmstrip",
         );
@@ -129,7 +126,6 @@ export class WebsiteSale extends Interaction {
         let params = new URLSearchParams(window.location.search);
         let attributeValues = params.get("attribute_values");
         if (!attributeValues) {
-            // TODO remove in 20 (or later): hash support of attribute values
             params = new URLSearchParams(window.location.hash.substring(1));
             attributeValues = params.get("attribute_values");
         }
@@ -158,9 +154,6 @@ export class WebsiteSale extends Interaction {
         }
     }
 
-    /**
-     * Sets the url hash from the selected product options.
-     */
     _setUrlHash() {
         const inputs = document.querySelectorAll(
             "input.js_variant_change:checked, select.js_variant_change option:checked",
@@ -172,7 +165,6 @@ export class WebsiteSale extends Interaction {
         if (attributeIds.length > 0) {
             const params = new URLSearchParams(window.location.search);
             params.set("attribute_values", attributeIds.join(","));
-            // Avoid adding new entries in session history by replacing the current one
             history.replaceState(
                 null,
                 "",
@@ -182,9 +174,7 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * Set the checked values active.
-     *
-     * @param {String} selector - The selector matching the attributes to change.
+     * @param {String} selector
      */
     _changeAttribute(selector) {
         this.el.querySelectorAll(selector).forEach((el) => {
@@ -221,9 +211,7 @@ export class WebsiteSale extends Interaction {
         }
         this._cleanupZoom();
         this.zoomCleanup = [];
-        // Zoom on click
         if (salePage.dataset.ecomZoomClick) {
-            // In this case we want all the images not just the ones that are "zoomables"
             const images = this.el.querySelectorAll(".product_detail_img");
             for (const [idx, image] of images.entries()) {
                 const handler = () => {
@@ -251,25 +239,17 @@ export class WebsiteSale extends Interaction {
         this.zoomCleanup = undefined;
     }
 
-    /**
-     * On website, we display a carousel instead of only one image
-     */
     _updateProductImage(productContainer, newImages) {
         let images = productContainer.querySelector(
             this._getProductImageContainerSelector(),
         );
-        // When using the web editor, don't reload this or the images won't
-        // be able to be edited depending on if this is done loading before
-        // or after the editor is ready.
         if (images && !this._isEditorEnabled() && newImages) {
             images.insertAdjacentHTML("beforebegin", markup(newImages));
             images.remove();
 
-            // Re-query the latest images.
             images = productContainer.querySelector(
                 this._getProductImageContainerSelector(),
             );
-            // Update the sharable image (only work for Pinterest).
             const shareImageSrc = images.querySelector("img").src;
             document
                 .querySelector('meta[property="og:image"]')
@@ -318,8 +298,6 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * Event handler to increase or decrease quantity from the product page.
-     *
      * @param {MouseEvent} ev
      */
     onChangeQuantity(ev) {
@@ -333,14 +311,11 @@ export class WebsiteSale extends Interaction {
 
         if (newQty !== previousQty) {
             input.value = newQty;
-            // Trigger `onChangeAddQuantity`.
             input.dispatchEvent(new Event("change", { bubbles: true }));
         }
     }
 
     /**
-     * Search attribute values based on the input text.
-     *
      * @param {Event} ev
      */
     searchAttributeValues(ev) {
@@ -358,8 +333,6 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * Toggle the button text between "View More" and "View Less"
-     *
      * @param {MouseEvent} ev
      */
     onToggleViewMoreLabel(ev) {
@@ -370,9 +343,6 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * When the quantity is changed, we need to query the new price of the product.
-     * Based on the pricelist, the price might change when quantity exceeds a certain amount.
-     *
      * @param {MouseEvent} ev
      */
     onChangeAddQuantity(ev) {
@@ -397,7 +367,6 @@ export class WebsiteSale extends Interaction {
         for (const filter of filters) {
             if (filter.value) {
                 if (filter.name === "attribute_value") {
-                    // Group attribute value ids by attribute id.
                     const [attributeId, attributeValueId] = filter.value.split("-");
                     const valueIds = attributeValues.get(attributeId) ?? new Set();
                     valueIds.add(attributeValueId);
@@ -409,15 +378,12 @@ export class WebsiteSale extends Interaction {
         }
         const url = new URL(form.action);
         const searchParams = url.searchParams;
-        // Aggregate all attribute values belonging to the same attribute into a single
-        // `attribute_values` search param.
         for (const entry of attributeValues.entries()) {
             searchParams.append(
                 "attribute_values",
                 `${entry[0]}-${[...entry[1]].join(",")}`,
             );
         }
-        // Aggregate all tags into a single `tags` search param.
         if (tags.size) {
             searchParams.set("tags", [...tags].join(","));
         }
@@ -444,9 +410,6 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * Toggles the disabled class on the parent element and the "add to cart" and "buy now" buttons
-     * depending on whether the current combination is possible.
-     *
      * @param {Element} parent
      * @param {boolean} isCombinationPossible
      */
@@ -461,20 +424,9 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * When the variant is changed, this method will recompute:
-     * - Whether the selected combination is possible,
-     * - The extra price, if applicable,
-     * - The total price,
-     * - The display name of the product (e.g. "Customizable desk (White, Steel)"),
-     * - Whether a "custom value" input should be shown,
-     *
-     * "Custom value" changes are ignored since they don't change the combination.
-     *
      * @param {MouseEvent} ev
      */
     onChangeVariant(ev) {
-        // Write the properties of the form elements in the DOM to prevent the current selection
-        // from being lost when activating the web editor.
         const parent = ev.currentTarget.closest(".js_product");
         parent
             .querySelectorAll("input")
@@ -505,19 +457,13 @@ export class WebsiteSale extends Interaction {
         ).show();
     }
 
-    /**
-     * Prevent multiple clicks on the confirm button when the form is submitted.
-     */
     onClickConfirmOrder(ev) {
         const button = ev.currentTarget.querySelector('button[type="submit"]');
         button.disabled = true;
-        // TODO(loti): "random" timeout seems brittle.
         this.waitForTimeout(() => (button.disabled = false), 5000);
     }
 
     /**
-     * Highlight selected color
-     *
      * @param {MouseEvent} ev
      */
     onChangeColorAttribute(ev) {
@@ -537,8 +483,6 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * Highlight selected image
-     *
      * @param {MouseEvent} ev
      */
     onChangeImageAttribute(ev) {
@@ -563,7 +507,7 @@ export class WebsiteSale extends Interaction {
 
     onChangePillsAttribute(ev) {
         const radio = ev.target.closest(".o_variant_pills").querySelector("input");
-        radio.click(); // Trigger onChangeVariant.
+        radio.click();
         const parent = ev.target.closest(".js_product");
         parent.querySelectorAll(".o_variant_pills").forEach((el) => {
             if (el.matches(":has(input:checked)")) {
@@ -584,14 +528,8 @@ export class WebsiteSale extends Interaction {
         });
     }
 
-    // -------------------------------------
-    // Utils
-    // -------------------------------------
-
     /**
-     * Update the root product during based on the form elements.
-     *
-     * @param {HTMLFormElement} form - The form in which the product is.
+     * @param {HTMLFormElement} form
      */
     _updateRootProduct(form) {
         const productId = parseInt(
@@ -621,12 +559,8 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * Return the selected stored PTAV(s) of in the provided form.
-     *
-     * @param {HTMLFormElement} form - The form in which the product is.
-     *
-     * @returns {Number[]} - The selected stored attribute(s), as a list of
-     *      `product.template.attribute.value` ids.
+     * @param {HTMLFormElement} form
+     * @returns {Number[]}
      */
     _getSelectedPTAV(form) {
         const selectedPTAVElements = form.querySelectorAll(
@@ -643,13 +577,8 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * Return the custom PTAV(s) values in the provided form.
-     *
-     * @param {HTMLFormElement} form - The form in which the product is.
-     *
-     * @returns {{id: number, value: string}[]} An array of objects where each object contains:
-     *      - `custom_product_template_attribute_value_id`: The ID of the custom attribute.
-     *      - `custom_value`: The value assigned to the custom attribute.
+     * @param {HTMLFormElement} form
+     * @returns {{id: number, value: string}[]}
      */
     _getCustomPTAVValues(form) {
         const customPTAVsValuesElements = form.querySelectorAll(
@@ -668,12 +597,8 @@ export class WebsiteSale extends Interaction {
     }
 
     /**
-     * Return the selected non-stored PTAV(s) of the product in the provided form.
-     *
-     * @param {HTMLFormElement} form - The form in which the product is.
-     *
-     * @returns {Number[]} - The selected non-stored attribute(s), as a list of
-     *      `product.template.attribute.value` ids.
+     * @param {HTMLFormElement} form
+     * @returns {Number[]}
      */
     _getSelectedNoVariantPTAV(form) {
         const selectedNoVariantPTAVElements = form.querySelectorAll(
@@ -690,7 +615,6 @@ export class WebsiteSale extends Interaction {
     }
 }
 
-// TODO(loti): temporary hack. VariantMixin will be dropped.
 Object.assign(WebsiteSale.prototype, VariantMixin);
 
 registry.category("public.interactions").add("website_sale.website_sale", WebsiteSale);

@@ -41,8 +41,6 @@ class WebsiteVisitor(models.Model):
             visitor.event_track_wishlisted_ids = track_ids_map.get(visitor.id, [])
 
     def _search_event_track_wishlisted_ids(self, operator, operand):
-        """Search visitors with terms on wishlisted tracks. E.g. [('event_track_wishlisted_ids',
-        'in', [1, 2])] should return visitors having wishlisted tracks 1, 2."""
         if operator in ("not in", "not any"):
             raise UserError(
                 self.env._("Unsupported 'Not In' operation on track wishlist visitors")
@@ -57,14 +55,11 @@ class WebsiteVisitor(models.Model):
         return [("id", "in", track_visitors.visitor_id.ids)]
 
     def _get_domain_inactive_visitors(self):
-        """Visitors registered to push subscriptions are considered always active and should not be
-        deleted."""
         return super()._get_domain_inactive_visitors() & Domain(
             "event_track_visitor_ids", "=", False
         )
 
     def _merge_visitor(self, target):
-        """Override linking process to link wishlist to the final visitor."""
         self.event_track_visitor_ids.visitor_id = target.id
         track_visitor_wo_partner = self.event_track_visitor_ids.filtered(
             lambda track_visitor: not track_visitor.partner_id

@@ -4,16 +4,12 @@
     <template id="index" name="Jobs">
         <t t-call="website.layout">
             <div id="wrap" class="o_website_hr_recruitment_jobs_list">
-                <!-- Snippet area -->
                 <div class="oe_structure" id="oe_structure_hr_recruitment_index_top" />
 
-                <!-- Content -->
                 <div class="container oe_website_jobs">
-                    <!-- Topbar -->
                     <section
                         class="o_wevent_index_topbar_filters d-flex d-print-none align-items-center justify-content-lg-end flex-wrap gap-2 mt-4 mb-3">
                         <h1 class="me-auto mb-0 h4">Our Job Offers</h1>
-                        <!-- Customizations -->
                         <t t-call="website_hr_recruitment.topbar_customizations" />
                     </section>
                     <div class="row pb16">
@@ -112,7 +108,6 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- Pager -->
                         <div class="navbar mb-3 w-100">
                             <t t-call="website.pager">
                                 <t t-set="classname" t-valuef="mx-auto" />
@@ -121,7 +116,6 @@
                     </div>
                 </div>
 
-                <!-- Snippet area -->
                 <div
                     class="oe_structure"
                     id="oe_structure_hr_recruitment_index_bottom" />
@@ -129,15 +123,12 @@
         </t>
     </template>
 
-    <!-- Job Detail -->
     <template id="detail" name="Job Detail" track="1">
         <t t-call="website.layout">
-            <!-- Topbar -->
             <nav class="navbar navbar-light border-top shadow-sm d-print-none">
                 <div class="container">
                     <div
                         class="d-flex flex-column flex-md-row flex-md-wrap flex-lg-nowrap justify-content-between w-100">
-                        <!-- Title -->
                         <span class="navbar-brand h4 my-0 me-auto">
                             <a t-attf-href="/jobs">
                                 <i class="fa-solid fa-left-long text-primary me-2" />All Jobs
@@ -146,7 +137,6 @@
                     </div>
                 </div>
             </nav>
-            <!-- Content -->
             <div id="wrap" class="js_hr_recruitment">
                 <div itemscope="itemscope" itemtype="https://schema.org/JobPosting">
                     <meta
@@ -188,7 +178,6 @@
                                 t-att-content="job.company_id.country_id.name" />
                         </span>
                     </t>
-                    <!-- Job name -->
                     <section class="pb32">
                         <div class="container">
                             <div class="mt32">
@@ -210,7 +199,6 @@
                             </div>
                         </div>
                     </section>
-                    <!-- Job Description -->
                     <div t-field="job.website_description" />
                     <div class="oe_structure">
                         <section class="o_job_bottom_bar mt24 mb48">
@@ -224,7 +212,6 @@
         </t>
     </template>
 
-    <!-- Apply -->
     <template id="apply">
         <t t-call="website.layout">
             <t t-set="additional_title">Apply Job</t>
@@ -515,7 +502,6 @@
     </template>
 
     <template id="default_website_description">
-        <!-- Description text and ratings -->
         <section class="pt32">
             <div class="container">
                 <div class="row">
@@ -627,7 +613,6 @@
                 </div>
             </div>
         </section>
-        <!-- Responsabilities, Must Have and Nice to have -->
         <section class="s_comparisons pt24 pb24 bg-200" data-snippet="s_comparisons">
             <div class="container">
                 <div class="row">
@@ -671,7 +656,6 @@
                 </div>
             </div>
         </section>
-        <!-- What's great -->
         <section class="s_comparisons pt24 pb24" data-snippet="s_comparisons">
             <div class="container">
                 <div class="row align-items-center">
@@ -704,7 +688,6 @@
                 </div>
             </div>
         </section>
-        <!-- What we offer -->
         <section
             class="s_features pt64 pb64"
             data-name="Features"
@@ -764,7 +747,6 @@
                 </div>
             </div>
         </section>
-        <!-- Photos -->
         <section
             class="o_jobs_image_gallery s_image_gallery pt24 pb24 o_grid o_spc-medium"
             data-vcss="001"
@@ -811,7 +793,6 @@
         </section>
     </template>
 
-    <!-- Thank You -->
     <record id="thankyou" model="website.page">
         <field name="url">/job-thank-you</field>
         <field name="is_published">True</field>
@@ -853,7 +834,6 @@
                                         </div>
                                     </div>
                                 </div>
-                                <!-- HR Recruiter Block -->
                                 <t t-if="job_sudo and job_sudo.user_id">
                                     <div
                                         class="col-lg-4 align-self-center ps-4 o_cc o_cc2 rounded">
@@ -929,9 +909,7 @@
         </field>
     </record>
 
-    <!-- Topbar Customizations -->
     <template id="topbar_customizations" name="Topbar">
-        <!-- Sets -->
         <t
             t-set="current_country_param"
             t-value="'&amp;is_remote=1' if is_remote else ('&amp;country_id=%s' % country_id.id if country_id else '')" />
@@ -974,7 +952,6 @@
         <t
             t-set="opt_jobs_is_filter_applied"
             t-value="country_id or industry_id or office_id or department_id or contract_type_id or is_remote or is_industry_untyped or is_other_department or is_untyped" />
-        <!-- Search bar -->
         <div
             t-if="opt_jobs_search_bar"
             class="o_jobs_topbar_search_bar d-flex w-100 w-lg-25">
@@ -986,7 +963,6 @@
                 <i class="fa-solid fa-sliders" />
             </button>
         </div>
-        <!-- Off canvas filters on mobile-->
         <div
             t-if="opt_jobs_filter_count &gt;= 1"
             id="o_jobs_offcanvas"
@@ -1369,7 +1345,6 @@
         </xpath>
     </template>
 
-    <!-- reset filters -->
     <template
         id="job_reset_filters"
         inherit_id="website_hr_recruitment.topbar_customizations"
@@ -1399,7 +1374,6 @@
         </xpath>
     </template>
 
-    <!-- Search Bar -->
     <template
         id="job_search_bar"
         inherit_id="website_hr_recruitment.topbar_customizations"
@@ -1441,7 +1415,6 @@
         </xpath>
     </template>
 
-    <!-- Right Side Bar -->
     <template
         id="job_right_side_bar"
         name="Right Side Bar"
@@ -1475,7 +1448,6 @@
                                         <li><i class="fa-solid fa-envelope me-2" /><span><a href="mailto:info@yourcompany.example.com">info@yourcompany.example.com</a></span></li>
                                         <li><i class="fa-solid fa-phone me-2" /><span class="o_force_ltr"><a href="tel:+1 (650) 555-0187">+1 (650) 555-0187</a></span></li>
                                     </ul>
-                                    <!-- Social media -->
                                     <div
                                         class="s_social_media text-start"
                                         data-name="Social Media"

@@ -100,9 +100,6 @@ export class ResourceEditor extends Component {
             clearInterval(showErrorInterval);
             if (this.errors.length) {
                 this.showErrorLine();
-                // The ace library updates its content asynchronously, and sometimes
-                // at unexpected moments, so we consistently re-apply the error indicators
-                // when they are errors. This is kind of a hack, but it works.
                 showErrorInterval = setInterval(() => this.showErrorLine(), 500);
             } else {
                 this.clearErrorLine();
@@ -112,10 +109,6 @@ export class ResourceEditor extends Component {
 
         onWillStart(async () => this.loadResources());
     }
-
-    // -------------------------------------------------------------------------
-    // Getters
-    // -------------------------------------------------------------------------
 
     get context() {
         return {
@@ -168,19 +161,11 @@ export class ResourceEditor extends Component {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Methods
-    // -------------------------------------------------------------------------
-
     /**
-     * Checks resource is customized or not.
-     *
      * @param {string} url
      * @returns {boolean}
      */
     isCustomResource(url) {
-        // TODO we should be able to detect if the XML template is customized
-        // to not show the warning in that case
         if (this.state.type === "scss") {
             return this.state.resources.scss[url].customized;
         } else if (this.state.type === "js") {
@@ -215,7 +200,6 @@ export class ResourceEditor extends Component {
 
     processResources(resources, type) {
         if (type === "xml") {
-            // Only keep the active views and index them by ID.
             const indexedById = {};
             resources
                 .filter((view) => view.active)
@@ -225,7 +209,6 @@ export class ResourceEditor extends Component {
                 });
             Object.assign(this.state.resources.xml, indexedById);
 
-            // Initialize a 0 level for each view and assign them an array containing their children.
             const roots = [];
             Object.values(this.state.resources.xml).forEach((view) => {
                 view.level = 0;
@@ -241,8 +224,6 @@ export class ResourceEditor extends Component {
                 }
             });
 
-            // Assign the correct level based on children key and save a sorted array where
-            // each view is followed by their children.
             const sortedXML = [];
             const visit = (view, level) => {
                 view.level = level;
@@ -256,7 +237,6 @@ export class ResourceEditor extends Component {
             });
             this.state.sortedXML = sortedXML;
 
-            // Compute labels
             Object.values(this.state.resources.xml).forEach((view) => {
                 view.label = `${"-".repeat(view.level)} ${view.name}`;
                 if (this.debug && view.xml_id) {
@@ -264,25 +244,22 @@ export class ResourceEditor extends Component {
                 }
             });
         } else if (type === "scss" || type === "js") {
-            // The received scss or js data is already sorted by bundle and DOM order
             if (type === "scss") {
                 this.state.sortedSCSS = resources;
             } else {
                 this.state.sortedJS = resources;
             }
 
-            // Store the URL ungrouped by bundle and use the URL as key (resource ID)
             resources.forEach(([bundle, files]) => {
                 const indexedByUrl = {};
                 files.forEach((file) => {
-                    // Compute labels
                     file.label = file.url.split("/").at(-1).split(".")[0];
                     if (this.debug) {
                         file.label += ` (${file.url})`;
                     }
 
                     file.bundle = bundle;
-                    file.id = file.url; // for consistency with xml resources
+                    file.id = file.url;
                     file.type = type;
                     indexedByUrl[file.url] = file;
                 });
@@ -296,11 +273,6 @@ export class ResourceEditor extends Component {
     }
 
     /**
-     * Forces the current scss/js file identified by its url to be reset to the way
-     * it was before the user started editing it.
-     *
-     * @todo views (xml) reset is not supported yet
-     *
      * @returns {Promise}
      */
     async resetResource() {
@@ -325,7 +297,6 @@ export class ResourceEditor extends Component {
         const toSave = {
             js: Object.values(js).filter((r) => r.dirty),
             scss: Object.values(scss).filter((r) => r.dirty),
-            // child views first as COW on a parent would delete them
             xml: sortBy(
                 Object.values(xml).filter((r) => r.dirty),
                 "id",
@@ -343,7 +314,6 @@ export class ResourceEditor extends Component {
             }
         }
         if (this.errors.length) {
-            // switch to the first resource in error if the current has no error
             if (
                 !this.errors
                     .map(({ resource }) => resource.id)
@@ -355,7 +325,6 @@ export class ResourceEditor extends Component {
             return;
         }
 
-        // sequentially save all resources
         for (const [type, resources] of Object.entries(toSave)) {
             for (const resource of resources) {
                 if (type === "xml") {
@@ -370,11 +339,9 @@ export class ResourceEditor extends Component {
     }
 
     /**
-     * Saves a unique SCSS or JS file.
-     *
      * @private
-     * @param {Object} resource a SCSS or JS file to save
-     * @return {Promise} indicates if the save is finished or if an error occured.
+     * @param {Object} resource
+     * @return {Promise}
      */
     async saveSCSSorJS(resource) {
         const { url, arch } = resource;
@@ -391,10 +358,8 @@ export class ResourceEditor extends Component {
     }
 
     /**
-     * Saves a unique XML view.
-     *
-     * @param {Object} resource an xml view to save
-     * @returns {Promise} indicates if the save is finished or if an error occured.
+     * @param {Object} resource
+     * @returns {Promise}
      */
     async saveXML(resource) {
         const { id, arch } = resource;
@@ -416,10 +381,6 @@ export class ResourceEditor extends Component {
             }
             this.state.currentResource = view || this.state.sortedXML[0] || false;
         } else if (this.state.type === "scss") {
-            // By default show the user_custom_rules.scss one as some people
-            // would write rules in user_custom_bootstrap_overridden.scss
-            // otherwise, not reading the comment inside explaining how that
-            // file should be used.
             this.state.currentResource =
                 this.state.resources.scss[
                     "/website/static/src/scss/user_custom_rules.scss"
@@ -432,7 +393,6 @@ export class ResourceEditor extends Component {
 
     showErrorLine() {
         if (!this.editorRef.el) {
-            // Possibly destroyed.
             return;
         }
         const resourceId = this.state.currentResource.id;
@@ -453,7 +413,6 @@ export class ResourceEditor extends Component {
 
     clearErrorLine() {
         if (!this.editorRef.el) {
-            // Possibly destroyed.
             return;
         }
         const allGutterCells = this.editorRef.el.querySelectorAll(".ace_gutter-cell");
@@ -463,10 +422,6 @@ export class ResourceEditor extends Component {
             gutterCell.removeAttribute("data-tooltip-position");
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Handlers
-    // -------------------------------------------------------------------------
 
     onEditorChange(value) {
         const currentResource = this.state.currentResource;

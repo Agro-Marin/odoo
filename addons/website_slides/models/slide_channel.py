@@ -16,8 +16,6 @@ _logger = logging.getLogger(__name__)
 
 
 class SlideChannel(models.Model):
-    """A channel is a container of slides."""
-
     _name = "slide.channel"
     _description = "Course"
     _inherit = [
@@ -34,13 +32,9 @@ class SlideChannel(models.Model):
     _mail_partner_fields = ()
     _partner_unfollow_enabled = True
 
-    _CUSTOMER_HEADERS_LIMIT_COUNT = 0  # never use X-Msg-To headers
+    _CUSTOMER_HEADERS_LIMIT_COUNT = 0
 
     def _default_cover_properties(self):
-        """Cover properties defaults are overridden to keep a consistent look for the slides
-        channels headers across Odoo versions (pre-customization, with purple gradient fitting the
-        homepage images, etc). Furthermore, as adding padding to the cover would not look great,
-        its height is set to fit to content (snippet option to change this also disabled on the view)."""
         res = super()._default_cover_properties()
         res.update(
             {
@@ -61,7 +55,6 @@ class SlideChannel(models.Model):
     def _default_enroll_msg(self):
         return _("Contact Responsible")
 
-    # description
     name = fields.Char("Name", translate=True, required=True)
     active = fields.Boolean(default=True, tracking=100)
     description = fields.Html(
@@ -106,7 +99,6 @@ class SlideChannel(models.Model):
         string="Tags",
         help="Used to categorize and filter displayed channels/courses",
     )
-    # slides: promote, statistics
     slide_ids = fields.One2many(
         "slide.slide", "channel_id", string="Slides and categories", copy=True
     )
@@ -182,7 +174,6 @@ class SlideChannel(models.Model):
         digits=(16, 1),
         compute_sudo=True,
     )
-    # configuration
     allow_comment = fields.Boolean(
         "Allow rating on Course",
         compute="_compute_allow_comment",
@@ -274,7 +265,6 @@ class SlideChannel(models.Model):
     website_default_background_image_url = fields.Char(
         "Background image URL", compute="_compute_website_default_background_image_url"
     )
-    # membership
     channel_partner_ids = fields.One2many(
         "slide.channel.partner",
         "channel_id",
@@ -305,8 +295,6 @@ class SlideChannel(models.Model):
     members_invited_count = fields.Integer(
         "# Invited Attendees", compute="_compute_members_counts"
     )
-    # partner_ids is implemented as compute/search instead of specifying the relation table
-    # directly because we want to exclude active=False records on the joining table
     partner_ids = fields.Many2many(
         "res.partner",
         string="Attendees",
@@ -314,7 +302,6 @@ class SlideChannel(models.Model):
         compute="_compute_partners",
         search="_search_partner_ids",
     )
-    # not stored access fields, depending on each user
     completed = fields.Boolean(
         "Done", compute="_compute_user_statistics", compute_sudo=False
     )
@@ -349,10 +336,8 @@ class SlideChannel(models.Model):
     partner_has_new_content = fields.Boolean(
         compute="_compute_partner_has_new_content", compute_sudo=False
     )
-    # karma generation
     karma_gen_channel_rank = fields.Integer(string="Course ranked", default=5)
     karma_gen_channel_finish = fields.Integer(string="Course finished", default=10)
-    # Karma based actions
     karma_review = fields.Integer(
         "Add Review", default=10, help="Karma needed to add a review on the course"
     )
@@ -373,7 +358,6 @@ class SlideChannel(models.Model):
     can_vote = fields.Boolean(
         "Can Vote", compute="_compute_action_rights", compute_sudo=False
     )
-    # prerequisite settings
     prerequisite_channel_ids = fields.Many2many(
         "slide.channel",
         "slide_channel_prerequisite_slide_channel_rel",
@@ -471,8 +455,6 @@ class SlideChannel(models.Model):
 
     @api.depends("slide_ids.is_published")
     def _compute_slide_last_update(self):
-        # The ORM already scopes this to the channels whose slides changed; the
-        # loop variable was never read, so this is the same thing said once.
         self.slide_last_update = fields.Date.today()
 
     @api.depends(
@@ -664,7 +646,6 @@ class SlideChannel(models.Model):
 
     @api.depends("channel_type")
     def _compute_allow_comment(self):
-        """Comment allowed by default except for documentation channels."""
         for record in self:
             record.allow_comment = record.channel_type != "documentation"
 
@@ -691,9 +672,6 @@ class SlideChannel(models.Model):
         for record in self:
             completed, completed_slides_count = mapped_data.get(record.id, (False, 0))
             record.completed = completed
-            # floor, not round: `round` reports 100 % to an attendee who still
-            # has a content left on any course of 200 or more (see
-            # slide.channel.partner._recompute_completion).
             record.completion = (
                 100
                 if completed
@@ -705,14 +683,6 @@ class SlideChannel(models.Model):
     @api.depends("upload_group_ids", "user_id")
     @api.depends_context("uid")
     def _compute_can_upload(self):
-        """Who may add contents to this course.
-
-        The responsible, whatever groups they hold; else the members of
-        ``upload_group_ids`` when the course names any; else eLearning managers.
-        Note the first branch admits a plain ``base.group_user`` -- ``user_id``
-        carries no domain -- which the ACLs do not, so every route acting on
-        this right has to cross the sudo boundary in the controller.
-        """
         for record in self:
             if record.user_id == self.env.user:
                 record.can_upload = True
@@ -728,16 +698,6 @@ class SlideChannel(models.Model):
     @api.depends("user_id", "can_upload")
     @api.depends_context("uid")
     def _compute_can_publish(self):
-        """Who may publish this course's contents: the responsible, or an
-        eLearning manager, and in both cases only if they may also upload.
-
-        `channel_type` was in the dependency list and the docstring opened "For
-        channels of type 'training', only the responsible can publish slides",
-        but neither this compute nor `_compute_can_upload` has ever read it --
-        `upload_group_ids` applies to every course type, in the model and in the
-        view alike. A dependency nothing reads is a recompute nothing needs and
-        a claim nobody can check, so it is gone rather than restated.
-        """
         for record in self:
             if not record.can_upload:
                 record.can_publish = False
@@ -750,8 +710,6 @@ class SlideChannel(models.Model):
 
     @api.model
     def _get_can_publish_error_message(self):
-        # slide.slide delegates here: the right being described is the
-        # channel's, and the sentence was written out twice, identically.
         return _(
             "Publishing is restricted to the course responsible and to eLearning managers"
         )
@@ -805,7 +763,7 @@ class SlideChannel(models.Model):
     def _compute_website_url(self):
         super()._compute_website_url()
         for channel in self:
-            if channel.id:  # avoid to perform a slug on a not yet saved record in case of an onchange.
+            if channel.id:
                 channel.website_url = f"/slides/{self.env['ir.http']._slug(channel)}"
 
     @api.depends("website_id.domain")
@@ -832,10 +790,6 @@ class SlideChannel(models.Model):
                 channel.can_comment = user_karma >= channel.karma_slide_comment
                 channel.can_vote = user_karma >= channel.karma_slide_vote
 
-    ######################
-    # Prerequisite Compute
-    ######################
-
     @api.depends("prerequisite_channel_ids", "channel_partner_ids.member_status")
     @api.depends_context("uid")
     def _compute_prerequisite_user_has_completed(self):
@@ -857,16 +811,7 @@ class SlideChannel(models.Model):
                 for channel in channel.prerequisite_channel_ids
             )
 
-    # ---------------------------------------------------------
-    # ORM Overrides
-    # ---------------------------------------------------------
-
     def _init_column(self, column_name, *, new_column=False):
-        """Initialize the value of the given column for existing rows.
-        Overridden here because we need to generate different access tokens
-        and by default _init_column calls the default method once and applies
-        it for every record.
-        """
         if column_name != "access_token":
             super()._init_column(column_name, new_column=new_column)
         else:
@@ -880,7 +825,6 @@ class SlideChannel(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            # Ensure creator is member of its channel it is easier for them to manage it (unless it is odoobot)
             if not vals.get("channel_partner_ids") and not self.env.is_superuser():
                 vals["channel_partner_ids"] = [
                     (0, 0, {"partner_id": self.env.user.partner_id.id})
@@ -913,12 +857,6 @@ class SlideChannel(models.Model):
         return vals_list
 
     def write(self, vals):
-        # If description_short wasn't manually modified, there is an implicit
-        # link between this field and description. Decided per record: the test
-        # read `self.description`, which raises "Expected singleton" the moment
-        # a batch write touches `description` on more than one course -- and the
-        # answer is per-record anyway, since only *some* of them may still carry
-        # the implicit link.
         mirror_description = vals.get("description")
         if not is_html_empty(mirror_description) and is_html_empty(
             vals.get("description_short")
@@ -927,8 +865,6 @@ class SlideChannel(models.Model):
                 lambda channel: channel.description == channel.description_short
             )
             if linked and linked != self:
-                # Split the write so the untouched courses keep their own short
-                # description.
                 (self - linked).write(vals)
                 return linked.write(vals)
             if linked:
@@ -950,28 +886,11 @@ class SlideChannel(models.Model):
         return res
 
     def unlink(self):
-        """ " Necessary override to avoid cache issues in the ORM.
-        This signals the ORM to remove slides first to avoid having the SQL cascade the deletion,
-        which attempts to recompute slide statistics of removed slides and creates a cache failure.
-
-        Indeed, slides statistics are computed using a read_group which will try to flush the records
-        first and fail with a "Could not find all values of slide.slide.category_id to flush them".
-        (Fix suggested by the ORM team).
-
-        (See '_compute_slides_statistics' and '_compute_category_completion_time')."""
 
         self.slide_ids.unlink()
         return super().unlink()
 
     def action_archive(self):
-        """Archiving a channel does it on its slides, too.
-
-        We want to be archiving the channel FIRST.
-        So that when slides are archived and the recompute is triggered,
-        it does not try to mark the channel as "completed".
-        That happens because it counts slide_done / slide_total, but slide_total
-        will be 0 since all the slides for the course have been archived as well.
-        """
         archived = self.filtered(self._active_name)
         res = super().action_archive()
         archived.is_published = False
@@ -979,25 +898,11 @@ class SlideChannel(models.Model):
         return res
 
     def action_unarchive(self):
-        """Unarchiving a channel does it on its slides, too.
-
-        We want to archive the channel LAST.
-        So that when it recomputes stats for the channel and completion, it correctly
-        counts the slides_total by counting slides that are already un-archived.
-        """
         to_activate = self.filtered(lambda channel: not channel.active)
         to_activate.with_context(active_test=False).slide_ids.action_unarchive()
         return super(SlideChannel, to_activate).action_unarchive()
 
-    # ---------------------------------------------------------
-    # Mail Thread
-    # ---------------------------------------------------------
-
     def message_post(self, *, parent_id=False, subtype_id=False, **kwargs):
-        """Temporary workaround to avoid spam. If someone replies on a channel
-        through the 'Presentation Published' email, it should be considered as a
-        note as we don't want all channel followers to be notified of this answer.
-        Also make sure that only one review can be posted per course."""
         self.check_singleton()
         if kwargs.get("message_type") == "comment" and not self.can_review:
             raise AccessError(_("Not enough karma to review"))
@@ -1030,13 +935,7 @@ class SlideChannel(models.Model):
             )
         return message
 
-    # ---------------------------------------------------------
-    # Business / Actions
-    # ---------------------------------------------------------
-
     def action_redirect_to_members(self, status_filter=""):
-        """Redirects to attendees of the course. If status_filter is set to 'invited' /
-        'engaged' ('joined' + 'ongoing') / 'completed', attendees are filtered accordingly."""
         action_ctx = {}
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "website_slides.slide_channel_partner_action"
@@ -1096,11 +995,6 @@ class SlideChannel(models.Model):
         return self._action_channel_open_invite_wizard(template)
 
     def _action_channel_open_invite_wizard(self, mail_template, enroll_mode=False):
-        """Open the invitation wizard to invite and add attendees to the course(s) in self.
-
-        :param mail_template: mail.template used in the invite wizard.
-        :param enroll_mode: true if we want to enroll the attendees invited through the wizard.
-            False otherwise, adding them as 'invited', e.g. when using "Invite" action."""
         course_name = self.name if len(self) == 1 else ""
         local_context = dict(
             self.env.context,
@@ -1133,16 +1027,6 @@ class SlideChannel(models.Model):
     def _action_add_members(
         self, target_partners, member_status="joined", raise_on_access=False
     ):
-        """Adds the target_partners as attendees of the channel(s).
-        Partners are added as follows, depending on the value of member_status:
-        1) (Default) 'joined'. The partners will be added as enrolled attendees. This will make the content
-            (slides) of the channel available to that partner. This can also happen when an invited attendee
-            enrolls themself. The attendees are also subscribed to the chatter of the channel.
-            :return: the union of previous partners re-enrolling, new attendees and invited ones enrolling.
-        2) 'invited' : This is used when inviting partners. The partners are added as invited attendees
-            This will make the channel accessible but not the slides until they enroll themselves.
-            :return: returns the union of new records and the ones unarchived.
-        """
         SlideChannelPartnerSudo = self.env["slide.channel.partner"].sudo()
         allowed_channels = self._filter_add_members(raise_on_access=raise_on_access)
         if not allowed_channels or not target_partners:
@@ -1160,7 +1044,6 @@ class SlideChannel(models.Model):
             )
         )
 
-        # Unarchive existing channel partners, recomputing their completion and updating member_status
         archived_channel_partners = existing_channel_partners.filtered(
             lambda channel_partner: not channel_partner.active
         )
@@ -1168,7 +1051,6 @@ class SlideChannel(models.Model):
         if archived_channel_partners:
             archived_channel_partners.action_unarchive()
             to_unarchived = archived_channel_partners
-            # Update member_status (and completion if enrolling)
             to_unarchived.member_status = member_status
             if member_status == "joined":
                 to_unarchived._recompute_completion()
@@ -1179,7 +1061,6 @@ class SlideChannel(models.Model):
         for channel_partner in existing_channel_partners:
             existing_channel_partners_map[channel_partner.channel_id] += channel_partner
 
-        # Invited partners confirming their invitation by enrolling, or upgraded to 'joined'.
         to_update_as_joined = SlideChannelPartnerSudo
         to_create_channel_partners_values = []
 
@@ -1204,12 +1085,10 @@ class SlideChannel(models.Model):
         to_update_as_joined.member_status = "joined"
         to_update_as_joined._recompute_completion()
 
-        # All fragments are in sudo.
         result_channel_partners = (
             to_unarchived + to_update_as_joined + new_slide_channel_partners
         )
 
-        # Subscribe partners joining the course to the chatter.
         if member_status == "joined":
             result_channel_partners_map = defaultdict(list)
             for channel_partner in result_channel_partners:
@@ -1245,10 +1124,6 @@ class SlideChannel(models.Model):
             )
 
     def _get_earned_karma(self, partner_ids):
-        """Compute the number of karma earned by partners on a channel
-        Warning: this count will not be accurate if the configuration has been
-        modified after the completion of a course!
-        """
         total_karma = defaultdict(list)
 
         slide_completed = (
@@ -1297,9 +1172,6 @@ class SlideChannel(models.Model):
         return total_karma
 
     def _remove_membership(self, partner_ids):
-        """Karma earned during course progress is kept upon membership removal.
-        This is done because re-joining the course will not allow you to gain the karma again,
-        as we keep your progress"""
         if not partner_ids:
             raise ValueError(
                 "Do not use this method with an empty partner_id recordset"
@@ -1307,7 +1179,6 @@ class SlideChannel(models.Model):
 
         self.message_unsubscribe(partner_ids=partner_ids)
         if self:
-            # One clause, not one per channel.
             removed_channel_partner = (
                 self.env["slide.channel.partner"]
                 .sudo()
@@ -1323,13 +1194,6 @@ class SlideChannel(models.Model):
 
     @api.model
     def _send_share_mail(self, template, record, emails, **extra_context):
-        """Render `template` for `record` and mail it to `emails`.
-
-        The one copy of the sender dance. slide.slide and slide.channel each had
-        their own, including the subtlety in the middle: a portal user cannot
-        read the template, and their own address must not become the From, so
-        the send goes out as sudo from the company catchall.
-        """
         template = template.with_context(
             user=self.env.user,
             email=emails,
@@ -1349,7 +1213,6 @@ class SlideChannel(models.Model):
         )
 
     def _send_share_email(self, emails):
-        """Share channel through emails."""
         courses_without_templates = self.filtered(
             lambda channel: not channel.share_channel_template_id
         )
@@ -1390,8 +1253,6 @@ class SlideChannel(models.Model):
         return action
 
     def action_request_access(self):
-        """Request access to the channel. Returns a dict with keys being either 'error'
-        (specific error raised) or 'done' (request done or not)."""
         if self.env.user._is_public():
             return {"error": _("You have to sign in before")}
         if not self.is_published:
@@ -1456,12 +1317,7 @@ class SlideChannel(models.Model):
             ),
         )
 
-    # ---------------------------------------------------------
-    # Mailing Mixin API
-    # ---------------------------------------------------------
-
     def _get_domain_rating(self, record_ids=None):
-        """Only take the published rating into account to compute avg and count"""
         return super()._get_domain_rating(record_ids=record_ids) & Domain(
             "is_internal", "=", False
         )
@@ -1540,7 +1396,6 @@ class SlideChannel(models.Model):
             )
 
     def _get_access_action(self, access_uid=None, force_website=False):
-        """Instead of the classic form view, redirect to website if it is published."""
         self.check_singleton()
         if force_website or self.website_published:
             return {
@@ -1553,28 +1408,9 @@ class SlideChannel(models.Model):
             access_uid=access_uid, force_website=force_website
         )
 
-    # ---------------------------------------------------------
-    # Data / Misc
-    # ---------------------------------------------------------
-
     def _get_categorized_slides(
         self, base_domain, order, force_void=True, limit=False, offset=False
     ):
-        """Return an ordered structure of slides by categories within a given
-        base_domain that must fulfill slides. As a course structure is based on
-        its slides sequences, uncategorized slides must have the lowest sequences.
-
-        Example
-          * category 1 (sequence 1), category 2 (sequence 3)
-          * slide 1 (sequence 0), slide 2 (sequence 2)
-          * course structure is: slide 1, category 1, slide 2, category 2
-            * slide 1 is uncategorized,
-            * category 1 has one slide : Slide 2
-            * category 2 is empty.
-
-        Backend and frontend ordering is the same, uncategorized first. It
-        eases resequencing based on DOM / displayed order, notably when
-        drag n drop is involved."""
         self.check_singleton()
         all_categories = (
             self.env["slide.slide"]
@@ -1584,20 +1420,13 @@ class SlideChannel(models.Model):
         all_slides = self.env["slide.slide"].sudo().search(base_domain, order=order)
         category_data = []
 
-        # One page window, computed once. It used to be spelled inline, twice,
-        # and differently each time: `limit + offset or len(...)`. With no limit
-        # (the training layout passes limit=False) `False + 12` is 12, so page 2
-        # sliced [12:12] and rendered nothing at all.
         start = offset or 0
         end = start + limit if limit else None
 
-        # Group the slides by category in one pass rather than re-filtering the
-        # whole recordset once per category.
         slides_by_category = defaultdict(lambda: self.env["slide.slide"])
         for slide in all_slides:
             slides_by_category[slide.category_id.id] += slide
 
-        # Prepare all categories by natural order
         for category in all_categories:
             category_slides = slides_by_category[category.id]
             if not category_slides and not force_void:
@@ -1613,7 +1442,6 @@ class SlideChannel(models.Model):
                 }
             )
 
-        # Add uncategorized slides in first position
         uncategorized_slides = slides_by_category[False]
         if uncategorized_slides or force_void:
             category_data.insert(
@@ -1631,15 +1459,6 @@ class SlideChannel(models.Model):
         return category_data
 
     def _move_category_slides(self, category, new_category=None):
-        """Move ``category``'s contents to ``new_category``, or uncategorize them.
-
-        The ``new_category`` branch used to end in
-        ``... + truncated_slide_ids[place_idx]`` -- a missing colon, so a list
-        plus an int, so ``TypeError``. It had never run: the only caller
-        (slide.slide.unlink) passes no new category. Kept and repaired rather
-        than deleted because the parameter is part of the method's meaning, but
-        it is now exercised by a test.
-        """
         moved_ids = category.slide_ids.ids
         if not moved_ids:
             return
@@ -1658,11 +1477,6 @@ class SlideChannel(models.Model):
         self._write_sequences(ordered_slide_ids)
 
     def _write_sequences(self, ordered_slide_ids):
-        """Renumber ``ordered_slide_ids`` 1..n, one write per distinct sequence.
-
-        Was one ``browse(...).sequence = i`` per slide, i.e. one UPDATE per
-        content in the course every time a category moved.
-        """
         Slide = self.env["slide.slide"]
         by_sequence = defaultdict(list)
         for index, slide_id in enumerate(ordered_slide_ids):
@@ -1692,7 +1506,6 @@ class SlideChannel(models.Model):
             added_slide_id = ids_to_resequence.pop(index_of_added_slide)
             index_of_next_category = ids_to_resequence.index(next_category_id)
             ids_to_resequence.insert(index_of_next_category, added_slide_id)
-            # start at 1 to make people scream
             self._write_sequences(ids_to_resequence)
         else:
             slide.write(
@@ -1719,8 +1532,6 @@ class SlideChannel(models.Model):
             domain.append([("is_member", "=", True)])
         if search_tags:
             tags = self.env["slide.channel.tag"]._search_by_slugs(search_tags)
-            # Group by group_id
-            # OR inside a group, AND between groups.
             domain.extend(
                 [("tag_ids", "in", tags_.ids)]
                 for tags_ in tags.grouped("group_id").values()

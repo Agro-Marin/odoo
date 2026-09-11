@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Page -->
     <template id="layout" name="Partners Layout">
         <t t-call="website.layout">
             <t t-set="additional_title">Resellers</t>
@@ -125,7 +124,6 @@
                     </button>
                 </div>
             </section>
-            <!-- Off canvas filters on mobile-->
             <div
                 id="o_wcrm_offcanvas"
                 class="o_website_offcanvas offcanvas offcanvas-end d-lg-none p-0 overflow-visible">
@@ -394,7 +392,6 @@
         inherit_id="website_crm_partner_assign.index">
         <xpath expr="//div[hasclass('o_wcrm_search')]" position="inside">
             <t t-if="google_maps_api_key">
-                <!-- modal for large map -->
                 <div role="dialog" class="modal fade partner_map_modal" tabindex="-1">
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
@@ -413,7 +410,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- modal end -->
                 <div class="btn-group ms-2">
                     <button class="btn btn-light border-primary active">
                         <i class="fa-solid fa-th-large" />
@@ -501,7 +497,6 @@
         </t>
     </template>
 
-    <!-- Portal -->
     <template
         id="portal_my_home_menu_lead"
         name="Portal layout : lead menu entry"
@@ -963,7 +958,6 @@
                     Opportunity -
                     <span t-field="opportunity.name" />
                 </h4>
-                <!-- todo: replace by design system wizard -->
                 <div class="d-flex justify-content-between align-items-center gap-2">
                     <p class="mb-0 fw-bold">Stage:</p>
                     <div
@@ -1099,7 +1093,6 @@
                     </div>
                 </div>
 
-                <!-- ==== MODALS ==== -->
                 <div>
                     <div role="dialog" class="modal fade modal_edit_opp">
                         <div class="modal-dialog">
@@ -1432,7 +1425,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- === / MODALS === -->
             </div>
 
             <hr />

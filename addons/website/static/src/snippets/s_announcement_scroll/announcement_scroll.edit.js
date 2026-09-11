@@ -5,12 +5,9 @@ import { AnnouncementScroll } from "@website/snippets/s_announcement_scroll/anno
 export const AnnouncementScrollEdit = (I) =>
     class extends I {
         shouldStop() {
-            // Should always restart, because each option may modify the width of
-            // the element, meaning the interaction needs to recompute.
             return true;
         }
         isImpactedBy(el) {
-            // After an update of the font family or the text content.
             return (
                 this.el.contains(el) &&
                 el.matches(

@@ -2,9 +2,6 @@
 import { BoothRegistration } from "@website_event_booth/interactions/booth_registration";
 import { patch } from "@web/core/utils/patch";
 
-/**
- * This class changes the displayed price after selecting the requested booths.
- */
 patch(BoothRegistration.prototype, {
     start() {
         super.start();

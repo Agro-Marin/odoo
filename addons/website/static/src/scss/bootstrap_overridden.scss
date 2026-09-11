@@ -1,50 +1,27 @@
-//
-// Color system
-//
-
-//Restore BS4 Colors
 $blue: #007bff !default;
 $pink: #e83e8c !default;
 $green: #28a745 !default;
 $cyan: #17a2b8 !default;
 $gray-900: #212529 !default;
-//End Restore BS4 Colors
 
 $white: #fff !default;
 $black: #000 !default;
 
-// This coupling allows to control the appearance of some app components (and
-// more). Note that it is still possible to have more than 2 "bright" main
-// colors by using them in color combinations config instead of as theme colors.
 $light: o-color("o-color-3");
 $dark: o-color("o-color-5");
 
-// The contrast ratio to reach against white, to determine if color changes from "light" to "dark". Acceptable values for WCAG 2.0 are 3, 4.5 and 7.
-// See https://www.w3.org/TR/WCAG20/#visual-audio-contrast-contrast
-
-// Overridden here as it is a dependency for some variables/functions afterwards
 $min-contrast-ratio: $o-frontend-min-contrast-ratio !default;
 
-// Prefix for :root CSS variables
 $variable-prefix: "" !default;
 
-// Restore negative margins disabled in BS5 by default
 $enable-negative-margins: true !default;
 
-// Enable CSS grid
 $enable-cssgrid: true !default;
 
-// Customize the light and dark text colors for use in our color contrast function.
 $color-contrast-dark: o-color("900") !default;
 $color-contrast-light: o-color("white") !default;
 
-// Spacing
-//
-// Control the default styling of most Bootstrap elements by modifying these
-// variables. Mostly focused on spacing.
-// You can add more entries to the $spacers map, should you need more variation.
-
-$spacer: 1rem !default; // Need to predefine as used below
+$spacer: 1rem !default;
 $spacers: (
     0: 0,
     1: $spacer * 0.25,
@@ -52,32 +29,12 @@ $spacers: (
     3: $spacer,
     4: $spacer * 1.5,
     5: $spacer * 3,
-) !default; // BS default
+) !default;
 
-// Body
-//
-// Settings for the `<body>` element.
-
-// Bootstrap uses `$body-bg` as default value for multiple variables but also in
-// the creation of CSS rules (not controlled by variables). In case of Odoo
-// boxed layout, `$body-bg` should thus be used to control the box background
-// color so that components displayed inside are consistent (as they use the
-// variable to compute some of their colors too). The background color behind
-// the box will be forced by an Odoo CSS rule instead of relying on Bootstrap
-// CSS rule (the <body> background color CSS rule) which uses `$body-bg`.
-// Note: lots of variables are using $body-bg directly, they should ideally use
-// var(--body-bg) instead, as the new bootstrap version intended, but it's not
-// really possible as we use those for computing other colors a lot.
-// grep: BOXED_BODY_BG_ODOO
 $body-bg: o-color("o-cc1-bg") !default;
 $body-color: o-color("o-cc1-text") or color-contrast($body-bg) !default;
 
-// Bootstrap's default value on hover on some components eg. dropdown-item.
 $body-tertiary-bg: mix(color-contrast($body-bg), $body-bg, 10%) !default;
-
-// Links
-//
-// Style anchor elements.
 
 $-link-color: o-color("o-cc1-link");
 $-link-color: if($-link-color, $-link-color, o-color("primary"));
@@ -98,42 +55,24 @@ $link-hover-decoration: if(
     none
 ) !default;
 
-// Emphasis
-//
-// For higher contrast text. Not applicable for backgrounds.
-
-// Increase contrast when needed, otherwise fallback to BS default
 $primary-text-emphasis: if(
     not has-enough-contrast(o-color("primary"), $body-bg),
     increase-contrast(o-color("primary"), $body-bg),
     null
 ) !default;
 
-// Grid
 $grid-gutter-width: 30px !default;
 
-// Components
-//
-// Define common padding and border radius sizes and more.
-
-// Allow dynamic border-color adaptations
 $border-color: var(--o-border-color) !default;
 
-// Note: for the 'active' color, color preset edition is not really flexible but
-// this could come in a future update.
 $component-active-bg: o-color("o-cc1-btn-primary") !default;
 $component-active-color: color-contrast(
     $component-active-bg or o-color("primary")
 ) !default;
 
-// Fonts
-//
-// Font, line-height, and color for body text, headings, and more.
-
 $font-family-sans-serif: $o-theme-font !default;
 
 $font-size-base: o-website-value("font-size-base") !default;
-// The top paragraph margin is a custom variable.
 $paragraph-margin-top: o-website-value("paragraph-margin-top") !default;
 $paragraph-margin-bottom: o-website-value("paragraph-margin-bottom") !default;
 
@@ -151,23 +90,15 @@ $h6-font-size: o-website-value("h6-font-size") or $font-size-base *
     $o-theme-h6-font-size-multiplier !default;
 
 $display-font-sizes: (
-    // If the theme does not configure, default to Bootstrap values. It has to
-    // be duplicated here as Bootstrap does not merge the default map with the
-    // overridden ones anymore.
     1: o-website-value("display-1-font-size") or 5rem,
     2: o-website-value("display-2-font-size") or 4.5rem,
     3: o-website-value("display-3-font-size") or 4rem,
     4: o-website-value("display-4-font-size") or 3.5rem,
 
-    // Unused in Odoo templates and not configurable through the editor but we
-    // still want default Bootstrap classes to work for now. Also using
-    // o-website-value for those still allows to configure them through custom
-    // code more easily if needed.
     5: o-website-value("display-5-font-size") or 3rem,
-    6: o-website-value("display-6-font-size") or 2.5rem
+    6: o-website-value("display-6-font-size") or 2.5rem,
 ) !default;
 
-// H2~H6 font families are custom variables.
 $headings-font-family: $o-theme-headings-font !default;
 $h2-font-family: $o-theme-h2-font !default;
 $h3-font-family: $o-theme-h3-font !default;
@@ -178,7 +109,6 @@ $display-1-font-family: $o-theme-display-1-font !default;
 $display-2-font-family: $o-theme-display-2-font !default;
 $display-3-font-family: $o-theme-display-3-font !default;
 $display-4-font-family: $o-theme-display-4-font !default;
-// H2~H6 line heights are custom variables.
 $headings-line-height: o-website-value("headings-line-height") !default;
 $h2-line-height: o-website-value("h2-line-height") or $headings-line-height !default;
 $h3-line-height: o-website-value("h3-line-height") or $headings-line-height !default;
@@ -193,7 +123,6 @@ $display-3-line-height: o-website-value("display-3-line-height") or
     $headings-line-height !default;
 $display-4-line-height: o-website-value("display-4-line-height") or
     $headings-line-height !default;
-// H1~H6 top margins are custom variables.
 $headings-margin-top: o-website-value("headings-margin-top") or 0 !default;
 $h2-margin-top: o-website-value("h2-margin-top") or $headings-margin-top !default;
 $h3-margin-top: o-website-value("h3-margin-top") or $headings-margin-top !default;
@@ -204,7 +133,6 @@ $display-1-margin-top: o-website-value("display-1-margin-top") or $headings-marg
 $display-2-margin-top: o-website-value("display-2-margin-top") or $headings-margin-top !default;
 $display-3-margin-top: o-website-value("display-3-margin-top") or $headings-margin-top !default;
 $display-4-margin-top: o-website-value("display-4-margin-top") or $headings-margin-top !default;
-// H2~H6 bottom margins are custom variables.
 $headings-margin-bottom: o-website-value("headings-margin-bottom") !default;
 $h2-margin-bottom: o-website-value("h2-margin-bottom") or $headings-margin-bottom !default;
 $h3-margin-bottom: o-website-value("h3-margin-bottom") or $headings-margin-bottom !default;
@@ -223,16 +151,9 @@ $display-4-margin-bottom: o-website-value("display-4-margin-bottom") or
 $headings-color: o-color("o-cc1-headings") !default;
 
 $lead-font-size: $font-size-base * $o-lead-ratio !default;
-// Note that we currently load only 700 for Google fonts, we may consider trying
-// to load more or this one only instead. Meanwhile, this fallbacks on 700
-// if 600 is not available anyway.
 $font-weight-bold: 600 !default;
 
 $text-muted: mute-color($body-color) !default;
-
-// Tables
-//
-// Customizes the `.table` component with basic values, each used across all table variations.
 
 $table-striped-bg-factor: 0.01 !default;
 $table-cell-padding-x: 0.75rem !default;
@@ -241,10 +162,6 @@ $table-cell-padding-x-sm: 0.3rem !default;
 $table-cell-padding-y-sm: 0.3rem !default;
 $table-border-color: $border-color !default;
 $table-group-separator-color: $table-border-color !default;
-
-// Buttons
-//
-// For each of Bootstrap's buttons, define text, background, and border color.
 
 $btn-padding-y: o-website-value("btn-padding-y") !default;
 $btn-padding-x: o-website-value("btn-padding-x") !default;
@@ -263,8 +180,6 @@ $btn-border-width: o-website-value("btn-border-width") !default;
 $btn-border-radius: o-website-value("btn-border-radius") !default;
 $btn-border-radius-lg: o-website-value("btn-border-radius-lg") !default;
 $btn-border-radius-sm: o-website-value("btn-border-radius-sm") !default;
-
-// Forms
 
 $input-padding-y: o-website-value("input-padding-y") !default;
 $input-padding-x: o-website-value("input-padding-x") !default;
@@ -292,37 +207,18 @@ $input-placeholder-color: mix($input-bg, $input-color) !default;
 $input-disabled-bg: mix($input-color, $input-bg, 10%) !default;
 
 $form-check-input-border: ($input-border-width or 1px) solid $input-border-color !default;
-// We limit the border radius for checkboxes to a maximum of 0.25rem
-// (BS5 default), to prevent checkboxes from appearing too rounded and
-// resembling radio buttons.
 $form-check-input-border-radius: if(
     $input-border-radius != null,
     min($input-border-radius, 0.25rem),
     null
 ) !default;
-// Note that using "input-disabled-bg" here might seems strange at first but it
-// is actually the most consistent found way at the moment:
-// - It does not depend on the "border-color", which is important as the
-//   border-color depends on the "currentColor" in standard... and the track
-//   does not have a color.
-// - It depends on "input-bg", which is what we want otherwise the "input-bg"
-//   color would be used for all control elements except the range one.
-// - The notion of "disabled" kinda fits the "track" part of the range, as it is
-//   the "disabled" part of the range value. True, it is still interactive but
-//   a background color on its own is not enough to convey that meaning anyway
-//   (a disabled range should have its *active* part with a different color).
 $form-range-track-bg: $input-disabled-bg !default;
 
-// Dropdowns
 $dropdown-border-color: $border-color !default;
 
-// Breadcrumbs
 $breadcrumb-padding-y: 0.75rem !default;
 $breadcrumb-padding-x: 1rem !default;
 
-// Navbar
-
-// Increase default navbar padding for some navbar styles
 $navbar-padding-y: if(
     index(("fill", "pills", "outline"), o-website-value("header-links-style")),
     calc($spacer / 2 * 1.25),
@@ -339,14 +235,9 @@ $navbar-nav-link-padding-x: if(
     null
 ) !default;
 
-// Jumbotron
-
 $jumbotron-bg: transparent !default;
 
-// Block Quote
 $blockquote-margin-y: 0 !default;
-
-// Bootstrap Review
 
 $o-btn-flat-defaults: () !default;
 $o-btn-outline-defaults: () !default;
@@ -365,7 +256,6 @@ $o-btn-outline-border-width-defaults: () !default;
     }
 }
 
-// Increase default navbar pills padding for 'pills' mode and add big radius
 $o-navbar-nav-pills-link-padding-x: if(
     o-website-value("header-links-style") == "pills",
     1rem * 1.5,
@@ -377,13 +267,11 @@ $o-navbar-nav-pills-link-border-radius: if(
     null
 ) !default;
 
-// Borders
 $border-radius-sm: 0.3rem !default;
 $border-radius: 0.4rem !default;
 $border-radius-lg: 0.6rem !default;
-$border-radius-pill: 50rem !default; // BS Default
+$border-radius-pill: 50rem !default;
 
-// Accordion
 $accordion-color: inherit !default;
 $accordion-bg: inherit !default;
 $accordion-padding-x: 1.5rem !default;
@@ -395,28 +283,22 @@ $accordion-button-focus-box-shadow: none !default;
 $accordion-icon-color: $body-color !default;
 $accordion-icon-active-color: $accordion-button-active-color !default;
 
-// Popovers
 $popover-bg: $body-bg !default;
 $popover-border-color: $border-color !default;
 $popover-arrow-color: $body-bg !default;
 $popover-arrow-outer-color: $border-color !default;
 
-// Badge
 $badge-border-radius: $border-radius-pill !default;
 
-// Shadows
 $box-shadow: 0px 4px 16px rgba($black, 0.12) !default;
 $box-shadow-sm: 0px 1px 3px rgba($black, 0.1) !default;
 $box-shadow-lg: 0px 12px 32px rgba($black, 0.175) !default;
 
-// Cards
 $card-border-color: $border-color !default;
 
-// HR Separator
 $hr-border-color: $border-color !default;
 $hr-opacity: 1 !default;
 
-// Pagination
 $pagination-border-radius: $border-radius-pill !default;
 $pagination-margin-start: map-get(
     $map: $spacers,
@@ -442,14 +324,10 @@ $pagination-disabled-bg: $pagination-bg !default;
 $pagination-border-radius-lg: $pagination-border-radius !default;
 $pagination-border-radius-sm: $pagination-border-radius !default;
 
-// Carousel
 $carousel-control-width: 10% !default;
 
-// Offcanvas
 $offcanvas-horizontal-width: $o-offcanvas-horizontal-width !default;
 
-// TODO adapt in master: fix the text columns web_editor feature to use standard
-// Bootstrap paddings and margins. See FIXED_TEXT_COLUMNS.
 $--enable-no-overflow-of-text-columns: false !default;
 
 .carousel-instant {

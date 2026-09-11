@@ -37,10 +37,6 @@ export class BaseHeaderSpecial extends BaseHeader {
      * @param {Event} ev
      */
     onDropdownShow(ev) {
-        // If a dropdown inside the element 'this.hideEl' is clicked while the
-        // header is fixed, we need to scroll the page up so that the
-        // 'this.hideEl' element is no longer overflow hidden. Without
-        // this, the dropdown would be invisible.
         if (this.cssAffixed) {
             ev.preventDefault();
             this.scrollingElement.scrollTo({ top: 0, behavior: "smooth" });
@@ -49,11 +45,6 @@ export class BaseHeaderSpecial extends BaseHeader {
     }
 
     onSearchbarInput() {
-        // Prevents the dropdown with search results from being hidden when the
-        // header is fixed.
-        // The scroll animation is instantaneous because the dropdown could open
-        // before reaching the top of the page, which would result in an
-        // incorrect calculated height of the header.
         if (this.cssAffixed) {
             this.scrollingElement.scroll({ top: 0 });
         }
@@ -67,17 +58,15 @@ export class BaseHeaderSpecial extends BaseHeader {
         this.atTop = scroll <= this.topGap;
         this.isScrolled = scroll > this.topGap;
 
-        // Need to be 'unfixed' when the window is not scrolled so that the
-        // transparent menu option still works.
         if (scroll > this.topGap) {
             if (!this.cssAffixed) {
                 this.transformShow();
-                void this.el.offsetWidth; // Force a paint refresh
+                void this.el.offsetWidth;
                 this.toggleCSSAffixed(true);
             }
         } else {
             this.transformShow();
-            void this.el.offsetWidth; // Force a paint refresh
+            void this.el.offsetWidth;
             this.toggleCSSAffixed(false);
         }
 
@@ -86,9 +75,6 @@ export class BaseHeaderSpecial extends BaseHeader {
             this.hideEl.classList.remove("hidden");
             let elHeight;
             if (this.cssAffixed) {
-                // Close the dropdowns if they are open when scrolling.
-                // Otherwise, the calculated height of the 'hideEl' element will
-                // be incorrect because it will include the dropdown height.
                 this.hideEl
                     .querySelectorAll(".dropdown-toggle.show")
                     .forEach((dropdownToggleEl) => {
@@ -107,9 +93,6 @@ export class BaseHeaderSpecial extends BaseHeader {
             if (elHeight === 0) {
                 this.hideEl.removeAttribute("style");
             } else {
-                // When the page hasn't been scrolled yet, we don't set overflow
-                // to hidden. Without this, the dropdowns would be invisible.
-                // (e.g., "user menu" dropdown).
                 this.hideEl.style.overflow = this.cssAffixed ? "hidden" : "";
                 this.hideEl.style.height = this.cssAffixed ? `${elHeight}px` : "";
                 let elPadding = parseInt(getComputedStyle(this.hideEl).paddingBlock);
@@ -132,9 +115,6 @@ export class BaseHeaderSpecial extends BaseHeader {
         }
 
         if (!this.cssAffixed && this.dropdownClickedEl) {
-            // The toggle is captured on show.bs.dropdown and reopened once the
-            // smooth scroll settles, so the header may have re-rendered it away
-            // in between.
             if (this.dropdownClickedEl.isConnected) {
                 Dropdown.getOrCreateInstance(this.dropdownClickedEl).show();
             }

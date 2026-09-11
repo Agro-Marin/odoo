@@ -26,8 +26,6 @@ class Im_LivechatChannel(models.Model):
         visitor_sudo = self.env["website.visitor"]._get_visitor_from_request()
         if visitor_sudo:
             discuss_channel_vals["livechat_visitor_id"] = visitor_sudo.id
-            # As chat requested by the visitor, delete the chat requested by an operator if any to avoid conflicts between two flows
-            # TODO DBE : Move this into the proper method (open or init mail channel)
             pending_chats_domain = [
                 ("is_pending_chat_request", "=", True),
                 ("livechat_visitor_id", "=", visitor_sudo.id),

@@ -2,11 +2,6 @@
 
 /* global idbKeyval */
 /**
- * `self` is typed `WorkerGlobalScope` by `lib.webworker` — the generic worker
- * scope, which carries neither `skipWaiting` nor `clients` nor `registration`.
- * A script cannot have `self` re-typed from outside it, so the narrowing is
- * stated once here; the `any` hop is what the two scopes not overlapping costs.
- *
  * @type {ServiceWorkerGlobalScope}
  */
 const sw = /** @type {any} */ (self);
@@ -16,10 +11,10 @@ importScripts("/website_event_track/static/lib/idb-keyval/idb-keyval.js");
 const PREFIX = "odoo-event";
 const SYNCABLE_ROUTES = ["/event/track/toggle_reminder"];
 const CACHABLE_ROUTES = ["/web/webclient/version_info"];
-const MAX_CACHE_SIZE = 512 * 1024 * 1024; // 500 MB
+const MAX_CACHE_SIZE = 512 * 1024 * 1024;
 const MAX_CACHE_QUOTA = 0.5;
 // eslint-disable-next-line no-undef
-const CDN_URL = __ODOO_CDN_URL__; // {string|undefined} the cdn_url configured for the website if activated
+const CDN_URL = __ODOO_CDN_URL__;
 
 const { Store, set, get } = idbKeyval;
 const pendingRequestsQueueName = `${PREFIX}-pending-requests`;
@@ -35,41 +30,35 @@ const cdnURL = CDN_URL
     : undefined;
 
 /**
- *
  * @param {string} url
  * @returns {string}
  */
 const urlPathname = (url) => new URL(url).pathname;
 
 /**
- *
  * @param {Array} whitelist
  * @returns {Function}
  */
 const canHandleRoutes = (whitelist) => (url) => whitelist.includes(urlPathname(url));
 
 /**
- *
  * @param {Request} request
  * @returns {boolean}
  */
 const isGET = (request) => request.method === "GET";
 
 /**
- *
  * @returns {Function}
  */
 const isSyncableURL = canHandleRoutes(SYNCABLE_ROUTES);
 
 /**
- *
  * @returns {Function}
  */
 const isCachableURL = canHandleRoutes(CACHABLE_ROUTES);
 
 /**
- *
- * @returns {boolean} true if navigator has a quota we can read and we reached it
+ * @returns {boolean}
  */
 const isCacheFull = async () => {
     if (!("storage" in navigator && "estimate" in navigator.storage)) {
@@ -85,14 +74,12 @@ const isCacheFull = async () => {
 };
 
 /**
- *
  * @return {Promise}
  */
 const fetchToCacheOfflinePage = () =>
     caches.open(cacheName).then((cache) => cache.add(offlineRoute));
 
 /**
- *
  * @param {Request} req
  * @returns {Promise<Object>}
  */
@@ -110,7 +97,6 @@ const serializeRequest = async (req) => ({
 });
 
 /**
- *
  * @param {Object} requestData
  * @returns {Request}
  */
@@ -121,7 +107,6 @@ const deserializeRequest = (requestData) => {
 };
 
 /**
- *
  * @param {Response} res
  * @returns {Promise<Object>}
  */
@@ -133,7 +118,6 @@ const serializeResponse = async (res) => ({
 });
 
 /**
- *
  * @param {Object} responseData
  * @returns {Response}
  */
@@ -144,7 +128,6 @@ const deserializeResponse = (responseData) => {
 };
 
 /**
- *
  * @param {Object} serializedRequest
  * @returns {string}
  */
@@ -156,26 +139,22 @@ const buildCacheKey = ({ url, body: { method, params } }) =>
     });
 
 /**
- *
  * @returns {int}
  */
 const uniqueRequestId = () => Math.floor(Math.random() * 1000 * 1000 * 1000);
 
 /**
- *
  * @returns {Response}
  */
 const buildEmptyResponse = () =>
     new Response(JSON.stringify({ jsonrpc: "2.0", id: uniqueRequestId(), result: {} }));
 
 /**
- *
  * @param {Request} request
  * @param {Response} response
  * @returns {Promise}
  */
 const cacheRequest = async (request, response) => {
-    // only attempts to cache local or cdn delivered urls
     const url = new URL(request.url);
     if (
         url.hostname !== scopeURL.hostname &&
@@ -187,11 +166,6 @@ const cacheRequest = async (request, response) => {
         return;
     }
 
-    // don't even attempt to cache:
-    //  - error pages (why cache that?)
-    //  - non-"basic" response types, which include tracker 1-time opaque requests
-    //    that are consuming cache space for no reason (namely due to padding MBs accounted for
-    //    each opaque request)
     if (!response || !response.ok || response.type !== "basic") {
         console.error(
             `ignoring cache for ${request.url} => ${response.type}, mode: ${request.mode}, cache: ${request.cache}`,
@@ -199,10 +173,7 @@ const cacheRequest = async (request, response) => {
         return;
     }
 
-    // never blow up cache quota, as it will break things, and the space
-    // is shared with cookies and localStorage
     if (await isCacheFull()) {
-        // TODO: clear some part of the cache to free older/less-relevant content
         console.log("Cache full, not caching!");
         return;
     }
@@ -220,14 +191,12 @@ const cacheRequest = async (request, response) => {
 };
 
 /**
- *
  * @param {Request} request
  * @returns {boolean}
  */
 const isCachableRequest = (request) => isGET(request) || isCachableURL(request.url);
 
 /**
- *
  * @param request
  * @param requestError
  * @return {boolean}
@@ -239,12 +208,10 @@ const isOfflineDocumentRequest = (request, requestError) =>
     ((isGET(request) &&
         request.mode === "navigate" &&
         request.destination === "document") ||
-        // request.mode = navigate isn't supported in all browsers => check for http header accept:text/html
         (request.method === "GET" &&
             request.headers.get("accept").includes("text/html")));
 
 /**
- *
  * @param {Request} request
  * @returns {Promise<Response|null>}
  */
@@ -267,10 +234,9 @@ const matchCache = async (request) => {
 };
 
 /**
- *
  * @param {Request} request
  * @param {object} [options]
- * @param {Boolean} [options.disableTracking] whether adding a header preventing the server to track the request
+ * @param {Boolean} [options.disableTracking]
  * @returns {Promise<Response>}
  */
 const processFetchRequest = async (request, options) => {
@@ -327,7 +293,6 @@ const processFetchRequest = async (request, options) => {
 };
 
 /**
- *
  * @returns {Promise}
  */
 const processPendingRequests = async () => {
@@ -345,7 +310,6 @@ const processPendingRequests = async () => {
 };
 
 /**
- * Add given urls to the Cache, skipping the ones already present
  * @param {Array<string>} urls
  */
 const prefetchUrls = async (urls = []) => {
@@ -364,16 +328,9 @@ const prefetchUrls = async (urls = []) => {
 };
 
 /**
- * Handle the message sent to the Worker (using the postMessage() method).
- * The message is defined by the name of the action to perform and its associated parameters (optional).
- *
- * Actions:
- * - prefetch-pages: add {Array} urls with their "alternative url" to the Cache (if not already present).
- * - prefetch-assets: add {Array} urls to the Cache (if not already present).
- *
  * @param {Object} data
- * @param {string} data.action action's name
- * @param {*} data.* action's parameter(s)
+ * @param {string} data.action
+ * @param {*} data.*
  * @returns {Promise}
  */
 const processMessage = (data) => {
@@ -381,10 +338,6 @@ const processMessage = (data) => {
     switch (action) {
         case "prefetch-pages": {
             const { urls: pagesUrls } = data;
-            // To prevent redirection cached by the browser (cf. 301 Permanently Moved) from breaking the offline cache
-            // we also add alternative urls with the following rule:
-            // * if original url has a trailing "/", adds url with striped trailing "/"
-            // * if original url doesn't end with "/", adds url without the trailing "/"
             const maybeRedirectedUrl = pagesUrls.map((url) =>
                 url.endsWith("/") ? url.slice(0, -1) : url,
             );
@@ -413,7 +366,6 @@ sw.addEventListener("message", (event) => {
     event.waitUntil(processMessage(event.data));
 });
 
-// Precache static resources here. Like offline page
 sw.addEventListener("install", (event) => {
     event.waitUntil(fetchToCacheOfflinePage());
 });

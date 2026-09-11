@@ -87,13 +87,8 @@ export class TableOfContent extends Interaction {
         this.addListener(this.scrollTarget, "scroll", this.scrollBound);
     }
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
     updateTableOfContentNavbarPosition() {
         if (!this.el.querySelector("a.table_of_content_link")) {
-            // Do not start the scrollspy if the TOC is empty.
             return;
         }
 
@@ -181,13 +176,10 @@ export class TableOfContent extends Interaction {
         } else {
             const listGroupEls = parents(link, ".nav, .list-group");
             for (const listGroupEl of listGroupEls) {
-                // Set triggered links parents as active
-                // With both <ul> and <nav> markup a parent is the previous sibling of any nav ancestor
                 const itemEls = prev(listGroupEl, ".nav-link, .list-group-item");
                 for (const itemEl of itemEls) {
                     itemEl.classList.add("active");
                 }
-                // Handle special case when .nav-link is inside .nav-item
                 const navItemEls = prev(listGroupEl, ".nav-item");
                 for (const navItemEl of navItemEls) {
                     for (const childEl of navItemEl.children) {
@@ -250,9 +242,6 @@ export class TableOfContent extends Interaction {
 
 patch(AnchorSlide.prototype, {
     /**
-     * Overridden to add the height of the horizontal sticky navbar at the scroll value
-     * when the link is from the table of content navbar
-     *
      * @override
      */
     computeExtraOffset() {

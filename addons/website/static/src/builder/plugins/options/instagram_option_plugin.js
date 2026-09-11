@@ -49,12 +49,10 @@ class InstagramOptionPlugin extends Plugin {
     }
 
     async loadAndSetPage(nodes) {
-        // TODO: look in shared cache with social info: was SocialMediaOption.getDbSocialValuesCache()
         if (this.instagramUrl) {
             this.setPage(nodes);
             return;
         }
-        // Fetches the default url for instagram page from website config
         const res = await this.services.orm.read(
             "website",
             [this.services.website.currentWebsite.id],
@@ -63,8 +61,6 @@ class InstagramOptionPlugin extends Plugin {
         if (res && res[0].social_instagram) {
             this.instagramUrl = this.instagramPageNameFromUrl(res[0].social_instagram);
 
-            // WARNING: the call to ignoreDOMMutations is very dangerous,
-            // and should be avoided in most cases (if you think you need those, ask html_editor team)
             const hasChanged = this.dependencies.history.ignoreDOMMutations(() =>
                 this.setPage(nodes),
             );
@@ -92,8 +88,6 @@ class InstagramOptionPlugin extends Plugin {
     }
 
     /**
-     * Returns the instagram page name from the given url.
-     *
      * @private
      * @param {string} url
      * @returns {string|undefined}

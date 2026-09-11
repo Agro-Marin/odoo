@@ -30,7 +30,6 @@ export class ImageHoverPlugin extends Plugin {
             let rgba;
             let rbg = null;
             let opacity = null;
-            // Add the required parts for the hover effects to the SVG.
             const hoverEffectName = params.hoverEffect;
             const hoverEffectsSvg = await this.getSvgHoverEffects();
             const hoverEffectEls = hoverEffectsSvg.querySelectorAll(
@@ -39,8 +38,6 @@ export class ImageHoverPlugin extends Plugin {
             hoverEffectEls.forEach((hoverEffectEl) => {
                 svg.appendChild(hoverEffectEl.cloneNode(true));
             });
-            // Modifies the svg according to the chosen hover effect and the value
-            // of the options.
             const animateEl = svg.querySelector("animate");
             const animateTransformEls = svg.querySelectorAll("animateTransform");
             const animateElValues = animateEl?.getAttribute("values");
@@ -70,8 +67,6 @@ export class ImageHoverPlugin extends Plugin {
                     svg.querySelector(
                         '[stroke-opacity="hover_effect_opacity"]',
                     ).setAttribute("stroke-opacity", opacity);
-                    // The stroke width needs to be multiplied by two because half
-                    // of the stroke is invisible since it is centered on the path.
                     const strokeWidth = parseInt(params.hoverEffectStrokeWidth) * 2;
                     animateEl.setAttribute(
                         "values",
@@ -88,8 +83,6 @@ export class ImageHoverPlugin extends Plugin {
                     const imageEl = svg.querySelector("image");
                     const clipPathEl = svg.querySelector("#clip-path");
                     imageEl.setAttribute("id", "shapeImage");
-                    // Modify the SVG so that the clip-path is not zoomed when the
-                    // image is zoomed.
                     imageEl.setAttribute(
                         "style",
                         "transform-origin: center; width: 100%; height: 100%",
@@ -116,7 +109,6 @@ export class ImageHoverPlugin extends Plugin {
                         ),
                     );
                     if (hoverEffectName === "image_zoom_out") {
-                        // Set zoom intensity for the image.
                         const styleAttr = svg.querySelector("style");
                         styleAttr.textContent = styleAttr.textContent.replace(
                             "hover_effect_zoom",
@@ -125,7 +117,6 @@ export class ImageHoverPlugin extends Plugin {
                     }
                     if (hoverEffectName === "dolly_zoom") {
                         clipPathEl.setAttribute("style", "transform-origin: center;");
-                        // Set zoom intensity for clip-path and overlay.
                         zoomValue = 0.99 - parseInt(params.hoverEffectIntensity) / 2000;
                         animateTransformEls.forEach((animateTransformEl, index) => {
                             if (index > 0) {
@@ -191,8 +182,6 @@ export class ImageHoverPlugin extends Plugin {
         updateAttributes();
     }
     /**
-     * Gets the hover effects list.
-     *
      * @private
      * @returns {Promise<SVGElement>}
      */
@@ -244,9 +233,6 @@ export class SetHoverEffectAction extends BuilderAction {
             hoverEffectId,
         );
         if (isPreviewing) {
-            // Wait a tick to ensure the interactions are restarted.
-            // Simulate a mouseenter event to trigger the hover effect. (See
-            // `ImageShapeHoverEffect`).
             setTimeout(() => {
                 editingElement.dispatchEvent(new Event("mouseenter"));
             });

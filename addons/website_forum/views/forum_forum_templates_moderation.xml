@@ -11,7 +11,6 @@
                 </t>
             </t>
         </template>
-        <!-- Moderation: close a post -->
         <template id="mark_as_offensive">
             <div class="o_mark_offensive">
                 <div class="alert bg-light text-muted" t-if="not offensive">

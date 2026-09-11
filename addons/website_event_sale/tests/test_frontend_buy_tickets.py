@@ -73,7 +73,6 @@ class TestUi(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon):
             ]
         )
 
-        # flush event to ensure having tickets available in the tests
         cls.env.flush_all()
 
         (cls.env.ref("base.partner_admin") + cls.partner_demo).write(
@@ -98,11 +97,6 @@ class TestUi(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon):
         self.env["product.pricelist"].with_context(active_test=False).search(
             []
         ).unlink()
-        # Seen that:
-        # - this test relies on demo data that are entirely in USD (pricelists)
-        # - that main demo company is gelocated in US
-        # - that this test awaits for hardcoded USDs amount
-        # we have to force company currency as USDs only for this test
         self.cr.execute(
             "UPDATE res_company SET currency_id = %s WHERE id = %s",
             [self.env.ref("base.USD").id, self.env.ref("base.main_company").id],
@@ -133,7 +127,6 @@ class TestUi(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon):
         )
         transfer_provider._transfer_ensure_pending_msg_is_set()
 
-        #  Ensure the use of USD (company currency)
         self.env["product.pricelist"].create({"name": "Public Pricelist"})
 
         self.start_tour("/", "event_buy_tickets", login="demo")
@@ -156,18 +149,11 @@ class TestUi(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon):
             "/", "event_sale_pricelists_different_currencies", login="admin"
         )
 
-    # TO DO - add public test with new address when convert to web.tour format.
-
 
 @tagged("post_install", "-at_install")
 class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCommon):
     @mute_logger("odoo.http")
     def test_check_seats_avail_before_purchase(self):
-        """Check that payments fails when there aren't enough seats available.
-        - First check payment fails due to exceeding the ticket's limit
-        - Then change to 2 unlimited tickets, which fails due to exceeding event limit
-        - Finally do a successful purchase of a single ticket without limit
-        """
         self.authenticate(None, None)
 
         sale_order = self.empty_cart
@@ -190,7 +176,6 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         self.assertEqual(self.ticket_2.seats_available, 1)
         self.assertEqual(self.event.seats_available, 3)
 
-        # Add VIP ticket to cart & create draft registration
         sale_order.line_ids = [
             Command.create(
                 {
@@ -212,7 +197,6 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         self.assertEqual(self.event.seats_taken, 0)
         self.assertEqual(self.event.event_ticket_ids.mapped("seats_taken"), [0, 0])
 
-        # Sneaky Mitchell beats us to the punch
         self.event.registration_ids = [
             Command.create(
                 {
@@ -225,7 +209,6 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         self.assertEqual(self.event.seats_taken, 1)
         self.assertEqual(self.event.seats_available, 2)
 
-        # Set up transaction values
         url = self._build_url(f"/shop/payment/transaction/{sale_order.id}")
         route_kwargs = {
             "provider_id": self.provider.id,
@@ -237,12 +220,10 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
             "access_token": sale_order._portal_ensure_token(),
         }
 
-        # Payment should fail due to exceeding the VIP ticket limit
         with self.assertRaisesRegex(
             JsonRpcException, r"odoo\.exceptions\.ValidationError"
         ):
             self.call_jsonrpc(url, route_kwargs)
-        # Double check that we hit the correct limit for ticket
         with self.assertRaises(ValidationError):
             self.event._check_seats_availability(
                 [
@@ -254,7 +235,6 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
                 ]
             )
 
-        # Replace VIP ticket with 2 regular tickets
         sale_order.line_ids.write(
             {
                 "product_id": self.ticket.product_id.id,
@@ -268,7 +248,6 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
             {"state": "draft", "sale_order_id": sale_order.id}
         )
 
-        # Sneaky Mitchell beats us to the punch again
         self.event.registration_ids = [
             Command.create(
                 {
@@ -281,12 +260,10 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         self.assertEqual(self.event.seats_taken, 2)
         self.assertEqual(self.event.seats_available, 1)
 
-        # Payment should fail due to exceeding the event seat limit
         with self.assertRaisesRegex(
             JsonRpcException, r"odoo\.exceptions\.ValidationError"
         ):
             self.call_jsonrpc(url, route_kwargs)
-        # Double check that we hit the correct limit for event
         with self.assertRaises(ValidationError):
             self.event._check_seats_availability(
                 [
@@ -298,7 +275,6 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
                 ]
             )
 
-        # Payment should succeed when buying only one ticket
         sale_order.line_ids.product_qty = 1
         registration[1].unlink()
         self.call_jsonrpc(url, route_kwargs)

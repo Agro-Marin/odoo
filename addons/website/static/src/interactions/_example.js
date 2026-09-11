@@ -1,11 +1,7 @@
 /** @odoo-module native */
-// import { registry } from "@web/core/registry";
 import { Component, useState, xml } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
-// -----------------------------------------------------------------------------
-// Example of mounted component
-// -----------------------------------------------------------------------------
 export class Counter extends Component {
     static selector = "#wrapwrap h1";
     static template = xml`
@@ -25,7 +21,3 @@ export class Counter extends Component {
         this.notification.add(`Example of a service: ${this.state.value}`);
     }
 }
-
-/*
-registry.category("public.interactions").add("website.counter", Counter);
-*/

@@ -21,7 +21,6 @@ patch(LocationSelectorDialog.prototype, {
     },
 
     get title() {
-        // The original definition of this getter is in `delivery` module which is not a frontend module. This problem happens in the context of the website. So, it should be repeated here as translations are only fetched in the context of a frontend module, which is `website_sale` in this case.
         if (this.state.locations.length === 1) {
             return _t("Pickup Location");
         }
@@ -29,32 +28,26 @@ patch(LocationSelectorDialog.prototype, {
     },
 
     get validationButtonLabel() {
-        // The original definition of this getter is in `delivery` module which is not a frontend module. This problem happens in the context of the website. So, it should be repeated here as translations are only fetched in the context of a frontend module, which is `website_sale` in this case.
         return _t("Choose this location");
     },
 
     get postalCodePlaceholder() {
-        // The original definition of this getter is in `delivery` module which is not a frontend module. This problem happens in the context of the website. So, it should be repeated here as translations are only fetched in the context of a frontend module, which is `website_sale` in this case.
         return _t("Your postal code");
     },
 
     get listViewButtonLabel() {
-        // The original definition of this getter is in `delivery` module which is not a frontend module. This problem happens in the context of the website. So, it should be repeated here as translations are only fetched in the context of a frontend module, which is `website_sale` in this case.
         return _t("List view");
     },
 
     get mapViewButtonLabel() {
-        // The original definition of this getter is in `delivery` module which is not a frontend module. This problem happens in the context of the website. So, it should be repeated here as translations are only fetched in the context of a frontend module, which is `website_sale` in this case.
         return _t("Map view");
     },
 
     get errorMessage() {
-        // The original definition of this getter is in `delivery` module which is not a frontend module. This problem happens in the context of the website. So, it should be repeated here as translations are only fetched in the context of a frontend module, which is `website_sale` in this case.
         return _t("No result");
     },
 
     get loadingMessage() {
-        // The original definition of this getter is in `delivery` module which is not a frontend module. This problem happens in the context of the website. So, it should be repeated here as translations are only fetched in the context of a frontend module, which is `website_sale` in this case.
         return _t("Loading...");
     },
 });

@@ -11,9 +11,7 @@
                 data-bs-ride="true"
                 data-option-name="CarouselCards"
                 style="--card-img-size-h: 60%; --CardBody-extra-height: 0px;">
-                <!-- Content -->
                 <div class="carousel-inner rounded">
-                    <!-- #01 -->
                     <div
                         class="s_carousel_cards_item carousel-item active p-0"
                         data-name="Slide">
@@ -34,7 +32,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- #02 -->
                     <div
                         class="s_carousel_cards_item carousel-item p-0"
                         data-name="Slide">
@@ -55,7 +52,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- #03 -->
                     <div
                         class="s_carousel_cards_item carousel-item p-0"
                         data-name="Slide">
@@ -81,7 +77,6 @@
                     class="o_horizontal_controllers position-absolute start-0 end-0 bottom-0 o_not_editable">
                     <div
                         class="o_horizontal_controllers_row d-flex gap-3 justify-content-between flex-nowrap">
-                        <!-- Indicators -->
                         <div
                             class="s_carousel_indicators_dots carousel-indicators align-items-center flex-shrink-1 w-auto mb-0">
                             <button
@@ -98,7 +93,6 @@
                                 t-attf-data-bs-target="#myCarouselCards{{uniq}}"
                                 data-bs-slide-to="2" />
                         </div>
-                        <!-- Controls -->
                         <div
                             class="o_arrows_wrapper gap-2 align-items-center w-auto p-0">
                             <button

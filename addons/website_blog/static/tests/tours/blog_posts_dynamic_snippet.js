@@ -52,7 +52,6 @@ registerWebsitePreviewTour(
             content: "Check That the `Template` option is visible",
             trigger: `.options-container [data-label="Template"]`,
         },
-        // Check that the content width classes resets when the template is changed.
         {
             content: "Set Full-Width on the snippet",
             ...changeOption("Dynamic Snippet", "[data-action-param='container-fluid']"),

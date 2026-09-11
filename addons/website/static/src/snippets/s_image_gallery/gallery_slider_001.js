@@ -3,7 +3,6 @@ import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 
 export class GallerySlider001 extends Interaction {
-    // TODO in master: use `.o_slideshow[data-vjs='001']`
     static selector = ".o_slideshow[data-vcss='002']";
     dynamicContent = {
         ".carousel": {
@@ -43,10 +42,6 @@ export class GallerySlider001 extends Interaction {
             }
         }
     }
-    /**
-     * Checks whether the indicators container is scrollable to the left or/and
-     * to the right because there are more items.
-     */
     checkScrollableIndicators() {
         const containerRect = this.indicatorsWrapperEl.getBoundingClientRect();
         const leftIndicatorRect = this.leftIndicatorEl.getBoundingClientRect();
@@ -58,7 +53,6 @@ export class GallerySlider001 extends Interaction {
     onSlideCarousel(ev) {
         if (this.indicatorEls.length) {
             const nextActiveIndicatorEl = this.indicatorEls.item(ev.to);
-            // Scroll the indicators to center the active one.
             this.indicatorsWrapperEl.scrollTo({
                 left:
                     nextActiveIndicatorEl.offsetLeft +

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- End Message -->
     <t t-name="website.s_website_form_end_message">
         <div class="s_website_form_end_message d-none">
             <div class="oe_structure">
@@ -24,8 +23,6 @@
         </div>
     </t>
 
-    <!-- Generic Field Layout -->
-    <!-- Changes made here needs to be reflected in the different Form view (Contact Us, Jobs, ...) -->
     <t t-name="website.form_field">
         <div t-attf-class="s_website_form_field mb-3 #{field.formatInfo.col or 'col-12'} #{field.custom and 's_website_form_custom' or ''} #{(field.required and 's_website_form_required' or '') or (field.modelRequired and 's_website_form_model_required' or '')} #{field.hidden and 's_website_form_field_hidden' or ''} #{field.dnone and 's_website_form_dnone' or ''}"
             t-att-data-type="field.type"
@@ -61,24 +58,11 @@
     </t>
 
     <t t-name="website.form_field_description">
-        <!-- The actual value for this case is handled in JS as it can be -->
-        <!-- edited with formatting by the user -->
-        <!--
-            TODO using "small" alongside with the "form-text" class is actually
-            a mistake in current Bootstrap version: it has no effect since the
-            "form-text" class already enforces the default "small" behavior of
-            Bootstrap. In master, remove "small" on all of these.
-
-            TODO changing "font style" (tag) should also be disabled on those
-            form descriptions as the behavior is kinda weird (but it mainly does
-            not make sense to try and change it over there anyway).
-        -->
         <div t-if="default_description" class="s_website_form_field_description small form-text text-muted" contenteditable="true">
             <t t-out="default_description"/>
         </div>
     </t>
 
-    <!-- Hidden Field -->
     <t t-name="website.form_field_hidden">
         <t t-call="website.form_field">
             <input
@@ -91,7 +75,6 @@
         </t>
     </t>
 
-    <!-- Char Field -->
     <t t-name="website.form_field_char">
         <t t-call="website.form_field">
             <input
@@ -107,22 +90,18 @@
         </t>
     </t>
 
-    <!-- Email Field -->
     <t t-name="website.form_field_email">
         <t t-call="website.form_field_char"/>
     </t>
 
-    <!-- Telephone Field -->
     <t t-name="website.form_field_tel">
         <t t-call="website.form_field_char"/>
     </t>
 
-    <!-- Url Field -->
     <t t-name="website.form_field_url">
         <t t-call="website.form_field_char"/>
     </t>
 
-    <!-- Text Field -->
     <t t-name="website.form_field_text">
         <t t-call="website.form_field">
             <textarea
@@ -137,16 +116,10 @@
         </t>
     </t>
 
-    <!-- HTML Field -->
     <t t-name="website.form_field_html">
-        <!--
-            Maybe use web_editor ? Not sure it actually makes
-            sense to have random people editing html in a form...
-        -->
         <t t-call="website.form_field_text"/>
     </t>
 
-    <!-- Integer Field -->
     <t t-name="website.form_field_integer">
         <t t-call="website.form_field">
             <input
@@ -162,7 +135,6 @@
         </t>
     </t>
 
-    <!-- Float Field -->
     <t t-name="website.form_field_float">
         <t t-call="website.form_field">
             <input
@@ -178,7 +150,6 @@
         </t>
     </t>
 
-    <!-- Date Field -->
     <t t-name="website.form_field_date">
         <t t-call="website.form_field">
             <div class="s_website_form_date input-group date">
@@ -196,7 +167,6 @@
         </t>
     </t>
 
-    <!-- Datetime Field -->
     <t t-name="website.form_field_datetime">
         <t t-call="website.form_field">
             <div class="s_website_form_datetime input-group date">
@@ -214,7 +184,6 @@
         </t>
     </t>
 
-    <!-- Boolean Field -->
     <t t-name="website.form_field_boolean">
         <t t-call="website.form_field">
             <div class="form-check">
@@ -231,7 +200,6 @@
         </t>
     </t>
 
-    <!-- Selection Field -->
     <t t-name="website.form_field_selection">
         <t t-call="website.form_field">
             <t t-if="!field.records">
@@ -252,7 +220,6 @@
         </t>
     </t>
 
-    <!-- Radio -->
     <t t-name="website.form_radio">
         <t t-set="recordId" t-value="field.id + record_index"/>
         <div t-attf-class="radio col-12 #{field.formatInfo.multiPosition === 'horizontal' and 'col-lg-4 col-md-6' or ''}">
@@ -273,13 +240,10 @@
         </div>
     </t>
 
-    <!-- Many2One Field -->
     <t t-name="website.form_field_many2one">
-        <!-- Binary one2many -->
         <t t-if="field.relation === 'ir.attachment'">
             <t t-call="website.form_field_binary"/>
         </t>
-        <!-- Generic one2many -->
         <t t-if="field.relation !== 'ir.attachment'">
             <t t-call="website.form_field">
                 <t t-if="!field.records || field.records.length === 0">
@@ -301,15 +265,12 @@
         </t>
     </t>
 
-    <!-- One2Many Field -->
     <t t-name="website.form_field_one2many">
-        <!-- Binary one2many -->
         <t t-if="field.relation === 'ir.attachment'">
             <t t-call="website.form_field_binary">
                 <t t-set="multiple" t-value="1"/>
             </t>
         </t>
-        <!-- Generic one2many -->
         <t t-if="field.relation !== 'ir.attachment'">
             <t t-call="website.form_field">
                 <t t-if="!field.records || field.records.length === 0">
@@ -333,7 +294,6 @@
         </t>
     </t>
 
-    <!-- Checkbox -->
     <t t-name="website.form_checkbox">
         <t t-set="recordId" t-value="field.id + record_index"/>
         <div t-attf-class="checkbox col-12 #{field.formatInfo.multiPosition === 'horizontal' and 'col-lg-4 col-md-6' or ''}">
@@ -354,12 +314,10 @@
         </div>
     </t>
 
-    <!-- Many2Many Field -->
     <t t-name="website.form_field_many2many">
         <t t-call="website.form_field_one2many"/>
     </t>
 
-    <!-- Binary Field -->
     <t t-name="website.form_field_binary">
         <t t-call="website.form_field">
             <input
@@ -375,7 +333,6 @@
         </t>
     </t>
 
-    <!-- Monetary Field -->
     <t t-name="website.form_field_monetary">
         <t t-call="website.form_field_float" />
     </t>

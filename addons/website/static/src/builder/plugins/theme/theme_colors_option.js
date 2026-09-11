@@ -61,7 +61,6 @@ export class ThemeColorsOption extends BaseOptionComponent {
                 secondaryBtnBorder: this.getColor(`o-cc${i}-btn-secondary-border`),
             };
 
-            // TODO: check if this is necessary
             if (preset.backgroundGradient) {
                 preset.backgroundGradient += ", url('/web/static/img/transparent.png')";
             }

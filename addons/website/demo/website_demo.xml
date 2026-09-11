@@ -780,21 +780,16 @@
             <field name="name">My Website 2</field>
             <field name="sequence">20</field>
         </record>
-        <!-- BS Debug Page -->
-        <!-- Showcase all (most?) BS components and utilities -->
         <record id="bs_debug_page" model="website.page">
             <field name="url">/website/demo/bootstrap</field>
             <field name="is_published">False</field>
             <field name="view_id" ref="bs_debug_view" />
         </record>
-        <!-- Presets Debug Page -->
         <record id="color_combinations_debug_page" model="website.page">
             <field name="url">/website/demo/color-combinations</field>
             <field name="is_published">False</field>
             <field name="view_id" ref="color_combinations_debug_view" />
         </record>
-        <!-- Snippet Debug Page -->
-        <!-- Showcase all snippets -->
         <record id="snippets_debug_page" model="website.page">
             <field name="url">/website/demo/snippets</field>
             <field name="is_published">False</field>

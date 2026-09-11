@@ -34,7 +34,6 @@ export const websiteMapService = {
                             const data = await rpc("/website/google_maps_api_key");
                             return JSON.parse(data).google_maps_api_key || "";
                         } catch {
-                            // Don't cache a failed fetch; allow a later retry.
                             gmapAPIKeyProm = null;
                             return "";
                         }
@@ -47,15 +46,6 @@ export const websiteMapService = {
              * @param {boolean} [refetch=false]
              */
             async loadGMapAPI(editableMode, refetch) {
-                // Note: only need refetch to reload a configured key and load the
-                // library. If the library was loaded with a correct key and that the
-                // key changes meanwhile... it will not work but we can agree the user
-                // can bother to reload the page at that moment.
-                // Check `gmapAPILoading` synchronously: `!(await gmapAPILoading)`
-                // meant two concurrent first callers both awaited `undefined`
-                // (falsy) and both entered the loader. Reset the cache when the
-                // load fails so a later call still retries (the previous
-                // await-false guard did).
                 if (refetch || !gmapAPILoading) {
                     gmapAPILoading = (async () => {
                         try {
@@ -98,18 +88,6 @@ export const websiteMapService = {
                 return gmapAPILoading;
             },
             /**
-             * Send a request to the Google Maps API to test the validity of the given
-             * API key. Return an object with the error message if any, and a boolean
-             * that is true if the response from the API had a status of 200.
-             *
-             * Note: The response will be 200 so long as the API key has billing, Static
-             * API and Javascript API enabled. However, for our purposes, we also need
-             * the Places API enabled. To deal with that case, we perform a nearby
-             * search immediately after validation. If it fails, the error is handled
-             * and the dialog is re-opened.
-             * @see nearbySearch
-             * @see notifyGMapsError
-             *
              * @param {string} key
              * @returns {Promise<ApiKeyValidation>}
              */
@@ -138,10 +116,6 @@ export const websiteMapService = {
                 }
             },
             /**
-             * Send a request to the Google Maps API, using the given API key, so as to
-             * get a response which can be used to test the validity of said key.
-             * This method is set apart so it can be overridden for testing.
-             *
              * @param {string} key
              * @returns {Promise<{ status: number }>}
              */

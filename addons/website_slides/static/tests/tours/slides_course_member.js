@@ -1,25 +1,14 @@
 import { registry } from "@web/core/registry";
 import { delay } from "@web/core/utils/concurrency";
 
-/**
- * Global use case:
- * an user (either employee, website restricted editor or portal) joins a public
-    course;
- * they have access to the full course content when they are a member of the
-    course;
- * they use fullscreen player to complete the course;
- * they rate the course;
- */
 registry.category("web_tour.tours").add("course_member", {
     url: "/slides",
     steps: () => [
-        // eLearning: go on free course and join it
         {
             trigger: 'a:contains("Basics of Gardening - Test")',
             run: "click",
             expectUnloadPage: true,
         },
-        // Chatter is lazy loading. Wait for it.
         {
             trigger: "a[id=review-tab]",
             run: "click",
@@ -38,7 +27,6 @@ registry.category("web_tour.tours").add("course_member", {
             expectUnloadPage: true,
         },
         {
-            // check membership
             trigger: '.o_wslides_js_course_join:contains("You\'re enrolled")',
         },
         {
@@ -46,12 +34,10 @@ registry.category("web_tour.tours").add("course_member", {
             run: "click",
             expectUnloadPage: true,
         },
-        // eLearning: follow course by cliking on first lesson and going to fullscreen player
         {
             trigger: '.o_wslides_fs_slide_name:contains("Home Gardening")',
             run: "click",
         },
-        // eLearning: share the first slide
         {
             trigger: ".o_wslides_fs_share",
             run: "click",
@@ -65,14 +51,12 @@ registry.category("web_tour.tours").add("course_member", {
             run: "click",
         },
         {
-            // check email has been sent
             trigger: '.o_wslides_js_share_email:contains("Sharing is caring")',
         },
         {
             trigger: '.modal-footer button:contains("Close")',
             run: "click",
         },
-        // eLeaning: course completion
         {
             trigger: ".o_wslides_fs_sidebar_header",
             run: "press ArrowLeft",
@@ -89,7 +73,6 @@ registry.category("web_tour.tours").add("course_member", {
             trigger: ".o_wslides_fs_sidebar_list_item.active:contains(Home Gardening)",
         },
         {
-            // check progression
             trigger: '.o_wslides_progress_percentage:contains("40")',
             run: "press ArrowRight",
         },
@@ -97,7 +80,6 @@ registry.category("web_tour.tours").add("course_member", {
             trigger: ".o_wslides_fs_sidebar_list_item.active:contains(Mighty Carrots)",
         },
         {
-            // check progression
             trigger: '.o_wslides_progress_percentage:contains("60")',
         },
         {
@@ -106,15 +88,12 @@ registry.category("web_tour.tours").add("course_member", {
             run: "click",
         },
         {
-            // check that video slide is marked as 'done'
             trigger:
                 '.o_wslides_fs_sidebar_section_slides li:contains("How to Grow and Harvest The Best Strawberries | Basics") .o_wslides_slide_completed',
         },
         {
-            // check progression
             trigger: '.o_wslides_progress_percentage:contains("80")',
         },
-        // eLearning: last slide is a quiz, complete it
         {
             trigger: '.o_wslides_fs_slide_name:contains("Test your knowledge")',
             run: "click",
@@ -132,7 +111,6 @@ registry.category("web_tour.tours").add("course_member", {
             run: "click",
         },
         {
-            // check that we have a properly motivational message to motivate us!
             trigger:
                 '.o_wslides_quiz_modal_rank_motivational > div > div:contains("Reach the next rank and gain a very nice mug!")',
             run: "click",
@@ -142,12 +120,9 @@ registry.category("web_tour.tours").add("course_member", {
             run: "click",
             expectUnloadPage: true,
         },
-        // eLearning: ending course redirect to /slides, course is completed now
         {
-            // check that the course is marked as completed
             trigger: 'div:contains("Basics of Gardening") span:contains("Completed")',
         },
-        // eLearning: go back on course and rate it
         {
             trigger: 'a:contains("Basics of Gardening")',
             run: "click",
@@ -159,13 +134,6 @@ registry.category("web_tour.tours").add("course_member", {
             run: "click",
         },
         {
-            // Rate 3 stars: the third star of the five, by position.
-            // Was `i.fa.fa-star:eq(2)`, which selected on Font Awesome 4 fill
-            // classes and matched nothing once the fork moved to FA7 -- a full
-            // star is now "fa-solid fa-star" and an empty one "fa-regular
-            // fa-star". Position is also the honest selector: the old one
-            // indexed among *filled* stars, so which star it clicked depended
-            // on the rating already showing.
             trigger: ".modal.modal_shown .modal-body .o-mail-Composer-stars i:eq(2)",
             run: "click",
         },
@@ -181,16 +149,12 @@ registry.category("web_tour.tours").add("course_member", {
             content: "Wait the first review is closed before send the second",
             trigger: "body:not(:has(.modal:visible))",
         },
-        // eLearning: edit the review
         {
             trigger:
                 'button[data-bs-target="#ratingpopupcomposer"]:contains("Edit Review")',
             run: "click",
         },
         {
-            // Re-rate 5 stars. Was `i.fa.fa-star-o:eq(1)` -- the second *empty*
-            // star of a 3-star rating, i.e. the fifth star. FA7 has no
-            // `fa-star-o` at all.
             trigger: ".modal.modal_shown .modal-body .o-mail-Composer-stars i:eq(4)",
             run: "click",
         },

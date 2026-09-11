@@ -2,8 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- CHANNEL 0: Basics of Gardening -->
-        <!-- ================================================== -->
         <record id="slide_slide_demo_0_0" model="slide.slide">
             <field name="name">Gardening: The Know-How</field>
             <field name="sequence">1</field>
@@ -28,7 +26,6 @@
             <field
                 name="description">A summary of know-how: how and what. All the basics for this course about gardening.</field>
         </record>
-        <!--RESOURCE-->
         <record id="slide_slide_demo_0_0_resource_0" model="slide.slide.resource">
             <field name="resource_type">file</field>
             <field name="name">Document</field>
@@ -189,9 +186,6 @@
             <field name="question_id" ref="slide_slide_demo_0_4_question_1" />
             <field name="answer_score" eval="0.0" />
         </record>
-        <!-- CHANNEL 1: Taking care of Trees -->
-        <!-- ================================================== -->
-        <!--                    Categories                      -->
         <record id="slide_category_demo_1_0" model="slide.slide">
             <field name="name">Interesting Facts</field>
             <field name="is_category" eval="True" />
@@ -204,7 +198,6 @@
             <field name="channel_id" ref="website_slides.slide_channel_demo_1_gard1" />
             <field name="sequence">4</field>
         </record>
-        <!--                    Slides                      -->
         <record id="slide_slide_demo_1_0" model="slide.slide">
             <field name="name">List Infographic</field>
             <field name="sequence">1</field>
@@ -274,7 +267,6 @@
             <field name="link">http://www.example.com</field>
             <field name="slide_id" ref="slide_slide_demo_1_2" />
         </record>
-        <!--RESOURCE-->
         <record id="slide_slide_demo_1_2_resource_0" model="slide.slide.resource">
             <field name="resource_type">file</field>
             <field name="name">Presentation</field>
@@ -490,9 +482,6 @@
             <field
                 name="description">Here is How to get the Sweetest Strawberries you ever tasted!</field>
         </record>
-        <!-- CHANNEL 2: Trees, Wood and Garden -->
-        <!-- ================================================== -->
-        <!--                    Categories                      -->
         <record id="slide_category_demo_2_0" model="slide.slide">
             <field name="name">Trees</field>
             <field name="is_category" eval="True" />
@@ -505,8 +494,6 @@
             <field name="channel_id" ref="website_slides.slide_channel_demo_2_gard2" />
             <field name="sequence">4</field>
         </record>
-        <!--                    Slides                      -->
-        <!-- Category: Trees -->
         <record id="slide_slide_demo_2_0" model="slide.slide">
             <field name="name">Main Trees Categories</field>
             <field name="sequence">1</field>
@@ -535,7 +522,6 @@
             <field
                 name="description">A summary of know-how: what are the main trees categories and how to differentiate them.</field>
         </record>
-        <!-- LINKS -->
         <record id="slide_slide_demo_2_0_link_0" model="slide.slide.resource">
             <field name="resource_type">url</field>
             <field name="name">Trees Classification Link</field>
@@ -548,7 +534,6 @@
             <field name="link">http://www.example.com</field>
             <field name="slide_id" ref="slide_slide_demo_2_0" />
         </record>
-        <!--RESOURCE-->
         <record id="slide_slide_demo_2_0_resource_0" model="slide.slide.resource">
             <field name="resource_type">file</field>
             <field name="name">List image</field>
@@ -558,7 +543,6 @@
                 file="website_slides/static/src/img/slide_demo_tree_img_2.jpg" />
             <field name="slide_id" ref="slide_slide_demo_2_0" />
         </record>
-        <!-- QUIZZ -->
         <record id="slide_slide_demo_2_0_quiz_survey" model="survey.survey">
             <field name="title">Main Trees Categories Quiz</field>
             <field name="scoring_type">scoring_without_answers</field>
@@ -709,7 +693,6 @@
             <field
                 name="description">How to wall decorating by tree planting in hanging plastic bottles.</field>
         </record>
-        <!-- Category: Wood -->
         <record id="slide_slide_demo_2_3" model="slide.slide">
             <field name="name">Wood Characteristics</field>
             <field name="sequence">5</field>
@@ -738,16 +721,12 @@
             <field
                 name="description">Knowing wood characteristics is a requirement in order to know which kind of wood to use in a given situation.</field>
         </record>
-        <!-- CHANNEL 3: Choose your wood!           -->
-        <!-- ======================================= -->
-        <!--                 Categories              -->
         <record id="slide_category_demo_3_0" model="slide.slide">
             <field name="name">Working with Wood</field>
             <field name="is_category" eval="True" />
             <field name="channel_id" ref="website_slides.slide_channel_demo_3_furn0" />
             <field name="sequence">1</field>
         </record>
-        <!--                    Slides                      -->
         <record id="slide_slide_demo_3_0" model="slide.slide">
             <field name="name">Comparing Hardness of Wood Species</field>
             <field name="sequence">2</field>
@@ -784,9 +763,6 @@
             <field name="completion_time">3</field>
             <field name="description">Watching the master(s) at work</field>
         </record>
-        <!-- CHANNEL 4: Furniture Technical Specifications -->
-        <!-- ======================================= -->
-        <!--                 Categories              -->
         <record id="slide_category_demo_4_0" model="slide.slide">
             <field name="name">Documents</field>
             <field name="is_category" eval="True" />
@@ -799,7 +775,6 @@
             <field name="channel_id" ref="website_slides.slide_channel_demo_4_furn1" />
             <field name="sequence">10</field>
         </record>
-        <!--                    Slides                      -->
         <record id="slide_slide_demo_4_0" model="slide.slide">
             <field name="name">Foreword</field>
             <field name="sequence">1</field>
@@ -879,7 +854,6 @@
             <field
                 name="description">Which wood type is best for my solid wood furniture? That's the question we help you answer in this video!</field>
         </record>
-        <!-- Catgory: technical drawings -->
         <record id="slide_slide_demo_4_10" model="slide.slide">
             <field name="name">Drawing 1</field>
             <field name="sequence">11</field>
@@ -941,9 +915,6 @@
                 eval="[(4, ref('website_slides.slide_tag_demo_howto'))]" />
             <field name="description">GLork</field>
         </record>
-        <!-- CHANNEL 5: Basics of Furniture Creation -->
-        <!-- ======================================= -->
-        <!--                 Categories              -->
         <record id="slide_category_demo_5_0" model="slide.slide">
             <field name="name">Tools and Methods</field>
             <field name="is_category" eval="True" />
@@ -962,7 +933,6 @@
             <field name="channel_id" ref="website_slides.slide_channel_demo_5_furn2" />
             <field name="sequence">5</field>
         </record>
-        <!--                    Slides                     -->
         <record id="slide_slide_demo_5_0" model="slide.slide">
             <field name="name">Unforgettable Tools</field>
             <field name="sequence">1</field>
@@ -1088,8 +1058,6 @@
             <field name="question_id" ref="slide_slide_demo_5_3_question_0" />
             <field name="answer_score" eval="0.0" />
         </record>
-        <!-- CHANNEL 6: DIY Furniture -->
-        <!-- ======================================= -->
     </data>
 
 </odoo>

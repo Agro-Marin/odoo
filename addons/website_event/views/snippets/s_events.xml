@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Snippet -->
     <template id="s_events" name="Events">
         <t t-call="website.s_dynamic_snippet_template">
             <t t-set="snippet_name" t-value="'s_events'" />
@@ -16,7 +15,6 @@
         </t>
     </template>
 
-    <!-- Multi record snippets -->
     <template id="s_events_picture" name="Events Picture">
         <t t-set="snippet_extra_classes" t-value="'s_event_event_picture'" />
         <t t-call="website_event.s_events">
@@ -31,7 +29,6 @@
         </t>
     </template>
 
-    <!-- Single record snippets -->
     <template id="s_events_single_offset" name="Single Event Offset">
         <t t-set="is_single_record" t-value="True" />
         <t t-set="snippet_extra_classes" t-value="'s_event_event_single_offset'" />
@@ -80,8 +77,6 @@
         </t>
     </template>
 
-    <!-- Multi record templates-->
-    <!-- Picture Layout -->
     <template
         id="dynamic_filter_template_event_event_picture"
         name="Picture Layout"
@@ -133,7 +128,6 @@
         </div>
     </template>
 
-    <!-- Card Layout -->
     <template
         id="dynamic_filter_template_event_event_card"
         name="Card Layout"
@@ -190,8 +184,6 @@
         </t>
     </template>
 
-    <!-- Single record templates -->
-    <!-- Offset Layout -->
     <template id="dynamic_filter_template_event_event_single_offset" name="Solo Offset">
         <t
             t-if="len(records)"
@@ -252,7 +244,6 @@
         </t>
     </template>
 
-    <!-- Entry Layout -->
     <template id="dynamic_filter_template_event_event_single_entry" name="Solo Entry">
         <t
             t-if="len(records)"
@@ -301,7 +292,6 @@
         </t>
     </template>
 
-    <!-- Card Layout -->
     <template id="dynamic_filter_template_event_event_single_card" name="Solo Card">
         <t
             t-if="len(records)"
@@ -355,7 +345,6 @@
         </t>
     </template>
 
-    <!-- CTA Badge Layout -->
     <template id="dynamic_filter_template_event_event_single_badge" name="Solo Badge">
         <t
             t-if="len(records)"
@@ -398,7 +387,6 @@
         </t>
     </template>
 
-    <!-- Aside Layout -->
     <template id="dynamic_filter_template_event_event_single_aside" name="Solo Aside">
         <t t-if="len(records)" class="s_events_event" data-column-classes="col-lg-12">
             <t t-set="data" t-value="records[0]" />
@@ -439,7 +427,6 @@
         </t>
     </template>
 
-    <!--ASSETS-->
     <asset id="website_event.s_events_000_scss" name="Event 000 SCSS">
         <bundle>web.assets_frontend</bundle>
         <path>website_event/static/src/snippets/s_events/000.scss</path>

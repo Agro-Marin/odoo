@@ -11,7 +11,6 @@ import { showAddFontDialog } from "./add_font_dialog.js";
  * @property { WebsiteFontPlugin['deleteFont'] } deleteFont
  */
 
-// TODO Website-specific
 class WebsiteFontPlugin extends Plugin {
     static id = "websiteFont";
     static shared = ["addFont", "deleteFont"];
@@ -53,27 +52,23 @@ class WebsiteFontPlugin extends Plugin {
             values,
         );
         this.dependencies.builderFont.getFontsCache().invalidate();
-        // TODO reloadEditor: true
-        await this.dependencies.savePlugin.save(/* not in translation */);
+        await this.dependencies.savePlugin.save();
     }
     async deleteFont(font) {
         const { googleFonts, googleLocalFonts, uploadedLocalFonts } =
             await this.dependencies.builderFont.getFontsData();
         const values = {};
 
-        // Remove Google font
         const fontIndex = font.indexForType;
         const localFont = font.type;
         let fontName;
         if (localFont === "uploaded") {
             const font = uploadedLocalFonts[fontIndex].split(":");
-            // Remove double quotes
             fontName = font[0].substring(1, font[0].length - 1);
             values["delete-font-attachment-id"] = font[1];
             uploadedLocalFonts.splice(fontIndex, 1);
         } else if (localFont === "google") {
             const googleFont = googleLocalFonts[fontIndex].split(":");
-            // Remove double quotes
             fontName = googleFont[0].substring(1, googleFont[0].length - 1);
             values["delete-font-attachment-id"] = googleFont[1];
             googleLocalFonts.splice(fontIndex, 1);
@@ -82,13 +77,10 @@ class WebsiteFontPlugin extends Plugin {
             googleFonts.splice(fontIndex, 1);
         }
 
-        // Adapt font variable indexes to the removal
         const style = getHtmlStyle(this.document);
         this.getResource("fontCssVariables").forEach((variable) => {
             const value = getCSSVariableValue(variable, style);
             if (value.substring(1, value.length - 1) === fontName) {
-                // If an element is using the google font being removed, reset
-                // it to the theme default.
                 values[variable] = "null";
             }
         });

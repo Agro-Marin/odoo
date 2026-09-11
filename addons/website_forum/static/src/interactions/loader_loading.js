@@ -3,16 +3,7 @@
 (function () {
     "use strict";
 
-    /**
-     * This file makes sure textarea elements with a specific editor class are
-     * tweaked as soon as the DOM is ready so that they appear to be loading.
-     *
-     * They must then be loaded using standard Odoo modules system. In particular,
-     * @see @website_forum/static/src/interactions/website_forum
-     */
-
     document.addEventListener("DOMContentLoaded", () => {
-        // Standard loop for better browser support
         var textareaEls = document.querySelectorAll("textarea.o_wysiwyg_loader");
         for (var i = 0; i < textareaEls.length; i++) {
             var textarea = textareaEls[i];

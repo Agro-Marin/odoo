@@ -71,7 +71,6 @@
         </section>
     </template>
 
-    <!-- Assets -->
     <asset
         id="website.s_ecomm_categories_showcase_000_scss"
         name="Categories Grid 000 SCSS">

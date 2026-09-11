@@ -8,11 +8,8 @@ export const websiteCookiesService = {
         const bus = new EventBus();
         const publicInteractions = deps["public.interactions"];
         /**
-         * Updates the element's iframe according to whether the cookies should
-         * be approved (marked by `_post_processing_att` server-side).
-         *
          * @param {HTMLIFrameElement} iframeEl
-         * @param {string} src - src to set on the iframe.
+         * @param {string} src
          */
         function manageIframeSrc(iframeEl, src) {
             if (!iframeEl.closest("[data-need-cookies-approval]")) {

@@ -57,7 +57,6 @@ class EventBooth(models.Model):
                     if key.startswith("sponsor_")
                 },
             }
-            # If confirmed from backend, we don't have _prepare_booth_registration_values
             if not values.get("name"):
                 values["name"] = self.partner_id.name
             sponsor_id = self.env["event.sponsor"].sudo().create(values)

@@ -41,7 +41,7 @@ export class WebsiteSwitcherSystrayItem extends Component {
             ),
             callback: () => {
                 if (
-                    !session.website_bypass_domain_redirect && // Used by the Odoo support (bugs to be expected)
+                    !session.website_bypass_domain_redirect &&
                     website.domain &&
                     !isHTTPSorNakedDomainRedirection(
                         website.domain,
@@ -52,8 +52,6 @@ export class WebsiteSwitcherSystrayItem extends Component {
                         location: { pathname, search, hash },
                     } = this.websiteService.contentWindow;
                     const path = pathname + search + hash;
-                    // Automatically converts Unicode domains (e.g. düsseldorf.com) to
-                    // punycode (ASCII-safe) using the native URL API
                     const url = new URL("/web", website.domain);
                     url.hash = new URLSearchParams({
                         action: "website.website_preview",

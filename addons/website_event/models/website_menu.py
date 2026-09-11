@@ -7,7 +7,6 @@ class WebsiteMenu(models.Model):
     _inherit = "website.menu"
 
     def unlink(self):
-        """Override to synchronize event configuration fields with menu deletion."""
         event_updates = {}
         website_event_menus = self.env["website.event.menu"].search(
             [("menu_id", "in", self.ids)]
@@ -24,20 +23,12 @@ class WebsiteMenu(models.Model):
         unlinked_menus = self
 
         if website_event_menus:
-            # Manually remove website_event_menus to call their ``unlink`` method. Otherwise
-            # super unlinks at db level and skip model-specific behavior.
-            # Since website.event.menu unlink removes:
-            # - the related ir.ui.view records
-            # - which cascade deletes the website.page records
-            # - which cascade deletes the website.menu records
-            # -> we only call super unlink on the remaining website.menu records
             cascaded_menus = website_event_menus.view_id.page_ids.menu_ids
             unlinked_menus = self - cascaded_menus
             website_event_menus.unlink()
 
         res = super(WebsiteMenu, unlinked_menus).unlink()
 
-        # update events
         for event, to_update in event_updates.items():
             if to_update:
                 event.write(dict.fromkeys(to_update, False))
@@ -46,19 +37,6 @@ class WebsiteMenu(models.Model):
 
     @api.model
     def save(self, website_id, data):
-        """Override to force new menu entries inside an event under that event's pages.
-
-        All sub-menus of an event are children of a 'main' website.menu linking to
-        the event main page, so a newly created menu sharing that parent is part of
-        the event. When going through the super() call, new-menu id entries (a
-        string) are replaced by their created menu id (integer), so new menu
-        entries must be identified before calling super.
-
-        :param int website_id: website the menu is being saved for
-        :param dict data: menu tree as sent by the editor; ``data['data']`` items
-            with a string ``id`` are entries not yet created
-        :return: whether the save succeeded
-        :rtype: bool"""
 
         old_menu_ids = [
             menu["id"] for menu in data["data"] if isinstance(menu["id"], int)
@@ -84,7 +62,7 @@ class WebsiteMenu(models.Model):
                 continue
 
             parent = self.env["website.menu"].browse(parent_id)
-            while parent.parent_id:  # get the top-most parent to handle sub-menus
+            while parent.parent_id:
                 parent = parent.parent_id
 
             if parent_event_menu := self.env["website.event.menu"].search(
@@ -96,7 +74,6 @@ class WebsiteMenu(models.Model):
                     menu_record = self.env["website.menu"].browse(new_menu["id"])
                     menu_record_url = menu_record.url.lstrip("/")
                     if not menu_record_url or menu_record_url == "#":
-                        # prevent blank URLs, use 't' prefix to avoid slug syntax
                         menu_record_url = f"t{int(datetime.now().timestamp())}"
 
                     menu_record.write({"url": f"{event_url}/page/{menu_record_url}"})
@@ -108,8 +85,6 @@ class WebsiteMenu(models.Model):
                         }
                     )
 
-                # if the current user can create website.menu, then he should be able to
-                # create website.event.menu (e.g: website designer group)
                 self.env["website.event.menu"].sudo().create(event_menu_values)
 
         return res

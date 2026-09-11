@@ -39,8 +39,6 @@ class WebsiteEventBoothController(WebsiteEventController):
         sitemap=False,
     )
     def event_booth_register(self, event, booth_category_id, event_booth_ids):
-        # `event_booth_id` in `requests.params` only contains the first
-        # checkbox, we re-parse the form using getlist to get them all
         event_booth_ids = request.httprequest.form.getlist("event_booth_ids")
 
         return request.redirect(

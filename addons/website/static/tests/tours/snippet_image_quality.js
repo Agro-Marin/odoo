@@ -33,12 +33,9 @@ registerWebsitePreviewTour(
         },
         {
             content: "Check image size",
-            // Reached size cannot be hardcoded because it changes with
-            // different versions of Chrome.
             trigger:
                 ".o_customize_tab [data-container-title='Image'] span[title='Size']:contains(' kb'):not(:contains('42.9 kb'))",
             run() {
-                // Make sure the reached size is smaller than the original one.
                 if (parseFloat(this.anchor.innerText) >= 42.9) {
                     throw new Error("Image size should be smaller than original");
                 }

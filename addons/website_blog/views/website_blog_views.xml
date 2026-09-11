@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Blog views -->
     <record id="view_blog_blog_list" model="ir.ui.view">
         <field name="name">blog.blog.list</field>
         <field name="model">blog.blog</field>

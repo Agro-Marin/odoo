@@ -12,7 +12,6 @@
             />
         </t>
     </xpath>
-    <!-- TODO: change position of the xpath when snippet_options_image_optimization_widgets is converted -->
     <xpath expr="//ImageFormatOption" position="after">
         <ParallaxOption/>
         <t t-call="website.BackgroundVideoOption"/>
@@ -40,7 +39,6 @@
             <BackgroundPositionOption/>
         </BuilderContext>
     </xpath>
-    <!-- TODO: the same for BackgroundOptimize-->
 </t>
 
 </templates>

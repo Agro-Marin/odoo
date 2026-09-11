@@ -13,7 +13,6 @@
                     </div>
                 </t>
             </xpath>
-            <!-- Certification Attempts -->
             <xpath expr="//ul[hasclass('o_wprofile_nav_tabs')]" position="inside">
                 <li t-if="show_certification_tab" class="nav-item">
                     <a

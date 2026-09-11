@@ -160,11 +160,6 @@ class WebsiteRewrite(models.Model):
                     raise ValidationError(_('"URL to" is invalid: %s', e)) from e
 
     def _check_no_redirect_cycle(self):
-        """Walk the redirect chain starting from this record's "URL to" and
-        raise if it loops back to a URL already visited (a same-record loop
-        is already rejected by _check_url_to's own check above; this covers
-        cycles across 2+ records, e.g. A: /x->/y, B: /y->/x).
-        """
         self.check_singleton()
         seen = {self.url_from.split("#")[0]}
         current_url = self.url_to.split("#")[0]

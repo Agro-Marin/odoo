@@ -13,7 +13,6 @@ from odoo.addons.website_slides.tests import common
 class TestAccess(common.SlidesCase):
     @mute_logger("odoo.models", "odoo.addons.base.models.ir_rule")
     def test_access_channel_invite(self):
-        """Invite channels don't give enroll if not member"""
         self.channel.write({"enroll": "invite"})
 
         self.channel.with_user(self.user_officer).read(["name"])
@@ -32,7 +31,6 @@ class TestAccess(common.SlidesCase):
         with self.assertRaises(AccessError):
             self.slide.with_user(self.user_portal).read(["name"])
 
-        # if member -> can read
         membership = self.env["slide.channel.partner"].create(
             {
                 "channel_id": self.channel.id,
@@ -42,18 +40,15 @@ class TestAccess(common.SlidesCase):
         self.channel.with_user(self.user_emp).read(["name"])
         self.slide.with_user(self.user_emp).read(["name"])
 
-        # not member anymore -> cannot read
         membership.action_archive()
         self.channel.with_user(self.user_emp).read(["name"])
         with self.assertRaises(AccessError):
             self.slide.with_user(self.user_emp).read(["name"])
 
-        # re-activate member -> can read again
         membership.action_unarchive()
         self.channel.with_user(self.user_emp).read(["name"])
         self.slide.with_user(self.user_emp).read(["name"])
 
-        # unlink membership -> cannot read
         membership.unlink()
         self.channel.with_user(self.user_emp).read(["name"])
         with self.assertRaises(AccessError):
@@ -61,7 +56,6 @@ class TestAccess(common.SlidesCase):
 
     @mute_logger("odoo.models", "odoo.addons.base.models.ir_rule")
     def test_access_channel_public(self):
-        """Public channels don't give enroll if not member"""
         self.channel.write({"enroll": "public"})
 
         self.channel.with_user(self.user_officer).read(["name"])
@@ -82,11 +76,9 @@ class TestAccess(common.SlidesCase):
 
     @mute_logger("odoo.models", "odoo.addons.base.models.ir_rule")
     def test_access_channel_publish(self):
-        """Unpublished channels and their content are visible only to eLearning people"""
         self.channel.write({"is_published": False, "enroll": "public"})
         self.channel.flush_model()
 
-        # channel available only to eLearning
         self.channel.invalidate_model(["name"])
         self.channel.with_user(self.user_officer).read(["name"])
         self.channel.invalidate_model(["name"])
@@ -101,7 +93,6 @@ class TestAccess(common.SlidesCase):
             self.channel.invalidate_model(["name"])
             self.channel.with_user(self.user_public).read(["name"])
 
-        # slide available only to eLearning
         self.channel.invalidate_model(["name"])
         self.slide.with_user(self.user_officer).read(["name"])
         self.channel.invalidate_model(["name"])
@@ -116,7 +107,6 @@ class TestAccess(common.SlidesCase):
             self.slide.invalidate_model(["name"])
             self.slide.with_user(self.user_public).read(["name"])
 
-        # even members cannot see unpublished content
         self.env["slide.channel.partner"].create(
             {
                 "channel_id": self.channel.id,
@@ -130,7 +120,6 @@ class TestAccess(common.SlidesCase):
             self.slide.invalidate_model(["name"])
             self.slide.with_user(self.user_emp).read(["name"])
 
-        # publish channel but content unpublished (even if can be previewed) still unavailable
         self.channel.write({"is_published": True})
         self.slide.write(
             {
@@ -157,7 +146,6 @@ class TestAccess(common.SlidesCase):
 
     @mute_logger("odoo.models", "odoo.addons.base.models.ir_rule")
     def test_access_slide_preview(self):
-        """Slides with preview flag are always visible even to non members if published"""
         self.channel.write({"enroll": "invite"})
         self.slide.write({"is_preview": True})
         self.slide.flush_model()
@@ -301,7 +289,6 @@ class TestAccess(common.SlidesCase):
 
     @mute_logger("odoo.models", "odoo.addons.base.models.ir_rule")
     def test_access_slide_slide_as_invited(self):
-        """Check that preview slides are visible to logged invited attendees, but not others, nor non published ones."""
         self.env["slide.channel.partner"].create(
             {
                 "channel_id": self.channel.id,
@@ -332,8 +319,6 @@ class TestAccess(common.SlidesCase):
 class TestAccessHttp(common.SlidesCase, HttpCase):
     @mute_logger("odoo.models", "odoo.addons.base.models.ir_rule", "odoo.http")
     def test_access_slide_attachment(self):
-        """Check the document of slides, pdf or images, stored in a binary field, so as `ir.attachment`,
-        are accessible to a user according to his access to the slide itself"""
         image_placeholder = self.env["ir.binary"]._get_placeholder_bytes()
 
         slides = self.env["slide.slide"].create(
@@ -361,7 +346,6 @@ class TestAccessHttp(common.SlidesCase, HttpCase):
         def can_read_slides_content(user, can_read):
             self.authenticate(user.login, user.login)
 
-            # Image slide
             for url in [
                 f"/slides/slide/{slide_image.id}/get_image?field=image_1024",
                 f"/web/image/slide.slide/{slide_image.id}/image_1024",
@@ -382,7 +366,6 @@ class TestAccessHttp(common.SlidesCase, HttpCase):
                         f"{user.login} must not be able to see the slide image",
                     )
 
-            # PDF Slide
             for url in [
                 f"/slides/slide/{slide_pdf.id}/pdf_content",
                 f"/web/content/slide.slide/{slide_pdf.id}/binary_content",
@@ -463,7 +446,6 @@ class TestRemoveMembership(common.SlidesCase):
         )
 
     def test_security_unlink(self):
-        # Only the publisher can unlink channel_partner (and slide_partner by extension)
         with self.assertRaises(AccessError):
             self.channel_partner.with_user(self.user_public).unlink()
         with self.assertRaises(AccessError):
@@ -480,7 +462,6 @@ class TestRemoveMembership(common.SlidesCase):
                 [("id", "=", "%d" % id_channel_partner)]
             )
         )
-        # Slide(s) related to the channel and the partner is unlink too.
         self.assertFalse(
             self.env["slide.slide.partner"].search(
                 [("id", "=", "%d" % id_slide_partner)]
@@ -571,7 +552,6 @@ class TestAccessFeatures(common.SlidesCase):
         self.assertFalse(channel_portal.can_upload)
         self.assertFalse(channel_portal.can_publish)
 
-        # allow employees to upload
         channel_manager.sudo().write(
             {"upload_group_ids": [(4, self.ref("base.group_user"))]}
         )
@@ -609,7 +589,6 @@ class TestAccessFeatures(common.SlidesCase):
         self.assertTrue(channel_manager.can_upload)
         self.assertTrue(channel_manager.can_publish)
 
-        # test upload group limitation: member of group_system OR responsible OR manager
         channel_manager.sudo().write(
             {"upload_group_ids": [(4, self.ref("base.group_system"))]}
         )
@@ -619,7 +598,6 @@ class TestAccessFeatures(common.SlidesCase):
         self.assertTrue(channel_manager.can_upload)
         self.assertTrue(channel_manager.can_publish)
 
-        # Needs the manager to write on channel as user_officer is not the responsible anymore
         channel_manager.sudo().write({"upload_group_ids": [(5, 0)]})
         self.assertTrue(channel_manager.can_upload)
         self.assertTrue(channel_manager.can_publish)
@@ -627,7 +605,6 @@ class TestAccessFeatures(common.SlidesCase):
         self.assertTrue(channel_manager.can_upload)
         self.assertTrue(channel_manager.can_publish)
 
-        # superuser should always be able to publish even if they are not the responsible
         channel_superuser = self.channel.sudo()
         channel_superuser.invalidate_recordset(["can_upload", "can_publish"])
         self.assertTrue(channel_superuser.can_upload)
@@ -664,7 +641,6 @@ class TestAccessFeatures(common.SlidesCase):
                 ]
             )
         )
-        # No public access to resources
         with self.assertRaises(AccessError):
             resource1.with_user(self.user_public).read(["name"])
             resource3.with_user(self.user_public).read(["name"])
@@ -673,16 +649,13 @@ class TestAccessFeatures(common.SlidesCase):
             resource1.with_user(self.user_public).write({"name": "other name"})
             resource3.with_user(self.user_public).write({"name": "other name"})
 
-        # public access to knowing if there are resources
         self.assertTrue(
             self.slide_3.with_user(self.user_public).sudo().slide_resource_ids
         )
 
-        # No random portal access
         with self.assertRaises(AccessError):
             resource1.with_user(self.user_portal).read(["name"])
 
-        # Members can only read
         self.env["slide.channel.partner"].create(
             {
                 "channel_id": self.channel.id,
@@ -693,7 +666,6 @@ class TestAccessFeatures(common.SlidesCase):
         with self.assertRaises(AccessError):
             resource1.with_user(self.user_portal).write({"name": "other name"})
 
-        # Other officers can only read
         user_officer_other = mail_new_test_user(
             self.env,
             name="Ornella Officer",
@@ -712,11 +684,9 @@ class TestAccessFeatures(common.SlidesCase):
         with self.assertRaises(AccessError):
             resource1.with_user(user_officer_other).unlink()
 
-        # Responsible officer can do anything on their own channels
         resource1.with_user(self.user_officer).write({"name": "other name"})
         resource1.with_user(self.user_officer).unlink()
 
-        # Managers can do anything on all channels
         resource2.with_user(self.user_manager).write({"name": "Another name"})
         resource2.with_user(self.user_manager).unlink()
         self.env["slide.slide.resource"].with_user(self.user_manager).create(

@@ -10,10 +10,6 @@ from odoo.addons.sale.tests.common import SaleCommon
 @tagged("post_install", "-at_install")
 class TestPaymentProviderVisibility(PaymentHttpCommon, SaleCommon):
     def test_payment_provider_visibility_with_portal(self):
-        """Check providers availability on the sales portal.
-
-        The current website must be considered to filter the providers.
-        """
         website_portal = self.env["website"].get_current_website()
         website_shop = self.env["website"].create({"name": "Shop Website"})
 

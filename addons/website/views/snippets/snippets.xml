@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Snippets menu -->
     <template id="snippets" groups="base.group_user">
         <t id="default_snippets">
             <t t-set="cta_btn_text" t-value="False" />
             <t t-set="cta_btn_href">/contactus</t>
 
-            <!-- Snippet groups -->
             <snippets id="snippet_groups" string="Categories">
                 <t
                     snippet-group="custom"
@@ -80,7 +78,6 @@
 
             <snippets id="snippet_structure" string="Structure">
 
-                <!-- Intro group -->
                 <t t-snippet="website.s_banner" string="Banner" group="intro">
                     <keywords>hero, jumbotron, headline, header, branding, intro, home, showcase, spotlight, lead, welcome, announcement, splash, top, main</keywords>
                 </t>
@@ -153,7 +150,6 @@
                     <keywords>content, picture, photo, illustration, media, visual, article, story, combination, network, relationships, interactions, connectivity, collaborations</keywords>
                 </t>
 
-                <!-- Columns group -->
                 <t t-snippet="website.s_three_columns" string="Columns" group="columns">
                     <keywords>description, containers, layouts, structures, multi-columns, modules, boxes</keywords>
                 </t>
@@ -194,7 +190,6 @@
                     <keywords>description, containers, layouts, structures, multi-columns, modules, boxes, content, picture, photo, illustration, media, visual, article, story, combination, showcase, announcement, reveal</keywords>
                 </t>
 
-                <!-- Content group -->
                 <t
                     t-snippet="website.s_text_image"
                     string="Text - Image"
@@ -414,7 +409,6 @@
                     <keywords>gallery, carousel, slider, slideshow, picture, photo, image-slider, rotating, swipe, transition, media-carousel, movement, cta, engagement, call to action</keywords>
                 </t>
 
-                <!-- Keep `s_embed_code` snippet at the very end of the "Content" group -->
                 <t
                     t-snippet="website.s_embed_code"
                     string="Embed Code"
@@ -424,11 +418,9 @@
                     group="content" />
 
 
-                <!-- Images group -->
                 <t t-snippet="website.s_picture" string="Title - Image" group="images">
                     <keywords>content, picture, photo, illustration, media, visual, article, story, combination, heading, headline</keywords>
                 </t>
-                <!-- TODO share the keywords somehow (t-out does not work) -->
                 <t
                     t-snippet="website.s_masonry_block_default_template"
                     string="Masonry"
@@ -519,7 +511,6 @@
                     <keywords>content, picture, photo, illustration, media, visual, article, story, combination, trendy, pattern, design, shape, geometric, patterned, contrast, collage, arrangement, gallery, creative, mosaic</keywords>
                 </t>
 
-                <!-- People group -->
                 <t t-snippet="website.s_company_team" string="Team" group="people">
                     <keywords>organization, company, people, column, members, staffs, profiles, bios, roles, personnel, crew</keywords>
                 </t>
@@ -602,7 +593,6 @@
                     <keywords>cite, testimonials, endorsements, reviews, feedback, statements, references, sayings, comments, appreciations, citations, carousel</keywords>
                 </t>
 
-                <!-- Text group -->
                 <t t-snippet="website.s_title" string="Title" group="text">
                     <keywords>heading, h1, headline, header, main, top, caption, introductory, principal, key</keywords>
                 </t>
@@ -647,7 +637,6 @@
                     <keywords>menu, pricing, shop, table, cart, product, cost, charges, fees, rates, prices, expenses</keywords>
                 </t>
 
-                <!-- Contact & Forms group -->
                 <t
                     t-snippet="website.s_title_form"
                     string="Title - Form"
@@ -693,7 +682,6 @@
                     <keywords>contact, collect, submission, input, fields, questionnaire, survey, registration, request, image, picture, photo, illustration, media, visual, get-in-touch</keywords>
                 </t>
 
-                <!-- Catalog group -->
                 <t
                     t-snippet="website.s_floating_blocks"
                     string="Floating Cards"
@@ -753,16 +741,12 @@
                 </t>
                 <t id="sale_products_hook" />
 
-                <!-- Blogs group -->
                 <t id="blog_posts_hook" />
 
-                <!-- Events group -->
                 <t id="event_upcoming_snippet_hook" />
 
-                <!-- Donation group -->
                 <t id="snippet_donation_hook" />
 
-                <!-- Newsletter group -->
                 <t id="mass_mailing_newsletter_block_hook" />
                 <t id="mass_mailing_newsletter_grid_hook" />
                 <t id="mass_mailing_newsletter_popup_hook" />
@@ -771,7 +755,6 @@
                 <t id="mass_mailing_newsletter_sms_notifications_hook" />
                 <t id="mass_mailing_newsletter_benefits_popup_hook" />
 
-                <!-- Social group -->
                 <t
                     t-snippet="website.s_instagram_page"
                     string="Instagram Page"
@@ -779,7 +762,6 @@
                     t-image-preview="/website/static/src/img/snippets_previews/s_instagram_preview.webp">
                     <keywords>social media, ig, feed</keywords>
                 </t>
-                <!-- TODO: remove 'snippet_google_map_hook', it does not seem to be used -->
                 <t id="snippet_google_map_hook" />
                 <t
                     t-set="google_maps_api_key"
@@ -799,7 +781,6 @@
                     group="social"
                     t-image-preview="/website/static/src/img/snippets_previews/s_map_preview.png" />
 
-                <!-- Debug group -->
                 <t
                     t-if="debug"
                     t-snippet="website.s_dynamic_snippet"
@@ -816,7 +797,6 @@
 
             <snippets id="snippet_custom" string="Custom Inner Content" />
 
-            <!-- Inner snippets -->
             <snippets id="snippet_content" string="Inner content">
                 <t
                     t-snippet="website.s_inline_text"
@@ -905,14 +885,6 @@
                     string="Blockquote"
                     t-thumbnail="/website/static/src/img/snippets_thumbs/s_blockquote.svg"
                     t-grid-column-span="5" />
-                <!--
-                Note: this inner snippet is still allowed to be dropped as a
-                main snippet. Indeed, this handles the fact that the snippet
-                was previously a main one and can still be in old databases, but
-                also in some apps templates. It was just chosen to not suggest
-                it in the snippets modal anymore, and just *used* as an inner
-                snippet by other snippets in there.
-                -->
                 <t
                     t-snippet="website.s_website_form"
                     string="Form"

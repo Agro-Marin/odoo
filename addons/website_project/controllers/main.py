@@ -14,7 +14,6 @@ class WebsiteForm(form.WebsiteForm):
             visitor_partner = visitor_sudo.partner_id
             if visitor_partner:
                 values["partner_id"] = visitor_partner.id
-            # When a task is created from the web editor, if the key 'user_ids' is not present, the user_ids is filled with the odoo bot. We set it to False to ensure it is not.
             values.setdefault("user_ids", False)
 
         res = super().create_record(request, model_sudo, values, custom, meta=meta)
@@ -22,9 +21,7 @@ class WebsiteForm(form.WebsiteForm):
             return res
         task = request.env["project.task"].sudo().browse(res)
         custom = custom.replace("email_from", _("Email"))
-        custom_label = nl2br_enclose(
-            _("Other Information"), "h4"
-        )  # Title for custom fields
+        custom_label = nl2br_enclose(_("Other Information"), "h4")
         default_field = model_sudo.website_form_default_field_id
         default_field_data = values.get(default_field.name, "")
         default_field_content = nl2br_enclose(

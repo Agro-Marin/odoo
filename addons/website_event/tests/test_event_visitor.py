@@ -10,7 +10,6 @@ from odoo.addons.website_event.tests.common import TestEventOnlineCommon
 @tagged("website_visitor", "is_query_count")
 class TestEventVisitor(TestEventOnlineCommon, WebsiteVisitorTestsCommon):
     def test_clean_inactive_visitors_event(self):
-        """Visitors registered to events should not be deleted even if not connected recently."""
         active_visitors = self.env["website.visitor"].create(
             [
                 {
@@ -27,8 +26,6 @@ class TestEventVisitor(TestEventOnlineCommon, WebsiteVisitorTestsCommon):
         self._test_unlink_old_visitors(self.env["website.visitor"], active_visitors)
 
     def test_link_to_visitor_event(self):
-        """Same as parent's 'test_link_to_visitor' except we also test that event
-        registrations are merged into main visitor."""
         [main_visitor, linked_visitor] = self.env["website.visitor"].create(
             [self._prepare_main_visitor_data(), self._prepare_linked_visitor_data()]
         )
@@ -54,7 +51,6 @@ class TestEventVisitor(TestEventOnlineCommon, WebsiteVisitorTestsCommon):
         linked_visitor._merge_visitor(main_visitor)
         self.assertVisitorDeactivated(linked_visitor, main_visitor)
 
-        # main_visitor is now attending both events
         self.assertEqual(self.event_0 | event_1, main_visitor.event_registered_ids)
 
     def _prepare_main_visitor_data(self):

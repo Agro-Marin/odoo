@@ -27,8 +27,6 @@ class IrHttp(models.AbstractModel):
     def _frontend_pre_dispatch(cls):
         super()._frontend_pre_dispatch()
 
-        # lazy to make sure those are only evaluated when requested
-        # All those records are sudoed !
         request.cart = lazy(request.website._get_and_cache_current_cart)
         request.fiscal_position = lazy(
             request.website._get_and_cache_current_fiscal_position

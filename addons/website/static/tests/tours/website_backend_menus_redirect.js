@@ -13,7 +13,6 @@ registry.category("web_tour.tours").add("website_backend_menus_redirect", {
             content: "Make frontend to backend menus appears",
             trigger: "body:has(#wrap)",
             run: function () {
-                // The dropdown is hidden behind an SVG on hover animation.
                 this.anchor
                     .querySelector(".o_frontend_to_backend_apps_menu")
                     .classList.add("show");
@@ -30,9 +29,6 @@ registry.category("web_tour.tours").add("website_backend_menus_redirect", {
             isActive: ["community"],
             content:
                 "Check that we landed on the apps page (Apps), and not the Home Action page (Settings)",
-            // It cannot be the name of the menu here, as that would still be
-            // displayed even when the default home action would be loaded. So
-            // instead, use a class used by the Apps Kanban.
             trigger: ".oe_module_flag:not(:visible)",
         },
     ],

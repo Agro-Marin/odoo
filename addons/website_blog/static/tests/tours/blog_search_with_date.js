@@ -1,8 +1,5 @@
 import { registry } from "@web/core/registry";
 
-/**
- * Makes sure that blog search can be used with the date filtering.
- */
 registry.category("web_tour.tours").add("blog_autocomplete_with_date", {
     url: "/blog",
     steps: () => [

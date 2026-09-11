@@ -1,19 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Group multi website -->
     <record id="group_multi_website" model="res.groups">
         <field name="name">Multi-website</field>
     </record>
 
-    <!-- Action Jump on website action -->
     <record id="action_website" model="ir.actions.act_url">
         <field name="name">Website</field>
         <field name="url">/</field>
         <field name="target">self</field>
     </record>
 
-    <!-- Template for home and contactus -->
     <template id="website.homepage" name="Home">
         <t t-call="website.layout" pageName.f="homepage">
             <div id="wrap" class="oe_structure oe_empty" />
@@ -280,7 +277,6 @@
         </field>
     </record>
 
-    <!-- Template for cookie (optional) -->
     <template id="cookie_policy" name="Cookie Policy">
         <t t-call="website.layout">
             <div id="wrap" class="oe_structure">
@@ -406,7 +402,6 @@
         </t>
     </template>
 
-    <!-- Template configurator (optional) -->
     <template id="website.aboutus" name="About Us">
         <t t-call="website.layout">
             <div id="wrap">
@@ -499,7 +494,6 @@
         </t>
     </template>
 
-    <!-- Configurator page features -->
     <record id="feature_page_about_us" model="website.configurator.feature">
         <field name="name">About Us</field>
         <field name="description">Info and stats about your company</field>
@@ -544,7 +538,6 @@
         <field name="feature_url">/privacy</field>
     </record>
 
-    <!-- Configurator apps features -->
     <record id="feature_module_news" model="website.configurator.feature">
         <field name="name">News</field>
         <field name="description">Blogging and posting relevant content</field>
@@ -635,7 +628,6 @@
     </record>
 
     <data noupdate="1">
-        <!-- Default pagese -->
         <record id="homepage_page" model="website.page">
             <field name="is_published">True</field>
             <field name="url">/</field>
@@ -652,7 +644,6 @@
             <field
                 name="website_meta_description">This is the contact us page of the website</field>
         </record>
-        <!-- Default Menu to store module menus for new website -->
         <record id="main_menu" model="website.menu">
             <field name="name">Default Main Menu</field>
             <field name="url">/default-main-menu</field>
@@ -671,7 +662,6 @@
             <field name="parent_id" ref="website.main_menu" />
             <field name="sequence" type="int">60</field>
         </record>
-        <!-- Default Website -->
         <record id="default_website" model="website">
             <field name="name">My Website</field>
             <field name="company_id" ref="base.main_company" />

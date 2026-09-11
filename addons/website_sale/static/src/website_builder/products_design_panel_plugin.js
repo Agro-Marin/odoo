@@ -66,14 +66,11 @@ export class ProductsDesignPanelPlugin extends Plugin {
     }
 
     /**
-     * Handles the flag of the closest product savable element
-     * @param {Object} records - The observed mutations
-     * @param {String} currentOperation - The name of the current operation
+     * @param {Object} records
+     * @param {String} currentOperation
      */
     handleMutations(records, currentOperation) {
         if (currentOperation === "undo" || currentOperation === "redo") {
-            // Do nothing as `o_dirty_product_design_list` has already been handled by the history
-            // plugin.
             return;
         }
         for (const record of records) {
@@ -114,7 +111,6 @@ export class ProductsDesignPanelPlugin extends Plugin {
                 Object.assign(updateData, getData(el));
             }
 
-            // Save data
             if (Object.keys(updateData).length > 0) {
                 await rpc("/shop/config/website", updateData);
             }
@@ -123,9 +119,6 @@ export class ProductsDesignPanelPlugin extends Plugin {
     }
 }
 
-/**
- * Handles suggestedClasses with clean slate approach and delegates to classAction/setClassRange
- */
 class ClassActionWithSuggestedAction extends BuilderAction {
     static id = "classActionWithSave";
     static dependencies = ["builderActions"];
@@ -144,14 +137,12 @@ class ClassActionWithSuggestedAction extends BuilderAction {
     }
 
     isApplied(context) {
-        // Transform parameters to match expected format
         const { className } = context.params;
 
         const targetAction = Array.isArray(className)
             ? this.setClassRangeAction
             : this.classAction;
 
-        // Transform context to match what the target action expects
         const delegatedContext = {
             ...context,
             params: { mainParam: className },
@@ -184,7 +175,6 @@ class ClassActionWithSuggestedAction extends BuilderAction {
             this.applySuggestedClasses(editingElement, suggestedClasses);
         }
 
-        // Delegate DOM manipulation to appropriate action
         const targetAction = Array.isArray(className)
             ? this.setClassRangeAction
             : this.classAction;
@@ -207,7 +197,6 @@ class ClassActionWithSuggestedAction extends BuilderAction {
             this.cleanSuggestedClasses(editingElement, suggestedClasses);
         }
 
-        // Delegate DOM manipulation to appropriate action
         const targetAction = Array.isArray(className)
             ? this.setClassRangeAction
             : this.classAction;
@@ -218,22 +207,17 @@ class ClassActionWithSuggestedAction extends BuilderAction {
         });
     }
 
-    /**
-     * Clean slate approach: Remove ALL o_wsale_products_opt_* classes, then add positive ones from suggestedClasses
-     */
     applySuggestedClasses(editingElement, suggestedClasses) {
         if (!suggestedClasses || typeof suggestedClasses !== "string") {
             return;
         }
 
-        // 1. Clean slate: Remove ALL existing design classes
         const currentClasses = Array.from(editingElement.classList);
         const designClasses = currentClasses.filter((cls) =>
             cls.startsWith("o_wsale_products_opt_"),
         );
         designClasses.forEach((cls) => editingElement.classList.remove(cls));
 
-        // 2. Apply new classes
         const newClasses = suggestedClasses
             .trim()
             .split(/\s+/)
@@ -241,16 +225,11 @@ class ClassActionWithSuggestedAction extends BuilderAction {
         newClasses.forEach((cls) => editingElement.classList.add(cls));
     }
 
-    /**
-     * Remove the positive classes added by applySuggestedClasses (does not restore the classes
-     * that were removed).
-     */
     cleanSuggestedClasses(editingElement, suggestedClasses) {
         if (!suggestedClasses || typeof suggestedClasses !== "string") {
             return;
         }
 
-        // Remove the positive classes that were added
         const classesToRemove = suggestedClasses
             .trim()
             .split(/\s+/)

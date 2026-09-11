@@ -65,10 +65,6 @@ class SlideChannel(models.Model):
         return res
 
     def _sync_product_publish(self):
-        """
-        Ensure that when publishing a course that its linked product is also published
-        If all courses linked to a product are unpublished, we also unpublished the product
-        """
         if not self:
             return
         self.filtered(

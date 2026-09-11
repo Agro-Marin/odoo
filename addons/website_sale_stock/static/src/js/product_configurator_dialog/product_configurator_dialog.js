@@ -21,20 +21,16 @@ patch(ProductConfiguratorDialog.prototype, {
     },
 
     /**
-     * Check whether the provided product quantity can be added to the cart.
-     *
-     * @param {Object} product - The provided product.
-     * @param {Number} quantity - The new quantity of the product.
-     * @return {Boolean} - Whether the provided product quantity can be added to the cart.
+     * @param {Object} product
+     * @param {Number} quantity
+     * @return {Boolean}
      */
     _isQuantityAllowed(product, quantity) {
         return !("qty_free" in product) || product.qty_free >= quantity;
     },
 
     /**
-     * Check whether all selected product quantities can be added to the cart.
-     *
-     * @return {Boolean} - Whether all selected product quantities can be added to the cart.
+     * @return {Boolean}
      */
     areQuantitiesAllowed() {
         return this.state.products.every((p) => this._isQuantityAllowed(p, p.quantity));

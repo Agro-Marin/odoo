@@ -77,7 +77,6 @@ registerWebsitePreviewTour(
         url: "/",
     },
     () => [
-        // Add a megamenu item from the menu.
         {
             trigger: ":iframe #wrapwrap",
         },
@@ -132,7 +131,6 @@ registerWebsitePreviewTour(
             trigger:
                 ':iframe .top_menu .nav-item a.o_mega_menu_toggle:contains("Megaaaaa!")',
         },
-        // Add a menu item in edit mode.
         ...clickOnEditAndWaitEditMode(),
         ...openLinkPopup(":iframe .top_menu .nav-item a:contains('Home')", "Home"),
         {
@@ -203,7 +201,6 @@ registerWebsitePreviewTour(
         {
             trigger: "body:not(:has(.modal))",
         },
-        // Edit the new menu item from the "edit link" popover button
         clickOnExtraMenuItem({}, true),
         ...openLinkPopup(
             ":iframe .top_menu .nav-item a:contains('Random!')",
@@ -236,21 +233,11 @@ registerWebsitePreviewTour(
             content: "Label should have changed",
             trigger: ':iframe .top_menu .nav-item a:contains("Modnar")',
         },
-        // Edit the menu item from the "edit menu" popover button
         ...clickOnEditAndWaitEditMode(),
         {
             content: "Wait for the builder sidebar to fully open",
             trigger: ":iframe .editor_enable",
             run: async function () {
-                // Entering the edit mode opens the builder sidebar, which triggers
-                // multiple iframe resize events, which in turn rebuilds the extra
-                // menu items dropdown (see `auto_hide_menu.js` resize handler).
-                //
-                // We wait briefly to ensure all recalculations complete,
-                // avoiding race conditions when opening the link popover.
-                //
-                // NOTE: the delay below (200ms) matches the CSS `transition-delay`
-                // defined for `o-website-builder_sidebar`.
                 await delay(200);
             },
         },
@@ -293,7 +280,6 @@ registerWebsitePreviewTour(
         {
             trigger: "body:not(:has(.oe_menu_editor))",
         },
-        // Drag a block to be able to scroll later.
         goBackToBlocks(),
         ...insertSnippet({
             id: "s_media_list",
@@ -306,7 +292,6 @@ registerWebsitePreviewTour(
             content: "Label should have changed",
             trigger: ':iframe .top_menu .nav-item a:contains("Modnar !!")',
         },
-        // Nest menu item from the menu.
         {
             content: "open site menu",
             trigger: 'button[data-menu-xmlid="website.menu_site"]',
@@ -339,7 +324,6 @@ registerWebsitePreviewTour(
             content: "Wait for drop",
             trigger: '.oe_menu_editor li:contains("Home") ul li:contains("Contact us")',
         },
-        // Drag the Mega menu to the first position.
         {
             content: "Drag Mega at the top",
             trigger: '.oe_menu_editor li:contains("Megaaaaa!") .oi-draggable',
@@ -369,15 +353,12 @@ registerWebsitePreviewTour(
             trigger: ':iframe .top_menu .nav-item a.dropdown-toggle:contains("Home")',
             run: "click",
         },
-        // Check that with the auto close of dropdown menus, the dropdowns remain
-        // openable.
         {
             content:
                 "When menu item is opened, child item must appear in the shown menu",
             trigger:
                 ':iframe .top_menu .nav-item:contains("Home") ul.show li a.dropdown-item:contains("Contact us")[href="/contactus"]',
             run() {
-                // Scroll down.
                 this.anchor
                     .closest("body")
                     .querySelector(".o_footer_copyright_name")
@@ -432,7 +413,6 @@ registerWebsitePreviewTour(
                 if (marginTopOfMegaMenu !== "0px") {
                     console.error("The margin-top of the mega menu should be 0px");
                 }
-                // Scroll up.
                 this.anchor
                     .closest("body")
                     .querySelector(".s_media_list_item:nth-child(2)")
@@ -468,14 +448,12 @@ registerWebsitePreviewTour(
             run: "click",
         },
         {
-            // If this step fails, it means that a patch inside bootstrap was lost.
             content: "Press the 'down arrow' key.",
             trigger:
                 ':iframe .top_menu .nav-item:contains("Home") li:contains("Contact us")',
             run: "press ArrowDown",
         },
         ...clickOnSave(),
-        // Nest and re-arrange menu items for a newly created menu
         {
             content: "Open site menu",
             trigger: 'button[data-menu-xmlid="website.menu_site"]',

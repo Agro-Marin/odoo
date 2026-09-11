@@ -1,7 +1,6 @@
 from odoo import api, fields, models
 
 
-# defined for access rules
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
@@ -10,16 +9,6 @@ class ProductProduct(models.Model):
     )
 
     def _can_return_content(self, field_name=None, access_token=None):
-        """Override of `orm` to give public users access to the unpublished product image.
-
-        Give access to the public users to the unpublished product images if they are linked to an
-        event ticket.
-
-        :param field_name: The name of the field to check.
-        :param access_token: The access token.
-        :return: Whether to allow the access to the image.
-        :rtype: bool
-        """
         if (
             field_name in ["image_%s" % size for size in [1920, 1024, 512, 256, 128]]
             and self.sudo().event_ticket_ids

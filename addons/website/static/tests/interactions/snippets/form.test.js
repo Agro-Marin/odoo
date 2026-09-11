@@ -16,17 +16,6 @@ import { contains, defineWebModels, onRpc } from "@web/../tests/web_test_helpers
 
 setupInteractionWhiteList(["website.form", "website.post_link"]);
 
-// Every form below carries `data-pre-fill="true"`, and `website.form`'s
-// `willStart` unconditionally reads `res.users` for a logged-in user. The
-// public-interaction harness only seeds `ir.http` by default, so without this
-// the read fails with "Cannot find a definition for model res.users" and the
-// interaction never starts.
-//
-// Registered through `beforeEach` rather than at module scope on purpose: at
-// module scope the underlying `before()` hook lands outside this file's suite
-// and seeds the models for every other `@website/interactions` suite too,
-// which breaks the ones asserting on an empty server (anchor_slide, animation,
-// bottom_fixed_element, ...).
 beforeEach(defineWebModels);
 
 describe.current.tags("interaction_dev");
@@ -36,7 +25,6 @@ function checkField(inputEl, isVisible, hasError) {
     isVisible
         ? expect(fieldEl).not.toHaveClass("d-none")
         : expect(fieldEl).toHaveClass("d-none");
-    // Inputs required for the model are never disabled.
     if (!fieldEl.matches(".s_website_form_model_required")) {
         isVisible ? expect(inputEl).toBeEnabled() : expect(inputEl).not.toBeEnabled();
     }
@@ -48,7 +36,7 @@ function checkField(inputEl, isVisible, hasError) {
         : expect(fieldEl).not.toHaveClass("o_has_error");
 }
 
-const formTemplate = /* html */ `
+const formTemplate = `
     <div id="wrapwrap">
         <section class="s_website_form pt16 pb16" data-vcss="001" data-snippet="s_website_form" data-name="Form">
             <div class="container-fluid">
@@ -160,7 +148,7 @@ function createFileUploadForm(maxFiles = 1) {
     `;
 }
 
-const formWithVisibilityRulesTemplate = /* html */ `
+const formWithVisibilityRulesTemplate = `
     <div id="wrapwrap">
         <section class="s_website_form pt16 pb16" data-vcss="001" data-snippet="s_website_form" data-name="Form">
             <div class="container-fluid">
@@ -241,8 +229,6 @@ const formWithVisibilityRulesTemplate = /* html */ `
     </div>
 `;
 
-// TODO Split in distinct tests.
-
 test("form checks fields", async () => {
     const { core } = await startInteractions(formTemplate);
     expect(core.interactions).toHaveLength(1);
@@ -258,31 +244,24 @@ test("(name) form checks conditions", async () => {
     const nameEl = queryOne("input[name=name]");
 
     checkField(nameEl, true, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(nameEl, true, false);
-    // Fill mail
     await click("input[name=email_from]");
     await fill("a@b.com");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(nameEl, true, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(nameEl, true, false);
-    // Fill subject
     await click("input[name=subject]");
     await fill("Subject");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(nameEl, true, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(nameEl, true, false);
-    // Fill question
     await click("textarea[name=description]");
     await fill("Question");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(nameEl, true, false);
-    // Submit
     onRpc("/website/form/mail.mail", async () => ({}));
     await click("a.s_website_form_send");
     checkField(nameEl, true, false);
@@ -313,31 +292,24 @@ test("(mail) form checks conditions", async () => {
     const mailEl = queryOne("input[name=email_from]");
 
     checkField(mailEl, true, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(mailEl, true, true);
-    // Fill mail
     await click("input[name=email_from]");
     await fill("a@b.com");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(mailEl, true, true);
-    // Submit
     await click("a.s_website_form_send");
     checkField(mailEl, true, false);
-    // Fill subject
     await click("input[name=subject]");
     await fill("Subject");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(mailEl, true, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(mailEl, true, false);
-    // Fill question
     await click("textarea[name=description]");
     await fill("Question");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(mailEl, true, false);
-    // Submit
     onRpc("/website/form/mail.mail", async () => ({}));
     await click("a.s_website_form_send");
     checkField(mailEl, true, false);
@@ -348,31 +320,24 @@ test("(subject) form checks conditions", async () => {
     const subjectEl = queryOne("input[name=subject]");
 
     checkField(subjectEl, false, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(subjectEl, false, true);
-    // Fill mail
     await click("input[name=email_from]");
     await fill("a@b.com");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(subjectEl, true, true);
-    // Submit
     await click("a.s_website_form_send");
     checkField(subjectEl, true, true);
-    // Fill subject
     await click("input[name=subject]");
     await fill("Subject");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(subjectEl, true, true);
-    // Submit
     await click("a.s_website_form_send");
     checkField(subjectEl, true, false);
-    // Fill question
     await click("textarea[name=description]");
     await fill("Question");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(subjectEl, true, false);
-    // Submit
     onRpc("/website/form/mail.mail", async () => ({}));
     await click("a.s_website_form_send");
     checkField(subjectEl, true, false);
@@ -383,31 +348,24 @@ test("(question) form checks conditions", async () => {
     const questionEl = queryOne("textarea[name=description]");
 
     checkField(questionEl, false, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(questionEl, false, false);
-    // Fill mail
     await click("input[name=email_from]");
     await fill("a@b.com");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(questionEl, false, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(questionEl, false, false);
-    // Fill subject
     await click("input[name=subject]");
     await fill("Subject");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(questionEl, true, false);
-    // Submit
     await click("a.s_website_form_send");
     checkField(questionEl, true, true);
-    // Fill question
     await click("textarea[name=description]");
     await fill("Question");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(questionEl, true, true);
-    // Submit
     onRpc("/website/form/mail.mail", async () => ({}));
     await click("a.s_website_form_send");
     checkField(questionEl, true, false);
@@ -416,20 +374,17 @@ test("(question) form checks conditions", async () => {
 test("(rpc) form checks conditions", async () => {
     await startInteractions(formTemplate);
 
-    // Fill mail
     await click("input[name=email_from]");
     await fill("a@b.com");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
 
-    // Fill subject
     await click("input[name=subject]");
     await fill("Subject");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
 
-    // Fill question
     await click("textarea[name=description]");
     await fill("Question");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
 
     let rpcCheck = false;
     const rpcDone = new Deferred();
@@ -460,7 +415,6 @@ test("form prefilled conditional", async () => {
         return result;
     });
 
-    // Phone number is only visible if name is filled.
     const { core } = await startInteractions(`
         <div id="wrapwrap">
             <section class="s_website_form pt16 pb16" data-vcss="001" data-snippet="s_website_form" data-name="Form">
@@ -511,22 +465,22 @@ test("form elements chained conditional visibility", async () => {
     checkField(fieldC, false, false);
     await click(fieldA);
     await fill("foo");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(fieldB, true, false);
     checkField(fieldC, false, false);
     await click(fieldB);
     await fill("foo");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(fieldB, true, false);
     checkField(fieldC, true, false);
     await click(fieldA);
     await clear();
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(fieldB, false, false);
     checkField(fieldC, false, false);
     await click(fieldA);
     await fill("foo");
-    await advanceTime(400); // Debounce delay.
+    await advanceTime(400);
     checkField(fieldB, true, false);
     checkField(fieldC, true, false);
 });

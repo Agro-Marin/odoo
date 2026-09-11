@@ -59,35 +59,25 @@ class TestProductPictureController(HttpCase):
         ]
 
     def test_bulk_image_upload(self):
-        # Turns attachments to product_images
         self._create_product_images()
 
-        # Check if the media now exists on the product :
         for i, image in enumerate(self.product.product_template_image_ids):
-            # Check if all names are now in the product
             self.assertIn(image.name, self.attachments.mapped("name"))
-            # Check if image datas are the same
             self.assertEqual(image.image_1920, ATTACHMENT_DATA[i])
-        # Check if exactly ATTACHMENT_COUNT images were saved (no dupes/misses?)
         self.assertEqual(ATTACHMENT_COUNT, len(self.product.product_template_image_ids))
 
     def test_image_clear(self):
-        # First create some images
         self._create_product_images()
         self.assertEqual(ATTACHMENT_COUNT, len(self.product.product_template_image_ids))
 
-        # Remove all images
-        # (Exception raised if error)
         with MockRequest(self.product.env, website=self.website):
             self.WebsiteSaleController.clear_product_images(
                 self.product.id,
                 self.product.product_tmpl_id.id,
             )
-        # According to the product, there are no variants images.
         self.assertEqual(0, len(self.product.product_template_image_ids))
 
     def test_extra_images_with_new_variant(self):
-        # Test that adding images for a variant that is not yet created works
         product_attribute = self.env["product.attribute"].create(
             {
                 "name": "Test attribute",
@@ -144,7 +134,6 @@ class TestProductPictureController(HttpCase):
                 images[2].id,
                 "first",
             )
-            # Trigger the reordering of product.image records based on their sequence.
             self.env["product.image"].invalidate_model()
             self.assertListEqual(
                 self._get_product_image_data(), [i3, i1, i2, i4, i5, i6]
@@ -197,7 +186,6 @@ class TestProductPictureController(HttpCase):
             )
 
     def test_resequence_image_first_to_last(self):
-        """Moving an image from first to last position is an edge case in the code."""
         self._create_product_images()
         with MockRequest(self.product.env, website=self.website):
             images = self.product._get_images()
@@ -230,7 +218,6 @@ class TestProductPictureController(HttpCase):
             )
 
     def test_resequence_video_first(self):
-        """A video can't be resequenced to first position."""
         self._create_product_images()
         with MockRequest(self.product.env, website=self.website):
             images = self.product._get_images()
@@ -248,7 +235,6 @@ class TestProductPictureController(HttpCase):
             )
 
     def test_resequence_video_replace_first(self):
-        """A video can't replace an image that was resequenced away from first position."""
         self._create_product_images()
         with MockRequest(self.product.env, website=self.website):
             images = self.product._get_images()
@@ -337,7 +323,7 @@ class TestProductVideoUpload(HttpCase):
             }
         )
         cls.video_data = {
-            "src": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",  # A placeholder video URL
+            "src": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             "name": "Test Video",
         }
 
@@ -351,22 +337,17 @@ class TestProductVideoUpload(HttpCase):
             )
 
     def test_video_upload(self):
-        # Upload a video to the product
         self._upload_video()
 
-        # Retrieve the product's media data
         video_url = self.product.product_template_image_ids[0].video_url
         image_1920 = self.product.product_template_image_ids[0].image_1920
 
-        # Check that the video URL and thumbnail are correctly saved
         self.assertEqual(video_url, self.video_data["src"])
-        self.assertIsNotNone(image_1920)  # Ensure a thumbnail was generated
+        self.assertIsNotNone(image_1920)
 
-        # Verify that the video was added as part of the media
         self.assertEqual(len(self.product.product_template_image_ids), 1)
 
     def test_video_upload_invalid(self):
-        # Try to upload invalid video data (e.g., empty src)
         with MockRequest(self.product.env, website=self.website):
             with self.assertRaises(ValidationError):
                 self.WebsiteSaleController.add_product_media(

@@ -13,8 +13,6 @@ import { _t } from "@web/core/translation";
  */
 
 function getBgVideoOrParallax(editingElement) {
-    // Make sure parallax and video element are considered to be below the
-    // color filters / shape
     const bgVideoEl = editingElement.querySelector(":scope > .o_bg_video_container");
     if (bgVideoEl) {
         return bgVideoEl;
@@ -96,7 +94,6 @@ class WebsiteBackgroundVideoPlugin extends Plugin {
         params: { forceClean = false },
     }) {
         if (!forceClean && !mediaSrc) {
-            // No video has been chosen by the user on the media dialog
             return;
         }
         editingElement.classList.toggle("o_background_video", !!mediaSrc);
@@ -107,8 +104,6 @@ class WebsiteBackgroundVideoPlugin extends Plugin {
         }
     }
     /**
-     * Remove the current background video and notify listeners.
-     *
      * @param {Object} context
      * @param {HTMLElement} context.editingElement
      * @param {Object} [context.params]

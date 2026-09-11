@@ -94,24 +94,11 @@ export function assertCartContains({
     return steps;
 }
 
-/**
- * The `aria-label` each price carries in `product_tile_templates.xml`.
- *
- * This used to select on `data-oe-expression`, which is the template's own
- * source expression -- emitted into every page by `ir.qweb._get_widget`, edit
- * mode or not. That attribute is branding: it now appears only when
- * `inherit_branding` is set, as it already did for `t-field`. The accessibility
- * label is the better hook regardless: it is a contract with the reader, where
- * the expression was an implementation detail of the template.
- */
 const PRICE_ARIA_LABELS = {
     price_reduce: "Sale price",
     base_price: "Original price",
 };
 
-/**
- * Used to assert if the price attribute of a given product is correct on the /shop view
- */
 export function assertProductPrice(attribute, value, productName) {
     const label = PRICE_ARIA_LABELS[attribute];
     if (!label) {
@@ -195,7 +182,6 @@ export function pay({
     const steps = [
         {
             content: "Pay",
-            //Either there are multiple payment methods, and one is checked, either there is only one, and therefore there are no radio inputs
             trigger: 'button[name="o_payment_submit_button"]',
             run: "click",
             expectUnloadPage,
@@ -258,7 +244,7 @@ export function payWithTransfer({
                     '[name="order_confirmation"]:contains("Please use the following transfer details")',
                 timeout: 30000,
                 run() {
-                    window.location.href = "/contactus"; // Redirect in JS to avoid the RPC loop (20x1sec)
+                    window.location.href = "/contactus";
                 },
                 expectUnloadPage: true,
             },
@@ -295,9 +281,6 @@ export function searchProduct(productName, { select = false } = {}) {
     return steps;
 }
 
-/**
- * Used to select a pricelist on the /shop view
- */
 export function selectPriceList(pricelist) {
     return [
         {
@@ -314,9 +297,6 @@ export function selectPriceList(pricelist) {
     ];
 }
 
-/**
- * Used for resolving indeterministic behavior of tours
- */
 export function waitForInteractionToLoad() {
     return {
         content: "Wait for interaction to be ready",

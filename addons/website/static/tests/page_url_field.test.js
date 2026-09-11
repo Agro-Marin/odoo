@@ -12,9 +12,7 @@ import {
 
 class Product extends models.Model {
     url = fields.Char({
-        onChange(record) {
-            // factice onchange to cause onchange calls
-        },
+        onChange(record) {},
     });
     old_url = fields.Char();
 }

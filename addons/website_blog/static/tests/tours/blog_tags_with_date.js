@@ -1,9 +1,5 @@
 import { registerWebsitePreviewTour } from "@website/js/tours/tour_utils";
 
-/**
- * Makes sure that blog tags should not be removed on the addition of date filter
- * and on the removal of date filter.
- */
 registerWebsitePreviewTour(
     "blog_tags_with_date",
     {

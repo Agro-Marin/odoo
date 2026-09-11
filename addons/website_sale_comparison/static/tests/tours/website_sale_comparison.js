@@ -5,7 +5,6 @@ import * as tourUtils from "@website_sale/js/tours/tour_utils";
 registry.category("web_tour.tours").add("product_comparison", {
     url: "/shop",
     steps: () => [
-        // test from shop page
         {
             content: "add first product 'Color T-Shirt' in a comparison list",
             trigger: '.oe_product_cart:contains("Color T-Shirt")',
@@ -50,7 +49,6 @@ registry.category("web_tour.tours").add("product_comparison", {
             trigger: '.oe_product_cart:contains("Color T-Shirt")',
             run: "hover && click .oe_product_cart:contains(Color T-Shirt) .o_add_compare",
         },
-        // test form product page
         {
             content: "go to product page of Color Shoes (with variants)",
             trigger: '.oe_product_cart a:contains("Color Shoes")',
@@ -109,7 +107,7 @@ registry.category("web_tour.tours").add("product_comparison", {
             run: "click",
         },
         {
-            trigger: "body:not(:has(.carousel-indicators))", // there is 1 image on the custom variant
+            trigger: "body:not(:has(.carousel-indicators))",
         },
         {
             content:
@@ -128,7 +126,6 @@ registry.category("web_tour.tours").add("product_comparison", {
             run: "click",
             expectUnloadPage: true,
         },
-        // test on compare page
         {
             content: "check 1st product contains correct variant",
             trigger: '.product_summary a:contains("Color Pants (Red)")',

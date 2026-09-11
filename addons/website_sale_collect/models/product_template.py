@@ -10,20 +10,16 @@ class ProductTemplate(models.Model):
     def _get_additionnal_combination_info(
         self, product_or_template, quantity, uom, date, website
     ):
-        """Override of `website_sale` to add information on whether Click & Collect is enabled and
-        on the stock of the product."""
         res = super()._get_additionnal_combination_info(
             product_or_template, quantity, uom, date, website
         )
         if (
-            bool(website.sudo().in_store_dm_id)  # Click & Collect is enabled.
+            bool(website.sudo().in_store_dm_id)
             and product_or_template.is_product_variant
             and product_or_template.is_storable
         ):
-            # Enable the Click & Collect Availability widget.
             res["show_click_and_collect_availability"] = True
 
-            # Prepare the delivery stock data.
             available_delivery_methods_sudo = (
                 self.env["delivery.carrier"]
                 .sudo()
@@ -44,13 +40,12 @@ class ProductTemplate(models.Model):
             else:
                 res["delivery_stock_data"] = {}
 
-            # Prepare the in-store stock data.
             order_sudo = request.cart
             if (
                 order_sudo
                 and order_sudo.carrier_id.delivery_type == "in_store"
                 and order_sudo.pickup_location_data
-            ):  # Get stock values for the product variant in the selected store.
+            ):
                 res["in_store_stock_data"] = utils.format_product_stock_values(
                     product_or_template.sudo(),
                     wh_id=order_sudo.pickup_location_data["id"],

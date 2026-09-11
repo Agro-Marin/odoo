@@ -40,7 +40,7 @@ registry.category("web_tour.tours").add("website_livechat.chatbot_redirect", {
             expectUnloadPage: true,
         },
         {
-            isActive: ["mobile"], //chatwindow is folded on mobile
+            isActive: ["mobile"],
             trigger:
                 ".o-livechat-root:shadow .o-mail-ChatBubble[name='Redirection Bot']",
             run: "click",

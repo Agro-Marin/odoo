@@ -13,22 +13,12 @@ class PaymentProvider(models.Model):
     website_id = fields.Many2one(
         "website",
         check_company=True,
-        copy=False,  # handled in `copy` override to prevent company inconsistencies
+        copy=False,
         ondelete="restrict",
     )
 
     @api.model
     def _get_compatible_providers(self, *args, website_id=None, report=None, **kwargs):
-        """Override of `payment` to only return providers matching website-specific criteria.
-
-        In addition to the base criteria, the website must either not be set or be the same as the
-        one provided in the kwargs.
-
-        :param int website_id: The provided website, as a `website` id.
-        :param dict report: The availability report.
-        :return: The compatible providers.
-        :rtype: payment.provider
-        """
         providers = super()._get_compatible_providers(
             *args, website_id=website_id, report=report, **kwargs
         )
@@ -46,12 +36,7 @@ class PaymentProvider(models.Model):
         return providers
 
     def get_base_url(self):
-        # Give priority to url_root to handle multi-website cases
         if request and request.httprequest.url_root:
-            # Some domain names can use non-Latin script or alphabet or the Latin
-            # alphabet-based characters with diacritics or ligatures. They are
-            # stored as ASCII strings using Punycode transcription in the DNS
-            # system and need to be converted to send to external APIs.
             return iri_to_uri(request.httprequest.url_root)
         return super().get_base_url()
 

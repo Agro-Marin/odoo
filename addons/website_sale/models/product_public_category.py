@@ -88,8 +88,6 @@ class ProductPublicCategory(models.Model):
         help="Align the category content on the shop page. Corresponds to the 'Center Content' editor option.",
     )
 
-    # === COMPUTE METHODS === #
-
     @api.depends("parent_path")
     def _compute_parents_and_self(self):
         for category in self:
@@ -123,11 +121,7 @@ class ProductPublicCategory(models.Model):
                 c.has_published_products for c in category.child_id
             )
 
-    # === CONSTRAINT METHODS === #
-
     _hierarchy_cycle_message = _lt("Error! You cannot create recursive categories.")
-
-    # === SEARCH METHODS === #
 
     @api.model
     def _search_has_published_products(self, operator, value):
@@ -142,14 +136,11 @@ class ProductPublicCategory(models.Model):
                 )
             ]
         ).get_result_ids()
-        # If the `value` is False, the ORM will invert the domain below
         return [
             "|",
             ("id", "in", published_categ_ids),
             ("id", "parent_of", published_categ_ids),
         ]
-
-    # === BUSINESS METHODS === #
 
     @api.model
     def _search_get_detail(self, website, order, options):
@@ -191,12 +182,6 @@ class ProductPublicCategory(models.Model):
 
     @api.model
     def get_available_snippet_categories(self, website_id):
-        """Return parent categories available for selection in the dynamic category snippet.
-
-        :param int website_id: ID of the current website
-        :return: Available parent categories
-        :rtype: list[dict]
-        """
         child_count_by_parent = self._read_group(
             domain=self._get_domain_available_category(website_id),
             aggregates=["id:count"],
@@ -213,14 +198,7 @@ class ProductPublicCategory(models.Model):
 
     @api.model
     def _get_domain_available_category(self, website_id):
-        """Build a search domain for product categories to be used in dynamic snippets.
-
-        :param int website_id: ID of the current website
-        :return: A domain to filter product categories for the given website
-        :rtype: Domain
-        """
         domain = Domain("website_id", "in", [False, website_id])
-        # Public and portal users should only see categories with published products.
         if not self.env.user.has_group("website.group_website_designer"):
             domain &= Domain("has_published_products", "=", True)
         return domain

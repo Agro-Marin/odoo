@@ -65,7 +65,6 @@
                     action="'promptSaveRedirect'" actionParam="field.createAction"
                 />
             </BuilderRow>
-            <!-- TODO className="'o_we_large'" -->
             <BuilderRow t-if="field.type === 'char'" label="field.string">
                 <BuilderTextInput actionParam="{ fieldName: field.name }" action="'addActionField'" default="''"/>
             </BuilderRow>
@@ -319,7 +318,6 @@
     <t t-if="isActiveItem('hidden_if_opt')">
         <div class="d-flex position-relative p-1 px-2 ps-3 hb-row">
             <BuilderSelect id="'hidden_condition_opt'" preview="false">
-                <!-- Load every existing form input -->
                 <BuilderSelectItem t-foreach="state.conditionInputs" t-as="input" t-key="input.name"
                     action="'setVisibilityDependency'" actionValue="input.name"
                     t-out="input.textContent"
@@ -336,7 +334,6 @@
             <BuilderSelect t-if="isTextConditionOperatorVisible"
                 id="'hidden_condition_text_opt'" preview="false" dataAttributeAction="'visibilityComparator'"
             >
-                <!-- string comparator possibilities -->
                 <BuilderSelectItem dataAttributeActionValue="'contains'">Contains</BuilderSelectItem>
                 <BuilderSelectItem dataAttributeActionValue="'!contains'">Doesn't contain</BuilderSelectItem>
                 <BuilderSelectItem dataAttributeActionValue="'equal'">Is equal to</BuilderSelectItem>
@@ -347,7 +344,6 @@
             <BuilderSelect t-if="domStateDependency.type === 'number'"
                 id="'hidden_condition_num_opt'" preview="false" dataAttributeAction="'visibilityComparator'"
             >
-                <!-- number comparator possibilities -->
                 <BuilderSelectItem dataAttributeActionValue="'equal'">Is equal to</BuilderSelectItem>
                 <BuilderSelectItem dataAttributeActionValue="'!equal'">Is not equal to</BuilderSelectItem>
                 <BuilderSelectItem dataAttributeActionValue="'greater'">Is greater than</BuilderSelectItem>
@@ -361,7 +357,6 @@
                 id="'hidden_condition_time_comparators_opt'" preview="false"
                 dataAttributeAction="'visibilityComparator'"
             >
-                <!-- date & datetime comparator possibilities -->
                 <BuilderSelectItem dataAttributeActionValue="'dateEqual'">Is equal to</BuilderSelectItem>
                 <BuilderSelectItem dataAttributeActionValue="'date!equal'">Is not equal to</BuilderSelectItem>
                 <BuilderSelectItem dataAttributeActionValue="'after'">Is after</BuilderSelectItem>
@@ -377,7 +372,6 @@
             <BuilderSelect t-if="domStateDependency.type === 'file'"
                 id="'hidden_condition_file_opt'" preview="false" dataAttributeAction="'visibilityComparator'"
             >
-                <!-- file comparator possibilities -->
                 <BuilderSelectItem dataAttributeActionValue="'fileSet'">Is set</BuilderSelectItem>
                 <BuilderSelectItem dataAttributeActionValue="'!fileSet'">Is not set</BuilderSelectItem>
             </BuilderSelect>
@@ -392,7 +386,6 @@
             <BuilderSelect t-if="state.conditionValueList and (domStateDependency.type === 'checkbox' || domStateDependency.type === 'radio' || domStateDependency.nodeName === 'SELECT')"
                 id="'hidden_condition_no_text_opt'" preview="false" dataAttributeAction="'visibilityCondition'"
             >
-                <!-- checkbox, select, radio possible values -->
                 <BuilderSelectItem t-foreach="state.conditionValueList" t-as="record" t-key="record.value"
                     dataAttributeActionValue="record.value"
                     t-out="record.textContent"
@@ -401,7 +394,6 @@
             <BuilderSelect t-if="state.conditionValueList and domStateDependency.isRecordField"
                 id="'hidden_condition_record_opt'" preview="false" dataAttributeAction="'visibilityCondition'"
             >
-                <!-- checkbox, select, radio possible values -->
                 <BuilderSelectItem t-foreach="state.conditionValueList" t-as="record" t-key="record.value"
                     dataAttributeActionValue="record.value"
                     t-out="record.textContent"

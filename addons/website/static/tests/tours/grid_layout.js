@@ -21,8 +21,6 @@ registerWebsitePreviewTour(
     () => [
         ...insertSnippet(snippet),
         {
-            // TODO: should check if o_loading_screen is not present (TO check with PIPU)
-            // Await step in the history
             trigger: `:iframe:has(#wrap[contenteditable='true'])`,
         },
         ...clickOnSnippet(snippet),
@@ -75,7 +73,6 @@ registerWebsitePreviewTour(
         edition: true,
     },
     () => [
-        // Drop enough snippets to scroll.
         ...insertSnippet({
             id: "s_text_image",
             name: "Text - Image",
@@ -91,10 +88,8 @@ registerWebsitePreviewTour(
             name: "Image - Text",
             groupName: "Content",
         }),
-        // Toggle the first snippet to grid mode.
         ...clickOnSnippet({ id: "s_text_image", name: "Text - Image" }),
         changeOption("Text - Image", "setGridLayout"),
-        // Add a new grid item.
         changeOption(
             "Text - Image",
             "[data-action-id='addGridElement'][data-action-param='image']",
@@ -109,7 +104,6 @@ registerWebsitePreviewTour(
             content: "Check that the page scrolled to the new grid item",
             trigger: ":iframe .s_text_image .o_grid_item:nth-child(3)",
             async run() {
-                // Leave some time to the page to scroll.
                 await new Promise((r) => setTimeout(r, 500));
                 const newItemPosition = this.anchor.getBoundingClientRect();
                 if (newItemPosition.top < 0) {

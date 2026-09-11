@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <!-- CRM Lead portal -->
     <record id="assigned_lead_portal_rule_1" model="ir.rule">
         <field name="name">Portal Graded Partner: read and write assigned leads</field>
         <field name="model_id" ref="crm.model_crm_lead" />
@@ -14,7 +13,6 @@
         <field name="perm_unlink" eval="False" />
     </record>
 
-    <!-- Partner Grade : portal and public -->
     <record id="res_partner_grade_rule_portal_public" model="ir.rule">
         <field name="name">Portal/Public user: read only website published</field>
         <field

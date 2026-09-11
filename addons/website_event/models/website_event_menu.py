@@ -9,9 +9,16 @@ class WebsiteEventMenu(models.Model):
     _description = "Website Event Menu"
     _rec_name = "menu_id"
 
-    menu_id = fields.Many2one("website.menu", string="Menu", ondelete="cascade")
+    menu_id = fields.Many2one(
+        "website.menu",
+        string="Menu",
+        ondelete="cascade",
+    )
     event_id = fields.Many2one(
-        "event.event", string="Event", index="btree_not_null", ondelete="cascade"
+        "event.event",
+        string="Event",
+        index="btree_not_null",
+        ondelete="cascade",
     )
     view_id = fields.Many2one(
         "ir.ui.view",
@@ -35,8 +42,6 @@ class WebsiteEventMenu(models.Model):
         for new_menu, old_menu in zip(new_menus, self, strict=True):
             if not old_menu.view_id:
                 continue
-            # Get the last view modified based on the key and the website of the event
-            # as multiple views with the same key can exist with different website.
             view = (
                 self.env["ir.ui.view"]
                 .sudo()
@@ -49,10 +54,6 @@ class WebsiteEventMenu(models.Model):
                     limit=1,
                 )
             )
-            # The "-t{timestamp}" at the end of the key is needed when _is_active() is called on the menu.
-            # Without it, the unslug url can think of the copied view key as a record and keep only the number
-            # which can lead to issue where we get multiple menus active at the same time. Also that way, we ensure
-            # that the key is unique.
             new_menu.view_id = view.copy(
                 {
                     "key": f"{old_menu.view_id.key}-t{int(datetime.now().timestamp())}",
@@ -76,11 +77,9 @@ class WebsiteEventMenu(models.Model):
 
     @api.model
     def _copy_children_views(self, new_view, children_views, website_id):
-        """Duplicate the children associated in the new view"""
         new_view.check_singleton()
         for child_view in children_views:
             view_info = child_view.key.split(".")
-            # Get the last view modified based on the key and the website of the event
             view = (
                 self.env["ir.ui.view"]
                 .sudo()

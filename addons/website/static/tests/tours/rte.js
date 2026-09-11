@@ -355,14 +355,6 @@ registerWebsitePreviewTour(
                 );
                 el.dispatchEvent(mouseup);
             },
-            // This is disabled for now because it reveals a bug that is fixed
-            // in saas-15.1 and considered a tradeoff in 15.0. The bug concerns
-            // the invalidation of translations when inserting tags with more
-            // than one character. Whereas <u> didn't trigger an invalidation,
-            // <span style="text-decoration-line: underline;"> does.
-            // }, {
-            //     content: "underline",
-            //     trigger: '.oe-toolbar #underline',
         },
         ...clickOnSave(),
         {

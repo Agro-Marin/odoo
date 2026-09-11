@@ -23,7 +23,6 @@ patch(NewContentSystrayItem.prototype, {
     },
 
     getCurrentBlogContext() {
-        // Using iframe to access mainObject to check if we are on blog page
         const iframeEl = document.querySelector("iframe").contentDocument;
         const isBlogPage =
             iframeEl.documentElement.dataset.mainObject?.startsWith("blog");

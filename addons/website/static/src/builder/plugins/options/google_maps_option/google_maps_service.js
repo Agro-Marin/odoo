@@ -25,10 +25,6 @@ registry.category("services").add("google_maps", {
              */
             async getGMapsAPIKey(refetch) {
                 if (refetch || !gMapsAPIKeyProm) {
-                    // An async Promise executor that rejects leaves the promise
-                    // pending forever; cached, that bricks every later lookup.
-                    // Use an async IIFE and reset the cache on failure so a
-                    // later call can retry.
                     gMapsAPIKeyProm = (async () => {
                         try {
                             const data = await rpc("/website/google_maps_api_key");
@@ -46,15 +42,7 @@ registry.category("services").add("google_maps", {
              * @param {boolean} [refetch=false]
              */
             async loadGMapsAPI(editableMode, refetch) {
-                // Note: only need refetch to reload a configured key and load
-                // the library. If the library was loaded with a correct key and
-                // that the key changes meanwhile... it will not work but we can
-                // agree the user can bother to reload the page at that moment.
                 if (refetch || !gMapsAPILoading) {
-                    // Async IIFE (not `new Promise(async …)`): a rejection in an
-                    // async executor hangs the cached promise forever. On
-                    // failure, reset the cache and resolve `false` so the caller
-                    // degrades gracefully instead of awaiting a dead promise.
                     gMapsAPILoading = (async () => {
                         try {
                             const key = await this.getGMapsAPIKey(refetch);
@@ -95,18 +83,6 @@ registry.category("services").add("google_maps", {
                 return gMapsAPILoading;
             },
             /**
-             * Send a request to the Google Maps API to test the validity of the given
-             * API key. Return an object with the error message if any, and a boolean
-             * that is true if the response from the API had a status of 200.
-             *
-             * Note: The response will be 200 so long as the API key has billing, Static
-             * API and Javascript API enabled. However, for our purposes, we also need
-             * the Places API enabled. To deal with that case, we perform a nearby
-             * search immediately after validation. If it fails, the error is handled
-             * and the dialog is re-opened.
-             * @see nearbySearch
-             * @see notifyGMapsError
-             *
              * @param {string} key
              * @returns {Promise<ApiKeyValidation>}
              */
@@ -135,10 +111,6 @@ registry.category("services").add("google_maps", {
                 }
             },
             /**
-             * Send a request to the Google Maps API, using the given API key, so as to
-             * get a response which can be used to test the validity of said key.
-             * This method is set apart so it can be overridden for testing.
-             *
              * @param {string} key
              * @returns {Promise<{ status: number }>}
              */

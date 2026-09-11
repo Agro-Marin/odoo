@@ -113,7 +113,6 @@ export class AddFontDialog extends Component {
                 )}:300,300i,400,400i,700,700i`,
                 { method: "HEAD" },
             );
-            // Google fonts server returns a 400 status code if family is not valid.
             if (result.ok) {
                 const linkId = `previewFont${fontFamily}`;
                 if (!document.querySelector(`link[id='${linkId}']`)) {
@@ -155,15 +154,10 @@ export class AddFontDialog extends Component {
         reader.readAsDataURL(file);
     }
     /**
-     * Deduces the style of uploaded fonts and creates inline style
-     * elements in the backend iframe's head to make the font-faces
-     * available for preview.
-     *
      * @param baseFontName
      */
     updateFontStyle(baseFontName) {
         const targetFonts = {};
-        // Add candidate tags to fonts.
         let shortestNamedFont;
         for (const font of this.state.uploadedFonts) {
             if (
@@ -195,7 +189,6 @@ export class AddFontDialog extends Component {
             }
         }
         if (!Object.values(targetFonts).filter((font) => font.isRegular).length) {
-            // Keep font with shortest name.
             shortestNamedFont.weight = 400;
             shortestNamedFont.style = "normal";
             targetFonts["400"] = shortestNamedFont;
@@ -254,7 +247,6 @@ export class AddFontDialog extends Component {
                 });
                 return;
             }
-            // Create attachment.
             const [fontCssId] = await this.orm.call("ir.attachment", "create_unique", [
                 [
                     {
@@ -280,7 +272,6 @@ export class AddFontDialog extends Component {
                         ":300,300i,400,400i,700,700i",
                     { method: "HEAD" },
                 );
-                // Google fonts server returns a 400 status code if family is not valid.
                 if (result.ok) {
                     isValidFamily = true;
                 }
@@ -298,9 +289,6 @@ export class AddFontDialog extends Component {
 
             const googleFontServe = state.googleServe;
             const fontName = `'${font}'`;
-            // If the font already exists, it will only be added if
-            // the user chooses to add it locally when it is already
-            // imported from the Google Fonts server.
             const fontExistsLocally = this.props.googleLocalFonts.some(
                 (localFont) => localFont.split(":")[0] === fontName,
             );

@@ -35,11 +35,6 @@ const simulateScrolls = async function (fixture) {
         await manuallyDispatchProgrammaticEvent(document, "scroll");
         await scroll(fixture, { y: target + 1 });
         await manuallyDispatchProgrammaticEvent(document, "scroll");
-        // `website.parallax` throttles its scroll handler for animation, so
-        // both dispatches above coalesce into a single run on the next frame
-        // -- and the `t-att-style` update only happens after it. Measuring
-        // without waiting reads the pre-scroll geometry, which looks exactly
-        // like "the background never moved".
         await animationFrame();
         const spacing =
             queryRect(".s_parallax_bg").bottom - queryRect("section:first").bottom;

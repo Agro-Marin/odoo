@@ -17,7 +17,6 @@ class TestUi(odoo.tests.HttpCase):
         )
         transfer_provider._transfer_ensure_pending_msg_is_set()
 
-        # Avoid Shipping/Billing address page
         self.env.ref("base.partner_admin").write(
             {
                 "street": "215 Vine St",
@@ -59,7 +58,7 @@ class TestUi(odoo.tests.HttpCase):
         self.carrier = self.env["delivery.carrier"].create(
             {
                 "name": "The Poste",
-                "sequence": 9999,  # ensure last to load price async
+                "sequence": 9999,
                 "fixed_price": 20.0,
                 "delivery_type": "base_on_rule",
                 "product_id": self.product_delivery_poste.id,

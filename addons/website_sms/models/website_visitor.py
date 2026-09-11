@@ -6,9 +6,6 @@ class WebsiteVisitor(models.Model):
     _inherit = "website.visitor"
 
     def _check_for_sms_composer(self):
-        """Purpose of this method is to actualize visitor model prior to contacting
-        him. Used notably for inheritance purpose, when dealing with leads that
-        could update the visitor model."""
         return bool(self.partner_id.phone_ids)
 
     def _prepare_sms_composer_context(self):

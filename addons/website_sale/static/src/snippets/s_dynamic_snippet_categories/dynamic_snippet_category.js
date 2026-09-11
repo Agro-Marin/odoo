@@ -26,7 +26,6 @@ export class DynamicSnippetCategory extends DynamicSnippet {
         const colsCount = uiUtils.isSmall() ? 1 : parseInt(nodeData.columns);
         const colSpanTwo =
             colsCount !== 1 && (nodeData.size !== "small" || colsCount === 5);
-        // Pass custom data to the template.
         nodeData.customTemplateData = JSON.stringify({
             size: SIZE_CONFIG[nodeData.size]?.span,
             alignmentClass: ALIGNMENT_CLASSES_MAPPING[nodeData.alignment],

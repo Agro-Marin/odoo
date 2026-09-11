@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Attachment -->
     <record id="view_website_rewrite_form" model="ir.ui.view">
         <field name="model">website.rewrite</field>
         <field name="arch" type="xml">

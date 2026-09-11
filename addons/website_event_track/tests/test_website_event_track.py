@@ -35,12 +35,8 @@ class TestWebsiteEventTrack(TestEventOnlineCommon, HttpCase):
 
     @freeze_time("2020-07-05")
     def test_email_reminder_tour(self):
-        """Check the recovery of the email address of a public user and a logged
-        user for the email with track reminders."""
         for user in [self.demo_user, self.env["res.users"]]:
             with self.subTest(user=user):
-                # Check that the modal to submit an email address for reminders
-                # is displayed for public user.
                 self.start_tour(
                     f"{self.event_0.website_url}/agenda",
                     "email_reminder_tour",
@@ -62,11 +58,9 @@ class TestWebsiteEventTrack(TestEventOnlineCommon, HttpCase):
                         )
                     )
                 )
-                # Check that a mail with track reminders has been created with the submitted email address.
                 self.assertEqual(len(mails), 1)
 
     def test_compute_is_one_day(self):
-        """Ensure is_one_day is False when both date and date_end are missing."""
         track = self.env["event.track"].create(
             {
                 "name": "Track Without Dates",
@@ -80,7 +74,6 @@ class TestWebsiteEventTrack(TestEventOnlineCommon, HttpCase):
         self.assertTrue(track.event_id, "Track should be linked to the correct event.")
 
     def test_compute_track_time_data(self):
-        """Test that _compute_track_time_data sets defaults when no date or date_end is set."""
         track = self.env["event.track"].create(
             {
                 "name": "Track Without Date Info",

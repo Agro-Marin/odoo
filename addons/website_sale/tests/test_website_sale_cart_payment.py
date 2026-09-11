@@ -28,8 +28,6 @@ class WebsiteSaleCartPayment(PaymentHttpCommon, WebsiteSaleCommon):
         cls.cart.write({"transaction_ids": [Command.set([cls.tx.id])]})
 
     def test_unpaid_orders_can_be_retrieved(self):
-        """Test that fetching sales orders linked to a payment transaction in the states 'draft',
-        'cancel', or 'error' returns the orders."""
         for unpaid_order_tx_state in ("draft", "cancel", "error"):
             self.tx.state = unpaid_order_tx_state
             with MockRequest(
@@ -43,8 +41,6 @@ class WebsiteSaleCartPayment(PaymentHttpCommon, WebsiteSaleCommon):
                 )
 
     def test_paid_orders_cannot_be_retrieved(self):
-        """Test that fetching sales orders linked to a payment transaction in the states 'pending',
-        'authorized', or 'done' returns an empty recordset to prevent updating the paid orders."""
         self.tx.provider_id.support_manual_capture = "full_only"
         for paid_order_tx_state in ("pending", "authorized", "done"):
             self.tx.state = paid_order_tx_state
@@ -62,13 +58,12 @@ class WebsiteSaleCartPayment(PaymentHttpCommon, WebsiteSaleCommon):
         url = self._build_url(f"/shop/payment/transaction/{self.cart.id}")
         route_kwargs = {
             "access_token": self.cart._portal_ensure_token(),
-            "partner_id": self.partner.id,  # This should be rejected.
+            "partner_id": self.partner.id,
         }
         with self.assertRaises(JsonRpcException, msg="odoo.exceptions.ValidationError"):
             self.call_jsonrpc(url, route_kwargs)
 
     def test_payment_confirmation_mail(self):
-        """Check that a salesperson gets assigned when sending payment confirmation mails."""
         salesperson = self.env.ref("base.user_admin")
         self.website.salesperson_id = salesperson
         self.cart.user_id = False

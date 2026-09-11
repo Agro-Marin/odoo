@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--product history-->
     <record id="website_sale_visitor_page_view_tree" model="ir.ui.view">
         <field name="name">website.track.view.list</field>
         <field name="model">website.track</field>
@@ -63,7 +62,6 @@
         </field>
     </record>
 
-    <!-- website visitor views -->
     <record id="website_sale_visitor_view_form" model="ir.ui.view">
         <field name="name">website.visitor.view.form</field>
         <field name="model">website.visitor</field>
@@ -113,7 +111,6 @@
         </field>
     </record>
 
-    <!-- website track views -->
     <record id="website_sale_visitor_track_view_tree" model="ir.ui.view">
         <field name="name">website.track.view.list</field>
         <field name="model">website.track</field>

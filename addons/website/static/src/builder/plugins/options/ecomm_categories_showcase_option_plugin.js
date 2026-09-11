@@ -105,14 +105,12 @@ class BlockCountAction extends BuilderAction {
 
         let blocks = wrapper.querySelectorAll(".s_ecomm_categories_showcase_block");
 
-        // Remove blocks if needed
         while (blocks.length > count) {
             const blockToRemove = blocks[blocks.length - 1];
             blockToRemove.remove();
             blocks = wrapper.querySelectorAll(".s_ecomm_categories_showcase_block");
         }
 
-        // Add blocks if needed
         while (blocks.length < count) {
             const newBlock = blocks[0].cloneNode(true);
             wrapper.appendChild(newBlock);
@@ -161,7 +159,6 @@ class SpacingToggleAction extends BuilderAction {
         );
         wrapper.classList.toggle(EcommCategoriesShowcaseOptionPlugin.GAP_CLASS);
 
-        // Set roundness based on new state
         const newRoundness = hasGap
             ? EcommCategoriesShowcaseOptionPlugin.NO_ROUNDNESS
             : EcommCategoriesShowcaseOptionPlugin.DEFAULT_ROUNDNESS;

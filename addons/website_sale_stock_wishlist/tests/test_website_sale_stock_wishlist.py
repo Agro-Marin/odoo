@@ -20,10 +20,8 @@ class TestWebsiteSaleStockWishlist(TransactionCase):
         )
 
     def test_stock_notification_false_without_subscription(self):
-        """A wishlist line has no stock notification when not subscribed."""
         self.assertFalse(self._wishlist().stock_notification)
 
     def test_stock_notification_true_when_partner_subscribed(self):
-        """A wishlist line reflects the product's back-in-stock subscription."""
         self.product.stock_notification_partner_ids = [(4, self.partner.id)]
         self.assertTrue(self._wishlist().stock_notification)

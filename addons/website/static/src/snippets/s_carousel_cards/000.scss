@@ -6,7 +6,6 @@
         --CardBody-padding: #{map-get($spacers, 4)};
 
         @include media-breakpoint-down(lg) {
-            // Remove Extra-height on mobile
             --CardBody-extra-height: 0px !important;
         }
 
@@ -16,7 +15,6 @@
 
         @extend %s_carousel_variants;
 
-        // Allow cards to always take the full height of "carousel-item"
         .carousel-item.active,
         .carousel-item-next,
         .carousel-item-prev {

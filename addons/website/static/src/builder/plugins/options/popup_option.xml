@@ -2,7 +2,6 @@
 <templates xml:space="preserve">
 
 <t t-name="website.base_popup_options">
-    <!-- For the cookies popup, only display this for popup mode. -->
     <BuilderRow label.translate="Position" t-if="!isCookiesOption or isActiveItem('layout_popup_opt')">
         <BuilderSelect>
             <BuilderSelectItem classAction="'s_popup_top'">Top</BuilderSelectItem>

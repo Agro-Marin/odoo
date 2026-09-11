@@ -54,8 +54,6 @@ registerWebsitePreviewTour(
                 ".modal-dialog .o_website_dialog .modal-footer .btn-primary:contains(Continue)",
             run: "click",
         },
-        // Drag the new menu item to the first position. If this is not done,
-        // the tour fails when the new menu is in the extra menu.
         {
             content: "Drag the new menu item at the top",
             trigger: '.oe_menu_editor li:contains("Zoé’s Diner") .oi-draggable',
@@ -153,8 +151,6 @@ registerWebsitePreviewTour(
                 ".modal-dialog .o_website_dialog .modal-footer .btn-primary:contains(Continue)",
             run: "click",
         },
-        // Drag the new menu item to the first position. If this is not done,
-        // the tour fails when the new menu is in the extra menu.
         {
             content: "Drag the new menu item at the top",
             trigger: '.oe_menu_editor li:contains("The Sea Hotel") .oi-draggable',

@@ -24,8 +24,6 @@
            class="js_close_popup o_cookies_bar_accept_essential o_cookies_bar_text_button_essential btn btn-outline-primary rounded-circle mt-1 mb-2 px-2 py-1">Only allow essential cookies</a>
     </t>
     <t t-name="website.cookies_bar.discrete">
-        <!-- When updating this template, do not forget to also update the
-             backend `website.cookies_bar` template -->
         <section class="o_colored_level o_cc o_cc1">
             <div class="container">
                 <div class="row">

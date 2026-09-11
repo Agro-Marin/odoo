@@ -52,16 +52,6 @@ class SlideChannelTag(models.Model):
 
     @api.model
     def _search_by_slugs(self, slugs):
-        """Resolve a comma-separated slug list ("hotels-1,adventure-2") to tags.
-
-        The one parser. Both the course search on slide.channel and the
-        controller's tag filter had their own copy, each with its own bare
-        ``except``. Unparseable input yields an empty recordset rather than an
-        error: these arrive from a URL.
-
-        The search is what filters out ids that do not exist, so the caller
-        never has to check.
-        """
         try:
             tag_ids = [
                 tag_id

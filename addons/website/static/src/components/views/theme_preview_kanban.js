@@ -32,7 +32,7 @@ class ThemePreviewControlPanel extends ControlPanel {
     }
 }
 class ThemePreviewKanbanrecord extends KanbanRecord {
-    /** @override **/
+    /** @override */
     getRecordClasses() {
         return super.getRecordClasses() + " p-0 border-0 bg-transparent";
     }

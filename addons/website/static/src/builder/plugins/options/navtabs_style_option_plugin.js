@@ -165,7 +165,6 @@ export class BaseNavtabsStyleOption extends BuilderAction {
     }
 
     applyDirection(editingElement, direction) {
-        // s_tabs_images use flex-md classes, while s_tabs use flex-sm classes
         const isTabsImages = editingElement
             .closest(".s_tabs_common")
             .classList.contains("s_tabs_images");
@@ -190,8 +189,6 @@ export class BaseNavtabsStyleOption extends BuilderAction {
             .querySelector(".s_tabs_content")
             .classList.toggle(isTabsImages ? "col-md-9" : "col-sm-9", isVertical);
 
-        // Clean incompatible leftover classes in vertical mode.
-        // See "Fill and Justify" and "Alignment" options.
         if (isVertical) {
             navEl.classList.remove(
                 "nav-fill",
@@ -209,7 +206,6 @@ class SetStyleAction extends BaseNavtabsStyleOption {
     static id = "setStyle";
     isApplied({ editingElement, value }) {
         const navEl = this.getNavEl(editingElement);
-        // 'nav-buttons' also applies 'nav-pills'
         if (navEl.classList.contains("nav-buttons")) {
             return value === "nav-buttons";
         }

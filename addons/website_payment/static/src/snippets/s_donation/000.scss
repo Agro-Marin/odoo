@@ -2,7 +2,7 @@
     @include o-input-number-no-arrows();
 
     .s_donation_btn {
-        display: inline-flex; // Don't print whitespace between currency and text node
+        display: inline-flex;
         transition: background 0.2s;
 
         &:focus {
@@ -23,8 +23,6 @@
         }
     }
     .s_donation_range_slider_wrap {
-        // not at 100% to prevent the bubble overflowing the viewport
-        // to the right (with small device when set with max value)
         width: 90%;
 
         #s_donation_range_slider {

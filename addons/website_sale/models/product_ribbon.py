@@ -48,11 +48,6 @@ class ProductRibbon(models.Model):
 
     @api.constrains("assign")
     def _check_assign(self):
-        """
-        Ensure only one ribbon exists per automatic assign type.
-        This prevents duplicates, since automatic assignment logic always uses the first ribbon
-        with a given assign value.
-        """
         for ribbon in self:
             if ribbon.assign != "manual":
                 existing_ribbons = self.search(
@@ -67,10 +62,6 @@ class ProductRibbon(models.Model):
                     )
 
     def _get_css_classes(self):
-        """
-        Return the CSS classes for this ribbon based on style and position.
-        :rtype: str
-        """
         css_classes = ""
         match self.style:
             case "ribbon":
@@ -86,29 +77,16 @@ class ProductRibbon(models.Model):
         return css_classes
 
     def _is_applicable_for(self, product, price_data):
-        """Return whether the product matches the criteria of the ribbon automatic assignment.
-
-        :param product.product product: the displayed product
-        :param dict price_data: price information for the given product
-            (sales price for shop page, combination information for product page)
-
-        :return: Whether the ribbon matches the given product and price.
-        :rtype: bool
-        """
         self.check_singleton()
 
-        # Check if a discount is applied to the product using a pricelist, comparison price, or
-        # others.
         if (
             self.assign == "sale"
             and price_data
             and (
-                # for /shop page
                 (
                     "base_price" in price_data
                     and (price_data["base_price"] > price_data["price_reduce"])
                 )
-                # for /product page
                 or (
                     "compare_list_price" in price_data
                     and price_data["compare_list_price"] > price_data["price"]
@@ -117,7 +95,6 @@ class ProductRibbon(models.Model):
             )
         ):
             return True
-        # Check if the product is published within the ribbon's new period.
         if (  # noqa: SIM103
             self.assign == "new"
             and self.new_period >= (fields.Datetime.today() - product.publish_date).days

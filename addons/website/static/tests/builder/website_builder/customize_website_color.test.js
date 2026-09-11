@@ -52,7 +52,6 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
     expect.step("set preset");
     await contains("button.o_we_color_preview").click();
     await contains("button[data-color='o_cc4'").click();
-    // Should wait for 2 ticks (debounced): customizeWebsiteColors, reloadBundles
     await def;
     expect.verifySteps([
         "set preset",
@@ -62,12 +61,10 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
     ]);
 
     def = new Deferred();
-    // Setting solid color does not impact preset
     expect.step("set solid color");
     await contains("button.o_we_color_preview").click();
     await contains("button.custom-tab").click();
     await contains("button[data-color='400']").click();
-    // Should wait for 2 ticks (debounced): customizeWebsiteColors, reloadBundles
     await def;
     expect.verifySteps([
         "set solid color",
@@ -77,12 +74,10 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
     ]);
 
     def = new Deferred();
-    // Setting preset does not impact solid color
     expect.step("set preset on solid color");
     await contains("button.o_we_color_preview").click();
     await contains("button.theme-tab").click();
     await contains("button[data-color='o_cc3'").click();
-    // Should wait for 2 ticks (debounced): customizeWebsiteColors, reloadBundles
     await def;
     expect.verifySteps([
         "set preset on solid color",
@@ -92,12 +87,10 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
     ]);
 
     def = new Deferred();
-    // Setting gradient does not impact preset
     expect.step("set gradient");
     await contains("button.o_we_color_preview").click();
     await contains("button.gradient-tab").click();
     await contains("button.o_gradient_color_button").click();
-    // Should wait for 3 ticks (debounced): customizeWebsiteColors, customizeWebsiteVariables, reloadBundles
     await def;
     expect.verifySteps([
         "set gradient",
@@ -107,12 +100,10 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
     ]);
 
     def = new Deferred();
-    // Setting preset does not impact gradient
     expect.step("set preset on gradient");
     await contains("button.o_we_color_preview").click();
     await contains("button.theme-tab").click();
     await contains("button[data-color='o_cc4'").click();
-    // Should wait for 2 ticks (debounced): customizeWebsiteColors, reloadBundles
     await def;
     expect.verifySteps([
         "set preset on gradient",
@@ -122,11 +113,9 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
     ]);
 
     def = new Deferred();
-    // Clear clears everything
     expect.step("reset");
     await contains("button.o_we_color_preview").click();
     await contains(".o_font_color_selector .fa-trash").click();
-    // Should wait for 3 ticks (debounced): customizeWebsiteColors, customizeWebsiteVariables, reloadBundles
     await def;
     expect.verifySteps([
         "reset",
@@ -141,8 +130,6 @@ test("BuilderColorPicker with action “customizeWebsiteColor” is correctly di
     await contains('div[data-label="Background"] .o_we_color_preview').click();
     await contains(".o-hb-colorpicker .custom-tab").click();
     await contains(".o_color_picker_inputs input.o_hex_input").edit("#77FF006E");
-    // When writing "#77FF006E" in the input, a first call is made when the
-    // input value is "#77FF00" and another when it becomes "#77FF006E"
     await expect.waitForSteps([
         '/website/static/src/scss/options/colors/user_color_palette.scss {"o-cc1-bg":"#77FF00"}',
         '/website/static/src/scss/options/user_values.scss {"o-cc1-bg-gradient":"null"}',

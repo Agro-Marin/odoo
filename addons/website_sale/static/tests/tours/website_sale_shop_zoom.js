@@ -4,7 +4,6 @@ var imageSelector = "#o-carousel-product .carousel-item.active img";
 var imageName = "A Colorful Image";
 var nameGreen = "Forest Green";
 
-// This tour relies on a data created from the python test.
 registry.category("web_tour.tours").add("shop_zoom", {
     url: "/shop?debug=1&search=" + imageName,
     steps: () => [

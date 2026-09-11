@@ -4,7 +4,6 @@ import { getPriceListChecksSteps } from "@website_event_sale/../tests/tours/help
 registry.category("web_tour.tours").add("event_sale_pricelists_different_currencies", {
     url: "/event",
     steps: () => [
-        // Register for tickets
         {
             content: "Open the Pycon event",
             trigger: '.o_wevent_events_list a:contains("Pycon")',

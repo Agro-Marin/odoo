@@ -22,8 +22,6 @@ import wUtils from "@website/js/utils";
 
 import { WebsiteDialog } from "./dialog.js";
 
-// This replaces \b, because accents(e.g. à, é) are not seen as word boundaries.
-// Javascript \b is not unicode aware, and words beginning or ending by accents won't match \b
 const WORD_SEPARATORS_REGEX =
     "([\\u2000-\\u206F\\u2E00-\\u2E7F'!\"#\\$%&\\(\\)\\*\\+,\\-\\.\\/:;<=>\\?¿¡@\\[\\]\\^_`\\{\\|\\}~\\s]+|^|$)";
 
@@ -45,10 +43,6 @@ const LINK_CHECK_BASE_OPTIONS = {
 };
 
 /**
- * Replace the LAST occurrence of `search` in `url`. The SEO slug lives in the
- * final path segment, so a plain String.replace() (first match) mangles the URL
- * when the slug also appears in the host or a parent segment.
- *
  * @param {string} url
  * @param {string} search
  * @param {string} replacement
@@ -462,7 +456,6 @@ class MetaKeywords extends Component {
     }
 
     onKeyup(ev) {
-        // Add keyword on enter.
         if (ev.key === "Enter") {
             this.addKeyword(this.state.keyword);
         }
@@ -520,23 +513,17 @@ class SEOPreview extends Component {
         const path = urlObj.pathname;
 
         const segments = path.split("/").filter((segment) => segment);
-        // Remove non-readable elements (numeric parts)
         const readableSegments = segments.map((segment) => {
-            // Remove numeric suffixes (e.g., "astronomy-2" becomes "astronomy")
             const noNumericSuffix = segment.replace(/-\d+$/, "");
-            // Replace dashes with spaces and remove numbers
             return noNumericSuffix.replace(/-/g, " ").replace(/\d+/g, "");
         });
-        // Capitalise the first word of each segment
-        let capitalisedSegments = readableSegments.map(
-            (segment) => segment.replace(/\b\w/, (char) => char.toUpperCase()), // Capitalise each word
+        let capitalisedSegments = readableSegments.map((segment) =>
+            segment.replace(/\b\w/, (char) => char.toUpperCase()),
         );
-        // Remove the localisation part if it's there
         if (translatedPage) {
             capitalisedSegments = capitalisedSegments.slice(1);
         }
         capitalisedSegments.unshift(`https://${hostname}`);
-        // Manage the truncated parts if it's too long
         let lastIndexOfEllipsis = null;
         while (
             capitalisedSegments.length > 2 &&
@@ -610,7 +597,6 @@ class TitleDescription extends Component {
             { defaultTitle: this.props.defaultTitle },
         );
 
-        // Update the title when its input value changes
         useEffect(
             () => {
                 document.title = this.title;
@@ -618,7 +604,6 @@ class TitleDescription extends Component {
             () => [this.seoContext.title],
         );
 
-        // Restore the original title when unmounting the component
         useEffect(
             () => {
                 const initialTitle = document.title;
@@ -627,10 +612,6 @@ class TitleDescription extends Component {
             () => [],
         );
     }
-
-    //--------------------------------------------------------------------------
-    // Getters
-    //--------------------------------------------------------------------------
 
     get seoNameUrl() {
         return this.previousSeoName || this.props.seoNameDefault;
@@ -641,7 +622,7 @@ class TitleDescription extends Component {
     }
 
     get seoNamePost() {
-        return this.pathname.split(this.seoNameUrl).slice(-1)[0]; // at least the -id theorically
+        return this.pathname.split(this.seoNameUrl).slice(-1)[0];
     }
 
     get pathname() {
@@ -684,10 +665,6 @@ class TitleDescription extends Component {
             this.website.pageDocument.documentElement.getAttribute("lang") || "en-US",
         );
     }
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
 
     autoFill() {
         getSeo(this);
@@ -824,15 +801,13 @@ export class SeoChecks extends Component {
     async getAltAttributes() {
         const uniqueRecords = new Set();
 
-        // Select all relevant <img> elements in the editable page.
         const imgEls =
             this.website.pageDocument.documentElement.querySelectorAll("#wrapwrap img");
 
         imgEls.forEach((el) => {
-            // Find the closest ancestor element containing Odoo metadata.
             const recordEl = el.closest("[data-oe-model][data-oe-field][data-oe-id]");
             if (!recordEl) {
-                return; // Skip images without a proper metadata wrapper.
+                return;
             }
 
             const model = recordEl.dataset.oeModel;
@@ -840,16 +815,13 @@ export class SeoChecks extends Component {
             const field = recordEl.dataset.oeField;
             const type = recordEl.dataset.oeType;
 
-            // Only include images that belong to static content definitions.
             if ((model !== "ir.ui.view" || field !== "arch") && type !== "html") {
                 return;
             }
 
-            // Build a unique signature string to avoid duplicates.
             uniqueRecords.add(`${model}||${id}||${field}||${type}`);
         });
 
-        // Transform the Set of unique strings back into structured objects.
         const models = Array.from(uniqueRecords).map((entry) => {
             const [model, id, field, type] = entry.split("||");
             return { model, id: parseInt(id), field, type };
@@ -869,8 +841,6 @@ export class SeoChecks extends Component {
         let links = Array.from(hrefEls)
             .filter((a) => {
                 const href = a.href;
-                // Check if the href is not empty and belongs to the same origin as the
-                // current page
                 return (
                     href !== "" &&
                     href.startsWith("http") &&
@@ -942,7 +912,6 @@ export class SeoChecks extends Component {
         this.state.totalLinks = links.length;
         const brokenLinks = [];
         const promises = links.map(async (link) => {
-            // Let the browser follow internal redirects; most site routes land here.
             const status = await checkLinkStatus(link.link);
 
             if (status === "error" || status === "failed") {
@@ -954,7 +923,6 @@ export class SeoChecks extends Component {
         await Promise.all(promises);
         this.state.checkingLinks = false;
         this.state.checkedLinks = true;
-        // Keep links order in the DOM.
         brokenLinks.sort((a, b) => a.position - b.position);
         this.seoContext.brokenLinks = brokenLinks.map((link) => ({
             oldLink: link.link,
@@ -996,16 +964,8 @@ export class OptimizeSEODialog extends Component {
         this.contentClass = "oe_seo_configuration";
 
         onWillStart(async () => {
-            // ``seoContext`` is a module-level singleton reused by every dialog
-            // instance. The block below re-seeds all fields EXCEPT these two,
-            // which are filled asynchronously by the SeoChecks tab. Without an
-            // explicit reset, a previous page's scan results survive and Save
-            // would POST /website/update_broken_links & /update_alt_images
-            // against the wrong record.
             seoContext.updatedAlts = [];
             seoContext.brokenLinks = [];
-            // Wait for the preview iframe because this dialog reads directly
-            // from the iframe DOM.
             await this.waitForIframe();
             const {
                 metadata: { mainObject, seoObject, path },
@@ -1023,7 +983,6 @@ export class OptimizeSEODialog extends Component {
             this.canEditUrl = this.canEditSeo && "seo_name" in this.data;
             seoContext.title = this.canEditTitle && this.data.website_meta_title;
 
-            // If website.page, hide the google preview & tell user his page is currently unindexed
             this.isIndexed =
                 "website_indexed" in this.data ? this.data.website_indexed : true;
             this.seoNameHelp = _t(
@@ -1092,8 +1051,6 @@ export class OptimizeSEODialog extends Component {
         }
         const el = this.pageDocumentElement.querySelector(query);
         if (name === "keywords") {
-            // Keywords might contain spaces which makes them fail the content
-            // check. Trim the strings to prevent this from happening.
             const parsed = el && el.content.split(",").map((kw) => kw.trim());
             return parsed && parsed[0] ? [...new Set(parsed)] : [];
         }
@@ -1116,8 +1073,6 @@ export class OptimizeSEODialog extends Component {
                 data.seo_name = seoContext.seoName;
             }
         }
-        // Gate like every other field above: don't write og image when SEO
-        // isn't editable or the model doesn't even have the field.
         if (this.canEditSeo && "website_meta_og_img" in this.data) {
             data.website_meta_og_img = seoContext.metaImage;
         }

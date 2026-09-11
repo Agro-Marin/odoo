@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Snippet -->
     <template id="s_blog_posts" name="Blog Posts">
         <t t-call="website.s_dynamic_snippet_template">
             <t t-set="snippet_name" t-value="'s_blog_posts'" />
@@ -16,7 +15,6 @@
         </t>
     </template>
 
-    <!-- Multi record snippets -->
     <template id="s_blog_posts_big_picture" name="Blog Posts Big Picture">
         <t
             t-set="snippet_extra_classes"
@@ -52,7 +50,6 @@
         </t>
     </template>
 
-    <!-- Single record snippets -->
     <template id="s_blog_posts_single_aside" name="Single Blog Post Aside">
         <t t-set="is_single_record" t-value="True" />
         <t t-set="snippet_extra_classes" t-value="'s_blog_post_single_aside'" />
@@ -94,8 +91,6 @@
         </t>
     </template>
 
-    <!-- Multi record "Load-time" templates (rendered in JS on page load) -->
-    <!-- List layout -->
     <template id="dynamic_filter_template_blog_post_list" name="List">
         <div
             t-foreach="records"
@@ -126,7 +121,6 @@
         </div>
     </template>
 
-    <!-- Big picture layout -->
     <template id="dynamic_filter_template_blog_post_big_picture" name="Big picture">
         <div
             t-foreach="records"
@@ -169,7 +163,6 @@
         </div>
     </template>
 
-    <!-- Horizontal layout -->
     <template id="dynamic_filter_template_blog_post_horizontal" name="Horizontal">
         <div
             t-foreach="records"
@@ -222,7 +215,6 @@
         </div>
     </template>
 
-    <!-- Card layout -->
     <template id="dynamic_filter_template_blog_post_card" name="Card">
         <div
             t-foreach="records"
@@ -265,8 +257,6 @@
         </div>
     </template>
 
-    <!-- Single record templates -->
-    <!-- Full Layout -->
     <template id="dynamic_filter_template_blog_post_single_full" name="Solo Full">
         <t
             t-if="len(records)"
@@ -304,7 +294,6 @@
         </t>
     </template>
 
-    <!-- Aside Layout -->
     <template id="dynamic_filter_template_blog_post_single_aside" name="Solo Aside">
         <t
             t-if="len(records)"
@@ -343,7 +332,6 @@
         </t>
     </template>
 
-    <!-- Circle Layout -->
     <template id="dynamic_filter_template_blog_post_single_circle" name="Solo Circle">
         <t
             t-if="len(records)"
@@ -382,7 +370,6 @@
         </t>
     </template>
 
-    <!-- CTA Badge Layout -->
     <template id="dynamic_filter_template_blog_post_single_badge" name="Solo Badge">
         <t
             t-if="len(records)"
@@ -419,7 +406,6 @@
         </t>
     </template>
 
-    <!-- Blog Post Author (optional) -->
     <template
         id="website_blog.s_dynamic_snippet_template_author"
         name="Blog Post Author">
@@ -434,7 +420,6 @@
         </div>
     </template>
 
-    <!-- Blog Post Teaser (optional for Card and List layouts) -->
     <template
         id="website_blog.s_dynamic_snippet_template_teaser"
         name="Blog Post Teaser">
@@ -444,7 +429,6 @@
             t-field="record.teaser" />
     </template>
 
-    <!-- Blog Post Date (optional for Card, Horizontal and List layouts) -->
     <template id="website_blog.s_dynamic_snippet_template_date" name="Blog Post Date">
         <span
             t-if="blog_posts_post_date_active"
@@ -453,7 +437,6 @@
             t-options="{&quot;format&quot;: &quot;MMM d, yyyy&quot;}" />
     </template>
 
-    <!-- Blog Post Category (optional) -->
     <template
         id="website_blog.s_dynamic_snippet_template_category"
         name="Blog Post Category">
@@ -465,7 +448,6 @@
         <a t-if="is_sample" href="#">Sample</a>
     </template>
 
-    <!-- Assets -->
     <asset id="website_blog.s_blog_posts_000_scss" name="Blog posts 000 SCSS">
         <bundle>web.assets_frontend</bundle>
         <path>website_blog/static/src/snippets/s_blog_posts/000.scss</path>

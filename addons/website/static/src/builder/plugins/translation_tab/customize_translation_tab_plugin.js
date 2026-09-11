@@ -15,9 +15,6 @@ import { TranslateWebpageOption } from "./translate_webpage_option.js";
  * @property { CustomizeTranslationTabPlugin['getTranslationState'] } getTranslationState
  */
 
-/**
- * Action to translate the entire webpage using AI.
- */
 class TranslateToAction extends BuilderAction {
     static id = "translateWebpageAI";
     static dependencies = ["customizeTranslationTab"];
@@ -56,12 +53,8 @@ class TranslateToAction extends BuilderAction {
     }
 
     /**
-     * Determines if a text node should be skipped for translation.
-     * Skip if it contains no letters/numbers or is likely an email, phone
-     * number or URL.
-     *
-     * @param {Node} el - Text node to evaluate
-     * @return {boolean} True if the node should be skipped
+     * @param {Node} el
+     * @return {boolean}
      */
     shouldSkipTranslation(el) {
         const text = el.textContent.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
@@ -79,22 +72,16 @@ class TranslateToAction extends BuilderAction {
     }
 
     /**
-     * Collects translatable text nodes in the DOM and group them into chunks.
-     * Each chunk is limited in size to avoid overloading the translation API.
-     *
-     * @param {HTMLElement} containerEl - Root element
-     * @param {number} limit - Max characters per chunk
-     * @return {Object} { List of chunks, Map of original nodes by their IDs }
+     * @param {HTMLElement} containerEl
+     * @param {number} limit
+     * @return {Object}
      */
     generateTranslationChunks(containerEl, limit = 2000) {
         const elements = Array.from(
             containerEl.querySelectorAll("[data-oe-translation-state='to_translate']"),
         ).filter(
             (el) =>
-                // TODO: fix `o_frontend_to_backend_buttons` to have no
-                // attribute `data-oe-translation-state`
                 !el.closest(".o_not_editable, .o_frontend_to_backend_buttons") &&
-                // Skip attribute translations, will handle in task-5047714
                 !el.classList.contains("o_translatable_attribute"),
         );
 
@@ -128,7 +115,6 @@ class TranslateToAction extends BuilderAction {
                 currentChunkLength += itemSize;
             }
         }
-        // If any chunk left, flush it
         flushChunk();
 
         if (!translationMap.size) {
@@ -143,11 +129,9 @@ class TranslateToAction extends BuilderAction {
     }
 
     /**
-     * Translates each chunk with limited concurrency.
-     *
-     * @param {Array} translationChunks - List of chunks to translate
-     * @param {string} language - Target language code
-     * @return {Promise<Array>} Server responses for each chunk
+     * @param {Array} translationChunks
+     * @param {string} language
+     * @return {Promise<Array>}
      */
     async runTranslationChunks(translationChunks, language) {
         const systemMessage = {
@@ -181,9 +165,6 @@ class TranslateToAction extends BuilderAction {
             );
         });
 
-        // Limit concurrency to avoid
-        // "Oops, it looks like our AI is unreachable!" error
-        // when too many requests are sent in a short time.
         const concurrencyLimit = 5;
         const allResults = [];
         const executing = new Set();
@@ -191,9 +172,6 @@ class TranslateToAction extends BuilderAction {
             if (executing.size >= concurrencyLimit) {
                 await Promise.race(executing);
             }
-            // Catch per task: one failed AI chunk must not reject the whole
-            // batch and discard every successfully-translated chunk. A failed
-            // chunk resolves to null and is skipped when applying to the DOM.
             const promise = task()
                 .catch(() => null)
                 .finally(() => executing.delete(promise));
@@ -204,18 +182,14 @@ class TranslateToAction extends BuilderAction {
     }
 
     /**
-     * Parses translation responses and update DOM nodes in-place.
-     * Returns the failed translation nodes count.
-     *
-     * @param {Map<string, Object} translationMap - Original Nodes mapped by their IDs
-     * @param {Array} responses - Translated text responses
-     * @return {Number} Count of failed translation nodes
+     * @param {Map<string, Object} translationMap
+     * @param {Array} responses
+     * @return {Number}
      */
     applyTranslationsToDOM(translationMap, responses) {
         let numOfFailedTranslationNodes = 0;
         for (const response of responses) {
             if (response == null) {
-                // Chunk that failed at the RPC level (caught above); skip it.
                 continue;
             }
             let translations;
@@ -257,10 +231,6 @@ class TranslateToAction extends BuilderAction {
     }
 }
 
-/**
- * Plugin that adds a "Translation" tab to the sidebar and provides AI-powered
- * options to translate the entire webpage.
- */
 export class CustomizeTranslationTabPlugin extends Plugin {
     static id = "customizeTranslationTab";
     static shared = ["getTranslationState"];
@@ -291,18 +261,14 @@ export class CustomizeTranslationTabPlugin extends Plugin {
     }
 
     /**
-     * Prepares and returns a translation option block for the sidebar.
-     *
-     * @param {string} id - Unique identifier for the block
-     * @param {string} name - Display name for the block
-     * @param {Object} Option - Option component
+     * @param {string} id
+     * @param {string} name
+     * @param {Object} Option
      */
     getTranslationOptionBlock(id, name, Option) {
         const el = this.document.createElement("div");
         el.dataset.name = name;
         this.document.body.appendChild(el);
-        // Remove on destroy; otherwise these helper <div>s leak into the edited
-        // document's body on every editor open/close.
         this._cleanups.push(() => el.remove());
 
         return {

@@ -60,7 +60,6 @@ test("Check no highlight color is displayed in colorpicker when text with multip
         },
     );
 
-    // Open highlight toolbar
     await expandToolbar();
     expect(".o-select-highlight").toHaveCount(1);
     await contains(".o-we-toolbar .o-select-highlight").click();

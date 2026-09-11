@@ -10,7 +10,6 @@ class WebsiteSaleProductComparison(Controller):
         if not product_ids:
             return request.redirect("/shop")
 
-        # use search to check read access on each record/ids
         products = request.env["product.product"].search([("id", "in", product_ids)])
         return request.render(
             "website_sale_comparison.product_compare",

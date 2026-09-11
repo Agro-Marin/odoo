@@ -34,7 +34,6 @@
                             </button>
                         </div>
                     </section>
-                    <!-- Off canvas filters on mobile-->
                     <div
                         id="o_wc_offcanvas"
                         class="o_website_offcanvas offcanvas offcanvas-end d-lg-none p-0 overflow-visible">
@@ -239,11 +238,9 @@
         </t>
     </template>
 
-    <!-- Option: top filters: World Map -->
     <template id="opt_country" name="Show Map" inherit_id="website_customer.index">
         <xpath expr="//div[hasclass('o_wcrm_search')]" position="inside">
             <t t-if="google_maps_api_key">
-                <!-- modal for large map -->
                 <div role="dialog" class="modal fade customer_map_modal" tabindex="-1">
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
@@ -262,7 +259,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- modal end -->
                 <div class="btn-group ms-2">
                     <button class="btn btn-light border-primary active">
                         <i class="fa-solid fa-th-large" />

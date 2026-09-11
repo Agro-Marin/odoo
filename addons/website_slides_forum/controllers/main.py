@@ -4,9 +4,6 @@ from odoo.addons.website_slides.controllers.main import WebsiteSlides
 
 
 class WebsiteSlidesForum(WebsiteSlides):
-    # Profile
-    # ---------------------------------------------------
-
     def _prepare_user_profile_parameters(self, **post):
         post = super()._prepare_user_profile_parameters(**post)
         if post.get("channel_id"):

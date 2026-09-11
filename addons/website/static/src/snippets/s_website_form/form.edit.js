@@ -9,9 +9,8 @@ import { Form } from "@website/snippets/s_website_form/form";
 const { DateTime } = luxon;
 
 export class FormEdit extends Interaction {
-    static selector = ".s_website_form form, form.s_website_form"; // !compatibility
+    static selector = ".s_website_form form, form.s_website_form";
     start() {
-        // We do not initialize the datetime picker in edit mode but want the dates to be formatted.
         for (const el of this.el.querySelectorAll(
             ".s_website_form_input.datetimepicker-input",
         )) {
@@ -26,7 +25,6 @@ export class FormEdit extends Interaction {
         }
     }
 
-    // Todo: remove in master
     _getDataForFields() {
         if (!this.dataForValues) {
             return [];
@@ -44,7 +42,6 @@ registry.category("public.interactions.edit").add("website.form", {
     Interaction: FormEdit,
 });
 
-// Translation mode.
 patch(Form.prototype, {
     setup() {
         super.setup();

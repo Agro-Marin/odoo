@@ -257,8 +257,6 @@ export class setMinMaxAction extends BaseChartAction {
         } else {
             noMax = true;
             maxValue = this.getMaxValue(editingElement);
-            // When max value is not given and min value is greater
-            // than chart data values
             if (minValue > maxValue) {
                 maxValue = minValue;
                 [noMin, noMax] = [noMax, noMin];
@@ -282,7 +280,6 @@ export class ColorChangeAction extends BaseChartAction {
     getValue({ editingElement, params: { type, datasetIndex, dataIndex } }) {
         const data = this.getData(editingElement);
         if (this.isPieChart(editingElement)) {
-            // TODO: shouldn't getColor be done directly in BuilderColorPicker?
             return this.getColor(data.datasets[datasetIndex]?.[type][dataIndex]);
         } else {
             return this.getColor(data.datasets[datasetIndex]?.[type]);

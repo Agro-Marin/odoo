@@ -2,8 +2,6 @@ from odoo import api, fields, models
 
 
 class EventTrackVisitor(models.Model):
-    """Table linking track and visitors."""
-
     _name = "event.track.visitor"
     _description = "Track / Visitor Link"
     _table = "event_track_visitor"

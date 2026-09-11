@@ -1,11 +1,6 @@
 import { before, globals } from "@odoo/hoot";
 import { onRpc } from "@web/../tests/web_test_helpers";
 
-/**
- * Serve a route from the real server instead of the mock one. ``route`` may be
- * a glob (``*``), in which case the *requested* URL is forwarded rather than
- * the pattern itself.
- */
 function onRpcReal(route) {
     onRpc(route, (request) => {
         const url = new URL(request.url);
@@ -59,10 +54,6 @@ export function mockImageRequests() {
                 },
             };
         });
-        // The shape SVGs are ordinary static files: pass the whole directory
-        // through instead of whitelisting them one by one. The enumeration this
-        // replaces meant any test using a shape nobody had listed died on
-        // "Unimplemented server route" (e.g. devices/iphone_front_portrait.svg).
         onRpcReal("/html_builder/static/image_shapes/*");
         onRpcReal("/web/image/website.s_text_image_default_image");
         onRpcReal("/website/static/src/img/snippets_demo/s_text_image.webp");

@@ -15,15 +15,6 @@ class ProductProduct(models.Model):
         return partner in self.stock_notification_partner_ids
 
     def _get_max_quantity(self, website, sale_order, **kwargs):
-        """The max quantity of a product is the difference between the quantity that's free to use
-        and the quantity that's already been added to the cart.
-
-        Note: self.check_singleton()
-
-        :param website website: The website for which to compute the max quantity.
-        :return: The max quantity of the product.
-        :rtype: float | None
-        """
         self.check_singleton()
         if self.is_storable and not self.allow_out_of_stock_order:
             qty_free = website._get_product_available_qty(self.sudo(), **kwargs)
@@ -32,14 +23,6 @@ class ProductProduct(models.Model):
         return None
 
     def _is_sold_out(self):
-        """Return whether the product is sold out (no available quantity).
-
-        If a product inventory is not tracked, or if it's allowed to be sold regardless
-        of availabilities, the product is never considered sold out.
-
-        :return: whether the product can still be sold
-        :rtype: bool
-        """
         self.check_singleton()
         if not self.is_storable or self.allow_out_of_stock_order:
             return False
@@ -70,9 +53,7 @@ class ProductProduct(models.Model):
                     add_context={"model_description": _("Product")},
                     context_record=product_ctxt,
                 )
-                context = {
-                    "lang": partner.lang
-                }  # Use partner lang to translate mail subject below
+                context = {"lang": partner.lang}
                 mail_values = {
                     "subject": _(
                         "The product '%(product_name)s' is now available",
@@ -91,7 +72,6 @@ class ProductProduct(models.Model):
                 product.stock_notification_partner_ids -= partner  # noqa: B909  recordsets are immutable: -= rebinds, the iterator keeps the original
 
     def _to_markup_data(self, website):
-        """Override of `website_sale` to include the product availability in the offer."""
         markup_data = super()._to_markup_data(website)
         if self.is_product_variant and self.is_storable:
             if not self._is_sold_out():

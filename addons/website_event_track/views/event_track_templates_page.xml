@@ -6,7 +6,6 @@
             <t t-set="navbar_back_url" t-value="'/event/%s/track' % (slug(event))" />
             <t t-set="navbar_back_title">Back to All Talks</t>
             <t t-set="navbar_back_text">All Talks</t>
-            <!-- Set aside block only if there are filtered tracks -->
             <t
                 t-set="has_ongoing_or_upcoming"
                 t-value="any(track.is_track_live or track.track_start_remaining for track in tracks_other)" />
@@ -15,14 +14,11 @@
                 t-value="tracks_other.filtered(lambda track: not (has_ongoing_or_upcoming and track.is_track_done))" />
 
             <div class="o_wevent_online o_wesession_index">
-                <!-- Options -->
                 <t t-set="option_widescreen" t-value="option_widescreen or False" />
                 <t
                     t-set="option_track_wishlist"
                     t-value="not event.is_done and is_view_active('website_event_track.session_topbar_wishlist')" />
-                <!-- Drag/Drop Area -->
                 <div id="oe_structure_wesession_track_index_1" class="oe_structure" />
-                <!-- Content -->
                 <div
                     t-att-class="'o_wevent_online_page_container py-3 %s' % ('container' if not option_widescreen else 'container-fluid')">
                     <div
@@ -30,10 +26,8 @@
                         <t t-call="website_event_track.event_track_aside">
                             <t t-set="tracks_other" t-value="filtered_tracks_other" />
                         </t>
-                        <!-- Main content -->
                         <t t-call="website_event_track.event_track_content" />
                     </div>
-                    <!-- Drag/Drop Area -->
                     <div
                         id="oe_structure_wesession_track_index_2"
                         class="oe_structure" />
@@ -42,9 +36,6 @@
         </t>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- CONTENT: MAIN TEMPLATES -->
-    <!-- ============================================================ -->
     <template id="event_track_content_partner_info">
         <div class="mb-1 align-items-baseline text-break" t-if="track.partner_function">
             <i class="fa-solid fa-briefcase me-2" /><span t-out="track.partner_function" />
@@ -69,7 +60,6 @@
         <div
             name="o_wesession_track_main"
             t-attf-class="o_wesession_track_main col-12 p-0 ps-md-3 ps-lg-4 {{'col-md-9 col-xl-10' if option_widescreen else 'col-md-8 col-xl-9 ps-xl-5'}}">
-            <!-- LIVE INFORMATIONS -->
             <div
                 t-if="not track.event_id.is_ongoing and track.event_id.start_remaining"
                 class="pt-3">
@@ -99,7 +89,6 @@
                     <t t-set="time_to_live" t-value="track.track_start_remaining" />
                 </t>
             </div>
-            <!-- TRACK DESCRIPTION -->
             <div class="o_wesession_track_main_description overflow-auto">
                 <div class="pb-3 border-bottom">
                     <div
@@ -153,11 +142,9 @@
                     </div>
                 </div>
 
-                <!-- ABOUT AUTHOR -->
                 <t
                     t-set="track_fields"
                     t-value="['image', 'partner_name', 'partner_function', 'partner_email', 'phone_ids']" />
-                <!-- Avoid rendering a section for track information if we don't have anything to display -->
                 <t
                     t-if="any(track[track_field] for track_field in track_fields) or track.partner_id.website or not is_html_empty(track.partner_biography)">
                     <div>
@@ -195,7 +182,6 @@
                     </div>
                 </t>
 
-                <!-- Description -->
                 <div
                     t-if="not is_html_empty(track.description)"
                     t-field="track.description"
@@ -214,9 +200,6 @@
         </div>
     </template>
 
-    <!-- ============================================================ -->
-    <!-- ASIDE: CONTROL PANEL -->
-    <!-- ============================================================ -->
     <template id="event_track_aside" name="Track: Aside">
         <div
             name="o_wevent_online_page_aside"
@@ -233,12 +216,10 @@
                             <t
                                 t-set="pre_remaining_time"
                                 t-value="int(track.track_start_remaining)" />
-                            <!--<t t-set="pre_countdown_text" t-value="'Talk starts in'"/>-->
                             <t t-set="pre_countdown_display" t-value="bool(False)" />
                             <t
                                 t-set="main_remaining_time"
                                 t-value="int(track.website_cta_start_remaining)" />
-                            <!--<t t-set="main_countdown_text" t-value="'Magic happens in'"/>-->
                             <t t-set="main_countdown_display" t-value="bool(False)" />
                             <t t-set="display_class" t-value="'.o_event_cta_action'" />
                         </t>

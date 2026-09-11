@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Reasons for closing Post -->
         <record id="reason_1" model="forum.post.reason">
             <field name="name">Duplicate post</field>
             <field name="reason_type">basic</field>

@@ -36,8 +36,6 @@ registerWebsitePreviewTour(
                 const modalEl = this.anchor;
                 let activeEl = modalEl.ownerDocument.activeElement;
                 if (activeEl.parentElement.closest(".modal") !== modalEl) {
-                    // Wait after Popup.trapFocus by waiting for modal shown
-                    // event.
                     await new Promise((resolve) =>
                         modalEl.addEventListener("shown.bs.modal", resolve),
                     );
@@ -47,11 +45,6 @@ registerWebsitePreviewTour(
                 }
                 activeEl = modalEl.ownerDocument.activeElement;
                 if (activeEl.parentElement.closest(".modal") !== modalEl) {
-                    // Note: it might not be the best idea to still focus a
-                    // button that is not in the viewport, but since this is a
-                    // niche case this is the behavior right now. The important
-                    // parts are: in the normal case, focus the button; in all
-                    // cases, the modal should not be scrolled when opened.
                     console.error("The focus should be on an element inside the modal");
                 }
                 if (modalEl.scrollTop !== 0) {

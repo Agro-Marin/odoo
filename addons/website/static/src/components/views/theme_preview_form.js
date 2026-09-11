@@ -6,11 +6,6 @@ import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { FormController, formView } from "@web/views/form";
 import { ViewButton } from "@web/views/view_button";
 
-/*
- * Common code for theme installation/update handler.
- * It overrides the onClickViewButton function that's present in the env.
- * That way, we display our own Loader and make a silent call to the ORM.
- */
 export function useLoaderOnClick() {
     const website = useService("website");
     const orm = useService("orm");
@@ -60,8 +55,6 @@ class ThemePreviewFormController extends FormController {
         super.setup();
         useLoaderOnClick();
 
-        // TODO adapt theme previews then remove this
-        // ... or remove the feature entirely ? See task-3454790.
         onMounted(() => {
             setTimeout(() => {
                 document.querySelector('button[name="button_choose_theme"]')?.click();
@@ -74,9 +67,6 @@ class ThemePreviewFormController extends FormController {
     get className() {
         return { ...super.className, o_view_form_theme_preview_controller: true };
     }
-    /**
-     * Handler called when user click on 'Choose another theme' button.
-     */
     back() {
         this.env.config.historyBack();
     }
@@ -84,22 +74,12 @@ class ThemePreviewFormController extends FormController {
 
 class ThemePreviewFormControlPanel extends ControlPanel {
     static template = "website.ThemePreviewForm.ControlPanel";
-    /**
-     * Triggers an event on the main bus.
-     * @see {FieldIframePreview} for the event handler.
-     */
     onMobileClick() {
         this.env.bus.trigger("THEME_PREVIEW:SWITCH_MODE", { mode: "mobile" });
     }
-    /**
-     * @see {onMobileClick}
-     */
     onDesktopClick() {
         this.env.bus.trigger("THEME_PREVIEW:SWITCH_MODE", { mode: "desktop" });
     }
-    /**
-     * Handler called when user click on Go Back button.
-     */
     back() {
         this.env.config.historyBack();
     }

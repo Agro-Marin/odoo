@@ -20,7 +20,6 @@
                     t-value="ptal.product_template_value_ids._only_active()" />
                 <t t-set="single" t-value="len(ptavs) == 1" />
 
-                <!-- Attributes selection is hidden if there is only one value available and it's not a custom value -->
                 <li
                     name="variant_attribute"
                     t-att-data-attribute-id="attribute.id"
@@ -28,7 +27,6 @@
                     t-att-data-attribute-display-type="attribute.display_type"
                     t-attf-class="variant_attribute #{                         'd-none' if single                         and not ptavs[0].is_custom                         and not attribute.display_type == 'multi' else ''                     }">
 
-                    <!-- Used to customize layout if the only available attribute value is custom -->
                     <t
                         t-set="single_and_custom"
                         t-value="single and ptavs[0].is_custom" />
@@ -202,9 +200,7 @@
             t-if="product._has_multiple_uoms()"
             t-attf-class="o_wsale_product_page_variants d-flex flex-column gap-4 list-unstyled js_add_cart_variants mt-4 #{ul_class}"
             t-att-data-attribute-exclusions="json.dumps(attribute_exclusions)">
-            <!-- NOTE: the t-att-data-attribute-exclusions is only there to match existing events selectors -->
             <li>
-                <!-- Separate template to reduce views duplication -->
                 <t t-call="website_sale.packaging_title" />
                 <ul
                     class="btn-group-toggle list-inline list-unstyled"
@@ -239,15 +235,6 @@
         <span
             t-if="price_extra"
             t-attf-class="{{'badge text-bg-primary' if attribute.display_type != 'pills' else 'small text-muted'}}">
-            <!--
-                price_extra is displayed as catalog price instead of
-                price after pricelist because it is impossible to
-                compute. Indeed, the pricelist rule might depend on the
-                selected variant, so the price_extra will be different
-                depending on the selected combination. The price of an
-                attribute is therefore variable and it's not very
-                accurate to display it.
-            -->
         <t t-if="attribute.display_type in ['pills', 'select']">(</t><span class="sign_badge_price_extra"><t t-out="price_extra &gt; 0 and '+' or '-'" /></span>
         <span t-out="abs(price_extra)" class="variant_price_extra" style="white-space: nowrap;" t-options="{                 &quot;widget&quot;: &quot;monetary&quot;,                 &quot;display_currency&quot;: website.currency_id             }" /><t t-if="attribute.display_type in ['pills', 'select']">)</t>
         </span>

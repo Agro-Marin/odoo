@@ -133,11 +133,7 @@ export class FormOptionPlugin extends Plugin {
         },
         builder_options: [FormOption, FormFieldOptionRedraw, WebsiteFormSubmitOption],
         builder_actions: {
-            // Form actions
-            // Components that use this action MUST await fetchModels before they start.
             SelectAction,
-            // Select the value of a field (hidden) that will be used on the model as a preset.
-            // ie: The Job you apply for if the form is on that job's page.
             AddActionFieldAction,
             PromptSaveRedirectAction,
             UpdateLabelsMarkAction,
@@ -145,7 +141,6 @@ export class FormOptionPlugin extends Plugin {
             OnSuccessAction,
             ToggleEndMessageAction,
             FormToggleRecaptchaLegalAction,
-            // Field actions
             CustomFieldAction,
             ExistingFieldAction,
             SelectTypeAction,
@@ -212,7 +207,6 @@ export class FormOptionPlugin extends Plugin {
         this.visibilityConditionCachedRecords.invalidate();
     }
     getModelsCache(formEl) {
-        // Through a method so that it can be overridden.
         return this.modelsCache.get();
     }
     async fetchModels(formEl) {
@@ -228,28 +222,19 @@ export class FormOptionPlugin extends Plugin {
         }
     }
     /**
-     * Returns a promise which is resolved once the records of the field
-     * have been retrieved.
-     *
      * @param {Object} field
      * @returns {Promise<Object>}
      */
     async _fetchFieldRecords(field) {
-        // TODO remove this - put there to avoid crash
         if (!field) {
             return;
         }
-        // Convert the required boolean to a value directly usable
-        // in qweb js to avoid duplicating this in the templates
         field.required = field.required ? 1 : null;
 
         if (field.records) {
             return field.records;
         }
         if (field._property && field.type === "tags") {
-            // Convert tags to records to avoid added complexity.
-            // Tag ids need to escape "," to be able to recover their value on
-            // the server side if they contain ",".
             field.records = field.tags.map((tag) => ({
                 id: tag[0].replaceAll("\\", "\\/").replaceAll(",", "\\,"),
                 display_name: tag[1],
@@ -261,7 +246,6 @@ export class FormOptionPlugin extends Plugin {
                 ["display_name"],
             );
         } else if (field.type === "selection") {
-            // Set selection as records to avoid added complexity.
             field.records = field.selection.map((el) => ({
                 id: el[0],
                 display_name: el[1],
@@ -297,8 +281,6 @@ export class FormOptionPlugin extends Plugin {
         return formInfo;
     }
     /**
-     * Add a hidden field to the form
-     *
      * @param {HTMLElement} el
      * @param {string} value
      * @param {string} fieldName
@@ -309,8 +291,6 @@ export class FormOptionPlugin extends Plugin {
         )) {
             hiddenEl.remove();
         }
-        // For the email_to field, we keep the field even if it has no value so
-        // that the email is sent to data-for value or to the default email.
         if (fieldName === "email_to" && !value && !this.dataForEmailTo) {
             value = DEFAULT_EMAIL_TO_VALUE;
         }
@@ -330,12 +310,10 @@ export class FormOptionPlugin extends Plugin {
         }
     }
     /**
-     * Apply the model on the form changing its fields
-     *
      * @param {HTMLElement} el
      * @param {Object} activeForm
      * @param {Integer} modelId
-     * @param {Object} formInfo obtained from prepareFormModel
+     * @param {Object} formInfo
      */
     applyFormModel(el, activeForm, modelId, formInfo) {
         let oldFormInfo;
@@ -351,7 +329,6 @@ export class FormOptionPlugin extends Plugin {
             }
             activeForm = this.getModelsCache(el).find((model) => model.id === modelId);
         }
-        // Success page
         if (!el.dataset.successMode) {
             el.dataset.successMode = "redirect";
         }
@@ -368,14 +345,10 @@ export class FormOptionPlugin extends Plugin {
                 el.dataset.successPage = "/contactus-thank-you";
             }
         }
-        // Model name
         el.dataset.model_name = activeForm.model;
-        // Load template
         if (formInfo) {
             const formatInfo = getDefaultFormat(el);
             formInfo.formFields.forEach((field) => {
-                // Create a shallow copy of field to prevent unintended
-                // mutations to the original field stored in the registry
                 const _field = { ...field };
                 _field.formatInfo = formatInfo;
                 const locationEl = el.querySelector(
@@ -383,10 +356,6 @@ export class FormOptionPlugin extends Plugin {
                 );
                 locationEl.insertAdjacentElement("beforebegin", renderField(_field));
             });
-            // Special case: handle hidden fields separately.
-            // In some forms (e.g., contact forms), the "email_to" field must be included as hidden.
-            // For example, this may force the 'email_to' value to a dummy/default one on the
-            // contact us form just by interacting with it.
             formInfo.fields?.forEach((field) => {
                 if (field.defaultValue) {
                     this.addHiddenField(el, field.defaultValue, field.name);
@@ -394,9 +363,6 @@ export class FormOptionPlugin extends Plugin {
             });
         }
     }
-    /**
-     * Ensures formInfo fields are fetched.
-     */
     async fetchFormInfoFields(formInfo) {
         if (formInfo.fields) {
             const proms = formInfo.fields.map((field) => this.fetchFieldRecords(field));
@@ -404,15 +370,12 @@ export class FormOptionPlugin extends Plugin {
         }
     }
     async fetchAuthorizedFields(formEl) {
-        // Combine model and fields into cache key.
         const model = getModelName(formEl);
         const propertyOrigins = {};
         const parts = [model];
         for (const hiddenInputEl of [
             ...formEl.querySelectorAll("input[type=hidden]"),
         ].sort((firstEl, secondEl) => firstEl.name.localeCompare(secondEl.name))) {
-            // Pushing using the name order to avoid being impacted by the
-            // order of hidden fields within the DOM.
             parts.push(hiddenInputEl.name);
             parts.push(hiddenInputEl.value);
             propertyOrigins[hiddenInputEl.name] = hiddenInputEl.value;
@@ -429,13 +392,10 @@ export class FormOptionPlugin extends Plugin {
     async _getVisibilityConditionCachedRecords(model, domain, fields, kwargs = {}) {
         return this.services.orm.searchRead(model, domain, fields, {
             ...kwargs,
-            limit: 1000, // Safeguard to not crash DBs
+            limit: 1000,
         });
     }
 
-    /**
-     * Set the correct mark on all fields.
-     */
     setLabelsMark(formEl) {
         formEl.querySelectorAll(".s_website_form_mark").forEach((el) => el.remove());
         const mark = getMark(formEl);
@@ -484,12 +444,7 @@ export class FormOptionPlugin extends Plugin {
         fieldEl.insertAdjacentElement("afterend", newFieldEl);
         this.dependencies.builderOptions.setNextTarget(newFieldEl);
     }
-    /**
-     * To be used in load for any action that uses getActiveField or
-     * replaceField
-     */
     async prepareFields({ editingElement: fieldEl, value }) {
-        // TODO Through cache ?
         const fieldOptionData = await this.loadFieldOptionData(fieldEl);
         const fieldName = getFieldName(fieldEl);
         const field = fieldOptionData.fields[fieldName];
@@ -500,7 +455,6 @@ export class FormOptionPlugin extends Plugin {
         return fieldOptionData.fields;
     }
     async prepareConditionInputs({ editingElement: fieldEl, value }) {
-        // TODO Through cache ?
         const fieldOptionData = await this.loadFieldOptionData(fieldEl);
         const fieldName = getFieldName(fieldEl);
         const field = fieldOptionData.fields[fieldName];
@@ -511,8 +465,6 @@ export class FormOptionPlugin extends Plugin {
         return fieldOptionData.conditionInputs;
     }
     /**
-     * Replaces the old field content with the field provided.
-     *
      * @param {HTMLElement} oldFieldEl
      * @param {Object} field
      * @param {Array} fields
@@ -526,15 +478,12 @@ export class FormOptionPlugin extends Plugin {
         const targetEl = oldFieldEl.querySelector(".s_website_form_input");
         if (targetEl) {
             if (["checkbox", "radio"].includes(targetEl.getAttribute("type"))) {
-                // Remove first checkbox/radio's id's final '0'.
                 field.id = targetEl.id.slice(0, -1);
             } else {
                 field.id = targetEl.id;
             }
         }
 
-        // Synchronize the possible values with the fields whose visibility
-        // depends on the current field
         const newValuesText = field.records
             ? field.records.map((record) => record.id)
             : [];
@@ -565,9 +514,6 @@ export class FormOptionPlugin extends Plugin {
     async loadFieldOptionData(fieldEl) {
         const formEl = fieldEl.closest("form");
         const fields = {};
-        // Get the authorized existing fields for the form model
-        // Do it on each render because of custom property fields which can
-        // change depending on the project selected.
         const existingFields = await this.fetchAuthorizedFields(formEl).then(
             (fieldsFromCache) => {
                 for (const [fieldName, field] of Object.entries(fieldsFromCache)) {
@@ -597,7 +543,6 @@ export class FormOptionPlugin extends Plugin {
                     );
             },
         );
-        // Update available visibility dependencies
         const existingDependencyNames = [];
         const conditionInputs = [];
         for (const el of formEl.querySelectorAll(
@@ -632,7 +577,6 @@ export class FormOptionPlugin extends Plugin {
                 dependencyEl.nodeName === "SELECT" ||
                 fieldType === "record"
             ) {
-                // Update available visibility options
                 const inputContainerEl = fieldEl;
                 if (dependencyEl.nodeName === "SELECT") {
                     for (const option of dependencyEl.querySelectorAll("option")) {
@@ -667,13 +611,11 @@ export class FormOptionPlugin extends Plugin {
                         );
                     }
                 } else {
-                    // DependencyEl is a radio or a checkbox
                     const dependencyContainerEl = dependencyEl.closest(
                         ".s_website_form_field",
                     );
                     const inputsInDependencyContainer =
                         dependencyContainerEl.querySelectorAll(".s_website_form_input");
-                    // TODO: @owl-options already wrong in master for e.g. Project/Tags
                     for (const el of inputsInDependencyContainer) {
                         conditionValueList.push({
                             value: el.value,
@@ -695,7 +637,6 @@ export class FormOptionPlugin extends Plugin {
                 }
             }
             if (!comparator) {
-                // Set a default comparator according to the type of dependency
                 if (dependencyEl.dataset.target) {
                     fieldEl.dataset.visibilityComparator = "after";
                 } else if (
@@ -773,46 +714,29 @@ export class FormOptionPlugin extends Plugin {
         };
     }
     /**
-     * Handler called when a snippet is dropped.
-     *
      * @param {Object} params
-     * @param {HTMLElement} params.snippetEl - The dropped snippet element.
+     * @param {HTMLElement} params.snippetEl
      */
     async onSnippetDropped({ snippetEl }) {
-        // Re-render the fields to ensure each field gets a unique ID.
         await this.rerenderFieldsInElement(snippetEl);
     }
     /**
-     * Handler called when an element is cloned.
-     *
      * @param {Object} params
-     * @param {HTMLElement} params.cloneEl - The cloned element.
+     * @param {HTMLElement} params.cloneEl
      */
     async onCloned({ cloneEl }) {
-        // Re-render the fields to ensure each field gets a unique ID.
         await this.rerenderFieldsInElement(cloneEl);
 
         this.removeSuccessMessagePreviews(cloneEl);
     }
     /**
-     * Re-renders all valid fields inside the given element to ensure
-     * each field gets a unique ID.
-     *
-     * Handles:
-     * - A single field element
-     * - A form element
-     * - Any container that may include one or more forms
-     *
      * @param {HTMLElement} rootEl
      */
     async rerenderFieldsInElement(rootEl) {
         if (rootEl.matches("[data-name='Field']:not(.s_website_form_dnone)")) {
-            // The root element is a single field - rerender it directly
             const { fields } = await this.loadFieldOptionData(rootEl);
             rerenderField(rootEl, fields);
         } else {
-            // The root element may be a form or contain multiple forms -
-            // rerender them all
             for (const formEl of selectElements(rootEl, ".s_website_form")) {
                 const formFieldsToRerender = formEl.querySelectorAll(
                     "[data-name='Field']:not(.s_website_form_dnone)",
@@ -830,9 +754,6 @@ export class FormOptionPlugin extends Plugin {
         }
     }
     /**
-     * Removes all the success form message previews that are in the given root
-     * element.
-     *
      * @param {HTMLElement} rootEl
      */
     removeSuccessMessagePreviews(rootEl) {
@@ -840,9 +761,7 @@ export class FormOptionPlugin extends Plugin {
         toCleanEls.forEach((el) => el.classList.remove("o_show_form_success_message"));
     }
     /**
-     * Clear the dataset of the field to avoid keeping old values.
-     *
-     * @params {HTMLElement} fieldEl - The field element to clear.
+     * @params {HTMLElement} fieldEl
      */
     clearValidationDataset(fieldEl) {
         delete fieldEl.dataset.customError;
@@ -852,13 +771,10 @@ export class FormOptionPlugin extends Plugin {
     }
 
     /**
-     * Generates an error message for requirement set on field if validation fails.
-     *
-     * @param {string} [comparator] The method used to form the error message.
-     * @param {string} [condition] The expected value of the field.
-     * @param {string} [between] The maximum date value if the comparator is
-     *      'between' or '!between'.
-     * @returns {string} The default error message.
+     * @param {string} [comparator]
+     * @param {string} [condition]
+     * @param {string} [between]
+     * @returns {string}
      */
     defaultMessage(comparator, condition, between, type) {
         const textMessages = {
@@ -934,8 +850,6 @@ export class FormOptionPlugin extends Plugin {
     }
 }
 
-// Form actions
-// Components that use this action MUST await fetchModels before they start.
 export class SelectAction extends BuilderAction {
     static id = "selectAction";
     static dependencies = ["websiteFormOption"];
@@ -972,13 +886,9 @@ export class SelectAction extends BuilderAction {
         const models = this.dependencies.websiteFormOption.getModelsCache(el);
         const targetModelName = getModelName(el);
         const activeForm = models.find((m) => m.model === targetModelName);
-        // ``activeForm`` is undefined when the form's model was uninstalled or
-        // renamed; guard so option rendering doesn't throw on ``.id``.
         return parseInt(modelId) === activeForm?.id;
     }
 }
-// Select the value of a field (hidden) that will be used on the model as a preset.
-// ie: The Job you apply for if the form is on that job's page.
 export class AddActionFieldAction extends BuilderAction {
     static id = "addActionField";
     static dependencies = ["websiteFormOption"];
@@ -986,7 +896,6 @@ export class AddActionFieldAction extends BuilderAction {
         return this.dependencies.websiteFormOption.fetchAuthorizedFields(el);
     }
     apply({ editingElement: el, value, params, loadResult: authorizedFields }) {
-        // Remove old property fields.
         for (const [fieldName, field] of Object.entries(authorizedFields)) {
             if (field._property) {
                 for (const inputEl of el.querySelectorAll(`[name="${fieldName}"]`)) {
@@ -1000,21 +909,14 @@ export class AddActionFieldAction extends BuilderAction {
         }
         this.dependencies.websiteFormOption.addHiddenField(el, value, fieldName);
     }
-    // TODO clear ? if field is a boolean ?
     getValue({ editingElement: el, params }) {
         const value = el.querySelector(
             `.s_website_form_dnone input[name="${params.fieldName}"]`,
         )?.value;
         if (params.fieldName === "email_to") {
-            // For email_to, we try to find a value in this order:
-            // 1. The current value of the input
-            // 2. The data-for value if it exists
-            // 3. The default value (`defaultEmailToValue`)
             if (value && value !== DEFAULT_EMAIL_TO_VALUE) {
                 return value;
             }
-            // Get the email_to value from the data-for attribute if it exists.
-            // We use it if there is no value on the email_to input.
             const formId = el.id;
             const dataForValues = getParsedDataFor(formId, el.ownerDocument);
             return dataForValues?.["email_to"] || DEFAULT_EMAIL_TO_VALUE;
@@ -1147,7 +1049,6 @@ export class FormToggleRecaptchaLegalAction extends BuilderAction {
         return !!recaptchaLegalEl;
     }
 }
-// Field actions
 export class CustomFieldAction extends BuilderAction {
     static id = "customField";
     static dependencies = ["websiteFormOption"];
@@ -1250,7 +1151,6 @@ export class SetLabelTextAction extends BuilderAction {
             const previousInputName = inputEls[0].name;
             inputEls.forEach((el) => (el.name = value));
 
-            // Synchronize the fields whose visibility depends on this field
             const dependentEls = fieldEl.closest("form").querySelectorAll(
                 `.s_website_form_field[data-visibility-dependency="${CSS.escape(
                     previousInputName,
@@ -1259,11 +1159,6 @@ export class SetLabelTextAction extends BuilderAction {
             );
             for (const dependentEl of dependentEls) {
                 if (findCircular(fieldEl, dependentEl)) {
-                    // For all the fields whose visibility depends on this
-                    // field, check if the new name creates a circular
-                    // dependency and remove the problematic conditional
-                    // visibility if it is the case. E.g. a field (A) depends on
-                    // another (B) and the user renames "B" by "A".
                     deleteConditionalVisibility(dependentEl);
                 } else {
                     dependentEl.dataset.visibilityDependency = value;
@@ -1321,7 +1216,7 @@ export class ToggleDescriptionAction extends BuilderAction {
         const description = fieldEl.querySelector(".s_website_form_field_description");
         const hasDescription = !!description;
         const field = getActiveField(fieldEl, { fields });
-        field.description = !hasDescription; // Will be changed to default description in qweb
+        field.description = !hasDescription;
         this.dependencies.websiteFormOption.replaceField(fieldEl, field, fields);
     }
     isApplied({ editingElement: fieldEl }) {
@@ -1361,9 +1256,6 @@ export class ToggleRequiredAction extends BuilderAction {
     }
 }
 
-/**
- * Custom error message should be visible or not.
- */
 export class SetRequirementComparatorAction extends BuilderAction {
     static id = "setRequirementComparator";
     static dependencies = ["websiteFormOption"];
@@ -1371,13 +1263,6 @@ export class SetRequirementComparatorAction extends BuilderAction {
         this.dependencies.websiteFormOption.clearValidationDataset(fieldEl);
     }
 }
-/**
- * Sets the dataset value of custom-error attribute which is further used to
- * determine if the input for custom error message should be visible or not.
- *
- * TODO this is a toggle whose only purpose is to show more options
- * in the sidebar... its status should not be saved in the website DOM...
- */
 export class SetCustomErrorMessageAction extends BuilderAction {
     static id = "setCustomErrorMessage";
     apply({ editingElement: fieldEl }) {
@@ -1391,10 +1276,6 @@ export class SetCustomErrorMessageAction extends BuilderAction {
         return fieldEl.dataset.customError;
     }
 }
-/**
- * Sets the default error message based on the requirement comparator,
- * condition and type of form fields.
- */
 export class SetDefaultErrorMessageAction extends BuilderAction {
     static id = "setDefaultErrorMessage";
     static dependencies = ["websiteFormOption"];
@@ -1425,7 +1306,6 @@ export class SetVisibilityAction extends BuilderAction {
         if (value === "conditional") {
             for (const conditionInput of conditionInputs) {
                 if (conditionInput.name) {
-                    // Set a default visibility dependency
                     setVisibilityDependency(fieldEl, conditionInput.name);
                     return;
                 }

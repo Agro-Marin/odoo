@@ -6,12 +6,6 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 const { DateTime } = luxon;
 
-/*
- * Simple implementation of a timer interaction that uses a "time to live" configuration
- * value to countdown seconds on a target element.
- * Will be used to visually countdown the time before a talk starts.
- * When the timer reaches 0, the element destroys itself.
- */
 export class WebsiteEventTrackTimer extends Interaction {
     static selector = ".o_we_track_timer";
 
@@ -42,10 +36,6 @@ export class WebsiteEventTrackTimer extends Interaction {
         this.destroy();
     }
 
-    /**
-     * The function will trigger an update if the timer has not yet expired.
-     * Otherwise, the component will be destroyed.
-     */
     refreshTimer() {
         const remainingMs = this.deadline.diffNow().as("milliseconds");
         if (remainingMs > 0) {
@@ -56,11 +46,7 @@ export class WebsiteEventTrackTimer extends Interaction {
     }
 
     /**
-     * The function will have the responsibility to update the text indicating
-     * the time remaining before the counter expires. The function will use
-     * Luxon to transform the remaining time in more a human friendly format
-     * Example: "in 32 minutes", "in 17 hours", etc.
-     * @param {integer} remainingMs - Time remaining before the counter expires (in ms).
+     * @param {integer} remainingMs
      */
     updateTimerDisplay(remainingMs) {
         const timerTextEl = this.el.querySelector("span");

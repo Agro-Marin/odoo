@@ -3,11 +3,11 @@
 
     .s_timeline_line {
         position: relative;
-        border-color: map-get($grays, "800"); // For inheritance, not actual border
+        border-color: map-get($grays, "800");
 
         &:before {
             content: "";
-            display: block !important; // override portal '#wrap .container' value
+            display: block !important;
             position: absolute;
             width: 1px;
             top: 0px;

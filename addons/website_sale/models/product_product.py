@@ -46,8 +46,6 @@ class ProductProduct(models.Model):
         compute="_compute_product_website_url",
     )
 
-    # === COMPUTE METHODS ===#
-
     def _get_base_unit_price(self, price):
         self.check_singleton()
         return self.base_unit_count and price / self.base_unit_count
@@ -80,8 +78,6 @@ class ProductProduct(models.Model):
                 url = f"{url}?attribute_values={','.join(pav_ids)}"
             product.website_url = url
 
-    # === CONSTRAINT METHODS ===#
-
     @api.constrains("base_unit_count")
     def _check_base_unit_count(self):
         if any(product.base_unit_count < 0 for product in self):
@@ -91,8 +87,6 @@ class ProductProduct(models.Model):
                     " Use 0 to hide the price per unit on this product."
                 )
             )
-
-    # === BUSINESS METHODS ===#
 
     def website_publish_button(self):
         self.check_singleton()
@@ -105,24 +99,12 @@ class ProductProduct(models.Model):
         return res
 
     def _get_images(self):
-        """Return a list of records implementing `mixin.image` to
-        display on the carousel on the website for this variant.
-
-        This returns a list and not a recordset because the records might be
-        from different models (template, variant and image).
-
-        It contains in this order: the main image of the variant (which will fall back on the main
-        image of the template, if unset), the Variant Extra Images, and the Template Extra Images.
-        """
         self.check_singleton()
         variant_images = list(self.product_variant_image_ids)
         template_images = list(self.product_tmpl_id.product_template_image_ids)
         return [self] + variant_images + template_images
 
     def _get_combination_info_variant(self, **kwargs):
-        """Return the variant info based on its combination.
-        See `_get_combination_info` for more information.
-        """
         self.check_singleton()
         return self.product_tmpl_id._get_combination_info(
             combination=self.product_template_attribute_value_ids,
@@ -158,18 +140,11 @@ class ProductProduct(models.Model):
             self.website_published = False
 
     def _to_markup_data(self, website):
-        """Generate JSON-LD markup data for the current product.
-
-        :param website website: The current website.
-        :return: The JSON-LD markup data.
-        :rtype: dict
-        """
         self.check_singleton()
 
         product_price = request.pricelist._get_product_price(
             self, quantity=1, currency=website.currency_id
         )
-        # Use sudo to access cross-company taxes.
         product_taxes_sudo = self.sudo().taxes_id._filter_taxes_by_company(
             self.env.company
         )
@@ -203,41 +178,26 @@ class ProductProduct(models.Model):
         if website.is_view_active("website_sale.product_comment") and self.rating_count:
             markup_data["aggregateRating"] = {
                 "@type": "AggregateRating",
-                # sudo: product.product - visitor can access product average rating
                 "ratingValue": self.sudo().rating_avg,
                 "reviewCount": self.rating_count,
             }
         return markup_data
 
     def _get_image_1920_url(self):
-        """Returns the local url of the product main image.
-
-        Note: self.check_singleton()
-
-        :rtype: str
-        """
         self.check_singleton()
         return self.env["website"].image_url(self, "image_1920")
 
     def _get_extra_image_1920_urls(self):
-        """Returns the local url of the product additional images, no videos. This includes the
-        variant specific images first and then the template images.
-
-        Note: self.check_singleton()
-
-        :rtype: list[str]
-        """
         self.check_singleton()
         return [
             self.env["website"].image_url(extra_image, "image_1920")
             for extra_image in self.product_variant_image_ids
             + self.product_template_image_ids
-            if extra_image.image_128  # only images, no video urls
+            if extra_image.image_128
         ]
 
     def write(self, vals):
         if "active" in vals and not vals["active"]:
-            # unlink draft lines containing the archived product
             self.env["sale.order.line"].sudo().search(
                 [
                     ("state", "=", "draft"),

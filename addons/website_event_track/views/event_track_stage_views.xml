@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- EVENTS TRACK STAGES-->
     <record id="event_track_stage_view_search" model="ir.ui.view">
         <field name="name">event.track.stage.view.search</field>
         <field name="model">event.track.stage</field>

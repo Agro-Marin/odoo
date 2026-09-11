@@ -47,12 +47,10 @@ class FacebookOptionPlugin extends Plugin {
     }
 
     async loadAndSetEmptyLink(nodes) {
-        // TODO: look in shared cache with social info: was SocialMediaOption.getDbSocialValuesCache()
         if (this.facebookUrl) {
             this.setEmptyLink(nodes);
             return;
         }
-        // Fetches the default url for facebook page from website config
         const res = await this.services.orm.read(
             "website",
             [this.services.website.currentWebsite.id],
@@ -62,8 +60,6 @@ class FacebookOptionPlugin extends Plugin {
             this.facebookUrl =
                 res[0].social_facebook || "https://www.facebook.com/Odoo";
 
-            // WARNING: the call to ignoreDOMMutations is very dangerous,
-            // and should be avoided in most cases (if you think you need those, ask html_editor team)
             const hasChanged = this.dependencies.history.ignoreDOMMutations(() =>
                 this.setEmptyLink(nodes),
             );
@@ -137,18 +133,6 @@ export class CheckFacebookLinkAction extends BuilderAction {
         }
     }
     idFromFacebookLink(url) {
-        // Patterns matched by the regex (all relate to existing pages,
-        // in spite of the URLs containing "profile.php" or "people"):
-        // - https://www.facebook.com/<pagewithaname>
-        // - http://www.facebook.com/<page.with.a.name>
-        // - www.facebook.com/<fbid>
-        // - facebook.com/profile.php?id=<fbid>
-        // - www.facebook.com/<name>-<fbid>  - NB: the name doesn't matter
-        // - www.fb.com/people/<name>/<fbid>  - same
-        // - m.facebook.com/p/<name>-<fbid>  - same
-        // The regex is kept as a huge one-liner for performance as it is
-        // compiled once on script load. The only way to split it on several
-        // lines is with the RegExp constructor, which is compiled on runtime.
         const match = url
             .trim()
             .match(
@@ -163,8 +147,6 @@ export class CheckFacebookLinkAction extends BuilderAction {
             const res = await fetch(`https://graph.facebook.com/${id}/picture`);
             return res.ok;
         } catch {
-            // Network/CORS failure: report as "not found" instead of leaving an
-            // unhandled rejection and never running the notification.
             return false;
         }
     }

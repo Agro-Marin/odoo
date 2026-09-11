@@ -39,9 +39,6 @@ class CoverPropertiesOptionPlugin extends Plugin {
                     );
                 }
 
-                // Checks if the image is in base64 format for RPC call. Relying
-                // only on the presence of the class "o_b64_cover_image_to_save" is not
-                // robust enough.
                 const groups = bgImage.match(
                     /url\("data:(?<mimetype>.*);base64,(?<imageData>.*)"\)/,
                 )?.groups;
@@ -95,15 +92,10 @@ class CoverPropertiesOptionPlugin extends Plugin {
             el.querySelector(".o_record_cover_image")?.style.backgroundImage || "";
         coverProperties["background-image"] = bg;
 
-        // TODO: `o_record_has_cover` should be handled using model field, not
-        // resize_class to avoid all of this.
         let coverClass =
             Object.keys(coverSizeClassLabels).find((e) => el.classList.contains(e)) ||
             "";
         if (bg && bg !== "none") {
-            // Guard the default "": otherwise a missing size class made this
-            // `undefined + " o_record_has_cover"` → the literal string
-            // "undefined o_record_has_cover" was persisted to resize_class.
             coverClass = (coverClass ? coverClass + " " : "") + "o_record_has_cover";
         }
         coverProperties.resize_class = coverClass;

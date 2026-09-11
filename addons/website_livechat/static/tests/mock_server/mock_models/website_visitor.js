@@ -49,7 +49,6 @@ export class WebsiteVisitor extends websiteModels.WebsiteVisitor {
             }
             const [partner] = ResPartner.read(serverState.partnerId);
             const channel = DiscussChannel.browse(livechatId);
-            // notify operator
             BusBus._sendone(
                 partner,
                 "mail.record/insert",

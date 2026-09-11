@@ -24,7 +24,6 @@ class SpacingOptionPlugin extends Plugin {
      * @param {import("@html_editor/core/history_plugin").HistoryMutationRecord} record
      */
     isMutationRecordSavable(record) {
-        // Do not consider the grid preview in the history.
         if (record.type === "childList") {
             const node = (record.addedTrees[0] || record.removedTrees[0]).node;
             if (node.matches && node.matches(".o_we_grid_preview") && isBlock(node)) {
@@ -59,14 +58,11 @@ registry.category("website-plugins").add(SpacingOptionPlugin.id, SpacingOptionPl
 export class SetGridSpacingAction extends StyleAction {
     static id = "setGridSpacing";
     apply({ editingElement: rowEl }) {
-        // Remove the grid preview if any.
         let gridPreviewEl = rowEl.querySelector(".o_we_grid_preview");
         if (gridPreviewEl) {
             gridPreviewEl.remove();
         }
-        // Apply the style action on the grid gaps.
         super.apply(...arguments);
-        // Add an animated grid preview.
         gridPreviewEl = addBackgroundGrid(rowEl, 0);
         gridPreviewEl.classList.add("o_we_grid_preview");
         setElementToMaxZindex(gridPreviewEl, rowEl);

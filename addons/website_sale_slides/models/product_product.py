@@ -7,7 +7,6 @@ class ProductProduct(models.Model):
     channel_ids = fields.One2many("slide.channel", "product_id", string="Courses")
 
     def _is_add_to_cart_allowed(self):
-        """Override to allow published course related products to the cart regardless of product's rules."""
         self.check_singleton()
         res = super()._is_add_to_cart_allowed()
         return res or bool(

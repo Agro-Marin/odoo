@@ -12,9 +12,6 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
         mark_translatable_nodes: this.listenToAnnouncementScrollClick.bind(this),
     };
 
-    /**
-     * On click, opens a dialog to translate the interaction's text.
-     */
     listenToAnnouncementScrollClick() {
         const announcementScrollEls = this.document.querySelectorAll(
             ".s_announcement_scroll",
@@ -35,7 +32,6 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
                     cancelLabel: _t("Apply"),
                     inputLabel: _t("Translation"),
                     confirm: this.updateText.bind(this, translatableEl),
-                    // Override "cancel" to have an "apply" button.
                     cancel: (inputValue) => {
                         this.updateText.apply(this, [translatableEl, inputValue]);
                         return false;
@@ -46,8 +42,6 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
         }
     }
     /**
-     * Update the translated text.
-     *
      * @param {HTMLElement} translatableEl
      * @param {String} inputValue
      */

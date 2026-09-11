@@ -85,8 +85,6 @@ class WebsiteSaleVisitorTests(WebsiteSaleCommon):
         )
 
     def test_dynamic_filter_newest_products(self):
-        """Test that a product is not displayed anymore after
-        changing it company."""
         new_company = self.env["res.company"].create(
             {
                 "name": "Test Company",
@@ -118,9 +116,6 @@ class WebsiteSaleVisitorTests(WebsiteSaleCommon):
         self.assertNotIn(product, res_products)
 
     def test_recently_viewed_company_changed(self):
-        """Test that a product is :
-        - displayed after visiting it
-        - not displayed after changing it company."""
         new_company = self.env["res.company"].create(
             {
                 "name": "Test Company",
@@ -144,11 +139,9 @@ class WebsiteSaleVisitorTests(WebsiteSaleCommon):
             "website_sale.dynamic_filter_latest_viewed_products"
         )
 
-        # BEFORE VISITING THE PRODUCT
         res = snippet_filter._prepare_values(limit=16, search_domain=[])
         self.assertFalse(res)
 
-        # AFTER VISITING THE PRODUCT
         with MockRequest(self.website.env, website=self.website):
             cookies = self.WebsiteSaleController.products_recently_viewed_update(
                 product.id
@@ -158,7 +151,6 @@ class WebsiteSaleVisitorTests(WebsiteSaleCommon):
         res_products = [res_product["_record"] for res_product in res]
         self.assertIn(product, res_products)
 
-        # AFTER CHANGING PRODUCT COMPANY
         product.product_tmpl_id.company_id = new_company
         product.product_tmpl_id.flush_recordset(["company_id"])
         with MockRequest(self.website.env, website=self.website, cookies=cookies):

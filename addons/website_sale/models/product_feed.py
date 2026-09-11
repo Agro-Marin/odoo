@@ -64,7 +64,6 @@ class ProductFeed(models.Model):
 
     last_notification_date = fields.Date()
 
-    # Caching mechanism (technical fields)
     feed_cache = fields.Binary(compute="_compute_feed_cache", store=True, readonly=True)
     cache_expiry = fields.Datetime(
         readonly=True, required=True, default=fields.Datetime.now
@@ -72,7 +71,6 @@ class ProductFeed(models.Model):
 
     @api.depends("target")
     def _compute_url(self):
-        """Compute the full feed url."""
         for feed in self:
             match feed.target:
                 case "gmc":
@@ -92,15 +90,10 @@ class ProductFeed(models.Model):
 
     @api.depends("website_id", "pricelist_id", "lang_id", "product_category_ids")
     def _compute_feed_cache(self):
-        """Invalidate cache on feed parameter changes."""
         self.action_invalidate_cache()
 
     @api.constrains("product_category_ids", "website_id")
     def _check_product_limit(self):
-        """Add a soft limit on the number of products a feed can contain.
-
-        A strong limit of 6000 is applied during the feed rendering phase.
-        """
         for feed in self:
             product_count = feed.env["product.product"].search_count(
                 feed._get_domain_feed_product(), limit=const.PRODUCT_FEED_SOFT_LIMIT + 1
@@ -110,7 +103,7 @@ class ProductFeed(models.Model):
                     feed.env._(
                         "A single feed cannot contain more than %(limit)s products."
                         " Please separate products with Categories.",
-                        limit=f"{const.PRODUCT_FEED_SOFT_LIMIT:,}",  # Format to 5,000
+                        limit=f"{const.PRODUCT_FEED_SOFT_LIMIT:,}",
                     )
                 )
 
@@ -127,45 +120,22 @@ class ProductFeed(models.Model):
         }
 
     def _render_and_cache_compressed_gmc_feed(self):
-        """Render and cache the Google Merchant Center feed.
-
-        This method ensures that the feed is rendered only once per day and caches the result. If
-        the feed parameters change, the cache is invalidated, and the feed is re-rendered.
-
-        :raises LockError: If the feed is already being rendered by another request.
-        :return: The rendered feed compressed using gzip.
-        :rtype: bytes
-        """
         self.check_singleton()
 
         if not self.feed_cache or self.cache_expiry < fields.Datetime.now():
-            # Lock the record to prevent concurrent rendering
             self.lock_for_update()
             gmc_xml = self._render_gmc_feed()
             compressed_gmc_xml = gzip.compress(gmc_xml.encode())
-            # The binary field stores the data in the `datas` field of an `ir.attachment` which is a
-            # base64 view of its `raw` data, therefore we encode the gzip content before saving it.
             self.feed_cache = base64.b64encode(compressed_gmc_xml)
             self.cache_expiry = fields.Datetime.today() + relativedelta(days=1)
-            return compressed_gmc_xml  # Avoid encoding and directly decoding
+            return compressed_gmc_xml
 
         return base64.b64decode(self.feed_cache)
 
     def _render_gmc_feed(self):
-        """Render the Google Merchant Center feed.
-
-        See also https://support.google.com/merchants/answer/7052112 for the XML format.
-
-        :return: The rendered XML feed.
-        :rtype: str
-        """
         self.check_singleton()
-        # Set the language context for rendering.
-        # Ensures all links, product names, descriptions, etc., are localized.
         self = self.with_context(lang=self.lang_id.code)
 
-        # Override the pricelist of the request to localize the currency and prices, otherwise, uses
-        # the website default pricelist.
         if self.pricelist_id:
             request.pricelist = self.pricelist_id
 
@@ -194,20 +164,9 @@ class ProductFeed(models.Model):
                 gmc_data,
             )
         )
-        # The declaration has to be the document's first bytes, and QWeb emits
-        # the template's own indentation before whatever the template holds --
-        # so it belongs to the serialization here, not to the template.
         return f"{XML_DECLARATION}\n{str(rendered).strip()}"
 
     def _prepare_gmc_items(self):
-        """Prepare Google Merchant Center items' fields.
-
-        See Google's (https://support.google.com/merchants/answer/7052112) documentation for more
-        information about each field.
-
-        :return: a dictionary for each product in this recordset.
-        :rtype: list[dict]
-        """
         products = self._get_feed_products()
         base_url = self.website_id.get_base_url()
 
@@ -256,8 +215,6 @@ class ProductFeed(models.Model):
             product_domain, limit=const.PRODUCT_FEED_HARD_LIMIT
         )
 
-        # Send an early warning to the website manager if the number of products exceeds the
-        # midpoint between the soft and hard limit.
         if (
             len(products)
             > (const.PRODUCT_FEED_SOFT_LIMIT + const.PRODUCT_FEED_HARD_LIMIT) / 2
@@ -274,7 +231,7 @@ class ProductFeed(models.Model):
                         " which may not be fully updated. Consider refining the feed by adjusting"
                         " the product categories.",
                         feed_name=self.display_name,
-                        limit=f"{const.PRODUCT_FEED_SOFT_LIMIT:,}",  # Format to 5,000
+                        limit=f"{const.PRODUCT_FEED_SOFT_LIMIT:,}",
                     ),
                 )
                 self.last_notification_date = today
@@ -282,29 +239,17 @@ class ProductFeed(models.Model):
         return products
 
     def _prepare_gmc_identifier(self, product):
-        """Prepare the product identifiers for Google Merchant Center.
-
-        :return: The barcode of the product as GTIN
-        :rtype: dict
-        """
         if product.barcode:
             return {"gtin": product.barcode, "identifier_exists": "yes"}
         return {"identifier_exists": "no"}
 
     def _prepare_gmc_image_links(self, product, base_url):
-        """Prepare the product image links for Google Merchant Center.
-
-        :return: The main product image link, and the extra images. No videos.
-        :rtype: dict
-        """
         return {
-            # Don't send any image link if there isn't. Google does not allow placeholder
             "image_link": (
                 urls.urljoin(base_url, product._get_image_1920_url())
                 if product.image_128
                 else ""
             ),
-            # Supports up to 10 extra images
             "additional_image_link": [
                 urls.urljoin(base_url, url)
                 for url in product._get_extra_image_1920_urls()[:10]
@@ -312,17 +257,6 @@ class ProductFeed(models.Model):
         }
 
     def _prepare_gmc_price_info(self, product):
-        """Prepare price-related information for Google Merchant Center.
-
-        Note: If the product is flagged to prevent zero price sales, an empty dictionary is
-        returned.
-
-        :return: A dictionary containing nothing if the product is "prevent zero price sale", or:
-            - List price,
-            - Sale price (if applicable), and
-            - Comparison prices (e.g., $100 / ml) if "Product Reference Price" is enabled.
-        :rtype: dict
-        """
         price_context = product._get_product_price_context(
             product.product_template_attribute_value_ids
         )
@@ -357,13 +291,6 @@ class ProductFeed(models.Model):
                     map(utils.gmc_format_date, (start_date, end_date)),
                 )
 
-        # Note: Google only supports a restricted set of unit and computes the comparison prices
-        # differently than Odoo.
-        # Ex: product="Pack of wine (6 bottles)", price=$65.00, uom_name="Pack".
-        #   - in odoo: base_unit_count=6.0, base_unit_name="750ml"
-        #       => displayed: "$10.83 / 750ml"
-        #   - in google: unit_pricing_measure="4500ml", unit_pricing_base_measure="750ml"
-        #       => displayed: "$10.83 / 750ml"
         if (
             combination_info.get("base_unit_name")
             and product.base_unit_count
@@ -386,7 +313,6 @@ class ProductFeed(models.Model):
         return price_info
 
     def _prepare_gmc_stock_info(self, _product):
-        """Intended to be overridden in stock."""
         return {"availability": "in_stock"}
 
     def _prepare_gmc_additional_info(self, product):
@@ -397,9 +323,8 @@ class ProductFeed(models.Model):
             ],
             "is_bundle": "yes" if product.type == "combo" else "no",
             "product_type": [
-                category.replace("/", ">")  # Google uses a different format
+                category.replace("/", ">")
                 for category in (
-                    # Up to 5 categories
                     product.public_categ_ids.sorted("sequence").mapped("display_name")[
                         :5
                     ]
@@ -408,27 +333,17 @@ class ProductFeed(models.Model):
             "custom_label": [
                 (f"custom_label_{i}", tag_name)
                 for i, tag_name in enumerate(
-                    # Supports up to 5 custom labels
                     product.all_product_tag_ids.sorted("sequence").mapped("name")[:5]
                 )
             ],
         }
 
-        # Link variants together
         if len(product.product_tmpl_id.product_variant_ids) > 1:
             additional_info["item_group_id"] = product.product_tmpl_id.id
 
         return additional_info
 
     def _notify_website_manager(self, **kwargs):
-        """Send a notification to the website manager using OdooBot.
-
-        This method wraps around `message_notify` to notify the manager of the feed's website.
-
-        :param dict kwargs: Additional arguments passed to `message_notify`.
-        :return: The created `mail.message` record.
-        :rtype: mail.message
-        """
         return self.with_user(SUPERUSER_ID).message_notify(
             partner_ids=self.website_id.salesperson_id.partner_id.ids, **kwargs
         )

@@ -10,10 +10,6 @@ import { GoogleMapsApiKeyDialog } from "./google_maps_api_key_dialog.js";
 import { GoogleMapsOption } from "./google_maps_option.js";
 
 /**
- * A `google.maps.places.PlaceResult` object.
- * Here listed are only the few properties used here. For a full list, see:
- * {@link https://developers.google.com/maps/documentation/javascript/reference/places-service#PlaceResult}
- *
  * @typedef {Object} Place
  * @property {string} [formatted_address]
  * @property {Object} [geometry]
@@ -22,7 +18,6 @@ import { GoogleMapsOption } from "./google_maps_option.js";
  * @property {function():number} geometry.location.lng
  */
 /**
- * A string defining GPS coordinates in the form "`Latitude`,`Longitude`".
  * @typedef {`${number},${number}`} Coordinates
  */
 /**
@@ -63,7 +58,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
             ResetMapColorAction,
             ShowDescriptionAction,
         },
-        // TODO remove when the snippet will have a "Height" option.
         keep_overlay_options: (el) => el.matches(".s_google_map"),
     };
 
@@ -88,7 +82,7 @@ export class GoogleMapsOptionPlugin extends Plugin {
             const initSuccess = await deferredInit;
             this.recentlyDroppedSnippetDeferredInit.delete(snippetEl);
             if (!initSuccess) {
-                return true; // cancel
+                return true;
             }
         }
     }
@@ -107,7 +101,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
             this.mapsAPI = mapsAPI;
             this.placesAPI = mapsAPI.places;
         }
-        // Try to fail early if there is a configuration issue.
         return (
             !!this.placesAPI &&
             !!(await this.getPlace(editingElement, editingElement.dataset.mapGps))
@@ -115,10 +108,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
     }
 
     /**
-     * Take a set of coordinates and perform a search on them to return a
-     * place's formatted address. If it failed, there must be an issue with the
-     * API so remove the snippet.
-     *
      * @param {Element} editingElement
      * @param {Coordinates} coordinates
      * @returns {Promise<Place | undefined>}
@@ -128,7 +117,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
         if (place?.error && !this.isGoogleMapsErrorBeingHandled) {
             this.notifyGMapsError(editingElement);
         } else if (!place && !this.isGoogleMapsErrorBeingHandled) {
-            // Somehow the search failed but Google didn't trigger an error.
             this.undoInitialize?.();
         } else {
             return place;
@@ -136,9 +124,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
     }
 
     /**
-     * Commit a place's coordinates and address to the cache and to the editing
-     * element's dataset, then re-render the map to reflect it.
-     *
      * @param {Element} editingElement
      * @param {Place} place
      */
@@ -154,7 +139,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
             if (mapGps !== coordinates || pinAddress !== place.formatted_address) {
                 editingElement.dataset.mapGps = coordinates;
                 editingElement.dataset.pinAddress = place.formatted_address;
-                // Restart interactions to re-render the map.
                 this.dispatchTo("content_manually_updated_handlers", editingElement);
                 this.dependencies.history.addStep();
             }
@@ -162,11 +146,8 @@ export class GoogleMapsOptionPlugin extends Plugin {
     }
 
     /**
-     * Open the Google Maps API key dialog to let the user provide or replace
-     * the key, then re-validate the maps depending on it.
-     *
-     * @param {string} [apiKey] the current API key, prefilled in the dialog.
-     * @returns {Promise<boolean>} true if a new API key was written to db.
+     * @param {string} [apiKey]
+     * @returns {Promise<boolean>}
      */
     async configureGMapsAPI(apiKey) {
         this.undoInitialize = this.dependencies.history.makeSavePoint();
@@ -176,7 +157,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
         /** @type {boolean} */
         const didReconfigure = await new Promise((resolve) => {
             let isInvalidated = false;
-            // Open the Google API Key Dialog.
             this.dialog.add(
                 GoogleMapsApiKeyDialog,
                 {
@@ -215,10 +195,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
             );
             placesService.nearbySearch(
                 {
-                    // Do a 'nearbySearch' followed by 'getDetails' to avoid using
-                    // GMaps Geocoder which the user may not have enabled... but
-                    // ideally Geocoder should be used to get the exact location at
-                    // those coordinates and to limit billing query count.
                     location,
                     radius: 1,
                 },
@@ -254,18 +230,7 @@ export class GoogleMapsOptionPlugin extends Plugin {
         });
     }
 
-    /**
-     * Indicates to the user there is an error with the google map API and
-     * re-opens the configuration dialog. For good measure, this also removes
-     * the related snippet entirely as this is what is done in case of critical
-     * error.
-     */
     notifyGMapsError(editingElement) {
-        // TODO this should be better to detect all errors. This is random.
-        // When misconfigured (wrong APIs enabled), sometimes Google throws
-        // errors immediately (which then reaches this code), sometimes it
-        // throws them later (which then induces an error log in the console
-        // and random behaviors).
         if (!this.isGoogleMapsErrorBeingHandled) {
             this.isGoogleMapsErrorBeingHandled = true;
 
@@ -275,7 +240,6 @@ export class GoogleMapsOptionPlugin extends Plugin {
                 ),
                 { type: "danger", sticky: true },
             );
-            // Try again: invalidate the API key then restart interactions.
             this.orm
                 .write("website", [this.websiteService.currentWebsite.id], {
                     google_maps_api_key: "",

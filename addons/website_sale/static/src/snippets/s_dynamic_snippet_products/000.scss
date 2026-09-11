@@ -1,10 +1,8 @@
 .s_dynamic_snippet_products {
-    // RTL chevron rotation
     .o_rtl & {
         --o-chevron-rtl-rotate: 180deg;
     }
 
-    // Adjusts carousel arrows' aligments
     @mixin o-aligns-controlers {
         .carousel-control-next,
         .carousel-control-prev {
@@ -29,7 +27,6 @@
         }
     }
 
-    // Adapts arrow container width
     @mixin o-adapts-col-size {
         .carousel {
             --o-wsale-dynamic-snippet-col-size: var(--o-carousel-item-width-percentage);
@@ -61,7 +58,6 @@
         }
     }
 
-    // Applies arrows' alignment except when title is on the left + desktop
     &:where(.o_wsale_products_opt_design_thumbs) {
         &:not(:has(.s_dynamic_snippet_title_aside)) {
             @include o-aligns-controlers;
@@ -78,7 +74,6 @@
 }
 .s_dynamic_snippet_products .container-fluid .s_dynamic_snippet_content {
     @include media-breakpoint-up(md) {
-        // Prevented horizontal overflow of control buttons.
         .carousel-control-prev {
             transform: translateX(50%);
         }

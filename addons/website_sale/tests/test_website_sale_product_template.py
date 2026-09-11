@@ -93,7 +93,6 @@ class TestWebsiteSaleProductTemplate(WebsiteSaleCommon):
 
     def test_markup_data_converts_price_to_website_currency(self):
         company_currency = self.env.company.currency_id
-        # Find a currency different from the company currency.
         self.website.currency_id = (
             self.env["res.currency"]
             .with_context(active_test=False)
@@ -101,7 +100,6 @@ class TestWebsiteSaleProductTemplate(WebsiteSaleCommon):
         )
         with MockRequest(self.env, website=self.website):
             markup = self.product._to_markup_data(self.website)
-        # Expected converted price
         expected_price = company_currency._convert(
             self.product.list_price,
             self.website.currency_id,
@@ -111,7 +109,6 @@ class TestWebsiteSaleProductTemplate(WebsiteSaleCommon):
         self.assertAlmostEqual(markup["offers"]["price"], expected_price, places=2)
 
     def test_remove_archived_products_from_cart(self):
-        """Archived products shouldn't appear in carts"""
         self.product.action_archive()
         self.assertNotIn(
             self.product,
@@ -127,7 +124,6 @@ class TestWebsiteSaleProductTemplate(WebsiteSaleCommon):
 
     def test_get_additionnal_combination_info_converts_price_to_website_currency(self):
         company_currency = self.env.company.currency_id
-        # Find a currency different from the company currency.
         self.website.currency_id = (
             self.env["res.currency"]
             .with_context(active_test=False)
@@ -141,7 +137,6 @@ class TestWebsiteSaleProductTemplate(WebsiteSaleCommon):
                 Date.from_string("2020-01-01"),
                 self.website,
             )
-        # Expected converted price
         expected_price = company_currency._convert(
             self.product.list_price,
             self.website.currency_id,

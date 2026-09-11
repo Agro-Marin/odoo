@@ -30,8 +30,6 @@ class ProductWishlist(models.Model):
 
     @api.model
     def current(self):
-        """Get all wishlist items that belong to current user or session,
-        filter products that are unpublished."""
         if not request:
             return self
 
@@ -71,7 +69,6 @@ class ProductWishlist(models.Model):
 
     @api.model
     def _check_wishlist_from_session(self):
-        """Assign all wishlist withtout partner from this the current session"""
         session_wishes = self.sudo().search(
             [("id", "in", request.session.get("wishlist_ids", []))]
         )
@@ -79,19 +76,16 @@ class ProductWishlist(models.Model):
             [("partner_id", "=", self.env.user.partner_id.id)]
         )
         partner_products = partner_wishes.mapped("product_id")
-        # Remove session products already present for the user
         duplicated_wishes = session_wishes.filtered(
             lambda wish: wish.product_id <= partner_products
         )
         session_wishes -= duplicated_wishes
         duplicated_wishes.unlink()
-        # Assign the rest to the user
         session_wishes.write({"partner_id": self.env.user.partner_id.id})
         request.session.pop("wishlist_ids")
 
     @api.autovacuum
     def _gc_sessions(self, *args, **kwargs):
-        """Remove wishlists for unexisting sessions."""
         self.with_context(active_test=False).search(
             [
                 (

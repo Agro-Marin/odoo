@@ -23,13 +23,10 @@ class TestShopLoyaltyPayment(PaymentHttpCommon, TestSaleCouponCommon):
 
     @mute_logger("odoo.http")
     def test_expired_reward_validation(self):
-        """Ensure payments don't process if any applied reward is no longer valid."""
         order = self.empty_order
         program = self.program_gift_card
 
-        program.date_to = date.today() + timedelta(
-            days=1
-        )  # set program to expire after tomorrow
+        program.date_to = date.today() + timedelta(days=1)
 
         self.env["loyalty.generate.wizard"].with_context(active_id=program.id).create(
             {
@@ -76,7 +73,6 @@ class TestShopLoyaltyPayment(PaymentHttpCommon, TestSaleCouponCommon):
                     },
                 )
 
-            # Update rewards & retry transaction
             order._update_programs_and_rewards()
             tx_response = self.call_jsonrpc(
                 self._build_url(f"/shop/payment/transaction/{order.id}"),

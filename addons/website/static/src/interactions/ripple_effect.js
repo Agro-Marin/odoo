@@ -40,8 +40,6 @@ export class RippleEffect extends Interaction {
         const rect = this.el.getBoundingClientRect();
         const offsetY = rect.top + window.scrollY;
         const offsetX = rect.left + window.scrollX;
-        // The diameter need to be recomputed because a change of window width
-        // can affect the size of a button (e.g. media queries).
         const diameter = Math.max(this.el.clientWidth, this.el.clientHeight);
 
         this.rippleEl.style.width = `${diameter}px`;

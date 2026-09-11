@@ -21,9 +21,6 @@ export class Gallery extends Interaction {
     }
 
     /**
-     * Called when an image is clicked. Opens a dialog to browse all the images
-     * with a bigger size.
-     *
      * @param {Event} ev
      */
     onClickImg(ev) {
@@ -35,8 +32,6 @@ export class Gallery extends Interaction {
         let imageEls = this.el.querySelectorAll("img");
         const currentImageEl = clickedEl.closest("img");
         const currentImageIndex = [...imageEls].indexOf(currentImageEl);
-        // We need to reset the images to their original source because it might
-        // have been changed by a mouse event (e.g. "hover effect" animation).
         imageEls = [...imageEls].map((el, i) => {
             const cloneEl = el.cloneNode(true);
             cloneEl.src = this.originalSources[i];
@@ -73,14 +68,11 @@ export class Gallery extends Interaction {
         this.modalEl.addEventListener("hidden.bs.modal", () => {
             this.modalEl.classList.add("d-none");
             for (const backdropEl of this.modalEl.querySelectorAll(".modal-backdrop")) {
-                backdropEl.remove(); // bootstrap leaves a modal-backdrop
+                backdropEl.remove();
             }
             const slideshowEl = this.modalEl.querySelector(".modal-body.o_slideshow");
             this.services["public.interactions"].stopInteractions(slideshowEl);
             this.modalEl.removeEventListener("keydown", this.onModalKeydownBound);
-            // Dispose the Bootstrap instance before dropping the node, else
-            // Bootstrap keeps it (and its document-level listeners) in its
-            // internal map for the detached element — a leak per lightbox open.
             modalBS.dispose();
             this.modalEl.remove();
             this.modalEl = undefined;
@@ -104,11 +96,6 @@ export class Gallery extends Interaction {
     }
 
     destroy() {
-        // If the interaction is torn down (e.g. entering edit mode) while the
-        // lightbox is still open, ``hidden.bs.modal`` never fires and the
-        // Bootstrap Modal's document/window listeners (ESC, focus-trap, resize)
-        // would leak. Dispose it explicitly; the modal node itself is removed by
-        // insert()'s registered cleanup.
         if (this.modalEl) {
             Modal.getInstance(this.modalEl)?.dispose();
         }
@@ -123,7 +110,6 @@ export class Gallery extends Interaction {
             this.modalEl.querySelector(`.carousel-control-${side}`).click();
         }
         if (ev.key === "Escape") {
-            // If the user is connected as an editor, prevent the backend header from collapsing.
             ev.stopPropagation();
         }
     }

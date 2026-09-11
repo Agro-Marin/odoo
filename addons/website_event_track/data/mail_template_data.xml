@@ -60,7 +60,6 @@
                     width="590"
                     style="padding: 16px; background-color: white; color: #454748; border-collapse:separate;">
                 <tbody>
-                    <!-- HEADER -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -90,7 +89,6 @@
                             </table>
                         </td>
                     </tr>
-                    <!-- TALK DESCRIPTION -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -171,7 +169,6 @@
                             </table>
                         </td>
                     </tr>
-                    <!-- DETAILS -->
                     <tr>
                         <td align="center" style="min-width: 590px;">
                             <table
@@ -286,7 +283,6 @@
                                 </td></tr>
 
                                 <tr><td valign="top" style="font-size: 14px;">
-                                    <!-- CONTACT ORGANIZER -->
                                     <t
                                         t-if="object.event_id.organizer_id.name or object.event_id.company_id.name">
                                         <div>
@@ -307,7 +303,6 @@
                                 </td></tr>
 
                                 <tr><td style="text-align:center;">
-                                    <!-- CONTACT ORGANIZER SEPARATION -->
                                     <hr
                                         t-if="is_online or event_address"
                                         width="100%"
@@ -315,14 +310,12 @@
                                 </td></tr>
 
                                 <tr><td valign="top" style="font-size: 14px;">
-                                    <!-- PWA MARKGETING -->
                                     <div t-if="is_online">
                                         <strong>Get the best mobile experience.</strong>
                                         <a href="/event">Install our mobile app</a>
                                     </div>
                                 </td></tr>
                                 <tr><td style="text-align:center;">
-                                    <!-- PWA MARKGETING SEPARATION-->
                                     <hr
                                         t-if="is_online and event_address"
                                         width="100%"
@@ -330,7 +323,6 @@
                                 </td></tr>
 
                                 <tr><td valign="top" style="font-size: 14px;">
-                                    <!-- GOOGLE MAPS LINK -->
                                     <table t-if="event_address and location" style="width:100%;"><tr><td>
                                         <div>
                                             <img
@@ -356,7 +348,6 @@
                 </tbody>
                 </table>
                 </td></tr>
-                <!-- FOOTER BY -->
                 <tr><td align="center" style="min-width: 590px;">
                     <table
                         t-if="object.company_id"

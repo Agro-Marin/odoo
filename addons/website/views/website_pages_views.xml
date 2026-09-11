@@ -73,7 +73,7 @@
         <field name="model">website.page.properties</field>
         <field name="inherit_id" ref="website_page_properties_base_view_form" />
         <field name="arch" type="xml">
-            <xpath expr="//group/*" position="before"> <!-- Top -->
+            <xpath expr="//group/*" position="before">
                 <field name="name" string="Page Title" placeholder="e.g. Home Page" />
                 <field name="website_id" invisible="1" />
 
@@ -104,7 +104,7 @@
             <xpath expr="//group/field[@name='is_published']" position="after">
                 <field name="date_publish" widget="datetime" />
             </xpath>
-            <xpath expr="//group/*[last()]" position="after"> <!-- Bottom -->
+            <xpath expr="//group/*[last()]" position="after">
                 <label for="website_indexed" string="Indexed" />
                 <div class="o_row">
                     <field
@@ -279,7 +279,6 @@
         action="action_website_pages_list"
         sequence="10" />
 
-    <!-- Extension of views for ir.ui.view and link with the page manager -->
     <record id="view_view_form_extend" model="ir.ui.view">
         <field name="model">ir.ui.view</field>
         <field name="inherit_id" ref="base.view_view_form" />

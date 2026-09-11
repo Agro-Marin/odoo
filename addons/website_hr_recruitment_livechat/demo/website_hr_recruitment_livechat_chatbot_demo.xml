@@ -41,7 +41,6 @@
                 name="chatbot_script_id"
                 ref="chatbot_script_website_hr_recruitment" />
         </record>
-        <!-- Sales -->
         <record
             id="chatbot_script_website_hr_recruitment_department_sales"
             model="chatbot.script.answer">
@@ -166,7 +165,6 @@
                 name="triggering_answer_ids"
                 eval="[                 (4, ref('chatbot_script_website_hr_recruitment_sales_chat_hr_no')),             ]" />
         </record>
-        <!-- Services -->
         <record
             id="chatbot_script_website_hr_recruitment_department_services"
             model="chatbot.script.answer">
@@ -438,7 +436,6 @@
                 name="triggering_answer_ids"
                 eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_no')),             ]" />
         </record>
-        <!-- R&D -->
         <record
             id="chatbot_script_website_hr_recruitment_department_rd"
             model="chatbot.script.answer">

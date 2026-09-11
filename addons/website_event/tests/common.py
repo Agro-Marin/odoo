@@ -43,9 +43,7 @@ class OnlineEventCase(EventCase):
             menus_in = list(self._get_menus())
 
         menus = self.env["website.menu"].search([("parent_id", "=", event.menu_id.id)])
-        menus |= (
-            menus.child_id
-        )  # add child menus to simplify checks, containing notably talks submenus
+        menus |= menus.child_id
         self.assertTrue(len(menus) >= len(menus_in))
         self.assertTrue(
             all(menu_name in menus.mapped("name") for menu_name in menus_in)
@@ -67,11 +65,9 @@ class TestEventOnlineCommon(OnlineEventCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Mock dates to have reproducible computed fields based on time
         cls.reference_now = datetime(2020, 7, 6, 10, 0, 0)
         cls.reference_today = datetime(2020, 7, 6)
 
-        # event if 8-18 in Europe/Brussels (DST) (first day: begins at 9, last day: ends at 15)
         cls.event_0 = cls.env["event.event"].create(
             {
                 "name": "TestEvent",

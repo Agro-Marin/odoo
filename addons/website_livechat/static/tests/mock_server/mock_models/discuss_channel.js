@@ -6,7 +6,7 @@ export class DiscussChannel extends livechatModels.DiscussChannel {
     livechat_visitor_id = fields.Many2one({
         relation: "website.visitor",
         string: "Visitor",
-    }); // FIXME: somehow not fetched properly
+    });
 
     /**
      * @override

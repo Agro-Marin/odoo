@@ -39,7 +39,6 @@ class TestProjectPortalAccess(TestProjectSharingCommon, HttpCase):
         )
 
     def test_portal_task_submission(self):
-        """Public user should be able to submit a task"""
         self.authenticate(None, None)
         partner = self.env["res.partner"].create(
             {

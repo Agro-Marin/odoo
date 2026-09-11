@@ -2,7 +2,6 @@
 <templates xml:space="preserve">
 
 <t t-name="website_sale.ProductPageOption">
-    <!-- Dummy element to allow styling this specific option container -->
     <div class="d-none o_wsale_product_page_options"/>
 
     <BuilderRow label.translate="Page Width">
@@ -105,7 +104,6 @@
         </BuilderButtonGroup>
     </BuilderRow>
 
-    <!-- Image config -->
     <t t-if="!this.isActiveItem('opt_product_page_image_width_hide')">
         <div class="o_wsale_panel_section_title ps-2 pt-2 pb-1 fw-bold">Images</div>
         <hr class="mx-2 mt-0 mb-2"/>
@@ -121,7 +119,7 @@
 	        <BuilderButton id="'o_wsale_add_extra_images'" className="'btn-success-color-hover'" action="'productAddExtraImage'">Add More</BuilderButton>
 	        <BuilderButton id="'o_wsale_clear_extra_images'" className="'btn-danger-color-hover'" action="'productRemoveAllExtraImages'">Remove All</BuilderButton>
 	    </BuilderRow>
-        <div class="pb-2"/> <!-- Spacer -->
+        <div class="pb-2"/>
     </t>
 
     <t t-if="domState.multipleImages and !this.isActiveItem('opt_product_page_image_width_hide')">
@@ -140,7 +138,6 @@
 	        </BuilderSelect>
 	    </BuilderRow>
     </t>
-    <!-- Carousel config -->
     <t
         t-if="domState.hasCarousel and domState.hasImages and domState.multipleImages and !this.isActiveItem('opt_product_page_image_width_hide')"
     >
@@ -151,7 +148,6 @@
 	        </BuilderButtonGroup>
 	    </BuilderRow>
     </t>
-    <!-- Grid config -->
     <t
         t-if="domState.isGrid"
     >
@@ -363,7 +359,6 @@
         </BuilderButton>
     </BuilderRow>
     <BuilderRow id="'o_we_actions_opt'" label.translate="Actions">
-        <!-- Filled by other modules -->
     </BuilderRow>
     <BuilderRow label.translate="Separators">
         <BuilderCheckbox

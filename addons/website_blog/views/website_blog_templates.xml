@@ -1,16 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        ======   Overall pages layout   ===========================================
-        ============================================================================
-    -->
     <template id="index" name="Blog Navigation">
         <t t-call="website.layout">
             <div id="wrap" class="js_blog website_blog">
                 <t t-out="0" />
 
-                <!-- Droppable-area shared across all blog's pages -->
                 <t t-set="oe_structure_blog_footer_description">Visible in all blogs' pages</t>
                 <div
                     class="oe_structure oe_empty oe_structure_not_nearest"
@@ -20,12 +15,6 @@
         </t>
     </template>
 
-    <!--
-        ======  Blog(s) Index : Displaying a list of Blog Posts ===================
-        Used by 'All blogs' and 'blog' (to share the same layout options) and to display
-        list of filtered posts (by date or tag).
-        ============================================================================
-    -->
     <template id="blog_post_short" name="Blog Posts">
         <t t-call="website_blog.index">
             <t t-set="head">
@@ -38,7 +27,6 @@
                 <meta t-if="active_tag_ids" name="robots" t-attf-content="none" />
             </t>
 
-            <!-- Check for active options: the stored value may be used in sub-templates too  -->
             <t
                 t-set="opt_blog_cards_design"
                 t-value="is_view_active('website_blog.opt_blog_cards_design')" />
@@ -53,7 +41,6 @@
                 t-value="is_view_active('website_blog.opt_blog_sidebar_show')" />
 
             <div id="o_wblog_blog_top">
-                <!-- Selectively display droppable-areas for 'all blogs' or single-blog pages -->
                 <t t-if="not tag and not date_begin and not search">
                     <div id="o_wblog_blog_top_droppable" />
                     <t t-if="blog">
@@ -68,7 +55,6 @@
                     </t>
                 </t>
                 <t t-else="">
-                    <!-- Droppable-area for filtered results (tags or date) -->
                     <div
                         class="oe_structure"
                         id="oe_structure_blog_filtered_header"
@@ -116,15 +102,6 @@
         </t>
     </template>
 
-    <!--
-        (Option) Blog: Show latest-post as top banner
-        Replace top-banner content with the latest published post
-    -->
-    <!--
-        A priority is set so that this is applied after `oe_structure`
-        customizations. This is needed if a block has been dropped in the
-        `#oe_structure_blog_all_header.oe_structure`.
-    -->
     <template
         id="opt_blog_cover_post"
         name="Top banner - Name / Latest Post"
@@ -170,7 +147,6 @@
         </xpath>
     </template>
 
-    <!-- (Option) Blog: Show latest-post as top banner : 'Full Width' design -->
     <template
         id="opt_blog_cover_post_fullwidth_design"
         name="Full-Width Cover"
@@ -208,7 +184,6 @@
         </xpath>
     </template>
 
-    <!-- (Option) Blog: Sidebar : Show -->
     <template
         id="opt_blog_sidebar_show"
         name="Show Sidebar"
@@ -222,44 +197,27 @@
         </xpath>
     </template>
 
-    <!--
-        (Option) Blog: Posts List: Cards design
-        Wrap posts in a standard bts cards components
-    -->
     <template
         id="opt_blog_cards_design"
         name="'Cards' Design"
         inherit_id="website_blog.blog_post_short"
         active="False" />
 
-    <!--
-        (Option) Blog: Show Posts in list-view
-        Display post in a list rather than a grid
-    -->
     <template
         id="opt_blog_list_view"
         name="List View"
         inherit_id="website_blog.blog_post_short"
         active="False" />
 
-    <!--
-        (Option) Blog: Increase readability
-        Increase font-size, adapt layout
-    -->
     <template
         id="opt_blog_readable"
         name="Increase Readability"
         inherit_id="website_blog.blog_post_short"
         active="True" />
 
-    <!--
-        ====== Blog Post Complete Layout ==========================================
-        ============================================================================
-    -->
     <template id="website_blog.blog_post_complete" name="Blog Post" track="1">
         <t t-call="website_blog.index">
 
-            <!-- Check for active options: the stored value may be used in sub-templates too  -->
             <t
                 t-set="opt_blog_post_readable"
                 t-value="is_view_active('website_blog.opt_blog_post_readable')" />
@@ -320,7 +278,6 @@
             <section
                 id="o_wblog_post_main"
                 t-attf-class="container pt-4 pb-5 #{'anim' in request.params and 'o_wblog_post_main_transition'}">
-                <!-- Sidebar-enabled Layout -->
                 <div
                     t-if="opt_blog_post_sidebar"
                     t-attf-class="mx-auto #{opt_blog_post_readable and 'o_wblog_read_with_sidebar'}">
@@ -339,7 +296,6 @@
                     </div>
                 </div>
 
-                <!-- No-Sidebar Layout -->
                 <div
                     t-if="not opt_blog_post_sidebar"
                     t-attf-class="#{opt_blog_post_readable and 'o_container_small'}">
@@ -356,10 +312,6 @@
         </t>
     </template>
 
-    <!--
-        ====== Blog Post Content ==================================================
-        ============================================================================
-    -->
     <template id="blog_post_content" name="Blog post content">
         <t
             t-if="opt_blog_post_breadcrumb and not opt_blog_post_regular_cover"
@@ -390,30 +342,18 @@
         </div>
     </template>
 
-    <!--
-        (Option) Post: Increase readability
-        Increase font-size, adapt content width
-    -->
     <template
         id="opt_blog_post_readable"
         name="Increase Readability"
         inherit_id="website_blog.blog_post_complete"
         active="True" />
 
-    <!--
-        (Option) Post: Show Sidebar
-        Show sidebar beside the post content
-    -->
     <template
         id="opt_blog_post_sidebar"
         name="Show Sidebar"
         inherit_id="website_blog.blog_post_complete"
         active="False" />
 
-    <!--
-        (Option) Post: Regular Cover
-        Use 'regular cover' design rather than the fullwidth one
-    -->
     <template
         id="opt_blog_post_regular_cover"
         name="'Regular' Cover"
@@ -470,20 +410,12 @@
         </xpath>
     </template>
 
-    <!--
-        (Option) Post: Show Breadcrumb
-        Display navigation breadcrumbs before the post content
-    -->
     <template
         id="opt_blog_post_breadcrumb"
         name="Show Breadcrumb"
         inherit_id="website_blog.blog_post_complete"
         active="True" />
 
-    <!--
-        (Option) Post: Comments
-        Enable comments
-    -->
     <template
         id="opt_blog_post_comment"
         name="Allow Comments"
@@ -516,10 +448,6 @@
         </xpath>
     </template>
 
-    <!--
-        (Option) Post : Read Next Article
-        Show 'read next' banner at the bottom of the page
-    -->
     <template
         id="opt_blog_post_read_next"
         name="Read Next Article"
@@ -623,11 +551,6 @@
                                     </span>
                                 </div>
 
-                                <!-- Emulate the next post's cover's height. For non-auto covers,
-                                the room that will be occupied by the 'scroll-down' link is temporary
-                                occupied  by the loader circle. For auto covers, an empty <div>
-                                creates enought separation.
-                                -->
                                 <div
                                     t-if="not next_cover_is_auto"
                                     class="o_wblog_next_loader o_wblog_toggle justify-content-center align-items-center mx-auto position-relative d-none">
@@ -644,11 +567,6 @@
         </xpath>
     </template>
 
-    <!--
-        ======   Technical Templates   ============================================
-        ============================================================================
-    -->
-    <!-- Atom Feed -->
     <template id="blog_feed">
 &lt;?xml version="1.0" encoding="utf-8"?&gt;
 <feed t-att-xmlns="'http://www.w3.org/2005/Atom'">

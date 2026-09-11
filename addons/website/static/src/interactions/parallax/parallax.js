@@ -9,9 +9,6 @@ export class Parallax extends Interaction {
         _bg: () => this.el.querySelector(":scope > .s_parallax_bg"),
     });
     dynamicContent = {
-        // rAF-throttled: each parallax reads getBoundingClientRect on every
-        // scroll event; with N parallax sections that is N layout reads per
-        // event. Coalesce to one run per frame.
         _document: { "t-on-scroll": this.throttled(this.onScroll) },
         _window: { "t-on-resize": this.throttled(this.updateBackgroundHeight) },
         _modal: { "t-on-shown.bs.modal": this.updateBackgroundHeight },
@@ -53,9 +50,6 @@ export class Parallax extends Interaction {
         this.viewportHeight = document.body.clientHeight;
         this.parallaxHeight = this.el.getBoundingClientRect().height;
 
-        // The parallax is in the viewport if it is between these two values
-        // min : bottom of the parallax in at the top of the page
-        // max : top of the parallax in at the bottom of the page
         this.minScrollPos = -this.parallaxHeight;
         this.maxScrollPos = this.viewportHeight;
 
@@ -65,9 +59,6 @@ export class Parallax extends Interaction {
         this.styleBottom = -Math.abs(this.ratio) + "px";
 
         const parallaxType = this.el.dataset.parallaxType;
-        // Compatibility: Previously, "zoom_out" and "zoom_in" had their
-        // behavior reversed. The previous "zoom_out" correspond to the
-        // current "zoomIn" type.
         this.isZoomIn = parallaxType === "zoomIn" || parallaxType === "zoom_out";
         this.isZoomOut = parallaxType === "zoomOut" || parallaxType === "zoom_in";
 
@@ -84,7 +75,6 @@ export class Parallax extends Interaction {
         ) {
             return;
         }
-        // Calculate progress based on the element's visible range
         const scrollRange = this.maxScrollPos - this.minScrollPos;
         const progress = Math.min(
             1,

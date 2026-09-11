@@ -35,16 +35,11 @@ export class FacebookPage extends Interaction {
         this.resizeObserver.observe(this.el.parentElement);
         this.registerCleanup(() => {
             this.resizeObserver.disconnect();
-            // Remove whatever iframe currently lives here. Registering this once
-            // (rather than per renderIframe call) avoids piling up one cleanup
-            // closure — each retaining a detached iframe — per resize bucket.
             this.el.replaceChildren();
         });
     }
 
     /**
-     * Prepare iframe element & replace it with existing iframe.
-     *
      * @param {Object} params
      */
     renderIframe(params) {

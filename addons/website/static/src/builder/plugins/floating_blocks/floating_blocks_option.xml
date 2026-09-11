@@ -15,8 +15,6 @@
     <BuilderRow label.translate="Cards Design">
             Global options for all inner cards.
     </BuilderRow>
-    <!-- Apply global cards options to ".s_floating_blocks_wrapper".
-    Each Card will inherit these values in CSS -->
     <BuilderRow label.translate="Roundness" level="1"
         tooltip.translate="Applies to all cards">
         <BuilderRange

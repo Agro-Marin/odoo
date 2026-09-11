@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <!-- Slide Category Selection templates -->
 
     <t t-name="website_slides.SlideUploadDialogSelect">
         <div class="row p-1 mt-4 mb-2">

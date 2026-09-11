@@ -5,12 +5,6 @@ import { EditMenuDialog } from "@website/components/dialog/edit_menu";
 import { PagePropertiesDialog } from "@website/components/dialog/page_properties";
 import { OptimizeSEODialog } from "@website/components/dialog/seo";
 
-/**
- * This service displays contextual menus, depending of the state of the
- * website. These menus are defined in xml with the "website_preview" action,
- * which is overriden here for displaying dialogs, or regular components that
- * are not client actions.
- */
 export const websiteCustomMenus = {
     dependencies: ["website", "orm", "dialog", "ui"],
     start(env, { website, orm, dialog, ui }) {
@@ -26,8 +20,6 @@ export const websiteCustomMenus = {
                 }
                 const menuProps = {
                     ...(menuConfig.getProps && (await menuConfig.getProps(services))),
-                    // Values on 'dynamicProps' are retrieved after the content is loaded (e.g. id of
-                    // the content menu to be edited).
                     ...customMenu.dynamicProps,
                 };
                 return dialog.add(menuConfig.Component, menuProps);
@@ -46,17 +38,12 @@ export const websiteCustomMenus = {
                             subSections = this.addCustomMenus(section.childrenTree);
                         }
                         if (section.xmlid === "website.custom_menu_edit_menu") {
-                            // Hack: this code will simulate an XML pre-configured navbar menuitem to edit each
-                            // content menu found on the current page by duplicating one menuitem with
-                            // different data (name, dialog props...). this will prevent breaking the current
-                            // 'navbar menus' display system.
                             filteredSections.push(
                                 ...website.currentWebsite.metadata.contentMenus.map(
                                     (menu, index) => ({
                                         ...section,
                                         name: _t("Edit %s", menu[0]),
                                         dynamicProps: { rootID: parseInt(menu[1], 10) },
-                                        // Prevent a 't-foreach' duplicate key on menus template.
                                         id: `${section.id}-${index}`,
                                     }),
                                 ),
@@ -72,7 +59,6 @@ export const websiteCustomMenus = {
                 }
                 for (const section of filteredSections) {
                     section.childrenTree = section.childrenTree.filter(
-                        // Exclude non-leaf node having no visible sub-element.
                         (tree) => !(tree.children.length && !tree.childrenTree.length),
                     );
                 }
@@ -117,12 +103,6 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
             ? "website.page.properties"
             : "website.page.properties.base";
         const websiteId = website.currentWebsite.id;
-        // Do not rely on window.location.pathname: while the editor boots it can
-        // still be "/web" or even empty, which would give the dialog a wrong URL.
-        // website.currentLocation already tracks the actual page (without the
-        // language prefix), so we reuse it and fall back to the metadata path,
-        // forcing a leading '/' for extra safety. This keeps the wizard working
-        // even if the user opens it as soon as the builder loads.
         const getNormalizedPath = () => {
             let path = website.currentLocation;
             if (!path) {
@@ -170,9 +150,6 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
 });
 registry.category("website_custom_menus").add("website.custom_menu_edit_menu", {
     Component: EditMenuDialog,
-    // 'isDisplayed' === true => at least 1 content menu was found on the page. This
-    // menuitem will be cloned (in 'addCustomMenus()') to edit every content menu using
-    // the 'EditMenuDialog' component.
     isDisplayed: (env) =>
         env.services.website.currentWebsite &&
         env.services.website.currentWebsite.metadata.contentMenus &&

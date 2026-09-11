@@ -51,7 +51,6 @@ export class ViewHierarchy extends Component {
     }
 
     /**
-     * Filter the treeView by website
      * @param {String} websiteName
      */
     selectWebsite(websiteName) {
@@ -59,7 +58,6 @@ export class ViewHierarchy extends Component {
     }
 
     /**
-     * Show/hide inactive views
      * @param {Boolean} checked
      */
     toggleInactive(checked) {
@@ -68,10 +66,7 @@ export class ViewHierarchy extends Component {
 
     /**
      * @param {String} keyword
-     * @returns {Array} a list of visible views that match the keyword
-     * insensitive case.
-     * The comparison is done on the name, the key and the id of each views.
-     * Priority is given to the exact matches and then to the order
+     * @returns {Array}
      */
     getSearchResults(keyword) {
         const exactMatches = [];
@@ -101,8 +96,6 @@ export class ViewHierarchy extends Component {
     }
 
     /**
-     * Search the next visibile view that matches the keyword to the name, the
-     * key and the id of the view
      * @param {String} keyword
      * @param {Boolean} forward
      */
@@ -127,13 +120,9 @@ export class ViewHierarchy extends Component {
     }
 
     /**
-     * Makes an inorder traversal of the view tree and apply a function at each
-     * node
-     * @param {Object} currentView represent the current view tree
-     * @param {Function} fn function applied at each node with currentView as
-     * parameter
-     * @param {Function} continueRec take the view as argument and decide if
-     * the recursion continue
+     * @param {Object} currentView
+     * @param {Function} fn
+     * @param {Function} continueRec
      */
     viewTraversal(currentView, fn, continueRec = (view) => true) {
         fn(currentView);
@@ -144,9 +133,6 @@ export class ViewHierarchy extends Component {
         }
     }
 
-    /**
-     * Setup website names from the viewTree into this.websites.names
-     */
     setupWebsiteNames() {
         this.viewTraversal(this.state.viewTree, (currentView) => {
             if (currentView.website_name) {
@@ -155,9 +141,6 @@ export class ViewHierarchy extends Component {
         });
     }
 
-    /**
-     * States for each website filter if a generic view should be hided or not
-     */
     setupHideGenericViewByWebsite() {
         this.viewTraversal(this.state.viewTree, (currentView) => {
             if (currentView.website_name) {
@@ -171,9 +154,6 @@ export class ViewHierarchy extends Component {
         });
     }
 
-    /**
-     * Link views in the viewTree to their parent
-     */
     linkViewsToParent() {
         this.viewTraversal(this.state.viewTree, (currentView) => {
             currentView.inherit_children.forEach(
@@ -183,13 +163,11 @@ export class ViewHierarchy extends Component {
     }
 
     /**
-     * Collapse the view to show/hide the children
      * @param {Object} view
      */
     onCollapseClick(view) {
         view.collapsed = !view.collapsed;
         if (view.collapsed) {
-            // When folding a parent, children should also fold
             this.viewTraversal(view, (child) => {
                 child.collapsed = view.collapsed;
             });
@@ -199,7 +177,6 @@ export class ViewHierarchy extends Component {
     /**
      * @param {Object} view
      * @param {Boolean} isCollapsedDisplayed
-     * @returns true if the view is displayed in the view tree, false otherwise
      */
     isViewDisplayed(view, isCollapsedDisplayed = false) {
         let isCollapsed = view.parent ? view.parent.collapsed : false;
@@ -217,7 +194,6 @@ export class ViewHierarchy extends Component {
 
     /**
      * @param {Object} view
-     * @returns true if view has a child to unfold, false otherwise
      */
     hasChildToUnfold(view) {
         return view.inherit_children.some((child) => this.isViewDisplayed(child, true));

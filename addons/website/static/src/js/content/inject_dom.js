@@ -7,8 +7,6 @@ import {
 } from "@website/utils/misc";
 
 document.addEventListener("DOMContentLoaded", () => {
-    // Transfer cookie/session data as HTML element's attributes so that CSS
-    // selectors can be based on them.
     setUtmsHtmlDataset();
     const htmlEl = document.documentElement;
     const country = session.geoip_country_code;
@@ -30,9 +28,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
-    // Since Mega Menus are located in the desktop header at first, we need
-    // to get the indices of the mega menu elements to hide the correct one
-    // in mobile
     const desktopMegaMenuLiEls = getClosestLiEls(
         "header#top nav:not(.o_header_mobile) .o_mega_menu_toggle",
     );

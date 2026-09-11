@@ -14,23 +14,19 @@ class SlideChannelInvite(models.TransientModel):
     _inherit = ["mixin.mail.composer"]
     _description = "Channel Invitation Wizard"
 
-    # composer content
     attachment_ids = fields.Many2many(
         "ir.attachment", string="Attachments", bypass_search_access=True
     )
     send_email = fields.Boolean(
         "Send Email", compute="_compute_send_email", readonly=False, store=True
     )
-    # recipients
     partner_ids = fields.Many2many("res.partner", string="Recipients")
-    # slide channel
     channel_id = fields.Many2one("slide.channel", string="Course", required=True)
     channel_invite_url = fields.Char(
         "Course Link", compute="_compute_channel_invite_url"
     )
     channel_visibility = fields.Selection(related="channel_id.visibility")
     channel_published = fields.Boolean(related="channel_id.is_published")
-    # membership
     enroll_mode = fields.Boolean(
         "Enroll partners",
         readonly=True,
@@ -43,8 +39,7 @@ class SlideChannelInvite(models.TransientModel):
             channel = invite.channel_id
             invite.channel_invite_url = f"{channel.get_base_url()}/slides/{channel.id}"
 
-    # Overrides of mixin.mail.composer
-    @api.depends("channel_id")  # fake trigger otherwise not computed in new mode
+    @api.depends("channel_id")
     def _compute_render_model(self):
         self.render_model = "slide.channel.partner"
 
@@ -53,21 +48,10 @@ class SlideChannelInvite(models.TransientModel):
         self.send_email = self.channel_visibility != "public" or self.enroll_mode
 
     def action_invite(self):
-        """Process the wizard content and proceed with sending the related email(s),
-        rendering any template patterns on the fly if needed. This method is used both
-        to add members as 'joined' (when adding attendees) and as 'invited' (on invitation),
-        depending on the value of enroll_mode. Archived members can be invited or enrolled.
-        They will become 'invited', or another status if enrolled depending on their progress.
-        Invited members can be reinvited, or enrolled depending on enroll_mode."""
         self.check_singleton()
 
         if not self.partner_ids:
             raise UserError(_("Please select at least one recipient."))
-        # `send_email` decides whether to *notify*, never whether to enrol. It
-        # used to be the first thing checked, with a bare `return None`: on a
-        # public course invited without enroll_mode -- where _compute_send_email
-        # is False -- nobody was added, no mail went out, and the dialog stayed
-        # open saying nothing.
         if self.send_email and not self.env.user.email:
             raise UserError(
                 _(
@@ -107,7 +91,6 @@ class SlideChannelInvite(models.TransientModel):
         return {"type": "ir.actions.act_window_close"}
 
     def _prepare_mail_values(self, slide_channel_partner):
-        """Create mail specific for recipient"""
         lang = self._render_lang(slide_channel_partner.ids)[slide_channel_partner.id]
         subject = self._render_field(
             "subject", slide_channel_partner.ids, set_lang=lang
@@ -115,7 +98,6 @@ class SlideChannelInvite(models.TransientModel):
         body = self._render_field("body", slide_channel_partner.ids, set_lang=lang)[
             slide_channel_partner.id
         ]
-        # post the message
         mail_values = {
             "attachment_ids": [(4, att.id) for att in self.attachment_ids],
             "author_id": self.env.user.partner_id.id,
@@ -128,7 +110,6 @@ class SlideChannelInvite(models.TransientModel):
             "subject": subject,
         }
 
-        # optional support of default_email_layout_xmlid in context
         email_layout_xmlid = self.env.context.get(
             "default_email_layout_xmlid", self.env.context.get("notif_layout")
         )

@@ -5,10 +5,6 @@ class ProductPricelistItem(models.Model):
     _inherit = "product.pricelist.item"
 
     def _show_discount_on_shop(self):
-        """On ecommerce, formula rules are also expected to show discounts.
-
-        Only for /shop, /product, and configurators, not on the cart or the checkout.
-        """
         if not self:
             return False
 

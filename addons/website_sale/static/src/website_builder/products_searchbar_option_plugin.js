@@ -8,8 +8,6 @@ class ProductsSearchbarOptionPlugin extends Plugin {
     static id = "productsSearchbarOption";
 
     resources = {
-        // 'name asc' is already part of the general sorting methods of this
-        // snippet.
         searchbar_option_order_by_items: products_sort_mapping
             .filter((sort) => sort.query !== "name asc")
             .map((query_and_label) => ({

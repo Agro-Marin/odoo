@@ -5,7 +5,6 @@ import { CarouselBootstrapUpgradeFix } from "@website/interactions/carousel/caro
 
 const CarouselBootstrapUpgradeFixEdit = (I) =>
     class extends I {
-        // Suspend ride in edit mode.
         carouselOptions = { ride: false, pause: true, keyboard: false };
 
         setup() {

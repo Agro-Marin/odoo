@@ -14,7 +14,6 @@
             <field
                 name="cover_properties">{"background-image": "url('/website_blog/static/src/img/blog_2.jpeg')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0.4"}</field>
         </record>
-        <!-- TAGS -->
         <record id="blog_tag_1" model="blog.tag">
             <field name="name">hotels</field>
             <field name="color">1</field>
@@ -35,7 +34,6 @@
             <field name="name">discovery</field>
             <field name="color">5</field>
         </record>
-        <!-- POSTS -->
         <record id="blog_post_1" model="blog.post">
             <field name="name">Sierra Tarahumara</field>
             <field

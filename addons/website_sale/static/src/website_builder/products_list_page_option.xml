@@ -2,7 +2,6 @@
 <templates xml:space="preserve">
 
 <t t-name="website_sale.ProductsListPageOption">
-    <!-- Dummy element to allow styling this specific option container with .o_wsale_products_list_page_options -->
     <div class="d-none o_wsale_products_list_page_options"/>
 
     <BuilderRow label.translate="Content Width">
@@ -30,11 +29,6 @@
             showSecondaryImage="true"
         />
         <div class="d-none">
-            <!--
-                Dummy controller to detect in this context which layout class is applied to the DOM.
-                The actual layout classes toggling phase is managed by the ProductsDesignPanel
-                component.
-            -->
             <BuilderRow label.translate="Layout">
                 <BuilderButtonGroup>
                     <BuilderButton

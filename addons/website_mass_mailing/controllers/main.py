@@ -99,7 +99,6 @@ class MassMailController(main.MassMailController):
             limit=1,
         )
         if not subscription:
-            # inline add_to_list as we've already called half of it
             contact_id = Contacts.search([(search_fname, "=", value)], limit=1)
             if not contact_id:
                 contact_id = Contacts.create({"name": name, fname: create_value})
@@ -108,5 +107,4 @@ class MassMailController(main.MassMailController):
             )
         elif subscription.opt_out:
             subscription.opt_out = False
-        # add email to session
         request.session[f"mass_mailing_{fname}"] = value

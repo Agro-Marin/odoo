@@ -76,7 +76,6 @@
             </field>
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- Completed Channel Message -->
         <record id="mail_template_channel_completed" model="mail.template">
             <field name="name">Elearning: Completed Course</field>
             <field name="model_id" ref="model_slide_channel_partner" />
@@ -147,7 +146,6 @@
             </field>
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- Slide channel invite feature -->
         <record id="mail_template_slide_channel_enroll" model="mail.template">
             <field name="name">Elearning: Add Attendees to Course</field>
             <field name="model_id" ref="model_slide_channel_partner" />
@@ -167,7 +165,6 @@
             </field>
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- Slide channel sharing feature -->
         <record id="mail_template_slide_channel_invite" model="mail.template">
             <field name="name">Elearning: Promotional Course Invitation</field>
             <field name="model_id" ref="model_slide_channel_partner" />

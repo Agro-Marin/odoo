@@ -13,12 +13,9 @@ registry
                 search: false,
                 expectUnloadPage: true,
             }),
-            // Assert that the "Zero-priced" variant of the optional product can't be sold.
             ...websiteConfiguratorTourUtils.assertOptionalProductZeroPriced(
                 "Optional product (Zero-priced)",
             ),
-            // Add the "Zero-priced" variant by selecting the "Nonzero-priced" variant, adding it,
-            // and selecting the "Zero-priced" variant again.
             configuratorTourUtils.selectAttribute(
                 "Optional product",
                 "Price",
@@ -32,7 +29,6 @@ registry
                 "Price",
                 "Zero-priced",
             ),
-            // Assert that the "Zero-priced" variant of the optional product still can't be sold.
             ...websiteConfiguratorTourUtils.assertProductZeroPriced(
                 "Optional product (Zero-priced)",
             ),

@@ -9,9 +9,6 @@ export class ProductAccordion extends Interaction {
         this._updateAccordionActiveItem();
     }
 
-    /**
-     * Open the first accordion item by default.
-     */
     _updateAccordionActiveItem() {
         const firstAccordionItemEl = this.el.querySelector(".accordion-item");
         if (!firstAccordionItemEl) return;

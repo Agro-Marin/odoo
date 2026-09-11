@@ -8,7 +8,6 @@ from odoo.addons.website_event_sale.tests.common import TestWebsiteEventSaleComm
 
 class TestWebsiteEventSale(HttpCaseWithUserPortal, TestWebsiteEventSaleCommon):
     def test_website_event_sale_free_tickets(self):
-        """Test saleorder is not created for tickets free tickets"""
         self.authenticate(None, None)
         free_ticket = self.env["event.event.ticket"].create(
             {
@@ -42,7 +41,6 @@ class TestWebsiteEventSale(HttpCaseWithUserPortal, TestWebsiteEventSaleCommon):
         self.assertEqual(len(self.event.registration_ids), event_registration_count + 1)
 
     def test_website_event_sale_free_paid_mix(self):
-        """Test saleorder is created if paid ticket selected"""
         self.authenticate(None, None)
         free_ticket = self.env["event.event.ticket"].create(
             {
@@ -86,8 +84,6 @@ class TestWebsiteEventSale(HttpCaseWithUserPortal, TestWebsiteEventSaleCommon):
 
 @tagged("post_install", "-at_install")
 class TestRegistrationSaleBranches(HttpCaseWithUserPortal, TestWebsiteEventSaleCommon):
-    """Zero-total order auto-confirmation."""
-
     def _questions(self):
         qs = self.event.question_ids
         return {
@@ -97,10 +93,6 @@ class TestRegistrationSaleBranches(HttpCaseWithUserPortal, TestWebsiteEventSaleC
         }
 
     def test_zero_total_order_autoconfirms(self):
-        """A cart whose total stays at zero confirms without checkout."""
-        # NOTE: the ticket's PRODUCT must also be zero-priced — while t24551
-        # is open, event lines price at the product price instead of the
-        # ticket price, which would silently leave the free-order branch.
         free_product = self.env["product.product"].create(
             {
                 "type": "service",
@@ -128,8 +120,6 @@ class TestRegistrationSaleBranches(HttpCaseWithUserPortal, TestWebsiteEventSaleC
             }
         )
         self.authenticate(None, None)
-        # Seed a session cart first: with an existing cart the free-ticket
-        # shortcut does not apply and the sale flow must resolve the order.
         payload = {
             "jsonrpc": "2.0",
             "method": "call",

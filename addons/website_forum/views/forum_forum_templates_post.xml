@@ -2,7 +2,6 @@
 <odoo>
 
     <data>
-        <!-- Display a post -->
         <template id="display_post_question_block">
             <div class="o_wforum_index_entry_title">
             <div class="d-flex align-items-baseline gap-1">
@@ -40,7 +39,6 @@
                 t-foreach="question.tag_ids"
                 t-as="question_tag">
 
-            <!-- Toggle Tags on click -->
             <t
                 t-if="tag and tag.name == question_tag.name"
                 t-set="click_action"
@@ -57,7 +55,6 @@
             </t>
             </div>
 
-            <!-- Display post's content in moderation mode-->
             <div><t t-out="post_content" /></div>
         </template>
         <template id="display_post">
@@ -149,12 +146,10 @@
             </td>
             </tr>
         </template>
-        <!-- Display a post as an answer -->
         <template id="display_post_answer">
             <t t-set="question" t-value="answer" />
             <t t-call="website_forum.display_post" />
         </template>
-        <!-- Edition: post an answer -->
         <template id="post_answer">
             <div class="d-flex align-items-center mb-3">
             <div class="d-flex align-items-center">
@@ -224,14 +219,12 @@
             </div>
             </div>
         </template>
-        <!-- Specific Post Layout -->
         <template id="post_description_full" name="Question Navigation">
             <t t-set="_page_name" t-valuef="single_question" />
             <t t-set="_question_creator" t-value="question.create_uid.id" />
 
             <t t-call="website_forum.header">
             <div class="mw-xl-75 mw-xxl-100">
-            <!-- Post Status Messages -->
             <div
                 t-if="forum and question.state == 'pending' and user.karma &gt;= forum.karma_moderate and question.active"
                 class="alert alert-info text-center"
@@ -310,11 +303,9 @@
             </div>
             <div t-attf-class="d-flex align-items-center #{'mb-3' if not is_profile else ''}"><t t-call="website_forum.post_stats" /></div>
             <div class="d-grid">
-            <!-- Question Post -->
             <t t-call="website_forum.post_display">
             <t t-set="post_id" t-value="question" />
             </t>
-            <!-- Answers -->
             <section t-if="question.child_count">
             <t t-foreach="question.child_ids" t-as="answer">
             <t
@@ -330,7 +321,6 @@
             <h5>There are no answers yet</h5>
             <span>Be the first to answer this question</span>
             </section>
-            <!-- Write Answer -->
             <div
                 t-if="uid and not question.uid_has_answered and question.can_answer and question.state == 'active' and question.active != False"
                 class="d-flex mt-3">
@@ -700,7 +690,6 @@
             </t>
             </div>
         </template>
-        <!-- Utility template: Post a Comment -->
         <template id="post_comment">
             <div
                 class="o_wforum_post_comments_container d-flex flex-column gap-2 rounded">

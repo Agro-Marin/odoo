@@ -49,7 +49,6 @@ class MailingListSubscribeOptionPlugin extends Plugin {
                             "No mailing list found, do you want to create a new one? This will save all your changes, are you sure you want to proceed?",
                         ),
                         confirm: async () => {
-                            // TODO properly save and redirect.
                             await this.dependencies.savePlugin.save();
                             window.location.href =
                                 "/odoo/action-mass_mailing.action_view_mass_mailing_lists";
@@ -59,7 +58,6 @@ class MailingListSubscribeOptionPlugin extends Plugin {
                     { onClose: resolve },
                 );
             });
-            // Cancel the drop if the dialog was cancelled.
             if (cancelDrop) {
                 return true;
             }

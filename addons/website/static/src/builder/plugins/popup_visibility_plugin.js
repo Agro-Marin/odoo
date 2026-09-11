@@ -26,8 +26,6 @@ export class PopupVisibilityPlugin extends Plugin {
 
     setup() {
         this.addDomListener(this.editable, "click", (ev) => {
-            // Note: links are excluded here so that internal modal buttons do
-            // not close the popup as we want to allow edition of those buttons.
             if (ev.target.matches(".s_popup .js_close_popup:not(a, .btn)")) {
                 ev.stopPropagation();
                 const popupEl = ev.target.closest(".s_popup");
@@ -36,9 +34,6 @@ export class PopupVisibilityPlugin extends Plugin {
         });
         const history = this.dependencies.history;
         const Modal = this.getModal();
-        // Patching the edited realm's own class keeps the patch scoped to the
-        // document being edited. Guarded because the frontend bundle is absent
-        // in editor tests mounted without it.
         this.unpatchModal = Modal
             ? patch(Modal.prototype, {
                   _hideModal() {
@@ -55,7 +50,7 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     /**
-     * @returns {Function|undefined} the edited document's Bootstrap Modal class
+     * @returns {Function|undefined}
      */
     getModal() {
         return getBootstrapComponent(this.window, "Modal");
@@ -67,8 +62,6 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     /**
-     * The `.modal` a `.s_popup` wraps, or null for a malformed snippet.
-     *
      * @param {HTMLElement} targetEl
      * @returns {HTMLElement|null}
      */
@@ -77,9 +70,6 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     onTargetShow(targetEl) {
-        // Check if the popup is within the editable, because it is cloned on
-        // save (see save plugin) and Bootstrap moves it if it is not within the
-        // document (see Bootstrap Modal's _showElement).
         if (!this.editable.contains(targetEl)) {
             return;
         }
@@ -91,8 +81,6 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     onTargetHide(targetEl, isCleaning) {
-        // Do not use Bootstrap to close the popup, as we are cleaning a
-        // clone of it. Instead, hide it manually (see `cleanForSave`).
         if (isCleaning) {
             return;
         }
@@ -108,12 +96,8 @@ export class PopupVisibilityPlugin extends Plugin {
         if (!Modal) {
             return;
         }
-        // Hide the popups manually, as we cannot rely on the `onTargetHide`
-        // flow since the cleaned popup is a clone and is not in the DOM.
         for (const modalEl of rootEl.querySelectorAll(".s_popup .modal.show")) {
             modalEl.parentElement.dataset.invisible = "1";
-            // Do not call .hide() directly, because it is queued whereas
-            // .dispose() is not.
             modalEl.classList.remove("show");
             const modal = Modal.getOrCreateInstance(modalEl);
             modal._hideModal();
@@ -122,9 +106,7 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     /**
-     * Hides all the open popups that do not contain the given target element.
-     *
-     * @param {HTMLElement} targetEl the element
+     * @param {HTMLElement} targetEl
      */
     hidePopupsWithoutTarget(targetEl) {
         const openPopupEls = this.editable.querySelectorAll(

@@ -17,22 +17,16 @@ class AccountMove(models.Model):
 
     def _auto_init(self):
         if not column_exists(self.env.cr, "account_move", "website_id"):
-            # Creating the column via `_auto_init` prevents a MemoryError in databases where many
-            # invoices exist when `website_sale` is installed, as it skips the computation of the
-            # `website_id` field.
             create_column(self.env.cr, "account_move", "website_id", "int4")
         super()._auto_init()
 
     def preview_invoice(self):
         action = super().preview_invoice()
         if action["url"].startswith("/"):
-            # URL should always be relative, safety check
             action["url"] = f"/@{action['url']}"
         return action
 
-    @api.depends(
-        "partner_id"
-    )  # Dummy depends to trigger compute, will be dropped in master
+    @api.depends("partner_id")
     def _compute_website_id(self):
         for move in self:
             source_websites = move.line_ids.sale_line_ids.order_id.website_id

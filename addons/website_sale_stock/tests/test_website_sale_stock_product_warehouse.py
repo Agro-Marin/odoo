@@ -14,14 +14,11 @@ class TestWebsiteSaleStockProductWarehouse(
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Run the tests in another company, so the tests do not rely on the
-        # database state (eg the default company's warehouse)
         cls.company = cls.env["res.company"].create({"name": "Company C"})
         cls.env.user.company_id = cls.company
         cls.website = cls.env["website"].create({"name": "Website Company C"})
         cls.website.company_id = cls.company
 
-        # Set two warehouses (one was created on company creation)
         cls.warehouse_1 = cls.env["stock.warehouse"].search(
             [("company_id", "=", cls.company.id)]
         )
@@ -37,7 +34,6 @@ class TestWebsiteSaleStockProductWarehouse(
             .env
         )
 
-        # Add 10 Product A in WH1 and 15 Product 1 in WH2
         cls._add_product_qty_to_wh(
             cls.product_A.id, 10, cls.warehouse_1.lot_stock_id.id
         )
@@ -45,7 +41,6 @@ class TestWebsiteSaleStockProductWarehouse(
             cls.product_A.id, 15, cls.warehouse_2.lot_stock_id.id
         )
 
-        # Add 10 Product 2 in WH2
         cls._add_product_qty_to_wh(
             cls.product_B.id, 10, cls.warehouse_2.lot_stock_id.id
         )
@@ -79,9 +74,6 @@ class TestWebsiteSaleStockProductWarehouse(
         self.assertEqual(combination_info["qty_free"], 10)
 
     def test_02_update_cart_with_multi_warehouses(self):
-        """When the user updates his cart and increases a product quantity, if
-        this quantity is not available in the SO's warehouse, a warning should
-        be returned and the quantity updated to its maximum."""
 
         so = self.env["sale.order"].create(
             {

@@ -261,7 +261,6 @@
         </field>
     </record>
 
-    <!-- 15-16-28: children of 12 (Azure Interior) -->
     <record id="base.res_partner_address_15" model="res.partner">
         <field name="is_published" eval="True" />
         <field name="website">http://azure.example.com</field>
@@ -303,7 +302,6 @@
         </field>
     </record>
 
-    <!-- 17-18: children of 10 (Jackson Group) -->
     <record id="base.res_partner_address_17" model="res.partner">
         <field name="is_published" eval="True" />
         <field name="website">http://jackson.group.example.com</field>
@@ -330,7 +328,6 @@
         </field>
     </record>
 
-    <!-- 3-4-31: children of 2 (Acme Corporation) -->
     <record id="base.res_partner_address_3" model="res.partner">
         <field name="is_published">True</field>
         <field

@@ -70,14 +70,12 @@ class TestResources(common.SlidesCase, HttpCase):
 
     @users("user_officer")
     def test_download_file_name_extension(self):
-        """Test the resource download file name extension."""
         resource_name = 'Test Resource with special character éè!?&"'
         resource = self.env["slide.slide.resource"].create(
             {
                 "name": resource_name,
                 "file_name": "test.png",
                 "resource_type": "file",
-                # A file for which _guess_mimetype_by_signature and python_magic can detect the mime type: a png file
                 "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAC4jAA"
                 "AuIwF4pT92AAAAD0lEQVQIHQEEAPv/AIdaewLIAV0IjhGPAAAAAElFTkSuQmCC",
                 "slide_id": self.slide.id,
@@ -86,13 +84,10 @@ class TestResources(common.SlidesCase, HttpCase):
         self.authenticate(self.env.user.login, self.env.user.login)
 
         for name, file_name, expected_download_name in (
-            # The extension is determined from the file name extension
             (resource_name, "test.xlsx", f"{resource_name}.xlsx"),
             (f"{resource_name}.xlsx", "test.xlsx", f"{resource_name}.xlsx"),
             (f"{resource_name}.txt", "test.xlsx", f"{resource_name}.txt.xlsx"),
-            # .unknown_long_ext is considered as invalid so no extension is appended to the name
             (f"{resource_name}.txt", "test.unknown_long_ext", f"{resource_name}.txt"),
-            # No valid extension, the extension is detected at download time from the file content
             (resource_name, "test.unknown_long_ext", f"{resource_name}.png"),
             (resource_name, "test", f"{resource_name}.png"),
         ):

@@ -12,17 +12,12 @@ export class ProductVariantPreview extends Interaction {
     };
 
     setup() {
-        // Class `gap-1` on parent adds 4px margin for each ptav.
         this.margin = 4;
         this.updateVariantPreview();
     }
 
     /**
-     * Hide all attribute values from view to be able to recompute correctly how many elements are
-     * to be shown.
-     *
      * @private
-     *
      * @returns {void}
      */
     _resetDisplay(attributePreviewer) {
@@ -32,12 +27,9 @@ export class ProductVariantPreview extends Interaction {
     }
 
     /**
-     * Update the count of hidden PTAVs with the correct number and make it visible.
-     *
      * @private
      * @param {Element} currentPTAV
      * @param {Number} remainingSpace
-     *
      * @returns {void}
      */
     _showHiddenPTAVsElement(
@@ -60,11 +52,7 @@ export class ProductVariantPreview extends Interaction {
     }
 
     /**
-     * For each ptav check if there is enough space to add on the parent element and update the
-     * hidden PTAVs count accordingly, with the truncated elements from the backend.
-     *
      * @private
-     *
      * @returns {void}
      */
     _updateVariantPreview(attributePreviewer, attributePreviewerValues) {
@@ -92,16 +80,6 @@ export class ProductVariantPreview extends Interaction {
         }
     }
 
-    /**
-     * Triggered on the parent element of the '.o_wsale_attribute_previewer' elements to run the
-     * interaction once instead of multiple times depending on how many elements exist on the page.
-     *
-     * Schedules and batches updates for all active '.o_wsale_attribute_previewer' elements
-     * to refresh their variant previews efficiently.
-     *
-     * Uses `requestAnimationFrame` to ensure that updates occur in sync with the browser’s
-     * rendering cycle, preventing redundant or frequent recalculations (trigger by offsetWidth).
-     */
     updateVariantPreview() {
         const attributePreviewers = this.el.querySelectorAll(
             ".o_wsale_attribute_previewer",
@@ -109,14 +87,11 @@ export class ProductVariantPreview extends Interaction {
         const updateAllVariantPreview = this.bindDeferred(() => {
             const attributePreviewerValues = new Map();
 
-            // Initiate the values needed for each attribute previewer.
             for (const attributePreviewer of attributePreviewers) {
                 this._resetDisplay(attributePreviewer);
                 const ptavs = attributePreviewer.querySelectorAll(
                     ".o_product_variant_preview",
                 );
-                // Set the hiddenCountSpan to the maximum number of ptavs there is to assume
-                // the worst case space it needs.
                 const hiddenCountSpan = attributePreviewer.querySelector(
                     "span[name='hidden_ptavs_count']",
                 );
@@ -135,7 +110,6 @@ export class ProductVariantPreview extends Interaction {
                 });
             }
 
-            // Display all hidden elements to get the correct width.
             for (const attributePreviewer of attributePreviewers) {
                 const currentValues = attributePreviewerValues.get(attributePreviewer);
                 for (const ptav of currentValues.ptavs) {
@@ -143,8 +117,6 @@ export class ProductVariantPreview extends Interaction {
                 }
             }
 
-            // A recalculation of the styles is triggered every time offsetWidth is called.
-            // Get all offsetWidths in one step to avoid recalculation for each element separately.
             for (const attributePreviewer of attributePreviewers) {
                 const currentValues = attributePreviewerValues.get(attributePreviewer);
                 for (const ptav of currentValues.ptavs) {

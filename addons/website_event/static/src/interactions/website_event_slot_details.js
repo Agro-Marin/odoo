@@ -50,7 +50,6 @@ export class SlotDetails extends Interaction {
         this.currentSlotPage = 0;
         this.form = this.el.querySelector("#slot_registration_form");
         this.selectedSlotDatetime = "";
-        // Init first slot page
         if (this.el.querySelector(".pagination")) {
             this._changePage(0);
         }
@@ -60,12 +59,7 @@ export class SlotDetails extends Interaction {
         return this.form.getAttribute("data-selected-slot-id");
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     /**
-     * Update the displayed slots page.
      * @param {MouseEvent} ev
      */
     _onChangePageClick(ev) {
@@ -84,7 +78,6 @@ export class SlotDetails extends Interaction {
     }
 
     /**
-     * Reset slot selection and pagination
      * @param {MouseEvent} ev
      */
     _onClose() {
@@ -94,7 +87,6 @@ export class SlotDetails extends Interaction {
     }
 
     /**
-     * Select a slot
      * @param {MouseEvent} ev
      */
     _onSlotSelected(ev) {
@@ -127,12 +119,7 @@ export class SlotDetails extends Interaction {
         this.insert(modalEl, document.body);
     }
 
-    //--------------------------------------------------------------------------
-    // Methods
-    //--------------------------------------------------------------------------
-
     /**
-     * Display the specified slot page. Index starting at 0.
      * @param {Integer} numPage
      */
     _changePage(numPage) {
@@ -144,7 +131,6 @@ export class SlotDetails extends Interaction {
         Array.from(dates)
             .slice(min, max)
             .forEach((date) => date.classList.remove("d-none"));
-        // Handle previous/next buttons display
         const previousBtn = this.el.querySelector(".o_wevent_slot_previous button");
         const nextBtn = this.el.querySelector(".o_wevent_slot_next button");
         if (dates.length <= MAX_DATES_PER_PAGE) {

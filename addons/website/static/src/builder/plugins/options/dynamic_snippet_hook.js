@@ -6,17 +6,9 @@ export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain 
     const env = useEnv();
     onWillStart(async () => {
         await fetchDynamicFiltersAndTemplates();
-        // TODO: For now, a snippet is considered in "single mode" only when one
-        // record is selected and at least one "single template" is available
-        // for its model (which requires templates to be already fetched...).
-        // The snippet automatically switches to multi-record templates but with
-        // one item if it has no layouts for single mode. This can be improved
-        // once single templates are added for all dynamic snippet models, and
-        // the selection of one record will be enough.
         domState.isSingleMode = dynamicSnippetUtils.isSingleModeSnippet(domState);
     });
     const dynamicFilterTemplates = {};
-    // Common functions to handle dynamic snippets filters & templates...
     const dynamicSnippetUtils = env.editor.shared.dynamicSnippetOption;
     const dynamicFilters = {};
     const domState = useDomState((editingElement) => ({
@@ -33,7 +25,6 @@ export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain 
             search_domain: contextualFilterDomain,
         });
         if (!fetchedDynamicFilters.length) {
-            // Additional modules are needed for dynamic filters to be defined.
             return;
         }
         const uniqueModelName = new Set();

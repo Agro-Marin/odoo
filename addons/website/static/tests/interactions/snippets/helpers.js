@@ -2,9 +2,7 @@ import { advanceTime, animationFrame, scroll } from "@odoo/hoot-dom";
 import { defineStyle } from "@web/../tests/web_test_helpers";
 
 export async function endTransition() {
-    // Ensure we finish the transition
     await animationFrame();
-    // Ensure the class "o_transitioning" is removed
     await advanceTime(500);
 }
 
@@ -17,8 +15,8 @@ export async function setupTest(core, wrapwrap) {
     wrapwrap.style.width = "100%";
     wrapwrap.style.overflow = "scroll";
     core.interactions[0].interaction.scrollingElement = wrapwrap;
-    defineStyle(/* css */ `.hidden { display: none !important; }`);
-    defineStyle(/* css */ `.h20 { height: 20px; }`);
+    defineStyle(`.hidden { display: none !important; }`);
+    defineStyle(`.h20 { height: 20px; }`);
     await endTransition();
 }
 
@@ -32,9 +30,6 @@ export async function simpleScroll(wrapwrapEl, target) {
 }
 
 /**
- * Scroll twice to correctly updates parameters used by onScroll handlers.
- * (cf. Headers)
- *
  * @param {Parameters<scroll>[0]} wrapwrapEl
  * @param {number} target
  * @param {number} source
