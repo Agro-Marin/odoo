@@ -211,6 +211,16 @@ class IrModelFields(models.Model):
                             )
                         )
 
+    _FORM_FIELD_ALIASES = {"phone": "phone_ids"}
+
+    @api.model
+    def _formbuilder_field_name(self, model, name):
+        model_fields = self.env[model]._fields
+        alias = self._FORM_FIELD_ALIASES.get(name)
+        if alias and name not in model_fields and alias in model_fields:
+            return alias
+        return name
+
     @api.model
     def formbuilder_whitelist(self, model, fields):
         if not fields:
@@ -219,16 +229,10 @@ class IrModelFields(models.Model):
         if not self.env.user.has_group("website.group_website_designer"):
             return False
 
-        model_fields = self.env[model]._fields
-        fields = [
-            "phone_ids"
-            if field == "phone"
-            and "phone" not in model_fields
-            and "phone_ids" in model_fields
-            else field
-            for field in fields
+        fields = [self._formbuilder_field_name(model, field) for field in fields]
+        unexisting_fields = [
+            field for field in fields if field not in self.env[model]._fields
         ]
-        unexisting_fields = [field for field in fields if field not in model_fields]
         if unexisting_fields:
             raise ValueError(
                 "Unable to whitelist field(s) %r for model %r."

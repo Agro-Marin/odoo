@@ -235,7 +235,13 @@ class WebsiteForm(http.Controller):
                 if dest_model._name == "mail.mail" and field_name == "email_from":
                     custom_fields.append((_("email"), field_value))
 
-            elif field_name == "phone" and "phone_ids" in authorized_fields:
+            elif (
+                request.env["ir.model.fields"]._formbuilder_field_name(
+                    dest_model._name, field_name
+                )
+                == "phone_ids"
+                and "phone_ids" in authorized_fields
+            ):
                 if field_value:
                     data["record"]["phone_ids"] = [
                         Command.create({"number": field_value, "type": "mobile"})
