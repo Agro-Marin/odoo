@@ -6206,11 +6206,43 @@ class AccountMove(models.Model):
             )
 
         self._check_draftable()
+        self._unlink_next_draft_auto_post_moves()
         self.line_ids.analytic_line_ids.with_context(skip_analytic_sync=True).unlink()
         self.state = "draft"
         self.sending_data = False
 
         self._detach_attachments()
+
+    def _unlink_next_draft_auto_post_moves(self):
+        recurring_moves = self.filtered(
+            lambda move: move.id and move.auto_post_origin_id.id
+        )
+        if not recurring_moves:
+            return
+        self.flush_model(["date", "auto_post_origin_id"])
+        next_draft_move_ids = [
+            move_id
+            for [move_id] in self.env.execute_query(
+                SQL(
+                    """
+                       SELECT next_move.id
+                         FROM account_move AS current_move
+                         JOIN LATERAL (
+                                  SELECT move.id, move.state
+                                    FROM account_move AS move
+                                   WHERE move.auto_post_origin_id = current_move.auto_post_origin_id
+                                     AND move.date > current_move.date
+                                ORDER BY move.date, move.id
+                                   LIMIT 1
+                              ) AS next_move ON TRUE
+                        WHERE current_move.id = ANY(%(ids)s)
+                          AND next_move.state = 'draft'
+                    """,
+                    ids=list(recurring_moves.ids),
+                )
+            )
+        ]
+        self.browse(next_draft_move_ids).unlink()
 
     def _get_fields_to_detach(self):
         return ["invoice_pdf_report_file"]

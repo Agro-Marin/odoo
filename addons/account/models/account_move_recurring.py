@@ -1,6 +1,7 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, models
+from odoo.tools import SQL
 
 
 class AccountMove(models.Model):
@@ -15,13 +16,48 @@ class AccountMove(models.Model):
         return date_origin + relativedelta(months=deltas[period] + prev_months)
 
     def _copy_recurring_entries(self):
+        moves_next_dates = []
         for record in self:
             record.auto_post_origin_id = record.auto_post_origin_id or record
             next_date = self._apply_delta_recurring_entries(
                 record.date, record.auto_post_origin_id.date, record.auto_post
             )
-
             if not record.auto_post_until or next_date <= record.auto_post_until:
+                moves_next_dates.append((record, next_date))
+        if not moves_next_dates:
+            return
+
+        # A reset-and-repost, or the cron, reaches a period whose recurrence already
+        # exists; copying again would post that period twice.
+        self.flush_model(["date", "auto_post_origin_id"])
+        values = SQL(", ").join(
+            SQL(
+                "(%s::int4, %s::int4, %s::date)",
+                move.id,
+                move.auto_post_origin_id.id,
+                next_date,
+            )
+            for move, next_date in moves_next_dates
+        )
+        recurrence_exists = dict(
+            self.env.execute_query(
+                SQL(
+                    """
+                       SELECT current_move.id,
+                              EXISTS (
+                                  SELECT 1
+                                    FROM account_move AS next_move
+                                   WHERE next_move.auto_post_origin_id = current_move.auto_post_origin_id
+                                     AND next_move.date = current_move.next_date
+                              )
+                         FROM (VALUES %(values)s) AS current_move(id, auto_post_origin_id, next_date)
+                    """,
+                    values=values,
+                )
+            )
+        )
+        for record, next_date in moves_next_dates:
+            if not recurrence_exists.get(record.id):
                 record.copy(
                     default=record._get_fields_to_copy_recurring_entries(
                         {"date": next_date}
