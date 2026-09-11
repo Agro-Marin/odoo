@@ -1,16 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
+/** @template [T=any] */
 export class LruCache {
     /**
      * @param {number} limit
-     * @param {{ onEvict?: (key: string, value: any) => void }} [options]
+     * @param {{ onEvict?: (key: string, value: T) => void }} [options]
      */
     constructor(limit, { onEvict } = {}) {
         this.limit = limit;
-        /** @type {((key: string, value: any) => void) | null} */
+        /** @type {((key: string, value: T) => void) | null} */
         this._onEvict = onEvict ?? null;
-        /** @type {Map<string, any>} */
+        /** @type {Map<string, T>} */
         this._entries = new Map();
     }
 
@@ -29,13 +30,13 @@ export class LruCache {
 
     /**
      * @param {string} key
-     * @returns {any}
+     * @returns {T | undefined}
      */
     get(key) {
         if (!this._entries.has(key)) {
             return undefined;
         }
-        const value = this._entries.get(key);
+        const value = /** @type {T} */ (this._entries.get(key));
         this._entries.delete(key);
         this._entries.set(key, value);
         return value;
@@ -43,7 +44,7 @@ export class LruCache {
 
     /**
      * @param {string} key
-     * @param {any} value
+     * @param {T} value
      * @returns {this}
      */
     set(key, value) {
@@ -51,7 +52,7 @@ export class LruCache {
         this._entries.set(key, value);
         while (this._entries.size > this.limit) {
             const coldest = /** @type {string} */ (this._entries.keys().next().value);
-            const evicted = this._entries.get(coldest);
+            const evicted = /** @type {T} */ (this._entries.get(coldest));
             this._entries.delete(coldest);
             this._onEvict?.(coldest, evicted);
         }
@@ -60,7 +61,7 @@ export class LruCache {
 
     /**
      * @param {string} key
-     * @returns {any}
+     * @returns {T | undefined}
      */
     peek(key) {
         return this._entries.get(key);

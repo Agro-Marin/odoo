@@ -284,8 +284,9 @@ export class InFlight {
 }
 
 /**
+ * The constructor returns a native promise with resolve/reject methods.
+ * Its instance contract is augmented in @types/concurrency.d.ts.
  * @template [T=unknown]
- * @returns {Promise<T> & { resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void }}
  */
 export class Deferred {
     constructor() {

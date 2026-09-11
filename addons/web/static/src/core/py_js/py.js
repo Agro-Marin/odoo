@@ -19,7 +19,7 @@ export { formatAST } from "./py_utils.js";
  * @typedef { import("./py_parser").AST } AST
  */
 
-/** @type {LruCache} */
+/** @type {LruCache<AST>} */
 const _astCache = new LruCache(512);
 
 /**
@@ -42,7 +42,7 @@ function deepFreeze(node) {
  * @returns { AST }
  */
 export function parseExpr(expr) {
-    let ast = /** @type {AST | undefined} */ (_astCache.get(expr));
+    let ast = _astCache.get(expr);
     if (ast) {
         return ast;
     }

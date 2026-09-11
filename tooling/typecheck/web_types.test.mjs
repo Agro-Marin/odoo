@@ -59,7 +59,9 @@ test("web utility contracts preserve arguments, absence, and promise identity", 
     const source = `
 import { ensureArray, zip, zipWith } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
-import { InFlight } from "@web/core/utils/concurrency";
+import { Deferred, InFlight } from "@web/core/utils/concurrency";
+import { LruCache } from "@web/core/utils/lru_cache";
+import { nameService, ERROR_INACCESSIBLE_OR_MISSING } from "@web/core/name_service";
 import { debounce, throttleForAnimation, useDebounced, useThrottleForAnimation } from "@web/core/utils/timing";
 
 const absent: undefined[] = ensureArray();
@@ -151,6 +153,48 @@ methodThrottle(2);
 methodThrottle.call({ unrelated: true }, 2);
 useThrottleForAnimation(method)(2);
 useDebounced(method, 100)(2);
+
+const numberDeferred = new Deferred<number>();
+numberDeferred.resolve(42);
+numberDeferred.resolve(Promise.resolve(42));
+numberDeferred.then(value => value.toFixed());
+// @ts-expect-error A numeric promise must not resolve without a value.
+numberDeferred.resolve();
+// @ts-expect-error A numeric promise rejects a wrong scalar type.
+numberDeferred.resolve("wrong");
+// @ts-expect-error Adopted promises must resolve to the same value type.
+numberDeferred.resolve(Promise.resolve("wrong"));
+new Deferred<void>().resolve();
+new Deferred<number | undefined>().resolve();
+new Deferred().resolve();
+
+const lru = new LruCache<number>(2, {
+    onEvict(key, value) { key.toUpperCase(); value.toFixed(); },
+});
+lru.set("one", 1).set("two", 2);
+lru.get("one")?.toFixed();
+lru.peek("two")?.toFixed();
+// @ts-expect-error Misses return undefined, even with a numeric value type.
+lru.get("missing").toFixed();
+// @ts-expect-error Peeking also preserves missing entries.
+lru.peek("missing").toFixed();
+// @ts-expect-error Writes must match the declared cache value type.
+lru.set("one", "wrong");
+// @ts-expect-error Cache reads retain the value type instead of returning any.
+lru.get("one")?.toUpperCase();
+const inferredCache = new LruCache(2, {
+    onEvict(key: string, value: { id: number }) { value.id.toFixed(); },
+});
+inferredCache.set("record", { id: 1 });
+// @ts-expect-error Eviction callback annotations also determine the stored value type.
+inferredCache.set("record", { unrelated: true });
+declare const names: ReturnType<typeof nameService.start>;
+names.cache.get("res.partner\\0" + 1)?.resolve("Partner");
+names.cache.get("missing")?.resolve(ERROR_INACCESSIBLE_OR_MISSING);
+// @ts-expect-error Display name promises require a name or the inaccessible-record sentinel.
+names.cache.get("missing")?.resolve(42);
+// @ts-expect-error Display name promises cannot silently resolve undefined.
+names.cache.get("missing")?.resolve();
 `;
     const host = ts.createCompilerHost(config.options);
     const getSourceFile = host.getSourceFile.bind(host);
@@ -165,14 +209,26 @@ useDebounced(method, 100)(2);
     });
     const file = program.getSourceFile(fixture);
     assert.ok(file);
-    const diagnostics = [
-        ...program.getSyntacticDiagnostics(file),
-        ...program.getSemanticDiagnostics(file),
-    ];
+    const checked = [file];
+    for (const path of [
+        "core/utils/lru_cache.js",
+        "core/utils/concurrency.js",
+        "core/name_service.js",
+        "core/domain.js",
+        "core/py_js/py.js",
+    ]) {
+        const implementation = program.getSourceFile(resolve(webSource, path));
+        assert.ok(implementation, path);
+        checked.push(implementation);
+    }
+    const diagnostics = checked.flatMap((source) => [
+        ...program.getSyntacticDiagnostics(source),
+        ...program.getSemanticDiagnostics(source),
+    ]);
     assert.deepEqual(
         diagnostics.map(
             (diagnostic) =>
-                `${file.getLineAndCharacterOfPosition(diagnostic.start).line + 1}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`,
+                `${diagnostic.file.fileName}:${diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start).line + 1}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`,
         ),
         [],
     );

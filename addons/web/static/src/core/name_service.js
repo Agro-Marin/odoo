@@ -23,7 +23,9 @@ function cacheKey(resModel, resId) {
     return `${resModel}\x00${resId}`;
 }
 
-/** @typedef {Record<string, (string|ERROR_INACCESSIBLE_OR_MISSING)>} DisplayNames */
+/** @typedef {string | typeof ERROR_INACCESSIBLE_OR_MISSING} DisplayName */
+/** @typedef {Record<string, DisplayName>} DisplayNames */
+/** @typedef {Deferred<DisplayName>} DisplayNameDeferred */
 
 class NameService {
     /**
@@ -33,9 +35,9 @@ class NameService {
     constructor(env, { orm }) {
         this.env = env;
         this.orm = orm;
-        /** @type {LruCache} */
+        /** @type {LruCache<DisplayNameDeferred>} */
         this.cache = new LruCache(NAME_CACHE_LIMIT);
-        /** @type {Record<string, { resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]>} */
+        /** @type {Record<string, { resId: number, deferred: DisplayNameDeferred }[]>} */
         this.batches = Object.create(null);
 
         this._clearCache = () => this.clearCache();
@@ -55,6 +57,7 @@ class NameService {
         for (const resId of Object.keys(displayNames)) {
             const key = cacheKey(resModel, resId);
             this.cache.get(key)?.resolve(displayNames[resId]);
+            /** @type {DisplayNameDeferred} */
             const entry = new Deferred();
             entry.resolve(displayNames[resId]);
             this.cache.set(key, entry);
@@ -64,7 +67,7 @@ class NameService {
     /**
      * @param {string} resModel
      * @param {number} resId
-     * @param {import("@web/core/utils/concurrency").Deferred} deferred
+     * @param {DisplayNameDeferred} deferred
      */
     evict(resModel, resId, deferred) {
         const key = cacheKey(resModel, resId);
@@ -80,7 +83,7 @@ class NameService {
      */
     async loadDisplayNames(resModel, resIds) {
         const proms = [];
-        /** @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]} */
+        /** @type {{ resId: number, deferred: DisplayNameDeferred }[]} */
         const entriesToFetch = [];
         const uniqueIds = unique(resIds);
         for (const resId of uniqueIds) {

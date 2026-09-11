@@ -874,5 +874,5 @@ function isLiteralAST(ast) {
 /** @type {WeakMap<ASTList, RecordPredicate>} */
 const compiledDomains = new WeakMap();
 
-/** @type {LruCache} */
+/** @type {LruCache<RecordPredicate>} */
 const compiledDomainsByKey = new LruCache(512);
