@@ -84,7 +84,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 '' AS CompAuxLib,
                 '-' AS PieceRef,
                 %(formatted_date_from)s AS PieceDate,
-                '/' AS EcritureLib,
+                'Balance initiale' AS EcritureLib,
                 replace(CASE WHEN COALESCE(sum(account_move_line.balance), 0) <= 0 THEN '0,00' ELSE to_char(SUM(account_move_line.balance), '000000000000000D99') END, '.', ',') AS Debit,
                 replace(CASE WHEN COALESCE(sum(account_move_line.balance), 0) >= 0 THEN '0,00' ELSE to_char(-SUM(account_move_line.balance), '000000000000000D99') END, '.', ',') AS Credit,
                 '' AS EcritureLet,
@@ -166,6 +166,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 *self.env["account.account"]._check_company_domain(company),
                 ("account_type", "=", "equity_unaffected"),
             ],
+            order="code desc",
             limit=1,
         )
         unaffected_earnings_line = True  # used to make sure that we add the unaffected earning initial balance only once
@@ -206,7 +207,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 '' AS CompAuxLib,
                 '-' AS PieceRef,
                 %(formatted_date_from)s AS PieceDate,
-                '/' AS EcritureLib,
+                'Balance initiale' AS EcritureLib,
                 replace(CASE WHEN sum(account_move_line.balance) <= 0 THEN '0,00' ELSE to_char(SUM(account_move_line.balance), '000000000000000D99') END, '.', ',') AS Debit,
                 replace(CASE WHEN sum(account_move_line.balance) >= 0 THEN '0,00' ELSE to_char(-SUM(account_move_line.balance), '000000000000000D99') END, '.', ',') AS Credit,
                 '' AS EcritureLet,
@@ -265,7 +266,9 @@ class L10n_FrFecExportWizard(models.TransientModel):
         ):
             # search an unaffected earnings account
             unaffected_earnings_account = self.env["account.account"].search(
-                [("account_type", "=", "equity_unaffected")], limit=1
+                [("account_type", "=", "equity_unaffected")],
+                order="code desc",
+                limit=1,
             )
             if unaffected_earnings_account:
                 unaffected_earnings_results[4] = unaffected_earnings_account.code
@@ -304,7 +307,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 COALESCE(replace(account_move_line__partner_id.name, '|', '/'), '') AS CompAuxLib,
                 '-' AS PieceRef,
                 %(formatted_date_from)s AS PieceDate,
-                '/' AS EcritureLib,
+                'Balance initiale' AS EcritureLib,
                 replace(CASE WHEN sum(account_move_line.balance) <= 0 THEN '0,00' ELSE to_char(SUM(account_move_line.balance), '000000000000000D99') END, '.', ',') AS Debit,
                 replace(CASE WHEN sum(account_move_line.balance) >= 0 THEN '0,00' ELSE to_char(-SUM(account_move_line.balance), '000000000000000D99') END, '.', ',') AS Credit,
                 '' AS EcritureLet,
