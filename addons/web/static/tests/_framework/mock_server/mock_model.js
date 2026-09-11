@@ -686,7 +686,6 @@ function orderByField(model, orderBy, records) {
         const coModel = getRelation(field);
         const coField = getOrderByField(coModel);
         if (isX2MField(field)) {
-            orderByField(coModel);
             if (["float", "integer"].includes(coField.type)) {
                 valueLength = coModel.reduce(
                     (longest, record) =>
@@ -710,7 +709,7 @@ function orderByField(model, orderBy, records) {
         valuesMap = new Map(field.selection.map((v, i) => [v[0], i]));
     }
 
-    const sortedRecords = records.sort((r1, r2) => {
+    const sortedRecords = [...records].sort((r1, r2) => {
         if (!Object.hasOwn(r1, fieldNameSpec) || !Object.hasOwn(r2, fieldNameSpec)) {
             throw new MockServerError(
                 `Cannot order by ${fieldNameSpec} because the field/spec isn't not in the record/group`,
@@ -1296,7 +1295,7 @@ function array_agg(records, fieldName) {
 
 /** @type {AggregatorFunction} */
 function bool_and(records, fieldName) {
-    return records.every((record) => record[fieldName]);
+    return records.length > 0 && records.every((record) => record[fieldName]);
 }
 
 /** @type {AggregatorFunction} */
@@ -1321,7 +1320,10 @@ function max(records, fieldName) {
     if (!records.length) {
         return false;
     }
-    return Math.max(...records.map((record) => record[fieldName]));
+    return records.reduce((best, record) => {
+        const value = record[fieldName];
+        return best === undefined || value > best ? value : best;
+    }, undefined);
 }
 
 /** @type {AggregatorFunction} */
@@ -1329,7 +1331,10 @@ function min(records, fieldName) {
     if (!records.length) {
         return false;
     }
-    return Math.min(...records.map((record) => record[fieldName]));
+    return records.reduce((best, record) => {
+        const value = record[fieldName];
+        return best === undefined || value < best ? value : best;
+    }, undefined);
 }
 
 /** @type {AggregatorFunction} */
@@ -1636,7 +1641,7 @@ export class Model extends Array {
         }
     }
 
-    /** @param {MaybeIterable<number>} idOrIds */
+    /** @param {MaybeIterable<number | false>} idOrIds */
     action_archive(idOrIds) {
         const kwargs = getKwArgs(arguments, "ids");
         ({ ids: idOrIds } = kwargs);
@@ -1644,7 +1649,7 @@ export class Model extends Array {
         return this.write(idOrIds, { active: false }, kwargs);
     }
 
-    /** @param {MaybeIterable<number>} idOrIds */
+    /** @param {MaybeIterable<number | false>} idOrIds */
     action_unarchive(idOrIds) {
         const kwargs = getKwArgs(arguments, "ids");
         ({ ids: idOrIds } = kwargs);
@@ -1652,7 +1657,7 @@ export class Model extends Array {
         return this.write(idOrIds, { active: true }, kwargs);
     }
 
-    /** @param {MaybeIterable<number>} idOrIds */
+    /** @param {MaybeIterable<number | false>} idOrIds */
     browse(idOrIds) {
         const ids = ensureArray(idOrIds);
         const records = new /** @type {any} */ (this.constructor)();
@@ -1681,7 +1686,7 @@ export class Model extends Array {
     }
 
     /**
-     * @param {MaybeIterable<number>} idOrIds
+     * @param {MaybeIterable<number | false>} idOrIds
      * @param {Partial<ModelRecord>} defaultValues
      */
     copy(idOrIds, defaultValues) {
@@ -1793,7 +1798,12 @@ export class Model extends Array {
             return fields;
         }
 
-        return fields.map((field) => pick(field, ...attributes));
+        return Object.fromEntries(
+            Object.entries(fields).map(([name, field]) => [
+                name,
+                pick(field, ...attributes),
+            ]),
+        );
     }
 
     /**
@@ -2020,7 +2030,7 @@ export class Model extends Array {
             readGroupResult.push(group);
         }
 
-        orderByField(
+        readGroupResult = orderByField(
             this,
             order || groupby.join(","),
             /** @type {any} */ (readGroupResult),
@@ -2238,7 +2248,7 @@ export class Model extends Array {
     }
 
     /**
-     * @param {MaybeIterable<number>} idOrIds
+     * @param {MaybeIterable<number | false>} idOrIds
      * @param {string[]} [fields]
      * @param {string | false} [load]
      */
@@ -2297,8 +2307,22 @@ export class Model extends Array {
     }
 
     /**
+     * @overload
+     * @param {DomainListRepr} domain
+     * @param {KwArgs<{offset: number, limit: number, order: string}>} options
+     * @returns {number[]}
+     */
+    /**
+     * @overload
      * @param {DomainListRepr} domain
      * @param {number} [offset]
+     * @param {number} [limit]
+     * @param {string} [order]
+     * @returns {number[]}
+     */
+    /**
+     * @param {DomainListRepr} domain
+     * @param {number | KwArgs<{offset: number, limit: number, order: string}>} [offset]
      * @param {number} [limit]
      * @param {string} [order]
      */
@@ -2313,7 +2337,7 @@ export class Model extends Array {
             offset,
             order,
         });
-        return records.map((record) => record.id);
+        return records.map((record) => /** @type {number} */ (record.id));
     }
 
     /**
@@ -2709,7 +2733,7 @@ export class Model extends Array {
         );
     }
 
-    /** @param {MaybeIterable<number>} idOrIds */
+    /** @param {MaybeIterable<number | false>} idOrIds */
     unlink(idOrIds) {
         const kwargs = getKwArgs(arguments, "ids");
         ({ ids: idOrIds } = kwargs);
@@ -2792,7 +2816,7 @@ export class Model extends Array {
     }
 
     /**
-     * @param {MaybeIterable<number>} idOrIds
+     * @param {MaybeIterable<number | false>} idOrIds
      * @param {Record<string, any>} specification
      */
     web_read(idOrIds, specification) {
@@ -3028,9 +3052,10 @@ export class Model extends Array {
                     getReadGroupOrder(order, [remainingGroupby[1]], aggregates),
                 );
                 const length = groups.length;
+                const subOffset = argsRead.offset || 0;
                 groups = groups.slice(
-                    argsRead.offset ? argsRead.offset - 1 : 0,
-                    argsRead.limit,
+                    subOffset,
+                    argsRead.limit ? subOffset + argsRead.limit : undefined,
                 );
                 group.__groups = { groups, length };
 
@@ -3050,7 +3075,7 @@ export class Model extends Array {
     }
 
     /**
-     * @param {MaybeIterable<number>} idOrIds
+     * @param {MaybeIterable<number | false>} idOrIds
      * @param {Record<string, any>} specification
      * @param {string} fieldName
      * @param {number} offset
@@ -3078,7 +3103,7 @@ export class Model extends Array {
     }
 
     /**
-     * @param {MaybeIterable<number>} idOrIds
+     * @param {MaybeIterable<number | false>} idOrIds
      * @param {Partial<ModelRecord>} values
      * @param {Record<string, any>} specification
      * @param {MaybeIterable<number>} [nextId]
@@ -3167,7 +3192,7 @@ export class Model extends Array {
             if (!baseline) {
                 continue;
             }
-            const record = this._records.find((r) => r.id === id);
+            const record = this.find((r) => r.id === id);
             if (!record) {
                 continue;
             }
@@ -3298,7 +3323,7 @@ export class Model extends Array {
     }
 
     /**
-     * @param {MaybeIterable<number>} idOrIds
+     * @param {MaybeIterable<number | false>} idOrIds
      * @param {Partial<ModelRecord>} values
      */
     write(idOrIds, values) {
@@ -3386,13 +3411,12 @@ export class Model extends Array {
         }
     }
 
-    /** @private */
     _compute_display_name() {
         if (this._rec_name) {
             for (const record of this) {
                 const value = record[this._rec_name];
                 record.display_name = /** @type {any} */ (
-                    (value && String(value)) ?? false
+                    value ? String(value) : false
                 );
             }
         } else {
@@ -3424,7 +3448,6 @@ export class Model extends Array {
     }
 
     /**
-     * @private
      * @param {DomainListRepr} [domain]
      * @param {{ active_test?: boolean }} [options]
      */
@@ -3563,8 +3586,7 @@ export class Model extends Array {
     }
 
     /**
-     * @private
-     * @param {MaybeIterable<number>} idOrIds
+     * @param {MaybeIterable<number | false>} idOrIds
      * @param {Iterable<string>} [fnames=[]]
      * @param {string | false} [load="_classic_read"]
      */
@@ -3677,11 +3699,11 @@ export class Model extends Array {
         const records = this._filter(params.domain, {
             active_test: params.context?.active_test,
         });
-        orderByField(records, params.order);
+        const ordered = orderByField(records, params.order);
         const endLimit = params.limit ? offset + params.limit : undefined;
         return {
-            length: records.length,
-            records: records.slice(offset, endLimit),
+            length: ordered.length,
+            records: ordered.slice(offset, endLimit),
         };
     }
 
@@ -3848,7 +3870,13 @@ export class Model extends Array {
                     } else if (command[0] === 1) {
                         coModel.write([command[1]], command[2]);
                     } else if (command[0] === 2 || command[0] === 3) {
-                        ids.splice(ids.indexOf(command[1]), 1);
+                        const index = ids.indexOf(command[1]);
+                        if (index >= 0) {
+                            ids.splice(index, 1);
+                        }
+                        if (command[0] === 2) {
+                            coModel.unlink([command[1]]);
+                        }
                     } else if (command[0] === 4) {
                         if (!ids.includes(command[1])) {
                             ids.push(command[1]);

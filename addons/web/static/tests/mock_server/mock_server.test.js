@@ -5,6 +5,7 @@ import { mockTimeZone } from "@odoo/hoot-mock";
 import {
     defineModels,
     fields,
+    makeKwArgs,
     makeMockServer,
     models,
     onRpc,
@@ -2102,4 +2103,91 @@ test("access rights attributes are missing on an editable many2one field", async
         },
     });
     expect(views.form.arch).toMatch(expectedForm.trim());
+});
+
+describe("mock server fidelity", () => {
+    test("web_save with known_values refuses a save over a concurrent change", async () => {
+        const { env } = await makeMockServer();
+        const Bar = env["bar"];
+        const [id] = Bar.create([{ name: "draft", foo: 1 }]);
+        Bar.write([id], { name: "changed by someone else" });
+        let error = null;
+        try {
+            Bar.web_save([id], { name: "mine" }, { name: {} }, undefined, {
+                name: "draft",
+            });
+        } catch (e) {
+            error = e;
+        }
+        expect(error?.data?.message ?? error?.message).toMatch(
+            /modified by another user/,
+        );
+    });
+
+    test("an x2many unlink of an absent id is a no-op, and a delete removes the line", async () => {
+        const { env } = await makeMockServer();
+        const Foo = env["foo"];
+        const Bar = env["bar"];
+        const [a, b, c] = Foo.create([{}, {}, {}]);
+        const [id] = Bar.create([{ many2many_field: [[6, false, [a, b, c]]] }]);
+        Bar.write([id], { many2many_field: [[3, 999]] });
+        expect(Bar.browse(id)[0].many2many_field).toEqual([a, b, c]);
+        Bar.write([id], { many2many_field: [[2, b]] });
+        expect(Bar.browse(id)[0].many2many_field).toEqual([a, c]);
+        expect(Foo.search([["id", "=", b]])).toEqual([]);
+    });
+
+    test("a nested web_read_group pages its subgroups from offset, limit wide", async () => {
+        const { env } = await makeMockServer();
+        const Bar = env["bar"];
+        Bar.create(
+            ["x", "x", "x", "x", "x", "x"].map((name, i) => ({
+                name,
+                foo: i,
+                bool: i % 2 === 0,
+            })),
+        );
+        const result = Bar.web_read_group(
+            [],
+            ["name", "foo"],
+            ["__count"],
+            makeKwArgs({
+                limit: 80,
+                offset: 0,
+                order: "",
+                auto_unfold: false,
+                opening_info: [{ value: "x", folded: false, limit: 2, offset: 2 }],
+                unfold_read_specification: {},
+                unfold_read_default_limit: 80,
+            }),
+        );
+        const sub = result.groups.find((g) => g.name === "x").__groups;
+        expect(sub.length).toBe(6);
+        expect(sub.groups.map((g) => g.foo)).toEqual([2, 3]);
+    });
+
+    test("an ordered search leaves the model's storage order alone", async () => {
+        const { env } = await makeMockServer();
+        const Foo = env["foo"];
+        const ids = Foo.create([{}, {}]);
+        const before = Foo.map((r) => r.id);
+        const descending = Foo.search([], 0, 0, "id DESC");
+        expect(Foo.map((r) => r.id)).toEqual(before);
+        expect(descending.slice(0, 2)).toEqual([...ids].reverse());
+    });
+
+    test("empty-group aggregates and comparable max follow the server", async () => {
+        const { env } = await makeMockServer();
+        const Bar = env["bar"];
+        Bar.create([{ date: "2026-01-05" }, { date: "2026-03-01" }]);
+        const [group] = Bar.formatted_read_group([], [], ["date:max", "bool:bool_and"]);
+        expect(group["date:max"]).toBe("2026-03-01");
+        expect(group["bool:bool_and"]).toBe(false);
+        const [none] = Bar.formatted_read_group(
+            [["foo", "=", -99]],
+            [],
+            ["bool:bool_and"],
+        );
+        expect(none["bool:bool_and"]).toBe(false);
+    });
 });

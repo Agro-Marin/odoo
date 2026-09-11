@@ -13398,6 +13398,8 @@ test(`cached web_read - record stays dirty when revalidation lands after an edit
     expect(`.o_field_char input`).toHaveValue("yop");
 
     await contains(`.o_field_widget[name=foo] input`).edit("This is yop");
+    // the revalidation reports what the server now holds, so the server holds it
+    MockServer.env["partner"].write([1], { foo: "new yop" });
     def.resolve([{ id: 1, foo: "new yop", display_name: "new first record" }]);
     await animationFrame();
 

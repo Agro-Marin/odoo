@@ -3456,7 +3456,8 @@ test("many2many list: unlink two records", async () => {
 
 test("one2many list: deleting one records", async () => {
     expect.assertions(3);
-    Partner._records[0].p = [1, 2, 4];
+    // the line deleted is a record of its own; it must not be the one edited
+    Partner._records[0].p = [2, 4];
     Partner._views = {
         form: `
             <form>
@@ -3464,7 +3465,7 @@ test("one2many list: deleting one records", async () => {
             </form>`,
     };
     onRpc("web_save", (args) => {
-        expect(args.args[1].p).toEqual([[2, 1, false]]);
+        expect(args.args[1].p).toEqual([[2, 2, false]]);
     });
     await mountView({
         type: "form",
@@ -3479,10 +3480,10 @@ test("one2many list: deleting one records", async () => {
             </form>`,
         resId: 1,
     });
-    expect("td.o_list_record_remove button").toHaveCount(3);
+    expect("td.o_list_record_remove button").toHaveCount(2);
 
     await contains("td.o_list_record_remove button").click();
-    expect("td.o_list_record_remove button").toHaveCount(2);
+    expect("td.o_list_record_remove button").toHaveCount(1);
 
     await clickSave();
 });
