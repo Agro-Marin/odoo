@@ -94,6 +94,7 @@ GATES = {
     "exchange_vocabulary": ["--check"],
     "credential_storage": ["--check"],
     "computed_default": ["--check"],
+    "settings_default_fields": ["--check"],
     "payment_vocabulary": ["--check"],
     "module_category_vocabulary": ["--check"],
     "module_depends_installable": ["--check"],
