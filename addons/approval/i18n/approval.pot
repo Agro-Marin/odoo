@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 03:03+0000\n"
-"PO-Revision-Date: 2026-09-11 03:03+0000\n"
+"POT-Creation-Date: 2026-09-11 03:40+0000\n"
+"PO-Revision-Date: 2026-09-11 03:40+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -2952,6 +2952,11 @@ msgid "General Approval"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_request__granted_by_user_id
+msgid "Granted By User"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields.selection,name:approval.selection__approval_rule__operator__gt
 msgid "Greater than"
 msgstr ""
@@ -4001,6 +4006,14 @@ msgstr ""
 msgid ""
 "Only a file attached to an approval request can satisfy one of its document "
 "requirements."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid ""
+"Only a pending request can be approved without a decision: %(name)s is "
+"%(state)s."
 msgstr ""
 
 #. module: approval
@@ -5216,6 +5229,14 @@ msgstr ""
 msgid ""
 "Set automatically when the source document that owned this approval was "
 "cancelled."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_request__granted_by_user_id
+msgid ""
+"Set when a pending request was approved from outside its decisions, e.g. a "
+"leave the system validated. The state reads it before the approver rows, "
+"none of which is recorded as deciding."
 msgstr ""
 
 #. module: approval
@@ -6691,6 +6712,14 @@ msgstr ""
 msgid ""
 "You cannot unlink an attachment which is linked to an approved, refused or "
 "cancelled approval request."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid ""
+"You cannot withdraw an approval on %(name)s: it was approved without a "
+"decision. Use Reset to Draft to reopen it."
 msgstr ""
 
 #. module: approval

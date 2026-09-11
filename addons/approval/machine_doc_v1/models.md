@@ -255,6 +255,7 @@ so category names are unique per company, archived rows included.
 | `revoked_state` | Selection | Yes | No | refused / cancelled, readonly, copy=False. Set by `_revoke()` when an approved request is overturned from outside its decisions; `_compute_state` reads it before the approver rows, whose decisions stay as given. Cleared by `_force_draft()` |
 | `revoked_by_user_id` | Many2one(`res.users`) | Yes | No | readonly, copy=False. Who revoked the approval |
 | `date_revoked` | Datetime | Yes | No | readonly, copy=False. When the approval was revoked |
+| `granted_by_user_id` | Many2one(`res.users`) | Yes | No | readonly, copy=False. Set by `_approve_without_decision()` when a pending request is approved from outside its decisions; `_compute_state` reads it after `revoked_state` and before the approver rows. Cleared by `_force_draft()`; a request carrying it refuses withdrawal |
 | `refusal_reason_id` | Many2one(`approval.refusal.reason`) | Yes | No | readonly, copy=False, tracking. Canonical reason of the terminal refusal (wizard, cascade or auto-rule) |
 | `refusal_note` | Text | Yes | No | readonly, copy=False, tracking |
 | `pending_change_field` | Selection(date/reason) | Yes | No | readonly, copy=False. Field the requester must update before approval can resume |
@@ -372,6 +373,7 @@ requester re-submits (`action_resubmit`).
 | `_compute_desired_approvers()` | routing.py | Pure decision step of the sync (no writes, unit-testable); returns a `DesiredApprovers` dataclass |
 | `_force_terminal()` | lifecycle.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
 | `_revoke(new_state, body, ...)` | lifecycle.py | Overturns an **approved** request into `refused` or `cancelled` from outside its decisions (a validated leave refused by an officer): writes `revoked_state`, stamps the refusal metadata, cancels activities, notifies the source document once, runs `_refuse_approval_request()` for a refusal. Every approver row keeps its decision. A non-approved request raises `UserError`; `approved` as the target raises `ValueError` |
+| `_approve_without_decision(body, ...)` | lifecycle.py | Approves a **pending** request from outside its decisions (a leave the system validates): writes `granted_by_user_id`, turns pending rows to `waiting`, cancels activities, notifies the source document once. No row is recorded as deciding, and one decided before keeps its decision. A non-pending request raises `UserError` |
 | `_get_approval_activities(user=None)` | lifecycle.py | The approval activities asking this request's approvers, found through `mail.activity.approver_id` wherever they live. `_cancel_activities`, `_retire_unasked_approval_activities` and `_get_user_approval_activities` all read it |
 | `_notify_if_terminal_transition()` | lifecycle.py | Fire source-doc hook once on entering a terminal state |
 | `_get_notifiable_source_document()` | lifecycle.py | The adopting document to tell, or None: registry, `mixin.approval` and two-way-link checks; returned under `sudo()` with `approval_acting_user_id` |

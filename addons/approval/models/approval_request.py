@@ -132,6 +132,14 @@ class ApprovalRequest(models.Model):
         copy=False,
     )
     date_revoked = fields.Datetime(readonly=True, copy=False)
+    granted_by_user_id = fields.Many2one(
+        comodel_name="res.users",
+        readonly=True,
+        copy=False,
+        help="Set when a pending request was approved from outside its decisions, "
+        "e.g. a leave the system validated. The state reads it before the approver "
+        "rows, none of which is recorded as deciding.",
+    )
     date_refused = fields.Datetime(
         compute="_compute_date_refused",
         store=True,
@@ -698,12 +706,14 @@ class ApprovalRequest(models.Model):
         "approver_ids.delegate_id",
         "approver_ids.delegate_start_date",
         "approver_ids.delegate_end_date",
+        "granted_by_user_id",
     )
     def _compute_can_withdraw(self) -> None:
         for request in self:
             request.can_withdraw = (
                 request.state in ("pending", "approved")
                 and request.user_approver_state == "approved"
+                and not request.granted_by_user_id
             )
 
     @api.depends_context("uid")
@@ -784,11 +794,15 @@ class ApprovalRequest(models.Model):
         "approver_ids.step_ids.exclusive",
         "approver_ids.step_ids.active",
         "revoked_state",
+        "granted_by_user_id",
     )
     def _compute_state(self) -> None:
         for request in self:
             if request.revoked_state:
                 request.state = request.revoked_state
+                continue
+            if request.granted_by_user_id:
+                request.state = "approved"
                 continue
 
             state_lst = request.mapped("approver_ids.state")

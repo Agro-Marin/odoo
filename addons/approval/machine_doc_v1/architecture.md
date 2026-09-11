@@ -496,6 +496,19 @@ is notified once through `_notify_if_terminal_transition("approved")`; a refusal
 withdrawn from, since it is neither pending nor approved. This is how an adopter whose own policy lets
 someone overturn a finished approval -- time off refusing a validated leave -- keeps the engine's record true.
 
+### Approving without a decision (`_approve_without_decision`)
+
+A decision needs an approver row, and `_force_terminal` refuses `approved`, so the engine had no way to record
+that an authority outside a request's decisions approved it. Time off needs one when the system validates a
+leave whose request is still pending: the superuser's `action_approve`, or a leave validated again after its
+public holidays changed. `_approve_without_decision(body, subtype_xmlid=None)` accepts a pending request only.
+It records `granted_by_user_id`, which `_compute_state` reads after `revoked_state` and before the approver
+rows; turns the rows still pending to `waiting`, as an approval does; cancels activities, closes a pending
+change request, notifies the source document once and posts the body. No row is marked decided, so
+`decided_by_user_id` names only people who decided, and a decision given before stays as given. The request
+stamps `date_approval_granted` like any approval. `_revoke` can still overturn it, `_force_draft()` clears the
+field, and withdrawing from it is refused, since no withdrawal could take back an approval nobody gave.
+
 ## Notification Flow
 
 ### Email / Activity Notifications

@@ -33,6 +33,7 @@ from . import (
     test_prediction_and_snapshot,
     test_print_button,
     test_request_change,
+    test_request_grant,
     test_request_revocation,
     test_security,
     test_sequential_approval,

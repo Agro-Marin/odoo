@@ -672,6 +672,7 @@ class ApprovalRequestLifecycle(models.Model):
                 "revoked_state": False,
                 "revoked_by_user_id": False,
                 "date_revoked": False,
+                "granted_by_user_id": False,
                 "refusal_reason_id": False,
                 "refusal_note": False,
                 "date_confirmed": False,
@@ -766,6 +767,14 @@ class ApprovalRequestLifecycle(models.Model):
                         "You cannot withdraw an approval on a %(state)s "
                         "request. Use Reset to Draft to reopen it.",
                         state=request.state,
+                    ),
+                )
+            if request.granted_by_user_id:
+                raise UserError(
+                    self.env._(
+                        "You cannot withdraw an approval on %(name)s: it was approved "
+                        "without a decision. Use Reset to Draft to reopen it.",
+                        name=request.display_name,
                     ),
                 )
             if explicit_approver is not None:
@@ -1217,6 +1226,33 @@ class ApprovalRequestLifecycle(models.Model):
             request.message_post(body=body, **post_kwargs)
             if request.state == "refused":
                 request._refuse_approval_request()
+
+    def _approve_without_decision(
+        self, body: str, subtype_xmlid: str | None = None
+    ) -> None:
+        self._lock_and_reload(with_approvers=True)
+        for request in self:
+            if request.state != "pending":
+                raise UserError(
+                    self.env._(
+                        "Only a pending request can be approved without a decision: "
+                        "%(name)s is %(state)s.",
+                        name=request.display_name,
+                        state=request.state,
+                    ),
+                )
+            request.sudo().write({"granted_by_user_id": self.env.user.id})
+            request.approver_ids.sudo().filtered(
+                lambda a: a.state == "pending",
+            ).write({"state": "waiting"})
+            request._cancel_activities()
+            request._close_pending_change()
+            request._notify_if_terminal_transition("pending")
+            request._log_cycle("grant", actor=self.env.user.login)
+            post_kwargs = {"message_type": "notification"}
+            if subtype_xmlid:
+                post_kwargs["subtype_xmlid"] = subtype_xmlid
+            request.message_post(body=body, **post_kwargs)
 
     def _close_pending_change(self) -> None:
         self.check_singleton()
