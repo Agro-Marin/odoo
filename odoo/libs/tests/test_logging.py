@@ -1,4 +1,5 @@
 import logging
+import threading
 import unittest
 
 from odoo.libs.logging import lower_logging, mute_logger
@@ -17,6 +18,50 @@ class TestMuteLogger(unittest.TestCase):
             self.assertEqual(logger.handlers, [muter])
         self.assertIs(logger.handlers, original_handlers)
         self.assertEqual(logger.propagate, original_propagate)
+
+    def test_overlapping_mutes_restore_on_the_last_exit_whatever_the_order(self):
+        name = "odoo.test.mute.overlap"
+        logger = logging.getLogger(name)
+        original_handlers = logger.handlers
+        first, second = mute_logger(name), mute_logger(name)
+        first.__enter__()
+        second.__enter__()
+        first.__exit__()
+        self.assertFalse(logger.propagate)
+        self.assertEqual(logger.handlers, [first])
+        second.__exit__()
+        self.assertIs(logger.handlers, original_handlers)
+        self.assertTrue(logger.propagate)
+
+    def test_a_mute_held_by_one_thread_does_not_block_another(self):
+        name = "odoo.test.mute.threads"
+        logger = logging.getLogger(name)
+        original_handlers = logger.handlers
+        inside, release = threading.Event(), threading.Event()
+
+        def hold():
+            with mute_logger(name):
+                inside.set()
+                release.wait(10)
+
+        def enter_and_leave():
+            with mute_logger(name):
+                pass
+
+        holder = threading.Thread(target=hold)
+        holder.start()
+        try:
+            self.assertTrue(inside.wait(10))
+            other = threading.Thread(target=enter_and_leave)
+            other.start()
+            other.join(2)
+            self.assertFalse(other.is_alive())
+            self.assertFalse(logger.propagate)
+        finally:
+            release.set()
+            holder.join(10)
+        self.assertIs(logger.handlers, original_handlers)
+        self.assertTrue(logger.propagate)
 
 
 class TestLowerLogging(unittest.TestCase):

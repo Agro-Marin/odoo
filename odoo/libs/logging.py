@@ -11,6 +11,8 @@ __all__ = ["lower_logging", "mute_logger", "unquote"]
 
 _registry_lock = threading.Lock()
 _logger_locks: dict[str, threading.RLock] = {}
+_mute_lock = threading.Lock()
+_mutes: dict[str, tuple[int, list[logging.Handler], bool]] = {}
 
 
 def _get_or_create_lock(logger_name: str) -> threading.RLock:
@@ -29,25 +31,29 @@ class unquote(str):
 
 
 class mute_logger(logging.Handler):
+    # A logger stays muted while any mute_logger is inside it, whichever thread
+    # entered and in whatever order they leave: its handlers are saved on the
+    # first entry and restored on the last exit. The lock guards only that
+    # bookkeeping, never the with-body, so a server thread muting "odoo.db" is
+    # not held up by a test muting it around a whole browser tour.
     def __init__(self, *loggers: str) -> None:
         super().__init__()
         self.loggers: tuple[str, ...] = loggers
-        self._saved: list[dict[str, tuple[list[logging.Handler], bool]]] = []
-        self._locks: list[list[threading.RLock]] = []
+        self._entered: list[tuple[str, ...]] = []
 
     def __enter__(self) -> None:
-        locks = [_get_or_create_lock(name) for name in sorted(set(self.loggers))]
-        for lock in locks:
-            lock.acquire()
-        self._locks.append(locks)
-
-        frame: dict[str, tuple[list[logging.Handler], bool]] = {}
-        for logger_name in self.loggers:
-            logger = logging.getLogger(logger_name)
-            frame[logger_name] = (logger.handlers, logger.propagate)
-            logger.propagate = False
-            logger.handlers = [self]
-        self._saved.append(frame)
+        names = tuple(sorted(set(self.loggers)))
+        with _mute_lock:
+            for name in names:
+                logger = logging.getLogger(name)
+                depth, handlers, propagate = _mutes.get(
+                    name, (0, logger.handlers, logger.propagate)
+                )
+                if not depth:
+                    logger.handlers = [self]
+                    logger.propagate = False
+                _mutes[name] = (depth + 1, handlers, propagate)
+        self._entered.append(names)
 
     def __exit__(
         self,
@@ -55,13 +61,16 @@ class mute_logger(logging.Handler):
         exc_val: BaseException | None = None,
         exc_tb: types.TracebackType | None = None,
     ) -> None:
-        try:
-            for logger_name, (handlers, propagate) in self._saved.pop().items():
-                logger = logging.getLogger(logger_name)
-                logger.handlers, logger.propagate = handlers, propagate
-        finally:
-            for lock in reversed(self._locks.pop()):
-                lock.release()
+        names = self._entered.pop()
+        with _mute_lock:
+            for name in names:
+                depth, handlers, propagate = _mutes[name]
+                if depth == 1:
+                    logger = logging.getLogger(name)
+                    logger.handlers, logger.propagate = handlers, propagate
+                    del _mutes[name]
+                else:
+                    _mutes[name] = (depth - 1, handlers, propagate)
 
     def __call__[**P, R](self, func: Callable[P, R]) -> Callable[P, R]:
 
