@@ -397,10 +397,34 @@ class DeliveryCarrier(models.Model):
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
+        doors = self._credential_doors_to_copy(default or {})
         return [
-            dict(vals, name=self.env._("%s (copy)", carrier.name))
+            dict(
+                vals,
+                name=self.env._("%s (copy)", carrier.name),
+                **{door: carrier[door] for door in doors if carrier[door]},
+            )
             for carrier, vals in zip(self, vals_list, strict=True)
         ]
+
+    def _credential_doors_to_copy(self, default):
+        """One readable door per vault field, for the secrets a copy must carry.
+
+        `carrier_credential_id` is not copied: two carriers sharing one vault
+        record would rewrite each other's secrets through their doors, and
+        clearing one would unlink the other's. The copy re-enters the secrets
+        through the doors instead, so `create` builds it a credential of its own
+        before any constraint that reads a door runs.
+        """
+        field_map = self._credential_field_map()
+        given = {field_map[name] for name in default if name in field_map}
+        doors = {}
+        for door, vault_field in field_map.items():
+            if vault_field in given or vault_field in doors:
+                continue
+            if self._has_field_access(self._fields[door], "read"):
+                doors[vault_field] = door
+        return list(doors.values())
 
     def copy_translations(self, new, excluded=()):
         # ``copy_data`` renames ``name`` in the duplicating user's language
