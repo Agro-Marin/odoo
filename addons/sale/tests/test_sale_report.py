@@ -255,3 +255,36 @@ class TestSaleReportCurrencyRate(SaleCommon):
             ),
             0,
         )
+
+
+@tagged("-at_install", "post_install")
+class TestSaleReportQuotationSent(SaleCommon):
+    def test_the_report_carries_the_quotation_sent_flag(self):
+        sent, unsent = self.env["sale.order"].create(
+            [
+                {
+                    "partner_id": self.partner.id,
+                    "line_ids": [Command.create({"product_id": self.product.id})],
+                }
+                for _ in range(2)
+            ]
+        )
+        sent.action_quotation_sent()
+        self.env.flush_all()
+        rows = self.env["sale.report"].search(
+            [("order_reference", "in", [f"sale.order,{o.id}" for o in sent | unsent])]
+        )
+        self.assertEqual(
+            {row.order_reference: (row.state, row.sent) for row in rows},
+            {sent: ("draft", True), unsent: ("draft", False)},
+        )
+        self.assertEqual(
+            self.env["sale.report"].search_count(
+                [
+                    ("id", "in", rows.ids),
+                    ("state", "=", "draft"),
+                    ("sent", "=", True),
+                ]
+            ),
+            1,
+        )

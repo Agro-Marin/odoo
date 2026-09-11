@@ -86,6 +86,9 @@ class SaleReport(models.Model):
         string="Status",
         readonly=True,
     )
+    sent = fields.Boolean(
+        readonly=True,
+    )
     invoice_state = fields.Selection(
         selection=const.INVOICE_STATE,
         string="Order Invoice Status",
@@ -163,6 +166,7 @@ class SaleReport(models.Model):
             "date_order": "o.date_order",
             "name": "o.name",
             "state": "o.state",
+            "sent": "o.sent",
             "invoice_state": "o.invoice_state",
             "line_invoice_state": "l.invoice_state",
             "product_id": "l.product_id",
@@ -303,6 +307,7 @@ class SaleReport(models.Model):
             "o.partner_id",
             "o.user_id",
             "o.state",
+            "o.sent",
             "o.invoice_state",
             "o.company_id",
             "o.campaign_id",

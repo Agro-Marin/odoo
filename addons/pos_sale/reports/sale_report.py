@@ -153,6 +153,7 @@ class SaleReport(models.Model):
                     THEN 'done'
                     ELSE pos.state
                 END""",
+            "sent": "FALSE",
             "invoice_state": "NULL",
             "line_invoice_state": "NULL",
             "product_id": "l.product_id",
