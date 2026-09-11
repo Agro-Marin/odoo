@@ -1,12 +1,3 @@
-"""The four office containers, read through the document layer.
-
-`test_index_content` and `test_index_extra_formats` cover the same parsers
-through `ir.attachment._get_index_content`. What is pinned here is that they are reachable
-at all without going through the indexer: before this module registered them,
-a `Document` holding a Word file had no reader for it and answered with the
-empty string, so nothing built on the document layer could read one.
-"""
-
 import io
 import zipfile
 

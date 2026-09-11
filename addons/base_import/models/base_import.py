@@ -957,17 +957,6 @@ class Base_ImportImport(models.TransientModel):
         )
 
     def _check_csv_quoting(self, options):
-        """The text delimiter, defaulted and validated.
-
-        :param dict options: parsing options, defaulted in place
-        :rtype: str
-        :raises ImportValidationError: if it is not a single character
-        """
-        # Validated before any use of `quoting` below. It used to be checked
-        # only *after* the separator-sniffing loop had already handed it to
-        # csv.reader, so whenever the separator was auto-detected (the default)
-        # the user got csv's raw `TypeError: "quotechar" must be a unicode
-        # character` instead of this actionable message.
         quoting = options.setdefault("quoting", '"')
         if not isinstance(quoting, str) or len(quoting) != 1:
             raise ImportValidationError(
@@ -978,22 +967,9 @@ class Base_ImportImport(models.TransientModel):
         return quoting
 
     def _decode_csv_text(self, csv_data, options):
-        """Decode the uploaded bytes, guessing the encoding when unspecified.
-
-        Records the encoding it settles on into ``options``, so the client sees
-        what was guessed and the error message can say whether the user chose
-        it or we did.
-
-        :param bytes csv_data: the raw uploaded file
-        :param dict options: parsing options, mutated in place
-        :rtype: str
-        :raises ImportValidationError: if the encoding cannot be guessed or applied
-        """
         encoding = options.get("encoding")
         encoding_guessed = not encoding
         if encoding_guessed:
-            # `guess_encoding` answers None for ambiguous or undetectable byte
-            # content; this used to crash with AttributeError (t24068 F19).
             encoding = guess_encoding(csv_data)
             if not encoding:
                 raise ImportValidationError(
@@ -1019,17 +995,6 @@ class Base_ImportImport(models.TransientModel):
             raise ImportValidationError(msg) from exc
 
     def _guess_csv_separator(self, csv_text, quoting, options):
-        """Guess the column separator, recording it into ``options`` when found.
-
-        Falls back to ``','`` *without* recording it, so the caller's parse
-        still produces something and the user gets a message about having to
-        specify the separator.
-
-        :param str csv_text: the decoded file
-        :param str quoting: the text delimiter
-        :param dict options: parsing options, mutated in place
-        :rtype: str
-        """
         for candidate in (
             ",",
             ";",
@@ -1038,12 +1003,6 @@ class Base_ImportImport(models.TransientModel):
             "|",
             unicodedata.lookup("unit separator"),
         ):
-            # Check whether the first rows all split to the same, >1 width;
-            # if so assume this is the right delimiter. Bounded to
-            # SEPARATOR_SNIFF_ROWS: a delimiter that happens to be
-            # consistent (e.g. ',' on a file with one comma per line) used
-            # to drag the whole decoded file through csv.reader once per
-            # candidate before being accepted or rejected.
             it = csv.reader(
                 io.StringIO(csv_text), quotechar=quoting, delimiter=candidate
             )
@@ -1069,10 +1028,6 @@ class Base_ImportImport(models.TransientModel):
         return read_ods_rows(self.file or b"", options)
 
     def _read_csv(self, options):
-        """Returns a CSV-parsed list of all non-empty lines in the file.
-
-        :raises csv.Error: if an error is detected during CSV parsing
-        """
         quoting = self._check_csv_quoting(options)
 
         csv_data = self.file or b""
@@ -1092,27 +1047,12 @@ class Base_ImportImport(models.TransientModel):
 
     @api.model
     def _match_float_separators(self, preview_values, options):
-        """Whether the column reads as float, inferring its separators.
-
-        Records the thousand/decimal separators it deduces into ``options``,
-        which is why it is not a pure predicate: the caller's parse plan needs
-        them. A column that turns out not to be numeric keeps whatever
-        ``options`` picked up on the way -- the same as when this was written
-        as a ``raise ValueError`` out of a ``try`` block, since a dict mutation
-        is not unwound by an exception either.
-
-        :param list[str] preview_values: stripped values for the column
-        :param dict options: parsing options, mutated in place
-        :rtype: bool
-        """
         thousand_separator = decimal_separator = False
         currency_symbols = None
         for val in preview_values:
             val = val.strip()
             if not val:
                 continue
-            # value might have the currency symbol left or right from the value
-            # (looked up once per column, lazily, instead of once per value)
             if currency_symbols is None:
                 currency_symbols = self._currency_symbols()
             val = self._remove_currency_symbol(val, currency_symbols)
@@ -1126,8 +1066,6 @@ class Base_ImportImport(models.TransientModel):
                 val = val.replace(options["float_thousand_separator"], "").replace(
                     options["float_decimal_separator"], "."
                 )
-            # We are now sure that this is a float, but we still need to find the
-            # thousand and decimal separator
             elif val.count(".") > 1:
                 options["float_thousand_separator"] = "."
                 options["float_decimal_separator"] = ","
@@ -1146,43 +1084,24 @@ class Base_ImportImport(models.TransientModel):
         return True
 
     def _match_string_column_types(self, preview_values, options):
-        """The type heuristics that only apply to a column of strings.
-
-        Tried in priority order; ``None`` means none of them matched and the
-        caller should fall through to the date heuristics.
-
-        :param list[str] preview_values: stripped values for the column
-        :param dict options: parsing options
-        :rtype: list[str] | None
-        """
         values = set(preview_values)
-        # If all values are empty in preview than can be any field
         if values == {""}:
             return ["all"]
 
-        # If all values starts with __export__ this is probably an id
         if all(v.startswith("__export__") for v in values):
             return ["id", "many2many", "many2one", "one2many"]
 
-        # If all values can be cast to int type is either integer, float or monetary
-        # Exception: if we only have 1 and 0, it can also be a boolean
-        # `str.isdigit` was both too narrow and too wide here: it rejects
-        # "-1" (a column of negative integers was typed as float/monetary,
-        # so integer fields never showed up as suggestions) and it accepts
-        # non-ASCII digits such as "٣" or "²", for which int() then fails.
         if all(_is_integer_literal(v) for v in values if v):
             field_type = ["integer", "float", "monetary"]
             if {"0", "1", ""}.issuperset(values):
                 field_type.append("boolean")
             return field_type
 
-        # If all values are either True or False, type is boolean
         if all(
             val.lower() in ("true", "false", "t", "f", "") for val in preview_values
         ):
             return ["boolean"]
 
-        # If all values can be cast to float, type is either float or monetary
         if self._match_float_separators(preview_values, options):
             # Allow float to be mapped on a text field.
             return ["float", "monetary"]
@@ -1190,43 +1109,10 @@ class Base_ImportImport(models.TransientModel):
         return None
 
     def _extract_header_types(self, preview_values, options):
-        """Returns the potential field types, based on the preview values, using heuristics.
-
-        This methods is only used for suggested mapping at 2 levels:
-
-        1. for fuzzy mapping at file load -> Execute the fuzzy mapping only
-           on "most likely field types"
-        2. For "Suggested fields" section in the fields mapping dropdown list at UI side.
-
-        The following heuristic is used: If all preview values
-
-        - Start with ``__export__``: return id + relational field types
-        - Can be cast into integer: return integer, float and monetary (and boolean if values are only 0 and 1)
-        - Can be cast into Boolean: return boolean
-        - Can be cast into float: return float, monetary
-        - Can be cast into date/datetime: return date / datetime
-        - Cannot be cast into any of the previous types: return only text based fields
-
-        :param preview_values: list of value for the column to determine
-                               see :meth:`parse_preview` for more details.
-        :param options: parsing options
-        :rtype: list[str]
-        """
-        # Nothing to go on at all -- a header-only file, so every field is a
-        # candidate. This is the same answer as the all-blank case below, but
-        # it has to be reached first: `values` is then the *empty* set, which
-        # is not `{''}`, and every `all(...)` test below is vacuously true over
-        # it. Control therefore fell into the `__export__` branch and typed
-        # every column of every header-only file as id/relational, which
-        # `_filter_fields_by_types` then narrowed to relational fields only --
-        # so a template uploaded before its data got no mapping suggestions at
-        # all, while the same file with one data row mapped correctly.
         if not preview_values:
             return ["all"]
 
         if all(isinstance(v, str) for v in preview_values):
-            # The stripped values, not the raw ones, are what the date
-            # heuristics below go on to see.
             preview_values = [v.strip() for v in preview_values]
             field_types = self._match_string_column_types(preview_values, options)
             if field_types:
@@ -1239,11 +1125,9 @@ class Base_ImportImport(models.TransientModel):
         if results:
             return results
 
-        # If not boolean, date/datetime, float or integer, only suggest text based fields.
         return ["text", "char", "binary", "selection", "html", "tags"]
 
     def _try_match_date_time(self, preview_values, options):
-        # Or a date/datetime if it matches the pattern
         date_patterns = [options["date_format"]] if options.get("date_format") else []
         user_date_format = (
             self.env["res.lang"]._get_data(code=self.env.user.lang).date_format
@@ -1275,35 +1159,8 @@ class Base_ImportImport(models.TransientModel):
 
     @api.model
     def _extract_headers_types(self, headers, preview, options):
-        """
-        For each column, this method will extract the potential data types based on the preview values
-
-        :param list headers: list of headers names. Used as part of key for
-                             returned headers_types to ease understanding of its usage
-        :param list preview: list of the first file records (see "parse_preview" for more detail) e.g.::
-
-            [
-                ["lead_name1", "1", "partner_id1"],
-                ["lead_name2", "2", "partner_id2"],
-                ...,
-            ]
-
-        :param options: parsing options
-        :returns: dict headers_types:
-
-            contains all the extracted header types for each header e.g.::
-
-                {
-                    (header_index, header_name): ["char", "text", ...],
-                    ...
-                }
-        """
         headers_types = {}
         for column_index, header_name in enumerate(headers):
-            # Rows may be shorter than the header row (ragged CSV, or a file
-            # whose last columns are blank); treat the missing cells as empty
-            # rather than raising IndexError, which the caller's blanket handler
-            # would turn into a raw "list index out of range" in the UI.
             preview_values = [
                 record[column_index] if column_index < len(record) else ""
                 for record in preview
@@ -1313,20 +1170,7 @@ class Base_ImportImport(models.TransientModel):
         return headers_types
 
     def _get_saved_mapping_suggestion(self, header, fields_tree, mapping_fields):
-        """The mapping the user saved for this header, if it still resolves.
-
-        :param str header: header name from the file
-        :param list fields_tree: see :meth:`get_fields_tree`
-        :param dict mapping_fields: previously saved ``{header_name: field_name}``
-        :rtype: dict
-        """
         mapping_field_name = mapping_fields.get(_normalize_column_name(header))
-        # A saved mapping outlives the field it points at: renaming or removing
-        # the field (or uninstalling the module that defined it) leaves a row in
-        # `base_import.mapping` that was replayed verbatim, with distance -1 --
-        # the highest possible priority -- so the column was claimed by a path
-        # the client cannot resolve and ended up silently unmapped, suppressing
-        # the suggestion it would otherwise have received.
         if mapping_field_name and self._mapping_path_exists(
             mapping_field_name, fields_tree
         ):
@@ -1337,22 +1181,10 @@ class Base_ImportImport(models.TransientModel):
         return {}
 
     def _get_exact_field_match(self, header, fields_tree, field_strings_en):
-        """The field whose technical name or label equals ``header``, if any.
-
-        Compared case-insensitively against the technical name, the (possibly
-        translated) label, and the english label.
-
-        :param str header: header name from the file
-        :param list fields_tree: see :meth:`get_fields_tree`
-        :param field_strings_en: memoized lookup from :meth:`_get_field_strings_en`
-        :rtype: dict | None
-        """
         for field in fields_tree:
             fname = field["name"]
-            # exact match found based on the field technical name
             if header.casefold() == fname.casefold():
                 return field
-            # match found using either user translation, either model defined field label
             if header.casefold() == field["string"].casefold():
                 return field
             strings_en = field_strings_en(field["model_name"])
@@ -1366,26 +1198,6 @@ class Base_ImportImport(models.TransientModel):
     def _get_fuzzy_field_match(
         self, header, fields_tree, header_types, field_strings_en
     ):
-        """The closest field to ``header`` by word distance, if close enough.
-
-        Word distance is a score between 0 and 1 to express the distance
-        between two char strings where ``0`` denotes an exact match and
-        ``1`` indicates completely different strings. Candidates are first
-        narrowed to the field types the column's data is compatible with
-        (see :meth:`_extract_header_types`), so a numeric column is never
-        fuzzy-matched against a date field.
-
-        The distance is returned as well as the field, because it drives
-        :meth:`_deduplicate_mapping_suggestions`: when two headers claim the
-        same field, only the smaller distance survives.
-
-        :param str header: header name from the file
-        :param list fields_tree: see :meth:`get_fields_tree`
-        :param list header_types: see :meth:`_extract_header_types`
-        :param field_strings_en: memoized lookup from :meth:`_get_field_strings_en`
-        :rtype: dict
-        """
-        # Filter out fields with types that does not match corresponding header types.
         filtered_fields = self._filter_fields_by_types(fields_tree, header_types)
         if not filtered_fields:
             return {}
@@ -1394,7 +1206,6 @@ class Base_ImportImport(models.TransientModel):
         min_dist_field = False
         for field in filtered_fields:
             fname = field["name"]
-            # use string distance for fuzzy match only on most likely field types
             distances = [
                 self._get_distance(header.casefold(), fname.casefold()),
                 self._get_distance(header.casefold(), field["string"].casefold()),
@@ -1416,35 +1227,14 @@ class Base_ImportImport(models.TransientModel):
         return {}
 
     def _get_relational_mapping_suggestion(self, header, fields_tree, header_types):
-        """Resolve a ``'/'``-joined header one segment at a time.
-
-        ``lead_id/description`` matches ``description`` on the comodel of
-        ``lead_id``, so each segment is matched against the subtree the
-        previous one selected. Any segment that fails to match abandons the
-        whole path.
-
-        No distance is returned: hierarchy mapping is an advanced behaviour and
-        :meth:`_deduplicate_mapping_suggestions` ignores it, leaving the user to
-        resolve duplicates on sub-fields by hand.
-
-        :param str header: ``'/'``-joined header name from the file
-        :param list fields_tree: see :meth:`get_fields_tree`
-        :param list header_types: see :meth:`_extract_header_types`
-        :rtype: dict
-        """
         field_path = []
         subfields_tree = fields_tree
         for sub_header in header.split("/"):
-            # Strip sub_header in case spaces are added around '/' for
-            # readability of paths
-            # Skip Saved mapping (mapping_field = {})
             match = self._get_mapping_suggestion(
                 sub_header.strip(), subfields_tree, header_types, {}
             )
-            # Any match failure, exit
             if not match:
                 return {}
-            # prep subfields for next iteration within match['field_path'][0]
             field_name = match["field_path"][0]
             subfields_tree = next(
                 item["fields"] for item in subfields_tree if item["name"] == field_name
@@ -1455,46 +1245,6 @@ class Base_ImportImport(models.TransientModel):
     def _get_mapping_suggestion(
         self, header, fields_tree, header_types, mapping_fields
     ):
-        """Attempts to match a given header to a field of the imported model.
-
-        We can distinguish 2 types of header format:
-
-        - simple header string that aim to directly match a field of the target model
-          e.g.: "lead_id" or "Opportunities" or "description".
-        - composed '/' joined header string that aim to match a field of a
-          relation field of the target model (= subfield) e.g.:
-          'lead_id/description' aim to match the field ``description`` of the field lead_id.
-
-        The result is returned as a list, where each element is a field or a
-        sub-field of the preceding one -- ``["lead_id"]`` for the simple case,
-        ``["lead_id", "description"]`` for the composed one.
-
-        Three heuristics are tried in order, each in its own method:
-        a mapping the user saved earlier
-        (:meth:`_get_saved_mapping_suggestion`), an exact match on name or
-        label (:meth:`_get_exact_field_match`), and finally a fuzzy match
-        (:meth:`_get_fuzzy_field_match`). A ``'/'``-joined header takes
-        :meth:`_get_relational_mapping_suggestion` instead, which applies the
-        same three per segment.
-
-        :param str header: header name from the file
-        :param list fields_tree: list of all the field of the target model
-            Coming from :meth:`get_fields_tree`
-            e.g: ``[ { 'name': 'fieldName', 'string': 'fieldLabel', fields: [ { 'name': 'subfieldName', ...} ]} , ... ]``
-        :param list header_types: Extracted field types for each column in the parsed file, based on its data content.
-            Coming from :meth:`_extract_header_types`
-            e.g.: ``['int', 'float', 'char', 'many2one', ...]``
-        :param dict mapping_fields: contains the previously saved mapping between header and field for the current model.
-            E.g.: ``{ header_name: field_name }``
-        :returns: if the header couldn't be matched: an empty dict
-                  else: a dict with the field path and the distance between header and the matched field.
-        :rtype: ``dict(field_path + Word distance)``
-
-                In case of simple matching: ``{'field_path': [field_name], distance: word_distance}``
-                                       e.g.: ``{'field_path': ['lead_id'], distance: 0.23254}``
-                In case of hierarchy matching: ``{'field_path': [parent_field_name, child_field_name, subchild_field_name]}``
-                                          e.g.: ``{'field_path': ['lead_id', 'description']}``
-        """
         if not fields_tree:
             return {}
 
@@ -1508,9 +1258,6 @@ class Base_ImportImport(models.TransientModel):
                 header, fields_tree, header_types
             )
 
-        # `get_field_string` rebuilds a {field: label} dict on every call; it was
-        # invoked once per candidate field per header (475 calls for 5 headers on
-        # res.partner, all for the same handful of models). Memoize per call tree.
         field_strings_en = self._get_field_strings_en()
 
         if field := self._get_exact_field_match(header, fields_tree, field_strings_en):
@@ -1521,9 +1268,6 @@ class Base_ImportImport(models.TransientModel):
         )
 
     def _get_field_strings_en(self):
-        """Return a memoized ``model_name -> {field: english label}`` lookup,
-        cached for the lifetime of the returned callable.
-        """
         IrModelFieldsUs = self.with_context(lang="en_US").env["ir.model.fields"]
 
         @functools.cache
@@ -1533,13 +1277,6 @@ class Base_ImportImport(models.TransientModel):
         return lookup
 
     def _mapping_path_exists(self, field_path, fields_tree):
-        """Whether ``field_path`` (a ``'/'``-joined saved mapping) still
-        resolves against ``fields_tree``.
-
-        :param str field_path: e.g. ``'partner_id/name'``
-        :param list fields_tree: as built by :meth:`get_fields_tree`
-        :rtype: bool
-        """
         subtree = fields_tree
         for name in field_path.split("/"):
             match = next((f for f in subtree if f["name"] == name), None)
@@ -1549,60 +1286,13 @@ class Base_ImportImport(models.TransientModel):
         return True
 
     def _get_distance(self, a, b):
-        """Return a score between 0 and 1 for the distance between strings
-        ``a`` and ``b`` (``0`` = exact match, ``1`` = completely different).
-        """
         return 1 - difflib.SequenceMatcher(None, a, b).ratio()
 
     def _get_mapping_suggestions(self, headers, header_types, fields_tree):
-        """Attempts to match the imported model's fields to the
-        titles of the parsed CSV file, if the file is supposed to have
-        headers.
-
-        Returns a dict mapping cell indices to key paths in the ``fields`` tree.
-
-        :param list headers: titles of the parsed file
-        :param dict header_types:
-
-            extracted types for each column in the parsed file e.g.::
-
-                {
-                    (header_index, header_name): ['int', 'float', 'char', 'many2one',...],
-                     ...
-                }
-
-        :param list fields_tree:
-
-            list of the target model's fields e.g.::
-
-                [
-                    {
-                        'name': 'fieldName',
-                        'string': 'fieldLabel',
-                        'fields': [{ 'name': 'subfieldName', ...}]
-                    },
-                    ...
-                ]
-
-        :rtype: dict[(int, str), {'field_path': list[str], 'distance': int}]
-        :returns: mapping_suggestions e.g.:
-
-            .. code-block:: python
-
-                {
-                    (header_index, header_name): {
-                        'field_path': ['child_id','name'],
-                        'distance': 0
-                    },
-                    ...
-                }
-        """
         mapping_suggestions = {}
         mapping_records = self.env["base_import.mapping"].search_read(
             [("res_model", "=", self.res_model)], ["column_name", "field_name"]
         )
-        # Normalised on read too: rows written before `_normalize_column_name`
-        # existed can carry untrimmed names.
         mapping_fields = {
             _normalize_column_name(rec["column_name"]): rec["field_name"]
             for rec in mapping_records
@@ -1617,22 +1307,6 @@ class Base_ImportImport(models.TransientModel):
         return mapping_suggestions
 
     def _deduplicate_mapping_suggestions(self, mapping_suggestions):
-        """This method is meant to avoid multiple columns to be matched on the same field.
-
-        Taking ``mapping_suggestions`` as input, it will check if multiple
-        columns are mapped to the same field and will only keep the mapping
-        that has the smallest distance. The other columns that were matched
-        to the same field are removed from the mapping suggestions.
-
-        Hierarchy mapping is considered as advanced and is skipped during this
-        deduplication process. We consider that multiple mapping on hierarchy
-        mapping will not occur often and due to the fact that this won't lead
-        to any particular issues when a non 'char/text' field is selected more
-        than once in the UI, we keep only the last selected mapping. The
-        objective is to lighten the mapping suggestion process as much as we can.
-
-        :param dict mapping_suggestions: ``{ (column_index, header_name) : { 'field_path': [header_name], 'distance': word_distance }}``
-        """
         min_dist_per_field = {}
         headers_to_keep = []
         for header, suggestion in mapping_suggestions.items():
@@ -1652,18 +1326,6 @@ class Base_ImportImport(models.TransientModel):
             del mapping_suggestions[header]
 
     def _get_preview_matches(self, headers, header_types, fields_tree, options):
-        """The header -> field-path mapping the client should start from.
-
-        Either the mapping the user already made -- advanced mode re-parses the
-        file but keeps its mapping as is, so no new proposal is made -- or a
-        fresh suggestion per header.
-
-        :param list headers: the header row
-        :param dict header_types: see :meth:`_extract_headers_types`
-        :param list fields_tree: see :meth:`get_fields_tree`
-        :param dict options: parsing options
-        :rtype: dict
-        """
         matches = {}
         if options.get("keep_matches") and options.get("fields"):
             for index, match in enumerate(options.get("fields", [])):
@@ -1673,8 +1335,6 @@ class Base_ImportImport(models.TransientModel):
             suggestions = self._get_mapping_suggestions(
                 headers, header_types, fields_tree
             )
-            # remove header_name for matches keys as tuples are no supported in json.
-            # and remove distance from suggestion (keep only the field path) as not used at client side.
             matches = {
                 header_key[0]: suggestion["field_path"]
                 for header_key, suggestion in suggestions.items()
@@ -1683,47 +1343,22 @@ class Base_ImportImport(models.TransientModel):
         return matches
 
     def _is_advanced_mode(self, headers, matches, options):
-        """Whether the client should open the mapping UI in advanced mode.
-
-        True if it already was, or if the file addresses relational fields --
-        either through a ``'/'``-joined header or through a matched path of
-        more than one segment.
-
-        :rtype: bool
-        """
         if options.get("keep_matches"):
             return options.get("advanced")
-        # Check is label contain relational field
         has_relational_header = any(
             len(models.fix_import_export_id_paths(col)) > 1 for col in headers
         )
-        # Check is matches fields have relational field
         has_relational_match = any(
             len(match) > 1 for match in matches.values() if match
         )
         return has_relational_header or has_relational_match
 
     def _get_preview_error(self, error):
-        """The payload for a preview that could not be produced.
-
-        :param Exception error: what :meth:`_get_preview` raised
-        :rtype: dict
-        """
-        # Expected failures carry a message written for the user and are
-        # reported verbatim. Anything else is a defect in this code: it used
-        # to be reported the same way, so the user saw raw Python text
-        # ("list index out of range" was a real one, from a header-only
-        # file) while the only trace was a debug-level log line that no
-        # deployment has enabled -- the bug was invisible to monitoring and
-        # unactionable to the user. Log those loudly and say something
-        # honest instead.
         if isinstance(
             error, ImportValidationError | UserError | ValueError | csv.Error
         ):
             message = str(error)
         else:
-            # exc_info=error, not `.exception()`: this runs one frame below the
-            # `except` clause, so there is no ambient sys.exc_info() to rely on.
             _logger.error(
                 "Unexpected error while parsing the import preview", exc_info=error
             )
@@ -1735,21 +1370,10 @@ class Base_ImportImport(models.TransientModel):
             preview = self.file[:ERROR_PREVIEW_BYTES].decode("iso-8859-1")
         return {
             "error": message,
-            # iso-8859-1 ensures decoding will always succeed,
-            # even if it yields non-printable characters. This is
-            # in case of UnicodeDecodeError (or csv.Error
-            # compounded with UnicodeDecodeError)
             "preview": preview,
         }
 
     def _get_preview(self, options, count, fields_tree):
-        """The successful preview payload, see :meth:`parse_preview`.
-
-        :param dict options: format-specific options, normalized in place
-        :param int count: number of preview lines to generate
-        :param list fields_tree: see :meth:`get_fields_tree`
-        :rtype: dict
-        """
         self._normalize_row_window_options(options)
         data_rows = self._read_file(options)
         if not data_rows:
@@ -1757,9 +1381,7 @@ class Base_ImportImport(models.TransientModel):
 
         preview = data_rows[:count]
 
-        # Get file headers
         if options.get("has_headers") and preview:
-            # We need the header types before matching columns to fields
             headers = preview.pop(0)
             header_types = self._extract_headers_types(headers, preview, options)
         else:
@@ -1769,15 +1391,7 @@ class Base_ImportImport(models.TransientModel):
         advanced_mode = self._is_advanced_mode(headers, matches, options)
         column_example = self._prepare_column_examples(headers, preview, options)
 
-        # Data rows only, i.e. excluding the header that was popped above.
         num_rows = len(data_rows) - (1 if headers else 0)
-        # Whether the file needs more than one `execute_import` round trip.
-        # This used to be derived with `itertools.islice(data_rows,
-        # limit - count, ...)`, an offset that is only correct if the
-        # preview has already *consumed* the first `count` rows from a lazy
-        # generator. `_read_file` returns a list, so the probe landed
-        # `count` rows (plus the header) short and the flag over-reported
-        # batching for any limit within `count` of the row count.
         batch_cutoff = options.get("limit")
         batch = bool(batch_cutoff) and num_rows > batch_cutoff
 
@@ -1791,55 +1405,19 @@ class Base_ImportImport(models.TransientModel):
             "advanced_mode": advanced_mode,
             "debug": self.env.user.has_group("base.group_no_one"),
             "batch": batch,
-            # Data rows only. This drives the client's batch count
-            # (`totalSteps = ceil((num_rows - skip) / limit)`); counting the
-            # header row in it made that count one too high.
             "num_rows": num_rows,
         }
 
     def parse_preview(self, options, count=10):
-        """Generates a preview of the uploaded files, and performs
-        fields-matching between the import's file data and the model's
-        columns.
-
-        If the headers are not requested (not options.has_headers),
-        returned ``matches`` and ``headers`` are both ``False``.
-
-        :param int count: number of preview lines to generate
-        :param options: format-specific options.
-                        CSV: {quoting, separator, headers}
-        :type options: {str, str, str, bool}
-        :returns: ``{fields, matches, headers, preview} | {error, preview}``
-        :rtype: {dict(str: dict(...)), dict(int, list(str)), list(str), list(list(str))} | {str, str}
-        """
         self.check_singleton()
         self._check_model_name(self.res_model)
         fields_tree = self.get_fields_tree(self.res_model)
         try:
             return self._get_preview(options, count, fields_tree)
         except Exception as error:
-            # Due to lazy generators, UnicodeDecodeError (for
-            # instance) may only be raised when serializing the
-            # preview to a list in the return.
             return self._get_preview_error(error)
 
     def _prepare_column_examples(self, headers, preview, options):
-        """Up to 5 example values per column, for the mapping UI.
-
-        The client shows the first one inline and the rest on hover.
-
-        :param list headers: header labels, empty when the file has none
-        :param list preview: the first data rows
-        :param dict options: parsing options (supplies the date formats)
-        :returns: one list of example strings per column, never empty
-        :rtype: list[list[str]]
-        """
-        # Column count comes from the header when there is no data row left
-        # (a header-only file). `preview[0]` was indexed unconditionally, so
-        # such a file raised IndexError, which parse_preview's blanket handler
-        # turned into the literal string "list index out of range" shown to
-        # the user. Now the columns are listed with empty examples and the
-        # file stays mappable.
         column_count = max(len(headers), *(len(row) for row in preview or [[]]))
         datetime_format = (
             options.get("datetime_format") or DEFAULT_SERVER_DATETIME_FORMAT
@@ -1850,8 +1428,6 @@ class Base_ImportImport(models.TransientModel):
         for column_index in range(column_count):
             values = []
             for record in preview:
-                # Rows may be shorter than the header (ragged CSV); treat the
-                # missing cells as empty rather than raising IndexError.
                 value = record[column_index] if column_index < len(record) else ""
                 if value and isinstance(value, str):
                     values.append(
@@ -1863,28 +1439,11 @@ class Base_ImportImport(models.TransientModel):
                     values.append(value.strftime(date_format))
                 if len(values) == 5:
                     break
-            # blank value if no example was found at all for this column
             column_examples.append(values or [""])
         return column_examples
 
     @api.model
     def _check_field_mapping(self, fields):
-        """Every mapped column must name a field path.
-
-        Each consumer downstream treats a mapped entry as a ``'/'``-joined path
-        and calls ``.split`` on it, so a client sending a number or an object
-        produced an ``AttributeError`` out of ``execute_import`` -- which
-        catches only :class:`ImportValidationError` -- and so an HTTP 500 for
-        what is a caller mistake.
-
-        The message names the column's position, not its value: the value is
-        whatever the caller sent, and ``_()`` flattens a container argument into
-        prose (``{'a': 1}`` renders as "a", ``[1, 2]`` as "1 and 2"), so echoing
-        it describes the complaint wrongly.
-
-        :param list fields: field path per column, falsy where unmapped
-        :raises ImportValidationError: on the first entry that is not a string
-        """
         for position, field in enumerate(fields, start=1):
             if field and not isinstance(field, str):
                 raise ImportValidationError(
@@ -1897,23 +1456,6 @@ class Base_ImportImport(models.TransientModel):
     def _map_import_rows(
         self, rows_to_import, mapper, max_index, title_row_entries, options
     ):
-        """Each row narrowed to the mapped columns, dropping rows left empty.
-
-        :param list rows_to_import: parsed rows, header already removed
-        :param mapper: picks the mapped columns out of one row
-        :param int max_index: highest column index the mapping addresses
-        :param int title_row_entries: width of the title row, for the message
-        :param dict options: parsing options
-        :rtype: list[list]
-        :raises ImportValidationError: on a row too narrow for the mapping
-        """
-        # The width check in the caller only ever looked at the *first* row, so
-        # a row narrower than the header later in the file reached `mapper` --
-        # `operator.itemgetter` over a short row -- and raised IndexError.
-        # `execute_import` catches only ImportValidationError, so that escaped
-        # as an HTTP 500, while the precise, translated message for exactly
-        # this situation sat unused a few lines above. Report it per row, and
-        # name the row so the user can find it.
         data = []
         for row_number, row in enumerate(
             rows_to_import, start=2 if options.get("has_headers") else 1
@@ -1931,8 +1473,6 @@ class Base_ImportImport(models.TransientModel):
                     )
                 )
             mapped = list(mapper(row))
-            # don't try inserting completely empty rows (e.g. from
-            # filtering out o2m fields)
             if any(mapped):
                 data.append(mapped)
         return data
@@ -1945,37 +1485,22 @@ class Base_ImportImport(models.TransientModel):
         list[list[str]],  # data
         list[str],  # fields, without the bool items
     ]:
-        """Extracts the input BaseModel and fields list (with
-        ``False``-y placeholders for fields to *not* import) into a
-        format Model.import_data can use: a fields list without holes
-        and the precisely matching data matrix
-
-        :returns: (data, fields)
-        :raises ValueError: in case the import data could not be converted
-        """
         self._check_field_mapping(fields)
-        # Get indices for non-empty fields
         indices = [index for index, field in enumerate(fields) if field]
         if not indices:
             raise ImportValidationError(
                 _("You must configure at least one field to import")
             )
-        # If only one index, itemgetter will return an atom rather
-        # than a 1-tuple
         if len(indices) == 1:
 
             def mapper(row):
                 return [row[indices[0]]]
         else:
             mapper = operator.itemgetter(*indices)
-        # Get only list of actually imported fields
         import_fields = [f for f in fields if f]
 
         rows_to_import = self._read_file(options)
         if not rows_to_import:
-            # Reachable when called directly (RPC/automation) without going through
-            # parse_preview's file_length guard first: an empty or all-blank-rows
-            # file used to crash here with an unhandled IndexError (t24068 F4).
             raise ImportValidationError(_("Import file has no content or is corrupt"))
         if len(rows_to_import[0]) != len(fields):
             raise ImportValidationError(
@@ -1993,33 +1518,9 @@ class Base_ImportImport(models.TransientModel):
             rows_to_import, mapper, indices[-1], len(fields), options
         )
 
-        # slicing needs to happen after filtering out empty rows as the
-        # data offsets from load are post-filtering
         return data[options.get("skip") or 0 :], import_fields
 
     def _batch_window(self, import_fields, data, limit):
-        """Number of leading rows of ``data`` that this batch can possibly
-        consume, so the caller can drop the rest before any per-row work.
-
-        Everything between :meth:`_convert_import_data` and ``load`` used to run
-        over *all* remaining rows, because only ``load`` honours the batch
-        limit. That made each stage quadratic in the file size (measured: 1.8x
-        redundant row visits at 5k rows, 5.5x at 20k), and for binary columns it
-        was not merely wasteful -- ``_parse_import_data`` downloads remote image
-        URLs, so a 50-URL file imported at limit 5 performed 50 fetches in the
-        first batch and 275 overall instead of 50.
-
-        The bound mirrors ``_extract_records``: it stops at row index ``limit``,
-        but a record started before that point absorbs the immediately following
-        *one2many continuation* rows (rows carrying only o2m values). Those
-        trailing rows must stay in the window or the record loses part of its
-        one2many lines and they are re-read as a broken record next batch.
-
-        :param list import_fields: field paths, positionally matching ``data``
-        :param list data: rows remaining after ``skip``
-        :param limit: batch size, or a falsy value for "no batching"
-        :rtype: int
-        """
         if not limit or limit >= len(data):
             return len(data)
 
@@ -2030,20 +1531,6 @@ class Base_ImportImport(models.TransientModel):
         return window
 
     def _continuation_rows(self, import_fields, data):
-        """Which rows continue the record started above them rather than
-        starting one of their own.
-
-        ``_extract_records`` groups a record with the rows immediately after it
-        that carry *only* one2many values -- the extra lines of an order, say.
-        So a file's row count is not its record count, and anything that pairs
-        rows with the ids ``load`` returns has to know the difference.
-
-        :param list import_fields: field paths, positionally matching ``data``
-        :param list data: rows
-        :returns: one bool per row; ``data[0]`` is never a continuation, having
-            nothing above it to continue
-        :rtype: list[bool]
-        """
         model = self.env[self.res_model]
         o2m_indexes, other_indexes = [], []
         for index, path in enumerate(import_fields):
@@ -2068,14 +1555,6 @@ class Base_ImportImport(models.TransientModel):
 
     @api.model
     def _remove_currency_symbol(self, value, currency_symbols=None):
-        """Strip a leading/trailing currency symbol off ``value``.
-
-        :param str value: the raw cell value
-        :param set currency_symbols: known symbols, from :meth:`_currency_symbols`.
-            Callers in a loop should pass it; ``None`` falls back to a lookup
-            for this one symbol, preserving the behaviour of external callers.
-        :returns: the numeric part, or ``False`` if this is not a decorated number
-        """
         if currency_symbols is None:
             currency_symbols = _StoredCurrencySymbols(self.env)
         number = strip_currency_symbol(value, currency_symbols)
@@ -2083,16 +1562,6 @@ class Base_ImportImport(models.TransientModel):
 
     @api.model
     def _currency_symbols(self):
-        """Every known currency symbol, as one query.
-
-        :meth:`_remove_currency_symbol` is called once per value, so letting it
-        look symbols up individually meant a currency-decorated column ("$ 1.50",
-        ...) issued one ``res.currency`` SELECT *per row* (300 rows -> 300
-        queries). Callers that loop hoist this out of the loop and pass the
-        result down. Deliberately not ormcached: a registry-level cache would go
-        stale when a currency is added, and one query per import stage is
-        already negligible.
-        """
         symbols = (
             self.env["res.currency"]
             .with_context(active_test=False)
@@ -2105,12 +1574,6 @@ class Base_ImportImport(models.TransientModel):
     def _parse_float_from_data(self, data, index, name, options):
         currency_symbols = self._currency_symbols()
         for line in data:
-            # The xls/xlsx readers hand back native date/datetime objects for
-            # date-formatted cells. Landing one in a float column used to raise
-            # a bare AttributeError ('datetime.date' object has no attribute
-            # 'strip') which escaped execute_import -- it only catches
-            # ImportValidationError -- and surfaced as an HTTP 500. Re-stringify
-            # first so it fails as a normal, per-column import error instead.
             line[index] = self._stringify_date_like_objects(
                 line[index], options, trim=True
             )
@@ -2155,77 +1618,29 @@ class Base_ImportImport(models.TransientModel):
         )
 
     def _parse_import_data(self, data, import_fields, options):
-        """Normalise the raw cell values of the date, float and binary columns
-        in place, so ``load`` receives values it can accept.
-
-        Walks the *mapped paths* rather than every field of every model
-        involved. The previous shape iterated `fields_get()` -- all fields, all
-        attributes, per relational level, per batch -- and tested each one
-        against ``import_fields`` with a substring scan, so it did O(fields x
-        import_fields) work to act on the handful of columns actually mapped.
-        It also decided a field was relational purely from the path shape and
-        then read ``field['relation']``, a key ``fields_get`` returns only for
-        real relations: a client-supplied path like ``name/foo`` (``name`` is a
-        Char) raised ``KeyError('relation')``, which `execute_import` does not
-        catch, so it surfaced as an HTTP 500 rather than an import error.
-        """
         path_models = self._check_import_paths(import_fields)
         for index, path in enumerate(import_fields):
             field = self._resolve_import_path(path, path_models)
             if field is None:
-                # Unknown leaf or a pseudo-field such as `.id`. Not this
-                # method's error to report: `load` validates those and produces
-                # a proper per-column message ("Field 'x' does not exist on
-                # model 'y'"), so leave the values untouched and let it speak.
                 continue
             if field.type in ("date", "datetime"):
                 self._parse_date_from_data(data, index, path, field.type, options)
             elif field.type in ("float", "monetary"):
-                # Parse float, sometimes float values from file have currency symbol or () to denote a negative value
-                # We should be able to manage both case
                 self._parse_float_from_data(data, index, path, options)
             elif field.type == "binary" and field.attachment:
                 self._parse_binary_from_data(data, index, path, options)
         return data
 
     def _resolve_import_path(self, path, path_models=None):
-        """The field an import path addresses, or ``None`` if it does not
-        address one.
-
-        ``None`` means "not this method's problem": an unknown leaf name, or a
-        pseudo-field such as ``.id`` that is not in ``_fields`` at all. ``load``
-        validates and reports those itself, with a better message than anything
-        available here.
-
-        A path descending *through* a non-relation is a different matter and
-        raises -- see :meth:`_check_import_paths`.
-
-        :param str path: e.g. ``'name'``, ``'partner_id/country_id/code'``
-        :param dict[str, str] path_models: :meth:`_resolve_path_model` results
-            already computed by :meth:`_check_import_paths`, keyed by path --
-            reused instead of re-walking the same relation chain twice per
-            call. ``None`` (the default) always resolves fresh.
-        :rtype: odoo.fields.Field | None
-        """
         if path_models is not None and path in path_models:
             model = path_models[path]
         else:
             model = self._resolve_path_model(path)
         if not model:
             return None
-        # A Properties sub-column is written `<field>.<property>`; it is the
-        # `properties` field itself that carries the type.
         return self.env[model]._fields.get(path.split("/")[-1].split(".")[0])
 
     def _resolve_path_model(self, path):
-        """The model the *last* segment of ``path`` belongs to.
-
-        ``None`` when the path descends through something that is not a
-        relation; ``""`` when it descends through a relational *property*
-        (``properties.m2o_prop/.id``), whose comodel lives in the definition
-        record rather than in ``_fields`` and so cannot be named statically.
-        ``load`` resolves that one per row.
-        """
         model = self.res_model
         for segment in path.split("/")[:-1]:
             if model not in self.env:
@@ -2242,31 +1657,6 @@ class Base_ImportImport(models.TransientModel):
         return model if model in self.env else None
 
     def _check_import_paths(self, import_fields):
-        """Reject column mappings that descend through a non-relational field.
-
-        ``name/foo`` asks for a subfield of a Char. This module used to raise
-        ``KeyError('relation')`` while building its parse plan, escaping
-        ``execute_import`` as an HTTP 500.
-
-        ``load`` now refuses the same paths (`_get_invalid_load_paths`), so this
-        check is belt-and-braces rather than the only guard -- but it is the
-        one that runs before the file is parsed, and it names the column the
-        user actually mapped. Keeping both is deliberate: this module builds a
-        parse plan from these paths *before* handing them over, and that plan
-        has no sensible meaning for a path that addresses nothing.
-
-        Only *intermediate* segments are checked. An unknown leaf, or a
-        pseudo-field like ``.id``, is left to ``load`` -- it reports those
-        precisely ("Field 'nope' does not exist on model 'res.partner'") and
-        pre-empting it here would only produce a worse message.
-
-        :param list[str] import_fields: field paths, as sent by the client
-        :raises ImportValidationError: on the first unusable path
-        :rtype: dict[str, str]
-        :returns: :meth:`_resolve_path_model` results for every multi-segment
-            path, so a caller building a parse plan right after this call does
-            not have to re-walk the same relation chain a second time.
-        """
         path_models = {}
         for path in import_fields:
             segments = path.split("/")
@@ -2288,22 +1678,10 @@ class Base_ImportImport(models.TransientModel):
         return path_models
 
     def _parse_binary_from_data(self, data, index, name, options):
-        """Resolve the binary column at ``index`` to base64 payloads.
-
-        Values may be a URL (fetched), a filename (left for the client's
-        attachment pass) or already-base64 data (validated).
-        """
         with requests.Session() as session:
             session.stream = True
 
             for num, line in enumerate(data):
-                # A binary/attachment column can receive a native date/datetime
-                # object from the xlsx/xls readers instead of a string (e.g. the
-                # spreadsheet cell was date-formatted); every branch below
-                # (re.match / '.' in ... / b64decode) assumes a string and used to
-                # crash with an unhandled TypeError (t24068 F11) — re-stringify
-                # first, mirroring the existing _stringify_date_like_objects
-                # helper built for exactly this class of value.
                 if isinstance(line[index], (datetime.date, datetime.datetime)):
                     line[index] = self._stringify_date_like_objects(
                         line[index], options
@@ -2321,7 +1699,6 @@ class Base_ImportImport(models.TransientModel):
                         line[index], session, name, num
                     )
                 elif "." in line[index]:
-                    # Detect if it's a filename
                     pass
                 else:
                     try:
@@ -2355,8 +1732,6 @@ class Base_ImportImport(models.TransientModel):
                         continue
                     except ValueError:
                         pass
-                # otherwise try parsing as a date whether it's a date
-                # or datetime
                 line[index] = fmt(dt.strptime(v, d_fmt))
             except ValueError as e:
                 raise ImportValidationError(
@@ -2382,15 +1757,6 @@ class Base_ImportImport(models.TransientModel):
                 ) from e
 
     def _import_file_by_url(self, url, session, field, line_number):
-        """Imports a file by URL
-
-        :param str url: the original field value
-        :param requests.Session session:
-        :param str field: name of the field (for logging/debugging)
-        :param int line_number: 0-indexed line number within the imported file (for logging/debugging)
-        :return: the replacement value
-        :rtype: bytes
-        """
         assert re.match(config.get("import_url_regex"), url)
         maxsize = config.get("import_file_maxbytes")
         _logger.debug(

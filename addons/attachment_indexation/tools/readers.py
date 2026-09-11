@@ -1,18 +1,3 @@
-"""Text out of the four office containers, for anything holding one.
-
-These parsers were methods on `ir.attachment` and reachable only through
-`_get_index_content()`, so a document layer that had every other format could not read a
-Word document. They are plain functions here, registered as readers of the
-shared registry, and `ir.attachment` calls the same functions with its own
-zip-entry bound.
-
-The bound is a parameter rather than a constant either side owns. The indexer
-passes `_INDEX_MAX_BYTES`, which is also its read size and its stored-content
-limit; a reader reached through the registry has no such budget to inherit and
-takes `MAX_ENTRY_BYTES`. Naming one number for both would tie a zip-bomb guard
-to how much text a column happens to hold.
-"""
-
 from __future__ import annotations
 
 import io
@@ -40,9 +25,6 @@ PPTX = mimetype_for("pptx")
 XLSX = mimetype_for("xlsx")
 OPENDOCUMENT = mimetypes_for("odt", "ods", "odp", "odg")
 
-# What one entry of a zip-based container may inflate to. A small, well-formed
-# .docx can declare a huge uncompressed size for its inner XML and force a full
-# in-memory inflate of attacker-controlled content on every read.
 MAX_ENTRY_BYTES = 4 * 1024 * 1024
 
 MAX_COLUMN_REPEAT = 100
@@ -160,11 +142,6 @@ def read_xlsx(data, max_entry_bytes=MAX_ENTRY_BYTES):
 
     f = io.BytesIO(data)
     if zipfile.is_zipfile(f):
-        # Only the parts load_workbook actually decompresses to resolve cells
-        # (sheets, shared strings, styles, the workbook manifest itself) can
-        # zip-bomb it. xl/media and xl/embeddings hold images and OLE objects
-        # respectively, which a legitimate spreadsheet may carry at any size
-        # without load_workbook ever inflating them.
         oversized = any(
             info.file_size > max_entry_bytes
             for info in zipfile.ZipFile(f).infolist()

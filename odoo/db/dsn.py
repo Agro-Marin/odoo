@@ -13,13 +13,6 @@ _NON_RETRYABLE_CONNECT_ERRORS: tuple[type[psycopg.Error], ...] = (
 
 
 _LOCALE_INDEPENDENT_AUTH_MARKERS: tuple[str, ...] = ("pg_hba.conf",)
-"""Fragments PostgreSQL does not translate, so they survive `lc_messages`.
-
-A filename is a filename in every catalogue: the Spanish rendering of the
-missing-entry error is `no hay una linea en pg_hba.conf para el servidor ...`
-and still contains it.  Everything in `_ENGLISH_*` below does not survive, and
-that is a real limitation rather than an oversight -- see the module note.
-"""
 
 _ENGLISH_ABSENT_DB_MARKERS: tuple[tuple[str, ...], ...] = (
     ('database "', "does not exist"),
