@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 04:00+0000\n"
-"PO-Revision-Date: 2026-09-11 04:00+0000\n"
+"POT-Creation-Date: 2026-09-11 05:19+0000\n"
+"PO-Revision-Date: 2026-09-11 05:19+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -295,6 +295,14 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
+"%(request)s follows its document: approve or refuse it here, and move it "
+"otherwise from %(document)s itself."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid ""
 "%(success)s of %(total)s request(s) %(action)s successfully.\n"
 "\n"
 "Failed requests:\n"
@@ -312,8 +320,32 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
+#: code:addons/approval/models/mixin_approval_state_sync.py:0
+msgid "%(user)s approved %(record)s without an approver's decision."
+msgstr ""
+
+#. module: approval
+#. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "%(user)s approved step(s) %(steps)s of %(request)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_state_sync.py:0
+msgid "%(user)s cancelled %(record)s after it was approved."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_state_sync.py:0
+msgid "%(user)s cancelled %(record)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_state_sync.py:0
+msgid "%(user)s deleted %(record)s."
 msgstr ""
 
 #. module: approval
@@ -329,6 +361,18 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "%(user)s has already decided %(steps)s on %(name)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_state_sync.py:0
+msgid "%(user)s refused %(record)s after it was approved."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_state_sync.py:0
+msgid "%(user)s refused %(record)s."
 msgstr ""
 
 #. module: approval
@@ -999,6 +1043,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__date_approval_granted
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__date_approval_granted
 msgid "Approval Granted Date"
 msgstr ""
 
@@ -1035,6 +1080,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__approval_progress
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_progress
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__approval_progress
 msgid "Approval Progress"
 msgstr ""
 
@@ -1063,8 +1109,14 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__request_id
 #: model:ir.model.fields,field_description:approval.field_mail_activity__approval_request_id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_request_id
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__approval_request_id
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__activity_target__request
 msgid "Approval Request"
+msgstr ""
+
+#. module: approval
+#: model:ir.model,name:approval.model_mixin_approval_state_sync
+msgid "Approval Request Following Its Document's State"
 msgstr ""
 
 #. module: approval
@@ -1080,6 +1132,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__date_approval_requested
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__date_approval_requested
 msgid "Approval Requested Date"
 msgstr ""
 
@@ -1087,6 +1140,7 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_binding.py:0
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_required
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__approval_required
 msgid "Approval Required"
 msgstr ""
 
@@ -1102,6 +1156,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_state
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__approval_state
 msgid "Approval Status"
 msgstr ""
 
@@ -1424,6 +1479,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_category__approver_ids
 #: model:ir.model.fields,field_description:approval.field_approval_category_step__user_ids
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_user_ids
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__approval_user_ids
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_tree
 msgid "Approvers"
@@ -1804,6 +1860,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__can_request_approval
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__can_request_approval
 msgid "Can Request Approval"
 msgstr ""
 
@@ -2265,6 +2322,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_state
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__approval_state
 msgid ""
 "Current approval status:\n"
 "        • new: Approval created but not submitted\n"
@@ -2371,12 +2429,14 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_mixin_approval__date_approval_requested
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__date_approval_requested
 msgid "Date and time when approval was requested for this document"
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__date_approval_granted
 #: model:ir.model.fields,help:approval.field_mixin_approval__date_approval_granted
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__date_approval_granted
 msgid "Date and time when final approval was granted"
 msgstr ""
 
@@ -2616,6 +2676,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_mail_activity_type__display_name
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__display_name
 #: model:ir.model.fields,field_description:approval.field_mixin_approval_domain__display_name
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__display_name
 #: model:ir.model.fields,field_description:approval.field_mixin_approval_threshold__display_name
 #: model:ir.model.fields,field_description:approval.field_res_groups__display_name
 #: model:ir.model.fields,field_description:approval.field_res_users__display_name
@@ -3120,6 +3181,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_mail_activity_type__id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval_domain__id
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval_threshold__id
 #: model:ir.model.fields,field_description:approval.field_res_groups__id
 #: model:ir.model.fields,field_description:approval.field_res_users__id
@@ -3386,6 +3448,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_request_id
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__approval_request_id
 msgid ""
 "Link to the approval request for this document. Automatically created when "
 "approval is requested."
@@ -4271,6 +4334,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__pending_approver_ids
+#: model:ir.model.fields,field_description:approval.field_mixin_approval_state_sync__pending_approver_ids
 msgid "Pending Approvers"
 msgstr ""
 
@@ -4340,6 +4404,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__approval_progress
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_progress
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__approval_progress
 msgid "Percentage of approvals completed (approved / total approvers)"
 msgstr ""
 
@@ -6206,11 +6271,13 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_user_ids
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__approval_user_ids
 msgid "Users who need to approve this document"
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_mixin_approval__pending_approver_ids
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__pending_approver_ids
 msgid "Users who still need to approve this document"
 msgstr ""
 
@@ -6419,6 +6486,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_mixin_approval__can_request_approval
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__can_request_approval
 msgid "Whether approval can be requested (all required fields filled)"
 msgstr ""
 
@@ -6450,6 +6518,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_required
+#: model:ir.model.fields,help:approval.field_mixin_approval_state_sync__approval_required
 msgid "Whether this document requires approval based on current rules"
 msgstr ""
 

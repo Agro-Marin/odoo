@@ -391,6 +391,7 @@ class ApprovalRequestLifecycle(models.Model):
 
     def _check_change_request_allowed(self) -> None:
         self.check_singleton()
+        self._check_moved_from_source_document()
         if self.state != "pending":
             raise UserError(
                 self.env._(
@@ -597,6 +598,7 @@ class ApprovalRequestLifecycle(models.Model):
         to_open.sudo().write({"state": "pending"})
 
     def action_cancel(self) -> None:
+        self._check_moved_from_source_document()
         self._check_owner_or_manager(self.env._("cancel"))
         for request in self:
             request._lock_and_reload()
@@ -1037,10 +1039,26 @@ class ApprovalRequestLifecycle(models.Model):
         )
 
     def _check_withdraw_allowed(self) -> None:
-        pass
+        self._check_moved_from_source_document()
+
+    def _check_moved_from_source_document(self) -> None:
+        for request in self:
+            model = request.res_model and self.env.get(request.res_model)
+            if model is not None and getattr(
+                model, "_approval_request_follows_document", False
+            ):
+                raise UserError(
+                    self.env._(
+                        "%(request)s follows its document: approve or refuse it here, "
+                        "and move it otherwise from %(document)s itself.",
+                        request=request.display_name,
+                        document=request.res_name or request.res_model,
+                    )
+                )
 
     def _check_reset_allowed(self) -> None:
         self.check_singleton()
+        self._check_moved_from_source_document()
         if not self.res_model or not self.res_id:
             return
         source_doc = self.get_source_document()

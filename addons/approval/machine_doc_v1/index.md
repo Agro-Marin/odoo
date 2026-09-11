@@ -45,6 +45,7 @@ dashboards.
 | `approval_request_prediction.py` | extends `approval.request` | On-demand outcome prediction (`action_predict_outcome`) |
 | `approval_approver.py` | `approval.approver` | Individual approver: state, delegation, CRUD access control |
 | `mixin_approval.py` | `mixin.approval` (Abstract) | Mixin for source documents (PO, SO, etc.) to integrate with approvals |
+| `mixin_approval_state_sync.py` | `mixin.approval.state.sync` (Abstract) | A source document whose own state drives its request: a state change syncs the request (decision, grant, revoke, force, reset), a request-side decision reaches the document through the document's own policy, and the request refuses being moved from the approvals app. Adopted by `hr.leave` and `hr.leave.allocation` |
 | `mixin_approval_threshold.py` | `mixin.approval.threshold` (Abstract) | Base of `approval.rule`: `company_id` + `currency_id`, `_convert_request_amount()` (a request's amount is converted into the record's currency before any comparison) and `_intervals_overlap()` |
 | `approval_refusal_reason.py` | `approval.refusal.reason` | Predefined refusal reasons with usage tracking |
 | `approval_rule.py` | `approval.rule` | Conditional rules: add approvers, REPLACE approvers (the former `approval.tier`, as `operator = between` + `action_type = set_approvers`), auto-approve, auto-refuse. A rule compares a normalized figure on the request (amount / quantity / date range / priority) or, by `condition_type`, reads the SOURCE DOCUMENT through a domain or a field value |
@@ -201,6 +202,7 @@ approval/
 |   +-- approval_request_escalation.py # Escalation + reminders (split file)
 |   +-- approval_approver.py          # Approver records
 |   +-- mixin_approval.py             # Source document mixin
+|   +-- mixin_approval_state_sync.py  # Document state drives its request
 |   +-- mixin_approval_threshold.py   # Currency-aware threshold base
 |   +-- mixin_approval_domain.py      # Subject-domain parsing + path checks
 |   +-- approval_refusal_reason.py    # Refusal reasons
@@ -244,12 +246,12 @@ approval/
 | XML files (static templates) | 4 |
 | JS files | 16 |
 | SCSS files | 4 |
-| ORM models (new) | 15 in `models/` + 2 wizards + 3 report models |
+| ORM models (new) | 16 in `models/` + 2 wizards + 3 report models |
 | ORM models (extended) | 8 (base, ir.actions.report, ir.actions.server, ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |
-| Abstract models | 3 (mixin.approval, mixin.approval.threshold, mixin.approval.domain) |
+| Abstract models | 4 (mixin.approval, mixin.approval.state.sync, mixin.approval.threshold, mixin.approval.domain) |
 | SQL view models | 2 |
 | Transient models | 2 |
-| Test-only models | 1 |
+| Test-only models | 2 |
 | Cron jobs | 3 |
 | Migration script directories | 21 |
 

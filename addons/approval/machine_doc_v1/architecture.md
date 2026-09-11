@@ -786,6 +786,26 @@ The mixin:
    (`_clear_refused_approval_link()`), which also makes the old request
    non-resettable (`_check_reset_allowed`)
 
+### A document that drives its request (`mixin.approval.state.sync`)
+
+Some documents cannot hand their lifecycle to the engine. Time off is the case that forced this: five modules override
+the leave's `action_refuse` alone, each post-processing after `super()`. A document the engine moves through its
+callbacks would run that post-processing twice, once for the button and once for the callback. Such a document
+inherits `mixin.approval.state.sync` instead, and the direction reverses:
+
+- the document keeps its own state field and its buttons. A state change brings the request in line: the acting user's
+  decision when they hold a decidable row, otherwise a grant (`_approve_without_decision`), a revocation (`_revoke`)
+  or a forced terminal state;
+- a decision taken on the request itself, in the approvals app or through an activity, reaches the document through
+  `_check_approval_sync_policy`, the document's own authority run as the acting user, and then through the document's
+  overridable methods. The engine's pools may be wider than the document's policy (a group step), and the policy
+  decides;
+- an `approval_state_sync` context of request ids keeps either side from reacting to the change the other just made;
+- the request refuses being withdrawn, reset, cancelled or sent back for a change from the approvals app
+  (`_check_moved_from_source_document`), since those moves belong to the document.
+
+The adopter declares a state-to-kind map, a policy check and how to apply an outcome; everything else is the mixin's.
+
 ### Dependencies
 
 The three declared in `__manifest__.py`:

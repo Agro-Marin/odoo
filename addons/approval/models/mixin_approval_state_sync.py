@@ -1,0 +1,254 @@
+from typing import Any
+
+from odoo import SUPERUSER_ID, api, models
+
+SYNC_CONTEXT_KEY = "approval_state_sync"
+
+
+class MixinApprovalStateSync(models.AbstractModel):
+    _name = "mixin.approval.state.sync"
+    _inherit = ["mixin.approval"]
+    _description = "Approval Request Following Its Document's State"
+    _approval_request_follows_document = True
+
+    def _get_approval_sync_state_field(self) -> str:
+        return "state"
+
+    def _get_approval_sync_kinds(self) -> dict[Any, str]:
+        """Each value of the state field, mapped to what it means for the request.
+
+        Kinds: ``pending`` (awaiting approval), ``progress`` (a first step approved),
+        ``approved``, ``refused``, ``cancelled`` and ``draft`` (not submitted).
+        """
+        raise NotImplementedError
+
+    def _get_approval_sync_kind(self) -> str | None:
+        self.check_singleton()
+        return self._get_approval_sync_kinds().get(
+            self[self._get_approval_sync_state_field()]
+        )
+
+    def _check_approval_sync_policy(self, kind: str) -> None:
+        return
+
+    def _apply_approval_sync_outcome(self, kind: str) -> None:
+        raise NotImplementedError
+
+    def _get_approval_category_xmlid(self) -> str | None:
+        return None
+
+    def _get_domain_approval_category(self) -> list[Any]:
+        xmlid = self._get_approval_category_xmlid()
+        category = xmlid and self.env.ref(xmlid, raise_if_not_found=False)
+        if category:
+            return [("id", "=", category.id)]
+        return super()._get_domain_approval_category()
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records._create_approval_requests()
+        return records
+
+    def write(self, vals):
+        field = self._get_approval_sync_state_field()
+        if field not in vals:
+            return super().write(vals)
+        previous = {record.id: record[field] for record in self.sudo()}
+        result = super().write(vals)
+        synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
+        moved = self.browse(
+            [
+                record.id
+                for record in self.sudo()
+                if record[field] != previous[record.id]
+            ]
+        )
+        with_request = moved.filtered(
+            lambda record: (
+                record.sudo().approval_request_id
+                and record.sudo().approval_request_id.id not in synced
+            )
+        )
+        with_request._sync_approval_request()
+        (
+            moved.filtered(lambda record: not record.sudo().approval_request_id)
+        )._create_approval_requests()
+        return result
+
+    def unlink(self):
+        for record in self.sudo().filtered(
+            lambda record: record.approval_request_id.state == "pending"
+        ):
+            record._get_synced_approval_request()._force_terminal(
+                "cancelled",
+                self.env._(
+                    "%(user)s deleted %(record)s.",
+                    user=self.env.user.name,
+                    record=record.display_name,
+                ),
+            )
+        return super().unlink()
+
+    def _needs_approval_request(self) -> bool:
+        self.check_singleton()
+        return (
+            self._get_approval_sync_kind() == "pending"
+            and not self.approval_request_id
+            and self.approval_required
+        )
+
+    def _create_approval_requests(self) -> None:
+        # The superuser is the system: what it creates or moves (crons, fast paths,
+        # data) keeps the direct flow. A user's sudo() keeps their uid, so it still asks.
+        if self.env.uid == SUPERUSER_ID or self.env.context.get("import_file"):
+            return
+        for record in self.sudo():
+            if record._needs_approval_request():
+                record.action_create_approval_request()
+
+    def _get_synced_approval_request(self):
+        self.check_singleton()
+        request = self.sudo().approval_request_id
+        synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
+        return request.with_context(**{SYNC_CONTEXT_KEY: (*synced, request.id)})
+
+    def _is_synced_with_approval_request(self) -> bool:
+        self.check_singleton()
+        return self.approval_request_id.id in self.env.context.get(SYNC_CONTEXT_KEY, ())
+
+    def _restart_approval_request(self, request) -> None:
+        if request.state != "new":
+            request._force_draft()
+        request.action_confirm()
+
+    def _sync_approval_request(self) -> None:
+        user = self.env.user
+        decides = self.env.uid != SUPERUSER_ID
+        for record in self:
+            request = record._get_synced_approval_request()
+            kind = record._get_approval_sync_kind()
+            if kind == "pending":
+                record._restart_approval_request(request)
+            elif kind == "draft":
+                if request.state != "new":
+                    request._force_draft()
+            elif kind in ("progress", "approved"):
+                record._sync_approval_request_approval(request, user, decides, kind)
+            elif kind in ("refused", "cancelled"):
+                record._sync_approval_request_ending(request, user, decides, kind)
+
+    def _sync_approval_request_approval(self, request, user, decides, kind) -> None:
+        self.check_singleton()
+        if request.state in ("new", "refused", "cancelled"):
+            self._restart_approval_request(request)
+        if request.state != "pending":
+            return
+        rows = (
+            request._get_rows_decidable_by(user)
+            if decides
+            else request.approver_ids.browse()
+        )
+        if kind == "progress":
+            steps = request._get_open_steps()
+            rows = rows.filtered(lambda row: steps <= row.step_ids)
+            if rows:
+                request.action_approve(approver=rows, steps=steps)
+            return
+        if rows:
+            request.action_approve(approver=rows)
+        if request.state == "pending":
+            request._approve_without_decision(
+                self.env._(
+                    "%(user)s approved %(record)s without an approver's decision.",
+                    user=user.name,
+                    record=self.display_name,
+                )
+            )
+
+    def _sync_approval_request_ending(self, request, user, decides, kind) -> None:
+        self.check_singleton()
+        refused = kind == "refused"
+        target = "refused" if refused else "cancelled"
+        if request.state == "approved":
+            request._revoke(
+                target,
+                self.env._(
+                    "%(user)s refused %(record)s after it was approved.",
+                    user=user.name,
+                    record=self.display_name,
+                )
+                if refused
+                else self.env._(
+                    "%(user)s cancelled %(record)s after it was approved.",
+                    user=user.name,
+                    record=self.display_name,
+                ),
+            )
+            return
+        if request.state not in ("new", "pending"):
+            return
+        rows = (
+            request._get_current_pending_approver(user)
+            if decides and refused and request.state == "pending"
+            else request.approver_ids.browse()
+        )
+        if rows:
+            request.action_refuse(approver=rows)
+            return
+        request._force_terminal(
+            target,
+            self.env._(
+                "%(user)s refused %(record)s.", user=user.name, record=self.display_name
+            )
+            if refused
+            else self.env._(
+                "%(user)s cancelled %(record)s.",
+                user=user.name,
+                record=self.display_name,
+            ),
+        )
+
+    def _apply_approval_outcome(self, kind: str, decided: bool = True) -> None:
+        self.check_singleton()
+        if decided and self.env.uid != SUPERUSER_ID:
+            self.sudo(False)._check_approval_sync_policy(kind)
+        synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
+        self.with_context(
+            **{SYNC_CONTEXT_KEY: (*synced, self.approval_request_id.id)}
+        )._apply_approval_sync_outcome(kind)
+
+    def _on_approval_progress(self) -> None:
+        if (
+            not self._is_synced_with_approval_request()
+            and self._get_approval_sync_kind() == "pending"
+        ):
+            self._apply_approval_outcome("progress")
+
+    def _on_approval_approved(self) -> None:
+        if (
+            not self._is_synced_with_approval_request()
+            and self._get_approval_sync_kind() != "approved"
+        ):
+            self._apply_approval_outcome("approved")
+
+    def _on_approval_refused(self) -> None:
+        if (
+            not self._is_synced_with_approval_request()
+            and self._get_approval_sync_kind() != "refused"
+        ):
+            self._apply_approval_outcome("refused")
+
+    def _on_approval_cancelled(self) -> None:
+        if not self._is_synced_with_approval_request() and (
+            self._get_approval_sync_kind() not in ("cancelled", "refused")
+        ):
+            self._apply_approval_outcome("cancelled", decided=False)
+
+    def _on_approval_reset(self) -> None:
+        if not self._is_synced_with_approval_request():
+            super()._on_approval_reset()
+
+    def _on_approval_revoked(self) -> None:
+        if not self._is_synced_with_approval_request():
+            super()._on_approval_revoked()

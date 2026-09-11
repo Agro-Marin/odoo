@@ -65,6 +65,9 @@ mixin.approval (Abstract)
     +-- approval_state (related)
     +-- pending_approver_ids (related)
 
+mixin.approval.state.sync (Abstract)   [inherits mixin.approval]
+    +-- the document's own state field (declared per adopter) drives approval_request_id
+
 approval.refusal.reason
     +-- category_ids ------> approval.category (m2m)
 
@@ -374,6 +377,7 @@ requester re-submits (`action_resubmit`).
 | `_force_terminal()` | lifecycle.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
 | `_revoke(new_state, body, ...)` | lifecycle.py | Overturns an **approved** request into `refused` or `cancelled` from outside its decisions (a validated leave refused by an officer): writes `revoked_state`, stamps the refusal metadata, cancels activities, notifies the source document once, runs `_refuse_approval_request()` for a refusal. Every approver row keeps its decision. A non-approved request raises `UserError`; `approved` as the target raises `ValueError` |
 | `_approve_without_decision(body, ...)` | lifecycle.py | Approves a **pending** request from outside its decisions (a leave the system validates): writes `granted_by_user_id`, turns pending rows to `waiting`, cancels activities, notifies the source document once. No row is recorded as deciding, and one decided before keeps its decision. A non-pending request raises `UserError` |
+| `_check_moved_from_source_document()` | lifecycle.py | Refuses withdraw, reset to draft, cancel and change requests on a request whose source model sets `_approval_request_follows_document` (`mixin.approval.state.sync`): such a request is decided here and moved otherwise from its document |
 | `_get_approval_activities(user=None)` | lifecycle.py | The approval activities asking this request's approvers, found through `mail.activity.approver_id` wherever they live. `_cancel_activities`, `_retire_unasked_approval_activities` and `_get_user_approval_activities` all read it |
 | `_notify_if_terminal_transition()` | lifecycle.py | Fire source-doc hook once on entering a terminal state |
 | `_get_notifiable_source_document()` | lifecycle.py | The adopting document to tell, or None: registry, `mixin.approval` and two-way-link checks; returned under `sudo()` with `approval_acting_user_id` |
@@ -575,6 +579,45 @@ window is scoped to `(company_id, create_uid, create_date >= now - hours,
 state not in excluded_states)` and excludes the record itself. Rate date
 comes from `_approval_rate_limit_rate_date()` (override to pin it).
 Covered by `test_approval/tests/test_rate_limit.py`.
+
+---
+
+## mixin.approval.state.sync (Abstract)
+
+| Attribute | Value |
+|---|---|
+| Model | `mixin.approval.state.sync` |
+| File | `models/mixin_approval_state_sync.py` |
+| Inherits | `mixin.approval` |
+| Class attribute | `_approval_request_follows_document = True`, read by `approval.request._check_moved_from_source_document()` |
+
+For a document that keeps its own lifecycle and lets the engine record who decided which step. The opposite
+pattern, a document the engine moves through `_on_approval_approved` and friends, stays plain `mixin.approval`.
+
+### Adopter hooks
+
+| Hook | Contract |
+|---|---|
+| `_get_approval_sync_state_field()` | The document's state field. Default `state` |
+| `_get_approval_sync_kinds()` | Each value of that field mapped to a kind: `pending`, `progress` (a first step approved), `approved`, `refused`, `cancelled` or `draft`. Required |
+| `_check_approval_sync_policy(kind)` | The document's own authority, run as the acting user before a request-side decision is applied. Raises to veto |
+| `_apply_approval_sync_outcome(kind)` | Moves the document for a kind, through the document's overridable methods. Required |
+| `_get_approval_category_xmlid()` | Optional: the category the document's requests belong to |
+| `_needs_approval_request()` | Whether a pending document without a request raises one. Adopters add their own exclusions |
+
+### Behaviour
+
+| Method | What it does |
+|---|---|
+| `create()` / `_create_approval_requests()` | Raises a request for a document created in a `pending` state. The superuser uid and `import_file` raise none; a user's `sudo()` keeps their uid and still does |
+| `write()` | When the state field moves: a document without a request that enters `pending` raises one; one with a request is brought in line by `_sync_approval_request()`, unless its request is already being synced (`approval_state_sync` context) |
+| `_sync_approval_request()` | `pending` restarts the request (reset + confirm). `draft` resets it. `progress` records the acting user's decision on the open step. `approved` records their decision when they hold a decidable row, else `_approve_without_decision`. `refused` / `cancelled` revoke an approved request, record a pending refusal as the user's decision when they hold a pending row, else force the terminal state |
+| `_on_approval_progress/approved/refused/cancelled()` | A decision taken on the request itself: checks `_check_approval_sync_policy` (skipped for the superuser, and for an engine cancellation, which is not a decision), then applies the outcome under the sync context. Skipped when the document is already in that kind |
+| `_on_approval_reset/revoked()` | Silent while syncing, otherwise `mixin.approval`'s messages |
+| `unlink()` | Cancels a pending request before the document goes |
+
+Covered by `test_approval/tests/test_state_sync.py` against `approval.test.synced.document`, and by the
+hr_holidays engine tests.
 
 ---
 
