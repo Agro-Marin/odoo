@@ -964,7 +964,12 @@ class HrExpense(models.Model):
         res = super().write(vals)
 
         if vals.get("state") == "approved" or vals.get("review_state") == "approved":
-            self._check_can_approve()
+            self.filtered(
+                lambda expense: (
+                    expense.manager_id - expense.employee_id.user_id
+                    or expense.employee_id.expense_manager_id
+                )
+            )._check_can_approve()
         elif vals.get("state") == "refused" or vals.get("review_state") == "refused":
             self._check_can_refuse()
 

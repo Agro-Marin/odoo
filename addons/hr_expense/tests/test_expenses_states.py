@@ -1,4 +1,5 @@
 from odoo import fields
+from odoo.exceptions import UserError
 from odoo.tests import tagged
 
 from odoo.addons.hr_expense.tests.common import TestExpenseCommon
@@ -244,6 +245,22 @@ class TestExpensesStates(TestExpenseCommon, MailCase):
         self.assertSequenceEqual(
             ["approved", "approved"], self.expenses_all.mapped("state")
         )
+
+    def test_expense_state_autovalidation_by_the_employee(self):
+        self.expense_employee.sudo().expense_manager_id = False
+        self.expenses_employee.sudo().manager_id = False
+
+        self.expenses_employee.with_user(self.expense_user_employee).action_submit()
+
+        self.assertEqual(self.expenses_employee.state, "approved")
+
+    def test_an_expense_manager_still_decides_an_expense_naming_its_employee(self):
+        self.expenses_employee.sudo().manager_id = self.expense_user_employee
+
+        with self.assertRaises(UserError):
+            self.expenses_employee.with_user(self.expense_user_employee).action_submit()
+
+        self.assertEqual(self.expenses_employee.state, "draft")
 
     def test_expense_next_activity(self):
         self.expenses_employee.manager_id = self.expense_user_manager_2
