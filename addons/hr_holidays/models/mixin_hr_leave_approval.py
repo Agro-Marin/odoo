@@ -240,6 +240,13 @@ class MixinHrLeaveApproval(models.AbstractModel):
     def _get_legacy_approval_activity_xmlids(self):
         return self._get_approval_activity_xmlids()
 
+    def _get_approval_activity_type(self, approver, step_type):
+        first_xmlid, second_xmlid = self._get_approval_activity_xmlids()
+        first, second = self.env.ref(first_xmlid), self.env.ref(second_xmlid)
+        if step_type not in first | second:
+            return step_type
+        return first if self.state == "confirm" else second
+
     def _get_approval_outcome_states(self):
         raise NotImplementedError
 

@@ -283,6 +283,21 @@ class TestApprovalStateSync(ApprovalCommon):
 
     # -- the request is not moved from elsewhere ------------------------------
 
+    def test_the_document_chooses_the_activity_an_approver_is_asked_with(self):
+        category, steps = self._two_step_category([self.approver_1], [self.approver_2])
+        step_type = self.env.ref("mail.mail_activity_data_todo")
+        steps.activity_type_id = step_type
+        chosen = self.env.ref("mail.mail_activity_data_call")
+        document = self._document(category=category, state="submitted")
+        row = document.approval_request_id.approver_ids.filtered(
+            lambda row: row.user_id == self.approver_1
+        )
+        self.assertEqual(row._get_activity_type(), step_type)
+
+        document.asking_activity_type_id = chosen
+
+        self.assertEqual(row._get_activity_type(), chosen)
+
     def test_the_request_is_not_moved_from_the_approvals_app(self):
         document = self._document(state="submitted")
         request = document.approval_request_id

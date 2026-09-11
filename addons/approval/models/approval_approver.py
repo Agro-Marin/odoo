@@ -402,13 +402,21 @@ class ApprovalApprover(models.Model):
         return request
 
     def _get_activity_type(self):
-        """The activity type of the first of this row's steps that names one."""
+        """The activity type of the first of this row's steps that names one, as the
+        request's document chooses it."""
         self.check_singleton()
-        return (
+        step_type = (
             self.step_ids.sorted(lambda step: (step.sequence, step.id))
             .filtered("activity_type_id")[:1]
             .activity_type_id
         )
+        document = self.request_id.get_source_document()
+        if (
+            isinstance(document, self.env.registry["mixin.approval"])
+            and len(document) == 1
+        ):
+            return document.sudo()._get_approval_activity_type(self, step_type)
+        return step_type
 
     def _get_notifiable(self):
         """The rows whose approver should be asked now.

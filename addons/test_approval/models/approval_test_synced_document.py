@@ -52,6 +52,10 @@ class ApprovalTestSyncedDocument(models.Model):
     never_requests = fields.Boolean(
         help="The adopter's own exclusion: this document never holds a request",
     )
+    asking_activity_type_id = fields.Many2one(
+        comodel_name="mail.activity.type",
+        help="When set, the activity type this document asks every approver with",
+    )
     first_decider_id = fields.Many2one(
         comodel_name="res.users",
         help="Who decided the first step before a request existed, for the backfill",
@@ -77,6 +81,9 @@ class ApprovalTestSyncedDocument(models.Model):
 
     def _can_raise_approval_request(self) -> bool:
         return super()._can_raise_approval_request() and not self.never_requests
+
+    def _get_approval_activity_type(self, approver, step_type):
+        return self.asking_activity_type_id or step_type
 
     def _get_approval_backfill_decider(self):
         return self.first_decider_id

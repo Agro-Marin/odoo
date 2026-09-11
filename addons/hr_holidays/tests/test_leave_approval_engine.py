@@ -379,3 +379,70 @@ class TestLeaveApprovalEngine(TestHrHolidaysCommon):
         self.assertFalse(
             leave.activity_ids.filtered(lambda activity: not activity.approver_id)
         )
+
+    # -- which approval an approver is asked for -------------------------------
+
+    def _leave_type_asking(self, validation_type, officer):
+        leave_type = self._leave_type(validation_type)
+        leave_type.responsible_ids = officer
+        return leave_type
+
+    def test_an_officer_only_leave_is_asked_for_its_first_approval(self):
+        leave_type = self._leave_type_asking("hr", self.user_hruser)
+
+        leave = self._leave("hr", leave_type=leave_type)
+
+        self.assertRecordValues(
+            leave.sudo().activity_ids,
+            [
+                {
+                    "user_id": self.user_hruser_id,
+                    "activity_type_id": self.env.ref(
+                        "hr_holidays.mail_act_leave_approval"
+                    ).id,
+                }
+            ],
+        )
+
+    def test_a_step_asking_with_its_own_activity_keeps_it(self):
+        own_type = self.env.ref("mail.mail_activity_data_todo")
+        self.env.ref(
+            "hr_holidays.approval_category_leave_step_manager"
+        ).sudo().activity_type_id = own_type
+
+        leave = self._leave("manager")
+
+        self.assertRecordValues(
+            leave.sudo().activity_ids,
+            [{"user_id": self.user_responsible_id, "activity_type_id": own_type.id}],
+        )
+
+    def test_a_two_step_leave_asks_the_officer_for_the_second_approval(self):
+        leave_type = self._leave_type_asking("both", self.user_hruser)
+        leave = self._leave("both", leave_type=leave_type)
+        self.assertRecordValues(
+            leave.sudo().activity_ids,
+            [
+                {
+                    "user_id": self.user_responsible_id,
+                    "activity_type_id": self.env.ref(
+                        "hr_holidays.mail_act_leave_approval"
+                    ).id,
+                }
+            ],
+        )
+
+        leave.with_user(self.user_responsible_id).action_approve()
+
+        self.assertEqual(leave.state, "validate1")
+        self.assertRecordValues(
+            leave.sudo().activity_ids,
+            [
+                {
+                    "user_id": self.user_hruser_id,
+                    "activity_type_id": self.env.ref(
+                        "hr_holidays.mail_act_leave_second_approval"
+                    ).id,
+                }
+            ],
+        )

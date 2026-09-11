@@ -152,3 +152,41 @@ class TestAllocationApprovalEngine(TestHrHolidaysCommon):
             row.decided_step_ids.browse(),
         )
         self.assertEqual(allocation.state, "validate1")
+
+    def test_an_officer_only_allocation_is_asked_for_its_first_approval(self):
+        leave_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Engine allocation asked by an officer",
+                "requires_allocation": True,
+                "employee_requests": True,
+                "allocation_validation_type": "hr",
+                "request_unit": "day",
+                "responsible_ids": [(6, 0, self.user_hruser.ids)],
+            }
+        )
+
+        allocation = (
+            self.env["hr.leave.allocation"]
+            .with_user(self.user_employee_id)
+            .create(
+                {
+                    "name": "Engine allocation asked by an officer",
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": leave_type.id,
+                    "number_of_days": 2,
+                    "allocation_type": "regular",
+                }
+            )
+        )
+
+        self.assertRecordValues(
+            allocation.sudo().activity_ids,
+            [
+                {
+                    "user_id": self.user_hruser_id,
+                    "activity_type_id": self.env.ref(
+                        "hr_holidays.mail_act_leave_allocation_approval"
+                    ).id,
+                }
+            ],
+        )
