@@ -1,6 +1,6 @@
 {
     "name": "Sales",
-    "version": "1.6",
+    "version": "1.7",
     "category": "Sales/Sales",
     "summary": "Sales internal machinery",
     "description": """

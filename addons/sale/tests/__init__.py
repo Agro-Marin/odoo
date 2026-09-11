@@ -1,4 +1,5 @@
 from . import test_access_rights
+from . import test_chart_template
 from . import test_accrued_sale_orders
 from . import test_common
 from . import test_controllers

@@ -349,9 +349,8 @@ class AccountChartTemplate(models.AbstractModel):
         return skip_update
 
     def _pre_reload_data(self, company, template_data, data, force_create=True):
-        for prop in list(template_data):
-            if prop.startswith("property_"):
-                template_data.pop(prop)
+        for prop in self._get_property_accounts():
+            template_data.pop(prop, None)
         data.pop("account.reconcile.model", None)
         if "res.company" in data:
             data["res.company"][company.id].clear()
@@ -688,15 +687,11 @@ class AccountChartTemplate(models.AbstractModel):
         return True
 
     def _pre_load_company_vals(self, company, template_data, fiscal_country):
-        def is_company_setting(key):
-            return (
-                (not key.startswith("property_") or key.startswith("property_stock_"))
-                and key != "name"
-                and key in company._fields
-            )
-
+        property_accounts = self._get_property_accounts()
         vals = {
-            key: val for key, val in template_data.items() if is_company_setting(key)
+            key: val
+            for key, val in template_data.items()
+            if key in company._fields and key != "name" and key not in property_accounts
         }
         if not company.root_id._existing_accounting():
             vals["currency_id"] = (
@@ -1042,7 +1037,11 @@ class AccountChartTemplate(models.AbstractModel):
     def _post_load_defaults(self, company, template_data):
         for field, model in self._get_property_accounts().items():
             value = template_data.get(field)
-            if value and field in self.env[model]._fields:
+            if not value or field not in self.env[model]._fields:
+                continue
+            if model == "res.company":
+                company[field] = self.ref(value)
+            else:
                 self.env["ir.default"].set(
                     model, field, self.ref(value).id, company_id=company.id
                 )
