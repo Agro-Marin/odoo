@@ -44,9 +44,11 @@ class TestUiSEPA(TestPosQrCommon):
         """
 
         # Set non sepa bank account to make the test failed
+        self.bank_account.allow_out_payment = False
         self.bank_account.write(
             {
                 "acc_number": "SA4420000001234567891234",
+                "allow_out_payment": True,
             }
         )
         self.main_pos_config.with_user(self.pos_user).open_ui()

@@ -26,7 +26,16 @@ class TestUBLDE(TestUBLCommon):
                 ],
                 "email": "info@legoland.de",
                 "country_id": cls.env.ref("base.de").id,
-                "bank_ids": [(0, 0, {"acc_number": "DE48500105176424548921"})],
+                "bank_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "acc_number": "DE48500105176424548921",
+                            "allow_out_payment": True,
+                        },
+                    )
+                ],
                 "ref": "ref_partner_1",
                 "invoice_edi_format": "xrechnung",
             }
@@ -40,7 +49,16 @@ class TestUBLDE(TestUBLCommon):
                 "city": "Rust",
                 "vat": "DE186775212",
                 "country_id": cls.env.ref("base.de").id,
-                "bank_ids": [(0, 0, {"acc_number": "DE50500105175653254743"})],
+                "bank_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "acc_number": "DE50500105175653254743",
+                            "allow_out_payment": True,
+                        },
+                    )
+                ],
                 "ref": "ref_partner_2",
                 "invoice_edi_format": "xrechnung",
             }
@@ -274,6 +292,7 @@ class TestUBLDE(TestUBLCommon):
         acc_bank = self.env["res.partner.bank"].create(
             {
                 "acc_number": "BE15001559627232",
+                "allow_out_payment": True,
                 "partner_id": self.company_data["company"].partner_id.id,
             }
         )
@@ -330,6 +349,7 @@ class TestUBLDE(TestUBLCommon):
         acc_bank = self.env["res.partner.bank"].create(
             {
                 "acc_number": "DE15001559627232",
+                "allow_out_payment": True,
                 "partner_id": partner.id,
             }
         )

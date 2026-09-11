@@ -23,6 +23,7 @@ class L10nHuEdiTestInvoiceXml(L10nHuEdiTestCommon):
                         Command.create(
                             {
                                 "acc_number": "HU0123456789",
+                                "allow_out_payment": True,
                             }
                         )
                     ]
@@ -34,6 +35,7 @@ class L10nHuEdiTestInvoiceXml(L10nHuEdiTestCommon):
                         Command.create(
                             {
                                 "acc_number": "HU6666666666",
+                                "allow_out_payment": True,
                             }
                         )
                     ]
@@ -42,6 +44,7 @@ class L10nHuEdiTestInvoiceXml(L10nHuEdiTestCommon):
             cls.bank_company = cls.env["res.partner.bank"].create(
                 {
                     "acc_number": "HU7357735773",
+                    "allow_out_payment": True,
                     "partner_id": cls.company_data["company"].partner_id.id,
                 }
             )
