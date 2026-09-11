@@ -7,6 +7,7 @@ from . import (
     test_rate_limit,
     test_source_document,
     test_state_sync,
+    test_state_sync_backfill,
     test_step_document_policy,
     test_step_progress,
 )

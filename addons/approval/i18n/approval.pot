@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 05:19+0000\n"
-"PO-Revision-Date: 2026-09-11 05:19+0000\n"
+"POT-Creation-Date: 2026-09-11 07:17+0000\n"
+"PO-Revision-Date: 2026-09-11 07:17+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -340,6 +340,14 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/mixin_approval_state_sync.py:0
 msgid "%(user)s cancelled %(record)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_state_sync.py:0
+msgid ""
+"%(user)s decided the first step before this approval request existed and "
+"holds no row on it, so that step is open again."
 msgstr ""
 
 #. module: approval
@@ -907,6 +915,12 @@ msgid ""
 "An approval that counts toward this step counts toward no other step of the "
 "same request, and the other way round: a user who decided an exclusive step "
 "decides nothing else on that request."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/mixin_approval_state_sync.py:0
+msgid "An approver"
 msgstr ""
 
 #. module: approval

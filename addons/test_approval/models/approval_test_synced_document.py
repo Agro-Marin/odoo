@@ -49,6 +49,13 @@ class ApprovalTestSyncedDocument(models.Model):
         default="",
         help="Each outcome the request applied to this document, in order",
     )
+    never_requests = fields.Boolean(
+        help="The adopter's own exclusion: this document never holds a request",
+    )
+    first_decider_id = fields.Many2one(
+        comodel_name="res.users",
+        help="Who decided the first step before a request existed, for the backfill",
+    )
     blocked_user_ids = fields.Many2many(
         comodel_name="res.users",
         relation="approval_test_synced_document_blocked_user_rel",
@@ -67,6 +74,12 @@ class ApprovalTestSyncedDocument(models.Model):
 
     def _get_approval_sync_kinds(self) -> dict[Any, str]:
         return dict(SYNC_KINDS)
+
+    def _can_raise_approval_request(self) -> bool:
+        return super()._can_raise_approval_request() and not self.never_requests
+
+    def _get_approval_backfill_decider(self):
+        return self.first_decider_id
 
     def _filter_approval_step_user_ids(self, step, user_ids: set[int]) -> set[int]:
         return user_ids - set(self.blocked_user_ids.ids)

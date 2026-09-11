@@ -1221,6 +1221,9 @@ class HrLeaveAllocation(models.Model):
     def _get_approval_category_xmlid(self):
         return "hr_holidays.approval_category_allocation"
 
+    def _get_approval_backfill_decider(self):
+        return self.approver_id.user_id
+
     def _get_approval_sync_kinds(self):
         return {
             "confirm": "pending",

@@ -337,3 +337,45 @@ class TestLeaveApprovalEngine(TestHrHolidaysCommon):
 
         leave.with_user(self.user_responsible_id).action_approve()
         self.assertFalse(leave.sudo().activity_ids)
+
+    # -- leaves in flight when time off adopted the engine -------------------
+
+    def test_a_leave_pending_before_the_engine_gets_its_request_and_one_activity(self):
+        leave = self._leave("manager", user=SUPERUSER_ID)
+        self.assertFalse(leave.approval_request_id)
+        legacy_type = self.env.ref("hr_holidays.mail_act_leave_approval")
+        self.assertEqual(leave.activity_ids.activity_type_id, legacy_type)
+        self.assertFalse(leave.activity_ids.approver_id)
+
+        leave._backfill_approval_requests()
+
+        request = leave.sudo().approval_request_id
+        self.assertEqual(request.state, "pending")
+        self.assertEqual(request.request_owner_id, self.user_employee)
+        self.assertEqual(len(leave.activity_ids), 1)
+        self.assertEqual(leave.activity_ids.approver_id.request_id, request)
+        self.assertEqual(leave.activity_ids.activity_type_id, legacy_type)
+
+    def test_a_leave_first_approved_before_the_engine_keeps_that_decision(self):
+        leave = self._leave("both", user=SUPERUSER_ID)
+        leave.write(
+            {"state": "validate1", "first_approver_id": self.employee_responsible.id}
+        )
+        self.assertFalse(leave.approval_request_id)
+
+        leave._backfill_approval_requests()
+
+        request = leave.sudo().approval_request_id
+        manager_step = self.env.ref("hr_holidays.approval_category_leave_step_manager")
+        officer_step = self.env.ref("hr_holidays.approval_category_leave_step_officer")
+        self.assertEqual(request.state, "pending")
+        row = request.approver_ids.filtered(
+            lambda row: row.user_id == self.user_responsible
+        )
+        self.assertEqual(row.decided_step_ids, manager_step)
+        self.assertEqual(row.decided_by_user_id, self.user_responsible)
+        self.assertEqual(request._get_open_steps(), officer_step)
+        self.assertEqual(leave.state, "validate1")
+        self.assertFalse(
+            leave.activity_ids.filtered(lambda activity: not activity.approver_id)
+        )

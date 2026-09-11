@@ -94,8 +94,72 @@ class MixinApprovalStateSync(models.AbstractModel):
         self.check_singleton()
         return (
             self._get_approval_sync_kind() == "pending"
-            and not self.approval_request_id
-            and self.approval_required
+            and self._can_raise_approval_request()
+        )
+
+    def _can_raise_approval_request(self) -> bool:
+        """Whether this document may hold a request at all; adopters add their own
+        exclusions here, whatever state the document is in."""
+        self.check_singleton()
+        return not self.approval_request_id and self.approval_required
+
+    def _get_legacy_approval_activity_xmlids(self) -> tuple[str, ...]:
+        """The review activities the document scheduled itself before it adopted the
+        engine, which a backfilled request replaces."""
+        return ()
+
+    def _get_approval_backfill_decider(self):
+        """Who decided the first step of a document in progress before its request
+        existed."""
+        return self.env["res.users"]
+
+    def _backfill_approval_requests(self):
+        """Raise the request each document already in flight would have raised.
+
+        For an upgrade: it runs as the superuser, whom _create_approval_requests
+        skips. A document that cannot request approval is left alone rather than
+        failing the upgrade. Returns the documents that got a request.
+        """
+        backfilled = self.browse()
+        for record in self.sudo():
+            kind = record._get_approval_sync_kind()
+            if (
+                kind not in ("pending", "progress")
+                or not record._can_raise_approval_request()
+                or not record.can_request_approval
+            ):
+                continue
+            xmlids = record._get_legacy_approval_activity_xmlids()
+            if xmlids and "activity_ids" in record._fields:
+                record.activity_unlink(list(xmlids))
+            record.action_create_approval_request()
+            if kind == "progress":
+                record._backfill_approval_progress()
+            backfilled |= record
+        return backfilled
+
+    def _backfill_approval_progress(self) -> None:
+        self.check_singleton()
+        request = self._get_synced_approval_request()
+        decider = self._get_approval_backfill_decider()
+        steps = request._get_open_steps()
+        rows = (
+            request._get_rows_decidable_by(decider).filtered(
+                lambda row: steps <= row.step_ids
+            )
+            if decider
+            else request.approver_ids.browse()
+        )
+        if rows:
+            request.action_approve(approver=rows, steps=steps)
+            return
+        self.message_post(
+            body=self.env._(
+                "%(user)s decided the first step before this approval request existed "
+                "and holds no row on it, so that step is open again.",
+                user=decider.name or self.env._("An approver"),
+            ),
+            message_type="notification",
         )
 
     def _create_approval_requests(self) -> None:

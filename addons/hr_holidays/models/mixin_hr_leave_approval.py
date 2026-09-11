@@ -232,10 +232,13 @@ class MixinHrLeaveApproval(models.AbstractModel):
         vals["request_owner_id"] = (self.employee_id.user_id or self.env.user).id
         return vals
 
-    def _needs_approval_request(self):
-        return super()._needs_approval_request() and (
+    def _can_raise_approval_request(self):
+        return super()._can_raise_approval_request() and (
             self.validation_type != "no_validation"
         )
+
+    def _get_legacy_approval_activity_xmlids(self):
+        return self._get_approval_activity_xmlids()
 
     def _get_approval_outcome_states(self):
         raise NotImplementedError

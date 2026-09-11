@@ -604,7 +604,10 @@ pattern, a document the engine moves through `_on_approval_approved` and friends
 | `_check_approval_sync_policy(kind)` | The document's own authority, run as the acting user before a request-side decision is applied. Raises to veto |
 | `_apply_approval_sync_outcome(kind)` | Moves the document for a kind, through the document's overridable methods. Required |
 | `_get_approval_category_xmlid()` | Optional: the category the document's requests belong to |
-| `_needs_approval_request()` | Whether a pending document without a request raises one. Adopters add their own exclusions |
+| `_needs_approval_request()` | Whether a pending document raises a request: its state is `pending` and `_can_raise_approval_request()` holds |
+| `_can_raise_approval_request()` | Whether the document may hold a request at all, whatever its state: none yet, and a category applies. Adopters add their own exclusions here, so they reach a backfilled document in progress too |
+| `_get_legacy_approval_activity_xmlids()` | The review activities the document scheduled itself before adopting the engine, which a backfilled request replaces. Default none |
+| `_get_approval_backfill_decider()` | Who decided the first step of a document in progress before its request existed. Default nobody |
 
 ### Behaviour
 
@@ -616,9 +619,10 @@ pattern, a document the engine moves through `_on_approval_approved` and friends
 | `_on_approval_progress/approved/refused/cancelled()` | A decision taken on the request itself: checks `_check_approval_sync_policy` (skipped for the superuser, and for an engine cancellation, which is not a decision), then applies the outcome under the sync context. Skipped when the document is already in that kind |
 | `_on_approval_reset/revoked()` | Silent while syncing, otherwise `mixin.approval`'s messages |
 | `unlink()` | Cancels a pending request before the document goes |
+| `_backfill_approval_requests()` | For an upgrade, run as the superuser whom `_create_approval_requests` skips. Each document whose state is `pending` or `progress`, that may raise a request and can request approval, first loses its legacy review activities, which `approval.approver._create_activity` would not count as asking the same approver, then gets its request. A document in progress then has its decider's approval recorded for the open step alone, under the sync context, or, when the decider holds no row, keeps the step open with a note. Returns the documents backfilled |
 
 Covered by `test_approval/tests/test_state_sync.py` against `approval.test.synced.document`, and by the
-hr_holidays engine tests.
+hr_holidays engine tests; the backfill by `test_approval/tests/test_state_sync_backfill.py` and hr_holidays' 1.9 post-migrate tests.
 
 ---
 

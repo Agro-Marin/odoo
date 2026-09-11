@@ -130,3 +130,25 @@ class TestAllocationApprovalEngine(TestHrHolidaysCommon):
         allocation.sudo().approval_request_id._force_terminal("cancelled", "Expired")
 
         self.assertEqual(allocation.state, "refuse")
+
+    def test_an_allocation_first_approved_before_the_engine_keeps_that_decision(self):
+        allocation = self._allocation("both", user=SUPERUSER_ID)
+        allocation.write(
+            {"state": "validate1", "approver_id": self.employee_responsible.id}
+        )
+        self.assertFalse(allocation.approval_request_id)
+
+        allocation._backfill_approval_requests()
+
+        request = allocation.sudo().approval_request_id
+        self.assertEqual(request.state, "pending")
+        row = request.approver_ids.filtered(
+            lambda row: row.user_id == self.user_responsible
+        )
+        self.assertEqual(row.decided_by_user_id, self.user_responsible)
+        self.assertEqual(len(row.decided_step_ids), 1)
+        self.assertEqual(
+            request._get_open_steps() & row.decided_step_ids,
+            row.decided_step_ids.browse(),
+        )
+        self.assertEqual(allocation.state, "validate1")
