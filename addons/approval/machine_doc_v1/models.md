@@ -956,6 +956,7 @@ does not is left as it was.
 | `member_ids` | One2many(`approval.category.step.member`) | — | No | the step's named users |
 | `group_id` | Many2one(`res.groups`) | Yes | No | its members join the pool too — the union Studio's `approver_ids` / `approval_group_id` pair expresses |
 | `exclusive` | Boolean | Yes | No | an approval counting toward this step counts toward no other step of the request, and the other way round |
+| `advisory` | Boolean | Yes | No | The step's approvers are asked (its unmet advisory steps are open beside the lowest blocking step) and their decisions recorded, but it decides nothing: `_is_quorum_met` reads `_get_blocking_unmet_steps()`, a row refused only for advisory steps (`approval.approver._is_advisory_only()`) is no deciding refusal (`_get_deciding_refusals()`) and flips no other row, progress is reported for blocking steps only, and confirmation does not need an advisory step's pool. The ECO's optional and comment roles |
 | `notify_user_ids` | Many2many(`res.users`) | Yes | No | posted an internal note when an approver of this step decides |
 | `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition and the approver path read; required when `subject_domain` or `subject_user_path` is set |
 | `subject_model_name` | Char | No | No | related `subject_model_id.model`. The domain editor in the form reads its fields from it: the widget takes a model name, and handed the many2one it crashed the form |

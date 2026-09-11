@@ -400,6 +400,11 @@ class ApprovalApprover(models.Model):
             return {}
         return target.sudo()._get_approval_activity_values(self)
 
+    def _is_advisory_only(self) -> bool:
+        """Whether every step this row counts toward is advisory."""
+        self.check_singleton()
+        return bool(self.step_ids) and all(self.step_ids.mapped("advisory"))
+
     def _get_activity_target(self):
         """The record this row's approver is asked on: the request, or its document."""
         self.check_singleton()

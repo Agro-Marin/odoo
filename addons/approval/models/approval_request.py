@@ -827,7 +827,7 @@ class ApprovalRequest(models.Model):
 
             state_counts = Counter(state_lst)
 
-            if state_counts.get("refused", 0) > 0:
+            if request._get_deciding_refusals():
                 request.state = "refused"
             elif state_counts.get("cancelled", 0) > 0:
                 request.state = "cancelled"
@@ -840,10 +840,20 @@ class ApprovalRequest(models.Model):
             else:
                 request.state = "pending"
 
+    def _get_deciding_refusals(self):
+        """Refused rows that refuse the request: all but those refused only for
+        advisory steps."""
+        self.check_singleton()
+        return self.approver_ids.filtered(
+            lambda approver: (
+                approver.state == "refused" and not approver._is_advisory_only()
+            )
+        )
+
     def _is_quorum_met(self, state_counts, approval_threshold: int) -> bool:
         self.check_singleton()
         if self.approver_ids.step_ids:
-            return not self._get_unmet_steps()
+            return not self._get_blocking_unmet_steps()
         return state_counts.get("approved", 0) >= approval_threshold
 
     def _get_step_counts(self) -> dict[int, int]:
@@ -893,14 +903,22 @@ class ApprovalRequest(models.Model):
             lambda step: counts[step.id] < step.minimum,
         )
 
+    def _get_blocking_unmet_steps(self):
+        """The unmet steps the request waits for: advisory steps never hold it."""
+        self.check_singleton()
+        return self._get_unmet_steps().filtered(lambda step: not step.advisory)
+
     def _get_open_steps(self):
-        """The unmet steps an approver is asked for now: the lowest sequence among them."""
+        """The unmet steps an approver is asked for now: the lowest sequence among the
+        blocking ones, and every advisory step still unmet, which waits for nobody."""
         self.check_singleton()
         unmet = self._get_unmet_steps()
-        if not unmet:
-            return unmet
-        lowest = min(unmet.mapped("sequence"))
-        return unmet.filtered(lambda step: step.sequence == lowest)
+        blocking = unmet.filtered(lambda step: not step.advisory)
+        advisory = unmet - blocking
+        if not blocking:
+            return advisory
+        lowest = min(blocking.mapped("sequence"))
+        return blocking.filtered(lambda step: step.sequence == lowest) | advisory
 
     def _compute_terminal_date_stamp(self, field_name: str, target_state: str) -> None:
         now = fields.Datetime.now()

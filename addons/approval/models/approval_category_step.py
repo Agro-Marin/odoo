@@ -53,6 +53,11 @@ class ApprovalCategoryStep(models.Model):
         "of the same request, and the other way round: a user who decided an "
         "exclusive step decides nothing else on that request.",
     )
+    advisory = fields.Boolean(
+        help="The step's approvers are asked and their decisions recorded, but the "
+        "step decides nothing: the request is approved without it, and a refusal "
+        "given for it alone refuses nothing.",
+    )
     notify_user_ids = fields.Many2many(
         comodel_name="res.users",
         relation="approval_step_notify_user_rel",

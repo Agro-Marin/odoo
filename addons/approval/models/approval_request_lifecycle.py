@@ -143,7 +143,9 @@ class ApprovalRequestLifecycle(models.Model):
             )
         old_state = self.state
         unmet_before = (
-            set(self._get_unmet_steps().ids) if self.approver_ids.step_ids else None
+            set(self._get_blocking_unmet_steps().ids)
+            if self.approver_ids.step_ids
+            else None
         )
         if not isinstance(approver, models.BaseModel):
             candidate = self.approver_ids.filtered(
@@ -208,6 +210,19 @@ class ApprovalRequestLifecycle(models.Model):
                 request_name=self.display_name,
                 request_owner=self.request_owner_id.name,
             )
+        elif all(row._is_advisory_only() for row in approver):
+            body = self.env._(
+                "%(approver)s advised against the request created on %(create_date)s by "
+                "%(request_owner)s. The advice decides nothing.",
+                approver=acting_user.name,
+                create_date=self.create_date.date(),
+                request_owner=self.request_owner_id.name,
+            )
+            subject = self.env._(
+                "Advice against %(request_name)s for %(request_owner)s",
+                request_name=self.display_name,
+                request_owner=self.request_owner_id.name,
+            )
         else:
             body = self.env._(
                 "The request created on %(create_date)s by %(request_owner)s has been refused.",
@@ -233,7 +248,7 @@ class ApprovalRequestLifecycle(models.Model):
                 "pending",
                 only_next_approver=True,
             )
-        else:
+        elif not all(row._is_advisory_only() for row in approver):
             self.sudo()._update_next_approvers_state(
                 approver,
                 "refused",
@@ -259,7 +274,7 @@ class ApprovalRequestLifecycle(models.Model):
             unmet_before is not None
             and decision == "approve"
             and self.state == "pending"
-            and set(self._get_unmet_steps().ids) < unmet_before
+            and set(self._get_blocking_unmet_steps().ids) < unmet_before
         ):
             self._notify_source_document_progress()
         self._log_cycle("decide", decision=decision, actor=acting_user.login)
@@ -890,7 +905,7 @@ class ApprovalRequestLifecycle(models.Model):
     def _check_steps_can_be_met(self, steps) -> None:
         self.check_singleton()
         document = self.get_source_document()
-        for step in steps:
+        for step in steps.filtered(lambda step: not step.advisory):
             pool = step._get_pool_user_ids(document, self.company_id)
             if len(pool) < step.minimum:
                 raise UserError(
