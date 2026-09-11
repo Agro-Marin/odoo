@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from odoo.fields import Command
 from odoo.libs.datetime import timezone
 from odoo.tests.common import TransactionCase
 
@@ -183,6 +184,37 @@ class TestResourceCalendar(TransactionCase):
             )["hours"],
             without_domain / 2,
         )
+
+    def test_attendance_duration_data_filters_the_attendances(self):
+        calendar = self.env["resource.calendar"].create(
+            {
+                "name": "9-to-5",
+                "tz": "UTC",
+                "attendance_ids": [
+                    Command.create(
+                        {
+                            "name": period.capitalize(),
+                            "dayofweek": str(day),
+                            "hour_from": hour_from,
+                            "hour_to": hour_from + 4,
+                            "day_period": period,
+                        }
+                    )
+                    for day in range(5)
+                    for period, hour_from in (("morning", 8), ("afternoon", 13))
+                ],
+            }
+        )
+        start_dt = datetime(2026, 6, 1, 0, 0, 0, tzinfo=UTC)
+        end_dt = datetime(2026, 6, 5, 23, 59, 59, tzinfo=UTC)
+
+        everything = calendar.get_attendance_duration_data(start_dt, end_dt)
+        mornings = calendar.get_attendance_duration_data(
+            start_dt, end_dt, domain=[("day_period", "=", "morning")]
+        )
+
+        self.assertEqual(everything["hours"], 40.0)
+        self.assertEqual(mornings["hours"], 20.0)
 
     def test_flexible_self_does_not_override_a_fixed_resource_calendar(self):
         fixed = self.env["resource.calendar"].create(

@@ -1266,6 +1266,17 @@ class ResourceCalendar(models.Model):
 
         return self._get_attendance_intervals_days_data(intervals)
 
+    def get_attendance_duration_data(
+        self,
+        from_datetime: datetime,
+        to_datetime: datetime,
+        domain: list | None = None,
+    ) -> dict[str, float]:
+        intervals = self._attendance_intervals_batch(
+            localized(from_datetime), localized(to_datetime), domain=domain
+        )[False]
+        return self._get_attendance_intervals_days_data(intervals)
+
     def _iter_plan_intervals(
         self,
         day_dt: datetime,
