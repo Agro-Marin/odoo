@@ -274,8 +274,8 @@ class TestEventBoothSaleInvoice(AccountTestInvoicingCommon, TestEventBoothSaleWD
         invoice.action_post()
         self.assertEqual(
             sale_order.invoice_state,
-            "invoiced",
-            f"Order is in '{sale_order.invoice_state}' status while it should be 'invoiced'.",
+            "done",
+            f"Order is in '{sale_order.invoice_state}' status while it should be 'done'.",
         )
 
         register_payments = (

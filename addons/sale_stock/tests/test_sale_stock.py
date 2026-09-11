@@ -314,7 +314,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertEqual(
             self.so.invoice_state,
             "done",
-            'Sale Stock: so invoice_state should be "invoiced" instead of "%s" after invoicing'
+            'Sale Stock: so invoice_state should be "done" instead of "%s" after invoicing'
             % self.so.invoice_state,
         )
 
@@ -367,7 +367,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertEqual(
             self.so.invoice_state,
             "done",
-            'Sale Stock: so invoice_state should be "invoiced" instead of "%s" after invoicing the return'
+            'Sale Stock: so invoice_state should be "done" instead of "%s" after invoicing the return'
             % self.so.invoice_state,
         )
 
@@ -443,7 +443,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertEqual(
             self.so.invoice_state,
             "done",
-            'Sale Stock: so invoice_state should be "invoiced" when set to done',
+            'Sale Stock: so invoice_state should be "done" when set to done',
         )
 
     def test_04_create_picking_update_saleorderline(self):
