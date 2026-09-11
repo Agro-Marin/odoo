@@ -32,14 +32,14 @@ function defineContactTask() {
     (class Contact extends Record {
         static id = "name";
         name;
-        tasks = fields.Many("Task", { inverse: "contact" });
-        mainTask = fields.One("Task");
+        tasks = fields.Many(/** @type {string} */ ("Task"), { inverse: "contact" });
+        mainTask = fields.One(/** @type {string} */ ("Task"));
     }).register(localRegistry);
     (class Task extends Record {
         static id = "name";
         name;
         label = fields.Attr("");
-        contact = fields.One("Contact", { inverse: "tasks" });
+        contact = fields.One(/** @type {string} */ ("Contact"), { inverse: "tasks" });
     }).register(localRegistry);
 }
 

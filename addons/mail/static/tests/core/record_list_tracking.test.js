@@ -34,8 +34,9 @@ function defineModels(read) {
     (class Contact extends Record {
         static id = "name";
         name;
-        tasks = fields.Many("Task", { inverse: "contact" });
+        tasks = fields.Many(/** @type {string} */ ("Task"), { inverse: "contact" });
         summary = fields.Attr("", {
+            /** @this {Contact} */
             compute() {
                 return read(this.tasks);
             },
@@ -45,7 +46,7 @@ function defineModels(read) {
         static id = "name";
         name;
         label = fields.Attr("");
-        contact = fields.One("Contact", { inverse: "tasks" });
+        contact = fields.One(/** @type {string} */ ("Contact"), { inverse: "tasks" });
     }).register(localRegistry);
 }
 

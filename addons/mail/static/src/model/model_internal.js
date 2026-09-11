@@ -14,7 +14,7 @@ export class ModelInternal {
     fieldsHtml = new Map();
     /** @type {FieldMap< string>} */
     fieldsTargetModel = new Map();
-    /** @type {FieldMap< () => any>} */
+    /** @type {FieldMap< (this: import("./record").Record) => unknown>} */
     fieldsCompute = new Map();
     /** @type {FieldMap< any>} */
     fieldsDefault = new Map();
@@ -24,9 +24,9 @@ export class ModelInternal {
     fieldsOnAdd = new Map();
     /** @type {FieldMap< (record: import("./record").Record) => void>} */
     fieldsOnDelete = new Map();
-    /** @type {FieldMap< () => void>} */
+    /** @type {FieldMap< (this: import("./record").Record) => void>} */
     fieldsOnUpdate = new Map();
-    /** @type {FieldMap< () => number>} */
+    /** @type {FieldMap< (this: import("./record").Record, a: unknown, b: unknown) => number>} */
     fieldsSort = new Map();
     /** @type {FieldMap< string>} */
     fieldsType = new Map();
@@ -35,7 +35,7 @@ export class ModelInternal {
 
     /**
      * @param {string} fieldName
-     * @param {Object} data
+     * @param {import("./misc").FieldDefinition} data
      */
     prepareField(fieldName, data) {
         if (data[ONE_SYM]) {

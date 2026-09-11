@@ -35,6 +35,18 @@ export const STORE_SYM = Symbol("store");
  */
 
 /**
+ * Runtime model fields are registered dynamically; keep their dictionary access
+ * inside the model infrastructure rather than widening every public record.
+ * @param {Record} record
+ * @returns {import("./record").RecordFields}
+ */
+export function fieldsOf(record) {
+    return /** @type {import("./record").RecordFields} */ (
+        /** @type {unknown} */ (record)
+    );
+}
+
+/**
  * @param {...IdExpression} args
  * @returns {IdExpression}
  */
@@ -118,13 +130,18 @@ export function isFieldDefinition(val) {
     return val?.[FIELD_DEFINITION_SYM];
 }
 
+/**
+ * @template T
+ * @typedef {T extends boolean ? boolean : T extends string ? string : T extends number ? number : T} AttributeValue
+ */
+
 export const fields = {
     /**
      * @template {string} M
-     * @template {Record} [R=any]
-     * @param {M} targetModel
+     * @template {Record} [R=Record]
+     * @param {M & (string extends M ? unknown : M extends keyof import("models").Models ? unknown : never)} targetModel
      * @param {Object} [param1={}]
-     * @param {(this: R) => any} [param1.compute]
+     * @param {(this: R) => import("models").MailModel<M> | Partial<import("models").MailModel<M>> | false | null | undefined} [param1.compute]
      * @param {string} [param1.inverse]
      * @param {(this: R, r: import("models").MailModel<M>) => void} [param1.onAdd]
      * @param {(this: R, r: import("models").MailModel<M>) => void} [param1.onDelete]
@@ -143,10 +160,10 @@ export const fields = {
     },
     /**
      * @template {string} M
-     * @template {Record} [R=any]
-     * @param {M} targetModel
+     * @template {Record} [R=Record]
+     * @param {M & (string extends M ? unknown : M extends keyof import("models").Models ? unknown : never)} targetModel
      * @param {Object} [param1={}]
-     * @param {(this: R) => any} [param1.compute]
+     * @param {(this: R) => Iterable<import("models").MailModel<M> | Partial<import("models").MailModel<M>>> | null | undefined} [param1.compute]
      * @param {string} [param1.inverse]
      * @param {(this: R, r: import("models").MailModel<M>) => void} [param1.onAdd]
      * @param {(this: R, r: import("models").MailModel<M>) => void} [param1.onDelete]
@@ -166,10 +183,10 @@ export const fields = {
     },
     /**
      * @template T
-     * @template {Record} [R=any]
+     * @template {Record} [R=Record]
      * @param {T} def
      * @param {Object} [param1={}]
-     * @param {(this: R) => any} [param1.compute]
+     * @param {(this: R) => NoInfer<AttributeValue<T>>} [param1.compute]
      * @param {(this: R) => void} [param1.onUpdate]
      * @param {(this: R, a: any, b: any) => number} [param1.sort]
      * @param {'datetime'|'date'} [param1.type]
@@ -186,10 +203,10 @@ export const fields = {
         );
     },
     /**
-     * @template {Record} [R=any]
+     * @template {Record} [R=Record]
      * @param {string | import("@odoo/owl").Markup} def
      * @param {Object} [param1={}]
-     * @param {(this: R) => any} [param1.compute]
+     * @param {(this: R) => string | import("@odoo/owl").Markup | null | undefined} [param1.compute]
      * @param {(this: R) => void} [param1.onUpdate]
      * @returns {string | import("@odoo/owl").Markup}
      */
@@ -207,9 +224,9 @@ export const fields = {
         );
     },
     /**
-     * @template {Record} [R=any]
+     * @template {Record} [R=Record]
      * @param {Object} [param0={}]
-     * @param {(this: R) => any} [param0.compute]
+     * @param {(this: R) => luxon.DateTime | null | undefined} [param0.compute]
      * @param {(this: R) => void} [param0.onUpdate]
      * @returns {luxon.DateTime}
      */
@@ -224,9 +241,9 @@ export const fields = {
         );
     },
     /**
-     * @template {Record} [R=any]
+     * @template {Record} [R=Record]
      * @param {Object} [param0={}]
-     * @param {(this: R) => any} [param0.compute]
+     * @param {(this: R) => luxon.DateTime | null | undefined} [param0.compute]
      * @param {(this: R) => void} [param0.onUpdate]
      * @returns {luxon.DateTime}
      */

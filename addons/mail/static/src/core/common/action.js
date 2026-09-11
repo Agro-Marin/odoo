@@ -18,6 +18,10 @@ export const ACTION_TAGS = Object.freeze({
 /** @typedef {import("@mail/model/record").Record} MailRecord */
 /** @typedef {Component|MailRecord} ActionOwner */
 /**
+ * @template T
+ * @typedef {T extends (...args: any[]) => infer V ? V : T} ActionOptionValue
+ */
+/**
  * @template {ActionOwner} [O=ActionOwner]
  * @typedef {{ action: Action<O>, store: import("models").Store, owner: O }} ActionParams
  */
@@ -34,6 +38,7 @@ export const ACTION_TAGS = Object.freeze({
  * @property {boolean|((this: A, params: P) => boolean)} [componentCondition=true]
  * @property {(this: A, params: P) => Object} [componentProps]
  * @property {boolean|((this: A, params: P) => boolean)} [disabledCondition]
+ * @property {boolean|((this: A, params: P) => unknown)} [condition]
  * @property {boolean} [dropdown]
  * @property {(new (props: any, env: import("@web/env").OdooEnv) => Component)|((this: A, params: P) => (new (props: any, env: import("@web/env").OdooEnv) => Component))} [dropdownComponent]
  * @property {Object|((this: A, params: P) => Object)} [dropdownComponentProps]
@@ -97,65 +102,104 @@ export class Action {
     }
 
     /**
-     * @param {string} name
-     * @returns {any}
+     * @template {keyof D} K
+     * @param {K} name
+     * @returns {ActionOptionValue<D[K]>}
      */
     _option(name) {
-        const value = /** @type {Record<string, any>} */ (this.definition)[name];
-        return typeof value === "function" ? value.call(this, this.params) : value;
-    }
-
-    /**
-     * @param {string} name
-     * @param {any} fallback
-     */
-    _optionOr(name, fallback) {
-        const value = /** @type {Record<string, any>} */ (this.definition)[name];
-        return typeof value === "function"
-            ? value.call(this, this.params)
-            : (value ?? fallback);
-    }
-
-    /** @param {string} name */
-    _callOption(name) {
-        return /** @type {Record<string, any>} */ (this.definition)[name]?.call(
-            this,
-            this.params,
+        const value = this.definition[name];
+        return /** @type {ActionOptionValue<D[K]>} */ (
+            typeof value === "function" ? value.call(this, this.params) : value
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _badge(action) {}
+    /**
+     * @template {keyof D} K
+     * @template F
+     * @param {K} name
+     * @param {F} fallback
+     * @returns {ActionOptionValue<D[K]> | F}
+     */
+    _optionOr(name, fallback) {
+        const value = this.definition[name];
+        return /** @type {ActionOptionValue<D[K]> | F} */ (
+            typeof value === "function"
+                ? value.call(this, this.params)
+                : (value ?? fallback)
+        );
+    }
+
+    /**
+     * @template {keyof D} K
+     * @param {K} name
+     * @returns {ActionOptionValue<D[K]>}
+     */
+    _callOption(name) {
+        return this._option(name);
+    }
+
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["badge"]> | undefined}
+     */
+    _badge(action) {
+        return undefined;
+    }
     get badge() {
         return this._badge(this.params) ?? this._option("badge");
     }
 
-    /** @param {ActionParams<O>} action */
-    _badgeIcon(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["badgeIcon"]> | undefined}
+     */
+    _badgeIcon(action) {
+        return undefined;
+    }
     get badgeIcon() {
         return this._badgeIcon(this.params) ?? this._option("badgeIcon");
     }
 
-    /** @param {ActionParams<O>} action */
-    _badgeText(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["badgeText"]> | undefined}
+     */
+    _badgeText(action) {
+        return undefined;
+    }
     get badgeText() {
         return this._badgeText(this.params) ?? this._option("badgeText");
     }
 
-    /** @param {ActionParams<O>} action */
-    _btnClass(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["btnClass"]> | undefined}
+     */
+    _btnClass(action) {
+        return undefined;
+    }
     get btnClass() {
         return this._btnClass(this.params) ?? this._option("btnClass");
     }
 
-    /** @param {ActionParams<O>} action */
-    _component(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["component"]> | undefined}
+     */
+    _component(action) {
+        return undefined;
+    }
     get component() {
         return this._component(this.params) ?? this.definition.component;
     }
 
-    /** @param {ActionParams<O>} action */
-    _componentCondition(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["componentCondition"]> | undefined}
+     */
+    _componentCondition(action) {
+        return undefined;
+    }
     get componentCondition() {
         return (
             this._componentCondition(this.params) ??
@@ -163,20 +207,35 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _componentProps(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["componentProps"]> | undefined}
+     */
+    _componentProps(action) {
+        return undefined;
+    }
     get componentProps() {
         return this._componentProps(this.params) ?? this._callOption("componentProps");
     }
 
-    /** @param {ActionParams<O>} action */
-    _condition(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["condition"]> | undefined}
+     */
+    _condition(action) {
+        return undefined;
+    }
     get condition() {
         return this._condition(this.params) ?? this._optionOr("condition", true);
     }
 
-    /** @param {ActionParams<O>} action */
-    _disabledCondition(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["disabledCondition"]> | undefined}
+     */
+    _disabledCondition(action) {
+        return undefined;
+    }
     get disabledCondition() {
         return Boolean(
             this._disabledCondition(this.params) ??
@@ -184,14 +243,24 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _dropdown(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["dropdown"]> | undefined}
+     */
+    _dropdown(action) {
+        return undefined;
+    }
     get dropdown() {
         return this._dropdown(this.params) ?? this.definition.dropdown;
     }
 
-    /** @param {ActionParams<O>} action */
-    _dropdownComponent(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["dropdownComponent"]> | undefined}
+     */
+    _dropdownComponent(action) {
+        return undefined;
+    }
     get dropdownComponent() {
         return (
             this._dropdownComponent(this.params) ??
@@ -204,8 +273,13 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _dropdownComponentProps(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["dropdownComponentProps"]> | undefined}
+     */
+    _dropdownComponentProps(action) {
+        return undefined;
+    }
     get dropdownComponentProps() {
         return (
             this._dropdownComponentProps(this.params) ??
@@ -213,34 +287,59 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _dropdownMenuClass(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["dropdownMenuClass"]> | undefined}
+     */
+    _dropdownMenuClass(action) {
+        return undefined;
+    }
     get dropdownMenuClass() {
         return (
             this._dropdownMenuClass(this.params) ?? this._option("dropdownMenuClass")
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _dropdownPosition(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["dropdownPosition"]> | undefined}
+     */
+    _dropdownPosition(action) {
+        return undefined;
+    }
     get dropdownPosition() {
         return this._dropdownPosition(this.params) ?? this._option("dropdownPosition");
     }
 
-    /** @param {ActionParams<O>} action */
-    _dropdownState(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["dropdownState"]> | undefined}
+     */
+    _dropdownState(action) {
+        return undefined;
+    }
     get dropdownState() {
         return this._dropdownState(this.params) ?? this._option("dropdownState");
     }
 
-    /** @param {ActionParams<O>} action */
-    _dropdownTemplate(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["dropdownTemplate"]> | undefined}
+     */
+    _dropdownTemplate(action) {
+        return undefined;
+    }
     get dropdownTemplate() {
         return this._dropdownTemplate(this.params) ?? this._option("dropdownTemplate");
     }
 
-    /** @param {ActionParams<O>} action */
-    _dropdownTemplateParams(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["dropdownTemplateParams"]> | undefined}
+     */
+    _dropdownTemplateParams(action) {
+        return undefined;
+    }
     get dropdownTemplateParams() {
         return (
             this._dropdownTemplateParams(this.params) ??
@@ -248,38 +347,68 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _hasBtnBg(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["hasBtnBg"]> | undefined}
+     */
+    _hasBtnBg(action) {
+        return undefined;
+    }
     get hasBtnBg() {
         return this._hasBtnBg(this.params) ?? this._option("hasBtnBg");
     }
 
-    /** @param {ActionParams<O>} action */
-    _hotkey(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["hotkey"]> | undefined}
+     */
+    _hotkey(action) {
+        return undefined;
+    }
     get hotkey() {
         return this._hotkey(this.params) ?? this._option("hotkey");
     }
 
-    /** @param {ActionParams<O>} action */
-    _icon(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["icon"]> | undefined}
+     */
+    _icon(action) {
+        return undefined;
+    }
     get icon() {
         return this._icon(this.params) ?? this._option("icon");
     }
 
-    /** @param {ActionParams<O>} action */
-    _inlineName(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["inlineName"]> | undefined}
+     */
+    _inlineName(action) {
+        return undefined;
+    }
     get inlineName() {
         return this._inlineName(this.params) ?? this._option("inlineName") ?? false;
     }
 
-    /** @param {ActionParams<O>} action */
-    _isActive(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["isActive"]> | undefined}
+     */
+    _isActive(action) {
+        return undefined;
+    }
     get isActive() {
         return Boolean(this._isActive(this.params) ?? this._option("isActive"));
     }
 
-    /** @param {ActionParams<O>} action */
-    _name(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["name"]> | undefined}
+     */
+    _name(action) {
+        return undefined;
+    }
     get name() {
         return this._name(this.params) ?? this._option("name");
     }
@@ -294,34 +423,59 @@ export class Action {
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _sequence(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["sequence"]> | undefined}
+     */
+    _sequence(action) {
+        return undefined;
+    }
     get sequence() {
         return this._sequence(this.params) ?? this._option("sequence");
     }
 
-    /** @param {ActionParams<O>} action */
-    _sequenceGroup(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["sequenceGroup"]> | undefined}
+     */
+    _sequenceGroup(action) {
+        return undefined;
+    }
     get sequenceGroup() {
         return this._sequenceGroup(this.params) ?? this._option("sequenceGroup");
     }
 
-    /** @param {ActionParams<O>} action */
-    _sequenceQuick(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["sequenceQuick"]> | undefined}
+     */
+    _sequenceQuick(action) {
+        return undefined;
+    }
     get sequenceQuick() {
         return this._sequenceQuick(this.params) ?? this._option("sequenceQuick");
     }
 
-    /** @param {ActionParams<O>} action */
-    _setup(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["setup"]> | undefined}
+     */
+    _setup(action) {
+        return undefined;
+    }
     setup() {
         return (
             this._setup(this.params) ?? this.definition.setup?.call(this, this.params)
         );
     }
 
-    /** @param {ActionParams<O>} action */
-    _tags(action) {}
+    /**
+     * @param {ActionParams<O>} action
+     * @returns {ActionOptionValue<D["tags"]> | undefined}
+     */
+    _tags(action) {
+        return undefined;
+    }
     get tags() {
         const res = this._tags(this.params) ?? this._option("tags");
         return Array.isArray(res) ? res : [res];
@@ -338,7 +492,7 @@ export class UseActions extends SignalStore {
     ActionClass = /** @type {any} */ (Action);
     /** @type {Component} */
     component;
-    /** @type {Map<string, A>} */
+    /** @type {Map<string | number, A>} */
     moreActions = new Map();
     /** @type {A[]} */
     transformedActions;
@@ -359,7 +513,7 @@ export class UseActions extends SignalStore {
 
     /**
      * @param {ActionDefinition} data
-     * @param {string} [id]
+     * @param {string | number} [id]
      * @returns {A}
      */
     more(data = {}, id) {

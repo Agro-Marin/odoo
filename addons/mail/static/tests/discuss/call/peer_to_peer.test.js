@@ -43,7 +43,7 @@ class Network {
             }
         });
     }
-    /** @return {{id: number, p2p: PeerToPeer, remoteStates?: Map<number, string>, remoteMedia?: Map<number, Object>, inbox?: {senderId: number, message: string}[]}} */
+    /** @return {{id: number, p2p: PeerToPeer, remoteStates?: Map<number, string>, remoteMedia?: Map<number, Object>, inbox?: {senderId: number, message: unknown}[]}} */
     register(id) {
         const p2p = new PeerToPeer({ notificationRoute: this._notificationRoute });
         this._peerToPeerInstances.set(id, p2p);

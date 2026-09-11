@@ -65,11 +65,13 @@ test("Can pass object as data for relational field with inverse as id", async ()
     (class Thread extends Record {
         static id = "name";
         name;
-        composer = fields.One("Composer", { inverse: "thread" });
+        composer = fields.One(/** @type {string} */ ("Composer"), {
+            inverse: "thread",
+        });
     }).register(localRegistry);
     (class Composer extends Record {
         static id = "thread";
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
@@ -81,7 +83,7 @@ test("pass single-id as data for 'one' relational field without inverse", async 
     (class Message extends Record {
         static id = "id";
         id;
-        author = fields.One("Partner");
+        author = fields.One(/** @type {string} */ ("Partner"));
     }).register(localRegistry);
     (class Partner extends Record {
         static id = "name";
@@ -104,12 +106,14 @@ test("pass single-id as data for 'one' relational field with inverse", async () 
     (class Message extends Record {
         static id = "id";
         id;
-        author = fields.One("Partner", { inverse: "messages" });
+        author = fields.One(/** @type {string} */ ("Partner"), { inverse: "messages" });
     }).register(localRegistry);
     (class Partner extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message", { inverse: "author" });
+        messages = fields.Many(/** @type {string} */ ("Message"), {
+            inverse: "author",
+        });
     }).register(localRegistry);
     const store = await start();
     const message = store.Message.insert({ id: 1, author: "John" });
@@ -130,16 +134,22 @@ test("pass single-id as data for 'one' relational field as id", async () => {
     (class Thread extends Record {
         static id = "id";
         id;
-        composer = fields.One("Composer", { inverse: "thread" });
+        composer = fields.One(/** @type {string} */ ("Composer"), {
+            inverse: "thread",
+        });
     }).register(localRegistry);
     (class Composer extends Record {
         static id = "thread";
-        thread = fields.One("Thread", { inverse: "composer" });
-        composerView = fields.Many("ComposerView", { inverse: "composer" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "composer" });
+        composerView = fields.Many(/** @type {string} */ ("ComposerView"), {
+            inverse: "composer",
+        });
     }).register(localRegistry);
     (class ComposerView extends Record {
         static id = "id";
-        composer = fields.One("Composer", { inverse: "composerView" });
+        composer = fields.One(/** @type {string} */ ("Composer"), {
+            inverse: "composerView",
+        });
     }).register(localRegistry);
     const store = await start();
     const composerView = store.ComposerView.insert({ id: 1, composer: 2 });
@@ -158,7 +168,7 @@ test("pass single-id as data for 'many' relational field without inverse", async
     (class Message extends Record {
         static id = "id";
         id;
-        authors = fields.Many("Partner");
+        authors = fields.Many(/** @type {string} */ ("Partner"));
     }).register(localRegistry);
     (class Partner extends Record {
         static id = "name";
@@ -175,12 +185,16 @@ test("pass single-id as data for 'many' relational field with inverse", async ()
     (class Message extends Record {
         static id = "id";
         id;
-        authors = fields.Many("Partner", { inverse: "messages" });
+        authors = fields.Many(/** @type {string} */ ("Partner"), {
+            inverse: "messages",
+        });
     }).register(localRegistry);
     (class Partner extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message", { inverse: "authors" });
+        messages = fields.Many(/** @type {string} */ ("Message"), {
+            inverse: "authors",
+        });
     }).register(localRegistry);
     const store = await start();
     const message = store.Message.insert({ id: 1, authors: ["John", "Jane"] });
@@ -197,23 +211,27 @@ test("Assign & Delete on fields with inverses", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        composer = fields.One("Composer", { inverse: "thread" });
-        members = fields.Many("Member", { inverse: "thread" });
-        messages = fields.Many("Message", { inverse: "threads" });
+        composer = fields.One(/** @type {string} */ ("Composer"), {
+            inverse: "thread",
+        });
+        members = fields.Many(/** @type {string} */ ("Member"), { inverse: "thread" });
+        messages = fields.Many(/** @type {string} */ ("Message"), {
+            inverse: "threads",
+        });
     }).register(localRegistry);
     (class Composer extends Record {
         static id = "thread";
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     (class Message extends Record {
         static id = "content";
         content;
-        threads = fields.Many("Thread");
+        threads = fields.Many(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
@@ -259,7 +277,7 @@ test("onAdd/onDelete hooks on relational with inverse", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
             inverse: "thread",
             onAdd: (member) => logs.push(`Thread.onAdd(${member.name})`),
             onDelete: (member) => logs.push(`Thread.onDelete(${member.name})`),
@@ -268,7 +286,7 @@ test("onAdd/onDelete hooks on relational with inverse", async () => {
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
@@ -295,6 +313,7 @@ test("Computed fields", async () => {
         static id = "name";
         name;
         type = fields.Attr("", {
+            /** @this {Thread} */
             compute() {
                 if (this.members.length === 0) {
                     return "empty chat";
@@ -307,12 +326,13 @@ test("Computed fields", async () => {
                 }
             },
         });
-        admin = fields.One("Persona", {
+        admin = fields.One(/** @type {string} */ ("Persona"), {
+            /** @this {Thread} */
             compute() {
                 return this.members[0];
             },
         });
-        members = fields.Many("Persona");
+        members = fields.Many(/** @type {string} */ ("Persona"));
     }).register(localRegistry);
     (class Persona extends Record {
         static id = "name";
@@ -337,6 +357,7 @@ test("Computed fields are always eager: compute on insert and on dependency chan
         static id = "name";
         name;
         type = fields.Attr("", {
+            /** @this {Thread} */
             compute() {
                 expect.step("COMPUTE");
                 if (this.members.length === 0) {
@@ -350,7 +371,7 @@ test("Computed fields are always eager: compute on insert and on dependency chan
                 }
             },
         });
-        members = fields.Many("Persona");
+        members = fields.Many(/** @type {string} */ ("Persona"));
     }).register(localRegistry);
     (class Persona extends Record {
         static id = "name";
@@ -412,7 +433,7 @@ test("Unshift preserves order", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message");
+        messages = fields.Many(/** @type {string} */ ("Message"));
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert({ name: "General" });
@@ -428,7 +449,7 @@ test("onAdd hook should see fully inserted data", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
             inverse: "thread",
             onAdd: (member) =>
                 expect.step(
@@ -441,11 +462,12 @@ test("onAdd hook should see fully inserted data", async () => {
         name;
         type;
         isAdmin = fields.Attr(false, {
+            /** @this {Member} */
             compute() {
                 return this.type === "admin";
             },
         });
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
@@ -457,12 +479,12 @@ test("Can insert with relation as id, using relation as data object", async () =
     (class User extends Record {
         static id = "name";
         name;
-        settings = fields.One("Settings");
+        settings = fields.One(/** @type {string} */ ("Settings"));
     }).register(localRegistry);
     (class Settings extends Record {
         static id = "user";
         pushNotif;
-        user = fields.One("User", { inverse: "settings" });
+        user = fields.One(/** @type {string} */ ("User"), { inverse: "settings" });
     }).register(localRegistry);
     const store = await start();
     store.Settings.insert([
@@ -492,14 +514,16 @@ test("record list sort should be manually observable", async () => {
     (class Thread extends Record {
         static id = "id";
         id;
-        messages = fields.Many("Message", { inverse: "thread" });
+        messages = fields.Many(/** @type {string} */ ("Message"), {
+            inverse: "thread",
+        });
     }).register(localRegistry);
     (class Message extends Record {
         static id = "id";
         id;
         body;
         author;
-        thread = fields.One("Thread", { inverse: "messages" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "messages" });
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert(1);
@@ -537,7 +561,7 @@ test("relation field sort should be automatically observed", async () => {
     (class Thread extends Record {
         static id = "id";
         id;
-        messages = fields.Many("Message", {
+        messages = fields.Many(/** @type {string} */ ("Message"), {
             inverse: "thread",
             sort: (m1, m2) => (m1.body < m2.body ? -1 : 1),
         });
@@ -547,7 +571,7 @@ test("relation field sort should be automatically observed", async () => {
         id;
         body;
         author;
-        thread = fields.One("Thread", { inverse: "messages" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "messages" });
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert(1);
@@ -572,11 +596,12 @@ test("compute relation field stays up to date without being read", async () => {
     (class Thread extends Record {
         static id = "id";
         id;
-        messages = fields.Many("Message", {
+        messages = fields.Many(/** @type {string} */ ("Message"), {
             inverse: "thread",
             sort: (m1, m2) => (m1.body < m2.body ? -1 : 1),
         });
-        messages2 = fields.Many("Message", {
+        messages2 = fields.Many(/** @type {string} */ ("Message"), {
+            /** @this {Thread} */
             compute() {
                 return this.messages.map((m) => m.id);
             },
@@ -585,7 +610,7 @@ test("compute relation field stays up to date without being read", async () => {
     (class Message extends Record {
         static id = "id";
         id;
-        thread = fields.One("Thread", { inverse: "messages" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "messages" });
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert(1);
@@ -612,6 +637,7 @@ test("compute runs on dependency change whether or not the field is observed", a
         id;
         count = 0;
         multiplicity = fields.Attr(undefined, {
+            /** @this {Channel} */
             compute() {
                 expect.step("computing");
                 if (this.count > 3) {
@@ -651,7 +677,7 @@ test("sorted field re-sorts on dependency change even when unobserved", async ()
     (class Thread extends Record {
         static id = "id";
         id;
-        messages = fields.Many("Message", {
+        messages = fields.Many(/** @type {string} */ ("Message"), {
             sort: (m1, m2) => m1.sequence - m2.sequence,
         });
     }).register(localRegistry);
@@ -749,7 +775,7 @@ test("onAdd/onDelete hooks on one without inverse", async () => {
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread", {
+        thread = fields.One(/** @type {string} */ ("Thread"), {
             onAdd: (thread) => asyncStep(`thread.onAdd(${thread.name})`),
             onDelete: (thread) => asyncStep(`thread.onDelete(${thread.name})`),
         });
@@ -770,7 +796,7 @@ test("onAdd/onDelete hooks on many without inverse", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
             onAdd: (member) => asyncStep(`members.onAdd(${member.name})`),
             onDelete: (member) => asyncStep(`members.onDelete(${member.name})`),
         });
@@ -797,11 +823,11 @@ test("record list assign should update inverse fields", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", { inverse: "thread" });
+        members = fields.Many(/** @type {string} */ ("Member"), { inverse: "thread" });
     }).register(localRegistry);
     (class Member extends Record {
         static id = "name";
-        thread = fields.One("Thread", { inverse: "members" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "members" });
     }).register(localRegistry);
     const store = await start();
     const general = store.Thread.insert("General");
@@ -877,8 +903,8 @@ test("record.toData() is JSON stringified and can be reinserted as record", asyn
         id;
         names = fields.Attr([]);
         due_datetime = fields.Attr(undefined, { type: "datetime" });
-        messages = fields.Many("Message");
-        team = fields.One("Team");
+        messages = fields.Many(/** @type {string} */ ("Message"));
+        team = fields.One(/** @type {string} */ ("Team"));
         signature = fields.Html("");
     }).register(localRegistry);
     (class Message extends Record {
@@ -928,8 +954,8 @@ test("record.toData() returns flat data", async () => {
         id;
         names = fields.Attr([]);
         due_datetime = fields.Attr(undefined, { type: "datetime" });
-        messages = fields.Many("Message");
-        team = fields.One("Team");
+        messages = fields.Many(/** @type {string} */ ("Message"));
+        team = fields.One(/** @type {string} */ ("Team"));
     }).register(localRegistry);
     (class Message extends Record {
         static id = "id";
@@ -940,7 +966,7 @@ test("record.toData() returns flat data", async () => {
         static id = "id";
         id;
         name;
-        leader = fields.One("Person");
+        leader = fields.One(/** @type {string} */ ("Person"));
     }).register(localRegistry);
     const store = await start();
     store.Person.insert([
@@ -1045,8 +1071,8 @@ test("record.toData() field filter respects field-name boundaries", async () => 
     (class Person extends Record {
         static id = "id";
         id;
-        team = fields.One("Team");
-        team_lead = fields.One("Person");
+        team = fields.One(/** @type {string} */ ("Team"));
+        team_lead = fields.One(/** @type {string} */ ("Person"));
     }).register(localRegistry);
     (class Team extends Record {
         static id = "id";
@@ -1092,7 +1118,7 @@ test("Record lists methods are bound to the record list", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message");
+        messages = fields.Many(/** @type {string} */ ("Message"));
     }).register(localRegistry);
     const store = await start();
     const general = store.Thread.insert("General");
@@ -1132,8 +1158,8 @@ test("insert with id relation keeps existing field values", async () => {
     class ChannelMember extends Record {
         static id = AND("channel", "user");
         is_internal = fields.Attr(false);
-        channel = fields.One("Thread");
-        user = fields.One("User");
+        channel = fields.One(/** @type {string} */ ("Thread"));
+        user = fields.One(/** @type {string} */ ("User"));
     }
     ChannelMember.register(localRegistry);
     const store = await start();
@@ -1162,7 +1188,7 @@ test("Inserting single-id data on non-single id Model throws human-readable erro
     (class Message extends Record {
         static id = "id";
         id;
-        author = fields.One("Persona");
+        author = fields.One(/** @type {string} */ ("Persona"));
     }).register(localRegistry);
     const store = await start();
     store.logErrors = false;
@@ -1187,11 +1213,11 @@ test("Can assign new record on Many field with One inverse", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        files = fields.Many("File", { inverse: "thread" });
+        files = fields.Many(/** @type {string} */ ("File"), { inverse: "thread" });
     }).register(localRegistry);
     (class File extends Record {
         static id = "name";
-        thread = fields.One("Thread", { inverse: "files" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "files" });
         name;
     }).register(localRegistry);
     const store = await start();
@@ -1227,7 +1253,9 @@ test("Deleted records are not returned by 'Model.records' nor 'Model.get()'", as
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message", { inverse: "thread" });
+        messages = fields.Many(/** @type {string} */ ("Message"), {
+            inverse: "thread",
+        });
         get hasMessages() {
             return this.messages.length > 0;
         }
@@ -1235,13 +1263,14 @@ test("Deleted records are not returned by 'Model.records' nor 'Model.get()'", as
     (class Message extends Record {
         static id = "content";
         content;
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     (class DiscussApp extends Record {
         static id = "id";
         id;
-        thread = fields.One("Thread");
-        allMessagesInStore = fields.Many("Message", {
+        thread = fields.One(/** @type {string} */ ("Thread"));
+        allMessagesInStore = fields.Many(/** @type {string} */ ("Message"), {
+            /** @this {DiscussApp} */
             compute() {
                 if (deleting) {
                     expect.step("allMessagesInStore:compute");
@@ -1278,8 +1307,9 @@ test("Deleted records are not returned by 'Model.records' nor 'Model.get()'", as
 test("Delete record with side-effect compute to insert it should have resulting record with only insert data (old data is removed)'", async () => {
     (class DiscussApp extends Record {
         static id;
-        state = fields.One("DiscussAppState", {
+        state = fields.One(/** @type {string} */ ("DiscussAppState"), {
             compute: () => ({}),
+            /** @this {DiscussApp} */
             onDelete() {
                 this.state = {};
             },
@@ -1288,7 +1318,7 @@ test("Delete record with side-effect compute to insert it should have resulting 
     (class DiscussAppState extends Record {
         static id;
         status = "init";
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     (class Thread extends Record {
         static id = "name";
@@ -1308,25 +1338,27 @@ test("side-effect of double deletion of record should work as expected with no c
     (class Channel extends Record {
         static id = "name";
         name;
-        correspondent = fields.One("Member", {
+        correspondent = fields.One(/** @type {string} */ ("Member"), {
+            /** @this {Channel} */
             compute() {
                 return this.members[0];
             },
         });
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
             onDelete: (r) => r.delete(),
         });
-        parent = fields.One("Channel", {
+        parent = fields.One(/** @type {string} */ ("Channel"), {
+            /** @this {Channel} */
             onDelete() {
                 this.delete();
             },
         });
-        threads = fields.Many("Channel", { inverse: "parent" });
+        threads = fields.Many(/** @type {string} */ ("Channel"), { inverse: "parent" });
     }).register(localRegistry);
     (class Member extends Record {
         static id = "partner";
-        partner = fields.One("Partner");
-        channel = fields.One("Channel", { inverse: "members" });
+        partner = fields.One(/** @type {string} */ ("Partner"));
+        channel = fields.One(/** @type {string} */ ("Channel"), { inverse: "members" });
     }).register(localRegistry);
     (class Partner extends Record {
         static id = "name";
@@ -1379,11 +1411,13 @@ test("re-parenting via many side cleans old owner's list and fires onDelete", as
     (class Thread extends Record {
         static id = "name";
         name;
-        files = fields.Many("File", {
+        files = fields.Many(/** @type {string} */ ("File"), {
             inverse: "thread",
+            /** @this {Thread} */
             onAdd(file) {
                 logs.push(`${this.name}.files.onAdd(${file.name})`);
             },
+            /** @this {Thread} */
             onDelete(file) {
                 logs.push(`${this.name}.files.onDelete(${file.name})`);
             },
@@ -1392,7 +1426,7 @@ test("re-parenting via many side cleans old owner's list and fires onDelete", as
     (class File extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread", { inverse: "files" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "files" });
     }).register(localRegistry);
     const store = await start();
     const threadA = store.Thread.insert("A");
@@ -1438,12 +1472,14 @@ test("nullish values in relation writes are no-ops, not phantom records", async 
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message", { inverse: "thread" });
+        messages = fields.Many(/** @type {string} */ ("Message"), {
+            inverse: "thread",
+        });
     }).register(localRegistry);
     (class Message extends Record {
         static id = "id";
         id;
-        thread = fields.One("Thread", { inverse: "messages" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "messages" });
     }).register(localRegistry);
     const store = await start();
     store.logErrors = false;
@@ -1467,12 +1503,14 @@ test("assigning duplicate entries keeps a single occurrence", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message", { inverse: "thread" });
+        messages = fields.Many(/** @type {string} */ ("Message"), {
+            inverse: "thread",
+        });
     }).register(localRegistry);
     (class Message extends Record {
         static id = "id";
         id;
-        thread = fields.One("Thread", { inverse: "messages" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "messages" });
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
@@ -1489,7 +1527,7 @@ test("deleting a non-member does not fire onDelete hooks", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message", {
+        messages = fields.Many(/** @type {string} */ ("Message"), {
             inverse: "thread",
             onAdd: (r) => expect.step(`onAdd(${r.id})`),
             onDelete: (r) => expect.step(`onDelete(${r.id})`),
@@ -1498,7 +1536,7 @@ test("deleting a non-member does not fire onDelete hooks", async () => {
     (class Message extends Record {
         static id = "id";
         id;
-        thread = fields.One("Thread", { inverse: "messages" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "messages" });
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
@@ -1515,7 +1553,7 @@ test("single-argument splice removes to the end like Array#splice", async () => 
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message");
+        messages = fields.Many(/** @type {string} */ ("Message"));
     }).register(localRegistry);
     (class Message extends Record {
         static id = "id";
@@ -1553,6 +1591,7 @@ test("throwing compute preserves the previous value instead of clearing it", asy
         name;
         explode = false;
         title = fields.Attr(undefined, {
+            /** @this {Thread} */
             compute() {
                 if (this.explode) {
                     throw new Error("compute boom");
@@ -1560,7 +1599,8 @@ test("throwing compute preserves the previous value instead of clearing it", asy
                 return `title of ${this.name}`;
             },
         });
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
+            /** @this {Thread} */
             compute() {
                 if (this.explode) {
                     throw new Error("compute boom");
@@ -1602,7 +1642,7 @@ test("record list index assignment", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        files = fields.Many("File", {
+        files = fields.Many(/** @type {string} */ ("File"), {
             inverse: "thread",
             onAdd: (file) => expect.step(`onAdd(${file.name})`),
             onDelete: (file) => expect.step(`onDelete(${file.name})`),
@@ -1611,7 +1651,7 @@ test("record list index assignment", async () => {
     (class File extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread", { inverse: "files" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "files" });
     }).register(localRegistry);
     const store = await start();
     store.logErrors = false;
@@ -1649,7 +1689,7 @@ test("id fields are immutable once the record is inserted", async () => {
     }).register(localRegistry);
     (class ChatWindow extends Record {
         static id = "thread";
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     const store = await start();
     store.logErrors = false;
@@ -1675,7 +1715,7 @@ test("record list read methods work and unsupported mutators throw", async () =>
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message");
+        messages = fields.Many(/** @type {string} */ ("Message"));
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
@@ -1721,7 +1761,7 @@ test("clear() empties the list, updates inverses and fires onDelete hooks", asyn
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
             inverse: "thread",
             onDelete: (member) => expect.step(`onDelete(${member.name})`),
         });
@@ -1729,7 +1769,7 @@ test("clear() empties the list, updates inverses and fires onDelete hooks", asyn
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread", { inverse: "members" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "members" });
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");
@@ -1758,11 +1798,14 @@ test("record.delete() while used in a computed+sorted field should properly dele
         static id = "name";
         name;
         description;
-        messages = fields.Many("Message", {
+        messages = fields.Many(/** @type {string} */ ("Message"), {
+            /** @this {Thread} */
             compute() {
-                return Object.values(this.store.Message.records).filter(
-                    (msg) => msg.thread_name === this.name,
-                );
+                return Object.values(
+                    /** @type {import("models").Store & {Message: typeof Record & {records: {[key: string]: {thread_name: string}}}}} */ (
+                        this.store
+                    ).Message.records,
+                ).filter((msg) => msg.thread_name === this.name);
             },
             sort: (m1, m2) => (m1.sequence ?? 0) - (m2.sequence ?? 0),
         });
@@ -1797,7 +1840,7 @@ test("RecordUses reference-counts membership and empties on removal", async () =
     (class Thread extends Record {
         static id = "name";
         name;
-        messages = fields.Many("Message");
+        messages = fields.Many(/** @type {string} */ ("Message"));
     }).register(localRegistry);
     (class Message extends Record {
         static id = "id";
@@ -1812,7 +1855,7 @@ test("RecordUses reference-counts membership and empties on removal", async () =
     (class Thread2 extends Record {
         static id = "name";
         name;
-        pinned = fields.Many("Message");
+        pinned = fields.Many(/** @type {string} */ ("Message"));
     }).register(localRegistry);
     thread.messages.add(message);
     expect(uses.data.get(toRaw(thread)._raw).get("messages")).toBe(1);
@@ -1831,8 +1874,8 @@ test("OR-id records are distinct per which part is provided", async () => {
     }).register(localRegistry);
     (class Composer extends Record {
         static id = OR("thread", "message");
-        thread = fields.One("Thread");
-        message = fields.One("Message");
+        thread = fields.One(/** @type {string} */ ("Thread"));
+        message = fields.One(/** @type {string} */ ("Message"));
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert("General");

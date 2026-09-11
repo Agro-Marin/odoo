@@ -4,7 +4,7 @@
 
 import { reactive, toRaw } from "@odoo/owl";
 
-import { IS_DELETED_SYM, IS_RECORD_SYM, isRelation } from "./misc.js";
+import { fieldsOf, IS_DELETED_SYM, IS_RECORD_SYM, isRelation } from "./misc.js";
 import { RecordList } from "./record_list.js";
 import { RecordUses } from "./record_uses.js";
 
@@ -43,13 +43,13 @@ export class RecordInternal {
                 _raw: recordList,
                 _store: record.store,
             });
-            record[fieldName] = recordList;
+            fieldsOf(record)[fieldName] = recordList;
         } else {
             const def = Model._.fieldsDefault.get(fieldName);
             if (typeof def === "object" && def !== null) {
-                record[fieldName] = record[fieldName].default;
+                fieldsOf(record)[fieldName] = fieldsOf(record)[fieldName].default;
             } else {
-                record[fieldName] = def;
+                fieldsOf(record)[fieldName] = def;
             }
         }
         if (Model._.fieldsCompute.get(fieldName)) {
@@ -85,7 +85,7 @@ export class RecordInternal {
      * @param {boolean} [options.force=false]
      */
     requestCompute(record, fieldName, { force = false } = {}) {
-        if (record[IS_DELETED_SYM]) {
+        if (fieldsOf(record)[IS_DELETED_SYM]) {
             return;
         }
         const Model = record.Model;
@@ -106,7 +106,7 @@ export class RecordInternal {
      * @param {boolean} [options.force]
      */
     requestSort(record, fieldName, { force } = {}) {
-        if (record[IS_DELETED_SYM]) {
+        if (fieldsOf(record)[IS_DELETED_SYM]) {
             return;
         }
         const Model = record.Model;
@@ -129,9 +129,14 @@ export class RecordInternal {
         const store = record._rawStore;
         let computedValue;
         try {
-            computedValue = Model._.fieldsCompute
-                .get(fieldName)
-                .call(this.fieldsComputeProxy2.get(fieldName));
+            const compute = Model._.fieldsCompute.get(fieldName);
+            const receiver = this.fieldsComputeProxy2.get(fieldName);
+            if (compute === undefined || receiver === undefined) {
+                throw new Error(
+                    `Unprepared computed field ${Model.getName()}.${fieldName}`,
+                );
+            }
+            computedValue = compute.call(receiver);
         } catch (err) {
             store.handleError(err);
             return;
@@ -146,26 +151,33 @@ export class RecordInternal {
      */
     sort(record, fieldName) {
         const Model = record.Model;
-        if (!Model._.fieldsSort.get(fieldName)) {
+        const sort = Model._.fieldsSort.get(fieldName);
+        if (sort === undefined) {
             return;
         }
         const store = record._rawStore;
         const proxy2Sort = this.fieldsSortProxy2.get(fieldName);
-        const func = Model._.fieldsSort.get(fieldName).bind(proxy2Sort);
+        if (proxy2Sort === undefined) {
+            store.handleError(
+                new Error(`Unprepared sorted field ${Model.getName()}.${fieldName}`),
+            );
+            return;
+        }
+        const func = sort.bind(proxy2Sort);
         if (isRelation(Model, fieldName)) {
             try {
-                store._.sortRecordList(proxy2Sort[fieldName]._proxy, func);
+                store._.sortRecordList(fieldsOf(proxy2Sort)[fieldName]._proxy, func);
             } catch (err) {
                 store.handleError(err);
             }
         } else {
-            const copy = [...proxy2Sort[fieldName]];
+            const copy = [...fieldsOf(proxy2Sort)[fieldName]];
             copy.sort(func);
             const hasChanged = copy.some(
-                (item, index) => item !== record[fieldName][index],
+                (item, index) => item !== fieldsOf(record)[fieldName][index],
             );
             if (hasChanged) {
-                proxy2Sort[fieldName] = copy;
+                fieldsOf(proxy2Sort)[fieldName] = copy;
             }
         }
     }
@@ -174,16 +186,17 @@ export class RecordInternal {
      * @param {string} fieldName
      */
     onUpdate(record, fieldName) {
-        if (record[IS_DELETED_SYM]) {
+        if (fieldsOf(record)[IS_DELETED_SYM]) {
             return;
         }
         const store = record._rawStore;
         const Model = record.Model;
-        if (!Model._.fieldsOnUpdate.get(fieldName)) {
+        const onUpdate = Model._.fieldsOnUpdate.get(fieldName);
+        if (onUpdate === undefined) {
             return;
         }
         try {
-            Model._.fieldsOnUpdate.get(fieldName).call(record._proxyInternal);
+            onUpdate.call(record._proxyInternal);
         } catch (err) {
             store.handleError(err);
         }

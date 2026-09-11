@@ -4,6 +4,7 @@ import { markRaw, reactive, toRaw } from "@odoo/owl";
 
 import {
     ATTR_SYM,
+    fieldsOf,
     isFieldDefinition,
     isRelation,
     MANY_SYM,
@@ -52,7 +53,7 @@ function recordProxyGet(record, Model, name, receiver) {
         record._.gettingField++;
         let recordList;
         try {
-            recordList = recordFullProxy[name];
+            recordList = fieldsOf(recordFullProxy)[name];
         } finally {
             record._.gettingField--;
         }
@@ -62,7 +63,7 @@ function recordProxyGet(record, Model, name, receiver) {
         }
         return recordListFullProxy[0];
     }
-    return record[name];
+    return fieldsOf(record)[name];
 }
 /**
  * @param {Record} record
@@ -73,7 +74,7 @@ function recordProxyGet(record, Model, name, receiver) {
 function recordProxyDeleteProperty(record, Model, storeRef, name) {
     return storeRef.current.MAKE_UPDATE(function recordDeleteProperty() {
         if (isRelation(Model, name)) {
-            const recordList = record[name];
+            const recordList = fieldsOf(record)[name];
             recordList.clear();
             return true;
         }
@@ -90,7 +91,7 @@ function recordProxyDeleteProperty(record, Model, storeRef, name) {
  */
 function recordProxySet(record, storeRef, name, val, receiver) {
     if (record._.updatingAttrs.has(name)) {
-        record[name] = val;
+        fieldsOf(record)[name] = val;
         return true;
     }
     return storeRef.current.MAKE_UPDATE(function recordSet() {
@@ -136,29 +137,24 @@ function makeRecordProxy(record, Model, storeRef) {
 function makeRecordClass(OgClass, Model, storeRef) {
     return {
         [OgClass.getName()]: class extends OgClass {
-            /** @type {this} */
-            _raw = undefined;
-            /** @type {this} */
-            _proxy = undefined;
-            /** @type {this} */
-            _proxyInternal = undefined;
             constructor() {
                 super();
                 this.setup();
                 /** @type {this} */
                 const record = this;
-                record._raw = record;
-                record.Model = Model;
+                Object.assign(record, { _raw: record, Model });
                 record._ = markRaw(
-                    record[STORE_SYM] ? new StoreInternal() : new RecordInternal(),
+                    fieldsOf(record)[STORE_SYM]
+                        ? new StoreInternal()
+                        : new RecordInternal(),
                 );
                 const recordProxyInternal = /** @type {typeof record} */ (
                     makeRecordProxy(record, Model, storeRef)
                 );
-                record._proxyInternal = recordProxyInternal;
+                Object.assign(record, { _proxyInternal: recordProxyInternal });
                 const recordProxy = /** @type {this} */ (reactive(recordProxyInternal));
-                record._proxy = recordProxy;
-                if (record?.[STORE_SYM]) {
+                Object.assign(record, { _proxy: recordProxy });
+                if (fieldsOf(record)[STORE_SYM]) {
                     /** @type {import("models").Store} */ (
                         /** @type {unknown} */ (record)
                     ).recordByLocalId = storeRef.current.recordByLocalId;
@@ -214,6 +210,11 @@ function linkInverseRelations(Models) {
                 throw new Error(`No target model ${targetModel} exists`);
             }
             if (inverse) {
+                if (targetModel === undefined) {
+                    throw new Error(
+                        `Field ${Model.getName()}.${name} declares inverse "${inverse}" without a target model`,
+                    );
+                }
                 const OtherModel = Models[targetModel];
                 if (!isRelation(OtherModel, inverse)) {
                     throw new Error(
@@ -263,7 +264,7 @@ function bootstrapStoreRecord(storeRef, Models) {
         for (const Model of Object.values(Models)) {
             Model._rawStore = storeRef.current;
             Model.store = storeRef.current._proxy;
-            storeRef.current._proxy[Model.getName()] = Model;
+            fieldsOf(storeRef.current._proxy)[Model.getName()] = Model;
         }
         Object.assign(storeRef.current, { Models, storeReady: true });
     });
@@ -271,7 +272,7 @@ function bootstrapStoreRecord(storeRef, Models) {
 /**
  * @param {import("@web/env").OdooEnv} env
  * @param {Object} [options]
- * @param {import("@web/core/registry").Registry} [options.localRegistry]
+ * @param {import("@web/core/registry").Registry<typeof Record>} [options.localRegistry]
  * @returns {import("models").Store}
  */
 export function makeStore(env, { localRegistry } = {}) {
@@ -282,7 +283,7 @@ export function makeStore(env, { localRegistry } = {}) {
     for (const [, _OgClass] of chosenModelRegistry.getEntries()) {
         /** @type {typeof Record} */
         const OgClass = _OgClass;
-        if (storeRef.current[OgClass.getName()]) {
+        if (fieldsOf(storeRef.current)[OgClass.getName()]) {
             throw new Error(
                 `There must be no duplicated Model Names (duplicate found: ${OgClass.getName()})`,
             );
@@ -295,7 +296,7 @@ export function makeStore(env, { localRegistry } = {}) {
             records: reactive({}),
         });
         Models[Model.getName()] = Model;
-        storeRef.current[Model.getName()] = Model;
+        fieldsOf(storeRef.current)[Model.getName()] = Model;
         collectModelFields(Model, OgClass);
     }
     linkInverseRelations(Models);

@@ -36,12 +36,12 @@ test("insert() must not mutate a caller-supplied relation-data payload", async (
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", { inverse: "thread" });
+        members = fields.Many(/** @type {string} */ ("Member"), { inverse: "thread" });
     }).register(localRegistry);
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread", { inverse: "members" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "members" });
     }).register(localRegistry);
     const store = await start();
     const payload = { name: "m1" };
@@ -60,12 +60,14 @@ test("an inverse naming no field on the target model is refused at boot", async 
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", { inverse: "typoedThread" });
+        members = fields.Many(/** @type {string} */ ("Member"), {
+            inverse: "typoedThread",
+        });
     }).register(badRegistry);
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(badRegistry);
     expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
         'Field Thread.members declares inverse "typoedThread", but Member has no fields.One()/fields.Many() named "typoedThread"',
@@ -77,7 +79,7 @@ test("an inverse naming a plain attribute on the target model is refused at boot
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", { inverse: "thread" });
+        members = fields.Many(/** @type {string} */ ("Member"), { inverse: "thread" });
     }).register(badRegistry);
     (class Member extends Record {
         static id = "name";
@@ -93,12 +95,12 @@ test("a one-sided inverse, declared only on the owning model, still boots", asyn
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", { inverse: "thread" });
+        members = fields.Many(/** @type {string} */ ("Member"), { inverse: "thread" });
     }).register(localRegistry);
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread");
+        thread = fields.One(/** @type {string} */ ("Thread"));
     }).register(localRegistry);
     const store = await start();
     const thread = store.Thread.insert({ name: "T1", members: [{ name: "m1" }] });
@@ -139,6 +141,7 @@ test("one model's rows failing does not abort the models after it", async () => 
         static id = "name";
         name;
         bad = fields.Attr(undefined, {
+            /** @this {Boom} */
             compute() {
                 if (this.name === "explodes") {
                     throw new Error("compute exploded");
@@ -168,6 +171,7 @@ test("logErrors does not decide whether an error throws", async () => {
         static id = "name";
         name;
         bad = fields.Attr(undefined, {
+            /** @this {Boom} */
             compute() {
                 throw new Error("compute exploded");
             },
@@ -184,8 +188,8 @@ test("toData() emits one row per record when several fields reach the same one",
     (class Root extends Record {
         static id = "name";
         name;
-        left = fields.One("Leaf");
-        right = fields.One("Leaf");
+        left = fields.One(/** @type {string} */ ("Leaf"));
+        right = fields.One(/** @type {string} */ ("Leaf"));
     }).register(localRegistry);
     (class Leaf extends Record {
         static id = "name";
@@ -219,7 +223,7 @@ test("a relation naming an unregistered target model is refused at boot", async 
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Ghost");
+        members = fields.Many(/** @type {string} */ ("Ghost"));
     }).register(badRegistry);
     expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
         "No target model Ghost exists",
@@ -231,17 +235,17 @@ test("an inverse pair disagreeing on the target model is refused at boot", async
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", { inverse: "thread" });
+        members = fields.Many(/** @type {string} */ ("Member"), { inverse: "thread" });
     }).register(badRegistry);
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Other", { inverse: "members" });
+        thread = fields.One(/** @type {string} */ ("Other"), { inverse: "members" });
     }).register(badRegistry);
     (class Other extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member");
+        members = fields.Many(/** @type {string} */ ("Member"));
     }).register(badRegistry);
     expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
         /has wrong targetModel/,
@@ -253,15 +257,28 @@ test("an inverse pair disagreeing on the inverse name is refused at boot", async
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", { inverse: "thread" });
-        watchers = fields.Many("Member");
+        members = fields.Many(/** @type {string} */ ("Member"), { inverse: "thread" });
+        watchers = fields.Many(/** @type {string} */ ("Member"));
     }).register(badRegistry);
     (class Member extends Record {
         static id = "name";
         name;
-        thread = fields.One("Thread", { inverse: "watchers" });
+        thread = fields.One(/** @type {string} */ ("Thread"), { inverse: "watchers" });
     }).register(badRegistry);
     expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
         /has wrong inverse/,
+    );
+});
+
+test("an inverse without a target model reports the owning field at boot", async () => {
+    const env = await start2();
+    (class Thread extends Record {
+        static id = "name";
+        name;
+        // Simulate malformed runtime metadata, which can arrive outside typed callers.
+        members = fields.Many(/** @type {any} */ (undefined), { inverse: "thread" });
+    }).register(badRegistry);
+    expect(() => makeStore(env, { localRegistry: badRegistry })).toThrow(
+        'Field Thread.members declares inverse "thread" without a target model',
     );
 });

@@ -23,7 +23,7 @@ export class ScheduledMessage extends Record {
     is_note;
     /** @type {string} */
     subject;
-    textContent = fields.Attr(false, {
+    textContent = fields.Attr("", {
         /** @this {import("models").ScheduledMessage} */
         compute() {
             if (!this.body) {

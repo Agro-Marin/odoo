@@ -1163,12 +1163,7 @@ export class Rtc extends Record {
         });
     }
 
-    /**
-     * @param {Object} param0
-     * @param {Object} param0.detail
-     * @param {string} param0.detail.name
-     * @param {any} param0.detail.payload
-     */
+    /** @param {{detail: import("./peer_to_peer_types").PeerUpdate}} param0 */
     async _handleNetworkUpdates({ detail: { name, payload } }) {
         if (!this.state.channel) {
             return;
@@ -1209,13 +1204,14 @@ export class Rtc extends Record {
                 return;
         }
     }
-    /** @param {Object} payload */
+    /** @param {Extract<import("./peer_to_peer_types").PeerUpdate, {name: "broadcast"}>["payload"]} payload */
     async _onNetworkBroadcast(payload) {
-        const {
-            senderId,
-            message: { sequence },
-        } = payload;
-        if (!sequence) {
+        const { senderId, message } = payload;
+        if (!message || typeof message !== "object" || !("sequence" in message)) {
+            return;
+        }
+        const { sequence } = message;
+        if (typeof sequence !== "number" || !sequence) {
             return;
         }
         const session =
@@ -1227,7 +1223,7 @@ export class Rtc extends Record {
             session.sequence = sequence;
         }
     }
-    /** @param {Object} payload */
+    /** @param {Extract<import("./peer_to_peer_types").PeerUpdate, {name: "track"}>["payload"]} payload */
     async _onNetworkTrack(payload) {
         const { sessionId, type, track, active, sequence } = payload;
         const session =
@@ -1254,7 +1250,7 @@ export class Rtc extends Record {
             this.updateVideoDownload(session);
         }, 2000);
     }
-    /** @param {Object} payload */
+    /** @param {Extract<import("./peer_to_peer_types").PeerUpdate, {name: "recovery"}>["payload"]} payload */
     _onNetworkRecovery(payload) {
         const { id } = payload;
         const session = this.store["discuss.channel.rtc.session"].get(id);

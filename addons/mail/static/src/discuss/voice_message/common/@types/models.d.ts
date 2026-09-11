@@ -1,7 +1,9 @@
 declare module "models" {
     import { VoiceMetadata as VoiceMetadataClass } from "@mail/discuss/voice_message/common/voice_metadata_model";
 
-    export interface VoiceMetadata extends VoiceMetadataClass {}
+    export interface VoiceMetadata extends VoiceMetadataClass {
+        id: number;
+    }
 
     export interface Attachment {
         voice: Readonly<boolean>;

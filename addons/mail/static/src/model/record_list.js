@@ -18,17 +18,26 @@ function relationOf(record, fieldName) {
     ];
 }
 
-/** @param {RecordList} reclist */
+/**
+ * @template {Record} R
+ * @param {RecordList<R>} reclist
+ */
 function getInverse(reclist) {
     return reclist._.owner.Model._.fieldsInverse.get(reclist._.name);
 }
 
-/** @param {RecordList} reclist */
+/**
+ * @template {Record} R
+ * @param {RecordList<R>} reclist
+ */
 function getTargetModel(reclist) {
     return reclist._.owner.Model._.fieldsTargetModel.get(reclist._.name);
 }
 
-/** @param {RecordList} reclist */
+/**
+ * @template {Record} R
+ * @param {RecordList<R>} reclist
+ */
 function isOne(reclist) {
     return isOneField(reclist._.owner.Model, reclist._.name);
 }
@@ -218,7 +227,8 @@ class RecordListInternal {
     owner;
 
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {Record} record
      * @param {number} [index]
      */
@@ -234,9 +244,10 @@ class RecordListInternal {
         recordList._store._.ADD_QUEUE("onAdd", this.owner, this.name, record);
     }
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {number} index
-     * @returns {Record|undefined}
+     * @returns {R|undefined}
      */
     detach(recordList, index) {
         const data = recordList._proxy.data;
@@ -250,10 +261,11 @@ class RecordListInternal {
         return this.release(recordList, localId);
     }
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {number} index
      * @param {Record} record
-     * @returns {Record|undefined}
+     * @returns {R|undefined}
      */
     replace(recordList, index, record) {
         const old = this.release(recordList, recordList.data[index]);
@@ -263,12 +275,15 @@ class RecordListInternal {
         return old;
     }
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {string} localId
-     * @returns {Record|undefined}
+     * @returns {R|undefined}
      */
     release(recordList, localId) {
-        const recordProxy = toRaw(recordList._store.recordByLocalId).get(localId);
+        const recordProxy = /** @type {R | undefined} */ (
+            toRaw(recordList._store.recordByLocalId).get(localId)
+        );
         if (!recordProxy) {
             return undefined;
         }
@@ -278,7 +293,8 @@ class RecordListInternal {
         return record;
     }
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {string} localId
      */
     withdraw(recordList, localId) {
@@ -288,7 +304,8 @@ class RecordListInternal {
         }
     }
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {...Record} records
      */
     addNoinv(recordList, ...records) {
@@ -337,7 +354,8 @@ class RecordListInternal {
         }
     }
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {Record[]|any[]} data
      */
     assign(recordList, data) {
@@ -411,7 +429,8 @@ class RecordListInternal {
         });
     }
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {...Record} records
      */
     deleteNoinv(recordList, ...records) {
@@ -441,12 +460,14 @@ class RecordListInternal {
         return recordList._proxy === fullProxy ? recordList._proxyInternal : fullProxy;
     }
     /**
-     * @param {RecordList} recordList
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
      * @param {Record|any} val
      * @param {(record: Record) => void} [fn]
      * @param {Object} [options={}]
      * @param {boolean} [options.inv=true]
      * @param {"ADD"|"DELETE"} [options.mode="ADD"]
+     * @returns {R | undefined}
      */
     insert(recordList, val, fn, { inv = true, mode = "ADD" } = {}) {
         if (val === undefined || val === null || val === false) {
@@ -501,9 +522,12 @@ class RecordListInternal {
                 targetModel
             ].insert(val);
         }
-        return newRecord;
+        return /** @type {R} */ (newRecord);
     }
-    /** @param {RecordList} reclist */
+    /**
+     * @template {Record} R
+     * @param {RecordList<R>} reclist
+     */
     syncLength(reclist) {
         reclist.length = reclist.data.length;
     }
@@ -594,7 +618,7 @@ export class RecordList extends Array {
     /**
      * @param {number} [start]
      * @param {number} [deleteCount]
-     * @param {...R} [newRecordsProxy]
+     * @param {...R} newRecordsProxy
      * @returns {R[]}
      */
     splice(start, deleteCount, ...newRecordsProxy) {
@@ -663,13 +687,18 @@ export class RecordList extends Array {
             return removed;
         });
     }
-    /** @param {(a: R, b: R) => number} func */
+    /**
+     * @param {(a: R, b: R) => number} func
+     * @returns {this}
+     */
     sort(func) {
         const { list: recordList, proxy: recordListFullProxy, store } = mutatorOf(this);
-        return store.MAKE_UPDATE(function recordListSort() {
-            recordList._store._.sortRecordList(recordListFullProxy, func);
-            return recordListFullProxy;
-        });
+        return /** @type {this} */ (
+            store.MAKE_UPDATE(function recordListSort() {
+                recordList._store._.sortRecordList(recordListFullProxy, func);
+                return recordListFullProxy;
+            })
+        );
     }
     /** @param {...(R[]|RecordList<R>)} collections */
     concat(...collections) {
@@ -680,7 +709,7 @@ export class RecordList extends Array {
     }
     /**
      * @param {...(R | Partial<R>)} records
-     * @returns {R|R[]}
+     * @returns {R | undefined | (R | undefined)[]}
      */
     add(...records) {
         const recordList = toRaw(this)._raw;
@@ -692,7 +721,7 @@ export class RecordList extends Array {
                     isRecord(last) &&
                     recordList.data.includes(toRaw(last)._raw.localId)
                 ) {
-                    return toRaw(last)._raw._proxy;
+                    return /** @type {R} */ (toRaw(last)._raw._proxy);
                 }
                 return recordList._.insert(
                     recordList,
@@ -719,7 +748,7 @@ export class RecordList extends Array {
                 known ? known.has(localId) : recordList.data.includes(localId);
             for (const val of records) {
                 if (isRecord(val) && has(toRaw(val)._raw.localId)) {
-                    res.push(toRaw(val)._raw._proxy);
+                    res.push(/** @type {R} */ (toRaw(val)._raw._proxy));
                     continue;
                 }
                 const rec = recordList._.insert(
@@ -828,14 +857,27 @@ export class RecordList extends Array {
         return data.map((localId, index) => fn(byLocalId.get(localId), index, this));
     }
     /**
-     * @param {(record: R, index: number, recordList: R[]) => any} fn
-     * @returns {any[]}
+     * @template U
+     * @param {(record: R, index: number, recordList: R[]) => U | readonly U[]} fn
+     * @returns {U[]}
      */
     flatMap(fn) {
-        return this.map(fn).flat();
+        // Each callback result is flattened once, just like Array.prototype.flatMap.
+        return /** @type {U[]} */ (this.map(fn).flat());
     }
     /**
-     * @param {(record: R, index: number, recordList: R[]) => boolean} fn
+     * @template {R} S
+     * @overload
+     * @param {(record: R, index: number, recordList: R[]) => record is S} fn
+     * @returns {S[]}
+     */
+    /**
+     * @overload
+     * @param {(record: R, index: number, recordList: R[]) => unknown} fn
+     * @returns {R[]}
+     */
+    /**
+     * @param {(record: R, index: number, recordList: R[]) => unknown} fn
      * @returns {R[]}
      */
     filter(fn) {
@@ -955,6 +997,25 @@ export class RecordList extends Array {
         }
     }
     /**
+     * @overload
+     * @param {(acc: R, record: R, index: number, recordList: R[]) => R} fn
+     * @returns {R}
+     */
+    /**
+     * @overload
+     * @param {(acc: R, record: R, index: number, recordList: R[]) => R} fn
+     * @param {R} init
+     * @returns {R}
+     */
+    /**
+     * @template U
+     * @overload
+     * @param {(acc: U, record: R, index: number, recordList: R[]) => U} fn
+     * @param {U} init
+     * @returns {U}
+     */
+    /**
+     * The overloads distinguish a record seed from an explicitly supplied accumulator.
      * @param {(acc: any, record: R, index: number, recordList: R[]) => any} fn
      * @param {...any} init
      * @returns {any}
@@ -980,6 +1041,25 @@ export class RecordList extends Array {
         return acc;
     }
     /**
+     * @overload
+     * @param {(acc: R, record: R, index: number, recordList: R[]) => R} fn
+     * @returns {R}
+     */
+    /**
+     * @overload
+     * @param {(acc: R, record: R, index: number, recordList: R[]) => R} fn
+     * @param {R} init
+     * @returns {R}
+     */
+    /**
+     * @template U
+     * @overload
+     * @param {(acc: U, record: R, index: number, recordList: R[]) => U} fn
+     * @param {U} init
+     * @returns {U}
+     */
+    /**
+     * The overloads distinguish a record seed from an explicitly supplied accumulator.
      * @param {(acc: any, record: R, index: number, recordList: R[]) => any} fn
      * @param {...any} init
      * @returns {any}
@@ -1029,11 +1109,31 @@ export class RecordList extends Array {
         return this.join();
     }
     /**
+     * @overload
      * @param {number} [depth]
-     * @returns {any[]}
+     * @returns {R[]}
+     */
+    /**
+     * @template A
+     * @template {number} [D=1]
+     * @overload
+     * @this {A}
+     * @param {D} [depth]
+     * @returns {FlatArray<A, D>[]}
+     */
+    /**
+     * @template A
+     * @template {number} [D=1]
+     * @this {A}
+     * @param {D} [depth]
+     * @returns {FlatArray<A, D>[]}
      */
     flat(depth) {
-        return this.slice().flat(depth);
+        return /** @type {FlatArray<A, D>[]} */ (
+            /** @type {RecordList<R>} */ (/** @type {unknown} */ (this))
+                .slice()
+                .flat(depth)
+        );
     }
     /** @returns {R[]} */
     toReversed() {

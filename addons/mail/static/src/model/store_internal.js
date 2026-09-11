@@ -24,7 +24,7 @@ export class StoreInternal extends RecordInternal {
     FD_QUEUE = new Map();
     /** @type {Map<import("./record").Record, Map<string, true>>} */
     FU_QUEUE = new Map();
-    /** @type {Map<Function, true>} */
+    /** @type {Map<() => void, true>} */
     RO_QUEUE = new Map();
     /** @type {Map<Record, true>} */
     RD_QUEUE = new Map();
@@ -35,7 +35,7 @@ export class StoreInternal extends RecordInternal {
     UPDATE = 0;
 
     /**
-     * @param {Map} queue
+     * @param {StoreInternal["FC_QUEUE"]} queue
      * @param {import("./record").Record} record
      * @param {string} fieldName
      */
@@ -48,7 +48,7 @@ export class StoreInternal extends RecordInternal {
         recMap.set(fieldName, true);
     }
     /**
-     * @param {Map} queue
+     * @param {StoreInternal["FA_QUEUE"]} queue
      * @param {import("./record").Record} record
      * @param {string} fieldName
      * @param {import("./record").Record} relatedRecord
@@ -66,6 +66,27 @@ export class StoreInternal extends RecordInternal {
         }
         fieldMap.set(relatedRecord, true);
     }
+    /**
+     * @overload
+     * @param {"delete" | "hard_delete"} type
+     * @param {Record} record
+     * @returns {void}
+     */
+    /**
+     * @overload
+     * @param {"compute" | "sort" | "onUpdate"} type
+     * @param {Record} record
+     * @param {string} fieldName
+     * @returns {void}
+     */
+    /**
+     * @overload
+     * @param {"onAdd" | "onDelete"} type
+     * @param {Record} record
+     * @param {string} fieldName
+     * @param {Record} relatedRecord
+     * @returns {void}
+     */
     /**
      * @param {"delete"|"compute"|"sort"|"onAdd"|"onDelete"|"onUpdate"|"hard_delete"} type
      * @param {...any} params
@@ -261,10 +282,16 @@ export class StoreInternal extends RecordInternal {
         if (target === null || target === false || target === undefined) {
             return;
         }
+        const targetModel = Model._.fieldsTargetModel.get(fieldName);
+        if (targetModel === undefined) {
+            throw new Error(
+                `Missing target model for relation ${Model.getName()}.${fieldName}`,
+            );
+        }
         const targetLocalId = isRecord(target)
             ? toRaw(target)._raw.localId
             : /** @type {StoreModels} */ (/** @type {unknown} */ (Model._rawStore))[
-                  Model._.fieldsTargetModel.get(fieldName)
+                  targetModel
               ].localId(target);
         if (targetLocalId !== currentLocalId) {
             throw new Error(
@@ -274,7 +301,7 @@ export class StoreInternal extends RecordInternal {
     }
     /**
      * @param {Record} record
-     * @param {Object} vals
+     * @param {RecordFields} vals
      */
     updateFields(record, vals) {
         const fieldEntries = /** @type {[string | symbol, any][]} */ (

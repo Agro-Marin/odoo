@@ -5,13 +5,21 @@ declare module "models" {
         Store: StaticMailRecord<Store, typeof StoreClass>;
     }
 
+    type CheckedRecordInput<D, M> = D extends readonly (infer Item)[]
+        ? CheckedRecordInput<Item, M>[]
+        : D extends object
+          ? string extends keyof D
+              ? D
+              : D & { [K in Exclude<keyof D, keyof M>]: never }
+          : D;
+
     type StaticMailRecord<ClassInterface, JSClassType> = Omit<
         JSClassType,
         "get" | "insert" | "records"
     > & {
-        get: (data: any) => ClassInterface;
+        get: (data: object | string | number) => ClassInterface | undefined;
         insert: <D extends object | object[] | string | number = object>(
-            data?: D,
+            data?: D & CheckedRecordInput<D, ClassInterface>,
             options?: object,
         ) => 0 extends 1 & D
             ? any
@@ -21,7 +29,11 @@ declare module "models" {
         records: { [localId: string]: ClassInterface };
     };
 
-    export type MailModel<M extends string> = M extends keyof Models ? Models[M] : any;
+    export type MailModel<M extends string> = string extends M
+        ? any
+        : M extends keyof Models
+          ? Models[M]
+          : never;
 
     export type MailIdExpression = string | [symbol, ...MailIdExpression[]];
 

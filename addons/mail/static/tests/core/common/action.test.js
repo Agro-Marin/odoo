@@ -27,7 +27,6 @@ test("every documented option is resolvable, as a value and as a callback", asyn
         component: "an OWL Component class IS a function; calling it is wrong",
         dropdown: "documented as a plain boolean",
         componentProps: "always a callback, never a bare value",
-        disabledCondition: "always a callback, never a bare value",
         dropdownComponent: "component-or-factory, resolved by prototype check",
     };
     const sentinel = Symbol("resolved");
@@ -84,4 +83,25 @@ test("a picker-name callback receives the owning composer component", () => {
         definition: { pickerName: (component) => component.props.label },
     });
     expect(action.pickerName).toBe("GIFs");
+});
+
+test("disabledCondition accepts literal booleans and callbacks", () => {
+    const owner = new Component({}, {});
+    const store = /** @type {import("models").Store} */ ({});
+    for (const disabled of [true, false]) {
+        const literal = new Action({
+            owner,
+            store,
+            id: "literal",
+            definition: { disabledCondition: disabled },
+        });
+        const callback = new Action({
+            owner,
+            store,
+            id: "callback",
+            definition: { disabledCondition: () => disabled },
+        });
+        expect(literal.disabledCondition).toBe(disabled);
+        expect(callback.disabledCondition).toBe(disabled);
+    }
 });

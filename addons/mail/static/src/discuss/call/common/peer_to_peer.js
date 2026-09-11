@@ -706,7 +706,7 @@ export class PeerToPeer extends EventTarget {
             );
         }
     }
-    /** @param {any} detail */
+    /** @param {import("./peer_to_peer_types").PeerUpdate} detail */
     _emitUpdate(detail) {
         this.dispatchEvent(new CustomEvent("update", { detail }));
     }

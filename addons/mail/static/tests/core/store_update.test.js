@@ -2,7 +2,9 @@
 import { defineMailModels, start as start2 } from "@mail/../tests/mail_test_helpers";
 import { makeStore, Record, Store } from "@mail/core/common/record";
 import { fields } from "@mail/model/misc";
+import { observeKey } from "@mail/model/store";
 import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
+import { reactive } from "@odoo/owl";
 import { mockService } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 
@@ -31,11 +33,12 @@ test("one flush runs onAdd, then onDelete, then onUpdate, then onChange", async 
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
             onAdd: (member) => expect.step(`onAdd(${member.name})`),
             onDelete: (member) => expect.step(`onDelete(${member.name})`),
         });
         topic = fields.Attr("", {
+            /** @this {Thread} */
             onUpdate() {
                 expect.step(`onUpdate(${this.topic})`);
             },
@@ -68,6 +71,7 @@ test("a nested update defers its callbacks to the outermost one", async () => {
         static id = "name";
         name;
         topic = fields.Attr("", {
+            /** @this {Thread} */
             onUpdate() {
                 expect.step(`onUpdate(${this.topic})`);
             },
@@ -90,6 +94,7 @@ test("work a hook queues is flushed by the same update", async () => {
         static id = "name";
         name;
         first = fields.Attr("", {
+            /** @this {Thread} */
             onUpdate() {
                 expect.step(`first=${this.first}`);
                 if (this.first === "go") {
@@ -98,6 +103,7 @@ test("work a hook queues is flushed by the same update", async () => {
             },
         });
         second = fields.Attr("", {
+            /** @this {Thread} */
             onUpdate() {
                 expect.step(`second=${this.second}`);
             },
@@ -118,11 +124,13 @@ test("a flush that never converges is reported instead of hanging", async () => 
         static id = "name";
         name;
         ping = fields.Attr(0, {
+            /** @this {Thread} */
             onUpdate() {
                 this.pong = this.ping + 1;
             },
         });
         pong = fields.Attr(0, {
+            /** @this {Thread} */
             onUpdate() {
                 this.ping = this.pong + 1;
             },
@@ -172,11 +180,13 @@ test("two fields written in one update each run once, in the order queued", asyn
         static id = "name";
         name;
         topic = fields.Attr("", {
+            /** @this {Thread} */
             onUpdate() {
                 expect.step(`topic=${this.topic}`);
             },
         });
         label = fields.Attr("", {
+            /** @this {Thread} */
             onUpdate() {
                 expect.step(`label=${this.label}`);
             },
@@ -198,7 +208,7 @@ test("the same record added twice in one update runs onAdd once", async () => {
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
             onAdd: (member) => expect.step(`onAdd(${member.name})`),
         });
     }).register(localRegistry);
@@ -222,7 +232,7 @@ test("a sorted relation is in order after several adds in one update", async () 
     (class Thread extends Record {
         static id = "name";
         name;
-        members = fields.Many("Member", {
+        members = fields.Many(/** @type {string} */ ("Member"), {
             sort: (m1, m2) => m1.name.localeCompare(m2.name),
         });
     }).register(localRegistry);
@@ -243,4 +253,24 @@ test("a sorted relation is in order after several adds in one update", async () 
         "bob",
         "charlie",
     ]);
+});
+
+test("disposing a key observer is idempotent and prevents later callbacks", () => {
+    const target = reactive({ value: 0 });
+    const dispose = observeKey(target, "value", (observe) => {
+        observe();
+        expect.step("changed");
+    });
+    target.value = 1;
+    expect.verifySteps(["changed"]);
+    dispose();
+    dispose();
+    target.value = 2;
+    expect.verifySteps([]);
+});
+
+test("updates preserve callback result identity after flushing", async () => {
+    const store = await start();
+    const result = { value: 42 };
+    expect(store.MAKE_UPDATE(() => store.MAKE_UPDATE(() => result))).toBe(result);
 });

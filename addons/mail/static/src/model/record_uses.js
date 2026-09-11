@@ -1,12 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 /** @typedef {import("./record").Record} Record */
-/** @typedef {import("./record_list").RecordList} RecordList */
+/** @import { RecordList } from "./record_list" */
 
 export class RecordUses {
     /** @type {Map<Record, Map<string, number>>} */
     data = new Map();
-    /** @param {RecordList} list */
+    /**
+     * @template {Record} R
+     * @param {RecordList<R>} list
+     */
     add(list) {
         const record = list._.owner;
         let use = this.data.get(record);
@@ -16,7 +19,10 @@ export class RecordUses {
         }
         use.set(list._.name, (use.get(list._.name) ?? 0) + 1);
     }
-    /** @param {RecordList} list */
+    /**
+     * @template {Record} R
+     * @param {RecordList<R>} list
+     */
     delete(list) {
         const record = list._.owner;
         const use = this.data.get(record);

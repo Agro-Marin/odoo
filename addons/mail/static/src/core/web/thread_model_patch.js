@@ -14,7 +14,6 @@ const threadPatch = {
         this.activities = fields.Many("mail.activity", {
             sort: (a, b) =>
                 compareDatetime(a.date_deadline, b.date_deadline) || a.id - b.id,
-            /** @this {import("models").Thread} */
             onDelete(r) {
                 r.remove();
             },

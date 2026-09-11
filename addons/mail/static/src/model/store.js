@@ -9,6 +9,7 @@ import { Record } from "./record.js";
 /** @import { RecordData } from "./record" */
 /** @import { RecordFields } from "./record" */
 /** @import { StoreModels } from "./record" */
+/** @import { StoreInternal } from "./store_internal" */
 
 /**
  * @param {Object} target
@@ -25,10 +26,12 @@ export function observeKey(target, key, callback) {
             }
         };
     }
-    /** @type {Object<string, any>} */
-    let proxy;
+    /** @type {{proxy?: object, target?: object, callback?: (observe: () => void) => unknown}} */
+    const subscription = { target, callback };
     function observe() {
-        const val = proxy?.[/** @type {string} */ (key)];
+        const val = /** @type {Object<string, unknown> | undefined} */ (
+            subscription.proxy
+        )?.[/** @type {string} */ (key)];
         if (typeof val === "object" && val !== null) {
             void Object.keys(val);
         }
@@ -38,17 +41,17 @@ export function observeKey(target, key, callback) {
         }
     }
     let ready = true;
-    proxy = reactive(target, () => {
+    subscription.proxy = reactive(target, () => {
         if (ready) {
-            callback(observe);
+            subscription.callback?.(observe);
         }
     });
     observe();
     return () => {
         ready = false;
-        proxy = undefined;
-        target = undefined;
-        callback = undefined;
+        subscription.proxy = undefined;
+        subscription.target = undefined;
+        subscription.callback = undefined;
     };
 }
 export class Store extends Record {
@@ -70,15 +73,13 @@ export class Store extends Record {
      */
     _insertExtraFields(pyOrJsModelName) {}
 
-    /** @type {import("./store_internal").StoreInternal} */
-    _ = undefined;
     [STORE_SYM] = true;
     /** @type {Map<string, Record>} */
     recordByLocalId;
     storeReady = false;
     /**
      * @param {string} localId
-     * @returns {Record}
+     * @returns {Record | undefined}
      */
     get(localId) {
         return this.recordByLocalId.get(localId);
@@ -101,7 +102,7 @@ export class Store extends Record {
     /** @type {boolean} */
     logErrors = true;
 
-    /** @param {Map} FC_QUEUE */
+    /** @param {StoreInternal["FC_QUEUE"]} FC_QUEUE */
     _drainForcedComputes(FC_QUEUE) {
         while (FC_QUEUE.size > 0) {
             const [record, recMap] = /** @type {[Record, Map<string, true>]} */ (
@@ -113,7 +114,7 @@ export class Store extends Record {
             }
         }
     }
-    /** @param {Map} FS_QUEUE */
+    /** @param {StoreInternal["FS_QUEUE"]} FS_QUEUE */
     _drainForcedSorts(FS_QUEUE) {
         while (FS_QUEUE.size > 0) {
             const [record, recMap] = /** @type {[Record, Map<string, true>]} */ (
@@ -125,7 +126,7 @@ export class Store extends Record {
             }
         }
     }
-    /** @param {Map} FA_QUEUE */
+    /** @param {StoreInternal["FA_QUEUE"]} FA_QUEUE */
     _drainOnAdd(FA_QUEUE) {
         while (FA_QUEUE.size > 0) {
             const [record, recMap] =
@@ -150,7 +151,7 @@ export class Store extends Record {
             }
         }
     }
-    /** @param {Map} FD_QUEUE */
+    /** @param {StoreInternal["FD_QUEUE"]} FD_QUEUE */
     _drainOnDelete(FD_QUEUE) {
         while (FD_QUEUE.size > 0) {
             const [record, recMap] =
@@ -175,7 +176,7 @@ export class Store extends Record {
             }
         }
     }
-    /** @param {Map} FU_QUEUE */
+    /** @param {StoreInternal["FU_QUEUE"]} FU_QUEUE */
     _drainOnUpdate(FU_QUEUE) {
         while (FU_QUEUE.size > 0) {
             const [record, map] = /** @type {[Record, Map<string, true>]} */ (
@@ -187,11 +188,13 @@ export class Store extends Record {
             }
         }
     }
-    /** @param {Map} RO_QUEUE */
+    /** @param {StoreInternal["RO_QUEUE"]} RO_QUEUE */
     _drainCallbacks(RO_QUEUE) {
         while (RO_QUEUE.size > 0) {
-            /** @type {Function} */
             const cb = RO_QUEUE.keys().next().value;
+            if (cb === undefined) {
+                break;
+            }
             RO_QUEUE.delete(cb);
             try {
                 cb();
@@ -201,13 +204,15 @@ export class Store extends Record {
         }
     }
     /**
-     * @param {Map} RD_QUEUE
-     * @param {Map} deletingRecordsByLocalId
+     * @param {StoreInternal["RD_QUEUE"]} RD_QUEUE
+     * @param {Map<string, Record>} deletingRecordsByLocalId
      */
     _drainDeletes(RD_QUEUE, deletingRecordsByLocalId) {
         while (RD_QUEUE.size > 0) {
-            /** @type {Record} */
             const record = RD_QUEUE.keys().next().value;
+            if (record === undefined) {
+                break;
+            }
             RD_QUEUE.delete(record);
             for (const [usingRecord, names] of record._.uses.data.entries()) {
                 const aliveProxy = toRaw(this.recordByLocalId).get(usingRecord.localId);
@@ -243,19 +248,23 @@ export class Store extends Record {
             }
             deletingRecordsByLocalId.set(record.localId, record);
             this.recordByLocalId.delete(record.localId);
-            record._proxy[IS_DELETED_SYM] = true;
+            /** @type {RecordFields} */ (/** @type {unknown} */ (record._proxy))[
+                IS_DELETED_SYM
+            ] = true;
             delete record.Model.records[record.localId];
             this._.ADD_QUEUE("hard_delete", record);
         }
     }
     /**
-     * @param {Map} RHD_QUEUE
-     * @param {Map} deletingRecordsByLocalId
+     * @param {StoreInternal["RHD_QUEUE"]} RHD_QUEUE
+     * @param {Map<string, Record>} deletingRecordsByLocalId
      */
     _drainHardDeletes(RHD_QUEUE, deletingRecordsByLocalId) {
         while (RHD_QUEUE.size > 0) {
-            /** @type {Record} */
             const record = RHD_QUEUE.keys().next().value;
+            if (record === undefined) {
+                break;
+            }
             RHD_QUEUE.delete(record);
             deletingRecordsByLocalId.delete(record.localId);
         }
@@ -273,7 +282,7 @@ export class Store extends Record {
             this._.RHD_QUEUE.size > 0
         );
     }
-    /** @param {Map} deletingRecordsByLocalId */
+    /** @param {Map<string, Record>} deletingRecordsByLocalId */
     _drainQueuesOnce(deletingRecordsByLocalId) {
         const FC_QUEUE = new Map(this._.FC_QUEUE);
         const FS_QUEUE = new Map(this._.FS_QUEUE);
@@ -332,7 +341,11 @@ export class Store extends Record {
         this._.ERRORS = [];
         throw error1;
     }
-    /** @param {() => any} fn */
+    /**
+     * @template T
+     * @param {() => T} fn
+     * @returns {T}
+     */
     MAKE_UPDATE(fn) {
         const outermost = this._.UPDATE === 0;
         this._.UPDATE++;
@@ -351,7 +364,8 @@ export class Store extends Record {
             this._flushQueues();
             this._throwFirstQueuedError();
         }
-        return res;
+        // A failed callback is rethrown above, after queued updates are flushed.
+        return /** @type {T} */ (res);
     }
     /**
      * @param {Object} [dataByModelName={}]
@@ -407,7 +421,9 @@ export class Store extends Record {
                 }
             }
             for (const [modelName, vals] of recordsDataToDelete.values()) {
-                store[modelName].get(vals)?.delete();
+                /** @type {StoreModels} */ (/** @type {unknown} */ (store))[modelName]
+                    .get(vals)
+                    ?.delete();
             }
         });
     }
@@ -443,7 +459,7 @@ export class Store extends Record {
     _onChange(record, key, callback) {
         return observeKey(record, key, callback);
     }
-    /** @param {Object} data */
+    /** @param {RecordData} data */
     _cleanupData(data) {
         super._cleanupData(data);
         if (this._getActualModelName() === "Store") {

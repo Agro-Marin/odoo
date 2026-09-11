@@ -4,6 +4,8 @@ import { fields, Record } from "@mail/core/common/record";
 import { _t } from "@web/core/translation";
 export class Failure extends Record {
     static id = "id";
+    /** @type {string} */
+    id;
 
     notifications = fields.Many("mail.notification", {
         /** @this {import("models").Failure} */

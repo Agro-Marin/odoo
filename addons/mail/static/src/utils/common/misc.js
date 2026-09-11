@@ -363,7 +363,9 @@ export async function loadCssFromBundle(targetNode, bundleName) {
     }
 }
 
-/** @returns {(func: () => Promise<any>) => Promise<any>} */
+/**
+ * @returns {<T>(func: () => Promise<T>) => Promise<T | undefined>}
+ */
 export function makeSequential() {
     let inProgress = false;
     /** @type {(() => Promise<any>)|undefined} */

@@ -309,3 +309,34 @@ worker environment. Browser opt-in does not enable the separate
 `strictNullChecks` and `noImplicitAny` migration in `tsconfig.strict.json`.
 The consumer fixtures use strict settings to verify generic inference and
 rejected invalid property access.
+
+The consumer fixture enables both `strictNullChecks` and `noImplicitAny`.
+It checks missing-record lookups, field computation results and receivers,
+literal model names and insert keys, action option results, collection methods,
+sequential-operation results, and discriminated RTC events. The same harness
+also runs the complete web/mail worker configuration and requires mail's worker
+to remain included.
+
+Field factories check literal names against the assembled model registry.
+Tests that construct an isolated registry explicitly widen their local model
+names to `string`; that marks a dynamic boundary instead of adding test models
+to the production registry declaration. Annotate field callback receivers with
+`@this` when their owner extends the base record contract.
+
+Model insertion checks keys of statically known input objects, including batches.
+Dynamic wire dictionaries remain supported: relation commands and serialized
+dates are not interchangeable with materialized record values. `get()` can
+return `undefined`; guard the result before dereferencing it.
+
+`makeSequential()` preserves each operation's result type but can also resolve
+with `undefined` when a newer queued operation supersedes it. RTC broadcast
+messages are `unknown`; narrow their shape before reading fields. Other RTC
+update payloads narrow through their event name.
+
+The type harness also checks the implementations of `make_store`, `misc`, `model_internal`,
+`record_internal`, `record_uses`, `store`, and `store_internal` with both
+`strictNullChecks` and `noImplicitAny` enabled. This is a growing checked scope,
+not a claim that every mail implementation file passes those settings.
+Queue requests distinguish field callbacks from relation callbacks and deletion;
+`MAKE_UPDATE()` preserves its callback's return type and throws queued failures
+after flushing. The store's local-ID lookup, like model-specific lookup, can miss.

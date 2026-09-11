@@ -48,7 +48,11 @@ declare module "models" {
     export interface MailGuest extends MailGuestClass {}
     export interface MailMessageSubtype extends MailMessageSubtypeClass {}
     export interface MailTemplate extends MailTemplateClass {}
-    export interface Message extends MessageClass {}
+    export interface Message extends MessageClass {
+        /** Server document identity retained alongside the materialized thread relation. */
+        model?: string;
+        res_id?: string | number | false;
+    }
     export interface MessageLinkPreview extends MessageLinkPreviewClass {}
     export interface MessageReactions extends MessageReactionsClass {}
     export interface MessagingMenu extends MessagingMenuClass {}
