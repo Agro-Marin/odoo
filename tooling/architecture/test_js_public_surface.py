@@ -334,3 +334,23 @@ def test_an_addons_own_imports_are_not_its_surface():
     assert not jps._is_addon_internal(
         jps.ROOT / "addons" / "web" / "static" / "src" / "x.js", "mail"
     )
+
+
+def test_web_studio_is_governed_from_its_sibling_repository():
+    assert "web_studio" in jps.GOVERNED_ADDONS
+    root = jps.addon_root("web_studio")
+    if not (root / "static" / "src").is_dir():
+        pytest.skip("enterprise is not checked out beside this repository")
+    assert root.parent.name == "enterprise"
+    detailed = jps.measure_detailed(jps.CONSUMER_ROOTS, "web_studio")
+    assert "@web_studio/editor" in detailed, (
+        "the editor face the <view>_studio bridges import must be measured"
+    )
+    assert not jps._is_addon_internal(root / "static" / "src" / "editor.js", "web"), (
+        "a web_studio file is not part of web's surface"
+    )
+    assert jps._is_addon_internal(root / "static" / "src" / "editor.js", "web_studio")
+    pinned = jps.load_pinned("web_studio")
+    present = [name for name, _ in jps._named_roots(jps.CONSUMER_ROOTS)]
+    new, gone = jps.drift(jps.provenance(detailed), pinned, present)
+    assert (new, gone) == ({}, {})

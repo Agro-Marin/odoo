@@ -15,14 +15,23 @@ import _sources
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_public_surface")
 
-GOVERNED_ADDONS = ("web", "mail")
+GOVERNED_ADDONS = ("web", "mail", "web_studio")
 DEFAULT_ADDON = "web"
+# A governed addon that lives in a sibling repository, by that repository's
+# name in CONSUMER_ROOTS. web_studio publishes the editor face three
+# `<view>_studio` bridges import; the pin is what makes that face a contract.
+SIBLING_ADDONS = {"web_studio": "enterprise"}
 
 WEB = ROOT / "addons" / "web"
 
 
 def addon_root(addon: str = DEFAULT_ADDON) -> Path:
-    return WEB if addon == DEFAULT_ADDON else ROOT / "addons" / addon
+    if addon == DEFAULT_ADDON:
+        return WEB
+    if addon in SIBLING_ADDONS:
+        roots = dict(_consumer_scopes.CONSUMER_ROOTS)
+        return roots[SIBLING_ADDONS[addon]] / addon
+    return ROOT / "addons" / addon
 
 
 def pin_path(addon: str = DEFAULT_ADDON) -> Path:

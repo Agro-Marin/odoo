@@ -127,6 +127,7 @@ js_function_length.py --addon stock --count|jsfunclen_stock --count
 js_function_length.py --addon survey --count|jsfunclen_survey --count
 js_private_access.py --count-cross-tree|jsprivate_crosstree --count
 js_public_surface.py --addon mail --check|
+js_public_surface.py --addon web_studio --check|
 js_service_shape.py --addon account --count|jsserviceshape_account --count
 js_service_shape.py --addon mail --count|jsserviceshape_mail --count
 js_service_shape.py --addon stock --count|jsserviceshape_stock --count
