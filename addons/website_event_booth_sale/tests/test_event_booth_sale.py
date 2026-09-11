@@ -93,7 +93,10 @@ class TestWebsiteEventBoothSale(HttpCaseWithUserPortal, TestWebsiteEventSaleComm
                 "city": "Bayonne",
                 "country_id": self.env.ref("base.state_us_25").id,
                 "zip": "07002",
-                "phone": "(683)-556-5104",
+                "phone_ids": [
+                    Command.clear(),
+                    Command.create({"number": "(683)-556-5104"}),
+                ],
             }
         )
         self.start_tour("/event", "website_event_booth_tour", login="portal")
@@ -108,7 +111,10 @@ class TestWebsiteEventBoothSale(HttpCaseWithUserPortal, TestWebsiteEventSaleComm
                 "zip": "18503",
                 "country_id": self.env.ref("base.us").id,
                 "state_id": self.env.ref("base.state_us_39").id,
-                "phone": "+1 555-555-5555",
+                "phone_ids": [
+                    Command.clear(),
+                    Command.create({"number": "+1 555-555-5555"}),
+                ],
             }
         )
         self.start_tour(
