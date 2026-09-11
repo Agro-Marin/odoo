@@ -13,6 +13,29 @@ if TYPE_CHECKING:
 HOURS_PER_DAY = 8
 
 
+def capacity_timeline(bookings, start, stop):
+    if stop <= start:
+        return
+    changes = defaultdict(float, {start: 0.0, stop: 0.0})
+    for booking_start, booking_stop, load in bookings:
+        left, right = max(start, booking_start), min(stop, booking_stop)
+        if left < right and load > 0:
+            changes[left] += load
+            changes[right] -= load
+    previous, total = start, 0.0
+    for instant, change in sorted(changes.items()):
+        if previous < instant:
+            yield previous, instant, total
+        total += change
+        previous = instant
+
+
+def peak_capacity(bookings, start, stop):
+    return max(
+        (load for _, _, load in capacity_timeline(bookings, start, stop)), default=0.0
+    )
+
+
 def filter_domain_leaf(
     domain: Domain | list,
     field_check: Callable[[str], bool],

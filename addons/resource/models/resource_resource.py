@@ -1,9 +1,9 @@
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import TYPE_CHECKING, Any, Self
 from zoneinfo import ZoneInfo
 
-from dateutil.relativedelta import MO, relativedelta
+from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
@@ -11,9 +11,9 @@ from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.models import ValuesType
+from odoo.tools import SQL
 from odoo.tools.date_utils import (
     localized,
-    get_intervals_hours,
     to_timezone,
 )
 
@@ -116,6 +116,47 @@ class ResourceResource(models.Model):
         help="How many claims the resource can hold at once: seats at a table, concurrent users of a machine. A reservation's allocated percentage is a share of this.",
     )
 
+    role_ids = fields.Many2many(
+        "resource.role",
+        "resource_resource_role_rel",
+        "resource_resource_id",
+        "role_id",
+        "Roles",
+    )
+    default_role_id = fields.Many2one(
+        "resource.role",
+        string="Default Role",
+        compute="_compute_default_role_id",
+        inverse="_inverse_default_role_id",
+        store=True,
+        readonly=False,
+        help="Preferred role when assigning this resource. The default is always included in its roles.",
+    )
+
+    booking_limit_percentage = fields.Float(
+        "Booking Ceiling %",
+        default=100.0,
+        required=True,
+        help="Maximum simultaneous allocation for enforced bookings. 100% permits full booking; 120% permits 20% overbooking. Warning-only reservations can exceed this ceiling when resource enforcement is disabled.",
+    )
+    enforce_booking_limit = fields.Boolean(
+        "Enforce Booking Ceiling",
+        help="Reject any reservation that exceeds this resource's booking ceiling, including manual meetings and shifts. Individual bookings may enforce the ceiling even when this option is disabled.",
+    )
+    _check_booking_limit = models.Constraint(
+        "CHECK(booking_limit_percentage >= 0 AND booking_limit_percentage < 'Infinity'::float8)",
+        "The booking ceiling must be finite and nonnegative.",
+    )
+
+    @api.constrains("booking_limit_percentage", "enforce_booking_limit")
+    def _check_booking_limit_reservations(self):
+        self._lock_for_scheduling()
+        self.env["resource.reservation"].sudo().search(
+            [
+                ("resource_id", "in", self.ids),
+            ]
+        )._check_hard_overlap()
+
     _check_time_efficiency = models.Constraint(
         "CHECK(time_efficiency>0)",
         "Time efficiency must be strictly positive",
@@ -124,6 +165,19 @@ class ResourceResource(models.Model):
         "CHECK(capacity>0)",
         "Capacity must be strictly positive",
     )
+
+    @api.depends("role_ids")
+    def _compute_default_role_id(self):
+        for resource in self:
+            if resource.default_role_id not in resource.role_ids:
+                resource.default_role_id = resource.role_ids[:1]
+
+    def _inverse_default_role_id(self):
+        for resource in self:
+            if resource.default_role_id:
+                resource.role_ids |= resource.default_role_id
+            else:
+                resource.default_role_id = resource.role_ids[:1]
 
     @api.model
     def default_get(self, fields: list[str]) -> dict[str, Any]:
@@ -228,7 +282,44 @@ class ResourceResource(models.Model):
             }
         if not vals:
             return True
-        return super().write(vals)
+        result = super().write(vals)
+        if {"capacity", "tz"} & vals.keys():
+            reservations = (
+                self.env["resource.reservation"]
+                .sudo()
+                .search(
+                    [
+                        ("resource_id", "in", self.ids),
+                        ("res_model", "!=", False),
+                    ]
+                )
+            )
+            for model_name, rows in reservations.grouped("res_model").items():
+                if (
+                    model_name in self.env
+                    and "reservation_ids" in self.env[model_name]._fields
+                ):
+                    self.env[model_name].sudo().browse(
+                        rows.mapped("res_id")
+                    ).exists()._sync_reservations()
+        return result
+
+    def _lock_for_scheduling(self):
+        if self:
+            self.env.cr.execute(
+                SQL(
+                    """
+                WITH locked AS MATERIALIZED (
+                    SELECT id FROM resource_resource
+                     WHERE id = ANY(%s) ORDER BY id FOR NO KEY UPDATE
+                )
+                UPDATE resource_resource AS resource
+                   SET write_date = resource.write_date
+                  FROM locked WHERE resource.id = locked.id
+                """,
+                    self.ids,
+                )
+            )
 
     @api.depends("partner_id.name")
     def _compute_name(self):
@@ -492,8 +583,6 @@ class ResourceResource(models.Model):
         if not (start.tzinfo and end.tzinfo):
             raise ValueError("start and end datetimes must be timezone-aware")
 
-        start_date = start.date()
-        end_date = end.date()
         res = {}
 
         resources_per_tz = defaultdict(list)
@@ -501,7 +590,8 @@ class ResourceResource(models.Model):
             resources_per_tz[timezone(resource.tz)].append(resource)
 
         for tz, resources in resources_per_tz.items():
-            day = start_date
+            day = start.astimezone(tz).date()
+            end_date = end.astimezone(tz).date()
             ranges = []
             while day <= end_date:
                 start_datetime = datetime.combine(day, datetime.min.time()).replace(
@@ -549,6 +639,21 @@ class ResourceResource(models.Model):
     def _flexible_week_key(self, day: date) -> tuple[int, int]:
         return day.isocalendar()[:2]
 
+    def _get_flexible_week_bounds(self, start, end):
+        """UTC bounds covering the ISO weeks touched in each resource's timezone."""
+        if not (start.tzinfo and end.tzinfo):
+            raise ValueError("start and end datetimes must be timezone-aware")
+        starts, stops = [], []
+        last = end - timedelta(microseconds=1) if end > start else end
+        for tz in {timezone(resource.tz) for resource in self}:
+            first_day = start.astimezone(tz).date()
+            last_day = last.astimezone(tz).date()
+            monday = first_day - timedelta(days=first_day.weekday())
+            next_monday = last_day + timedelta(days=7 - last_day.weekday())
+            starts.append(datetime.combine(monday, time.min, tz).astimezone(UTC))
+            stops.append(datetime.combine(next_monday, time.min, tz).astimezone(UTC))
+        return min(starts, default=start), max(stops, default=end)
+
     def _format_leave(
         self,
         leave,
@@ -558,9 +663,10 @@ class ResourceResource(models.Model):
         start_day,
         end_day,
     ):
-        leave_start_day = leave[0].date()
-        leave_end_day = leave[1].date()
         tz = timezone(self.tz)
+        leave_start_day = leave[0].astimezone(tz).date()
+        # Leave intervals are half-open: midnight belongs to the next day.
+        leave_end_day = (leave[1] - timedelta(microseconds=1)).astimezone(tz).date()
 
         while leave_start_day <= leave_end_day:
             if not self._is_fully_flexible():
@@ -600,20 +706,15 @@ class ResourceResource(models.Model):
         if not (start.tzinfo and end.tzinfo):
             raise ValueError("start and end datetimes must be timezone-aware")
 
-        start_day, end_day = start.date(), end.date()
-
-        delta = relativedelta(weekday=MO(-1))
-        week_start_date = start + delta
-        week_end_date = end + delta + relativedelta(days=6)
-
-        end_week_key = self._flexible_week_key(week_end_date.date())
-
-        min_start_date = week_start_date + relativedelta(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        max_end_date = week_end_date + relativedelta(
-            days=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        min_start_date, max_end_date = self._get_flexible_week_bounds(start, end)
+        last = end - timedelta(microseconds=1) if end > start else end
+        days_by_resource = {
+            resource.id: (
+                start.astimezone(timezone(resource.tz)).date(),
+                last.astimezone(timezone(resource.tz)).date(),
+            )
+            for resource in self
+        }
 
         resource_work_intervals = defaultdict(Intervals)
         calendar_resources = defaultdict(lambda: self.env["resource.resource"])
@@ -638,6 +739,9 @@ class ResourceResource(models.Model):
         for resource in self:
             if resource._is_fully_flexible():
                 continue
+            start_day, end_day = days_by_resource[resource.id]
+            start_week_key = self._flexible_week_key(start_day)
+            end_week_key = self._flexible_week_key(end_day)
             duration_per_day = defaultdict(float)
             resource_intervals = resource_work_intervals.get(resource.id, Intervals())
             for interval_start, interval_end, _dummy in resource_intervals:
@@ -652,7 +756,7 @@ class ResourceResource(models.Model):
                     resource_hours_per_day[resource.id][day] = day_working_hours
 
                 year_week = self._flexible_week_key(day)
-                if year_week <= end_week_key:
+                if start_week_key <= year_week <= end_week_key:
                     cap = resource.calendar_id._get_flexible_hours_per_week()
                     resource_hours_per_week[resource.id][year_week] = min(
                         cap,
@@ -677,6 +781,7 @@ class ResourceResource(models.Model):
                         continue
 
                     ranges_to_remove = []
+                    start_day, end_day = days_by_resource[resource_id]
                     for leave in leaves:
                         resource_by_id[resource_id]._format_leave(
                             leave,
@@ -703,6 +808,44 @@ class ResourceResource(models.Model):
 
         return resource_work_intervals, resource_hours_per_day, resource_hours_per_week
 
+    def _get_flexible_booking_hours_per_day(self, bookings_by_resource, start, end):
+        """Distribute weighted booking effort over flexible working days.
+
+        Booking loads use percentages; their wall-clock span is intersected with
+        working time and capped by the same day/week rules used for shifts.
+        Fully flexible resources have no day/week budget to consume.
+        """
+        resources = self.filtered(
+            lambda resource: (
+                bookings_by_resource.get(resource.id)
+                and not resource._is_fully_flexible()
+            )
+        )
+        intervals, day_limits, week_limits = resources.with_context(
+            resource_capacity_aware=True
+        )._get_flexible_resource_valid_work_intervals(start, end)
+        result = defaultdict(lambda: defaultdict(float))
+        for resource in resources:
+            for booking_start, booking_end, percentage in bookings_by_resource.get(
+                resource.id, []
+            ):
+                booking_intervals = (
+                    Intervals(
+                        [(localized(booking_start), localized(booking_end), set())]
+                    )
+                    & intervals[resource.id]
+                )
+                hours_per_day = defaultdict(float)
+                resource._get_flexible_resource_work_hours(
+                    booking_intervals,
+                    day_limits[resource.id],
+                    week_limits[resource.id],
+                    hours_per_day,
+                )
+                for day, hours in hours_per_day.items():
+                    result[resource.id][day] += hours * percentage / 100
+        return result
+
     def _get_flexible_resource_work_hours(
         self,
         intervals: Intervals,
@@ -714,19 +857,25 @@ class ResourceResource(models.Model):
             raise ValueError("resource must be flexible")
 
         if self._is_fully_flexible():
-            return round(get_intervals_hours(intervals), 2)
+            return round(
+                sum(
+                    (end.astimezone(UTC) - start.astimezone(UTC)).total_seconds() / 3600
+                    for start, end, _dummy in intervals
+                ),
+                2,
+            )
 
         duration_per_day = dict(flexible_resources_hours_per_day)
         duration_per_week = dict(flexible_resources_hours_per_week)
 
         interval_duration_per_day = defaultdict(float)
+        tz = timezone(self.tz)
         for start, end, _dummy in intervals:
+            start, end = start.astimezone(tz), end.astimezone(tz)
+            end_utc = end.astimezone(UTC)
             if end.time() == time.max:
-                duration = (
-                    end + timedelta(microseconds=1) - start
-                ).total_seconds() / 3600
-            else:
-                duration = (end - start).total_seconds() / 3600
+                end_utc += timedelta(microseconds=1)
+            duration = (end_utc - start.astimezone(UTC)).total_seconds() / 3600
             interval_duration_per_day[start.date()] += duration
 
         work_hours = 0.0
@@ -741,7 +890,9 @@ class ResourceResource(models.Model):
                 ),
             )
             work_hours += day_working_hours
-            duration_per_week[week] -= day_working_hours
+            duration_per_week[week] = (
+                duration_per_week.get(week, 0.0) - day_working_hours
+            )
 
             if work_hours_per_day is not None:
                 work_hours_per_day[day] += day_working_hours

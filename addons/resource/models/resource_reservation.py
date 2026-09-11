@@ -10,6 +10,8 @@ from odoo.libs.intervals import Intervals
 from odoo.tools import SQL
 from odoo.tools.date_utils import localized, get_intervals_hours
 
+from .utils import peak_capacity
+
 _logger = logging.getLogger(__name__)
 
 COMPARATORS = {
@@ -90,8 +92,8 @@ class ResourceReservation(models.Model):
     )
     _check_allocated_percentage = models.Constraint(
         "CHECK(allocated_percentage IS NOT NULL"
-        " AND allocated_percentage >= 0 AND allocated_percentage <= 100)",
-        "Allocation % must be between 0 and 100.",
+        " AND allocated_percentage >= 0 AND allocated_percentage < 'Infinity'::float8)",
+        "Allocation % must be finite and nonnegative.",
     )
 
     schedule_overlap_count = fields.Integer(
@@ -99,6 +101,87 @@ class ResourceReservation(models.Model):
         compute="_compute_schedule_overlap_count",
         search="_search_schedule_overlap_count",
     )
+
+    peak_booking_percentage = fields.Float(
+        "Peak Booking %",
+        compute="_compute_booking_load",
+    )
+    booking_state = fields.Selection(
+        [
+            ("under", "Underbooked"),
+            ("full", "Fully Booked"),
+            ("over", "Overbooked"),
+            ("exceeded", "Ceiling Exceeded"),
+        ],
+        compute="_compute_booking_load",
+        string="Booking Status",
+    )
+
+    @api.model
+    def _booking_load_batch(self, resources, start, stop, domain=None):
+        bookings = self.sudo().search_fetch(
+            Domain.AND(
+                [
+                    Domain("resource_id", "in", resources.ids),
+                    Domain("active", "=", True),
+                    Domain("date_start", "<", stop),
+                    Domain("date_end", ">", start),
+                    Domain(domain or []),
+                ]
+            ),
+            ["resource_id", "date_start", "date_end", "allocated_percentage"],
+        )
+        result = {resource.id: [] for resource in resources}
+        for booking in bookings:
+            result[booking.resource_id.id].append(
+                (
+                    booking.date_start,
+                    booking.date_end,
+                    booking.allocated_percentage,
+                )
+            )
+        return result
+
+    @api.depends(
+        "resource_id",
+        "resource_id.booking_limit_percentage",
+        "date_start",
+        "date_end",
+        "allocated_percentage",
+        "active",
+    )
+    def _compute_booking_load(self):
+        dated = self.filtered(
+            lambda r: r.active and r.resource_id and r.date_start and r.date_end
+        )
+        loads = (
+            self._booking_load_batch(
+                dated.resource_id,
+                min(dated.mapped("date_start")),
+                max(dated.mapped("date_end")),
+            )
+            if dated
+            else {}
+        )
+        for record in self:
+            peak = (
+                peak_capacity(
+                    loads.get(record.resource_id.id, []),
+                    record.date_start,
+                    record.date_end,
+                )
+                if record in dated
+                else 0.0
+            )
+            record.peak_booking_percentage = peak
+            if peak > record.resource_id.booking_limit_percentage + 1e-7:
+                record.booking_state = "exceeded"
+            elif peak > 100 + 1e-7:
+                record.booking_state = "over"
+            elif peak >= 100 - 1e-7:
+                record.booking_state = "full"
+            else:
+                record.booking_state = "under"
 
     res_model = fields.Char(
         "Source Model",
@@ -118,7 +201,7 @@ class ResourceReservation(models.Model):
         [("soft", "Warning"), ("hard", "Block")],
         default="soft",
         required=True,
-        help="Soft: overlaps produce a warning. Hard: overlaps raise a validation error.",
+        help="Warning permits excess capacity unless the resource enforces its ceiling. Block prevents total simultaneous allocation from exceeding the resource ceiling.",
     )
 
     origin_display = fields.Char(
@@ -128,6 +211,15 @@ class ResourceReservation(models.Model):
 
     _resource_schedule_idx = models.Index("(resource_id, date_start, date_end)")
     _origin_idx = models.Index("(res_model, res_id)")
+
+    @api.model
+    def _enforced_booking_domain(self):
+        return Domain.OR(
+            [
+                Domain("enforcement_mode", "=", "hard"),
+                Domain("resource_id.enforce_booking_limit", "=", True),
+            ]
+        )
 
     @api.constrains("date_start", "date_end")
     def _check_date_sanity(self):
@@ -156,16 +248,10 @@ class ResourceReservation(models.Model):
         live = self.filtered(
             lambda r: r.active and r.resource_id and r.date_start and r.date_end
         )
-        hard = live.filtered(lambda r: r.enforcement_mode == "hard")
+        hard = live.filtered_domain(self._enforced_booking_domain())
 
         if live:
-            self.env.cr.execute(
-                SQL(
-                    "SELECT id FROM resource_resource WHERE id = ANY(%s)"
-                    " ORDER BY id FOR UPDATE",
-                    sorted(live.resource_id.ids),
-                )
-            )
+            live.resource_id._lock_for_scheduling()
 
         if live:
             windows_by_resource = defaultdict(lambda: [None, None])
@@ -188,7 +274,7 @@ class ResourceReservation(models.Model):
                         [
                             Domain("id", "not in", live.ids),
                             Domain("active", "=", True),
-                            Domain("enforcement_mode", "=", "hard"),
+                            self._enforced_booking_domain(),
                             Domain.OR(
                                 Domain.AND(
                                     [
@@ -209,12 +295,15 @@ class ResourceReservation(models.Model):
             )
         if not hard:
             return
-        hard._compute_schedule_overlap_count()
+        hard._compute_booking_load()
         for record in hard:
-            if record.schedule_overlap_count > 0:
+            if (
+                record.peak_booking_percentage
+                > record.resource_id.booking_limit_percentage + 1e-7
+            ):
                 raise ValidationError(
                     self.env._(
-                        "%(name)s: %(resource)s is already reserved during this time.",
+                        "%(name)s: %(resource)s exceeds its configured booking ceiling during this time.",
                         name=record.name,
                         resource=record.resource_id.name,
                     )
@@ -226,6 +315,34 @@ class ResourceReservation(models.Model):
             record.company_id = (
                 record.resource_id.company_id or record.company_id or self.env.company
             )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        self.invalidate_model(
+            ["peak_booking_percentage", "booking_state", "schedule_overlap_count"]
+        )
+        return records
+
+    def write(self, vals):
+        if set(vals) & set(self._OVERLAP_SWEEP_FIELDS):
+            resources = self.resource_id
+            if vals.get("resource_id"):
+                resources |= self.env["resource.resource"].browse(vals["resource_id"])
+            resources._lock_for_scheduling()
+        result = super().write(vals)
+        self.invalidate_model(
+            ["peak_booking_percentage", "booking_state", "schedule_overlap_count"]
+        )
+        return result
+
+    def unlink(self):
+        self.resource_id._lock_for_scheduling()
+        result = super().unlink()
+        self.invalidate_model(
+            ["peak_booking_percentage", "booking_state", "schedule_overlap_count"]
+        )
+        return result
 
     @api.depends("resource_id", "resource_id.calendar_id", "company_id")
     def _compute_resource_calendar_id(self):
@@ -244,6 +361,7 @@ class ResourceReservation(models.Model):
         "allocated_percentage",
     )
     def _compute_allocated_hours(self):
+        self = self.with_context(resource_capacity_aware=True)
         undated = self.filtered(lambda r: not r.date_start or not r.date_end)
         undated.allocated_hours = 0.0
         dated = self - undated
@@ -372,7 +490,7 @@ class ResourceReservation(models.Model):
             if date_end <= date_start:
                 continue
             pct = vals.get("allocated_percentage")
-            pct = 100.0 if pct is None else min(100.0, max(0.0, pct))
+            pct = 100.0 if pct is None else max(0.0, pct)
             prospective.append((-(index + 1), resource_id, date_start, date_end, pct))
         if not prospective:
             return self.browse()
@@ -425,7 +543,7 @@ class ResourceReservation(models.Model):
         rows = SQL(
             """
             SELECT id, resource_id, date_start, date_end,
-                   LEAST(100, GREATEST(0, COALESCE(allocated_percentage, 100)))::float8
+                   GREATEST(0, COALESCE(allocated_percentage, 100))::float8
               FROM %s
              WHERE resource_id IS NOT NULL
                AND active
@@ -642,7 +760,7 @@ class ResourceReservation(models.Model):
             ("active", "=", True),
         ]
         if domain:
-            base_domain += domain
+            base_domain = Domain(base_domain) & Domain(domain)
 
         tuples_by_resource = defaultdict(list)
         for res in self.sudo().search(base_domain):

@@ -89,9 +89,14 @@ class TestAllocatedPercentageBounds(TransactionCase):
             self._reservation("negative", allocated_percentage=-100.0)
 
     @mute_logger("odoo.db.cursor")
-    def test_percentage_above_100_rejected(self):
-        with self.assertRaises(CheckViolation), self.env.cr.savepoint(flush=False):
-            self._reservation("overshoot", allocated_percentage=900.0)
+    def test_nonfinite_percentage_rejected(self):
+        for percentage in (float("inf"), float("nan")):
+            with (
+                self.subTest(percentage=percentage),
+                self.assertRaises(CheckViolation),
+                self.env.cr.savepoint(flush=False),
+            ):
+                self._reservation("nonfinite", allocated_percentage=percentage)
 
     def test_boundaries_accepted(self):
         self.assertTrue(self._reservation("zero", allocated_percentage=0.0))

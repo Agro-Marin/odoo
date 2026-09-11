@@ -71,6 +71,8 @@
                                 invisible="resource_type == 'material'"
                                 required="resource_type == 'user'" />
                             <field name="resource_type" />
+                            <field name="role_ids" widget="many2many_tags" />
+                            <field name="default_role_id" />
                         </group>
                         <group name="resource_details">
                             <field
@@ -81,6 +83,8 @@
                             <field name="calendar_id" placeholder="Fully Flexible" />
                             <field name="tz" />
                             <field name="time_efficiency" />
+                            <field name="booking_limit_percentage" />
+                            <field name="enforce_booking_limit" />
                             <field
                                 name="capacity"
                                 invisible="resource_type != 'material'" />
@@ -115,6 +119,8 @@
                 <field name="resource_type" optional="show" />
                 <field name="time_efficiency" />
                 <field name="capacity" optional="hide" />
+                <field name="booking_limit_percentage" optional="hide" />
+                <field name="enforce_booking_limit" optional="hide" />
             </list>
         </field>
     </record>

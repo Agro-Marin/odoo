@@ -8,7 +8,8 @@
 
             <list
                 string="Reservations"
-                decoration-danger="schedule_overlap_count &gt; 0">
+                decoration-danger="booking_state == 'exceeded'"
+                decoration-warning="booking_state == 'over'">
                 <field name="name" />
                 <field name="resource_id" />
                 <field name="date_start" />
@@ -16,6 +17,8 @@
                 <field name="allocated_hours" widget="float_time" />
                 <field name="allocated_percentage" />
                 <field name="enforcement_mode" />
+                <field name="peak_booking_percentage" />
+                <field name="booking_state" />
                 <field name="schedule_overlap_count" string="Conflicts" />
                 <field name="origin_display" string="Source" />
                 <field
@@ -57,8 +60,10 @@
                             <field name="allocated_hours" widget="float_time" />
                             <field name="allocated_percentage" />
                             <field name="enforcement_mode" />
-                            <field name="schedule_overlap_count" />
-                        </group>
+                <field name="peak_booking_percentage" />
+                <field name="booking_state" />
+                    <field name="schedule_overlap_count" />
+                    </group>
                     </group>
                     <group name="origin" string="Origin" invisible="not res_model">
                         <field name="res_model" />

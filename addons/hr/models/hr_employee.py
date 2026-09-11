@@ -211,7 +211,10 @@ class HrEmployee(models.Model):
 
     work_email = fields.Char(
         "Work Email",
-        related="partner_id.email",
+        compute="_compute_work_email",
+        compute_sudo=True,
+        inverse="_inverse_work_email",
+        search="_search_work_email",
         readonly=False,
         tracking=True,
     )
@@ -806,6 +809,12 @@ class HrEmployee(models.Model):
             vals, address_vals = self._split_private_address_vals(caller_vals)
             if address_vals:
                 private_address_vals[idx] = address_vals
+            if vals.get("resource_id"):
+                resource = self.env["resource.resource"].browse(vals["resource_id"])
+                if "user_id" not in vals and resource.user_id:
+                    vals["user_id"] = resource.user_id.id
+                if "name" not in vals and not vals.get("partner_id"):
+                    vals["name"] = resource.name
             if vals.get("user_id"):
                 user = self.env["res.users"].browse(vals["user_id"])
                 vals.update(self._sync_user(user))
@@ -837,7 +846,7 @@ class HrEmployee(models.Model):
                 employee.write(address_vals)
             tz = party_tz.get(idx)
             if tz and employee.partner_id and not employee.partner_id.tz:
-                employee.partner_id.tz = tz
+                employee.partner_id.sudo().tz = tz
         employees.version_id._check_fields(["employee_id"])
         if self.env.context.get("salary_simulation"):
             return employees
@@ -1349,6 +1358,19 @@ class HrEmployee(models.Model):
     def _onchange_contract_date_start(self):
         if not self.contract_date_start:
             self.contract_date_end = False
+
+    @api.depends("partner_id.email")
+    def _compute_work_email(self):
+        for employee in self:
+            employee.work_email = employee.partner_id.email
+
+    def _search_work_email(self, operator, value):
+        return Domain("partner_id.email", operator, value)
+
+    def _inverse_work_email(self):
+        # Employee editors may maintain the work contact without Contacts rights.
+        for employee in self:
+            employee.partner_id.sudo().email = employee.work_email
 
     def _inverse_km_home_work(self):
         for employee in self:

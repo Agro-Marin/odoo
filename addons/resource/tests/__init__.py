@@ -16,3 +16,5 @@ from . import test_resource_calendar_integrity
 from . import test_resource_party
 from . import test_resource_assignment
 from . import test_resource_acl_coverage
+from . import test_booking_capacity
+from . import test_resource_roles

@@ -604,7 +604,10 @@ class ResourceCalendar(models.Model):
             ]
         )
 
-        calendar_attendances = self.env["resource.calendar.attendance"].search(domain)
+        calendar_attendances = self.env["resource.calendar.attendance"].search_fetch(
+            domain,
+            ["dayofweek", "week_type", "hour_from", "hour_to"],
+        )
         resources_per_tz = defaultdict(list)
         for resource in resources_list:
             resources_per_tz[tz or timezone((resource or self).tz)].append(resource)
@@ -706,9 +709,12 @@ class ResourceCalendar(models.Model):
     def _handle_flexible_leave_interval(
         self, dt0: datetime, dt1: datetime, leave: Any
     ) -> tuple[datetime, datetime]:
+        if dt1 <= dt0:
+            return dt0, dt1
         tz = dt0.tzinfo
+        last_day = (dt1 - timedelta(microseconds=1)).date()
         dt0 = datetime.combine(dt0.date(), time.min).replace(tzinfo=tz)
-        dt1 = datetime.combine(dt1.date(), time.max).replace(tzinfo=tz)
+        dt1 = datetime.combine(last_day, time.max).replace(tzinfo=tz)
         return dt0, dt1
 
     @staticmethod
@@ -864,11 +870,13 @@ class ResourceCalendar(models.Model):
         result: dict[int | bool, Intervals] = {empty.id: Intervals()}
         if not resources:
             return result
+        if self.env.context.get("resource_capacity_aware"):
+            return result | {resource.id: Intervals() for resource in resources}
         booked = self.env["resource.reservation"]._reservation_intervals_batch(
             start_dt,
             end_dt,
             resources,
-            domain=[("enforcement_mode", "=", "hard")],
+            domain=self.env["resource.reservation"]._enforced_booking_domain(),
         )
         for resource in resources:
             result[resource.id] = booked.get(resource.id, Intervals())

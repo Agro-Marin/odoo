@@ -12,6 +12,14 @@ class ResourceRole(models.Model):
     color = fields.Integer(default=lambda self: self._default_color())
     sequence = fields.Integer(export_string_translation=False)
 
+    resource_ids = fields.Many2many(
+        "resource.resource",
+        "resource_resource_role_rel",
+        "role_id",
+        "resource_resource_id",
+        "Resources",
+    )
+
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
         return [
