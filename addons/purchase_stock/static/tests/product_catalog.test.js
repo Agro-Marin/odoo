@@ -1,6 +1,8 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, runAllTimers, test } from "@odoo/hoot";
-import { click } from "@odoo/hoot-dom";
+import { click, edit } from "@odoo/hoot-dom";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
+import { SUGGEST_TOGGLE_STORAGE_KEY } from "@purchase_stock/product_catalog/utils";
 import {
     defineModels,
     fields,
@@ -8,11 +10,18 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 
 class ProductProduct extends models.Model {
     _name = "product.product";
 
     name = fields.Char({ string: "Product Name" });
+    type = fields.Selection({
+        selection: [
+            ["consu", "Goods"],
+            ["service", "Service"],
+        ],
+    });
     default_code = fields.Char({ string: "Default Code" });
     monthly_demand = fields.Float();
     suggested_qty = fields.Integer();
@@ -25,6 +34,15 @@ class ProductProduct extends models.Model {
     ];
 
     _views = {
+        search: `
+            <search>
+                <filter name="products_in_purchase_order" string="In the Order" domain="[('id', '=', 0)]"/>
+                <filter name="suggested" string="Suggested" domain="[('suggested_qty', '!=', 0)]"/>
+                <searchpanel>
+                    <field name="type" string="Type" icon="fa-th-list" expand="1"/>
+                </searchpanel>
+            </search>
+        `,
         kanban: `
             <kanban records_draggable="0" js_class="purchase_product_kanban_catalog">
                 <templates>
@@ -95,7 +113,6 @@ const purchaseOrderLineInfo = {
 onRpc("/product/catalog/order_lines_info", () => purchaseOrderLineInfo);
 
 test("Adding products from purchase catalog with suggestion feature ON.", async () => {
-
     onRpc("/product/catalog/update_order_line_info", async (request) => {
         const { params } = await request.json();
         const { product_id, quantity } = params;
@@ -160,4 +177,40 @@ test("Adding products from purchase catalog with suggestion feature ON.", async 
         "product_id=3 quantity=5",
         "product_id=4 quantity=1",
     ]);
+});
+
+test("The suggested total follows the parameters even when nothing is suggested", async () => {
+    browser.localStorage.setItem(
+        SUGGEST_TOGGLE_STORAGE_KEY,
+        JSON.stringify({ isOn: true }),
+    );
+    const lateTotal = new Deferred();
+    onRpc("product.product", "search_read", ({ kwargs }) =>
+        kwargs.context.suggest_days === 7
+            ? lateTotal
+            : [{ id: 2, suggest_estimated_price: 480 }],
+    );
+
+    await mountView({
+        resModel: "product.product",
+        type: "kanban",
+        context: {
+            product_catalog_order_model: "purchase.order",
+            product_catalog_order_state: "draft",
+            order_id: 1,
+            vendor_suggest_days: 30,
+            vendor_suggest_based_on: "30_days",
+            vendor_suggest_percent: 100,
+        },
+    });
+    await runAllTimers();
+    expect("span[name='suggest_total']").toHaveText("480.00");
+
+    await click("input.o_PurchaseSuggestInput:eq(0)");
+    await edit("7");
+    await runAllTimers();
+    lateTotal.resolve([]);
+    await animationFrame();
+
+    expect("span[name='suggest_total']").toHaveText("0.00");
 });
