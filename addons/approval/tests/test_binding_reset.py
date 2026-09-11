@@ -175,6 +175,35 @@ class TestApprovalBindingReset(common.TransactionCase):
             len(runs), 2, "a second approval cycle runs the operation again"
         )
 
+    def test_a_decision_on_a_request_still_waiting_is_reset_too(self):
+        """Studio's test_create_automation: a reset clears decisions, approved or not."""
+        category = self.env["approval.category"].create({"name": "Reset Steps"})
+        Step = self.env["approval.category.step"]
+        first, _second = (
+            Step.create(
+                {
+                    "category_id": category.id,
+                    "name": name,
+                    "sequence": sequence,
+                    "member_ids": [(0, 0, {"user_id": self.approver.id})],
+                }
+            )
+            for name, sequence in (("First", 10), ("Second", 20))
+        )
+        self._bind(mode="request", category_id=category.id)
+        partner = self.env["res.partner"].create(
+            {"name": "Half decided", "city": "Start"}
+        )
+        self.Binding.with_user(self.approver).action_decide_approval(
+            "res.partner", partner.id, "action_archive", False, True, first.id
+        )
+        request = self.env["approval.request"].search([("res_id", "=", partner.id)])
+        self.assertEqual(request.state, "pending")
+        self.assertTrue(request.approver_ids.decided_step_ids)
+        partner.city = "Reset"
+        self.assertEqual(request.state, "new")
+        self.assertFalse(request.approver_ids.decided_step_ids)
+
     def test_removing_the_condition_removes_the_rule(self):
         binding = self._bind(mode="block")
         rule = binding.reset_automation_id

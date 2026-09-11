@@ -404,8 +404,9 @@ class ApprovalApprover(models.Model):
     def _is_notifiable(self) -> bool:
         """A step's group lets its members decide; only its listed members are asked.
 
-        In order, they are asked once a step they are listed for opens, not a step
-        they may decide only through its group.
+        They are asked while a step they are listed for is still short of its quorum
+        -- in order, once it opens -- and not for a step they may decide only through
+        its group.
         """
         self.check_singleton()
         if not self.step_ids:
@@ -416,7 +417,7 @@ class ApprovalApprover(models.Model):
         if not listed:
             return False
         if not self.request_id.category_id.notify_sequentially:
-            return True
+            return bool(listed & self.request_id._get_unmet_steps())
         return bool(listed & self.request_id._get_open_steps())
 
     def _get_effective_approver(self):

@@ -872,6 +872,28 @@ class ApprovalBinding(models.Model):
         names = {path.split(".", 1)[0] for path in self._domain_field_paths(domain)}
         return [Fields._get(self.model_name, name).id for name in sorted(names)]
 
+    def _get_requests_holding_decisions(self, records):
+        """The requests a reset clears: approved ones, and waiting ones already decided in part."""
+        self.check_singleton()
+        waiting = (
+            self.env["approval.request"]
+            .sudo()
+            .search(
+                [
+                    ("binding_id", "=", self.id),
+                    ("res_model", "=", records._name),
+                    ("res_id", "in", records.ids),
+                    ("state", "=", "pending"),
+                ]
+            )
+            .filtered(
+                lambda request: request.approver_ids.filtered(
+                    lambda approver: approver.decided_by_user_id
+                )
+            )
+        )
+        return self._get_covering_requests(records) | waiting
+
     def _get_covering_requests(self, records):
         """Every approved request that could be covering these records."""
         self.check_singleton()
@@ -902,10 +924,16 @@ class ApprovalBinding(models.Model):
         approval runs again in the next cycle.
         """
         self.check_singleton()
-        for request in self._get_covering_requests(records):
+        for request in self._get_requests_holding_decisions(records):
             try:
                 with self.env.cr.savepoint():
-                    request.action_reset_to_draft()
+                    if request.state == "approved":
+                        request.action_reset_to_draft()
+                    else:
+                        request._lock_and_reload(with_approvers=True)
+                        if request.state != "pending":
+                            continue
+                        request._force_draft()
                     request.write(
                         {"date_binding_replayed": False, "binding_replay_error": False}
                     )

@@ -244,6 +244,7 @@ class ApprovalRequestLifecycle(models.Model):
             self.approver_ids.filtered(
                 lambda a: a.state == "pending" and a.step_ids,
             ).sudo()._create_activity()
+            self._retire_unasked_approval_activities()
         if self.state in self._TERMINAL_STATES:
             self._cancel_activities()
         if self.state == "approved":
@@ -632,43 +633,54 @@ class ApprovalRequestLifecycle(models.Model):
             else:
                 request._check_reset_actor()
             request._check_reset_allowed()
-            previous_state = request.state
-            request._close_pending_change()
-            request.approver_ids.sudo().write(
-                {
-                    "state": "new",
-                    "refusal_reason_id": False,
-                    "note": False,
-                    "decision_date": False,
-                    "decided_by_user_id": False,
-                    "decided_step_ids": [Command.clear()],
-                    "pending_since": False,
-                },
-            )
-            request.sudo().write(
-                {
-                    "refusal_reason_id": False,
-                    "refusal_note": False,
-                    "date_confirmed": False,
-                    "category_snapshot": False,
-                    "last_reminder_date": False,
-                    "reminder_count": 0,
-                    "escalated_to_manager": False,
-                    "applied_rule_ids": [Command.clear()],
-                },
-            )
-            request._sync_approvers()
-            if previous_state == "approved":
-                request._notify_source_document_state_change("new")
-            request._log_cycle("reset", was=previous_state)
-            request.message_post(
-                body=self.env._(
-                    "Reset to draft from '%(state)s' by %(user)s.",
-                    state=previous_state,
-                    user=self.env.user.name,
-                ),
-                message_type="notification",
-            )
+            request._force_draft()
+
+    def _force_draft(self) -> None:
+        """Clear every decision and send the request back to draft, whatever its state.
+
+        action_reset_to_draft is the guarded way in for a user; an approval binding
+        whose record returns to its reset condition resets a request still waiting too,
+        so a decision given for the document's earlier state does not survive it.
+        """
+        self.check_singleton()
+        request = self
+        previous_state = request.state
+        request._close_pending_change()
+        request.approver_ids.sudo().write(
+            {
+                "state": "new",
+                "refusal_reason_id": False,
+                "note": False,
+                "decision_date": False,
+                "decided_by_user_id": False,
+                "decided_step_ids": [Command.clear()],
+                "pending_since": False,
+            },
+        )
+        request.sudo().write(
+            {
+                "refusal_reason_id": False,
+                "refusal_note": False,
+                "date_confirmed": False,
+                "category_snapshot": False,
+                "last_reminder_date": False,
+                "reminder_count": 0,
+                "escalated_to_manager": False,
+                "applied_rule_ids": [Command.clear()],
+            },
+        )
+        request._sync_approvers()
+        if previous_state == "approved":
+            request._notify_source_document_state_change("new")
+        request._log_cycle("reset", was=previous_state)
+        request.message_post(
+            body=self.env._(
+                "Reset to draft from '%(state)s' by %(user)s.",
+                state=previous_state,
+                user=self.env.user.name,
+            ),
+            message_type="notification",
+        )
 
     def action_refuse_bulk(self) -> dict[str, Any]:
         self._check_bulk_decision_allowed()
@@ -980,6 +992,7 @@ class ApprovalRequestLifecycle(models.Model):
             parked = self.approver_ids.filtered(lambda a: a.state == "waiting")
             parked.sudo().write({"state": "pending"})
             parked._create_activity()
+        self._retire_unasked_approval_activities()
         acting_user = self.env.user
         self.sudo().message_post(
             body=self.env._(
@@ -1031,6 +1044,23 @@ class ApprovalRequestLifecycle(models.Model):
                 label=doc_label,
             ),
         )
+
+    def _retire_unasked_approval_activities(self) -> None:
+        """Remove the approval activities of rows no longer asked, once their steps are met.
+
+        Unlinked, not marked done: their approver decided nothing.
+        """
+        self.check_singleton()
+        activity_type = self.env.ref("approval.mail_activity_data_approval")
+        stale = self.activity_ids.filtered(
+            lambda activity: (
+                activity.activity_type_id == activity_type
+                and activity.approver_id.state == "pending"
+                and activity.approver_id.step_ids
+                and not activity.approver_id._is_notifiable()
+            )
+        )
+        stale.sudo().unlink()
 
     def _cancel_activities(self) -> None:
         approval_activity = self.env.ref("approval.mail_activity_data_approval")

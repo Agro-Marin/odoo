@@ -180,6 +180,40 @@ class TestApprovalStepDecisions(ApprovalCommon):
         )
         self.assertEqual(request.state, "approved")
 
+    def test_an_approver_whose_step_is_met_is_no_longer_asked(self):
+        category = self._make_category(name=f"Met {self.id()}")
+        Step = self.env["approval.category.step"]
+        Step.create(
+            {
+                "category_id": category.id,
+                "name": "First",
+                "sequence": 10,
+                "member_ids": [
+                    Command.create({"user_id": user.id})
+                    for user in (self.approver_1, self.approver_2)
+                ],
+            },
+        )
+        Step.create(
+            {
+                "category_id": category.id,
+                "name": "Second",
+                "sequence": 20,
+                "member_ids": [Command.create({"user_id": self.approver_3.id})],
+            },
+        )
+        request = self._prepare_request(category)
+        self.assertEqual(
+            self._approval_activity_users(request),
+            self.approver_1 | self.approver_2 | self.approver_3,
+        )
+        request.with_user(self.approver_2).action_approve()
+        self.assertEqual(
+            self._approval_activity_users(request),
+            self.approver_3,
+            "the first step is met, so its other approver is no longer asked",
+        )
+
     def test_a_step_is_decided_once_per_user(self):
         request = self._request_with_steps()
         request.with_user(self.approver_1).action_approve(steps=self.first)
