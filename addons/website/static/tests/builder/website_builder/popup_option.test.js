@@ -146,7 +146,9 @@ describe("Popup options: popup in page before edit", () => {
         expect(":iframe .s_popup .modal").toBeVisible();
 
         await contains(":iframe section p:contains('Popup content')").click();
-        await contains("div[data-container-title='Block'] button.fa-trash").click();
+        await contains(
+            "div[data-container-title='Block'] button.oe_snippet_remove",
+        ).click();
         expect(":iframe .s_popup").toHaveCount(0);
         expect("div[data-container-title='Block']").toHaveCount(0);
 

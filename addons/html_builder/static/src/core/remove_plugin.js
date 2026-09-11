@@ -93,17 +93,13 @@ export class RemovePlugin extends Plugin {
         return buttons;
     }
 
-    isEmptyAndRemovable(el, optionsTargetEls) {
+    isEmptyAndRemovable(el) {
         return (
             this.getResource("empty_node_predicates").some((predicate) =>
                 predicate(el),
             ) &&
             !el.classList.contains("oe_structure") &&
             !el.parentElement.classList.contains("carousel-item") &&
-            (!optionsTargetEls.includes(el) ||
-                optionsTargetEls.some(
-                    (targetEl) => targetEl !== el && targetEl.contains(el),
-                )) &&
             isRemovable(el)
         );
     }
@@ -198,7 +194,7 @@ export class RemovePlugin extends Plugin {
                 if (!nextParentEl) {
                     break;
                 }
-                if (this.isEmptyAndRemovable(parentEl, optionsTargetEls)) {
+                if (this.isEmptyAndRemovable(parentEl)) {
                     parentEl.remove();
                 }
                 parentEl = nextParentEl;
@@ -208,7 +204,7 @@ export class RemovePlugin extends Plugin {
             optionsTargetEls = optionsTargetEls.filter((targetEl) =>
                 targetEl.contains(nextTargetEl),
             );
-            if (this.isEmptyAndRemovable(parentEl, optionsTargetEls)) {
+            if (this.isEmptyAndRemovable(parentEl)) {
                 nextTargetEl = this.removeCurrentTarget(parentEl, optionsTargetEls);
             }
         }

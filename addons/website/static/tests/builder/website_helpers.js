@@ -143,9 +143,14 @@ export async function setupWebsiteBuilder(
                 ? ""
                 : `data-oe-model="ir.ui.view" data-oe-id="${setupWebsiteBuilderOeId}" data-oe-field="arch"`
         }>${websiteContent}</div> ${footerContent}</div>`;
+    const realPage = loadIframeBundles && loadAssetsFrontendJS;
+    let publicEnv;
     const iframeLoaded = new Promise((resolve) => {
         resolveIframeLoaded = async (el) => {
             const iframe = el;
+            if (realPage) {
+                publicEnv = await navigateToRealPage(iframe);
+            }
             const styleEl = iframe.contentDocument.createElement("style");
             styleEl.textContent = `* { transition: none !important; } `;
             if (styleContent) {
@@ -156,13 +161,14 @@ export async function setupWebsiteBuilder(
                 "data-main-object",
                 "website.page(4,)",
             );
-            iframe.contentDocument.body.innerHTML = bodyHTML;
-            if (loadIframeBundles && loadAssetsFrontendJS) {
-                await waitFor("body[is-ready=true]", {
-                    timeout: 1000,
-                    root: iframe.contentDocument,
-                });
+            if (realPage) {
+                await installWebsiteContent(
+                    iframe.contentDocument,
+                    publicEnv,
+                    bodyHTML,
+                );
             } else {
+                iframe.contentDocument.body.innerHTML = bodyHTML;
                 iframe.contentDocument.body.setAttribute("is-ready", "true");
             }
 
@@ -192,7 +198,7 @@ export async function setupWebsiteBuilder(
                 await loadBundle("website.assets_inside_builder_iframe", {
                     targetDoc: queryOne("iframe[data-src^='/website/force/1']")
                         .contentDocument,
-                    js: false,
+                    js: realPage,
                 });
             }
             await resolveEditAssetsLoaded();
@@ -202,7 +208,12 @@ export async function setupWebsiteBuilder(
         },
         async reloadIframe() {
             await delayReload();
-            this.websiteContent.el.contentDocument.body.innerHTML = bodyHTML;
+            const doc = this.websiteContent.el.contentDocument;
+            if (realPage) {
+                await installWebsiteContent(doc, publicEnv, bodyHTML);
+            } else {
+                doc.body.innerHTML = bodyHTML;
+            }
         },
     });
     patchWithCleanup(WebsiteSystrayItem.prototype, {
@@ -281,10 +292,10 @@ export async function setupWebsiteBuilder(
     if (isBrowserFirefox()) {
         await originalIframeLoaded;
     }
-    if (loadIframeBundles) {
+    if (loadIframeBundles && !realPage) {
         await loadBundle("web.assets_frontend", {
             targetDoc: iframe.contentDocument,
-            js: loadAssetsFrontendJS,
+            js: false,
         });
     }
     await resolveIframeLoaded(iframe);
@@ -299,6 +310,54 @@ export async function setupWebsiteBuilder(
             await openBuilderSidebar(editAssetsLoaded, comp.__owl__.app),
         waitSidebarUpdated,
     };
+}
+
+// A page is more than its JS: the bootstrap, the templates and the bridge
+// registrations only exist on a server-rendered document, so a test that
+// wants the frontend running in the iframe gets the real page the action
+// would navigate to, and swaps its content for the test's.
+function navigateToRealPage(iframe) {
+    const ready = new Promise((resolve, reject) => {
+        iframe.addEventListener(
+            "load",
+            () => {
+                const win = iframe.contentWindow;
+                win.addEventListener(
+                    "PUBLIC-ROOT-READY",
+                    (ev) => resolve(ev.detail.env),
+                    { once: true },
+                );
+                setTimeout(
+                    () =>
+                        reject(
+                            new Error(`the public root of ${iframe.src} never booted`),
+                        ),
+                    10000,
+                );
+            },
+            { once: true },
+        );
+    });
+    iframe.src = iframe.dataset.src;
+    return ready;
+}
+
+async function installWebsiteContent(doc, publicEnv, bodyHTML) {
+    const interactions = publicEnv.services["public.interactions"];
+    interactions.stopInteractions();
+    const template = doc.createElement("template");
+    template.innerHTML = bodyHTML;
+    const nodes = [...template.content.childNodes].filter(
+        (node) => node.nodeType === Node.ELEMENT_NODE || node.textContent.trim(),
+    );
+    const wrapwrap = nodes.find((node) => node.id === "wrapwrap");
+    doc.getElementById("wrapwrap").replaceWith(wrapwrap);
+    for (const node of nodes) {
+        if (node !== wrapwrap) {
+            doc.body.insertBefore(node, wrapwrap);
+        }
+    }
+    await interactions.startInteractions();
 }
 
 async function openBuilderSidebar(editAssetsLoaded, app) {

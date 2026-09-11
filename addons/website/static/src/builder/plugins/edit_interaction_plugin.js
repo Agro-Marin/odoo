@@ -42,7 +42,7 @@ export class EditInteractionPlugin extends Plugin {
             { once: true },
         );
         this._offerToEditService = () => {
-            if (this.websiteEditService) {
+            if (this._transferred) {
                 return;
             }
             const event = new CustomEvent("edit_interaction_plugin_loaded");
@@ -69,6 +69,7 @@ export class EditInteractionPlugin extends Plugin {
     }
 
     updateEditInteraction({ detail: { websiteEditService } }) {
+        this._transferred = true;
         this.websiteEditService = websiteEditService;
         this.websiteEditService.installPatches();
         if (this._refreshOwed) {
