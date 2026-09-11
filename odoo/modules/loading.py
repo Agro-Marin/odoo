@@ -270,7 +270,10 @@ def load_demo(
     try:
         if package.manifest.get("demo") or package.manifest.get("demo_xml"):
             _logger.info("Module %s: loading demo", package.name)
-            with env.cr.savepoint(flush=False):
+            # A flushing savepoint restores the ORM state on rollback: without it the
+            # failed file's pending writes survive and reference the rows the rollback
+            # removed, and the next flush fails the whole installation.
+            with env.cr.savepoint():
                 load_data(env(su=True), idref, mode, kind="demo", package=package)
         return True
     except Exception:

@@ -12,6 +12,7 @@ from .ir_model_common import (
     access_mode_columns,
     check_access_mode,
     unloaded_module_clause,
+    unloaded_module_scope,
 )
 
 _logger = logging.getLogger(__name__)
@@ -163,7 +164,10 @@ class IrRule(models.Model):
         return self.browse(v for (v,) in self.env.execute_query(sql))
 
     def _get_clause_for_unloaded_module_rules(self) -> SQL:
-        return unloaded_module_clause(self.pool, "ir.rule", "r")
+        return unloaded_module_clause(self.env, "ir.rule", "r")
+
+    def _get_unloaded_module_scope(self) -> tuple[int, str | None] | None:
+        return unloaded_module_scope(self.env)
 
     @api.model
     @tools.conditional(
@@ -174,7 +178,7 @@ class IrRule(models.Model):
             "model_name",
             "mode",
             "tuple(self._get_context_values_in_domains())",
-            "self.pool._init",
+            "self._get_unloaded_module_scope()",
         ),
     )
     def _get_domain_accessible_records(

@@ -31,10 +31,24 @@ def access_mode_columns(alias: str) -> dict[str, SQL]:
     return {mode: SQL.identifier(alias, f"perm_{mode}") for mode in ACCESS_MODES}
 
 
-def unloaded_module_clause(registry: Any, model: str, alias: str) -> SQL:
+def unloaded_module_scope(env: Any) -> tuple[int, str | None] | None:
+    # The module whose data or demo files are being converted counts as loaded:
+    # its own access rows and rules exist, and a `uid=` record in those files acts
+    # on its models. loaded_modules only grows while loading, so its size keys a
+    # cached answer to the set it was computed against.
+    registry = env.registry
+    if not registry._init:
+        return None
+    return len(registry.loaded_modules), env.context.get("install_module")
+
+
+def unloaded_module_clause(env: Any, model: str, alias: str) -> SQL:
+    registry = env.registry
     loaded_modules = list(registry.loaded_modules)
     if not registry._init or not loaded_modules:
         return SQL("")
+    if install_module := env.context.get("install_module"):
+        loaded_modules.append(install_module)
     return SQL(
         """AND NOT EXISTS (
                 SELECT 1 FROM ir_model_data d

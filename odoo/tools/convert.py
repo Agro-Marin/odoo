@@ -769,7 +769,7 @@ form: module.record_id""" % (xml_id,)
     ) -> None:
         self.mode = mode
         self.module = module
-        self.envs = [env(context=dict(env.context, lang=None))]
+        self.envs = [env(context=dict(env.context, lang=None, install_module=module))]
         self.idref: IdRef = {} if idref is None else idref
         self._noupdate = [noupdate]
         self._sequences: list[int | None] = [None]

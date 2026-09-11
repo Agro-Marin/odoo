@@ -14,6 +14,7 @@ from .ir_model_common import (
     access_mode_columns,
     check_access_mode,
     unloaded_module_clause,
+    unloaded_module_scope,
 )
 
 _logger = logging.getLogger(__name__)
@@ -97,7 +98,9 @@ class IrModelAccess(models.Model):
             return group_definitions.universe
         return group_definitions.from_ids(accesses.group_id.ids)
 
-    @tools.ormcache("self.env.user._get_group_ids()", "mode", "self.pool._init")
+    @tools.ormcache(
+        "self.env.user._get_group_ids()", "mode", "self._get_unloaded_module_scope()"
+    )
     def _get_models_allowed(self, mode: str = "read") -> frozenset[str]:
         self._check_access_mode(mode)
 
@@ -120,11 +123,14 @@ class IrModelAccess(models.Model):
         """,
                 self._PERM_COLUMNS[mode],
                 list(group_ids),
-                unloaded_module_clause(self.pool, "ir.model.access", "a"),
+                unloaded_module_clause(self.env, "ir.model.access", "a"),
             )
         )
 
         return frozenset(v[0] for v in rows)
+
+    def _get_unloaded_module_scope(self) -> tuple[int, str | None] | None:
+        return unloaded_module_scope(self.env)
 
     @api.model
     def check(

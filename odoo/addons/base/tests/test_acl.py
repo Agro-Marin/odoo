@@ -4,9 +4,29 @@ from lxml import etree
 
 from odoo import Command
 from odoo.exceptions import AccessError
+from odoo.tools.convert import xml_import
 from odoo.tools.misc import mute_logger
 
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
+
+
+@contextmanager
+def registry_loading(registry, loading):
+    previous = registry._init
+    registry._init = loading
+    try:
+        yield
+    finally:
+        registry._init = previous
+
+
+@contextmanager
+def module_marked_loaded(registry, module):
+    registry.loaded_modules.add(module)
+    try:
+        yield
+    finally:
+        registry.loaded_modules.discard(module)
 
 
 class TestACL(TransactionCaseWithUserDemo):
@@ -372,15 +392,57 @@ class TestIrRule(TransactionCaseWithUserDemo):
         with self.assertRaises(ValueError):
             demo_rule._get_rules("res.partner", "bogus")
 
-    @contextmanager
     def _registry_loading(self, loading):
-        registry = self.env.registry
-        previous = registry._init
-        registry._init = loading
-        try:
-            yield
-        finally:
-            registry._init = previous
+        return registry_loading(self.env.registry, loading)
+
+    def _restricting_rule_from(self, module, name):
+        rule = self.env["ir.rule"].create(
+            {
+                "name": name,
+                "model_id": self.env.ref("base.model_res_partner").id,
+                "domain_force": "[('id', '=', False)]",
+            }
+        )
+        self.env["ir.model.data"].create(
+            {"module": module, "name": name, "model": "ir.rule", "res_id": rule.id}
+        )
+        return rule
+
+    def test_ir_rule_of_the_module_being_loaded_applies_to_its_own_files(self):
+        self._restricting_rule_from("a_module_being_loaded", "test_rule_own_files")
+        demo_partner = self.env(user=self.user_demo)["res.partner"]
+
+        with self._registry_loading(True):
+            self.assertTrue(demo_partner.search_count([]))
+            self.assertTrue(
+                demo_partner.with_context(install_module="another_module").search_count(
+                    []
+                )
+            )
+            self.assertEqual(
+                demo_partner.with_context(
+                    install_module="a_module_being_loaded"
+                ).search_count([]),
+                0,
+                "A record in the module's own data or demo files must be bound by "
+                "the rules that module ships",
+            )
+
+    def test_ir_rule_domain_computed_while_loading_does_not_outlive_the_module_loading(
+        self,
+    ):
+        self._restricting_rule_from("a_module_being_loaded", "test_rule_generation")
+        demo_partner = self.env(user=self.user_demo)["res.partner"]
+
+        with self._registry_loading(True):
+            self.assertTrue(demo_partner.search_count([]))
+            with module_marked_loaded(self.env.registry, "a_module_being_loaded"):
+                self.assertEqual(
+                    demo_partner.search_count([]),
+                    0,
+                    "A domain computed before a module was loaded must not be "
+                    "served once it is",
+                )
 
     def test_ir_rule_from_an_unloaded_module_is_skipped_while_loading(self):
         model_res_partner = self.env.ref("base.model_res_partner")
@@ -672,6 +734,80 @@ class TestIrModelAccess(TransactionCaseWithUserDemo):
             ["ZZZ_mike", "ZZZ_zulu"],
             "Groups must be ordered by localized (fr_FR) name.",
         )
+
+
+class TestIrModelAccessWhileLoading(TransactionCaseWithUserDemo):
+    MODEL = "ir.config_parameter"
+    MODULE = "a_module_being_loaded"
+
+    def setUp(self):
+        super().setUp()
+        acl = self.env["ir.model.access"].create(
+            {
+                "name": "test_acl_from_a_loading_module",
+                "model_id": self.env["ir.model"]._get(self.MODEL).id,
+                "group_id": self.env.ref("base.group_user").id,
+                "perm_read": True,
+            }
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": self.MODULE,
+                "name": "test_acl_from_a_loading_module",
+                "model": "ir.model.access",
+                "res_id": acl.id,
+            }
+        )
+        self.access = self.env(user=self.user_demo)["ir.model.access"]
+
+    def _allowed(self, **context):
+        return self.access.with_context(**context)._get_models_allowed("read")
+
+    def test_acl_from_an_unloaded_module_is_skipped_while_loading(self):
+        with registry_loading(self.env.registry, False):
+            self.assertIn(self.MODEL, self._allowed())
+        with registry_loading(self.env.registry, True):
+            self.assertNotIn(self.MODEL, self._allowed())
+
+    def test_acl_of_the_module_being_loaded_applies_to_its_own_files(self):
+        with registry_loading(self.env.registry, True):
+            self.assertNotIn(self.MODEL, self._allowed(install_module="another_module"))
+            self.assertIn(
+                self.MODEL,
+                self._allowed(install_module=self.MODULE),
+                "A `uid=` record in a module's own data or demo files must be "
+                "granted what that module's access rows grant",
+            )
+
+    def test_a_uid_function_in_the_module_files_acts_under_its_access_rows(self):
+        self.env["ir.model.data"].create(
+            {
+                "module": self.MODULE,
+                "name": "test_loading_user",
+                "model": "res.users",
+                "res_id": self.user_demo.id,
+            }
+        )
+        doc = etree.fromstring(
+            f'<odoo><function model="{self.MODEL}" name="search_count" '
+            f'uid="test_loading_user" eval="[[]]"/></odoo>'
+        )
+
+        with registry_loading(self.env.registry, True):
+            xml_import(self.env, self.MODULE, {}, "init").parse(doc)
+
+    def test_acl_answer_computed_while_loading_does_not_outlive_the_module_loading(
+        self,
+    ):
+        with registry_loading(self.env.registry, True):
+            self.assertNotIn(self.MODEL, self._allowed())
+            with module_marked_loaded(self.env.registry, self.MODULE):
+                self.assertIn(
+                    self.MODEL,
+                    self._allowed(),
+                    "An answer computed before a module was loaded must not be "
+                    "served once it is",
+                )
 
 
 class TestIrExportsLineAcl(TransactionCaseWithUserDemo):

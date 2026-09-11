@@ -1,9 +1,10 @@
 import pathlib
 import re
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.exceptions import AccessDenied
-from odoo.modules import Manifest
+from odoo.modules import Manifest, loading
 from odoo.tests import TransactionCase, tagged
 from odoo.tests.common import new_test_user
 from odoo.tools import config, mute_logger
@@ -61,6 +62,32 @@ class TestIrDemoFailure(TransactionCase):
         self.assertEqual(wizard.failures_count, len(orphans))
         self.assertEqual(wizard.failure_ids, orphans)
         self.assertTrue(failures <= wizard.failure_ids)
+
+
+@tagged("post_install", "-at_install")
+class TestDemoFailure(TransactionCase):
+    @mute_logger("odoo.modules.loading")
+    def test_a_failed_demo_leaves_no_pending_write_behind(self):
+        partner = self.env["res.partner"].create({"name": "Outlives the demo"})
+        self.env.flush_all()
+
+        def load_data_then_fail(env, idref, mode, kind, package):
+            company = env["res.partner"].create(
+                {"name": "Created by a failing demo", "is_company": True}
+            )
+            env["res.partner"].browse(partner.id).parent_id = company
+            raise ValueError("the demo file is broken")
+
+        package = SimpleNamespace(
+            name="base",
+            id=self.env.ref("base.module_base").id,
+            manifest={"demo": ["broken.xml"]},
+        )
+        with patch.object(loading, "load_data", load_data_then_fail):
+            self.assertFalse(loading.load_demo(self.env, package, {}, "init"))
+
+        self.env.flush_all()
+        self.assertFalse(partner.parent_id)
 
 
 @tagged("post_install", "-at_install")
