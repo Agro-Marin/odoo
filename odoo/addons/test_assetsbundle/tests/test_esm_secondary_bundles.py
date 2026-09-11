@@ -197,7 +197,11 @@ class TestEsmRegistryInstallationScope(TransactionCase):
         misplaced = [
             (module, key, child)
             for module, esm in self._declarations()
-            for key in ("dynamic_children", "import_map_includes")
+            for key in (
+                "dynamic_children",
+                "import_map_includes",
+                "secondary_import_map_includes",
+            )
             for parent, children in (esm.get(key) or {}).items()
             for child in children
             if self._claims_a_live_foreign_namespace(module, child)
