@@ -13,6 +13,22 @@ class MailingMailing(models.Model):
     )
     card_campaign_id = fields.Many2one("card.campaign", index="btree_not_null")
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        return super().create(
+            [self._with_card_campaign_model(vals) for vals in vals_list]
+        )
+
+    @api.model
+    def _with_card_campaign_model(self, vals):
+        if not vals.get("card_campaign_id") or "mailing_model_id" in vals:
+            return vals
+        campaign = self.env["card.campaign"].browse(vals["card_campaign_id"])
+        return {
+            **vals,
+            "mailing_model_id": self.env["ir.model"]._get_id(campaign.res_model),
+        }
+
     @api.constrains("card_campaign_id", "mailing_domain", "mailing_model_id")
     def _check_mailing_domain(self):
         for mailing in self:

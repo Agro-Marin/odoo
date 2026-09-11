@@ -32,3 +32,4 @@ from . import test_party_create_path
 from . import test_party_stored_mirrors
 from . import test_employee_change_request
 from . import test_employee_copy
+from . import test_hr_department_company_on_create

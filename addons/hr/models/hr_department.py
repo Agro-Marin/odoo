@@ -33,7 +33,7 @@ class HrDepartment(models.Model):
         index=True,
         readonly=False,
         tracking=True,
-        default=lambda self: self.env.company,
+        precompute=True,
     )
     parent_id = fields.Many2one(
         "hr.department",
@@ -205,7 +205,10 @@ class HrDepartment(models.Model):
     @api.depends("parent_id", "parent_id.company_id")
     def _compute_company_id(self):
         for dept in self:
-            dept.company_id = dept.parent_id.company_id or dept.company_id
+            company = dept.parent_id.company_id or dept.company_id
+            if not company and not dept._origin:
+                company = self.env.company
+            dept.company_id = company
 
     def write(self, vals):
         if "manager_id" in vals:

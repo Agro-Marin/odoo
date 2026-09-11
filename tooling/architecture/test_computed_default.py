@@ -42,9 +42,18 @@ def test_the_same_field_declaring_precompute_instead_is_not(tmp_path):
     assert _fields(tmp_path, {"fleet/models/fleet_vehicle.py": body}) == []
 
 
-@pytest.mark.parametrize("default", ["False", "None", "0", '""', "[]"])
-def test_a_falsy_default_is_skipped_by_create_and_is_not_the_shape(tmp_path, default):
+@pytest.mark.parametrize("default", ["False", "0", '""', "[]"])
+def test_a_falsy_default_still_fills_the_create_values_and_is_the_shape(
+    tmp_path, default
+):
     body = FLEET.format(default=f"default={default},")
+    assert _fields(tmp_path, {"fleet/models/fleet_vehicle.py": body}) == [
+        "fleet.vehicle.range_unit"
+    ]
+
+
+def test_default_none_declares_no_default(tmp_path):
+    body = FLEET.format(default="default=None,")
     assert _fields(tmp_path, {"fleet/models/fleet_vehicle.py": body}) == []
 
 
@@ -97,6 +106,43 @@ def test_a_default_an_extension_adds_to_another_module_s_compute_is_the_shape(tm
         ("fleet.vehicle.fuel_type", "'diesel'")
     ]
     assert shapes[0].path.endswith("l10n_be_fleet/models/fleet.py")
+
+
+def test_an_extension_setting_default_none_removes_the_base_default(tmp_path):
+    base = (
+        "class Mailing(models.Model):\n"
+        '    _name = "mailing.mailing"\n'
+        '    model_id = fields.Many2one("ir.model", default=lambda self: 1)\n'
+    )
+    extension = (
+        "class Mailing(models.Model):\n"
+        '    _inherit = "mailing.mailing"\n'
+        "    model_id = fields.Many2one(\n"
+        '        compute="_compute_model_id", store=True, readonly=False, default=None\n'
+        "    )\n"
+    )
+    files = {"a_card/models/mailing.py": extension, "b_mailing/models/mailing.py": base}
+    assert _fields(tmp_path, files) == []
+
+
+def test_an_extension_default_is_applied_after_the_base_it_extends(tmp_path):
+    base = (
+        "class Mailing(models.Model):\n"
+        '    _name = "mailing.mailing"\n'
+        '    model_id = fields.Many2one("ir.model", default=lambda self: 1)\n'
+    )
+    extension = (
+        "class Mailing(models.Model):\n"
+        '    _inherit = "mailing.mailing"\n'
+        "    model_id = fields.Many2one(\n"
+        '        compute="_compute_model_id", store=True, readonly=False, default=False\n'
+        "    )\n"
+    )
+    files = {"a_card/models/mailing.py": extension, "b_mailing/models/mailing.py": base}
+    shapes = cd.measure([_tree(tmp_path, files)])
+    assert [(s.field, s.default) for s in shapes] == [
+        ("mailing.mailing.model_id", "False")
+    ]
 
 
 def test_tests_and_migrations_are_out_of_scope(tmp_path):

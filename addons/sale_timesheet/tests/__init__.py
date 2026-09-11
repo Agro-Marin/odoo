@@ -18,3 +18,4 @@ from . import test_sale_timesheet_product_template
 from . import test_sale_timesheet_dashboard
 from . import test_task_analysis
 from . import test_performance
+from . import test_project_timesheet_product_on_create

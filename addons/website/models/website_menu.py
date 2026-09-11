@@ -48,7 +48,7 @@ class WebsiteMenu(models.Model):
         store=True,
         required=True,
         readonly=False,
-        default="#",
+        precompute=True,
         copy=True,
     )
     page_id = fields.Many2one(

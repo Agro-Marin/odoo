@@ -26,6 +26,7 @@ SKIPPED_DIRS = frozenset({"tests", "migrations", "upgrades", "static"})
 
 REVIEWED: dict[str, str] = {
     "account.payment.state": "the compute starts from the stored state and only moves it forward; every payment starts in draft",
+    "account.analytic.line.user_id": "probed: a timesheet created for another user's employee stores that employee's user",
     "appointment.question.is_reusable": "the compute only ever sets True, the default",
     "calendar.event.stop": "create derives stop from start and duration before defaults apply (_create_prepare_stop)",
     "delivery.carrier.country_id": "the compute keeps a country already set",
@@ -38,9 +39,12 @@ REVIEWED: dict[str, str] = {
     "hr.leave.accrual.level.frequency": "the compute only rewrites worked_hours",
     "hr.leave.accrual.level.milestone_date": "the compute only ever sets creation, the default",
     "hr.leave.accrual.plan.carryover_day": "the compute clamps the current day to its month",
+    "hr.leave.accrual.level.maximum_leave": "the compute only ever writes 0, the default",
     "hr.leave.allocation.holiday_status_id": "the compute keeps a leave type already set",
+    "hr.leave.allocation.number_of_days": "the compute reads number_of_days_display and number_of_hours_display, both computed from number_of_days, so a create can only name the field itself",
     "hr.work.entry.regeneration.wizard.date_to": "the default is the date_end the opening action passes in context, falsy without one",
     "loyalty.program.applies_on": "deliberate: _with_program_type_values documents that filling it on create broke the pos_loyalty tour",
+    "mailing.mailing.mailing_model_id": "marketing_card's create derives it from the card campaign before defaults apply",
     "product.template.expense_policy": "every compute override only ever writes no, the default",
     "product.template.purchase_ok": "the compute only ever sets True, the default",
     "product.template.service_tracking": "every compute override only ever writes no, the default",
@@ -58,6 +62,7 @@ REVIEWED: dict[str, str] = {
     "rma.order.state": "without an approval request the compute keeps the stored state",
     "salary.register.wizard.include_paid": "the compute only ever sets True, the default",
     "sale.order.is_rental_order": "the compute ORs the stored value, and the default is falsy outside the rental app",
+    "slide.slide.is_preview": "the compute only ever writes False, the default",
     "stock.picking.type.use_create_lots": "every compute override only ever sets True, the default",
     "stock.picking.type.use_existing_lots": "every compute override only ever sets True, the default",
     "stock.scrap.scrap_qty": "the compute resets to 1 before reading the moves, and a scrap is created before its moves",
@@ -65,17 +70,15 @@ REVIEWED: dict[str, str] = {
 
 PENDING: frozenset[str] = frozenset(
     {
-        "account.analytic.line.user_id",
         "account.move.l10n_tr_gib_invoice_type",
         "appointment.slot.end_hour",
         "appointment.type.staff_user_ids",
         "esg.emission.source.scope",
         "fleet.vehicle.fuel_type",
+        "fleet.vehicle.trailer_hook",
         "hr.appraisal.goal.progression",
         "hr.attendance.overtime.rule.amount_rate",
-        "hr.department.company_id",
         "hr.expense.employee_id",
-        "hr.leave.allocation.number_of_days",
         "hr.payslip.run.date_end",
         "hr.payslip.run.date_start",
         "hr.payslip.run.schedule_pay",
@@ -89,16 +92,16 @@ PENDING: frozenset[str] = frozenset(
         "hr.version.wage_type",
         "l10n_hk.rental.company_id",
         "loyalty.program.portal_point_name",
-        "mailing.mailing.mailing_model_id",
         "planning.slot.allocated_percentage",
         "product.asset.log.date",
         "product.asset.log.state",
-        "project.project.timesheet_product_id",
+        "product.template.is_storable",
         "quality.check.team_id",
         "repair.order.picking_type_id",
         "repair.order.product_qty",
-        "slide.channel.enroll",
-        "website.menu.url",
+        "stock.move.picked",
+        "stock.picking.type.require_responsible",
+        "stock.warehouse.orderpoint.product_max_qty",
     }
 )
 
@@ -143,6 +146,16 @@ def _model_names(cls: ast.ClassDef) -> list[str]:
     return [name] if name else inherit
 
 
+def _extends_only(cls: ast.ClassDef) -> bool:
+    return not any(
+        isinstance(stmt, ast.Assign)
+        and len(stmt.targets) == 1
+        and isinstance(stmt.targets[0], ast.Name)
+        and stmt.targets[0].id == "_name"
+        for stmt in cls.body
+    )
+
+
 def _field_call(stmt: ast.stmt) -> tuple[str, ast.Call] | None:
     if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1:
         target = stmt.targets[0]
@@ -166,14 +179,8 @@ def _is_constant(node: ast.AST | None, value: bool) -> bool:
     return isinstance(node, ast.Constant) and node.value is value
 
 
-def _is_falsy_literal(node: ast.AST) -> bool:
-    if isinstance(node, ast.Constant):
-        return not node.value
-    if isinstance(node, ast.Dict):
-        return not node.keys
-    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-        return not node.elts
-    return False
+def _declares_no_default(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and node.value is None
 
 
 def default_roots() -> list[Path]:
@@ -201,24 +208,30 @@ def measure(roots: list[Path] | None = None) -> list[Shape]:
         raise NoSource(
             "no Python source under " + ", ".join(map(str, roots or ["(no roots)"]))
         )
-    keywords: dict[str, dict[str, ast.AST]] = {}
-    default_at: dict[str, tuple[str, int]] = {}
+    declarations: list[tuple[bool, str, int, str, dict[str, ast.AST]]] = []
     for path in paths:
         rel = display_across_repos(path, ROOT)
         for cls in ast.walk(_ast_cache.parse_file(path)):
             if not isinstance(cls, ast.ClassDef):
                 continue
-            models = _model_names(cls)
-            for stmt in cls.body:
-                if (found := _field_call(stmt)) is None:
-                    continue
-                name, call = found
-                declared = {kw.arg: kw.value for kw in call.keywords if kw.arg}
-                for model in models:
-                    key = f"{model}.{name}"
-                    keywords.setdefault(key, {}).update(declared)
-                    if "default" in declared:
-                        default_at[key] = (rel, stmt.lineno)
+            extends = _extends_only(cls)
+            for model in _model_names(cls):
+                for stmt in cls.body:
+                    if (found := _field_call(stmt)) is None:
+                        continue
+                    name, call = found
+                    declared = {kw.arg: kw.value for kw in call.keywords if kw.arg}
+                    declarations.append(
+                        (extends, rel, stmt.lineno, f"{model}.{name}", declared)
+                    )
+    keywords: dict[str, dict[str, ast.AST]] = {}
+    default_at: dict[str, tuple[str, int]] = {}
+    for _extends, rel, line, key, declared in sorted(
+        declarations, key=lambda item: item[0]
+    ):
+        keywords.setdefault(key, {}).update(declared)
+        if "default" in declared:
+            default_at[key] = (rel, line)
     shapes = []
     for key, declared in sorted(keywords.items()):
         if (
@@ -227,7 +240,7 @@ def measure(roots: list[Path] | None = None) -> list[Shape]:
             and "default" in declared
             and _is_constant(declared.get("store"), True)
             and _is_constant(declared.get("readonly"), False)
-            and not _is_falsy_literal(declared["default"])
+            and not _declares_no_default(declared["default"])
         ):
             path, line = default_at[key]
             shapes.append(Shape(key, ast.unparse(declared["default"]), path, line))

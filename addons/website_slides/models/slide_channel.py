@@ -229,7 +229,7 @@ class SlideChannel(models.Model):
         compute="_compute_enroll",
         store=True,
         readonly=False,
-        default="public",
+        precompute=True,
         string="Enroll Policy",
         required=True,
         help="Defines how people can enroll to your Course.",
@@ -401,7 +401,11 @@ class SlideChannel(models.Model):
 
     @api.depends("visibility")
     def _compute_enroll(self):
-        self.filtered(lambda channel: channel.visibility == "members").enroll = "invite"
+        for channel in self:
+            if channel.visibility == "members":
+                channel.enroll = "invite"
+            elif not channel.enroll:
+                channel.enroll = "public"
 
     @api.depends("visibility", "is_member")
     @api.depends_context("uid")

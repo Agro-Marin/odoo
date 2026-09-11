@@ -19,3 +19,4 @@ from . import test_slide_slide
 from . import test_statistics
 from . import test_ui_wslides
 from . import test_website_slides_technical_page
+from . import test_slide_channel_enroll_on_create

@@ -11,23 +11,6 @@ class ProjectProject(models.Model):
     _name = "project.project"
     _inherit = "project.project"
 
-    @api.model
-    def default_get(self, fields):
-        result = super().default_get(fields)
-        if (
-            "timesheet_product_id" in fields
-            and result.get("allow_billable")
-            and result.get("allow_timesheets")
-            and not result.get("timesheet_product_id")
-        ):
-            default_product = self.env.ref("sale_timesheet.time_product", False)
-            if default_product:
-                result["timesheet_product_id"] = default_product.id
-        return result
-
-    def _default_timesheet_product_id(self):
-        return self.env.ref("sale_timesheet.time_product", False)
-
     pricing_type = fields.Selection(
         [
             ("task_rate", "Task rate"),
@@ -63,7 +46,6 @@ class ProjectProject(models.Model):
         compute="_compute_timesheet_product_id",
         store=True,
         readonly=False,
-        default=_default_timesheet_product_id,
     )
     warning_employee_rate = fields.Boolean(
         compute="_compute_warning_employee_rate",
