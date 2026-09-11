@@ -14,8 +14,8 @@ their own ``iot_*`` modules, so installing one never drags an application in.
     "license": "LGPL-3",
     "depends": ["mail"],
     "data": [
-        "wizard/add_iot_box_views.xml",
-        "wizard/select_printers_views.xml",
+        "wizards/add_iot_box_views.xml",
+        "wizards/select_printers_views.xml",
         "security/iot_security.xml",
         "security/ir.model.access.csv",
         "views/iot_views.xml",

@@ -16,7 +16,7 @@ Please refer to Sale Matrix or Purchase Matrix for the use of this module.
         "views/matrix_templates.xml",
     ],
     "demo": [
-        "data/product_matrix_demo.xml",
+        "demo/product_matrix_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

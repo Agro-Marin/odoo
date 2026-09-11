@@ -2,7 +2,7 @@ from odoo.db.schema import column_exists, create_column
 
 from . import models
 from . import tools
-from . import wizard
+from . import wizards
 
 
 def _pre_init_nemhandel(env):

@@ -1168,7 +1168,7 @@ assert_eq "invalidator service subscribes to base.language.install" \
 assert_eq "invalidator service handles action_install_lang full clear" \
     "$(grep -cF 'methods: ["action_install_lang"]' "$WEB/static/src/core/network/result_set_cache_invalidator_service.js")" "1"
 assert_eq "base.language.install defines action_install_lang" \
-    "$(grep -cE '^    def action_install_lang\(' "$REPO/odoo/addons/base/wizard/base_language_install.py")" "1"
+    "$(grep -cE '^    def action_install_lang\(' "$REPO/odoo/addons/base/wizards/base_language_install.py")" "1"
 assert_eq "action_cache_invalidation.js emits CLEAR_CACHES" \
     "$(grep -c 'CLEAR_CACHES' "$WEB/static/src/webclient/actions/action_cache_invalidation.js")" "1"
 assert_eq "service_worker_service.js emits CLEAR_CACHES on SW hard refresh" \

@@ -11,7 +11,7 @@
     "data": [
         "data/ir_cron.xml",
         "data/sale_pdf_form_field.xml",
-        "report/ir_actions_report.xml",
+        "reports/ir_actions_report.xml",
         "security/ir.model.access.csv",
         "security/ir_rules.xml",
         "views/product_document_views.xml",
@@ -23,7 +23,7 @@
         "wizards/res_config_settings_views.xml",
     ],
     "demo": [
-        "data/sale_pdf_quote_builder_demo.xml",
+        "demo/sale_pdf_quote_builder_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

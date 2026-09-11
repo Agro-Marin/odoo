@@ -13,7 +13,7 @@ E-Transport implementation for Batch Pickings in Romania
     ],
     "data": [
         "views/stock_picking_batch_views.xml",
-        "report/report_picking_batch.xml",
+        "reports/report_picking_batch.xml",
     ],
     "installable": True,
     "auto_install": True,

@@ -15,7 +15,7 @@ The wizard used is similar as the one for the credit note.
         "account",
     ],
     "data": [
-        "wizard/account_debit_note_view.xml",
+        "wizards/account_debit_note_view.xml",
         "views/account_move_view.xml",
         "views/account_journal_views.xml",
         "security/ir.model.access.csv",

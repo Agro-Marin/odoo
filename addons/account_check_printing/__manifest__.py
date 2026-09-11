@@ -19,7 +19,7 @@ The check settings are located in the accounting journals configuration page.
         "views/account_journal_views.xml",
         "views/account_payment_views.xml",
         "views/res_config_settings_views.xml",
-        "wizard/print_prenumbered_checks_views.xml",
+        "wizards/print_prenumbered_checks_views.xml",
     ],
     "installable": True,
     "post_init_hook": "create_check_sequence_on_bank_journals",

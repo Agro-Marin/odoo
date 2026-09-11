@@ -32,8 +32,8 @@
         "views/res_config_settings_view.xml",
         "views/res_partner_view.xml",
         "views/account_portal_templates.xml",
-        "wizard/myinvois_consolidate_invoice_wizard.xml",
-        "wizard/myinvois_document_status_update_wizard.xml",
+        "wizards/myinvois_consolidate_invoice_wizard.xml",
+        "wizards/myinvois_document_status_update_wizard.xml",
     ],
     "installable": True,
 }

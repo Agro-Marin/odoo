@@ -30,8 +30,8 @@
         "views/res_partner_views.xml",
         "views/res_company_views.xml",
         "views/res_config_settings_views.xml",
-        "wizard/l10n_hu_edi_cancellation.xml",
-        "wizard/l10n_hu_edi_tax_audit_export.xml",
+        "wizards/l10n_hu_edi_cancellation.xml",
+        "wizards/l10n_hu_edi_tax_audit_export.xml",
     ],
     "demo": [
         "demo/demo_partner.xml",

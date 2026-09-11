@@ -1,6 +1,6 @@
 from . import models
-from . import wizard
-from . import report
+from . import wizards
+from . import reports
 
 
 def _create_warehouse_data(env):

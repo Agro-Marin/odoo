@@ -21,7 +21,7 @@ in l10n_pl in 19.4
     "data": [
         "security/ir.model.access.csv",
         "views/account_payment_view.xml",
-        "wizard/account_payment_register_views.xml",
+        "wizards/account_payment_register_views.xml",
     ],
     "auto_install": True,
 }

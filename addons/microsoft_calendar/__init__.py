@@ -1,7 +1,7 @@
 from . import controllers
 from . import models
 from . import utils
-from . import wizard
+from . import wizards
 
 import uuid
 

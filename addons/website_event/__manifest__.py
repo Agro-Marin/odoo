@@ -39,11 +39,11 @@
         "security/event_security.xml",
     ],
     "demo": [
-        "data/res_partner_demo.xml",
-        "data/event_demo.xml",
-        "data/event_question_demo.xml",
-        "data/event_registration_demo.xml",
-        "data/event_registration_answer_demo.xml",
+        "demo/res_partner_demo.xml",
+        "demo/event_demo.xml",
+        "demo/event_question_demo.xml",
+        "demo/event_registration_demo.xml",
+        "demo/event_registration_answer_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

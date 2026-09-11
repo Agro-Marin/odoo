@@ -25,7 +25,7 @@
         "data/digest_data.xml",
         "data/ir_cron_data.xml",
         "data/tour.xml",
-        "report/sale_report_views.xml",
+        "reports/sale_report_views.xml",
         "views/product_tile_templates.xml",
         "views/delivery_form_templates.xml",
         "views/gmc_templates.xml",
@@ -71,7 +71,7 @@
         "views/generate_primary_template.xml",
     ],
     "demo": [
-        "data/demo.xml",
+        "demo/demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

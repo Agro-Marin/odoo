@@ -1,5 +1,5 @@
 from . import models
-from . import report
+from . import reports
 
 
 def _setup_inalterability(env):

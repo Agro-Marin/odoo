@@ -24,12 +24,12 @@
         "data/point_of_sale_tour.xml",
         "data/mail_template_data.xml",
         "data/ir_config_parameter_data.xml",
-        "wizard/pos_details.xml",
-        "wizard/pos_payment.xml",
-        "wizard/pos_close_session_wizard.xml",
-        "wizard/pos_daily_sales_reports.xml",
-        "wizard/pos_confirmation_wizard.xml",
-        "wizard/pos_make_invoice.xml",
+        "wizards/pos_details.xml",
+        "wizards/pos_payment.xml",
+        "wizards/pos_close_session_wizard.xml",
+        "wizards/pos_daily_sales_reports.xml",
+        "wizards/pos_confirmation_wizard.xml",
+        "wizards/pos_make_invoice.xml",
         "views/pos_assets_index.xml",
         "views/point_of_sale_report.xml",
         "views/point_of_sale_view.xml",
@@ -64,7 +64,7 @@
         "views/stock_reference_views.xml",
     ],
     "demo": [
-        "data/demo_data.xml",
+        "demo/demo_data.xml",
     ],
     "assets": {
         "web.assets_backend": [

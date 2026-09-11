@@ -109,7 +109,7 @@ Master Data:
         "views/portal_address_templates.xml",
         "views/report_invoice.xml",
         "views/res_config_settings_view.xml",
-        "report/invoice_report_view.xml",
+        "reports/invoice_report_view.xml",
     ],
     "demo": [
         "demo/exento_demo.xml",

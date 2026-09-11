@@ -14,8 +14,8 @@
         "security/security.xml",
         "security/ir.model.access.csv",
         "data/event_sponsor_data.xml",
-        "report/website_event_exhibitor_reports.xml",
-        "report/website_event_exhibitor_templates.xml",
+        "reports/website_event_exhibitor_reports.xml",
+        "reports/website_event_exhibitor_templates.xml",
         "views/event_templates_sponsor.xml",
         "views/event_sponsor_views.xml",
         "views/event_event_views.xml",
@@ -25,8 +25,8 @@
         "views/event_menus.xml",
     ],
     "demo": [
-        "data/event_demo.xml",
-        "data/event_sponsor_demo.xml",
+        "demo/event_demo.xml",
+        "demo/event_sponsor_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

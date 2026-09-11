@@ -20,7 +20,7 @@
         "data/website_livechat_data.xml",
     ],
     "demo": [
-        "data/website_livechat_chatbot_demo.xml",
+        "demo/website_livechat_chatbot_demo.xml",
         "demo/im_livechat_session_11.xml",
     ],
     "assets": {

@@ -23,8 +23,8 @@ Using this application you can manage Sales Teams with CRM and/or Sales
         "views/mail_activity_views.xml",
     ],
     "demo": [
-        "data/crm_team_demo.xml",
-        "data/crm_tag_demo.xml",
+        "demo/crm_team_demo.xml",
+        "demo/crm_tag_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

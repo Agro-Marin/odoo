@@ -25,7 +25,7 @@ to allow you to define interviews for different jobs.
         "views/survey_templates_statistics.xml",
     ],
     "demo": [
-        "data/survey_demo.xml",
-        "data/hr_job_demo.xml",
+        "demo/survey_demo.xml",
+        "demo/hr_job_demo.xml",
     ],
 }

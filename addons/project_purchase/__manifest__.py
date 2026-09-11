@@ -14,7 +14,7 @@
         "views/purchase_order.xml",
     ],
     "demo": [
-        "data/project_purchase_demo.xml",
+        "demo/project_purchase_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

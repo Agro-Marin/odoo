@@ -25,7 +25,7 @@
         "views/event_type_views.xml",
     ],
     "demo": [
-        "data/quiz_demo.xml",
+        "demo/quiz_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

@@ -22,7 +22,7 @@
         "views/res_partner_views.xml",
     ],
     "demo": [
-        "data/pos_loyalty_demo.xml",
+        "demo/pos_loyalty_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

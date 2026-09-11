@@ -42,10 +42,10 @@ Main Features
         "data/fleet_data.xml",
         "data/mail_message_subtype_data.xml",
         "data/mail_activity_type_data.xml",
-        "wizard/fleet_vehicle_send_mail_views.xml",
+        "wizards/fleet_vehicle_send_mail_views.xml",
     ],
     "demo": [
-        "data/fleet_demo.xml",
+        "demo/fleet_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

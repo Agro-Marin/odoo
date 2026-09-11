@@ -118,7 +118,7 @@ class TestLoadSampleDataButton(TestHrCommon):
         self.assertTrue(
             self._scenario_record_count(),
             "the button must load the scenario even when hr.dep_rd already"
-            " exists from data/hr_demo.xml",
+            " exists from demo/hr_demo.xml",
         )
 
     def test_loading_twice_is_idempotent(self):

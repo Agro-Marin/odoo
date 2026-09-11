@@ -51,8 +51,8 @@ assert_metadata_row "Python models" \
     "_name declarations under models/"
 assert_metadata_row "Views" "$(ls "$MOD"/views/*.xml | wc -l)" "files under views/"
 assert_metadata_row "Wizards" \
-    "$(grep -rhoP '^\s+_name = "\K[^"]+' "$MOD"/wizard/*.py | sort -u | wc -l)" \
-    "_name declarations under wizard/"
+    "$(grep -rhoP '^\s+_name = "\K[^"]+' "$MOD"/wizards/*.py | sort -u | wc -l)" \
+    "_name declarations under wizards/"
 assert_metadata_row "Cron jobs" \
     "$(grep -c 'model="ir.cron"' "$MOD/data/ir_cron_data.xml")" \
     "ir.cron records in data/ir_cron_data.xml"
@@ -75,7 +75,7 @@ else bad "index.md Category disagrees with __manifest__.py ($manifest_category)"
 # Every model the module declares must be documented, and no documented model
 # may have been deleted.
 mapfile -t models < <(grep -rhoP '^\s+_name = "\K[^"]+' \
-    "$MOD"/models/*.py "$MOD"/wizard/*.py | sort -u)
+    "$MOD"/models/*.py "$MOD"/wizards/*.py | sort -u)
 for m in "${models[@]}"; do
     assert_doc_cites "$m" "model $m"
 done

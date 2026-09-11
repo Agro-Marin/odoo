@@ -1,4 +1,4 @@
-from . import models, wizard
+from . import models, wizards
 
 
 def _l10n_sa_edi_post_init(env):

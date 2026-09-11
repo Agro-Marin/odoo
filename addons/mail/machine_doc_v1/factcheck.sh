@@ -183,7 +183,7 @@ py_test_total=$(find "$MAIL/tests" -name 'test_*.py' | wc -l)
 assert_doc_cites "TEST_TAGS.md cites the test_*.py count" "$py_test_total" \
     '`tests/`, %s `test_\*\.py` files' TEST_TAGS.md
 assert_eq "Python wizard files (excl __init__/xml)" \
-    "$(find "$MAIL/wizard" -name '*.py' ! -name '__init__.py' | wc -l)" "9"
+    "$(find "$MAIL/wizards" -name '*.py' ! -name '__init__.py' | wc -l)" "9"
 
 # ============================ ROUTE_MAP ============================
 route_handlers=$(cat "$MAIL"/controllers/*.py "$MAIL"/controllers/discuss/*.py | grep -cE '@(http\.)?route\(')
@@ -572,7 +572,7 @@ assert_eq "mock_models file count is 35" \
 assert_eq "TEST_TAGS.md cites 35 mock model files" \
     "$(grep -c '35 mock model files' "$DOC/TEST_TAGS.md")" "1"
 assert_eq "wizard .py files (excl __init__) is 9" \
-    "$(find "$MAIL/wizard" -name '*.py' ! -name '__init__.py' | wc -l)" "9"
+    "$(find "$MAIL/wizards" -name '*.py' ! -name '__init__.py' | wc -l)" "9"
 
 # ROUTE_MAP: two channel.py routes require login (update_avatar + sub_channel/delete).
 # The literal said 1 while the line above it said two, so this could never pass.
@@ -583,12 +583,12 @@ assert_eq "channel.py's two auth=user routes (update_avatar + sub_channel/delete
 # Everything below was wrong or missing in the docs and had NO assertion guarding it.
 
 # XML totals. ARCHITECTURE.md claimed "~380"; the real module-wide total is 232 and its own
-# breakdown only ever summed to 224 (it omitted wizard/security/test XML).
+# breakdown only ever summed to 224 (it omitted wizards/security/test XML).
 assert_eq "module-wide XML file count" "$(find "$MAIL" -name '*.xml' | wc -l)" "233"
 assert_eq "static OWL template XML" "$(find "$MAIL/static/src" -name '*.xml' | wc -l)" "165"
 assert_eq "views/ XML"   "$(find "$MAIL/views"  -name '*.xml' | wc -l)" "41"
 assert_eq "data/ XML"    "$(find "$MAIL/data"   -name '*.xml' | wc -l)" "15"
-assert_eq "wizard/ XML"  "$(find "$MAIL/wizard" -name '*.xml' | wc -l)" "6"
+assert_eq "wizards/ XML"  "$(find "$MAIL/wizards" -name '*.xml' | wc -l)" "6"
 assert_eq "demo/ XML"    "$(find "$MAIL/demo"   -name '*.xml' | wc -l)" "4"
 assert_eq "ARCHITECTURE.md cites the 232 XML total with its breakdown" \
     "$(grep -c '232 = 164 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test' "$DOC/ARCHITECTURE.md")" "1"

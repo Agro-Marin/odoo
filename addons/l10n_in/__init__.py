@@ -1,6 +1,6 @@
 from . import models
 from . import demo
-from . import wizard
+from . import wizards
 
 
 def init_settings(env):

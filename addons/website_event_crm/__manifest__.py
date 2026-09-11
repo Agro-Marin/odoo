@@ -14,7 +14,7 @@
         "views/event_lead_rule_views.xml",
     ],
     "demo": [
-        "data/event_crm_demo.xml",
+        "demo/event_crm_demo.xml",
     ],
     "installable": True,
     "auto_install": True,

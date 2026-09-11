@@ -20,7 +20,7 @@ Publish your customers as business references on your website to attract new pot
         "security/ir_rule.xml",
     ],
     "demo": [
-        "data/res_partner_demo.xml",
+        "demo/res_partner_demo.xml",
     ],
     "assets": {
         "website.website_builder_assets": [

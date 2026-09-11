@@ -120,7 +120,7 @@ Configuration lives at **Contacts > Configuration > Age Ranges**
 (`res_partner_age_range_menu` -> `res_partner_age_range_action`), with
 `res_partner_age_range_view_tree`, `res_partner_age_range_view_form` and
 `res_partner_age_range_view_search`. Demo cohorts ship in
-`data/res_partner_age_range_demo.xml`.
+`demo/res_partner_age_range_demo.xml`.
 
 ## The action
 

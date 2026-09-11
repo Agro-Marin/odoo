@@ -1,7 +1,7 @@
 from . import controllers
 from . import models
-from . import report
-from . import wizard
+from . import reports
+from . import wizards
 
 from odoo.libs.sql import normalize_identifier
 from odoo.db.schema import create_index

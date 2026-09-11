@@ -1,5 +1,5 @@
 from . import models
-from . import wizard
+from . import wizards
 
 
 def _l10n_es_edi_verifactu_post_init_hook(env):

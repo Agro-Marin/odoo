@@ -13,7 +13,7 @@
         "views/sale_order_views.xml",
     ],
     "demo": [
-        "data/product_demo.xml",
+        "demo/product_demo.xml",
     ],
     "installable": True,
     "auto_install": True,

@@ -823,7 +823,7 @@ class TestQuantRelocateWizard(TestStockCommon):
         import inspect
 
         from odoo.addons.stock.models import stock_lot
-        from odoo.addons.stock.wizard import stock_quant_relocate
+        from odoo.addons.stock.wizards import stock_quant_relocate
 
         for module in (stock_lot, stock_quant_relocate):
             source = inspect.getsource(module)

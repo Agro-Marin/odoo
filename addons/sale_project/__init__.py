@@ -1,7 +1,7 @@
 from . import models
 from . import controllers
-from . import report
-from . import wizard
+from . import reports
+from . import wizards
 
 
 def _set_allow_billable_in_project(env):

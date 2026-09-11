@@ -35,7 +35,7 @@ By default, the audit trail is enabled for GoBD compliance.
         "data/account_account_tags_data.xml",
         "views/account_view.xml",
         "views/res_company_views.xml",
-        "wizard/account_secure_entries_wizard.xml",
+        "wizards/account_secure_entries_wizard.xml",
     ],
     "demo": [
         "demo/demo_company.xml",

@@ -15,8 +15,8 @@
         "data/event_product_data.xml",
     ],
     "demo": [
-        "data/event_product_demo.xml",
-        "data/event_demo.xml",
+        "demo/event_product_demo.xml",
+        "demo/event_demo.xml",
     ],
     "installable": True,
     "auto_install": True,

@@ -1,9 +1,9 @@
 from . import const
 from . import controllers
 from . import models
-from . import report
+from . import reports
 from . import tools
-from . import wizard
+from . import wizards
 
 
 def pre_init_hook(env):

@@ -23,7 +23,7 @@
         "views/event_question_views.xml",
     ],
     "demo": [
-        "data/event_crm_demo.xml",
+        "demo/event_crm_demo.xml",
     ],
     "assets": {
         "web.assets_tests": [

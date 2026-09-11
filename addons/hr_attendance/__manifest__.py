@@ -34,7 +34,7 @@ actions(Check in/Check out) performed by them.
         "views/hr_attendance_overtime_rule_views.xml",
     ],
     "demo": [
-        "data/hr_attendance_demo.xml",
+        "demo/hr_attendance_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

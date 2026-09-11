@@ -1,5 +1,5 @@
 from . import models
-from . import wizard
+from . import wizards
 
 
 def _auto_install_sale_app(env):

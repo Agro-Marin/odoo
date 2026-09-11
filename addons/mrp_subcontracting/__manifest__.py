@@ -25,7 +25,7 @@
         "views/subcontracting_portal_templates.xml",
     ],
     "demo": [
-        "data/mrp_subcontracting_demo.xml",
+        "demo/mrp_subcontracting_demo.xml",
     ],
     "assets": {
         "web.assets_tests": [

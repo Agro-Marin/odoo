@@ -283,7 +283,7 @@ class TestMyInvoisPoS(TestPoSCommon):
                 )
 
             with patch(
-                "odoo.addons.l10n_my_edi_pos.wizard.myinvois_consolidate_invoice_wizard.MAX_LINE_COUNT_PER_INVOICE",
+                "odoo.addons.l10n_my_edi_pos.wizards.myinvois_consolidate_invoice_wizard.MAX_LINE_COUNT_PER_INVOICE",
                 1,
             ):
                 # Consolidate them

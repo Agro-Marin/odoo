@@ -23,13 +23,13 @@ are agreements you have with vendors to benefit from a predetermined pricing.
         "views/purchase_views.xml",
         "views/purchase_requisition_views.xml",
         "views/res_config_settings_views.xml",
-        "report/purchase_requisition_report.xml",
-        "report/report_purchaserequisition.xml",
-        "wizard/purchase_requisition_alternative_warning.xml",
-        "wizard/purchase_requisition_create_alternative.xml",
+        "reports/purchase_requisition_report.xml",
+        "reports/report_purchaserequisition.xml",
+        "wizards/purchase_requisition_alternative_warning.xml",
+        "wizards/purchase_requisition_create_alternative.xml",
     ],
     "demo": [
-        "data/purchase_requisition_demo.xml",
+        "demo/purchase_requisition_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

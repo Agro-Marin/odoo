@@ -28,7 +28,7 @@ for more informations, see https://www.facturae.gob.es/face/Paginas/FACE.aspx
         "views/account_move_views.xml",
         "views/uom_uom_views.xml",
         "views/account_menuitem.xml",
-        "wizard/account_move_reversal_view.xml",
+        "wizards/account_move_reversal_view.xml",
     ],
     "demo": [
         "demo/l10n_es_edi_facturae_demo.xml",

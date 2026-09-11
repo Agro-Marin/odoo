@@ -146,7 +146,7 @@ All extend an existing framework model; most add mail behavior.
 | `res_users_settings.py` | `res.users.settings` | M | Per-user discuss settings |
 | `res_users_settings_volumes.py` | `res.users.settings.volumes` (new `_name`) | M | Per-partner RTC volume prefs |
 
-## 9. Wizards (`wizard/`)
+## 9. Wizards (`wizards/`)
 
 | File | `_name` / `_inherit` | Kind | Role |
 |------|----------------------|------|------|
@@ -403,4 +403,4 @@ Methods: `_get_auto_subscription_subtypes(model_name)`, `default_subtypes(model_
 | `discuss/discuss_channel_rtc_session.py` | discuss.channel.rtc.session | Call session |
 | `discuss/mail_guest.py` | mail.guest | Anonymous guest identity |
 | `mail_push.py` / `mail_push_device.py` | mail.push / mail.push.device | Web-push queue + devices |
-| `wizard/mail_compose_message.py` | mail.compose.message | Composer wizard |
+| `wizards/mail_compose_message.py` | mail.compose.message | Composer wizard |

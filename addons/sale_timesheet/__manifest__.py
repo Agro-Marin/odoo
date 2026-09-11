@@ -29,13 +29,13 @@ have real delivered quantities in sales orders.
         "views/sale_timesheet_portal_templates.xml",
         "views/project_sharing_views.xml",
         "views/project_portal_templates.xml",
-        "report/timesheets_analysis_views.xml",
-        "report/report_timesheet_templates.xml",
-        "report/project_report_view.xml",
-        "wizard/sale_make_invoice_advance_views.xml",
+        "reports/timesheets_analysis_views.xml",
+        "reports/report_timesheet_templates.xml",
+        "reports/project_report_view.xml",
+        "wizards/sale_make_invoice_advance_views.xml",
     ],
     "demo": [
-        "data/sale_service_demo.xml",
+        "demo/sale_service_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

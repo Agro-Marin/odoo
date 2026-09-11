@@ -63,7 +63,7 @@ model by company.
         "views/response_cache_views.xml",
         "views/api_credential_views.xml",
         "views/api_credential_access_log_views.xml",
-        "wizard/res_config_settings_views.xml",
+        "wizards/res_config_settings_views.xml",
         "views/api_transport_menu.xml",
     ],
     "demo": [

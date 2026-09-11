@@ -24,7 +24,7 @@ Create booths for your favorite event.
         "data/mail_templates.xml",
     ],
     "demo": [
-        "data/event_booth_demo.xml",
-        "data/event_type_demo.xml",
+        "demo/event_booth_demo.xml",
+        "demo/event_type_demo.xml",
     ],
 }

@@ -21,7 +21,7 @@ dashboards.
 | Application | Yes |
 | License | LGPL-3 |
 | Python models | 11 own + 5 extensions, across 22 files in `models/`, + 2 wizards + 3 report models |
-| Views | 15 XML files (9 `views/` + 4 `report/` + 2 `wizard/`) |
+| Views | 15 XML files (9 `views/` + 4 `reports/` + 2 `wizards/`) |
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 3 (escalation, auto-expire, consent) |
@@ -60,14 +60,14 @@ dashboards.
 | `res_groups.py` | extends `res.groups` | Drops the escalation-manager memo when group membership moves from the GROUP side |
 | `res_users.py` | extends `res.users` | `_is_approval_manager` seam, archive handover (SM-7), memo invalidation |
 
-### Wizards (`wizard/`)
+### Wizards (`wizards/`)
 
 | File | Model | Purpose |
 |------|-------|---------|
 | `approval_decision_wizard.py` | `approval.decision.wizard` | Refuse (structured reason + note) or request a change (field + required note). Approving is 1-click and never opens the wizard |
 | `approval_delegate_wizard.py` | `approval.delegate.wizard` | Delegate pending approvals to another user for a date range |
 
-### Reports (`report/`)
+### Reports (`reports/`)
 
 | File | Model | Type | Purpose |
 |------|-------|------|---------|
@@ -188,10 +188,10 @@ approval/
 |   +-- mail_activity_type.py         # Activity type metadata
 |   +-- res_groups.py                 # Escalation-memo invalidation
 |   +-- res_users.py                  # Manager seam + archive handover
-+-- wizard/
++-- wizards/
 |   +-- approval_decision_wizard.py   # Refuse / request-change
 |   +-- approval_delegate_wizard.py   # Delegation setup
-+-- report/
++-- reports/
 |   +-- approval_metrics.py           # SQL view: category stats
 |   +-- approver_performance.py       # SQL view: approver stats
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs

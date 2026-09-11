@@ -7,7 +7,7 @@ from odoo.tests import tagged
 from odoo.tools import frozendict
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
-from odoo.addons.account.wizard.account_change_lock_date import (
+from odoo.addons.account.wizards.account_change_lock_date import (
     SOFT_LOCK_DATE_FIELDS,
 )
 

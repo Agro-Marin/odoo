@@ -28,11 +28,11 @@ If the automated inventory valuation is active, the necessary accounting entries
         "views/analytic_account_views.xml",
         "views/account_move_views.xml",
         "views/mrp_workcenter_views.xml",
-        "report/report_mrp_templates.xml",
-        "wizard/mrp_wip_accounting.xml",
+        "reports/report_mrp_templates.xml",
+        "wizards/mrp_wip_accounting.xml",
     ],
     "demo": [
-        "data/mrp_account_demo.xml",
+        "demo/mrp_account_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

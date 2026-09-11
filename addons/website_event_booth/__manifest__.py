@@ -21,7 +21,7 @@ Display your booths on your website for the users to register.
         "views/event_booth_templates.xml",
     ],
     "demo": [
-        "data/event_demo.xml",
+        "demo/event_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

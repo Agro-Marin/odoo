@@ -21,7 +21,7 @@
         "views/website_pages_views.xml",
     ],
     "demo": [
-        "data/hr_job_demo.xml",
+        "demo/hr_job_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

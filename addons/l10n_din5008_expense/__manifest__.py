@@ -9,7 +9,7 @@
         "hr_expense",
     ],
     "data": [
-        "report/hr_expense_report.xml",
+        "reports/hr_expense_report.xml",
     ],
     "auto_install": True,
 }

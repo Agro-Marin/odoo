@@ -38,10 +38,10 @@ Dashboard / Reports for Warehouse Management includes:
         "views/stock_location_views.xml",
         "views/stock_lot_views.xml",
         "views/stock_move_views.xml",
-        "wizard/stock_inventory_adjustment_name_views.xml",
-        "report/account_invoice_report_view.xml",
-        "report/stock_avco_audit_report_views.xml",
-        "report/stock_valuation_report.xml",
+        "wizards/stock_inventory_adjustment_name_views.xml",
+        "reports/account_invoice_report_view.xml",
+        "reports/stock_avco_audit_report_views.xml",
+        "reports/stock_valuation_report.xml",
     ],
     "assets": {
         "web.assets_backend": [

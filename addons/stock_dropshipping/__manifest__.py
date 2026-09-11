@@ -29,7 +29,7 @@ internal transfer document is needed.
         "views/purchase_order_views.xml",
     ],
     "demo": [
-        "data/stock_dropshipping_demo.xml",
+        "demo/stock_dropshipping_demo.xml",
     ],
     "installable": True,
     "uninstall_hook": "uninstall_hook",

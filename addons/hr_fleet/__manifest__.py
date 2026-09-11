@@ -15,11 +15,11 @@
         "views/employee_views.xml",
         "views/fleet_vehicle_views.xml",
         "views/fleet_vehicle_cost_views.xml",
-        "wizard/hr_departure_wizard_views.xml",
+        "wizards/hr_departure_wizard_views.xml",
         "data/hr_fleet_data.xml",
     ],
     "demo": [
-        "data/hr_fleet_demo.xml",
+        "demo/hr_fleet_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

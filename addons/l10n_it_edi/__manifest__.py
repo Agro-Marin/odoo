@@ -37,7 +37,7 @@ E-invoice implementation
         "views/res_config_settings_views.xml",
     ],
     "demo": [
-        "data/account_invoice_demo.xml",
+        "demo/account_invoice_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

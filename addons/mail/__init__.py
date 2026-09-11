@@ -3,7 +3,7 @@ import typing
 
 from . import models
 from . import tools
-from . import wizard
+from . import wizards
 from . import controllers
 
 encodings.aliases.aliases["cp_850"] = "cp850"

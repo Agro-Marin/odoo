@@ -11,12 +11,12 @@
     "data": [
         "security/ir.model.access.csv",
         "security/loyalty_security.xml",
-        "report/loyalty_report_templates.xml",
-        "report/loyalty_report.xml",
+        "reports/loyalty_report_templates.xml",
+        "reports/loyalty_report.xml",
         "data/mail_template_data.xml",
         "data/loyalty_data.xml",
-        "wizard/loyalty_card_update_balance_views.xml",
-        "wizard/loyalty_generate_wizard_views.xml",
+        "wizards/loyalty_card_update_balance_views.xml",
+        "wizards/loyalty_generate_wizard_views.xml",
         "views/loyalty_card_views.xml",
         "views/loyalty_history_views.xml",
         "views/loyalty_mail_views.xml",
@@ -27,7 +27,7 @@
         "views/res_partner_views.xml",
     ],
     "demo": [
-        "data/loyalty_demo.xml",
+        "demo/loyalty_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

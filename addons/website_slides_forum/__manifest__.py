@@ -22,7 +22,7 @@
         "views/website_slides_templates.xml",
     ],
     "demo": [
-        "data/slide_channel_demo.xml",
+        "demo/slide_channel_demo.xml",
     ],
     "assets": {
         "website.website_builder_assets": [

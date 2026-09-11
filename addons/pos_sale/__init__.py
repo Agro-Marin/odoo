@@ -1,5 +1,5 @@
 from . import models
-from . import report
+from . import reports
 
 
 def _pos_sale_post_init(env):

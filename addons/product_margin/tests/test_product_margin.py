@@ -90,7 +90,7 @@ class TestProductMargin(AccountTestInvoicingCommon):
 
     def test_wizard_date_defaults_are_dynamic(self):
         with patch(
-            "odoo.addons.product_margin.wizard.product_margin.time.strftime"
+            "odoo.addons.product_margin.wizards.product_margin.time.strftime"
         ) as mock_strftime:
             mock_strftime.side_effect = lambda fmt: fmt.replace("%Y", "2030")
             wizard_2030 = self.env["product.margin"].new()

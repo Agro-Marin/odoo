@@ -3,8 +3,8 @@ from odoo.tools.misc import str2bool
 from . import const
 from . import controllers
 from . import models
-from . import report
-from . import wizard
+from . import reports
+from . import wizards
 
 
 def _post_init_hook(env):

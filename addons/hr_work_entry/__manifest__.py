@@ -18,10 +18,10 @@
         "views/hr_employee_views.xml",
         "views/hr_contract_template_views.xml",
         "views/resource_calendar_views.xml",
-        "wizard/hr_work_entry_regeneration_wizard_views.xml",
+        "wizards/hr_work_entry_regeneration_wizard_views.xml",
     ],
     "demo": [
-        "data/hr_work_entry_demo.xml",
+        "demo/hr_work_entry_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

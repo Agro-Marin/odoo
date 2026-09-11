@@ -56,7 +56,7 @@ merely uninstalled, because it and its glue module ``account_extract`` are both
     ],
     "data": [
         "security/ir.model.access.csv",
-        "wizard/extract_line_wizard_views.xml",
+        "wizards/extract_line_wizard_views.xml",
         "views/account_move_views.xml",
     ],
 }

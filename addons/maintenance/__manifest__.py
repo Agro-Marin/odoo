@@ -24,7 +24,7 @@ Track equipment and maintenance requests""",
         "views/res_config_settings_views.xml",
     ],
     "demo": [
-        "data/maintenance_demo.xml",
+        "demo/maintenance_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

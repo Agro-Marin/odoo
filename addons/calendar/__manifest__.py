@@ -35,12 +35,12 @@ If you need to manage your meetings, you should install the CRM module.
         "views/res_config_settings_views.xml",
         "views/res_partner_views.xml",
         "views/res_users_views.xml",
-        "wizard/calendar_provider_config.xml",
-        "wizard/calendar_popover_delete_wizard.xml",
-        "wizard/mail_activity_schedule_views.xml",
+        "wizards/calendar_provider_config.xml",
+        "wizards/calendar_popover_delete_wizard.xml",
+        "wizards/mail_activity_schedule_views.xml",
     ],
     "demo": [
-        "data/calendar_demo.xml",
+        "demo/calendar_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

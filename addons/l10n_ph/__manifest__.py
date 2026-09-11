@@ -17,7 +17,7 @@
     ],
     "data": [
         "data/account_tax_report_data.xml",
-        "wizard/generate_2307_wizard_views.xml",
+        "wizards/generate_2307_wizard_views.xml",
         "views/account_move_views.xml",
         "views/account_payment_views.xml",
         "views/account_tax_views.xml",

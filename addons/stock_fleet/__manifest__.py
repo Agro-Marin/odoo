@@ -15,11 +15,11 @@
         "views/stock_picking_batch.xml",
         "views/stock_picking_type.xml",
         "views/stock_picking_view.xml",
-        "report/report_picking_batch.xml",
+        "reports/report_picking_batch.xml",
         "views/stock_location.xml",
     ],
     "demo": [
-        "data/stock_fleet_demo.xml",
+        "demo/stock_fleet_demo.xml",
     ],
     "post_init_hook": "_enable_dispatch_management",
 }

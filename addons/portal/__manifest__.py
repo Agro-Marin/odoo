@@ -30,8 +30,8 @@ capabilities so portal pages can be rendered without the ``website`` module.
         "views/mail_templates_public.xml",
         "views/portal_templates.xml",
         "views/res_config_settings_views.xml",
-        "wizard/portal_share_views.xml",
-        "wizard/portal_wizard_views.xml",
+        "wizards/portal_share_views.xml",
+        "wizards/portal_wizard_views.xml",
     ],
     "assets": {
         "web._assets_primary_variables": [

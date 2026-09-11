@@ -5,7 +5,7 @@ from odoo.fields import Command
 from odoo.tests import TransactionCase
 from odoo.tools import OrderedSet
 
-from odoo.addons.stock.report.stock_forecasted import ReplenishmentContext
+from odoo.addons.stock.reports.stock_forecasted import ReplenishmentContext
 
 
 class TestReportWizardFixes(TransactionCase):

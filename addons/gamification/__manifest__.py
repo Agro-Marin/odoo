@@ -22,8 +22,8 @@ Both goals and badges are flexible and can be adapted to a large range of module
     ],
     "data": [
         "security/res_groups_security.xml",
-        "wizard/update_goal.xml",
-        "wizard/grant_badge.xml",
+        "wizards/update_goal.xml",
+        "wizards/grant_badge.xml",
         "views/res_users_views.xml",
         "views/gamification_karma_rank_views.xml",
         "views/gamification_karma_tracking_views.xml",
@@ -54,8 +54,8 @@ Both goals and badges are flexible and can be adapted to a large range of module
         "data/gamification_karma_rank_data.xml",
     ],
     "demo": [
-        "data/gamification_karma_rank_demo.xml",
-        "data/gamification_karma_tracking_demo.xml",
+        "demo/gamification_karma_rank_demo.xml",
+        "demo/gamification_karma_tracking_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

@@ -825,7 +825,7 @@ is a label and two requirements may share a translation freely.
 | Key | Value |
 |-----|-------|
 | Model | `approval.decision.wizard` |
-| File | `wizard/approval_decision_wizard.py` |
+| File | `wizards/approval_decision_wizard.py` |
 | Type | TransientModel |
 
 Captures the approver's input when **refusing** or **requesting a change**.
@@ -863,7 +863,7 @@ Approving is a 1-click action that never opens this wizard.
 | Key | Value |
 |-----|-------|
 | Model | `approval.delegate.wizard` |
-| File | `wizard/approval_delegate_wizard.py` |
+| File | `wizards/approval_delegate_wizard.py` |
 | Type | TransientModel |
 
 ### Fields
@@ -892,7 +892,7 @@ Approving is a 1-click action that never opens this wizard.
 | Key | Value |
 |-----|-------|
 | Model | `approval.metrics` |
-| File | `report/approval_metrics.py` |
+| File | `reports/approval_metrics.py` |
 | Type | Model, `_auto = False`, `_inherit = "mixin.sql.report"` |
 | Order | `category_id, avg_approval_hours` |
 
@@ -928,7 +928,7 @@ entry there — nothing links them automatically.
 | Key | Value |
 |-----|-------|
 | Model | `approver.performance` |
-| File | `report/approver_performance.py` |
+| File | `reports/approver_performance.py` |
 | Type | Model, `_auto = False`, `_inherit = "mixin.sql.report"` (same four overrides as `approval.metrics`) |
 | Order | `avg_response_hours` |
 
@@ -969,7 +969,7 @@ entry there — nothing links them automatically.
 | Key | Value |
 |-----|-------|
 | Model | `approval.dashboard` |
-| File | `report/approval_dashboard.py` |
+| File | `reports/approval_dashboard.py` |
 | Type | Model |
 
 ### Fields

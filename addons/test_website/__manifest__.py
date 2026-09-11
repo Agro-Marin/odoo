@@ -25,7 +25,7 @@ models which only purpose is to run tests.""",
         "data/test_website_data.xml",
     ],
     "demo": [
-        "data/test_website_demo.xml",
+        "demo/test_website_demo.xml",
     ],
     "assets": {
         "test_website.test_bundle": [

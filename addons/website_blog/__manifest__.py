@@ -31,7 +31,7 @@
         "security/website_blog_security.xml",
     ],
     "demo": [
-        "data/website_blog_demo.xml",
+        "demo/website_blog_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

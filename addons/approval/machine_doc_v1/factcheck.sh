@@ -77,7 +77,7 @@ done
 # Forward: every shipped Python file is named somewhere in the docs. A file
 # that exists and is undocumented is the half of drift a reader cannot detect,
 # because nothing in the document looks wrong.
-for f in "$MOD"/models/*.py "$MOD"/wizard/*.py "$MOD"/report/*.py; do
+for f in "$MOD"/models/*.py "$MOD"/wizards/*.py "$MOD"/reports/*.py; do
     base="$(basename "$f")"
     [ "$base" = "__init__.py" ] && continue
     assert_doc_cites "$base" "source file $base"
@@ -93,8 +93,8 @@ done
 # point of the paragraph.
 while read -r cited; do
     [ -z "$cited" ] && continue
-    if [ -f "$MOD/models/$cited" ] || [ -f "$MOD/wizard/$cited" ] \
-       || [ -f "$MOD/report/$cited" ]; then ok
+    if [ -f "$MOD/models/$cited" ] || [ -f "$MOD/wizards/$cited" ] \
+       || [ -f "$MOD/reports/$cited" ]; then ok
     else bad "docs cite source file $cited, which no longer exists"; fi
 done < <(grep -hoP '`\K(approval_\w+|approver_\w+|ir_attachment|mail_activity\w*|res_\w+)\.py(?=`)' \
     "${DOCS[@]}" | sort -u)
@@ -115,13 +115,13 @@ while read -r field; do
     [ -z "$field" ] && continue
     assert_doc_cites "\`$field\`" "field $field"
 done < <(grep -hoP '^    \K[a-z_][a-z0-9_]*(?= = fields\.)' \
-    "$MOD"/models/*.py "$MOD"/wizard/*.py "$MOD"/report/*.py | sort -u)
+    "$MOD"/models/*.py "$MOD"/wizards/*.py "$MOD"/reports/*.py | sort -u)
 
 # ------------------------------------------------------------------- models --
 # Every model the module declares must appear in models.md, and every
 # approval.* model the docs name must exist.
 mapfile -t declared < <(
-    grep -rhoP '^\s+_name = "\K[^"]+' "$MOD"/models "$MOD"/wizard "$MOD"/report | sort -u)
+    grep -rhoP '^\s+_name = "\K[^"]+' "$MOD"/models "$MOD"/wizards "$MOD"/reports | sort -u)
 for model in "${declared[@]}"; do
     assert_cited_in models.md "$model" "model $model"
 done
@@ -144,7 +144,7 @@ done
 # half of drift a reader cannot detect, because the sentence around it still
 # reads as current.
 for retired in approval.tier; do
-    if grep -rqE "^\s+_name = \"$retired\"" "$MOD"/models "$MOD"/wizard "$MOD"/report
+    if grep -rqE "^\s+_name = \"$retired\"" "$MOD"/models "$MOD"/wizards "$MOD"/reports
     then
         bad "$retired is listed as retired but the module still declares it"
     else
@@ -242,7 +242,7 @@ done < <(grep -oP 'approval\.sequence\.\w+' "$MOD/data/ir_config_parameter_data.
 # Extension points index.md advertises must still exist to be extended.
 while read -r hook; do
     [ -z "$hook" ] && continue
-    if grep -rqF "def $hook" "$MOD"/models "$MOD"/wizard "$MOD"/report; then ok
+    if grep -rqF "def $hook" "$MOD"/models "$MOD"/wizards "$MOD"/reports; then ok
     else bad "index.md advertises extension point $hook(), which no longer exists"; fi
 done < <(sed -n '/^## Extension Points/,$p' "$SCRIPT_DIR/index.md" \
     | grep -oP '^- `\K_\w+(?=\(\))' | sort -u)

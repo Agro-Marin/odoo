@@ -48,7 +48,7 @@ adaptive difficulty, and smart nudges.
 | `gamification_skill.py` | `gamification.skill.tree`, `.skill.node`, `.skill.node.unlock` | Branching skill progression |
 | `res_users.py` | extends `res.users` | Karma, ranks, profile, leaderboard, nudges |
 
-### Wizards (`wizard/`)
+### Wizards (`wizards/`)
 
 | File | Model | Purpose |
 |------|-------|---------|

@@ -1,8 +1,8 @@
 from odoo import fields
 
 from . import models
-from . import report
-from . import wizard
+from . import reports
+from . import wizards
 
 
 def _post_init_hook(env):

@@ -13,7 +13,7 @@ Technical module.
         "product_expiry",
     ],
     "data": [
-        "wizard/confirm_expiry_view.xml",
+        "wizards/confirm_expiry_view.xml",
     ],
     "installable": True,
     "auto_install": True,

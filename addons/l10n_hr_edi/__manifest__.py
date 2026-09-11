@@ -26,7 +26,7 @@ e-invoicing for Croatia
         "views/report_invoice_views.xml",
         "views/res_config_settings_views.xml",
         "views/res_partner_views.xml",
-        "wizard/l10n_hr_edi_mojeracun_reject_wizard_views.xml",
+        "wizards/l10n_hr_edi_mojeracun_reject_wizard_views.xml",
     ],
     "demo": [
         "demo/demo_company.xml",

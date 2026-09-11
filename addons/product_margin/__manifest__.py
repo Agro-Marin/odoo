@@ -14,7 +14,7 @@ The wizard to launch the report has several options to help you get the data you
     ],
     "data": [
         "security/ir.model.access.csv",
-        "wizard/product_margin_view.xml",
+        "wizards/product_margin_view.xml",
         "views/product_product_views.xml",
     ],
 }

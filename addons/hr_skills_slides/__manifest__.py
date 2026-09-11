@@ -22,7 +22,7 @@ This module add completed courses to resume for employees.
         "views/hr_views.xml",
     ],
     "demo": [
-        "data/hr_resume_line_demo.xml",
+        "demo/hr_resume_line_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

@@ -169,7 +169,7 @@ odoo/addons/base/
 │   ├── res_users_login_cooldown.py  #   Login-failure cooldown counter
 │   ├── res_users_settings.py        #   Per-user settings
 │   └── tag_tag.py                   #   Generic tag records
-├── wizard/                      # 11 transient model files
+├── wizards/                      # 11 transient model files
 │   ├── base_export_language.py      #   Export translations (PO/CSV/TGZ)
 │   ├── base_import_language.py      #   Import translation files
 │   ├── base_language_install.py     #   Install/activate languages
@@ -186,7 +186,7 @@ odoo/addons/base/
 │   └── test_*.py                #   Test modules -- counts in TEST_TAGS.md, derived by factcheck.sh
 ├── views/                       # 38 XML view definition files
 ├── data/                        # 20 data files (XML, CSV, SQL, JSON)
-├── report/                      # Report templates + the module-reference report model
+├── reports/                      # Report templates + the module-reference report model
 ├── security/                    # ir.model.access.csv + groups and record-rule XML
 ├── rng/                         # RelaxNG schemas (view validation)
 ├── static/                      # CSS, JS, images, test assets

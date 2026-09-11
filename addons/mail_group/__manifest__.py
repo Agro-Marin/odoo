@@ -20,7 +20,7 @@ Manage your mailing lists from Odoo.
         "data/res_groups.xml",
         "security/ir.model.access.csv",
         "security/mail_group_security.xml",
-        "wizard/mail_group_message_reject_views.xml",
+        "wizards/mail_group_message_reject_views.xml",
         "views/mail_compose_message_views.xml",
         "views/mail_group_member_views.xml",
         "views/mail_group_message_views.xml",
@@ -30,7 +30,7 @@ Manage your mailing lists from Odoo.
         "views/portal_templates.xml",
     ],
     "demo": [
-        "data/mail_group_demo.xml",
+        "demo/mail_group_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

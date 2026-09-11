@@ -85,7 +85,7 @@ assert_eq "Controller files (excl __init__)" \
 assert_eq "Model files" \
     "$(ls "$WEB"/models/*.py | wc -l)" "45"
 assert_eq "Wizard py files (excl __init__)" \
-    "$(ls "$WEB"/wizard/*.py | grep -vc __init__)" "4"
+    "$(ls "$WEB"/wizards/*.py | grep -vc __init__)" "4"
 PY_TESTS=$(ls "$WEB"/tests/*.py | wc -l)
 assert_doc_cites "ARCHITECTURE cites the real Python test-file count" \
     "$PY_TESTS" '%s Python test files' ARCHITECTURE.md
@@ -97,7 +97,7 @@ assert_doc_cites "TEST_TAGS cites the real Python test-file count" \
 assert_doc_cites "ARCHITECTURE File Counts row cites the real Python test count" \
     "$PY_TESTS" '\| Python \(tests\) \| %s \|' ARCHITECTURE.md
 
-# ------- ORM model class count (all ^class in models/ + wizard/, minus the two
+# ------- ORM model class count (all ^class in models/ + wizards/, minus the two
 # non-ORM classes: PageCannotBeCached(Exception) + ModelConverter) -------
 #
 # DERIVED, NOT DECLARED. This was a literal 62 in the script while three doc
@@ -106,7 +106,7 @@ assert_doc_cites "ARCHITECTURE File Counts row cites the real Python test count"
 # nothing about which of the three restatements was now wrong. The measurement
 # lives here once and the three sites are each pinned to it, the same shape
 # `PY_TESTS` already uses above.
-MODEL_CLASSES=$(grep -rhE '^class ' "$WEB"/models/*.py "$WEB"/wizard/*.py \
+MODEL_CLASSES=$(grep -rhE '^class ' "$WEB"/models/*.py "$WEB"/wizards/*.py \
     | grep -vcE 'Exception\)|ModelConverter\)')
 assert_doc_cites "MODEL_MAP cites the real ORM model-class count" \
     "$MODEL_CLASSES" '\*\*%s model' MODEL_MAP.md

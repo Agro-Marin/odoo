@@ -11,7 +11,7 @@
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",
-        "wizard/homework_location_wizard.xml",
+        "wizards/homework_location_wizard.xml",
     ],
     "assets": {
         "web.assets_backend": [

@@ -78,7 +78,7 @@ mod, doc_path = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 doc = doc_path.read_text()
 
 declared = {}
-for sub in ("models", "wizard", "populate", "report"):
+for sub in ("models", "wizards", "populate", "reports"):
     root = mod / sub
     if not root.is_dir():
         continue
@@ -130,13 +130,13 @@ while IFS='|' read -r verdict detail; do
 done <<< "$model_report"
 
 # ------------------------------------------------------------- file listing --
-# Every file the Model Index names must exist. `report/` is in the search set:
+# Every file the Model Index names must exist. `reports/` is in the search set:
 # leaving it out is what made the report model's own row look like a dead
 # reference the moment it was documented.
 while read -r cited; do
     [ -z "$cited" ] && continue
-    if [ -f "$MOD/models/$cited" ] || [ -f "$MOD/wizard/$cited" ] \
-       || [ -f "$MOD/report/$cited" ] || [ -f "$MOD/populate/$cited" ]; then ok
+    if [ -f "$MOD/models/$cited" ] || [ -f "$MOD/wizards/$cited" ] \
+       || [ -f "$MOD/reports/$cited" ] || [ -f "$MOD/populate/$cited" ]; then ok
     else bad "Model Index names $cited, which exists in no source directory"; fi
 done < <(sed -n '/^## Model Index$/,$p' "$SCRIPT_DIR/MODEL_MAP.md" \
          | grep -oP '^\| `\K[a-z_0-9]+\.py(?=`)')
@@ -223,25 +223,25 @@ def files(sub, pattern="*"):
                   if p.is_file() and p.name != "__init__.py")
 
 named = set(re.findall(r"^│   [├└]── ([a-z_0-9]+\.py)", arch, re.M))
-for sub in ("models", "wizard"):
+for sub in ("models", "wizards"):
     for name in files(sub, "*.py"):
         print(f"OK|tree names {name}" if name in named
               else f"BAD|ARCHITECTURE.md tree omits {sub}/{name}")
-known = set(files("models", "*.py")) | set(files("wizard", "*.py")) | set(files("tests", "*.py"))
+known = set(files("models", "*.py")) | set(files("wizards", "*.py")) | set(files("tests", "*.py"))
 for name in sorted(named):
     print(f"OK|tree entry {name} exists" if name in known
           else f"BAD|ARCHITECTURE.md tree names {name}, which no source directory holds")
 
 counts = {
     "models": len(files("models", "*.py")),
-    "wizard": len(files("wizard", "*.py")),
+    "wizard": len(files("wizards", "*.py")),
     "tests": len(files("tests", "test_*.py")),
     "views": len(files("views", "*.xml")),
     "data": len(files("data")),
 }
 tree_lines = {
     "models": rf"^├── models/\s+# {counts['models']} Python model files",
-    "wizard": rf"^├── wizard/\s+# {counts['wizard']} transient model files",
+    "wizard": rf"^├── wizards/\s+# {counts['wizard']} transient model files",
     "tests": rf"^├── tests/\s+# {counts['tests']} Python test files",
     "views": rf"^├── views/\s+# {counts['views']} XML view definition files",
     "data": rf"^├── data/\s+# {counts['data']} data files",
@@ -256,8 +256,8 @@ table = {
     "Python (tests)": counts["tests"],
     "XML (views)": counts["views"],
     "Data files": counts["data"],
-    "XML (reports)": len(files("report", "*.xml")),
-    "XML (wizard views)": len(files("wizard", "*.xml")),
+    "XML (reports)": len(files("reports", "*.xml")),
+    "XML (wizard views)": len(files("wizards", "*.xml")),
     "Security files": len(files("security")),
     "RNG (schemas)": len(files("rng")),
     "i18n (translations)": len(files("i18n")),

@@ -15,7 +15,7 @@
         "data/pos_bill_data.xml",
     ],
     "demo": [
-        "data/product_demo.xml",
+        "demo/product_demo.xml",
     ],
     "assets": {
         "point_of_sale._assets_pos": [

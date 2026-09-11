@@ -1,6 +1,6 @@
 # Copyright (c) 2008 JAILLET Simon - CrysaLEAD - www.crysalead.fr
 from . import models
-from . import wizard
+from . import wizards
 
 from odoo.addons.account.models.chart_template import preserve_existing_tags_on_taxes
 

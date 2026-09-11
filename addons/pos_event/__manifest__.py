@@ -18,8 +18,8 @@
         "views/pos_order_views.xml",
     ],
     "demo": [
-        "data/event_product_demo.xml",
-        "data/point_of_sale_demo.xml",
+        "demo/event_product_demo.xml",
+        "demo/point_of_sale_demo.xml",
     ],
     "assets": {
         "point_of_sale._assets_pos": [

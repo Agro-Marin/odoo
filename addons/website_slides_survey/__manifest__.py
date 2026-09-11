@@ -31,9 +31,9 @@
         "views/res_config_settings_views.xml",
     ],
     "demo": [
-        "data/survey_demo.xml",
-        "data/slide_slide_demo.xml",
-        "data/survey.user_input.line.csv",
+        "demo/survey_demo.xml",
+        "demo/slide_slide_demo.xml",
+        "demo/survey.user_input.line.csv",
     ],
     "assets": {
         "web.assets_frontend": [

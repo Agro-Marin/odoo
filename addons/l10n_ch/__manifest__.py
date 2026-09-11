@@ -41,7 +41,7 @@ The generation of the QR-bill is automatic if you meet the previous criteria. Th
     "data": [
         "security/ir.model.access.csv",
         "data/account_tax_report_data.xml",
-        "report/swissqr_report.xml",
+        "reports/swissqr_report.xml",
         "views/res_bank_view.xml",
         "views/account_invoice.xml",
         "views/setup_wizard_views.xml",

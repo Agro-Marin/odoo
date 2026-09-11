@@ -18,6 +18,6 @@
     "data": [
         "security/ir.model.access.csv",
         "views/res_config_settings_views.xml",
-        "wizard/account_update_tax_tags_wizard.xml",
+        "wizards/account_update_tax_tags_wizard.xml",
     ],
 }

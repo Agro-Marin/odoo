@@ -13,7 +13,7 @@ A chatbot to help the user be guided through recruitment process on the website 
         "im_livechat",
     ],
     "demo": [
-        "data/website_hr_recruitment_livechat_chatbot_demo.xml",
+        "demo/website_hr_recruitment_livechat_chatbot_demo.xml",
     ],
     "installable": True,
 }

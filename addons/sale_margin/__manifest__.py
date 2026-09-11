@@ -18,6 +18,6 @@ Price and Cost Price.
         "views/sale_order_views.xml",
     ],
     "demo": [
-        "data/sale_margin_demo.xml",
+        "demo/sale_margin_demo.xml",
     ],
 }

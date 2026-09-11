@@ -1,5 +1,5 @@
 from . import models
-from . import wizard
+from . import wizards
 
 
 def create_check_sequence_on_bank_journals(env):

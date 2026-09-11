@@ -174,6 +174,6 @@ class DateRangeTypeTest(TransactionCase):
         # Inject invalid value
         self.env.cr.execute("UPDATE date_range_type SET name_expr = 'invalid'")
         dr_type.invalidate_model()
-        with mute_logger("odoo.addons.date_range.wizard.date_range_generator"):
+        with mute_logger("odoo.addons.date_range.wizards.date_range_generator"):
             self.env["date.range.type"].autogenerate_ranges()
         self.assertFalse(dr_type.date_ranges_exist)

@@ -25,7 +25,7 @@ E-invoice implementation for Saudi Arabia; Integration with ZATCA
         "data/account_edi_format.xml",
         "data/ubl_21_zatca.xml",
         "data/res_country_data.xml",
-        "wizard/l10n_sa_edi_otp_wizard.xml",
+        "wizards/l10n_sa_edi_otp_wizard.xml",
         "views/account_tax_views.xml",
         "views/account_journal_views.xml",
         "views/res_partner_views.xml",

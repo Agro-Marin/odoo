@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.31
-:Date: 2026-09-09
+:Version: 6.32
+:Date: 2026-09-11
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -459,6 +459,18 @@ Standard Odoo/OCA structure. Everything is optional except ``__manifest__.py``.
    ├── views/
    └── wizards/                    # TransientModel, incl. res.config.settings
 
+**The directory names are plural** ``[review]``: ``wizards/`` and ``reports/``,
+never ``wizard/`` or ``report/``. Upstream spells both in the singular, and so
+did most of this tree until 2026-09-11, when every one of the 328 ``wizard/``
+and 182 ``report/`` directories across ``odoo``, ``enterprise`` and
+``agromarin`` was renamed in one pass; a singular directory is a regression
+now, not debt. Renaming one is a rename of every path in ``__manifest__.py``,
+of the package import in the module's ``__init__.py`` and of every dotted
+``odoo.addons.<module>.wizard`` import elsewhere; do it as one change with all
+three. Nothing else reads the name: ``naming_vocabulary.py`` governs *any*
+file under a manifest (§2.4.13), so the singular is not shielded from a gate
+and the plural is not exposed to one.
+
 Under ``static/src``, colocate a component's ``.js``, ``.xml`` and ``.scss`` in a
 feature folder. The flat ``js/`` + ``xml/`` + ``scss/`` split is legacy (§4.1).
 
@@ -497,7 +509,18 @@ Keys come from the known set, in the canonical order
   modules, as ``sale_crm`` bridges ``sale`` and ``crm``.
 * **A mixin is not a module by default.** One that depends on ``base`` alone
   and ships no data lives in ``base``; §2.2.2 says what earns one a module.
-* **Demo data belongs in ``demo``**, not ``data``.
+* **Demo data belongs in ``demo``, not ``data`` -- the key and the directory
+  both** ``[review]``. A file listed under ``demo`` lives in ``demo/``; a
+  ``data/{model_name}_demo.xml`` is a demo file filed as data, and the manifest
+  key alone does not correct it. Upstream mixes the two, and so did this tree
+  until 2026-09-11, when the 331 ``demo`` entries (of 726 across ``odoo``,
+  ``enterprise`` and ``agromarin``) that pointed into ``data/`` were moved in
+  one pass; a demo file under ``data/`` is a regression now. Move the file and
+  the manifest entry together, and follow any code that loads the file by
+  path -- ``convert_file`` in an onboarding action is the usual one. A demo
+  file is loaded only when the database has demo data, so the move changes
+  what a fresh install without it loads not at all. **A file listed under both
+  keys is a data file**: drop the ``demo`` entry rather than move it.
 * **``license``** must match how the module is actually distributed. The fork
   ships ``LGPL-3``, ``OPL-1``, ``AGPL-3`` and ``OEEL-1``; do not copy a
   neighbour's value unchecked.
@@ -559,6 +582,10 @@ Adoption is partial. Apply the rule to files you create or substantially rework.
    * - Data
      - ``data/{model_name}_data.xml``
      - ``sale_order_data.xml``
+   * - Demo
+     - ``demo/{model_name}_demo.xml``
+     - ``sale_order_demo.xml``; listed under ``demo`` in the manifest and never
+       filed under ``data/`` (§1.2)
    * - Menus
      - ``views/ir_ui_menu_views.xml``
      - one file, every menuitem
@@ -573,7 +600,13 @@ Adoption is partial. Apply the rule to files you create or substantially rework.
      - every ``ir.rule`` in one file
    * - Wizards
      - ``wizards/{model_name}.py`` + ``_views.xml``
-     - includes ``res.config.settings``
+     - includes ``res.config.settings``; the directory is ``wizards/``, not
+       ``wizard/`` (§1.1)
+   * - Reports
+     - ``reports/{model_name}.py`` + ``_views.xml``; QWeb templates
+       ``reports/{model_name}_templates.xml``
+     - SQL-view report models and ``ir.actions.report`` records; the directory
+       is ``reports/``, not ``report/`` (§1.1)
 
 1.4 Machine docs (``machine_doc_v*/``)
 --------------------------------------
@@ -7937,6 +7970,13 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.32
+     - 2026-09-11
+     - §1.1, §1.3: the directory names are plural -- ``wizards/`` and
+       ``reports/``, never ``wizard/`` or ``report/``; §1.2, §1.3: a demo file
+       lives in ``demo/``, never ``data/``. The tree was converted in the same
+       pass -- 510 directories renamed, 330 demo files moved -- so both rules
+       are contracts, not partial adoption.
    * - 6.31
      - 2026-09-10
      - §6.7: an ``at_install`` suite of a module already installed beside its

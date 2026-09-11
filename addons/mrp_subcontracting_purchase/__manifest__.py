@@ -16,7 +16,7 @@ This bridge module adds some smart buttons between Purchase and Subcontracting
         "views/stock_picking_views.xml",
     ],
     "demo": [
-        "data/mrp_subcontracting_purchase_demo.xml",
+        "demo/mrp_subcontracting_purchase_demo.xml",
     ],
     "installable": True,
     "auto_install": True,

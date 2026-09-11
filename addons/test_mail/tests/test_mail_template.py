@@ -17,7 +17,7 @@ from odoo.addons.mail.models.mail_template import (
     TEMPLATE_SPECIFIC_FIELD_NAMES,
 )
 from odoo.addons.mail.tests.common import MailCommon
-from odoo.addons.mail.wizard.mail_compose_message import (
+from odoo.addons.mail.wizards.mail_compose_message import (
     COMPOSER_FIELD_TO_TEMPLATE_FIELD,
     TEMPLATE_FIELD_TO_COMPOSER_FIELD,
     TEMPLATE_RENDER_FIELDS,

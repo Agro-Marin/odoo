@@ -29,7 +29,7 @@ associated to every resource. It also manages the leaves of every resource.
         "views/menuitems.xml",
     ],
     "demo": [
-        "data/resource_demo.xml",
+        "demo/resource_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

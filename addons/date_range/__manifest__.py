@@ -60,7 +60,7 @@ model attribute::
         "data/ir_cron_data.xml",
         "views/date_range_type_views.xml",
         "views/date_range_views.xml",
-        "wizard/date_range_generator.xml",
+        "wizards/date_range_generator.xml",
         "views/date_range_menu.xml",
     ],
     "assets": {

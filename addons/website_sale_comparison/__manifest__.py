@@ -21,8 +21,8 @@ Finally, the module comes with an option to display an attribute summary table i
         "views/website_sale_comparison_view.xml",
     ],
     "demo": [
-        "data/website_sale_comparison_data.xml",
-        "data/website_sale_comparison_demo.xml",
+        "demo/website_sale_comparison_data.xml",
+        "demo/website_sale_comparison_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

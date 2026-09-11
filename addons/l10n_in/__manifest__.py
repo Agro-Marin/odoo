@@ -51,7 +51,7 @@ Sheet, now only Vertical format has been permitted Which is Supported By Odoo.
         "data/account_tax_report_tcs_data.xml",
         "data/account_tax_report_tds_data.xml",
         "data/l10n_in.section.alert.csv",
-        "wizard/l10n_in_withhold_wizard.xml",
+        "wizards/l10n_in_withhold_wizard.xml",
         "views/l10n_in_pan_entity_views.xml",
         "views/l10n_in_section_alert_views.xml",
         "views/account_account_views.xml",

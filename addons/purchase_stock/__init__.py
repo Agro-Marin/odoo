@@ -1,6 +1,6 @@
 from . import models
-from . import report
-from . import wizard
+from . import reports
+from . import wizards
 
 
 def _create_buy_rules(env):

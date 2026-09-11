@@ -11,8 +11,8 @@
     ],
     "data": [
         "views/sale_portal_templates.xml",
-        "report/sale_order_templates.xml",
-        "report/report_invoice_templates.xml",
+        "reports/sale_order_templates.xml",
+        "reports/report_invoice_templates.xml",
     ],
     "installable": True,
     "auto_install": True,

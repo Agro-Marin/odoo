@@ -34,12 +34,12 @@
         "views/snippets.xml",
     ],
     "demo": [
-        "data/event_demo.xml",
-        "data/event_track_location_demo.xml",
-        "data/event_track_tag_demo.xml",
-        "data/event_track_demo.xml",
-        "data/event_track_demo_description.xml",
-        "data/event_track_visitor_demo.xml",
+        "demo/event_demo.xml",
+        "demo/event_track_location_demo.xml",
+        "demo/event_track_tag_demo.xml",
+        "demo/event_track_demo.xml",
+        "demo/event_track_demo_description.xml",
+        "demo/event_track_visitor_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

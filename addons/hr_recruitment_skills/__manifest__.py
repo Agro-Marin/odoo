@@ -18,7 +18,7 @@
         "security/ir.model.access.csv",
     ],
     "demo": [
-        "data/hr_recruitment_skills_demo.xml",
+        "demo/hr_recruitment_skills_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

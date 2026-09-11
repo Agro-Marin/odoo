@@ -29,16 +29,16 @@ this event.
         "views/sale_order_views.xml",
         "data/event_sale_data.xml",
         "data/mail_templates.xml",
-        "report/event_sale_report_views.xml",
+        "reports/event_sale_report_views.xml",
         "security/ir.model.access.csv",
         "security/ir_rule.xml",
         "security/event_security.xml",
-        "wizard/event_edit_registration.xml",
-        "wizard/event_configurator_views.xml",
+        "wizards/event_edit_registration.xml",
+        "wizards/event_configurator_views.xml",
     ],
     "demo": [
-        "data/event_sale_demo.xml",
-        "data/event_registration_demo.xml",
+        "demo/event_sale_demo.xml",
+        "demo/event_registration_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

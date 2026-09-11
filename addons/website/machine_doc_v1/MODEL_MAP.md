@@ -2,7 +2,7 @@
 
 Every Python model defined or extended by the `website` module, with the fields,
 methods, and invariants that matter for the multi-website CMS. **63 model
-classes** defined across `models/` (36 `.py` files) and `wizard/` (5 `.py`
+classes** defined across `models/` (36 `.py` files) and `wizards/` (5 `.py`
 files, 4 of which define models).
 
 > **See also**: `ARCHITECTURE.md` (how these models compose into the frontend
@@ -268,10 +268,10 @@ paths — to avoid leaking unpublished related records; the single-record path
 |------|-------|------|
 | `website_page_properties.py` | `website.page.properties.base` + `website.page.properties` | Page-properties editor (menu/homepage/publish inverse); URL change creates a `website.rewrite`. |
 | `res_config_settings.py` | `res.config.settings` | Website settings panel (`group_multi_website` implied group; dozens of related-to-website fields; Plausible URL parse). |
-| `wizard/base_language_install.py` | `base.language.install` | Adds `website_ids`; assigns installed langs to selected websites. |
-| `wizard/blocked_third_party_domains.py` | `website.custom_blocked_third_party_domains` | Edit/normalize blocked 3rd-party domains. |
-| `wizard/portal_wizard.py` | `portal.wizard.user` | Website-aware duplicate-user detection. |
-| `wizard/website_robots.py` | `website.robots` | robots.txt editor. |
+| `wizards/base_language_install.py` | `base.language.install` | Adds `website_ids`; assigns installed langs to selected websites. |
+| `wizards/blocked_third_party_domains.py` | `website.custom_blocked_third_party_domains` | Edit/normalize blocked 3rd-party domains. |
+| `wizards/portal_wizard.py` | `portal.wizard.user` | Website-aware duplicate-user detection. |
+| `wizards/website_robots.py` | `website.robots` | robots.txt editor. |
 
 ## Model Index
 
@@ -325,7 +325,7 @@ Quick lookup — file → model → role.
 | base_partner_merge.py | `base.partner.merge.automatic.wizard` | TRANSIENT/EXT | Merge visitors on partner merge |
 | website_page_properties.py | `website.page.properties[.base]` | TRANSIENT | Page-properties editor + redirect creation |
 | res_config_settings.py | `res.config.settings` | TRANSIENT/EXT | Website settings panel |
-| wizard/base_language_install.py | `base.language.install` | TRANSIENT/EXT | Assign installed langs to websites |
-| wizard/blocked_third_party_domains.py | `website.custom_blocked_third_party_domains` | TRANSIENT | Edit blocked 3rd-party domains |
-| wizard/portal_wizard.py | `portal.wizard.user` | TRANSIENT/EXT | Website-aware duplicate detection |
-| wizard/website_robots.py | `website.robots` | TRANSIENT | robots.txt editor |
+| wizards/base_language_install.py | `base.language.install` | TRANSIENT/EXT | Assign installed langs to websites |
+| wizards/blocked_third_party_domains.py | `website.custom_blocked_third_party_domains` | TRANSIENT | Edit blocked 3rd-party domains |
+| wizards/portal_wizard.py | `portal.wizard.user` | TRANSIENT/EXT | Website-aware duplicate detection |
+| wizards/website_robots.py | `website.robots` | TRANSIENT | robots.txt editor |

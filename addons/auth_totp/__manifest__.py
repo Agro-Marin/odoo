@@ -34,7 +34,7 @@ can setup API keys to replace their main password.
         "data/ir_action_data.xml",
         "views/res_users_views.xml",
         "views/templates.xml",
-        "wizard/auth_totp_wizard_views.xml",
+        "wizards/auth_totp_wizard_views.xml",
     ],
     "assets": {
         "web.assets_tests": [

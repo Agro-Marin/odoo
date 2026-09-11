@@ -25,7 +25,7 @@ Then it can be made specific at the product level.
         "data/ir_cron_data.xml",
     ],
     "demo": [
-        "data/website_sale_stock_demo.xml",
+        "demo/website_sale_stock_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

@@ -36,14 +36,14 @@
         "views/mail_activity_views.xml",
         "views/mail_activity_plan_views.xml",
         "views/digest_views.xml",
-        "wizard/applicant_refuse_reason_views.xml",
-        "wizard/applicant_send_mail_views.xml",
-        "wizard/talent_pool_add_applicants_views.xml",
-        "wizard/job_add_applicants_views.xml",
+        "wizards/applicant_refuse_reason_views.xml",
+        "wizards/applicant_send_mail_views.xml",
+        "wizards/talent_pool_add_applicants_views.xml",
+        "wizards/job_add_applicants_views.xml",
         "views/menuitems.xml",
     ],
     "demo": [
-        "data/hr_recruitment_demo.xml",
+        "demo/hr_recruitment_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

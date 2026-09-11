@@ -21,7 +21,7 @@ This module adds certification to resume for employees.
         "views/survey_survey_views.xml",
     ],
     "demo": [
-        "data/hr_resume_demo.xml",
+        "demo/hr_resume_demo.xml",
     ],
     "auto_install": True,
 }

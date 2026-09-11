@@ -16,7 +16,7 @@
         "views/event_track_views.xml",
     ],
     "demo": [
-        "data/event_track_demo.xml",
+        "demo/event_track_demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

@@ -1844,7 +1844,7 @@ Settings wizard framework with automatic field handling. Fields with naming conv
 
 ## Wizards
 
-### wizard/base_partner_merge.py
+### wizards/base_partner_merge.py
 
 #### BasePartnerMergeAutomaticWizard — `base.partner.merge.automatic.wizard` (TransientModel)
 
@@ -1861,7 +1861,7 @@ Partner deduplication — manual or automatic merge.
 One candidate group the wizard found. Holds `min_id` and `aggr_ids`, the
 partners the automatic pass would merge together.
 
-### wizard/change_password.py
+### wizards/change_password.py
 
 Password change wizards — admin batch change and self-service.
 
@@ -1869,7 +1869,7 @@ Password change wizards — admin batch change and self-service.
 - `change.password.user` (ChangePasswordUser) — A line: the user and the new password
 - `change.password.own` (ChangePasswordOwn) — Self-service, requires the current password
 
-### wizard/base_language_install.py / base_import_language.py / base_export_language.py
+### wizards/base_language_install.py / base_import_language.py / base_export_language.py
 
 Language management wizards — install, import PO files, export translations.
 
@@ -1877,7 +1877,7 @@ Language management wizards — install, import PO files, export translations.
 - `base.language.import` (BaseLanguageImport) — Load a `.po`/`.csv` for one language
 - `base.language.export` (BaseLanguageExport) — Emit `.pot`/`.po`/`.tgz`/`.csv` for chosen modules
 
-### wizard/base_module_update.py / base_module_upgrade.py / base_module_uninstall.py
+### wizards/base_module_update.py / base_module_upgrade.py / base_module_uninstall.py
 
 Module lifecycle wizards — scan, upgrade, uninstall with dependency analysis.
 
@@ -1885,13 +1885,13 @@ Module lifecycle wizards — scan, upgrade, uninstall with dependency analysis.
 - `base.module.upgrade` (BaseModuleUpgrade) — Confirm and run the pending upgrade set
 - `base.module.uninstall` (BaseModuleUninstall) — Show the dependency cascade before uninstalling
 
-### wizard/reset_view_arch.py
+### wizards/reset_view_arch.py
 
 #### ResetViewArchWizard — `reset.view.arch.wizard` (TransientModel)
 
 Reset view to original arch — soft (arch_prev) or hard (arch_fs).
 
-### wizard/wizard_ir_model_menu_create.py
+### wizards/wizard_ir_model_menu_create.py
 
 #### WizardIrModelMenuCreate — `wizard.ir.model.menu.create` (TransientModel)
 
@@ -1901,7 +1901,7 @@ Create menu item for custom model.
 
 ## Reports
 
-### report/report_base_report_irmodulereference.py
+### reports/report_base_report_irmodulereference.py
 
 #### ReportBaseReport_Irmodulereference — `report.base.report_irmodulereference` (AbstractModel)
 
@@ -2022,7 +2022,7 @@ Quick lookup — file → model → primary role:
 | `res_users_login_cooldown.py` | res.users.login.cooldown | Login-failure cooldown |
 | `res_users_settings.py` | res.users.settings | User preferences |
 
-Wizards (`wizard/`):
+Wizards (`wizards/`):
 
 | File | Model(s) | Role |
 |------|----------|------|

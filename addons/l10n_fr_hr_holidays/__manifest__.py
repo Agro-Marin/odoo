@@ -15,7 +15,7 @@
         "views/res_config_settings_views.xml",
     ],
     "demo": [
-        "data/l10n_fr_hr_holidays_demo.xml",
+        "demo/l10n_fr_hr_holidays_demo.xml",
     ],
     "auto_install": [
         "hr_holidays",

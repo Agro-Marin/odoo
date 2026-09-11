@@ -24,8 +24,8 @@ Enable management of UTM trackers: campaign, medium, source.
         "security/ir.model.access.csv",
     ],
     "demo": [
-        "data/utm_campaign_demo.xml",
-        "data/utm_stage_demo.xml",
+        "demo/utm_campaign_demo.xml",
+        "demo/utm_stage_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

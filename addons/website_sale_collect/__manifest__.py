@@ -25,7 +25,7 @@ Allows customers to check in-store stock, pay on site, and pick up their orders 
         "views/templates.xml",
     ],
     "demo": [
-        "data/demo.xml",
+        "demo/demo.xml",
     ],
     "assets": {
         "web.assets_frontend": [

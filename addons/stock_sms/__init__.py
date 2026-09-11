@@ -1,5 +1,5 @@
 from . import models
-from . import wizard
+from . import wizards
 
 
 def _update_default_sms_template(env):

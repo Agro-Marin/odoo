@@ -51,7 +51,7 @@ Featuring
         "views/website_slides_templates_utils.xml",
         "views/website_pages_views.xml",
         "views/slide_channel_add.xml",
-        "wizard/slide_channel_invite_views.xml",
+        "wizards/slide_channel_invite_views.xml",
         "data/gamification_data.xml",
         "data/mail_message_subtype_data.xml",
         "data/mail_template_data.xml",
@@ -61,12 +61,12 @@ Featuring
         "data/slides_tour.xml",
     ],
     "demo": [
-        "data/res_users_demo.xml",
-        "data/slide_channel_tag_demo.xml",
-        "data/slide_channel_demo.xml",
-        "data/slide_slide_demo.xml",
-        "data/slide_user_demo.xml",
-        "data/slide_user_gamification_demo.xml",
+        "demo/res_users_demo.xml",
+        "demo/slide_channel_tag_demo.xml",
+        "demo/slide_channel_demo.xml",
+        "demo/slide_slide_demo.xml",
+        "demo/slide_user_demo.xml",
+        "demo/slide_user_gamification_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

@@ -13,7 +13,7 @@ Sell event tickets through eCommerce app.
         "website_sale",
     ],
     "data": [
-        "report/event_sale_report_views.xml",
+        "reports/event_sale_report_views.xml",
         "views/event_event_views.xml",
         "views/website_event_templates.xml",
         "views/website_sale_templates.xml",

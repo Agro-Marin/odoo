@@ -1,5 +1,5 @@
 from . import models
-from . import wizard
+from . import wizards
 
 
 def _todo_post_init(env):

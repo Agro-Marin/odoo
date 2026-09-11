@@ -34,8 +34,8 @@ Activates:
         "data/report_paperformat_data.xml",
         "views/account_move_views.xml",
         "views/report_invoice.xml",
-        "wizard/account_debit_note.xml",
-        "wizard/account_move_reversal_views.xml",
+        "wizards/account_debit_note.xml",
+        "wizards/account_move_reversal_views.xml",
         "views/report_templates_views.xml",
     ],
     "demo": [

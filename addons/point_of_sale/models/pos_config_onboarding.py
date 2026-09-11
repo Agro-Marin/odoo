@@ -85,7 +85,7 @@ class PosConfigOnboarding(models.Model):
                 convert.convert_file(
                     self._get_env_with_clean_context(),
                     "product",
-                    "data/product_attribute_demo.xml",
+                    "demo/product_attribute_demo.xml",
                     idref=None,
                     mode="init",
                     noupdate=True,
@@ -233,7 +233,7 @@ class PosConfigOnboarding(models.Model):
                 convert.convert_file(
                     self._get_env_with_clean_context(),
                     "product",
-                    "data/product_category_demo.xml",
+                    "demo/product_category_demo.xml",
                     idref=None,
                     mode="init",
                     noupdate=True,
@@ -241,7 +241,7 @@ class PosConfigOnboarding(models.Model):
                 convert.convert_file(
                     self._get_env_with_clean_context(),
                     "product",
-                    "data/product_attribute_demo.xml",
+                    "demo/product_attribute_demo.xml",
                     idref=None,
                     mode="init",
                     noupdate=True,
@@ -249,7 +249,7 @@ class PosConfigOnboarding(models.Model):
                 convert.convert_file(
                     self._get_env_with_clean_context(),
                     "product",
-                    "data/product_demo.xml",
+                    "demo/product_demo.xml",
                     idref=None,
                     mode="init",
                     noupdate=True,

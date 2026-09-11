@@ -18,7 +18,7 @@ certification flow including purchase, certification, failure and success.
         "data/res_groups_data.xml",
     ],
     "demo": [
-        "data/product_demo.xml",
+        "demo/product_demo.xml",
     ],
     "assets": {
         "web.assets_tests": [

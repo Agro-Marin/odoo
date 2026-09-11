@@ -16,10 +16,10 @@ by choosing product variants quantity through a Grid Entry.
     "data": [
         "views/product_template_views.xml",
         "views/sale_order_views.xml",
-        "report/sale_report_templates.xml",
+        "reports/sale_report_templates.xml",
     ],
     "demo": [
-        "data/product_matrix_demo.xml",
+        "demo/product_matrix_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

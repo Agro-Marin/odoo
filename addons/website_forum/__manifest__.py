@@ -48,8 +48,8 @@ Ask questions, get answers, no distractions
         "data/gamification_badge_data_moderation.xml",
     ],
     "demo": [
-        "data/forum_tag_demo.xml",
-        "data/forum_post_demo.xml",
+        "demo/forum_tag_demo.xml",
+        "demo/forum_post_demo.xml",
     ],
     "assets": {
         "website.assets_editor": [

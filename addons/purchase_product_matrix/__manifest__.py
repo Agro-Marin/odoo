@@ -15,8 +15,8 @@ by choosing product variants quantity through a Grid Entry.
     ],
     "data": [
         "views/purchase_views.xml",
-        "report/purchase_quotation_templates.xml",
-        "report/purchase_order_templates.xml",
+        "reports/purchase_quotation_templates.xml",
+        "reports/purchase_order_templates.xml",
     ],
     "assets": {
         "web.assets_backend": [

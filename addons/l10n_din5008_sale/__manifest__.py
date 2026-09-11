@@ -8,8 +8,8 @@
         "sale",
     ],
     "data": [
-        "report/din5008_sale_templates.xml",
-        "report/din5008_sale_order_layout.xml",
+        "reports/din5008_sale_templates.xml",
+        "reports/din5008_sale_order_layout.xml",
     ],
     "auto_install": True,
 }

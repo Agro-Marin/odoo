@@ -19,8 +19,8 @@
         "views/ir_ui_menu_views.xml",
     ],
     "demo": [
-        "data/res_partner_age_range_demo.xml",
-        "data/mail_demo.xml",
+        "demo/res_partner_age_range_demo.xml",
+        "demo/mail_demo.xml",
     ],
     "assets": {
         "web.assets_tests": [

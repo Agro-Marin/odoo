@@ -21,7 +21,7 @@ Sell your event booths and track payments on sale orders.
         "views/event_booth_category_views.xml",
         "views/event_booth_registration_views.xml",
         "views/event_booth_views.xml",
-        "wizard/event_booth_configurator_views.xml",
+        "wizards/event_booth_configurator_views.xml",
     ],
     "assets": {
         "web.assets_backend": [

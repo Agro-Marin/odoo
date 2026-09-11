@@ -19,7 +19,7 @@ When receiving a document, you will be able to send a rejection or approval of t
         "views/account_move_views.xml",
         "views/nemhandel_response_views.xml",
         "views/res_partner_views.xml",
-        "wizard/nemhandel_rejection_wizard_view.xml",
+        "wizards/nemhandel_rejection_wizard_view.xml",
     ],
     "auto_install": True,
 }

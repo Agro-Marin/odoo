@@ -204,15 +204,15 @@
         "views/ir_model_views.xml",
         "views/res_partner_views.xml",
         "views/neutralize_views.xml",
-        "wizard/base_language_install_views.xml",
-        "wizard/blocked_third_party_domains.xml",
-        "wizard/website_robots.xml",
+        "wizards/base_language_install_views.xml",
+        "wizards/blocked_third_party_domains.xml",
+        "wizards/website_robots.xml",
         "data/update_theme_images.xml",
         "views/website_templates_svg.xml",
     ],
     "demo": [
-        "data/website_demo.xml",
-        "data/website_visitor_demo.xml",
+        "demo/website_demo.xml",
+        "demo/website_visitor_demo.xml",
     ],
     "assets": {
         "mail.assets_public": [

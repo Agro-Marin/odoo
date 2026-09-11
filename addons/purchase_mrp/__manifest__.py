@@ -23,7 +23,7 @@ from purchase order.
         "security/ir.model.access.csv",
     ],
     "demo": [
-        "data/purchase_mrp_demo.xml",
+        "demo/purchase_mrp_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

@@ -10,7 +10,7 @@
         "project_mrp",
     ],
     "demo": [
-        "data/project_mrp_account_demo.xml",
+        "demo/project_mrp_account_demo.xml",
     ],
     "auto_install": True,
 }

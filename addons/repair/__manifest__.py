@@ -25,7 +25,7 @@ The following topics are covered by this module:
     "data": [
         "security/ir.model.access.csv",
         "security/repair_security.xml",
-        "wizard/stock_warn_insufficient_qty_views.xml",
+        "wizards/stock_warn_insufficient_qty_views.xml",
         "views/product_views.xml",
         "views/stock_move_views.xml",
         "views/repair_views.xml",
@@ -33,12 +33,12 @@ The following topics are covered by this module:
         "views/stock_lot_views.xml",
         "views/stock_picking_views.xml",
         "views/stock_warehouse_views.xml",
-        "report/repair_reports.xml",
-        "report/repair_templates_repair_order.xml",
+        "reports/repair_reports.xml",
+        "reports/repair_templates_repair_order.xml",
         "data/repair_data.xml",
     ],
     "demo": [
-        "data/repair_demo.xml",
+        "demo/repair_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [

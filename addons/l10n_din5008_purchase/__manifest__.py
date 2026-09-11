@@ -8,7 +8,7 @@
         "purchase",
     ],
     "data": [
-        "report/din5008_purchase_order_templates.xml",
+        "reports/din5008_purchase_order_templates.xml",
     ],
     "auto_install": True,
 }

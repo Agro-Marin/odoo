@@ -7,7 +7,7 @@ mislead.
 
 `--without-demo` is the default here; upstream's is the opposite. A database created with
 plain `-i partner` has `ir_module_module.demo = f` and loads **neither**
-`data/res_partner_age_range_demo.xml` nor `data/mail_demo.xml`. Pass `--with-demo`.
+`demo/res_partner_age_range_demo.xml` nor `demo/mail_demo.xml`. Pass `--with-demo`.
 
 Worse, demo installability **cascades**: `ModuleNode.demo_installable` is
 `all(p.demo for p in self.depends)`, so if `base`'s demo data fails to load, every module
