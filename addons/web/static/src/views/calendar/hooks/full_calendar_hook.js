@@ -284,6 +284,8 @@ export function useFullCalendar(refName, paramsOrGetter) {
                     ? mountParams.initialDate
                     : null;
             instance.__lastEventSources = component.eventSources();
+            instance.__lastRecords = component.props.model.records;
+            instance.__lastUpdateEpoch = component.props.model.updateEpoch;
             instance.render();
         } catch (e) {
             throw new Error(`Cannot instantiate FullCalendar\n${e.message}`, {
