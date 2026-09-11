@@ -496,7 +496,8 @@ class Datetime(BaseDate[datetime]):
         try:
             parsed = datetime.fromisoformat(value)
         except ValueError:
-            parsed = datetime.strptime(value[:DATETIME_LENGTH], DATETIME_FORMAT)
+            value = value[:DATETIME_LENGTH]
+            parsed = datetime.strptime(value, DATETIME_FORMAT[: len(value) - 2])
         if parsed.tzinfo:
             return parsed.astimezone(UTC).replace(tzinfo=None)
         return parsed
