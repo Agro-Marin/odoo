@@ -125,6 +125,7 @@ dashboards.
 | `test_category.py` | Category configuration: approver-list domain helper, sequence-code derivation |
 | `test_category_steps.py` | Steps: two one-of-two steps need one approval from each, per-step quorum, one row per user counting toward every step, exclusivity in both directions, group and expired members, step conditions, refusal, asking steps in order while deciding freely, notify lists, configuration that could never be met, and a category without steps untouched |
 | `test_step_decisions.py` | Decisions given for steps: a named step counts toward that step only, an unnamed decision takes every step of the row, a step decided once per user, a step outside the row refused, exclusivity in both directions, withdrawing one step keeps the other and re-asks, withdrawing the only step withdraws the decision, a step never decided cannot be withdrawn, a refusal naming a step, a reset clearing decided steps, the note naming where the decision counts, an approver whose step is met no longer asked |
+| `test_step_source_approvers.py` | Steps whose approvers come from a field path on the source document (`subject_user_path`): each document names its own approver, only that user decides, members and the named user share the pool, confirm refuses a document naming nobody, the path must exist and end in `res.users` |
 | `test_ui.py` | Tour-based UI tests; `approval_button_tour`: a gated partner button draws its approvals, is approved from the popover, and the request is approved on the server |
 
 Former `test_audit_regressions.py` and `test_audit_round3_regressions.py`
@@ -220,7 +221,7 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 20 script directories (1.0.1 .. 1.8)
-+-- tests/                            # 39 test modules + common.py
++-- tests/                            # 40 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -233,7 +234,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
-| Python test files | 39 (+ `common.py`) |
+| Python test files | 40 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 16 |

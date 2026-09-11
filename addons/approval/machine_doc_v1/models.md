@@ -812,7 +812,7 @@ question the table answers needs the breakdown rather than a total.
 | Model | `approval.category.step` |
 | File | `models/approval_category_step.py` |
 | Type | Model |
-| Inherits | `mixin.approval.domain` (parses and path-checks `subject_domain`) |
+| Inherits | `mixin.approval.domain` (parses and path-checks `subject_domain` and `subject_user_path`) |
 | Order | `category_id, sequence, id` |
 
 One step of a category's approval: a pool of users, and how many of them must
@@ -836,17 +836,19 @@ does not is left as it was.
 | `group_id` | Many2one(`res.groups`) | Yes | No | its members join the pool too — the union Studio's `approver_ids` / `approval_group_id` pair expresses |
 | `exclusive` | Boolean | Yes | No | an approval counting toward this step counts toward no other step of the request, and the other way round |
 | `notify_user_ids` | Many2many(`res.users`) | Yes | No | posted an internal note when an approver of this step decides |
-| `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition reads; required when `subject_domain` is set |
+| `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition and the approver path read; required when `subject_domain` or `subject_user_path` is set |
 | `subject_model_name` | Char | No | No | related `subject_model_id.model`. The domain editor in the form reads its fields from it: the widget takes a model name, and handed the many2one it crashed the form |
 | `subject_domain` | Char | Yes | No | string="Applies When". The step applies only to requests whose source document matches |
+| `subject_user_path` | Char | Yes | No | string="Approvers From". A field path on the source document ending in `res.users` (e.g. `employee_id.leave_manager_id`): each document names its own approvers, who join the step's members. What a time off manager is, and neither a listed member nor a group can say |
 | `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
-| `_get_member_user_ids()` / `_get_pool_user_ids()` | Listed members within their term, who are asked; the pool adds the group's users, who may decide but are not asked |
+| `_get_member_user_ids(document)` / `_get_pool_user_ids(document)` | Listed members within their term plus the users the document names, who are asked; the pool adds the group's users, who may decide but are not asked. Every caller passes the request's source document, or the gated record on the approval button |
 | `_unlink_except_step_holding_decisions()` | A step some approver row decided under cannot be deleted; archive it |
 | `_check_pool()` | Fires on `user_ids` too, so an approvers list given without a group is checked after its inverse has created the members |
 
 ### Constraints
 
-- `_check_pool`: a quorum of at least one, and members or a group to give it
+- `_check_pool`: a quorum of at least one, and members, a group or an approver path to give it
+- `_check_source_user_path`: an approver path names its source model, every part of it exists there, and it ends in a field whose comodel is `res.users`
 - `_check_condition`: a condition names its source model, and every path it reads exists there
 - `_check_category_not_sequential`: the same refusal as `approval.category._constrains_steps_not_sequential`, from the step's side, since creating a step does not write the category
 
@@ -854,7 +856,8 @@ does not is left as it was.
 
 | Method | Purpose |
 |--------|---------|
-| `_get_pool_user_ids()` | Who may approve today: members whose `date_end` has not passed, plus the group's users |
+| `_get_pool_user_ids(document)` | Who may approve today: members whose `date_end` has not passed, the active users `subject_user_path` resolves to on the document (read under `sudo`), plus the group's users |
+| `_get_source_user_ids(document)` | The users the path names on this document; empty for another model, no document, or no path. Confirm refuses a step whose document names nobody through `_check_steps_can_be_met` |
 | `_is_applicable_to_request(request)` | No condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
 
 ---

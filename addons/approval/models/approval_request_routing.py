@@ -33,6 +33,7 @@ class ApprovalRequestRouting(models.Model):
         self.check_singleton()
         cat = self.category_id
         replacement = self._find_matching_replacement()
+        document = self.get_source_document()
         snapshot: dict[str, Any] = {
             "category_name": cat.name,
             "approval_minimum": cat.approval_minimum,
@@ -68,8 +69,9 @@ class ApprovalRequestRouting(models.Model):
                     "minimum": step.minimum,
                     "exclusive": step.exclusive,
                     "group": step.group_id.name or False,
-                    "members": sorted(step._get_pool_user_ids()),
+                    "members": sorted(step._get_pool_user_ids(document)),
                     "condition": step.subject_domain or False,
+                    "source_user_path": step.subject_user_path or False,
                 }
                 for step in self._get_applicable_steps()
             ],
@@ -142,8 +144,9 @@ class ApprovalRequestRouting(models.Model):
     ) -> set[int]:
         self.check_singleton()
         managed = set(self.category_id.approver_ids.user_id.ids)
+        document = self.get_source_document()
         for step in self._get_applicable_steps():
-            managed.update(step._get_pool_user_ids())
+            managed.update(step._get_pool_user_ids(document))
         if replacement:
             managed.update(replacement.approver_ids.ids)
         for rule in matched_rules or ():
@@ -635,8 +638,9 @@ class ApprovalRequestRouting(models.Model):
         step_ids_by_user: dict[int, set[int]] = {}
         replacement = False
         if steps:
+            document = self.get_source_document()
             for step in steps:
-                for user_id in step._get_pool_user_ids():
+                for user_id in step._get_pool_user_ids(document):
                     self._merge_approver_to_staging(
                         approver_staging, user_id, False, step.sequence
                     )

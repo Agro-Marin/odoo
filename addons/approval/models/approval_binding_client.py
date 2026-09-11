@@ -241,7 +241,7 @@ class ApprovalBinding(models.Model):
                 "minimum": step.minimum,
                 "exclusive": step.exclusive,
                 "can_decide": is_open
-                and user.id in step._get_pool_user_ids()
+                and user.id in step._get_pool_user_ids(record)
                 and (not request or request._can_decide_step(step, user)),
                 "decisions": [
                     self._get_button_decision(row, request, user, step)

@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 01:46+0000\n"
-"PO-Revision-Date: 2026-09-11 01:46+0000\n"
+"POT-Creation-Date: 2026-09-11 02:15+0000\n"
+"PO-Revision-Date: 2026-09-11 02:15+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -1428,6 +1428,11 @@ msgid "Approvers"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__subject_user_path
+msgid "Approvers From"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__approve_sequentially
 #: model:ir.model.fields,field_description:approval.field_approval_request__approve_sequentially
 msgid "Approvers Sequence?"
@@ -2837,6 +2842,13 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_rule__subject_field
 msgid "Field on the source model to compare."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step__subject_user_path
+msgid ""
+"Field path on the source document naming users who approve this step, e.g. "
+"employee_id.leave_manager_id. Each document names its own approvers."
 msgstr ""
 
 #. module: approval
@@ -5372,7 +5384,23 @@ msgstr ""
 #: code:addons/approval/models/approval_category_step.py:0
 msgid ""
 "Step '%(step)s' has nobody who could approve it: give it members, an "
-"approval group, or both."
+"approval group, or a field on the source document that names its approvers."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_category_step.py:0
+msgid ""
+"Step '%(step)s' names its approvers through %(path)s, so it needs the source"
+" model that field is on."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_category_step.py:0
+msgid ""
+"Step '%(step)s' names its approvers through %(path)s, which does not lead to"
+" users."
 msgstr ""
 
 #. module: approval
@@ -6738,6 +6766,11 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.approval_binding_view_form
 msgid "e.g. [('state', '=', 'draft')]"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.approval_category_step_view_form
+msgid "e.g. employee_id.leave_manager_id"
 msgstr ""
 
 #. module: approval

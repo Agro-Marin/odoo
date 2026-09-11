@@ -36,6 +36,7 @@ from . import (
     test_sla_tracking,
     test_state_guards,
     test_step_decisions,
+    test_step_source_approvers,
     test_subject_conditions,
     test_ui,
 )

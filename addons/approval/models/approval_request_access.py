@@ -387,8 +387,9 @@ class ApprovalRequestAccess(models.Model):
         if not own_steps:
             return False
         last = max(own_steps.mapped("sequence"))
+        document = self.get_source_document()
         return any(
-            user.id in step._get_pool_user_ids()
+            user.id in step._get_pool_user_ids(document)
             for step in self.approver_ids.step_ids
             if step.sequence > last
         )

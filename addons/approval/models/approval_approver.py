@@ -411,8 +411,9 @@ class ApprovalApprover(models.Model):
         self.check_singleton()
         if not self.step_ids:
             return True
+        document = self.request_id.get_source_document()
         listed = self.step_ids.filtered(
-            lambda step: self.user_id.id in step._get_member_user_ids()
+            lambda step: self.user_id.id in step._get_member_user_ids(document)
         )
         if not listed:
             return False

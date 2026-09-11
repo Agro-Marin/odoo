@@ -79,10 +79,18 @@ class ApprovalCategoryStep(models.Model):
         "requests whose source document matches; empty means every request.",
     )
 
+    subject_user_path = fields.Char(
+        string="Approvers From",
+        help="Field path on the source document naming users who approve this step, "
+        "e.g. employee_id.leave_manager_id. Each document names its own approvers.",
+    )
+
     def _domain_source_field(self) -> str:
         return "subject_domain"
 
-    @api.constrains("minimum", "member_ids", "group_id", "user_ids")
+    @api.constrains(
+        "minimum", "member_ids", "group_id", "user_ids", "subject_user_path"
+    )
     def _check_pool(self) -> None:
         for step in self:
             if step.minimum < 1:
@@ -91,14 +99,48 @@ class ApprovalCategoryStep(models.Model):
                         "Step '%(step)s' needs at least one approval.", step=step.name
                     ),
                 )
-            if not step.member_ids and not step.group_id:
+            if not (step.member_ids or step.group_id or step.subject_user_path):
                 raise ValidationError(
                     self.env._(
                         "Step '%(step)s' has nobody who could approve it: give it "
-                        "members, an approval group, or both.",
+                        "members, an approval group, or a field on the source "
+                        "document that names its approvers.",
                         step=step.name,
                     ),
                 )
+
+    @api.constrains("subject_user_path", "subject_model_id")
+    def _check_source_user_path(self) -> None:
+        for step in self.filtered("subject_user_path"):
+            model = step.subject_model_id and self.env.get(step.subject_model_id.model)
+            if model is None or not step.subject_model_id:
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' names its approvers through %(path)s, so it "
+                        "needs the source model that field is on.",
+                        step=step.name,
+                        path=step.subject_user_path,
+                    ),
+                )
+            step._check_field_path(model, step.subject_user_path)
+            if step._get_path_terminal_field(model).comodel_name != "res.users":
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' names its approvers through %(path)s, which "
+                        "does not lead to users.",
+                        step=step.name,
+                        path=step.subject_user_path,
+                    ),
+                )
+
+    def _get_path_terminal_field(self, model):
+        self.check_singleton()
+        current, field = model, None
+        for part in self.subject_user_path.split("."):
+            field = current._fields[part]
+            if field.relational:
+                current = self.env[field.comodel_name]
+        return field
 
     @api.constrains("subject_domain", "subject_model_id")
     def _check_condition(self) -> None:
@@ -143,19 +185,31 @@ class ApprovalCategoryStep(models.Model):
             ).unlink()
         self._check_pool()
 
-    def _get_member_user_ids(self) -> set[int]:
+    def _get_member_user_ids(self, document=None) -> set[int]:
         self.check_singleton()
         today = fields.Date.context_today(self)
         return {
             member.user_id.id
             for member in self.member_ids
             if not member.date_end or member.date_end >= today
-        }
+        } | self._get_source_user_ids(document)
 
-    def _get_pool_user_ids(self) -> set[int]:
-        """Who may approve this step today: valid members, and the group's users."""
+    def _get_source_user_ids(self, document) -> set[int]:
         self.check_singleton()
-        users = self._get_member_user_ids()
+        if (
+            not self.subject_user_path
+            or not document
+            or document._name != self.subject_model_id.model
+        ):
+            return set()
+        users = document.sudo().exists().mapped(self.subject_user_path)
+        return set(users.filtered("active").ids)
+
+    def _get_pool_user_ids(self, document=None) -> set[int]:
+        """Who may approve this step today: valid members, the users the document
+        names, and the group's users."""
+        self.check_singleton()
+        users = self._get_member_user_ids(document)
         if self.group_id:
             users.update(self.group_id.all_user_ids.ids)
         return users

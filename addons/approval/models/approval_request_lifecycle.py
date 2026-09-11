@@ -865,8 +865,9 @@ class ApprovalRequestLifecycle(models.Model):
 
     def _check_steps_can_be_met(self, steps) -> None:
         self.check_singleton()
+        document = self.get_source_document()
         for step in steps:
-            pool = step._get_pool_user_ids()
+            pool = step._get_pool_user_ids(document)
             if len(pool) < step.minimum:
                 raise UserError(
                     self.env._(

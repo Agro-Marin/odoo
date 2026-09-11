@@ -15,6 +15,10 @@
                             <field name="group_id" options="{'no_create': True}" />
                             <field name="minimum" />
                             <field name="exclusive" />
+                            <field
+                                name="subject_user_path"
+                                placeholder="e.g. employee_id.leave_manager_id"
+                                invisible="not subject_model_id" />
                         </group>
                         <group string="When">
                             <field name="sequence" />
