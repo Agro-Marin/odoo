@@ -450,6 +450,7 @@ factories) instead of rebuilding user fixtures.
 | `default_category_id` | Category kanban "New Request" | Pre-fills category on request form |
 | `default_approver_id` / `default_decision_type` | `_get_decision_wizard_action()` | Pre-fills the decision wizard (decision_type: 'refuse' or 'change'). Only these two — the wizard's `request_id` is a precomputed stored compute off `approver_id`, so there is no `default_request_id` |
 | `approval_acting_user_id` | `_notify_source_document_state_change()` | Carries the deciding user's id into the source document's `_on_approval_*` hook, which runs under `sudo()`. Read it to attribute a satellite's own chatter message to the approver rather than to OdooBot |
+| `approval_reset_from` | `_force_draft()` | The decided state a reset to draft left (`approved`, `refused` or `cancelled`), carried into the source document's `_on_approval_reset`. The base hook words its chatter note from it |
 
 ---
 

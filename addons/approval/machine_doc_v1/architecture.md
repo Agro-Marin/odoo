@@ -158,8 +158,9 @@
            owner/manager, except a standing refusal -- a refused binding
            request on a record with no approval of its own -- which only
            its refuser, a manager or a later step's member may reopen
-           (_check_reset_actor); approved: manager only + _check_withdraw_allowed
-           + source-document exit notification). _check_reset_allowed hook;
+           (_check_reset_actor); approved: manager only + _check_withdraw_allowed).
+           Every one notifies the source document ('new', with
+           approval_reset_from in context). _check_reset_allowed hook;
            clears decision metadata, date_confirmed, snapshot, escalation
            counters, applied rules; re-syncs approvers; keeps name/number)
 ```
@@ -528,6 +529,13 @@ covered by `_notify_if_terminal_transition`). The base mixin reacts to
 that revocation with a chatter alert plus a To-Do for the document's
 responsible user (`user_id` fallback `create_uid`) on activity-enabled
 models — satellites override for document-specific handling.
+
+`_force_draft()` notifies `"new"` whenever it sends a decided request —
+approved, refused or cancelled — back to draft, with `approval_reset_from`
+in the context naming the state it left. A document that reacted to a
+refusal learns its request is live again; the base `_on_approval_reset`
+says the prior approval no longer holds only when that state was
+`approved`, and otherwise that the request can be submitted again.
 
 ---
 

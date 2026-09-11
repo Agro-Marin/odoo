@@ -538,11 +538,15 @@ class MixinApproval(models.AbstractModel):
 
     def _on_approval_reset(self) -> None:
         self.check_singleton()
-        self.message_post(
-            body=self.env._(
+        if self.env.context.get("approval_reset_from") == "approved":
+            body = self.env._(
                 "The approval linked to this document was reset to draft — "
                 "the prior approval is no longer valid. Review this document "
                 "before processing it further.",
-            ),
-            message_type="notification",
-        )
+            )
+        else:
+            body = self.env._(
+                "The approval request linked to this document was reset to draft "
+                "and can be submitted again.",
+            )
+        self.message_post(body=body, message_type="notification")

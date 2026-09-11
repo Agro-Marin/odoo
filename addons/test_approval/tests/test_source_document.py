@@ -54,6 +54,58 @@ class TestSourceDocumentIsNotified(ApprovalCommon):
         doc._clear_refused_approval_link()
         self.assertFalse(doc.approval_request_id)
 
+    def _refused_document(self, name):
+        category = self._make_category(name=name, approvers=[self.approver_1])
+        doc = self.env["approval.test.document"].create(
+            {
+                "name": name,
+                "partner_id": self.partner.id,
+                "test_category_id": category.id,
+            },
+        )
+        doc.action_create_approval_request()
+        doc.approval_request_id.with_user(self.approver_1).with_context(
+            skip_wizard=True
+        ).action_refuse()
+        return doc
+
+    def test_reset_of_a_refused_request_notifies_source_document(self):
+        doc = self._refused_document(f"Refused Reset Cat {self.id()}")
+        self.assertEqual(doc.last_approval_state, "refused")
+
+        doc.approval_request_id.action_reset_to_draft()
+
+        self.assertEqual(doc.approval_request_id.state, "new")
+        self.assertEqual(doc.last_approval_state, "new")
+        self.assertEqual(doc.hook_call_count, 2)
+        bodies = doc.message_ids.mapped("body")
+        self.assertTrue(any("can be submitted again" in body for body in bodies))
+        self.assertFalse(
+            any("prior approval is no longer valid" in body for body in bodies)
+        )
+
+    def test_reset_of_an_approved_request_says_the_approval_no_longer_holds(self):
+        category = self._make_category(
+            name=f"Approved Reset Cat {self.id()}", approvers=[self.approver_1]
+        )
+        doc = self.env["approval.test.document"].create(
+            {
+                "name": "Doc approved then reset",
+                "partner_id": self.partner.id,
+                "test_category_id": category.id,
+            },
+        )
+        doc.action_create_approval_request()
+        doc.approval_request_id.with_user(self.approver_1).action_approve()
+
+        doc.approval_request_id.action_reset_to_draft()
+
+        self.assertEqual(doc.last_approval_state, "new")
+        bodies = doc.message_ids.mapped("body")
+        self.assertTrue(
+            any("prior approval is no longer valid" in body for body in bodies)
+        )
+
     def test_reset_blocked_when_source_document_released_link(self):
         category = self._make_category(
             name=f"Reset Release Cat {self.id()}",

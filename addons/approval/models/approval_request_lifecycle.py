@@ -670,8 +670,10 @@ class ApprovalRequestLifecycle(models.Model):
             },
         )
         request._sync_approvers()
-        if previous_state == "approved":
-            request._notify_source_document_state_change("new")
+        if previous_state in self._TERMINAL_STATES:
+            request.with_context(
+                approval_reset_from=previous_state
+            )._notify_source_document_state_change("new")
         request._log_cycle("reset", was=previous_state)
         request.message_post(
             body=self.env._(
