@@ -230,6 +230,12 @@ class MixinHrLeaveApproval(models.AbstractModel):
     def _prepare_approval_request_values(self, category):
         vals = super()._prepare_approval_request_values(category)
         vals["request_owner_id"] = (self.employee_id.user_id or self.env.user).id
+        # The request follows the employee, not the environment: an allocation has
+        # no company of its own, and a backfill runs as the superuser in a company
+        # the owner need not belong to.
+        employee_company = self.employee_id.company_id
+        if employee_company:
+            vals["company_id"] = employee_company.id
         return vals
 
     def _can_raise_approval_request(self):

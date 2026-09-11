@@ -153,6 +153,20 @@ class TestAllocationApprovalEngine(TestHrHolidaysCommon):
         )
         self.assertEqual(allocation.state, "validate1")
 
+    def test_a_backfilled_allocation_takes_the_company_of_its_employee(self):
+        """An allocation carries no company; the request must not borrow the
+        upgrade's environment company, which the owner need not belong to."""
+        other_company = self.env["res.company"].create({"name": "Elsewhere"})
+        allocation = self._allocation("manager", user=SUPERUSER_ID)
+        allocation.write({"approval_request_id": False})
+        self.assertNotEqual(self.employee_emp.company_id, other_company)
+
+        allocation.with_company(other_company)._backfill_approval_requests()
+
+        request = allocation.sudo().approval_request_id
+        self.assertEqual(request.company_id, self.employee_emp.company_id)
+        self.assertEqual(request.request_owner_id, self.user_employee)
+
     def test_an_officer_only_allocation_is_asked_for_its_first_approval(self):
         leave_type = self.env["hr.leave.type"].create(
             {
