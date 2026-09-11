@@ -31,6 +31,7 @@ class HrExpense(models.Model):
         "mixin.mail.thread.main.attachment",
         "mixin.mail.activity",
         "mixin.analytic",
+        "mixin.approval.state.sync",
     ]
     _description = "Expense"
     _order = "date desc, id desc"
@@ -1158,11 +1159,73 @@ class HrExpense(models.Model):
             case _:
                 return super()._track_subtype(init_values)
 
+    def _get_approval_sync_state_field(self):
+        return "review_state"
+
+    def _get_approval_sync_kinds(self):
+        return {
+            False: "draft",
+            "submitted": "pending",
+            "approved": "approved",
+            "refused": "refused",
+        }
+
+    def _get_approval_category_xmlid(self):
+        return "hr_expense.approval_category_expense"
+
+    def _prepare_approval_request_values(self, category):
+        vals = super()._prepare_approval_request_values(category)
+        vals["request_owner_id"] = (self.employee_id.user_id or self.env.user).id
+        vals["amount"] = self.total_amount_currency
+        vals["currency_id"] = self.currency_id.id
+        return vals
+
+    def _filter_approval_step_user_ids(self, step, user_ids):
+        self.check_singleton()
+        return {
+            user.id
+            for user in self.env["res.users"].browse(sorted(user_ids))
+            if not self._get_cannot_approve_reason(user)[self.id]
+        }
+
+    def _check_approval_sync_policy(self, kind):
+        if kind == "approved":
+            self._check_can_approve()
+            self.with_context(validate_analytic=True)._check_approval_distribution()
+            if self._get_duplicate_expenses_to_review():
+                raise UserError(
+                    _(
+                        "%(expense)s may duplicate another expense. Approve it from "
+                        "the expense, where its duplicates can be reviewed.",
+                        expense=self.name,
+                    )
+                )
+        elif kind == "refused":
+            self._check_can_refuse()
+
+    def _apply_approval_sync_outcome(self, kind):
+        self.check_singleton()
+        if kind == "progress":
+            return
+        if kind == "approved":
+            self._do_approve(check=False)
+            return
+        self._do_refuse(
+            self.sudo().approval_request_id.refusal_note
+            or (
+                _("Refused through its approval request.")
+                if kind == "refused"
+                else _("Cancelled through its approval request.")
+            )
+        )
+
     def update_activities_and_mails(self):
         expenses_activity_done = self.env["hr.expense"]
         expenses_activity_unlink = self.env["hr.expense"]
         expenses_submitted_to_review = self.env["hr.expense"]
-        for expense in self:
+        for expense in self.filtered(
+            lambda expense: not expense.sudo().approval_request_id
+        ):
             if expense.state == "submitted":
                 expense.with_context(mail_activity_quick_update=True).activity_schedule(
                     "hr_expense.mail_act_expense_approval",
@@ -1346,19 +1409,8 @@ class HrExpense(models.Model):
 
     def action_approve(self):
         self._check_can_approve()
-        for expense in self:
-            expense._check_distribution(
-                account=expense.account_id.id,
-                product=expense.product_id.id,
-                business_domain="expense",
-                company_id=expense.company_id.id,
-            )
-
-        duplicates = self.duplicate_expense_ids.filtered(
-            lambda exp: (
-                exp.state in {"submitted", "approved", "posted", "paid", "in_payment"}
-            )
-        )
+        self._check_approval_distribution()
+        duplicates = self._get_duplicate_expenses_to_review()
         if duplicates:
             action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
                 "hr_expense.hr_expense_approve_duplicate_action"
@@ -1367,6 +1419,22 @@ class HrExpense(models.Model):
             return action
         self._do_approve(False)
         return None
+
+    def _check_approval_distribution(self):
+        for expense in self:
+            expense._check_distribution(
+                account=expense.account_id.id,
+                product=expense.product_id.id,
+                business_domain="expense",
+                company_id=expense.company_id.id,
+            )
+
+    def _get_duplicate_expenses_to_review(self):
+        return self.duplicate_expense_ids.filtered(
+            lambda exp: (
+                exp.state in {"submitted", "approved", "posted", "paid", "in_payment"}
+            )
+        )
 
     def action_refuse(self):
         self._check_can_refuse()
@@ -1592,20 +1660,17 @@ class HrExpense(models.Model):
             )
             raise UserError(reasons)
 
-    def _get_cannot_approve_reason(self):
+    def _get_cannot_approve_reason(self, user=None):
+        bypass = self.env.su and user is None
+        companies = self.env.companies if user is None else user.company_ids
+        user = user or self.env.user
         is_team_approver = (
-            self.env.user.has_group("hr_expense.group_hr_expense_team_approver")
-            or self.env.su
+            user.has_group("hr_expense.group_hr_expense_team_approver") or bypass
         )
-        is_approver = (
-            self.env.user.has_group("hr_expense.group_hr_expense_user") or self.env.su
-        )
-        is_hr_admin = (
-            self.env.user.has_group("hr_expense.group_hr_expense_manager")
-            or self.env.su
-        )
+        is_approver = user.has_group("hr_expense.group_hr_expense_user") or bypass
+        is_hr_admin = user.has_group("hr_expense.group_hr_expense_manager") or bypass
 
-        valid_company_ids = set(self.env.companies.ids)
+        valid_company_ids = set(companies.ids)
 
         expenses_employee_ids_under_user_ones = set()
         if is_team_approver:
@@ -1615,8 +1680,8 @@ class HrExpense(models.Model):
                 .search(
                     [
                         ("id", "in", self.employee_id.ids),
-                        ("id", "child_of", self.env.user.employee_ids.ids),
-                        ("id", "not in", self.env.user.employee_ids.ids),
+                        ("id", "child_of", user.employee_ids.ids),
+                        ("id", "not in", user.employee_ids.ids),
                     ]
                 )
                 .ids
@@ -1628,7 +1693,7 @@ class HrExpense(models.Model):
             is_expense_team_approver = (
                 is_team_approver
                 or expense_employee.id in expenses_employee_ids_under_user_ones
-                or (expense_employee.expense_manager_id == self.env.user)
+                or (expense_employee.expense_manager_id == user)
             )
             if expense.company_id.id not in valid_company_ids:
                 reason = _(
@@ -1651,15 +1716,15 @@ class HrExpense(models.Model):
                     | expense.manager_id
                 )
                 if expense_employee.id in expenses_employee_ids_under_user_ones:
-                    current_managers |= self.env.user
+                    current_managers |= user
 
-                if expense_employee.user_id == self.env.user:
+                if expense_employee.user_id == user:
                     reason = _(
                         "%(expense_name)s: It is your own expense",
                         expense_name=expense.name,
                     )
 
-                elif self.env.user not in current_managers and not is_approver:
+                elif user not in current_managers and not is_approver:
                     reason = _(
                         "%(expense_name)s: It is not from your department",
                         expense_name=expense.name,
@@ -1737,7 +1802,7 @@ class HrExpense(models.Model):
         if draft_moves_sudo:
             draft_moves_sudo.unlink()
 
-        self.review_state = "refused"
+        self.with_context(approval_refusal_note=reason).review_state = "refused"
         subtype_id = self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_comment")
         for expense in self:
             expense.message_post_with_source(
