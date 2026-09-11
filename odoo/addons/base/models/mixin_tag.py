@@ -1,5 +1,4 @@
 import re
-from random import randint
 
 from odoo import api, fields, models
 from odoo.tools import SQL
@@ -9,12 +8,9 @@ _CODE_SEPARATORS = re.compile(r"[^A-Z0-9]+")
 
 class MixinTag(models.AbstractModel):
     _name = "mixin.tag"
-    _inherit = ["mixin.catalog"]
+    _inherit = ["mixin.catalog", "mixin.color"]
     _description = "Tag (coloured label with a stable code)"
     _order = "name, id"
-
-    def _default_color(self):
-        return randint(1, 11)
 
     name = fields.Char(string="Tag Name")
     active = fields.Boolean(
@@ -22,7 +18,7 @@ class MixinTag(models.AbstractModel):
     )
     color = fields.Integer(
         string="Color",
-        default=_default_color,
+        default=lambda self: self._default_color(),
         aggregator=False,
     )
     code = fields.Char(

@@ -1699,9 +1699,19 @@ value would let two rows collide in `en_US` while differing in one translation.
 - `name_uniq_index(*scope, message=, nulls_distinct=, where=)` — Rebuild the index scoped to more columns (per company, per parent) or filtered
 - `no_name_uniq_index()` — Opt out entirely, for an inheritor whose names are not unique
 
+### models/mixin_color.py
+
+#### MixinColor — `mixin.color` (AbstractModel)
+
+Shared color behavior without stored fields: overridable palette defaults,
+hex-field validation through `odoo.libs.colors.hex_to_rgb`, palette-index
+validation, index-to-hex conversion with an explicit palette and fallback,
+and RGB hex lightening through `odoo.libs.colors.lighten_hex`.
+Consumers retain their field types, defaults, and constraint triggers.
+
 ### models/mixin_tag.py
 
-#### MixinTag — `mixin.tag` (AbstractModel, inherits `mixin.catalog`)
+#### MixinTag — `mixin.tag` (AbstractModel, inherits `mixin.catalog`, `mixin.color`)
 
 Coloured label with a stable code. The code survives a rename, so data files and
 integrations can point at a tag without depending on its display name.
@@ -1984,6 +1994,7 @@ Quick lookup — file → model → primary role:
 | `mixin_avatar.py` | mixin.avatar | SVG avatar generation |
 | `mixin_band.py` | mixin.band | Numeric band / range mixin |
 | `mixin_catalog.py` | mixin.catalog | Unique translated name, archivable |
+| `mixin_color.py` | mixin.color | Shared color defaults, validation, and palette conversion |
 | `mixin_favorite.py` | mixin.favorite | Per-record favourite flag |
 | `mixin_user_favorite.py` | mixin.user.favorite | Per-user favourite flag |
 | `mixin_merge.py` | mixin.merge | Record merge engine |

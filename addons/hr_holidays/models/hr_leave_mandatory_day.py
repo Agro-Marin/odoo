@@ -1,10 +1,9 @@
-from random import randint
-
 from odoo import fields, models
 
 
 class HrLeaveMandatoryDay(models.Model):
     _name = "hr.leave.mandatory.day"
+    _inherit = ["mixin.color"]
     _description = "Mandatory Day"
     _order = "start_date desc, end_date desc"
 
@@ -14,7 +13,7 @@ class HrLeaveMandatoryDay(models.Model):
     )
     start_date = fields.Date(required=True)
     end_date = fields.Date(required=True)
-    color = fields.Integer(default=lambda dummy: randint(1, 11))
+    color = fields.Integer(default=lambda self: self._default_color())
     resource_calendar_id = fields.Many2one(
         "resource.calendar",
         "Working Hours",

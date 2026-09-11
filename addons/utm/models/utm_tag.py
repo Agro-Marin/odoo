@@ -1,5 +1,3 @@
-from random import randint
-
 from odoo import fields, models
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
@@ -9,11 +7,9 @@ class UtmTag(models.Model):
     """Model of categories of utm campaigns, i.e. marketing, newsletter, ..."""
 
     _name = "utm.tag"
+    _inherit = ["mixin.color"]
     _description = "UTM Tag"
     _order = "name"
-
-    def _default_color(self):
-        return randint(1, 11)
 
     name = fields.Char(required=True, translate=True)
     color = fields.Integer(

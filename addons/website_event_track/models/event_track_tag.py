@@ -1,15 +1,11 @@
-from random import randint
-
 from odoo import fields, models
 
 
 class EventTrackTag(models.Model):
     _name = "event.track.tag"
+    _inherit = ["mixin.color"]
     _description = "Event Track Tag"
     _order = "category_id, sequence, name"
-
-    def _default_color(self):
-        return randint(1, 11)
 
     name = fields.Char("Tag Name", required=True)
     track_ids = fields.Many2many("event.track", string="Tracks")

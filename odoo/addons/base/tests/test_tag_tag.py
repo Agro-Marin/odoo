@@ -1,5 +1,9 @@
+from unittest.mock import patch
+
 from psycopg.errors import UniqueViolation
 
+from odoo.exceptions import ValidationError
+from odoo.libs.colors import TAG_COLORS
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -13,6 +17,42 @@ class TestTagTag(TransactionCase):
         cls.mid = Tag.create({"name": "Midtag", "parent_id": cls.root.id})
         cls.leaf = Tag.create({"name": "Leaftag", "parent_id": cls.mid.id})
         cls.other = Tag.create({"name": "Loosetag"})
+
+    def test_color_default_is_overridable_and_preserves_explicit_zero(self):
+        Tag = self.env["tag.tag"]
+        with patch.object(type(Tag), "_default_color", return_value=7):
+            self.assertEqual(Tag.create({"name": "Default color"}).color, 7)
+            self.assertEqual(Tag.create({"name": "No color", "color": 0}).color, 0)
+
+    def test_shared_hex_validation_checks_every_record(self):
+        Tag = self.env["tag.tag"]
+        valid = Tag.new({"name": "#aBc"}) | Tag.new({"name": "#123456"})
+        valid._check_hex_color_fields("name")
+        self.assertEqual(valid.mapped("name"), ["#aBc", "#123456"])
+        for value in ("#123456\n", "#abc\n", "red", "123456", "#123; color:red"):
+            records = valid | Tag.new({"name": value})
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                records._check_hex_color_fields("name")
+        with self.assertRaises(ValidationError):
+            Tag.new({"name": "#abc"})._check_hex_color_fields("name", lengths=(6,))
+
+    def test_shared_palette_validation_and_conversion(self):
+        Tag = self.env["tag.tag"]
+        for index, expected in enumerate(TAG_COLORS):
+            tag = Tag.new({"color": index})
+            tag._check_palette_color_fields("color", palette=TAG_COLORS)
+            self.assertEqual(
+                tag._color_index_to_hex(index, palette=TAG_COLORS), expected
+            )
+        for index in (-1, len(TAG_COLORS)):
+            with self.subTest(index=index), self.assertRaises(ValidationError):
+                Tag.new({"color": index})._check_palette_color_fields(
+                    "color", palette=TAG_COLORS
+                )
+            self.assertEqual(
+                Tag._color_index_to_hex(index, palette=TAG_COLORS, fallback="#8F8F8F"),
+                "#8F8F8F",
+            )
 
     def test_display_name_is_full_ancestor_path(self):
         self.assertEqual(self.root.display_name, "Rootag")

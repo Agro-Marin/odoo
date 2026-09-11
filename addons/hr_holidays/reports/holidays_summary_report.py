@@ -5,26 +5,12 @@ import babel.dates
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
+from odoo.libs.colors import LEAVE_REPORT_COLORS
 from odoo.tools.misc import format_date, get_lang
-
-COLORS_MAP = {
-    0: "lightgrey",
-    1: "tomato",
-    2: "sandybrown",
-    3: "khaki",
-    4: "skyblue",
-    5: "dimgrey",
-    6: "lightcoral",
-    7: "steelblue",
-    8: "darkslateblue",
-    9: "crimson",
-    10: "mediumseagreen",
-    11: "mediumpurple",
-}
 
 
 def _color_of(record):
-    return COLORS_MAP.get(record.color % len(COLORS_MAP), COLORS_MAP[0])
+    return LEAVE_REPORT_COLORS[record.color % len(LEAVE_REPORT_COLORS)]
 
 
 class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):

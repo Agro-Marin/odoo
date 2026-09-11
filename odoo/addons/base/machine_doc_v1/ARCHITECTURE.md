@@ -70,7 +70,7 @@ access control, and ORM extensions that those controllers depend on.
 odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
-├── models/                      # 97 Python model files (core ORM infrastructure)
+├── models/                      # 98 Python model files (core ORM infrastructure)
 │   ├── assetsbundle/            #   Asset compilation package (bundle, JS/CSS/XML pipelines, store)
 │   ├── decimal_precision.py         #   Configurable decimal precision
 │   ├── ir_actions_act_url.py        #   URL action
@@ -132,6 +132,7 @@ odoo/addons/base/
 │   ├── mixin_avatar.py              #   SVG avatar generation from initials
 │   ├── mixin_band.py                #   Numeric band / range mixin
 │   ├── mixin_catalog.py             #   Unique translated name, archivable
+│   ├── mixin_color.py               #   Shared defaults, hex validation and palette conversion
 │   ├── mixin_favorite.py            #   Per-record favourite flag
 │   ├── mixin_format_address.py      #   Address form customization
 │   ├── mixin_format_vat_label.py    #   VAT label customization
@@ -271,7 +272,7 @@ Derived by `factcheck.sh`, which re-measures every row against the tree.
 
 | Category | Count |
 |----------|-------|
-| Python (models) | 97 |
+| Python (models) | 98 |
 | Python (wizards) | 11 |
 | Python (tests) | 136 |
 | XML (views) | 38 |

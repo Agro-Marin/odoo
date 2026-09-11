@@ -1,5 +1,3 @@
-from random import randint
-
 from odoo import fields, models
 
 
@@ -23,11 +21,9 @@ class EventTagCategory(models.Model):
 
 class EventTag(models.Model):
     _name = "event.tag"
+    _inherit = ["mixin.color"]
     _description = "Event Tag"
     _order = "category_sequence, sequence, id"
-
-    def _default_color(self):
-        return randint(1, 11)
 
     name = fields.Char("Name", required=True, translate=True)
     sequence = fields.Integer("Sequence", default=0)

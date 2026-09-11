@@ -1,5 +1,3 @@
-from random import randint
-
 from odoo import api, fields, models
 
 
@@ -19,6 +17,7 @@ class SlideChannelTagGroup(models.Model):
 
 class SlideChannelTag(models.Model):
     _name = "slide.channel.tag"
+    _inherit = ["mixin.color"]
     _description = "Channel/Course Tag"
     _order = "group_sequence asc, sequence asc"
 
@@ -47,7 +46,7 @@ class SlideChannelTag(models.Model):
     )
     color = fields.Integer(
         string="Color Index",
-        default=lambda self: randint(1, 11),
+        default=lambda self: self._default_color(),
         help="Tag color used in both backend and website. No color means no display in kanban or front-end, to distinguish internal tags from public categorization tags",
     )
 

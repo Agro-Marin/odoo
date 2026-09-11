@@ -1,16 +1,12 @@
-from random import randint
-
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
 
 
 class HrSkillType(models.Model):
     _name = "hr.skill.type"
+    _inherit = ["mixin.color"]
     _description = "Skill Type"
     _order = "sequence, name"
-
-    def _default_color(self):
-        return randint(1, 11)
 
     active = fields.Boolean("Active", default=True)
     sequence = fields.Integer("Sequence")
@@ -19,7 +15,7 @@ class HrSkillType(models.Model):
     skill_level_ids = fields.One2many(
         "hr.skill.level", "skill_type_id", string="Levels", copy=True
     )
-    color = fields.Integer("Color", default=_default_color)
+    color = fields.Integer("Color", default=lambda self: self._default_color())
     levels_count = fields.Integer(
         compute="_compute_levels_count",
         store=True,

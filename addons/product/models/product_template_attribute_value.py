@@ -1,5 +1,3 @@
-from random import randint
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
@@ -9,11 +7,9 @@ from .utils import unlink_where_possible
 
 class ProductTemplateAttributeValue(models.Model):
     _name = "product.template.attribute.value"
+    _inherit = ["mixin.color"]
     _description = "Product Template Attribute Value"
     _order = "attribute_line_id, product_attribute_value_id, id"
-
-    def _default_color(self):
-        return randint(1, 11)
 
     ptav_active = fields.Boolean(string="Active", default=True)
     name = fields.Char(related="product_attribute_value_id.name", string="Value")
@@ -75,7 +71,7 @@ class ProductTemplateAttributeValue(models.Model):
     display_type = fields.Selection(
         related="product_attribute_value_id.display_type",
     )
-    color = fields.Integer(string="Color", default=_default_color)
+    color = fields.Integer(string="Color", default=lambda self: self._default_color())
     image = fields.Image(related="product_attribute_value_id.image")
 
     _attribute_value_unique = models.Constraint(

@@ -1,6 +1,5 @@
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
-from random import randint
 from typing import TYPE_CHECKING, Any, Self
 from zoneinfo import ZoneInfo
 
@@ -27,6 +26,7 @@ if TYPE_CHECKING:
 
 class ResourceResource(models.Model):
     _name = "resource.resource"
+    _inherit = ["mixin.color"]
     _description = "Resources"
     _order = "name"
 
@@ -173,9 +173,6 @@ class ResourceResource(models.Model):
         if operator in ("!=", "not in"):
             domain = ~domain
         return domain
-
-    def _default_color(self):
-        return randint(1, 11)
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

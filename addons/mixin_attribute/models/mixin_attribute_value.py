@@ -1,5 +1,3 @@
-from random import randint
-
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
@@ -14,7 +12,7 @@ class MixinAttributeValue(models.AbstractModel):
     # below rather than left global: "Large" belongs to Size and to Format
     # independently, and only a duplicate *within* one attribute is a mistake.
     _name = "mixin.attribute.value"
-    _inherit = ["mixin.catalog"]
+    _inherit = ["mixin.catalog", "mixin.color"]
     _description = "Attribute Value Mixin"
     _order = "sequence, name"
 
@@ -29,15 +27,6 @@ class MixinAttributeValue(models.AbstractModel):
         "attribute_id",
         message="A value with this name already exists for this attribute.",
     )
-
-    def _default_color(self):
-        """Spread values over the palette instead of collapsing them onto one.
-
-        A fixed default gives every value of every attribute the same colour,
-        which makes the chips that render them useless as a distinguisher. The
-        palette is 1-11; 0 means "no colour" and is deliberately not drawn.
-        """
-        return randint(1, 11)
 
     @api.depends("attribute_id")
     @api.depends_context("show_attribute")

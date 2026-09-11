@@ -1,15 +1,10 @@
-from random import randint
-
 from odoo import fields, models
 
 
 class HrTalentPool(models.Model):
     _name = "hr.talent.pool"
     _description = "Talent Pool"
-    _inherit = ["mixin.mail.thread"]
-
-    def _default_color(self):
-        return randint(1, 11)
+    _inherit = ["mixin.mail.thread", "mixin.color"]
 
     active = fields.Boolean(default=True)
     name = fields.Char(string="Title", required=True, translate=True)
@@ -35,7 +30,7 @@ class HrTalentPool(models.Model):
         help="The number of talents in this talent pool.",
     )
     description = fields.Html(string="Talent Pool Description")
-    color = fields.Integer(string="Color", default=_default_color)
+    color = fields.Integer(string="Color", default=lambda self: self._default_color())
     categ_ids = fields.Many2many(comodel_name="hr.applicant.category", string="Tags")
 
     def _compute_no_of_talents(self):

@@ -2,6 +2,7 @@ from .conversions import (
     get_saturation,
     get_lightness,
     hex_to_rgb,
+    lighten_hex,
     rgb_to_hex,
     get_hsl_from_seed,
 )
@@ -22,6 +23,52 @@ from .terminal import (
     colorize,
 )
 
+TAG_COLORS = (
+    "#FFFFFF",
+    "#F06050",
+    "#F4A460",
+    "#F7CD1F",
+    "#6CC1ED",
+    "#814968",
+    "#EB7E7F",
+    "#2C8397",
+    "#475577",
+    "#D6145F",
+    "#30C381",
+    "#9365B8",
+)
+
+PLANNING_COLORS = (
+    "#008784",
+    "#EE4B39",
+    "#F29648",
+    "#F4C609",
+    "#55B7EA",
+    "#71405B",
+    "#E86869",
+    "#008784",
+    "#267283",
+    "#BF1255",
+    "#2BAF73",
+    "#8754B0",
+)
+
+LEAVE_REPORT_COLORS = (
+    "lightgrey",
+    "tomato",
+    "sandybrown",
+    "khaki",
+    "skyblue",
+    "dimgrey",
+    "lightcoral",
+    "steelblue",
+    "darkslateblue",
+    "crimson",
+    "mediumseagreen",
+    "mediumpurple",
+)
+
+
 __all__ = [
     "BLACK",
     "BLUE",
@@ -31,9 +78,12 @@ __all__ = [
     "CYAN",
     "DEFAULT",
     "GREEN",
+    "LEAVE_REPORT_COLORS",
     "MAGENTA",
+    "PLANNING_COLORS",
     "RED",
     "RESET_SEQ",
+    "TAG_COLORS",
     "WHITE",
     "YELLOW",
     "colorize",
@@ -41,5 +91,6 @@ __all__ = [
     "get_lightness",
     "get_saturation",
     "hex_to_rgb",
+    "lighten_hex",
     "rgb_to_hex",
 ]

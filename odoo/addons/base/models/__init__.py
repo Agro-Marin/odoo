@@ -81,6 +81,7 @@ from . import mixin_merge
 from . import mixin_favorite
 from . import mixin_user_favorite
 from . import mixin_band
+from . import mixin_color
 from . import mixin_tag
 from . import mixin_tag_nested
 from . import tag_tag

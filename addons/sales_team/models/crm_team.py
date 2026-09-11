@@ -1,5 +1,3 @@
-import random
-
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools.misc import str2bool
@@ -7,13 +5,10 @@ from odoo.tools.misc import str2bool
 
 class CrmTeam(models.Model):
     _name = "crm.team"
-    _inherit = ["mixin.mail.thread", "mixin.user.favorite"]
+    _inherit = ["mixin.mail.thread", "mixin.user.favorite", "mixin.color"]
     _description = "Sales Team"
     _order = "sequence ASC, create_date DESC, id DESC"
     _check_company_auto = True
-
-    def _default_color(self):
-        return random.randint(1, 11)
 
     def _default_favorite_user_ids(self):
         return [(6, 0, [self.env.uid])]
@@ -75,7 +70,7 @@ class CrmTeam(models.Model):
     color = fields.Integer(
         string="Color Index",
         help="The color of the channel",
-        default=_default_color,
+        default=lambda self: self._default_color(),
     )
     favorite_user_ids = fields.Many2many(
         string="Favorite Members",

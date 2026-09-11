@@ -1,5 +1,4 @@
 import re
-from random import randint
 
 from odoo import _, api, fields, models
 from odoo.db.schema import create_index
@@ -17,13 +16,11 @@ from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 class AccountAnalyticPlan(models.Model):
     _name = "account.analytic.plan"
+    _inherit = ["mixin.color"]
     _description = "Analytic Plans"
     _parent_store = True
     _rec_name = "complete_name"
     _order = "sequence asc, id"
-
-    def _default_color(self):
-        return randint(1, 11)
 
     name = fields.Char(
         required=True,
@@ -75,7 +72,7 @@ class AccountAnalyticPlan(models.Model):
     )
     color = fields.Integer(
         "Color",
-        default=_default_color,
+        default=lambda self: self._default_color(),
     )
     sequence = fields.Integer(default=10)
 

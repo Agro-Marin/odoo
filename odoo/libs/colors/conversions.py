@@ -9,6 +9,7 @@ __all__ = [
     "get_lightness",
     "get_saturation",
     "hex_to_rgb",
+    "lighten_hex",
     "rgb_to_hex",
 ]
 
@@ -48,3 +49,13 @@ def get_hsl_from_seed(seed: str) -> str:
     sat = int(hashed_seed[2:4], 16) * ((70 - 40) / 255) + 40
     lig = 45
     return f"hsl({hue:.0f}, {sat:.0f}%, {lig:.0f}%)"
+
+
+def lighten_hex(color: str, factor: float) -> str:
+    """Blend an RGB hex color toward white, clamping the factor to [0, 1]."""
+    factor = max(0.0, min(factor, 1.0))
+    return rgb_to_hex(
+        tuple(
+            round(channel + (255 - channel) * factor) for channel in hex_to_rgb(color)
+        )
+    )

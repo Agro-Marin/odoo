@@ -1,5 +1,3 @@
-import random
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -7,7 +5,7 @@ from odoo.exceptions import UserError, ValidationError
 class PosCategory(models.Model):
     _name = "pos.category"
     _description = "Point of Sale Category"
-    _inherit = ["mixin.pos.load"]
+    _inherit = ["mixin.pos.load", "mixin.color"]
     _order = "sequence, name"
 
     @api.constrains("parent_id")
@@ -15,8 +13,7 @@ class PosCategory(models.Model):
         if self._has_cycle():
             raise ValidationError(_("Error! You cannot create recursive categories."))
 
-    def _default_color(self):
-        return random.randint(0, 10)
+    _color_default_indices = tuple(range(11))
 
     name = fields.Char(string="Category Name", required=True, translate=True)
     parent_id = fields.Many2one("pos.category", string="Parent Category", index=True)
@@ -30,7 +27,9 @@ class PosCategory(models.Model):
     image_128 = fields.Image(
         "Image 128", related="image_512", max_width=128, max_height=128, store=True
     )
-    color = fields.Integer("Color", required=False, default=_default_color)
+    color = fields.Integer(
+        "Color", required=False, default=lambda self: self._default_color()
+    )
     hour_until = fields.Float(
         string="Availability Until",
         default=24.0,

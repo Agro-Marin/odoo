@@ -1,5 +1,3 @@
-from random import randint
-
 from odoo import fields, models
 
 
@@ -16,10 +14,8 @@ class CrmLeadScoringFrequency(models.Model):
 
 class CrmLeadScoringFrequencyField(models.Model):
     _name = "crm.lead.scoring.frequency.field"
+    _inherit = ["mixin.color"]
     _description = "Fields that can be used for predictive lead scoring computation"
-
-    def _default_color(self):
-        return randint(1, 11)
 
     name = fields.Char(related="field_id.field_description")
     field_id = fields.Many2one(
@@ -28,4 +24,4 @@ class CrmLeadScoringFrequencyField(models.Model):
         required=True,
         ondelete="cascade",
     )
-    color = fields.Integer("Color", default=_default_color)
+    color = fields.Integer("Color", default=lambda self: self._default_color())
