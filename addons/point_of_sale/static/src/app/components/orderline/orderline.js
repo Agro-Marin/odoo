@@ -108,7 +108,7 @@ export class Orderline extends Component {
 
     get lineScreenValues() {
         const vals = this.singleLineScreenValues;
-        const group = this.group;
+        const group = this.line.order_id && this.group;
         if (!group) {
             return vals;
         }

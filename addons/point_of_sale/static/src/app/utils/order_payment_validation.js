@@ -24,7 +24,19 @@ export default class OrderPaymentValidation {
         this.pos = vals.pos;
         this.orderUuid = vals.orderUuid;
         this.payment_methods_from_config = this.pos.config.orderedPaymentMethods;
-        this.fastPaymentMethod = vals.fastPaymentMethod || null;
+        this.fastPaymentLine = null;
+        if (vals.fastPaymentMethod) {
+            const res = this.order.addPaymentline(vals.fastPaymentMethod);
+            this.fastPaymentLine = res?.data || null;
+        }
+    }
+
+    rollbackFastPayment() {
+        const line = this.fastPaymentLine;
+        if (line && this.order.payment_ids.includes(line)) {
+            this.order.removePaymentline(line);
+        }
+        this.fastPaymentLine = null;
     }
 
     get order() {
@@ -105,17 +117,7 @@ export default class OrderPaymentValidation {
     }
 
     async validateOrder(isForceValidate) {
-        let fastPaymentLine = null;
-        if (this.fastPaymentMethod) {
-            const res = this.order.addPaymentline(this.fastPaymentMethod);
-            fastPaymentLine = res?.data || null;
-            this.fastPaymentMethod = null;
-        }
-        const rollbackFastPayment = () => {
-            if (fastPaymentLine) {
-                this.order.removePaymentline(fastPaymentLine);
-            }
-        };
+        const rollbackFastPayment = () => this.rollbackFastPayment();
         if ((await this.askBeforeValidation()) === false) {
             rollbackFastPayment();
             return false;

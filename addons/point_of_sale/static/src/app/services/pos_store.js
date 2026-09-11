@@ -2875,6 +2875,9 @@ export class PosStore extends WithLazyGetterTrap {
             fastPaymentMethod: paymentMethod,
         });
         await validation.validateOrder(false);
+        if (validation.order?.state === "draft") {
+            validation.rollbackFastPayment();
+        }
     }
 
     async clickSaveOrder() {
