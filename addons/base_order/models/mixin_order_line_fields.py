@@ -83,6 +83,10 @@ class MixinOrderLineFields(models.AbstractModel):
         related="order_id.fiscal_position_id",
         comodel_name="account.fiscal.position",
     )
+    tax_country_id = fields.Many2one(
+        related="order_id.tax_country_id",
+        comodel_name="res.country",
+    )
     locked = fields.Boolean(
         related="order_id.locked",
     )

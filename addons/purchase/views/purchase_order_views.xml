@@ -849,7 +849,7 @@
                                         options="{'no_create': True}"
                                         context="{'default_type_tax_use': 'purchase', 'search_view_ref': 'account.account_tax_view_search'}"
                                         readonly="is_downpayment"
-                                        domain="[('type_tax_use', '=', 'purchase'), ('company_ids', 'parent_of', parent.company_id), ('active', '=', True)]"
+                                        domain="[('type_tax_use', '=', 'purchase'), ('company_ids', 'parent_of', parent.company_id), ('country_id', '=', parent.tax_country_id), ('active', '=', True)]"
                                         optional="show" />
                                     <field
                                         name="discount"
@@ -921,7 +921,7 @@
                                             <field
                                                 name="tax_ids"
                                                 widget="many2many_tax_tags"
-                                                domain="[('type_tax_use', '=', 'purchase'), ('company_ids', 'parent_of', parent.company_id)]"
+                                                domain="[('type_tax_use', '=', 'purchase'), ('company_ids', 'parent_of', parent.company_id), ('country_id', '=', parent.tax_country_id)]"
                                                 options="{'no_create': True}"
                                                 readonly="is_downpayment" />
                                             <label for="discount" />

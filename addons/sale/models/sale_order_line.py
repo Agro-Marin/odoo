@@ -119,7 +119,7 @@ class SaleOrderLine(models.Model):
         store=True,
         precompute=True,
         readonly=False,
-        domain="[('type_tax_use', '=', 'sale')]",
+        domain="[('type_tax_use', '=', 'sale'), ('country_id', '=', tax_country_id)]",
     )
     pricelist_item_id = fields.Many2one(
         comodel_name="product.pricelist.item",

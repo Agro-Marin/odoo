@@ -57,7 +57,7 @@ class PurchaseOrderLine(models.Model):
         store=True,
         precompute=True,
         readonly=False,
-        domain="[('type_tax_use', '=', 'purchase')]",
+        domain="[('type_tax_use', '=', 'purchase'), ('country_id', '=', tax_country_id)]",
     )
     selected_seller_id = fields.Many2one(
         comodel_name="product.supplierinfo",

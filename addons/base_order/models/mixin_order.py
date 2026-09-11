@@ -221,6 +221,12 @@ class MixinOrder(models.AbstractModel):
         help="Fiscal positions are used to adapt taxes and accounts for particular "
         "partners or orders/invoices. The default value comes from the partner.",
     )
+    tax_country_id = fields.Many2one(
+        comodel_name="res.country",
+        compute="_compute_tax_country_id",
+        # The fiscal position may belong to a company the reading user cannot access.
+        compute_sudo=True,
+    )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
         string="Journal",
@@ -545,6 +551,17 @@ class MixinOrder(models.AbstractModel):
                     .id
                 )
             order.fiscal_position_id = cache[key]
+
+    @api.depends(
+        "company_id.account_fiscal_country_id",
+        "fiscal_position_id.country_id",
+        "fiscal_position_id.foreign_vat",
+    )
+    def _compute_tax_country_id(self):
+        for order in self:
+            order.tax_country_id = order.fiscal_position_id._get_tax_country(
+                order.company_id
+            )
 
     @api.depends("state", "date_commitment")
     def _compute_is_late(self):
