@@ -89,3 +89,23 @@ class TestUnlinkInvalidation(TransactionCase):
         self.assertEqual(discussion.categories, category)
         category.unlink()
         self.assertFalse(discussion.categories)
+
+    def test_a_deleted_record_is_not_recomputed_by_the_unlink_flush(self):
+        order = self.env["test_orm.order"].create({})
+        line = self.env["test_orm.order.line"].create(
+            {"order_id": order.id, "product": "p"}
+        )
+        self.env.flush_all()
+        OrderLine = type(line)
+        compute = OrderLine._compute_has_been_rewarded
+        computed_ids = []
+
+        def spy(records):
+            computed_ids.extend(records.ids)
+            return compute(records)
+
+        self.patch(OrderLine, "_compute_has_been_rewarded", spy)
+        line.reward = True
+        line.unlink()
+        self.assertNotIn(line.id, computed_ids)
+        self.assertFalse(line.exists())

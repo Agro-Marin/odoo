@@ -35,6 +35,7 @@ class UnlinkMixin(_ModelStubs):
                 func(self)
         prof.mark("ondelete")
 
+        self._discard_pending_recomputes()
         self.env.flush_all()
         prof.mark("flush")
 
@@ -48,13 +49,7 @@ class UnlinkMixin(_ModelStubs):
         with self.env.protecting(self._fields.values(), self):
             self._modified_before(self._fields)
 
-        core = self.env._core
-        if core.has_pending():
-            model_name = self._name
-            pending_ids = self._ids
-            for field in core.get_pending_fields():
-                if field.model_name == model_name:
-                    core.mark_done(field, pending_ids)
+        self._discard_pending_recomputes()
         prof.mark("before")
 
         deleted_ids: list[int] = self.ids
@@ -86,6 +81,15 @@ class UnlinkMixin(_ModelStubs):
         self._log_unlink_profile(prof, len(deleted_ids))
 
         return True
+
+    def _discard_pending_recomputes(self) -> None:
+        core = self.env._core
+        if core.has_pending():
+            model_name = self._name
+            pending_ids = self._ids
+            for field in core.get_pending_fields():
+                if field.model_name == model_name:
+                    core.mark_done(field, pending_ids)
 
     def _log_unlinked_ids(self, deleted_ids: list[int]) -> None:
         if len(deleted_ids) <= _UNLINK_LOG_MAX_IDS:
