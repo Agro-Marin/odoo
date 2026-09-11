@@ -56,5 +56,5 @@ Preferences
         ],
     },
     "installable": True,
-    "auto_install": True,
+    "auto_install": ["sale", "stock_account"],
 }

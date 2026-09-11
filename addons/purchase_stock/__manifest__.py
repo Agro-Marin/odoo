@@ -52,6 +52,6 @@
         ],
     },
     "installable": True,
-    "auto_install": True,
+    "auto_install": ["purchase", "stock_account"],
     "post_init_hook": "_create_buy_rules",
 }
