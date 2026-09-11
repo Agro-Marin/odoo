@@ -484,7 +484,7 @@ ViewArchParser.parseWidgetNode  enterprise  :triage
 ViewArchParser.processButton  enterprise  :keep
 ViewButton.getClassName  enterprise  :triage
 ViewButton.onClick  enterprise  :triage
-ViewButton.setup  enterprise  :keep
+ViewButton.setup  odoo enterprise  :keep
 ViewCompiler.OWL_DIRECTIVE_WHITELIST  odoo enterprise agromarin  :keep
 ViewCompiler.applyInvisible  enterprise  :keep
 ViewCompiler.compile  odoo enterprise  :keep
