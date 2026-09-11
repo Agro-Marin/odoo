@@ -79,6 +79,15 @@ class TestLineAmounts(BaseOrderTestCase):
         self.assertFalse(section.price_tax)
         self.assertFalse(section.price_total)
 
+    def test_a_line_without_product_keeps_its_quantity_and_taxes_on_recompute(self):
+        line = self._line(product_id=False, product_qty=2.0, tax_ids=self.tax_15.ids)
+
+        line._compute_product_qty()
+        line._compute_tax_ids()
+
+        self.assertEqual(line.product_qty, 2.0)
+        self.assertEqual(line.tax_ids, self.tax_15)
+
     def test_amounts_follow_a_quantity_change(self):
         line = self._line(product_qty=1.0, price_unit=100.0)
         self.assertAlmostEqual(line.price_subtotal, 100.0, places=2)

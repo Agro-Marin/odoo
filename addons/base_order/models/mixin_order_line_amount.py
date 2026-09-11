@@ -126,8 +126,13 @@ class MixinOrderLineAmount(models.AbstractModel):
     @api.depends("product_id", "display_type")
     def _compute_product_qty(self):
         for line in self:
-            if line.display_type or not line.product_id:
+            if line.display_type:
                 line.product_qty = False
+                continue
+            # A line with no product (an imported charge, a product the import
+            # could not match) has no default to fall back on, so a recompute
+            # triggered by its order keeps the quantity it was given.
+            if not line.product_id:
                 continue
             if not line.product_qty or line._is_product_qty_reset_triggered():
                 line.product_qty = line._get_default_product_qty()
@@ -408,7 +413,13 @@ class MixinOrderLineAmount(models.AbstractModel):
         cached_taxes = {}
         tax_field = self._get_product_tax_field()
         for line in self.filtered(lambda l: not l.display_type):
-            if not line.product_id or not line._is_product_taxable(line):
+            if not line.product_id:
+                # Nothing to map from: keep the taxes a productless line was given,
+                # unless it just lost the product they came from.
+                if line._origin.product_id:
+                    line.tax_ids = False
+                continue
+            if not line._is_product_taxable(line):
                 line.tax_ids = False
                 continue
             lines_by_company[line.company_id] += line

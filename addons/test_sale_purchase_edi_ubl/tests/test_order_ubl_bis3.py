@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tests import tagged
@@ -408,3 +410,54 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         )
         # Should have same payment term as PO
         self.assertEqual(po.payment_term_id, payment_term)
+
+    def test_po_import_document_charge(self):
+        attachment = self.get_sale_xml(
+            [{"product_id": self.place_prdct.id, "product_qty": 1.0}]
+        )
+        tree = etree.fromstring(attachment.raw)
+        cac = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+        cbc = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+        charge = etree.Element(f"{{{cac}}}AllowanceCharge")
+        for tag, text in (
+            ("ChargeIndicator", "true"),
+            ("AllowanceChargeReason", "Freight"),
+            ("Amount", "15.0"),
+        ):
+            etree.SubElement(charge, f"{{{cbc}}}{tag}").text = text
+        tax_category = etree.SubElement(charge, f"{{{cac}}}TaxCategory")
+        etree.SubElement(tax_category, f"{{{cbc}}}Percent").text = str(
+            self.sale_tax.amount
+        )
+        tree.find(f"{{{cac}}}OrderLine").addprevious(charge)
+        attachment = self.env["ir.attachment"].create(
+            {"raw": etree.tostring(tree), "name": "test_sale_order_charge.xml"}
+        )
+
+        po = (
+            self.env["purchase.order"]
+            .with_context(default_partner_id=self.env.user.partner_id.id)
+            ._create_records_from_attachments(attachment)
+        )
+
+        purchase_tax = self.env["account.tax"].search(
+            [
+                *self.env["account.tax"]._check_company_domain(po.company_id),
+                ("amount_type", "=", "percent"),
+                ("type_tax_use", "=", "purchase"),
+                ("amount", "=", self.sale_tax.amount),
+            ],
+            limit=1,
+        )
+        self.assertTrue(purchase_tax)
+        self.assertRecordValues(
+            po.line_ids.filtered(lambda line: not line.product_id),
+            [
+                {
+                    "name": "Freight",
+                    "product_qty": 1.0,
+                    "price_unit": 15.0,
+                    "tax_ids": purchase_tax.ids,
+                }
+            ],
+        )
