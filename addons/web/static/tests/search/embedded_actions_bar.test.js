@@ -88,6 +88,7 @@ describe("EmbeddedActions.removeAction", () => {
             async (/** @type {any} */ config) => {
                 settingsCalls++;
                 savedConfig = config;
+                return true;
             },
         );
 

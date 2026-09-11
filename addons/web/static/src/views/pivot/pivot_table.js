@@ -21,7 +21,6 @@ export function getTableHeaders(data, metaData) {
     const height = colGroupBys.length + 1;
     const measureCount = metaData.activeMeasures.length;
     const leafCounts = getLeafCounts(data.colGroupTree);
-    let headers = [];
     const measureColumns = [];
 
     /** @type {Record<string, any>[][]} */
@@ -73,7 +72,7 @@ export function getTableHeaders(data, metaData) {
         colGroupRows[0].push(totalTopRightCell);
         measureColumns.push(totalTopRightCell);
     }
-    headers = [...headers, ...colGroupRows];
+    const headers = [...colGroupRows];
 
     const measuresRow = getMeasuresRow(measureColumns, metaData);
     headers.push(measuresRow);

@@ -328,3 +328,21 @@ test("favoriteMenu: the item key is the registry key, not the class name", async
         "probe-item",
     );
 });
+
+test("favoriteMenu: isDisplayed is re-asked on a search change, not on every search bar render", async () => {
+    let asked = 0;
+    registerProbeFavorite(() => {
+        asked++;
+        return true;
+    });
+    await mountFavoriteMenu();
+    expect(asked).toBe(1);
+
+    await contains(".o_searchview_input").edit("a", { confirm: false });
+    await contains(".o_searchview_input").edit("ab", { confirm: false });
+    expect(asked).toBe(1);
+
+    // a confirmed search changes the model and re-asks
+    await contains(".o_searchview_input").edit("ab");
+    expect(asked).toBe(2);
+});

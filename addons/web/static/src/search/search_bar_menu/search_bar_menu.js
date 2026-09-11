@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -10,7 +10,6 @@ import { useAction } from "@web/core/action_port";
 import { isActivationKey } from "@web/core/browser/hotkeys";
 import { SearchModelEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
-import { sortBy } from "@web/core/utils/collections/arrays";
 import { useBus } from "@web/core/utils/hooks";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 /** @import { EnrichedSearchItem } from "@web/search/search_types" */
@@ -19,6 +18,7 @@ import {
     editFavoriteFilter,
     FACET_ICONS,
     getDisplayedRegistryItems,
+    groupableFields,
     isGroupableField,
     MENU_REGISTRY_VALIDATION,
 } from "@web/search/utils/misc";
@@ -64,14 +64,13 @@ export class SearchBarMenu extends Component {
         onWillStart(async () => {
             this.otherItems = await this._registryItems();
         });
-        onWillUpdateProps(async () => {
+        // the registry predicates read the search model, not this component's
+        // props (a parent's slot object is new on every render), so they are
+        // re-asked when the model changes and not per keystroke in the bar
+        useBus(this.env.searchModel, SearchModelEvent.UPDATE, async () => {
             this.otherItems = await this._registryItems();
+            this.render();
         });
-        useBus(
-            this.env.searchModel,
-            SearchModelEvent.UPDATE,
-            /** @type {any} */ (this.render),
-        );
     }
 
     /** @returns {Promise<{Component: Function, groupNumber: number, key: string}[]>} */
@@ -84,15 +83,9 @@ export class SearchBarMenu extends Component {
 
     /** @returns {Object[]} */
     get fields() {
-        const fields = [];
-        for (const [fieldName, field] of Object.entries(
-            this.env.searchModel.searchViewFields,
-        )) {
-            if (this.isGroupableField(fieldName, field)) {
-                fields.push(Object.assign({ name: fieldName }, field));
-            }
-        }
-        return sortBy(fields, "string");
+        return groupableFields(this.env.searchModel.searchViewFields, (name, field) =>
+            this.isGroupableField(name, field),
+        );
     }
 
     /** @returns {Object[]} */

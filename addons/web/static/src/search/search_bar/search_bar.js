@@ -403,11 +403,13 @@ export class SearchBar extends Component {
         if (!prom) {
             prom = this.computeSubItems(searchItem, query);
             this._pendingSubItems.set(key, prom);
-            prom.finally(() => {
+            const forget = () => {
                 if (this._pendingSubItems.get(key) === prom) {
                     this._pendingSubItems.delete(key);
                 }
-            });
+            };
+            // not .finally(): its derived promise would reject a second time
+            prom.then(forget, forget);
         }
         return prom;
     }
@@ -818,6 +820,7 @@ export class SearchBar extends Component {
             if (!ev.isComposing) {
                 this.inputDropdownState.open();
             }
+            this.state.subItemsLimits = {};
             this.computeState({ query, expanded: [], subItems: {} });
         } else {
             this.inputDropdownState.close();

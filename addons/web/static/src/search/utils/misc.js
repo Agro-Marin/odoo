@@ -1,3 +1,4 @@
+import { sortBy } from "@web/core/utils/collections/arrays";
 // @ts-check
 /** @odoo-module native */
 
@@ -35,6 +36,32 @@ export const GROUPABLE_TYPES = [
  * @param {{ groupable?: boolean, type: string }} field
  * @returns {boolean} whether a group-by menu may offer the field
  */
+/** @type {WeakMap<Object, Object[]>} */
+const groupableFieldsByMap = new WeakMap();
+
+/**
+ * @param {Record<string, any>} searchViewFields
+ * @param {(fieldName: string, field: any) => boolean} [accepts]
+ * @returns {Object[]} the fields a group-by menu may offer, sorted by label,
+ *  computed once per field map when the default predicate is used
+ */
+export function groupableFields(searchViewFields, accepts = isGroupableField) {
+    if (accepts === isGroupableField && groupableFieldsByMap.has(searchViewFields)) {
+        return /** @type {Object[]} */ (groupableFieldsByMap.get(searchViewFields));
+    }
+    const fields = [];
+    for (const [fieldName, field] of Object.entries(searchViewFields)) {
+        if (accepts(fieldName, field)) {
+            fields.push(Object.assign({ name: fieldName }, field));
+        }
+    }
+    const sorted = sortBy(fields, "string");
+    if (accepts === isGroupableField) {
+        groupableFieldsByMap.set(searchViewFields, sorted);
+    }
+    return sorted;
+}
+
 export function isGroupableField(fieldName, field) {
     const { groupable, type } = field;
     return Boolean(groupable) && fieldName !== "id" && GROUPABLE_TYPES.includes(type);

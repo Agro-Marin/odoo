@@ -268,14 +268,6 @@ export class EmbeddedActions {
         );
     }
 
-    /**
-     * @param {EmbeddedAction} action
-     * @returns {boolean}
-     */
-    isActionVisible(action) {
-        return EmbeddedActions.isVisible(this.embeddedInfos, action);
-    }
-
     async toggleBar() {
         if (this._togglingBar) {
             return;
@@ -485,10 +477,16 @@ export class EmbeddedActions {
             ({ id }) => id !== action.id,
         );
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
-        await this.configHandler.setEmbeddedActionsConfig({
+        const saved = await this.configHandler.setEmbeddedActionsConfig({
             embedded_actions_visibility: [...this.embeddedInfos.visibleEmbeddedActions],
             embedded_actions_order: order,
         });
+        if (!saved) {
+            this.notificationService.add(
+                _t("The action was deleted, but saving the bar's layout failed."),
+                { type: "warning" },
+            );
+        }
         if (action.id === currentEmbeddedAction?.id) {
             this.actionService.doAction(relationId(action.parent_action_id), {
                 additionalContext: this._actionContext(action),

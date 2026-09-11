@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
@@ -165,6 +165,9 @@ export class ControlPanel extends Component {
                 scrollingEl.addEventListener("scroll", this.onScrollThrottledBound);
                 this.root.el.style.top = "0px";
                 this.scrollingElementHeight = scrollingEl.scrollHeight;
+                this.oldScrollTop = 0;
+                this.lastScrollTop = 0;
+                this.initialScrollTop = scrollingEl.scrollTop;
                 return () => {
                     resizeObserver.disconnect();
                     scrollingEl.removeEventListener(
@@ -175,15 +178,6 @@ export class ControlPanel extends Component {
             },
             () => [this.env.isSmall, this.display.adaptToScroll, this.root.el],
         );
-
-        onMounted(() => {
-            if (!this.adaptsToScroll) {
-                return;
-            }
-            this.oldScrollTop = 0;
-            this.lastScrollTop = 0;
-            this.initialScrollTop = this.getScrollingElement().scrollTop;
-        });
     }
 
     /** @returns {HTMLElement} */

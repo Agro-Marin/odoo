@@ -112,8 +112,6 @@ export function createFilterTree(filter, result) {
                     sequence: value.group_sequence,
                     color_index: value.color_index,
                 });
-                const oldGroup = filter.groups && filter.groups.get(groupId);
-                groups.get(groupId).state = oldGroup?.state || false;
             }
             groups.get(groupId).values.set(value.id, value);
         }

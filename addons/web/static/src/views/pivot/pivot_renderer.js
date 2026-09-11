@@ -12,14 +12,13 @@ import { localization } from "@web/core/l10n/localization";
 import { download } from "@web/core/network/download";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { sortBy } from "@web/core/utils/collections/arrays";
 import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useReactiveModel } from "@web/model/model";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import { getIntervalOptions } from "@web/search/utils/dates";
-import { isGroupableField } from "@web/search/utils/misc";
+import { groupableFields, isGroupableField } from "@web/search/utils/misc";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
@@ -87,15 +86,10 @@ export class PivotRenderer extends Component {
         this.multiCurrencyPopover = usePopover(MultiCurrencyPopover, {
             position: "right",
         });
-        const fields = [];
-        for (const [fieldName, field] of Object.entries(
+        this.fields = groupableFields(
             this.env.searchModel.searchViewFields,
-        )) {
-            if (this.isGroupableField(fieldName, field)) {
-                fields.push(Object.assign({ name: fieldName }, field));
-            }
-        }
-        this.fields = sortBy(fields, "string");
+            (name, field) => this.isGroupableField(name, field),
+        );
     }
     /** @private */
     computeMeasureFormatters() {
@@ -366,12 +360,12 @@ export class PivotRenderer extends Component {
         }
 
         const context = drillDownContext(this.model.searchParams.context);
-        this.views = drillDownViews(this.env.config.views);
+        const views = drillDownViews(this.env.config.views);
 
         const group = {
             rowValues: cell.groupId[0],
             colValues: cell.groupId[1],
         };
-        this.openView(this.model.getGroupDomain(group), this.views, context, newWindow);
+        this.openView(this.model.getGroupDomain(group), views, context, newWindow);
     }
 }
