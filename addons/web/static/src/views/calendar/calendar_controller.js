@@ -10,7 +10,7 @@ import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { useModelWithSampleData } from "@web/model/model";
+import { useModel } from "@web/model/model";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { CalendarSidePanel } from "@web/views/calendar/calendar_side_panel/calendar_side_panel";
 import { standardViewProps } from "@web/views/standard_view_props";
@@ -83,7 +83,10 @@ export class CalendarController extends Component {
 
         /** @type {any} */
         this.model = useState(
-            useModelWithSampleData(this.props.Model, this.modelParams),
+            // Not the sample-data hook: calendar_view.rng admits no `sample`
+            // attribute and CalendarModel overrides no hasData(), so sample mode
+            // could never activate and the hook only ever warned about it.
+            useModel(this.props.Model, this.modelParams),
         );
 
         useSetupAction({
