@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools.translate import _
@@ -19,6 +19,7 @@ def get_employee_from_context(values, context, user_employee_id):
 
 class MixinHrLeaveApproval(models.AbstractModel):
     _name = "mixin.hr.leave.approval"
+    _inherit = ["mixin.approval"]
     _description = "Time Off Approval Workflow"
 
     can_approve = fields.Boolean(
@@ -135,13 +136,16 @@ class MixinHrLeaveApproval(models.AbstractModel):
     def activity_update(self):
         if self.env.context.get("mail_activity_automation_skip"):
             return
+        records = self.filtered(lambda record: not record.sudo().approval_request_id)
+        if not records:
+            return
         confirm_xmlid, second_xmlid = self._get_approval_activity_xmlids()
         confirm_activity = self.env.ref(confirm_xmlid)
         second_activity = self.env.ref(second_xmlid)
         to_clean = to_do = to_do_second = self.browse()
         activity_vals = []
         model_id = self.env["ir.model"]._get_id(self._name)
-        for record in self:
+        for record in records:
             if record.state in ("confirm", "validate1"):
                 if record.validation_type == "no_validation":
                     continue
@@ -222,3 +226,204 @@ class MixinHrLeaveApproval(models.AbstractModel):
 
     def _get_redirect_suggested_company(self):
         return self.holiday_status_id.company_id
+
+    def write(self, vals):
+        if "state" not in vals:
+            return super().write(vals)
+        synced = self.env.context.get("hr_holidays_approval_sync", ())
+        previous_states = {
+            record.id: record.state
+            for record in self.sudo()
+            if record.approval_request_id
+            and record.approval_request_id.id not in synced
+        }
+        result = super().write(vals)
+        if previous_states:
+            self.filtered(
+                lambda record: (
+                    record.id in previous_states
+                    and record.state != previous_states[record.id]
+                )
+            )._sync_approval_request()
+        return result
+
+    def unlink(self):
+        for record in self.sudo().filtered(
+            lambda record: record.approval_request_id.state == "pending"
+        ):
+            record._get_synced_approval_request()._force_terminal(
+                "cancelled",
+                self.env._(
+                    "%(user)s deleted %(record)s.",
+                    user=self.env.user.name,
+                    record=record.display_name,
+                ),
+            )
+        return super().unlink()
+
+    def _get_approval_category_xmlid(self):
+        raise NotImplementedError
+
+    def _get_domain_approval_category(self):
+        category = self.env.ref(
+            self._get_approval_category_xmlid(), raise_if_not_found=False
+        )
+        return [("id", "=", category.id)] if category else []
+
+    def _prepare_approval_request_values(self, category):
+        vals = super()._prepare_approval_request_values(category)
+        vals["request_owner_id"] = (self.employee_id.user_id or self.env.user).id
+        return vals
+
+    def _create_approval_requests(self):
+        # The superuser is the system: what it creates (crons, fast paths) keeps the
+        # direct flow. A user's sudo() keeps their uid, so it still raises a request.
+        if self.env.uid == SUPERUSER_ID or self.env.context.get("import_file"):
+            return
+        for record in self.sudo():
+            if (
+                record.state == "confirm"
+                and record.validation_type != "no_validation"
+                and not record.approval_request_id
+                and record.approval_required
+            ):
+                record.action_create_approval_request()
+
+    def _get_synced_approval_request(self):
+        self.check_singleton()
+        request = self.sudo().approval_request_id
+        synced = self.env.context.get("hr_holidays_approval_sync", ())
+        return request.with_context(hr_holidays_approval_sync=(*synced, request.id))
+
+    def _is_synced_with_approval_request(self):
+        self.check_singleton()
+        return self.approval_request_id.id in self.env.context.get(
+            "hr_holidays_approval_sync", ()
+        )
+
+    def _restart_approval_request(self, request):
+        if request.state != "new":
+            request._force_draft()
+        request.action_confirm()
+
+    def _sync_approval_request(self):
+        user = self.env.user
+        decides = self.env.uid != SUPERUSER_ID
+        for record in self:
+            request = record._get_synced_approval_request()
+            if record.state == "confirm":
+                record._restart_approval_request(request)
+            elif record.state in ("validate1", "validate"):
+                record._sync_approval_request_approval(request, user, decides)
+            elif record.state in ("refuse", "cancel"):
+                record._sync_approval_request_ending(request, user, decides)
+
+    def _sync_approval_request_approval(self, request, user, decides):
+        self.check_singleton()
+        if request.state in ("new", "refused", "cancelled"):
+            self._restart_approval_request(request)
+        if request.state != "pending":
+            return
+        rows = (
+            request._get_rows_decidable_by(user)
+            if decides
+            else request.approver_ids.browse()
+        )
+        if self.state == "validate1":
+            steps = request._get_open_steps()
+            rows = rows.filtered(lambda row: steps <= row.step_ids)
+            if rows:
+                request.action_approve(approver=rows, steps=steps)
+            return
+        if rows:
+            request.action_approve(approver=rows)
+        if request.state == "pending":
+            request._approve_without_decision(
+                self.env._(
+                    "%(user)s validated %(record)s without an approver's decision.",
+                    user=user.name,
+                    record=self.display_name,
+                )
+            )
+
+    def _sync_approval_request_ending(self, request, user, decides):
+        self.check_singleton()
+        refused = self.state == "refuse"
+        if request.state == "approved":
+            request._revoke(
+                "refused" if refused else "cancelled",
+                self.env._(
+                    "%(user)s refused %(record)s after it was approved.",
+                    user=user.name,
+                    record=self.display_name,
+                )
+                if refused
+                else self.env._(
+                    "%(user)s cancelled %(record)s after it was approved.",
+                    user=user.name,
+                    record=self.display_name,
+                ),
+            )
+            return
+        if request.state not in ("new", "pending"):
+            return
+        rows = (
+            request._get_current_pending_approver(user)
+            if decides and refused and request.state == "pending"
+            else request.approver_ids.browse()
+        )
+        if rows:
+            request.action_refuse(approver=rows)
+            return
+        request._force_terminal(
+            "refused" if refused else "cancelled",
+            self.env._(
+                "%(user)s refused %(record)s.", user=user.name, record=self.display_name
+            )
+            if refused
+            else self.env._(
+                "%(user)s cancelled %(record)s.",
+                user=user.name,
+                record=self.display_name,
+            ),
+        )
+
+    def _get_approval_cancelled_state(self):
+        raise NotImplementedError
+
+    def _apply_approval_state(self, state):
+        raise NotImplementedError
+
+    def _apply_approval_outcome(self, state, decided=True):
+        self.check_singleton()
+        if decided and self.env.uid != SUPERUSER_ID:
+            self.sudo(False)._check_approval_update(state)
+        synced = self.env.context.get("hr_holidays_approval_sync", ())
+        self.with_context(
+            hr_holidays_approval_sync=(*synced, self.approval_request_id.id)
+        )._apply_approval_state(state)
+
+    def _on_approval_progress(self):
+        if not self._is_synced_with_approval_request() and self.state == "confirm":
+            self._apply_approval_outcome("validate1")
+
+    def _on_approval_approved(self):
+        if not self._is_synced_with_approval_request() and self.state != "validate":
+            self._apply_approval_outcome("validate")
+
+    def _on_approval_refused(self):
+        if not self._is_synced_with_approval_request() and self.state != "refuse":
+            self._apply_approval_outcome("refuse")
+
+    def _on_approval_cancelled(self):
+        state = self._get_approval_cancelled_state()
+        if not self._is_synced_with_approval_request() and self.state != state:
+            self._apply_approval_outcome(state, decided=False)
+
+    def _on_approval_reset(self):
+        if not self._is_synced_with_approval_request():
+            super()._on_approval_reset()
+
+    def _on_approval_revoked(self):
+        if not self._is_synced_with_approval_request():
+            super()._on_approval_revoked()

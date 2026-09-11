@@ -1,6 +1,7 @@
 from . import resource
 from . import hr_employee
 from . import hr_department
+from . import approval_request
 from . import mixin_hr_leave_approval
 from . import hr_leave
 from . import hr_leave_allocation

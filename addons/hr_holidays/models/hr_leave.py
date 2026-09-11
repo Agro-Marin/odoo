@@ -1187,6 +1187,7 @@ Versions:
                 )
         holidays._check_validity()
         self._invalidate_allocation_computes()
+        holidays._create_approval_requests()
 
         for holiday in holidays:
             if not self.env.context.get("leave_fast_create"):
@@ -1822,6 +1823,28 @@ is approved, validated or refused."
                 "You can't refuse a leave with validation by Time Off Officer."
             )
         return ""
+
+    def _get_approval_category_xmlid(self):
+        return "hr_holidays.approval_category_leave"
+
+    def _get_approval_cancelled_state(self):
+        return "cancel"
+
+    def _apply_approval_state(self, state):
+        self.check_singleton()
+        if state == "validate1":
+            self.write(
+                {
+                    "state": "validate1",
+                    "first_approver_id": self.env.user.employee_id.id,
+                }
+            )
+        elif state == "validate":
+            self._action_validate(check_state=False)
+        elif state == "refuse":
+            self.action_refuse()
+        elif state == "cancel":
+            self._force_cancel()
 
     def _get_approval_activity_xmlids(self):
         return (

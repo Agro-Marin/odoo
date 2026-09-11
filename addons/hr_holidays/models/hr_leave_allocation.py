@@ -1005,6 +1005,7 @@ class HrLeaveAllocation(models.Model):
             HrLeaveAllocation, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
         allocations._add_lastcalls()
+        allocations._create_approval_requests()
         for allocation in allocations:
             partners_to_subscribe = set()
             if allocation.employee_id.user_id:
@@ -1217,6 +1218,23 @@ class HrLeaveAllocation(models.Model):
                 "You can't refuse an allocation with validation by Time Off Officer."
             )
         return ""
+
+    def _get_approval_category_xmlid(self):
+        return "hr_holidays.approval_category_allocation"
+
+    def _get_approval_cancelled_state(self):
+        return "refuse"
+
+    def _apply_approval_state(self, state):
+        self.check_singleton()
+        if state == "validate1":
+            self.write(
+                {"state": "validate1", "approver_id": self.env.user.employee_id.id}
+            )
+        elif state == "validate":
+            self._action_validate()
+        elif state == "refuse":
+            self.action_refuse()
 
     def _get_approval_activity_xmlids(self):
         return (
