@@ -1632,6 +1632,10 @@ class IrQweb(models.AbstractModel):
         touch_ids: Sequence[int] = (),
         bundle: str = "",
     ) -> None:
+        # Compiled public assets are shared across companies. In particular,
+        # autonomous persistence must not take a foreign-key lock on a company
+        # held by the transaction that is waiting for this compilation.
+        vals_list = [dict(vals, company_id=False) for vals in vals_list]
         if _module.current_test:
             # the test transaction is rolled back and a read-only test cursor
             # cannot write at all, so what a test compiled was gone before the

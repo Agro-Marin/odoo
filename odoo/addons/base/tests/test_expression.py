@@ -2410,6 +2410,9 @@ class TestQueries(TransactionCase):
 
     def test_rec_names_search(self):
         Model = self.env["ir.model"]
+        # This checks the search expression, independently of addons (such as
+        # mail) that replace ir.model's default ordering.
+        self.patch(type(Model), "_order", "model")
 
         self.assertEqual(Model._rec_names_search, ["name", "model"])
 

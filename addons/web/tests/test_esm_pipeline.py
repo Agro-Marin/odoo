@@ -1554,6 +1554,44 @@ class TestEsmRowsOutliveTheTest(TransactionCase):
         self.env["ir.qweb"]._save_esm_attachment_rows([vals], bundle="outlives")
         self.assertEqual(len(self._rows_elsewhere()), 1, "saved once, by url")
 
+    def test_public_asset_persistence_does_not_wait_for_the_test_company(self):
+        self.addCleanup(self._forget_elsewhere)
+        self.env.cr.execute(
+            "SELECT id FROM res_company WHERE id = %s FOR UPDATE",
+            (self.env.company.id,),
+        )
+        IrQweb = type(self.env["ir.qweb"])
+        drop_present = IrQweb._drop_rows_already_present
+
+        def bounded_write(cr, vals):
+            cr.execute("SET LOCAL lock_timeout = '200ms'")
+            return drop_present(cr, vals)
+
+        with patch.object(
+            IrQweb, "_drop_rows_already_present", staticmethod(bounded_write)
+        ):
+            self.env["ir.qweb"]._save_esm_attachment_rows(
+                [
+                    {
+                        "name": "company-independent.js",
+                        "url": self.URL,
+                        "raw": b"export const shared = true;",
+                        "public": True,
+                        "mimetype": "text/javascript",
+                        "res_model": "ir.ui.view",
+                    }
+                ],
+                bundle="company-independent",
+            )
+        self.assertEqual(len(self._rows_elsewhere()), 1)
+        from odoo.db import db_connect
+
+        with db_connect(self.env.cr.dbname).cursor() as other:
+            other.execute(
+                "SELECT company_id FROM ir_attachment WHERE url = %s", (self.URL,)
+            )
+            self.assertEqual(other.fetchone(), (None,))
+
 
 @tagged("web_unit", "web_assets")
 class TestEsmSourceKeyedReuse(TransactionCase):
@@ -2332,10 +2370,12 @@ class TestSecondaryBundlePageScopeKey(TransactionCase):
         )
 
     def test_the_key_follows_the_declaration_order(self):
-        self.assertEqual(
-            self._scope(("web.assets_frontend_lazy", "web.assets_web")),
-            ("web.assets_web", "web.assets_frontend_lazy"),
-        )
+        # Other addons can declare a parent before web's manifest is read.
+        # The registry owns the order; rendering in reverse must not change it.
+        parents = esm_registry().secondary_parents[self.BUNDLE]
+        self.assertGreaterEqual(len(parents), 2)
+        self.assertEqual(self._scope(tuple(reversed(parents))), parents)
+        self.assertEqual(self._scope(parents), parents)
 
     def test_no_declared_parent_on_the_page_is_the_scope_less_variant(self):
         self.assertEqual(self._scope(("web.assets_frontend_minimal",)), ())
