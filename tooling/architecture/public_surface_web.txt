@@ -43,7 +43,7 @@
 @web/core/debug/debug_context  odoo enterprise
 @web/core/domain  odoo enterprise agromarin
 @web/core/errors/error_service  odoo
-@web/core/events  odoo enterprise
+@web/core/events  odoo
 @web/core/file_upload  odoo enterprise agromarin
 @web/core/flow_editor/flow_editor  odoo
 @web/core/formatters  odoo enterprise
