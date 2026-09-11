@@ -206,10 +206,6 @@ export function handleBeforeUnload(
 }
 
 /**
- * @param {any} value
- * @returns {boolean}
- */
-/**
  * @param {{ value: any }} group
  * @param {number} index
  * @returns {string} the render key of a kanban group, stable across reloads
@@ -218,6 +214,10 @@ export function kanbanGroupKey(group, index) {
     return isNull(group.value) ? `group_key_${index}` : String(group.value);
 }
 
+/**
+ * @param {any} value
+ * @returns {boolean}
+ */
 export function isNull(value) {
     return value === null || value === undefined;
 }
@@ -383,7 +383,7 @@ export function computeArchiveEnabled(fields, { presentIn = fields } = {}) {
 /**
  * @type {Record<string, { sequence: number, icon: string, description: any, class?: string }>}
  */
-export const STATIC_ACTION_MENU_DESCRIPTORS = {
+const STATIC_ACTION_MENU_DESCRIPTORS = {
     addPropertyFieldValue: {
         sequence: 10,
         icon: "fa-solid fa-cogs",
@@ -503,12 +503,7 @@ export function getActionMenuItems(staticItems, actionMenus) {
  * @param {() => boolean} [services.isAlive]
  * @returns {Object}
  */
-export function makeModelUIHooks({
-    action,
-    dialog,
-    notification,
-    isAlive = () => true,
-}) {
+function makeModelUIHooks({ action, dialog, notification, isAlive = () => true }) {
     return {
         onDisplayOnchangeWarning(warning) {
             const { type, title, message, className, sticky } = warning;

@@ -24,7 +24,7 @@ function indexOfRecord(records, record) {
     return records.findIndex((r) => r.id === record.id);
 }
 
-export class RecordSelection {
+class RecordSelection {
     /** @type {any} */
     lastCheckedRecord = undefined;
     shiftKeyMode = false;

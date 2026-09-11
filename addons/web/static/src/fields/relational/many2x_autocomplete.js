@@ -33,7 +33,7 @@ const EMPTY_SEARCH_MEMO_LIMIT = 64;
  * @param {string} params.resModel
  * @param {Object} params.activeActions
  * @param {Function} params.onSelected
- * @param {Function} params.onCreateEdit
+ * @param {Function} [params.onCreateEdit]
  * @param {Function} [params.onUnselect]
  * @param {boolean} [params.isToMany]
  * @returns {Function}
@@ -645,13 +645,15 @@ export function useOpenMany2XRecord({
     const addDialog = useOwnedDialogs();
     const orm = useService("orm");
 
-    return async function openDialog({
-        resId = false,
-        forceModel = null,
-        title,
-        context,
-        nextRecordsContext,
-    }) {
+    return async function openDialog(
+        /** @type {{ resId?: number | false, forceModel?: string | null, title?: string, context?: Object, nextRecordsContext?: Object }} */ {
+            resId = false,
+            forceModel = null,
+            title,
+            context,
+            nextRecordsContext,
+        },
+    ) {
         const model = forceModel || resModel;
         let viewId;
         if (resId !== false) {

@@ -520,6 +520,7 @@ export class PivotModel extends Model {
                 while (this.loads.isBusy) {
                     await this.loads.whenIdle();
                 }
+                /** @type {any} */
                 const metaData = this._buildMetaData();
                 metaData.activeMeasures = activeMeasures;
                 if (metaData.sortedColumn?.measure === fieldName) {

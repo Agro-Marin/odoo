@@ -164,7 +164,7 @@ function elementToFocusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
  * > & import("./list_keyboard_edit").ListEditContext} ListKeyboardContext
  */
 
-export class ListKeyboardNavigation {
+class ListKeyboardNavigation {
     /** @type {{ column: any, record: any } | null} */
     lastEditedCell = null;
     /** @type {{ column: any, record: any, forward?: boolean } | null} */
@@ -190,6 +190,8 @@ export class ListKeyboardNavigation {
     constructor(tableRef, ctx) {
         this.tableRef = tableRef;
         this.ctx = ctx;
+        // every method is bound: a renderer replaces one on the instance and
+        // the seam tests call the captured original detached
         const proto = ListKeyboardNavigation.prototype;
         for (const name of Object.getOwnPropertyNames(proto)) {
             const descriptor = Object.getOwnPropertyDescriptor(proto, name);

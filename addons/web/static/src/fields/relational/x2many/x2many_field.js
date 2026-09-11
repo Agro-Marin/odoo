@@ -4,7 +4,6 @@
 import { Pager } from "@web/components/pager/pager";
 import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
-import { ModelEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { sharedComponents as shared } from "@web/core/shared_components";
@@ -102,8 +101,7 @@ export class X2ManyField extends FieldComponent {
                 return this.onAdd(params);
             },
             onOpenFormView: (record, options) => this.switchToForm(record, options),
-            deleteRecord: (record) =>
-                this.isMany2Many ? this.list.forget(record) : this.list.delete(record),
+            deleteRecord: (record) => crud.removeRecord(record),
         };
         const crud = useX2ManyCrud(() => this.list, this.isMany2Many);
 
@@ -436,9 +434,7 @@ export class X2ManyField extends FieldComponent {
         if (editable) {
             const editedRecord = this.list.editedRecord;
             if (editedRecord) {
-                const proms = [];
-                this.list.model.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
-                await Promise.all(proms);
+                // leaveEditMode asks the fields for their pending changes itself
                 await this.list.leaveEditMode({ canAbandon: false });
             }
             if (!this.list.editedRecord) {

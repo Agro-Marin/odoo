@@ -123,7 +123,9 @@ export class TreeEditor extends Component {
                         ? this.treeProcessor.makeTreeContext(props.resModel, this.tree)
                         : this.treeProcessor
                               .makeGetFieldDef(props.resModel, this.tree)
-                              .then((getFieldDef) => ({ getFieldDef })),
+                              .then((/** @type {any} */ getFieldDef) => ({
+                                  getFieldDef,
+                              })),
                 ]),
             );
         } catch (error) {
@@ -342,6 +344,7 @@ export class TreeEditor extends Component {
     /**
      * @param {Condition} node
      * @param {string} path
+     * @param {{ fieldDef: any }} [fieldInfo] the info the selector already resolved
      */
     async _updatePath(node, path, fieldInfo) {
         const { fieldDef } =
@@ -357,6 +360,7 @@ export class TreeEditor extends Component {
     /**
      * @param {Condition} node
      * @param {string} path
+     * @param {{ fieldDef: any }} [fieldInfo]
      */
     async updatePath(node, path, fieldInfo) {
         return this.updateNode(node, () => this._updatePath(node, path, fieldInfo));

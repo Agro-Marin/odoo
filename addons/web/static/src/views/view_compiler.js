@@ -791,6 +791,7 @@ export class ViewCompiler {
 
     /**
      * @param {Element} el
+     * @param {{ recordExpr?: string }} [params]
      * @returns {Element}
      */
     compileWidget(el, params = {}) {

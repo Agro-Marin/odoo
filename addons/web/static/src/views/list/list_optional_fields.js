@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+import { browser } from "@web/core/browser/browser";
+import { exprToBoolean } from "@web/core/utils/format/strings";
 /**
  * @param {string} keyOptionalFields
  * @param {string} keyDebugOpenView
@@ -17,8 +19,6 @@
  * toggleDebugOpenView: (render: () => void) => void,
  * }}
  */
-import { browser } from "@web/core/browser/browser";
-import { exprToBoolean } from "@web/core/utils/format/strings";
 export function useListOptionalFields(keyOptionalFields, keyDebugOpenView, ctx) {
     const { getAllColumns, getOptionalActiveFields, onSave } = ctx;
     const self = {

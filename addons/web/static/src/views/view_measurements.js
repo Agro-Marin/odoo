@@ -65,11 +65,6 @@ export const computeReportMeasures = (
 };
 
 /**
- * @param {string[]} activeMeasures
- * @param {Object} measures
- * @returns {string[]}
- */
-/**
  * @param {Array<string | { fieldName: string }>} specs arch group-bys, as strings or
  *  as the objects a state restore hands back
  * @param {Record<string, { invisible?: string }> | undefined} fieldAttrs
@@ -85,6 +80,11 @@ export function visibleArchGroupBys(specs, fieldAttrs, context) {
     });
 }
 
+/**
+ * @param {string[]} activeMeasures
+ * @param {Object} measures
+ * @returns {string[]}
+ */
 export function dropUnknownMeasures(activeMeasures, measures) {
     const isKnown = (m) => m === "__count" || Boolean(measures[m]);
     if (activeMeasures.every(isKnown)) {
