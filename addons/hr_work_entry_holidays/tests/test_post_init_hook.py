@@ -32,9 +32,12 @@ class TestValidateExistingWorkEntry(TransactionCase):
         )
 
     def _break_it(self, entry):
-        entry.with_context(hr_work_entry_no_check=True).write(
-            {"work_entry_type_id": False}
+        entry.flush_recordset()
+        self.env.cr.execute(
+            "UPDATE hr_work_entry SET work_entry_type_id = NULL WHERE id = %s",
+            [entry.id],
         )
+        entry.invalidate_recordset(["work_entry_type_id"])
         return entry
 
     def test_hook_leaves_a_validated_entry_alone(self):
