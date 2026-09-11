@@ -1244,13 +1244,11 @@ class SaleOrder(models.Model):
                 line.qty_to_invoice,
                 precision_digits=precision,
             ):
-                if not (line.is_downpayment and final):
-                    continue
+                continue
             if (
-                (line.qty_to_invoice > 0 and not line.is_downpayment)
+                line.qty_to_invoice > 0
                 or (line.qty_to_invoice < 0 and final)
                 or line.display_type == "line_note"
-                or (line.is_downpayment and final)
             ):
                 if line.is_downpayment:
                     down_payment_line_ids.append(line.id)

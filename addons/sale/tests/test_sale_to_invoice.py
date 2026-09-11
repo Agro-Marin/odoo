@@ -192,6 +192,30 @@ class TestSaleToInvoice(TestSaleCommon):
             "Downpayment should be applied",
         )
 
+    def test_a_down_payment_is_deducted_by_one_final_invoice_only(self):
+        self.sale_order.action_confirm()
+        self.env["sale.advance.payment.inv"].with_context(self.context).create(
+            {"advance_payment_method": "fixed", "fixed_amount": 50}
+        ).create_invoices()
+        self.sale_order.invoice_ids.action_post()
+        self.sol_serv_deliver.write({"qty_transferred": 4.0})
+        self.sol_prod_deliver.write({"qty_transferred": 2.0})
+
+        def deductions(invoice):
+            return invoice.invoice_line_ids.filtered(
+                lambda line: line.is_downpayment and line.display_type == "product"
+            )
+
+        final_invoice = self.sale_order._create_invoices(final=True)
+        self.assertEqual(deductions(final_invoice).quantity, -1.0)
+        final_invoice.action_post()
+
+        self.sol_serv_deliver.write({"qty_transferred": 5.0})
+        next_invoice = self.sale_order._create_invoices(final=True)
+
+        self.assertTrue(next_invoice)
+        self.assertFalse(deductions(next_invoice))
+
     def test_downpayment_validation(self):
         self.env.user.group_ids += self.env.ref("sale.group_auto_done_setting")
 
