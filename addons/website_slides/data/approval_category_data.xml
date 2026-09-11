@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="approval_category_course_access" model="approval.category">
+        <field name="name">Course Access</field>
+        <field name="sequence_code">COURSEACCESS</field>
+        <field name="company_id" eval="False" />
+        <field name="approval_minimum">1</field>
+        <field name="notify_sequentially" eval="True" />
+        <field name="activity_target">document</field>
+    </record>
+
+    <record
+        id="approval_category_course_access_step_responsible"
+        model="approval.category.step">
+        <field name="category_id" ref="approval_category_course_access" />
+        <field name="activity_type_id" ref="mail.mail_activity_data_todo" />
+        <field name="name">Course Responsible</field>
+        <field name="sequence">10</field>
+        <field name="minimum">1</field>
+        <field name="subject_model_id" ref="website_slides.model_slide_channel" />
+        <field name="subject_user_path">user_id</field>
+        <field name="group_id" ref="website_slides.group_website_slides_officer" />
+    </record>
+
+</odoo>

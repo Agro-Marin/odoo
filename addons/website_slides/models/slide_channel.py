@@ -28,6 +28,7 @@ class SlideChannel(models.Model):
         "mixin.website.seo.metadata",
         "mixin.website.published.multi",
         "mixin.website.searchable",
+        "mixin.approval.subjects",
     ]
     _order = "sequence, id"
     _mail_partner_fields = ()
@@ -506,17 +507,23 @@ class SlideChannel(models.Model):
                 channel.members_engaged_count + channel.members_completed_count
             )
 
-    @api.depends("activity_ids.request_partner_id")
+    @api.depends("approval_request_ids.state")
     @api.depends_context("uid")
     def _compute_has_requested_access(self):
         requested_cids = (
-            self.sudo()
-            .activity_search(
-                ["mail.mail_activity_data_todo"],
-                additional_domain=[
-                    ("request_partner_id", "=", self.env.user.partner_id.id)
-                ],
-                only_automated=False,
+            self.env["approval.request"]
+            .sudo()
+            .search(
+                [
+                    ("res_model", "=", self._name),
+                    ("res_id", "in", self.ids),
+                    (
+                        "subject_key",
+                        "=",
+                        self._get_access_subject_key(self.env.user.partner_id),
+                    ),
+                    ("state", "in", ("new", "pending")),
+                ]
             )
             .mapped("res_id")
         )
@@ -1392,32 +1399,62 @@ class SlideChannel(models.Model):
         if self.is_member:
             return {"error": _("Already member")}
         if self.enroll == "invite":
-            activities = self.sudo()._action_request_access(self.env.user.partner_id)
-            if activities:
-                return {"done": True}
-            return {"error": _("Already Requested")}
+            key = self._get_access_subject_key(self.env.user.partner_id)
+            if self.sudo()._get_live_approval_request(key):
+                return {"error": _("Already Requested")}
+            self.sudo()._raise_approval_request(key)
+            return {"done": True}
         return {"done": False}
 
     def action_grant_access(self, partner_id):
+        self.check_singleton()
         partner = self.env["res.partner"].browse(partner_id).exists()
-        if partner:
-            if self._action_add_members(partner):
-                self.activity_search(
-                    ["mail.mail_activity_data_todo"],
-                    user_id=self.user_id.id,
-                    additional_domain=[("request_partner_id", "=", partner.id)],
-                    only_automated=False,
-                ).action_feedback(feedback=_("Access Granted"))
+        if not partner:
+            return
+        request = self.sudo()._get_live_approval_request(
+            self._get_access_subject_key(partner)
+        )
+        if not request:
+            self._action_add_members(partner, raise_on_access=True)
+            return
+        rows = request._get_rows_decidable_by(self.env.user)
+        if rows:
+            request.action_approve(approver=rows)
+            return
+        self.check_access("write")
+        request._approve_without_decision(
+            _(
+                "%(user)s granted %(partner)s access to %(course)s.",
+                user=self.env.user.name,
+                partner=partner.name,
+                course=self.name,
+            )
+        )
 
     def action_refuse_access(self, partner_id):
+        self.check_singleton()
         partner = self.env["res.partner"].browse(partner_id).exists()
-        if partner:
-            self.activity_search(
-                ["mail.mail_activity_data_todo"],
-                user_id=self.user_id.id,
-                additional_domain=[("request_partner_id", "=", partner.id)],
-                only_automated=False,
-            ).action_feedback(feedback=_("Access Refused"))
+        if not partner:
+            return
+        request = self.sudo()._get_live_approval_request(
+            self._get_access_subject_key(partner)
+        )
+        if not request:
+            return
+        rows = request._get_rows_decidable_by(self.env.user)
+        if rows:
+            request.action_refuse(approver=rows)
+            return
+        self.check_access("write")
+        request._force_terminal(
+            "refused",
+            _(
+                "%(user)s refused %(partner)s access to %(course)s.",
+                user=self.env.user.name,
+                partner=partner.name,
+                course=self.name,
+            ),
+        )
 
     # ---------------------------------------------------------
     # Mailing Mixin API
@@ -1429,28 +1466,78 @@ class SlideChannel(models.Model):
             "is_internal", "=", False
         )
 
-    def _action_request_access(self, partner):
-        activities = self.env["mail.activity"]
-        requested_cids = (
-            self.sudo()
-            .activity_search(
-                ["mail.mail_activity_data_todo"],
-                additional_domain=[("request_partner_id", "=", partner.id)],
-            )
-            .mapped("res_id")
+    @api.model
+    def _get_access_subject_key(self, partner):
+        return f"access:{partner.id}"
+
+    def _get_access_subject_partner(self, subject_key):
+        prefix, _separator, partner_id = (subject_key or "").partition(":")
+        if prefix != "access" or not partner_id.isdigit():
+            return self.env["res.partner"]
+        return self.env["res.partner"].browse(int(partner_id)).exists()
+
+    def _get_approval_subject_category(self, subject_key):
+        return self.env.ref(
+            "website_slides.approval_category_course_access", raise_if_not_found=False
         )
-        for channel in self:
-            if channel.id not in requested_cids and channel.user_id:
-                activities += channel.activity_schedule(
-                    "mail.mail_activity_data_todo",
-                    note=_(
-                        "<b>%s</b> is requesting access to this course.", partner.name
-                    ),
-                    summary=_("Access Request"),
-                    user_id=channel.user_id.id,
-                    request_partner_id=partner.id,
+
+    def _prepare_approval_subject_request_values(self, subject_key, category):
+        vals = super()._prepare_approval_subject_request_values(subject_key, category)
+        partner = self._get_access_subject_partner(subject_key)
+        vals["name"] = _(
+            "Access to %(course)s for %(partner)s",
+            course=self.name,
+            partner=partner.name,
+        )
+        return vals
+
+    def _get_approval_activity_values(self, approver):
+        partner = self._get_access_subject_partner(approver.request_id.subject_key)
+        return {"request_partner_id": partner.id} if partner else {}
+
+    def _on_approval_subject_state_changed(self, request, new_state):
+        if new_state != "approved":
+            return
+        partner = self._get_access_subject_partner(request.subject_key)
+        if partner:
+            self._action_add_members(partner)
+
+    @api.model
+    def _backfill_access_requests(self):
+        """Turn the access requests kept as bare activities into approval requests.
+
+        For an upgrade: the requester, when they have a user, owns the request; the
+        activity goes, since the engine asks the course responsible itself.
+        """
+        todo = self.env.ref("mail.mail_activity_data_todo")
+        activities = (
+            self.env["mail.activity"]
+            .sudo()
+            .search(
+                [
+                    ("res_model", "=", self._name),
+                    ("request_partner_id", "!=", False),
+                    ("activity_type_id", "=", todo.id),
+                    ("approver_id", "=", False),
+                ]
+            )
+        )
+        for activity in activities:
+            channel = self.sudo().browse(activity.res_id).exists()
+            partner = activity.request_partner_id
+            activity.unlink()
+            if (
+                not channel
+                or partner in channel.channel_partner_ids.partner_id
+                or channel._get_live_approval_request(
+                    channel._get_access_subject_key(partner)
                 )
-        return activities
+            ):
+                continue
+            requester = partner.user_ids[:1] or self.env.ref("base.user_root")
+            channel.with_user(requester).sudo()._raise_approval_request(
+                channel._get_access_subject_key(partner)
+            )
 
     def _get_access_action(self, access_uid=None, force_website=False):
         """Instead of the classic form view, redirect to website if it is published."""

@@ -1,6 +1,6 @@
 {
     "name": "eLearning",
-    "version": "2.8",
+    "version": "2.9",
     "category": "Website/eLearning",
     "sequence": 125,
     "summary": "Manage and publish an eLearning platform",
@@ -26,6 +26,7 @@ Featuring
         "website",
         "website_mail",
         "website_profile",
+        "approval",
     ],
     "data": [
         "security/website_slides_security.xml",
@@ -57,6 +58,7 @@ Featuring
         "data/mail_template_data.xml",
         "data/mail_templates.xml",
         "data/slide_data.xml",
+        "data/approval_category_data.xml",
         "data/website_data.xml",
         "data/slides_tour.xml",
     ],
