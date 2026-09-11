@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from re import findall
+from re import findall, sub
 
 from odoo import Command
 from odoo.tests import Form, TransactionCase
@@ -80,6 +80,14 @@ class TestReportsCommon(TransactionCase):
 
 
 class TestReports(TestReportsCommon):
+    def _assert_zpl_equal(self, target, rendering, msg):
+        # ZPL ignores whitespace between commands, and the XML formatters reflow these
+        # templates' indentation and blank lines.
+        def normalise(zpl):
+            return sub(rb"\n+", b"\n", zpl.replace(b" ", b""))
+
+        self.assertEqual(normalise(target), normalise(rendering), msg)
+
     def _check_closure_commands(self, zpl_rendered_template):
         wrong_xz_count = findall(r"\^XZ[^\\]+[^n]", str(zpl_rendered_template))
         self.assertFalse(wrong_xz_count, "invalid closure command")
@@ -97,9 +105,9 @@ class TestReports(TestReportsCommon):
             },
         )
         self._check_closure_commands(rendering)
-        self.assertEqual(
+        self._assert_zpl_equal(
             target,
-            rendering.replace(b" ", b""),
+            rendering,
             "Product name, default code or barcode is not correctly rendered, make sure the quotes are escaped correctly",
         )
         self.assertEqual(qweb_type, "text", "the report type is not good")
@@ -123,9 +131,9 @@ class TestReports(TestReportsCommon):
             },
         )
         self._check_closure_commands(rendering)
-        self.assertEqual(
+        self._assert_zpl_equal(
             target,
-            rendering.replace(b" ", b""),
+            rendering,
             "Custom barcodes are most likely not corretly rendered, make sure the quotes are escaped correctly",
         )
         self.assertEqual(qweb_type, "text", "the report type is not good")
@@ -155,9 +163,9 @@ class TestReports(TestReportsCommon):
             "stock.label_lot_template", lot1.id
         )
         self._check_closure_commands(rendering)
-        self.assertEqual(
+        self._assert_zpl_equal(
             target,
-            rendering.replace(b" ", b""),
+            rendering,
             "The rendering is not good, make sure quotes are correctly escaped",
         )
         self.assertEqual(qweb_type, "text", "the report type is not good")
@@ -175,9 +183,9 @@ class TestReports(TestReportsCommon):
                 "zpl_template": "normal",
             },
         )
-        self.assertEqual(
+        self._assert_zpl_equal(
             target,
-            rendering.replace(b" ", b""),
+            rendering,
             "Product name, default code or barcode is not correctly rendered, make sure the quotes are escaped correctly",
         )
         self.assertEqual(qweb_type, "text", "the report type is not good")
