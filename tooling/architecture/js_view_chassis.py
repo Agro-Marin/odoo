@@ -32,12 +32,12 @@ from pathlib import Path
 from js_layer_check import ROOT
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _repo_root import SIBLING_REPOS
+from _repo_root import sibling_repo_paths
 
 SCAN_ROOTS = (
     ROOT / "addons",
     ROOT / "odoo" / "addons",
-    *(ROOT.parent / name for name in SIBLING_REPOS),
+    *sibling_repo_paths(ROOT),
 )
 
 # The registry is reached two ways and both must be seen: directly, and through

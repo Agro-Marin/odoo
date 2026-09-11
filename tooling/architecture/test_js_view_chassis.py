@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 
 import js_view_chassis
+from _repo_root import in_full_workspace
 
 
 def _addon(tmp: Path, name: str) -> Path:
@@ -144,6 +145,8 @@ class TestTheRealTree(unittest.TestCase):
         self.assertEqual(js_view_chassis.main(["--check"]), 0)
 
     def test_every_pinned_type_is_a_real_view_type(self):
+        if not in_full_workspace(js_view_chassis.ROOT):
+            self.skipTest("repo-alone checkout: the sibling roots are not present")
         types = set(js_view_chassis.base_view_types())
         unknown = sorted(set(js_view_chassis.PINNED_HANDROLLED) - types)
         self.assertEqual(unknown, [], "pinned names that are not view types")
