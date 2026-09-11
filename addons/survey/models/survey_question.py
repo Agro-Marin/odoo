@@ -3,6 +3,8 @@ import logging
 import random
 from typing import Any, Self
 
+from markupsafe import Markup
+
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.models import ValuesType
@@ -27,6 +29,11 @@ class SurveyQuestion(models.Model):
             if "time_limit" in fields and "time_limit" not in res:
                 res["time_limit"] = survey.session_speed_rating_time_limit
         return res
+
+    active = fields.Boolean(default=True)
+    char_box_type = fields.Selection(
+        [("text", "Text"), ("phone", "Phone")], default="text", required=True
+    )
 
     survey_id = fields.Many2one(
         "survey.survey",
@@ -474,6 +481,47 @@ class SurveyQuestion(models.Model):
                     )
                 )
 
+    @api.constrains(
+        "survey_id", "is_page", "triggering_answer_ids", "triggering_question_id"
+    )
+    def _check_detached_question(self):
+        for question in self:
+            if not question.survey_id and (
+                question.triggering_answer_ids or question.triggering_question_id
+            ):
+                raise ValidationError(
+                    self.env._("Conditional questions require a survey.")
+                )
+
+    @api.constrains("survey_id")
+    def _check_detached_question_history(self):
+        groups = (
+            self.env["survey.user_input.line"]
+            .sudo()
+            ._read_group(
+                [("question_id", "in", self.ids)], ["question_id", "survey_id"]
+            )
+        )
+        for question, survey in groups:
+            if question.survey_id != survey and (not question.survey_id or not survey):
+                raise ValidationError(
+                    self.env._(
+                        "Questions with recorded answers must keep their survey ownership."
+                    )
+                )
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_detached_answers(self):
+        detached = self.filtered(lambda question: not question.survey_id)
+        if detached and self.env["survey.user_input.line"].sudo().search_count(
+            [("question_id", "in", detached.ids)], limit=1
+        ):
+            raise UserError(
+                self.env._(
+                    "Archive questions with submitted answers instead of deleting them."
+                )
+            )
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         questions = super().create(vals_list)
@@ -740,6 +788,56 @@ class SurveyQuestion(models.Model):
         "file_upload",
     )
     _MAPPING_ANSWER_TYPES = ("matrix", "likert", "ranking", "constant_sum")
+
+    def _get_form_answers(self, form):
+        answers = {}
+        errors = {}
+        for question in self:
+            if question.question_type == "multiple_choice":
+                answer = [
+                    choice.id
+                    for choice in question.suggested_answer_ids
+                    if form.get(f"question_{question.id}_answer_{choice.id}")
+                ]
+            else:
+                answer = form.get(f"question_{question.id}", "")
+                if isinstance(answer, str):
+                    answer = answer.strip()
+            errors.update(question._check_answer(answer))
+            if not question._is_unanswered(answer):
+                answers[question.id] = answer
+        if errors:
+            raise ValidationError("\n".join(dict.fromkeys(errors.values())))
+        return answers
+
+    def _get_answers_description(self, answers):
+        lines = []
+        for question in self:
+            answer = answers.get(question.id)
+            if question._is_unanswered(answer):
+                continue
+            if question.question_type in (
+                "dropdown",
+                "simple_choice",
+                "multiple_choice",
+            ):
+                ids = answer if isinstance(answer, list) else [answer]
+                selected = {int(value) for value in ids}
+                answer = ", ".join(
+                    question.suggested_answer_ids.filtered(
+                        lambda choice, ids=selected: choice.id in ids
+                    ).mapped("value")
+                )
+            lines.append(
+                Markup("<span>%s - %s</span>")
+                % (question.title, Markup("<br/>").join(str(answer).splitlines()))
+            )
+        if not lines:
+            return Markup("")
+        return Markup("<br/><strong>%s</strong><br/>%s") % (
+            self.env._("Questions & Answers"),
+            Markup("<br/>").join(lines),
+        )
 
     def _is_well_shaped_answer(self, answer: Any) -> bool:
         self.check_singleton()

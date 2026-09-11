@@ -91,6 +91,48 @@ class SurveyQuestionAnswer(models.Model):
                     _("A label must be attached to only one question.")
                 )
 
+    @api.constrains("question_id", "matrix_question_id")
+    def _check_detached_answer_history(self):
+        groups = (
+            self.env["survey.user_input.line"]
+            .sudo()
+            ._read_group(
+                [
+                    ("survey_id", "=", False),
+                    "|",
+                    ("suggested_answer_id", "in", self.ids),
+                    ("matrix_row_id", "in", self.ids),
+                ],
+                ["question_id", "suggested_answer_id", "matrix_row_id"],
+            )
+        )
+        for question, choice, row in groups:
+            if (choice in self and choice.question_id != question) or (
+                row in self and row.matrix_question_id != question
+            ):
+                raise ValidationError(
+                    self.env._("A recorded answer must stay on its original question.")
+                )
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_detached_answers(self):
+        if (
+            self.env["survey.user_input.line"]
+            .sudo()
+            .search_count(
+                [
+                    ("survey_id", "=", False),
+                    "|",
+                    ("suggested_answer_id", "in", self.ids),
+                    ("matrix_row_id", "in", self.ids),
+                ],
+                limit=1,
+            )
+        ):
+            raise ValidationError(
+                self.env._("An answer used in a submitted response cannot be deleted.")
+            )
+
     @api.depends(
         "value_label",
         "question_id.question_type",

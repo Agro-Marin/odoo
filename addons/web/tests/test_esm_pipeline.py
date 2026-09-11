@@ -3050,6 +3050,22 @@ class TestBundleDescriptorFormat(HttpCase):
         self.assertEqual(response.status_code, 200, bundle_name)
         return response.json()
 
+    def test_cold_runtime_descriptor_persists_its_asset(self):
+        attachments = self.env["ir.attachment"]
+        attachments.search(
+            attachments._get_domain_generated_assets(url_pattern="/web/assets/esm/%")
+        ).unlink()
+        self.env.registry.clear_cache("assets")
+        response = self.url_open(
+            "/web/bundle/web_tour.automatic?debug=tests&page=web.assets_frontend"
+        )
+        self.assertEqual(response.status_code, 200)
+        asset_url = response.json()["esm_url"]
+        self.assertTrue(asset_url)
+        asset = self.url_open(asset_url)
+        self.assertEqual(asset.status_code, 200, asset_url)
+        self.assertTrue(asset.content)
+
     def test_an_esm_bundle_is_served_in_the_esm_envelope(self):
         registry = esm_registry()
         for name in ("web.assets_frontend", "web.assets_frontend_lazy"):
@@ -3094,6 +3110,9 @@ class TestBundleDescriptorFormat(HttpCase):
                 continue
             checked += 1
             self.assertTrue(payload.get("esm_url"), name)
+            asset = self.url_open(payload["esm_url"])
+            self.assertEqual(asset.status_code, 200, payload["esm_url"])
+            self.assertTrue(asset.content, name)
             self.assertFalse(
                 [f for f in payload["files"] if f.get("src") is None],
                 f"{name}: the route lists a file with no URL",

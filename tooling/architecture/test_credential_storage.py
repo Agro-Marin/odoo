@@ -335,6 +335,15 @@ class TestTheFourAmbiguousNames:
 class TestKeysThatAreNotSecrets:
     """`_key` joined SECRET, so the counterparts have to hold."""
 
+    @pytest.mark.parametrize("module", ["approval", "carrier"])
+    def test_approval_subject_identifier_is_not_a_general_secret_exemption(
+        self, tmp_path, monkeypatch, module
+    ):
+        _write(tmp_path, monkeypatch, "subject_key = fields.Char()", module=module)
+        assert [finding.field for finding in gate.offenders()] == (
+            [] if module == "approval" else ["subject_key"]
+        )
+
     @pytest.mark.parametrize(
         "name",
         [

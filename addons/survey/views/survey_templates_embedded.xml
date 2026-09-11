@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="question_form_fields" name="Question form fields">
+        <t t-foreach="questions" t-as="question">
+            <div class="row mb-4" t-if="question.question_type!='text_box'">
+                <label
+                    class="col-sm-3 col-form-label fw-normal"
+                    t-attf-for="question_#{question.id}"
+                    t-out="' '.join([question.title, '*' if question.constr_mandatory else ''])" />
+                <div class="col-sm-9">
+                    <t
+                        t-if="question.question_type == 'char_box' and question.char_box_type == 'phone'">
+                        <t
+                            t-set="isMainPhoneQuestion"
+                            t-value="question == phone_question" />
+                        <input
+                            type="tel"
+                            class="form-control"
+                            t-attf-name="question_#{question.id}"
+                            t-att-value="partner_data['char_box'] if isMainPhoneQuestion and 'char_box' in partner_data else ''"
+                            t-att-required="question.constr_mandatory or None"
+                            t-att-placeholder="question.question_placeholder"
+                            t-att-data-is-main-phone-question="isMainPhoneQuestion" />
+                    </t>
+                    <t
+                        t-if="question.question_type == 'char_box' and question.char_box_type != 'phone'">
+                        <input
+                            type="text"
+                            class="form-control"
+                            t-attf-name="question_#{question.id}"
+                            t-att-required="question.constr_mandatory or None"
+                            t-att-placeholder="question.question_placeholder" />
+                    </t>
+                    <t t-if="question.question_type == 'dropdown'">
+                        <select
+                            t-attf-name="question_#{question.id}"
+                            class="form-select"
+                            t-att-required="question.constr_mandatory or None"
+                            t-att-placeholder="question.question_placeholder">
+                            <t
+                                t-foreach="question.suggested_answer_ids or []"
+                                t-as="answer">
+                                <option t-att-value="answer.id">
+                                    <t t-out="answer.value" />
+                                </option>
+                            </t>
+                        </select>
+                    </t>
+                    <t t-if="question.question_type == 'simple_choice'">
+                        <div
+                            class="checkbox form-control form-check border-0 pb-0"
+                            t-foreach="question.suggested_answer_ids or []"
+                            t-as="answer">
+                            <label>
+                                <input
+                                    type="radio"
+                                    t-attf-name="question_#{question.id}"
+                                    t-att-required="question.constr_mandatory or None"
+                                    t-att-value="answer.id"
+                                    class="form-check-input me-2" />
+                                <t t-out="answer.value" />
+                            </label>
+                        </div>
+                    </t>
+                    <t t-if="question.question_type == 'multiple_choice'">
+                        <div
+                            t-attf-class="checkbox-group #{question.constr_mandatory and 'required' or ''}">
+                            <div
+                                class="checkbox form-control form-check border-0 pb-0"
+                                t-foreach="question.suggested_answer_ids or []"
+                                t-as="answer">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        t-attf-name="question_#{question.id}_answer_#{answer.id}"
+                                        t-att-value="answer.value"
+                                        class="form-check-input me-2" />
+                                    <t t-out="answer.value" />
+                                </label>
+                            </div>
+                        </div>
+                    </t>
+                    <div
+                        t-if="not is_html_empty(question.description)"
+                        t-attf-class="{{'mt-2' if question.question_type in ['multiple_choice', 'simple_choice'] else 'mt-1'}}">
+                        <div class="form-text" t-field="question.description" />
+                    </div>
+                </div>
+            </div>
+            <div class="mb-4" t-if="question.question_type == 'text_box'">
+                <label
+                    t-attf-for="question_#{question.id}"
+                    class="fw-normal mb-1"
+                    t-out="' '.join([question.title, '*' if question.constr_mandatory else ''])" />
+                <div t-if="not is_html_empty(question.description)" class="mb-3">
+                    <div class="form-text" t-field="question.description" />
+                </div>
+                <textarea
+                    class="form-control mt-1"
+                    rows="6"
+                    t-att-required="question.constr_mandatory or None"
+                    t-attf-name="question_#{question.id}"
+                    t-att-placeholder="question.question_placeholder" />
+            </div>
+        </t>
+    </template>
+
+</odoo>

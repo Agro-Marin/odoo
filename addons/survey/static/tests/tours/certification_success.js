@@ -4,10 +4,8 @@ import { patch } from "@web/core/utils/patch";
 /**
  * Speed up fade-in fade-out to avoid useless delay in tests.
  */
-function patchSurveyForm() {
-    const SurveyForm = odoo.loader.modules.get(
-        "@survey/interactions/survey_form",
-    ).SurveyForm;
+async function patchSurveyForm() {
+    const { SurveyForm } = await import("@survey/interactions/survey_form");
     patch(SurveyForm.prototype, {
         submitForm() {
             this.fadeInOutDelay = 0;
@@ -22,8 +20,8 @@ registry.category("web_tour.tours").add("test_certification_success", {
         {
             content: "Patching Survey Form Interaction",
             trigger: "body",
-            run: function () {
-                patchSurveyForm();
+            run: async function () {
+                await patchSurveyForm();
             },
         },
         {

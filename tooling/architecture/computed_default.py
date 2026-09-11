@@ -27,7 +27,7 @@ SKIPPED_DIRS = frozenset({"tests", "migrations", "upgrades", "static"})
 REVIEWED: dict[str, str] = {
     "account.analytic.line.user_id": "probed: a timesheet created for another user's employee stores that employee's user",
     "account.payment.state": "the compute starts from the stored state and only moves it forward; every payment starts in draft",
-    "appointment.question.is_reusable": "the compute only ever sets True, the default",
+    "survey.question.is_reusable": "the compute only ever sets True, the default",
     "appointment.slot.end_hour": "create derives end_hour from start_hour and the appointment duration before defaults apply (AppointmentSlot.create)",
     "appointment.type.staff_user_ids": "probed: a resource-based type is created with no staff with or without the default; user-based types keep the creator as staff",
     "calendar.event.stop": "create derives stop from start and duration before defaults apply (_create_prepare_stop)",

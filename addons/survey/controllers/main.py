@@ -1242,6 +1242,21 @@ class Survey(http.Controller):
     ) -> tuple[Any, str | None]:
         comment = None
         answers_no_comment = []
+        if question.question_type in ("simple_choice", "dropdown", "multiple_choice"):
+            candidates = answers if isinstance(answers, list) else [answers]
+            choices = []
+            for candidate in candidates:
+                if (
+                    isinstance(candidate, dict)
+                    and set(candidate) == {"comment"}
+                    and isinstance(candidate["comment"], str)
+                ):
+                    comment = candidate["comment"].strip()
+                else:
+                    choices.append(candidate)
+            # Validate the choice payload after extracting its optional comment.
+            # A malformed dictionary stays in choices and is rejected normally.
+            return choices[0] if len(choices) == 1 else choices, comment
         if not question._is_well_shaped_answer(answers):
             # Hand the payload on unchanged; _check_answer refuses it with a message.
             # Reaching into it here -- `"comment" in answers` on a number -- raised out

@@ -1,6 +1,6 @@
 {
     "name": "Surveys",
-    "version": "3.8",
+    "version": "3.9",
     "category": "Marketing/Surveys",
     "sequence": 220,
     "summary": "Send your surveys or share them live.",
@@ -39,6 +39,7 @@ sent mails with personal token for the invitation of the survey.
         "views/survey_user_views.xml",
         "views/survey_question_views.xml",
         "views/survey_templates.xml",
+        "views/survey_templates_embedded.xml",
         "views/survey_templates_management.xml",
         "views/survey_templates_print.xml",
         "views/survey_templates_statistics.xml",
@@ -125,6 +126,10 @@ sent mails with personal token for the invitation of the survey.
             "survey.survey_user_input_session_assets",
         ],
         "secondary_import_map_includes": {
+            "web.assets_frontend_lazy": [
+                "survey.survey_assets",
+                "survey.survey_user_input_session_assets",
+            ],
             "web.assets_frontend": [
                 "survey.survey_assets",
                 "survey.survey_user_input_session_assets",

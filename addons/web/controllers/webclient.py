@@ -114,9 +114,10 @@ class WebClient(http.Controller):
         "/web/bundle/<string:bundle_name>",
         auth="public",
         methods=["GET"],
-        readonly=True,
+        readonly=False,
     )
     def bundle(self, bundle_name: str, **bundle_params: Any) -> Response:
+        """Persist cold-generated assets before returning their descriptor URLs."""
         if "lang" in bundle_params:
             request.update_context(
                 lang=request.env["res.lang"]._get_code(bundle_params["lang"])

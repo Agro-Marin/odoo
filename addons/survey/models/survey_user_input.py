@@ -39,7 +39,6 @@ class SurveyUser_Input(models.Model):
     survey_id = fields.Many2one(
         "survey.survey",
         string="Survey",
-        required=True,
         readonly=True,
         index=True,
         ondelete="cascade",
@@ -133,6 +132,7 @@ class SurveyUser_Input(models.Model):
         "survey.question",
         string="Predefined Questions",
         readonly=True,
+        context={"active_test": False},
     )
     scoring_percentage = fields.Float(
         "Score (%)",
@@ -218,7 +218,8 @@ class SurveyUser_Input(models.Model):
     def _compute_scoring_success(self) -> None:
         for user_input in self:
             user_input.scoring_success = (
-                user_input.scoring_percentage
+                bool(user_input.survey_id)
+                and user_input.scoring_percentage
                 >= user_input.survey_id.scoring_success_min
             )
 
@@ -435,16 +436,75 @@ class SurveyUser_Input(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        pending_lines = []
         for vals in vals_list:
+            detached = not vals.get(
+                "survey_id", self.env.context.get("default_survey_id")
+            )
+            pending_lines.append(
+                vals.pop("user_input_line_ids", []) if detached else []
+            )
             if "predefined_question_ids" not in vals:
                 survey_id = vals.get(
                     "survey_id", self.env.context.get("default_survey_id")
                 )
                 survey = self.env["survey.survey"].browse(survey_id)
                 vals["predefined_question_ids"] = [
-                    Command.set(survey._prepare_user_input_predefined_questions().ids)
+                    Command.set(
+                        survey._prepare_user_input_predefined_questions().ids
+                        if survey
+                        else []
+                    )
                 ]
-        return super().create(vals_list)
+        responses = super().create(vals_list)
+        for response, lines in zip(responses, pending_lines, strict=True):
+            if lines:
+                response.user_input_line_ids = lines
+        return responses
+
+    @api.depends("survey_id", "nickname", "partner_id")
+    def _compute_display_name(self):
+        super()._compute_display_name()
+        for response in self.filtered(lambda response: not response.survey_id):
+            response.display_name = (
+                response.nickname
+                or response.partner_id.display_name
+                or self.env._("Response")
+            )
+
+    @api.constrains("survey_id", "predefined_question_ids")
+    def _check_response_questions(self):
+        for response in self:
+            for line in response.user_input_line_ids:
+                if line.question_id.survey_id != response.survey_id or (
+                    not response.survey_id
+                    and line.question_id not in response.predefined_question_ids
+                ):
+                    raise ValidationError(
+                        self.env._("Keep answered questions in their response.")
+                    )
+
+    def _submit_answers(self, answers):
+        self.check_singleton()
+        self._lock()
+        self.invalidate_recordset(["state"])
+        if self.state == "done":
+            raise UserError(self.env._("This response has already been submitted."))
+        questions = self.predefined_question_ids
+        if set(answers) - set(questions.ids):
+            raise ValidationError(
+                self.env._("An answer does not belong to this response.")
+            )
+        errors = {}
+        for question in questions:
+            errors.update(question._check_answer(answers.get(question.id)))
+        if errors:
+            raise ValidationError("\n".join(dict.fromkeys(errors.values())))
+        for question in questions:
+            answer = answers.get(question.id)
+            if not question._is_unanswered(answer):
+                self._save_lines(question, answer)
+        self._mark_done()
 
     def action_resend(self) -> dict[str, Any]:
         partners = self.env["res.partner"]
@@ -545,8 +605,8 @@ class SurveyUser_Input(models.Model):
 
         challenge_sudo = self.env["gamification.challenge"].sudo()
         badge_ids = []
-        self._notify_new_participation_subscribers()
-        for user_input in self:
+        self.filtered("survey_id")._notify_new_participation_subscribers()
+        for user_input in self.filtered("survey_id"):
             if user_input.survey_id.certification and user_input.scoring_success:
                 if (
                     user_input.survey_id.certification_mail_template_id
@@ -793,6 +853,13 @@ class SurveyUser_Input(models.Model):
         if question.question_type in ("statement", "calculated"):
             return
 
+        self.check_singleton()
+        if not self.survey_id and (
+            question.survey_id or question not in self.predefined_question_ids
+        ):
+            raise ValidationError(
+                self.env._("This question does not belong to the response.")
+            )
         old_answers = self.env["survey.user_input.line"].search(
             [("user_input_id", "=", self.id), ("question_id", "=", question.id)]
         )
@@ -1112,7 +1179,7 @@ class SurveyUser_Input(models.Model):
     def _get_conditional_values(self) -> tuple[dict, dict, Any]:
         triggering_answers_by_question = {}
         triggered_questions_by_answer = {}
-        if self.survey_id.questions_selection != "random":
+        if self.survey_id and self.survey_id.questions_selection != "random":
             triggering_answers_by_question, triggered_questions_by_answer = (
                 self.survey_id._get_conditional_maps()
             )
@@ -1225,7 +1292,9 @@ class SurveyUser_Input(models.Model):
             )
         else:
             inactive_questions = self._get_inactive_conditional_questions()
-        return survey.question_ids - inactive_questions
+        return (
+            survey.question_ids if survey else self.predefined_question_ids
+        ) - inactive_questions
 
     def _get_next_skipped_page_or_question(self) -> Any:
         self.check_singleton()

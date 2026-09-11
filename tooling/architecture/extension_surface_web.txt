@@ -15,6 +15,7 @@ AutoComplete.selectOption  odoo  :triage
 AutoComplete.setup  odoo  :keep
 AutoComplete.targetDropdown  odoo  :triage
 BadgeField.badgeClass  enterprise  :triage
+BadgeSelectionField.options  enterprise  :keep
 BinaryField.onFileDownload  odoo  :triage
 BinaryField.setup  odoo enterprise  :keep
 BinaryField.update  enterprise  :triage

@@ -65,6 +65,8 @@ NOT_A_KEY = re.compile(
 # number printed on the document, or an id the browser already has.
 IDENTIFIER_KEYS = frozenset(
     {
+        # The operation/stage an approval covers, not an authentication secret.
+        "approval.subject_key",
         # OAuth client ids. Their client_secret sibling is a secret and is on
         # the backlog; the id is what you send in the clear to ask for a token.
         "delivery_fedex.fedex_developer_key",

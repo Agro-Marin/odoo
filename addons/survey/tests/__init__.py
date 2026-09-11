@@ -31,3 +31,5 @@ from . import test_zero_is_an_answer
 from . import test_transaction_isolation
 from . import test_survey_access_surface
 from . import test_survey_hardening
+
+from . import test_detached_questions

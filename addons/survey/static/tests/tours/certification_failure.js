@@ -4,10 +4,8 @@
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 
-function patchSurveyForm() {
-    const SurveyForm = odoo.loader.modules.get(
-        "@survey/interactions/survey_form",
-    ).SurveyForm;
+async function patchSurveyForm() {
+    const { SurveyForm } = await import("@survey/interactions/survey_form");
     patch(SurveyForm.prototype, {
         submitForm() {
             this.fadeInOutDelay = 0;
@@ -25,8 +23,8 @@ const patchSteps = [
     {
         content: "Patching Survey Form Interaction",
         trigger: "body",
-        run: function () {
-            patchSurveyForm();
+        run: async function () {
+            await patchSurveyForm();
         },
     },
 ];

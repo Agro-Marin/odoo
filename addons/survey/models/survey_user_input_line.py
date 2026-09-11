@@ -3,7 +3,7 @@ from typing import Any
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools import float_is_zero
+from odoo.tools import SQL, float_is_zero
 
 
 class SurveyUser_InputLine(models.Model):
@@ -208,6 +208,55 @@ class SurveyUser_InputLine(models.Model):
 
             line.answer_is_correct = answer_is_correct
             line.answer_score = answer_score
+
+    @api.constrains(
+        "user_input_id", "question_id", "suggested_answer_id", "matrix_row_id"
+    )
+    def _check_detached_answer(self):
+        detached = self.filtered(lambda line: not line.user_input_id.survey_id)
+        questions = detached.question_id
+        choices = detached.suggested_answer_id | detached.matrix_row_id
+        # A row lock alone leaves a REPEATABLE READ deleter's snapshot stale.
+        # Version the parents without changing their business fields so a racing
+        # move/delete retries instead of cascading away a newly recorded answer.
+        for parents in (detached.user_input_id, questions, choices):
+            if parents:
+                self.env.cr.execute(
+                    SQL(
+                        "UPDATE %s SET id = id WHERE id = ANY(%s)",
+                        SQL.identifier(parents._table),
+                        parents.ids,
+                    )
+                )
+        detached.user_input_id.invalidate_recordset(
+            ["survey_id", "predefined_question_ids"]
+        )
+        questions.invalidate_recordset(["survey_id"])
+        choices.invalidate_recordset(["question_id", "matrix_question_id"])
+        for line in self:
+            if not line.user_input_id.survey_id:
+                if (
+                    line.question_id.survey_id
+                    or line.question_id
+                    not in line.user_input_id.predefined_question_ids
+                ):
+                    raise ValidationError(
+                        self.env._("This question does not belong to the response.")
+                    )
+                if (
+                    line.suggested_answer_id
+                    and line.suggested_answer_id.question_id != line.question_id
+                ):
+                    raise ValidationError(
+                        self.env._("This answer does not belong to the question.")
+                    )
+                if (
+                    line.matrix_row_id
+                    and line.matrix_row_id.matrix_question_id != line.question_id
+                ):
+                    raise ValidationError(
+                        self.env._("This matrix row does not belong to the question.")
+                    )
 
     @api.constrains("skipped", "answer_type")
     def _check_answer_type_skipped(self) -> None:
