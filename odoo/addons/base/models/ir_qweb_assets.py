@@ -1022,11 +1022,16 @@ class IrQweb(models.AbstractModel):
         raise_on_decline: bool,
         metafile: str | None = None,
         sourcemap: str | None = None,
+        source_key: str | None = None,
     ) -> AssetNode:
         url = None
         try:
             url = self._save_esm_attachment(
-                name, code, metafile=metafile, sourcemap=sourcemap
+                name,
+                code,
+                metafile=metafile,
+                sourcemap=sourcemap,
+                source_key=source_key,
             )
         except Exception as exc:
             log_event(
@@ -1193,7 +1198,11 @@ class IrQweb(models.AbstractModel):
         esm_tpl = asset_bundle.generate_esm_template_bundle(
             use_import=False,
         )
-        bundle_code = self._combine_bundle_with_templates(esbuild_code, esm_tpl)
+        bundle_code = (
+            esbuild_code
+            if esbuild_result.prebuilt
+            else self._combine_bundle_with_templates(esbuild_code, esm_tpl)
+        )
         post.append(
             self._prepare_esm_script_node(
                 bundle,
@@ -1202,6 +1211,7 @@ class IrQweb(models.AbstractModel):
                 raise_on_decline=raise_on_decline,
                 metafile=esbuild_result.metafile,
                 sourcemap=esbuild_result.sourcemap,
+                source_key=esbuild_result.source_key,
             )
         )
         _has_satellites = bool(
@@ -1419,6 +1429,48 @@ class IrQweb(models.AbstractModel):
         content: str,
         metafile: str | None = None,
         sourcemap: str | None = None,
+        source_key: str | None = None,
+    ) -> str:
+        url = self._save_esm_attachment_by_output(bundle, content, metafile, sourcemap)
+        if source_key:
+            self._save_esm_index(
+                bundle, source_key, url, bool(metafile), bool(sourcemap)
+            )
+        return url
+
+    def _save_esm_index(
+        self, bundle: str, source_key: str, url: str, metafile: bool, sourcemap: bool
+    ) -> None:
+        index_url = self._esm_index_url(bundle, source_key)
+        IrAttachment = self.env["ir.attachment"].sudo()
+        if IrAttachment.search(
+            IrAttachment._get_domain_generated_assets(index_url), limit=1
+        ):
+            return
+        self._save_esm_attachment_rows(
+            [
+                {
+                    "name": f"{bundle}.by-source.json",
+                    "mimetype": "application/json",
+                    "res_model": "ir.ui.view",
+                    "res_id": False,
+                    "type": "binary",
+                    "public": True,
+                    "raw": json.dumps(
+                        {"url": url, "metafile": metafile, "sourcemap": sourcemap}
+                    ).encode("utf-8"),
+                    "url": index_url,
+                }
+            ],
+            bundle=bundle,
+        )
+
+    def _save_esm_attachment_by_output(
+        self,
+        bundle: str,
+        content: str,
+        metafile: str | None = None,
+        sourcemap: str | None = None,
     ) -> str:
         IrAttachment = self.env["ir.attachment"]
         content_bytes = content.encode("utf-8")
@@ -1582,17 +1634,57 @@ class IrQweb(models.AbstractModel):
         present = {row[0] for row in cr.fetchall()}
         return [vals for vals in vals_list if vals.get("url") not in present]
 
+    def _save_esm_attachment_rows_autonomously(self, vals_list: list[dict]) -> None:
+        from odoo.db import db_connect
+
+        with db_connect(self.env.cr.dbname).cursor() as own_cr:
+            fresh = self._drop_rows_already_present(own_cr, vals_list)
+            if fresh:
+                api.Environment(own_cr, SUPERUSER_ID, {})["ir.attachment"].create(fresh)
+            own_cr.commit()
+
     def _save_esm_attachment_rows(
         self,
         vals_list: list[dict],
         touch_ids: Sequence[int] = (),
         bundle: str = "",
     ) -> None:
-        if _module.current_test or not request:
+        if _module.current_test:
+            # the test transaction is rolled back and a read-only test cursor
+            # cannot write at all, so what a test compiled was gone before the
+            # next class ran. The rows are content-addressed and idempotent:
+            # they go through their own connection, which outlives the test,
+            # the way a request escalates to a read-write cursor. The test
+            # transaction is REPEATABLE READ and cannot see that commit, so a
+            # writable test cursor also keeps its own copy for the test to read
+            if vals_list:
+                self._save_esm_attachment_rows_autonomously(vals_list)
+            if self.env.cr.readonly:
+                if vals_list:
+                    # persisted for the next process, but not for this
+                    # transaction, which cannot see the commit: the caller's
+                    # read-only fallback stands, as it did before
+                    raise ReadOnlySqlTransaction(
+                        "cannot persist ESM attachments on a read-only test cursor"
+                    )
+                return
+            if vals_list:
+                self.env["ir.attachment"].with_user(SUPERUSER_ID).create(vals_list)
+            if touch_ids:
+                # the touch stays on the test cursor: the same row updated from
+                # another connection is a serialization failure for a
+                # REPEATABLE READ test transaction that touches it too
+                self.env.cr.execute(
+                    "UPDATE ir_attachment SET write_date = now() at time zone 'UTC'"
+                    " WHERE id = ANY(%s)",
+                    (list(touch_ids),),
+                )
+            return
+        if not request:
             if vals_list:
                 if self.env.cr.readonly:
                     raise ReadOnlySqlTransaction(
-                        "cannot persist ESM attachments on a read-only test cursor"
+                        "cannot persist ESM attachments on a read-only cursor"
                     )
                 self.env["ir.attachment"].with_user(SUPERUSER_ID).create(vals_list)
             if touch_ids and not self.env.cr.readonly:

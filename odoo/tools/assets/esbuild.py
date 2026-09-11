@@ -34,6 +34,11 @@ class EsbuildResult(NamedTuple):
     code: str
     metafile: str | None
     sourcemap: str | None
+    # a digest of what esbuild was given; the attachment index keyed on it
+    # lets the next process serve this result without running esbuild
+    source_key: str | None = None
+    # served from the index: the code already carries the bundle's templates
+    prebuilt: bool = False
 
 
 class EsbuildGroupResult(NamedTuple):

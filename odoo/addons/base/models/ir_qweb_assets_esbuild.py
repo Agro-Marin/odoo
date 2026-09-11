@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import re
 from typing import Any
@@ -220,6 +222,16 @@ class IrQweb(models.AbstractModel):
                     exported_specs = self._get_exported_specs(
                         bundle, asset_bundle, assets_params, child_bundles
                     )
+            source_key = self._esm_source_key(
+                bundle,
+                asset_bundle,
+                dynamic_child_specs,
+                secondary_stubs,
+                exported_specs,
+            )
+            reused = self._load_esbuild_result_by_source(bundle, source_key)
+            if reused is not None:
+                return reused, child_bundles
             result = self._compile_with_esbuild(
                 bundle,
                 asset_bundle,
@@ -227,7 +239,98 @@ class IrQweb(models.AbstractModel):
                 secondary_stubs,
                 exported_specs,
             )
+            if result.code:
+                result = result._replace(source_key=source_key)
         return result, child_bundles
+
+    def _esm_source_key(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        dynamic_child_specs: frozenset[str] | None,
+        secondary_stubs: dict[str, str],
+        exported_specs: frozenset[str] | None,
+    ) -> str:
+        config = self._get_esbuild_config()
+        digest = hashlib.sha256()
+        for part in (
+            bundle,
+            str(
+                config.get_param("web.esbuild.target")
+                or EsbuildCompiler._ESBUILD_TARGET
+            ),
+            str(
+                config.get_param("web.esbuild.source_maps")
+                or EsbuildCompiler._ESBUILD_SOURCE_MAPS
+            ),
+            ",".join(sorted(dynamic_child_specs or ())),
+            ",".join(sorted(exported_specs or ())),
+        ):
+            digest.update(part.encode())
+            digest.update(b"\0")
+        for spec in sorted(secondary_stubs):
+            digest.update(spec.encode())
+            digest.update(secondary_stubs[spec].encode())
+            digest.update(b"\0")
+        for asset in asset_bundle.native_modules:
+            digest.update((asset.module_path or asset.url or "").encode())
+            digest.update(b"\0")
+            digest.update(
+                asset.raw_content.encode()
+                if isinstance(asset.raw_content, str)
+                else asset.raw_content
+            )
+            digest.update(b"\0")
+        return digest.hexdigest()[:16]
+
+    def _load_esbuild_result_by_source(
+        self, bundle: str, source_key: str
+    ) -> EsbuildResult | None:
+        IrAttachment = self.env["ir.attachment"].sudo()
+        index = IrAttachment.search(
+            IrAttachment._get_domain_generated_assets(
+                self._esm_index_url(bundle, source_key)
+            ),
+            limit=1,
+        )
+        if not index:
+            return None
+        try:
+            pointer = json.loads(index.raw.decode("utf-8"))
+            url = pointer["url"]
+        except ValueError, KeyError, AttributeError:
+            return None
+        code = IrAttachment.search(
+            IrAttachment._get_domain_generated_assets(url), limit=1
+        )
+        if not code:
+            return None
+        sidecar = {}
+        for name, sidecar_url in (
+            ("metafile", url.removesuffix(".esm.js") + ".meta.json"),
+            ("sourcemap", url + ".map"),
+        ):
+            if pointer.get(name):
+                row = IrAttachment.search(
+                    IrAttachment._get_domain_generated_assets(sidecar_url), limit=1
+                )
+                if not row:
+                    return None
+                sidecar[name] = row.raw.decode("utf-8")
+        log_event(
+            _fallback_log, logging.DEBUG, "reuse_by_source", bundle=bundle, url=url
+        )
+        return EsbuildResult(
+            code.raw.decode("utf-8"),
+            sidecar.get("metafile"),
+            sidecar.get("sourcemap"),
+            source_key,
+            prebuilt=True,
+        )
+
+    @staticmethod
+    def _esm_index_url(bundle: str, source_key: str) -> str:
+        return f"/web/assets/esm/by-source/{source_key}/{bundle}.json"
 
     _SPECIFIER_LITERAL_RE = re.compile(r"""["'](@[\w./+-]+)["']""")
 

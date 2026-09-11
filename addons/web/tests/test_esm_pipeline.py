@@ -1519,6 +1519,107 @@ class TestEsbuildLockCursor(TransactionCase):
 
 
 @tagged("web_unit", "web_assets")
+class TestEsmRowsOutliveTheTest(TransactionCase):
+    URL = "/web/assets/esm/test-outlives/web.assets_test_outlives.esm.js"
+
+    def _rows_elsewhere(self):
+        from odoo.db import db_connect
+
+        with db_connect(self.env.cr.dbname).cursor() as other:
+            other.execute(
+                "SELECT id, write_date FROM ir_attachment WHERE url = %s", (self.URL,)
+            )
+            return other.fetchall()
+
+    def _forget_elsewhere(self):
+        from odoo.db import db_connect
+
+        with db_connect(self.env.cr.dbname).cursor() as other:
+            other.execute("DELETE FROM ir_attachment WHERE url = %s", (self.URL,))
+            other.commit()
+
+    def test_a_bundle_saved_under_a_test_is_there_for_the_next_one(self):
+        self.addCleanup(self._forget_elsewhere)
+        vals = {
+            "name": "web.assets_test_outlives.esm.js",
+            "url": self.URL,
+            "mimetype": "text/javascript",
+            "raw": b"export const outlives = true;",
+            "public": True,
+            "res_model": "ir.ui.view",
+        }
+        self.env["ir.qweb"]._save_esm_attachment_rows([vals], bundle="outlives")
+        rows = self._rows_elsewhere()
+        self.assertEqual(len(rows), 1, "the row is visible from another connection")
+        self.env["ir.qweb"]._save_esm_attachment_rows([vals], bundle="outlives")
+        self.assertEqual(len(self._rows_elsewhere()), 1, "saved once, by url")
+
+
+@tagged("web_unit", "web_assets")
+class TestEsmSourceKeyedReuse(TransactionCase):
+    BUNDLE = "web.assets_web"
+
+    def setUp(self):
+        super().setUp()
+        self.env.registry.clear_cache("assets")
+        self.addCleanup(self.env.registry.clear_cache, "assets")
+        self.compiles = 0
+        IrQweb = type(self.env["ir.qweb"])
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.object(ir_qweb_assets, "request", None))
+        stack.enter_context(
+            patch.object(IrQweb, "_get_dynamic_child_bundles", lambda *_a, **_k: [])
+        )
+        stack.enter_context(
+            patch.object(
+                IrQweb, "_get_esbuild_child_externals", lambda *_a, **_k: (None, {})
+            )
+        )
+        stack.enter_context(
+            patch.object(AssetsBundle, "esbuild_native_bundle", self._compile)
+        )
+        self._forget()
+        self.addCleanup(self._forget)
+
+    def _compile(self, *_args, **_kwargs):
+        self.compiles += 1
+        return EsbuildResult("export const keyed = 1;", '{"outputs": {}}', None)
+
+    def _forget(self):
+        from odoo.db import db_connect
+
+        with db_connect(self.env.cr.dbname).cursor() as other:
+            other.execute(
+                "DELETE FROM ir_attachment WHERE url LIKE %s",
+                (f"/web/assets/esm/by-source/%/{self.BUNDLE}.json",),
+            )
+            other.commit()
+
+    def test_the_next_process_serves_the_index_without_esbuild(self):
+        # the test transaction is REPEATABLE READ and cannot see rows another
+        # connection commits, so both renders run on connections of their own,
+        # the way two worker processes would
+        from odoo.db import db_connect
+
+        params = self.env["ir.asset"]._prepare_assets_params()
+        results = []
+        for _process in range(2):
+            with db_connect(self.env.cr.dbname).cursor() as own:
+                fresh = odoo.api.Environment(own, SUPERUSER_ID, {})["ir.qweb"]
+                self.env.registry.clear_cache("assets")
+                results.append(
+                    fresh._get_native_module_nodes(self.BUNDLE, assets_params=params)
+                )
+        self.assertEqual(
+            self.compiles,
+            1,
+            "the second process finds the compiled bundle by its sources' digest",
+        )
+        self.assertEqual(results[1], results[0])
+
+
+@tagged("web_unit", "web_assets")
 class TestProdNodesDeclineNotCached(TransactionCase):
     BUNDLE = "g4.decline.bundle"
 
@@ -1619,16 +1720,35 @@ class TestReadonlyDeclineIsRemembered(TransactionCase):
         return EsbuildResult(f"built{self.compiles};", None, None)
 
     def _render(self, *, readonly=True):
+        # the memo is the contract for a write that cannot happen: under a test
+        # the rows normally go through their own connection, so that write is
+        # made to fail here the way a read-only cursor used to
         with contextlib.ExitStack() as stack:
             stack.enter_context(contextlib.closing(self.env.cr.savepoint(flush=False)))
             if readonly:
                 stack.enter_context(patch.object(self.env.cr, "_readonly", True))
+                stack.enter_context(
+                    patch.object(
+                        type(self.env["ir.qweb"]),
+                        "_save_esm_attachment_rows_autonomously",
+                        side_effect=ReadOnlySqlTransaction("no writable cursor"),
+                    )
+                )
             return self.env["ir.qweb"]._get_native_module_nodes(
                 self.BUNDLE, assets_params=self.params
             )
 
     def test_a_readonly_decline_is_the_fallback_signal(self):
-        with patch.object(self.env.cr, "_readonly", True):
+        # under a test the rows go through their own connection; the decline
+        # is what a failure of that write becomes on a read-only cursor
+        with (
+            patch.object(self.env.cr, "_readonly", True),
+            patch.object(
+                type(self.env["ir.qweb"]),
+                "_save_esm_attachment_rows_autonomously",
+                side_effect=ReadOnlySqlTransaction("no writable cursor"),
+            ),
+        ):
             with self.assertRaises(_EsmReadonlyDeclined):
                 self.env["ir.qweb"]._prepare_esm_script_node(
                     "b.x", "export const x = 1;", {}, raise_on_decline=True
