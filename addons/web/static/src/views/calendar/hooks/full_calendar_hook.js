@@ -215,9 +215,14 @@ function syncCalendarWithParams(instance, params, component) {
             viewOrDateChanged = true;
         } catch {}
     }
-    const recordsChanged = instance.__lastRecords !== component.props.model.records;
-    instance.__lastRecords = component.props.model.records;
-    if (!viewOrDateChanged && !recordsChanged) {
+    const sources = component.eventSources();
+    const lastSources = instance.__lastEventSources;
+    const sourcesChanged =
+        !lastSources ||
+        lastSources.length !== sources.length ||
+        sources.some((source, i) => source !== lastSources[i]);
+    instance.__lastEventSources = sources;
+    if (!viewOrDateChanged && !sourcesChanged) {
         return;
     }
     const isYear = component.props.model.scale === "year";
@@ -270,6 +275,7 @@ export function useFullCalendar(refName, paramsOrGetter) {
                 typeof mountParams.initialDate !== "undefined"
                     ? mountParams.initialDate
                     : null;
+            instance.__lastEventSources = component.eventSources();
             instance.render();
         } catch (e) {
             throw new Error(`Cannot instantiate FullCalendar\n${e.message}`, {

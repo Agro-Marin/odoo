@@ -11428,7 +11428,10 @@ var FullCalendar = (function (exports) {
           const colCount = props.cellRows[0].length;
           const { col, left, right } = computeColFromPosition(positionLeft, elWidth, props.colWidth, colCount, isRtl);
           const { row, top, bottom } = computeRowFromPosition(positionTop, props.cellRows, this.rowHeightRefMap.current);
-          const cell = props.cellRows[row][col];
+          const cell = props.cellRows[row]?.[col];
+          if (!cell) {
+              return null;
+          }
           const cellStartDate = cell.date;
           const cellEndDate = addDays(cellStartDate, 1);
           return {

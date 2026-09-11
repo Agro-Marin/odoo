@@ -38,6 +38,17 @@ export class CalendarRendererBase extends Component {
         return withDayCellClassNames(info, this.getDayCellClassNames(info));
     }
 
+    /**
+     * The objects the fullcalendar events are derived from. The calendar hook
+     * refetches events only when one of them changes identity, so a renderer
+     * that maps more than the records into events lists its extra sources here.
+     *
+     * @returns {unknown[]}
+     */
+    eventSources() {
+        return [this.model.records];
+    }
+
     /** @returns {Object[]} */
     mapRecordsToEvents() {
         return Object.values(this.model.records).map((r) =>

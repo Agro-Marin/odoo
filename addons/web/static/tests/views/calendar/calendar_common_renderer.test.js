@@ -4,11 +4,13 @@ import { beforeEach, expect, test } from "@odoo/hoot";
 import {
     animationFrame,
     click,
+    queryAll,
     queryAllTexts,
     queryFirst,
     queryRect,
 } from "@odoo/hoot-dom";
 import { mockDate, runAllTimers } from "@odoo/hoot-mock";
+import { Component, useState, xml } from "@odoo/owl";
 import {
     mockService,
     mountWithCleanup,
@@ -339,4 +341,59 @@ test(`onEventDrop no-ops (and reverts) when the record vanished mid-drag`, async
     });
     expect(updated).toBe(false);
     expect(reverted).toBe(true);
+});
+
+test(`eventSources: a source other than the records refetches the events when it changes`, async () => {
+    let mapped = 0;
+    class SlotRenderer extends CalendarCommonRenderer {
+        eventSources() {
+            return [...super.eventSources(), this.props.model.slots];
+        }
+        mapRecordsToEvents() {
+            mapped++;
+            return [
+                ...super.mapRecordsToEvents(),
+                ...Object.values(this.props.model.slots).map((slot) =>
+                    this.convertRecordToEvent(slot),
+                ),
+            ];
+        }
+    }
+    class Parent extends Component {
+        static components = { SlotRenderer };
+        static template = xml`<SlotRenderer t-props="state.props"/>`;
+        static props = {};
+        setup() {
+            this.state = useState({
+                props: { ...FAKE_PROPS, model: { ...FAKE_MODEL, slots: {} } },
+            });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    const shown = queryAll(".fc-event").length;
+    expect(shown).toBeGreaterThan(0);
+    expect(mapped).toBe(1, { message: "mounting fetches the events once" });
+
+    const model = parent.state.props.model;
+    parent.state.props = { ...parent.state.props, model: { ...model } };
+    await animationFrame();
+    expect(mapped).toBe(1, {
+        message: "a render whose sources are the same objects does not refetch",
+    });
+
+    const slot = {
+        id: 100,
+        title: "a slot",
+        start: DEFAULT_DATE.plus({ days: 1 }),
+        end: DEFAULT_DATE.plus({ days: 1 }),
+        isAllDay: true,
+    };
+    parent.state.props = {
+        ...parent.state.props,
+        model: { ...model, slots: { 100: slot } },
+    };
+    await animationFrame();
+    expect(mapped).toBe(2, { message: "a new slots object is a changed source" });
+    expect(".fc-event").toHaveCount(shown + 1);
+    expect(findEvent(100)).toHaveText(/a slot/);
 });
