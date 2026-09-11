@@ -1612,11 +1612,92 @@ class TestAccountReturn(TestAccountReportsCommon):
     def test_check_action_expression_invalid(self):
         check = self.env["account.return.check"]
 
+        for expression in (
+            "[",
+            "unknown_helper()",
+            "[1, unknown_helper(), 2]",
+            "company_id.real()",
+            "company_id()",
+            "(lambda: 1)()",
+            "ref()",
+            "ref('base.USD', 'extra')",
+        ):
+            with (
+                self.subTest(expression=expression),
+                self.assertRaisesRegex(ValidationError, "Invalid code"),
+            ):
+                check._parse_expression(
+                    expression,
+                    {"company_id": self.env.company.id, "ref": lambda xml_id: 42},
+                )
+
+    def test_check_action_expression_rejects_keywords_before_calling_helper(self):
+        check = self.env["account.return.check"]
+
+        def ref(xml_id):
+            self.fail("An unsupported call must not invoke its helper")
+
+        for expression in (
+            "ref('base.USD', ignored=unknown_helper())",
+            "ref('base.USD', **{'ignored': 1})",
+            "ref(xml_id='base.USD')",
+        ):
+            with (
+                self.subTest(expression=expression),
+                self.assertRaisesRegex(ValidationError, "Invalid code"),
+            ):
+                check._parse_expression(expression, {"ref": ref})
+
+    def test_check_action_review_evaluates_template_overrides(self):
+        template = self.env["account.return.check.template"].create(
+            {
+                "name": "Expression review",
+                "return_type": self.audit_return_type.id,
+                "additional_action_domain": "[('date', '>=', return_start_date)]",
+                "additional_action_context": "{'return_id': active_id}",
+                "additional_action_params": "{'currency_id': ref('base.USD')}",
+            }
+        )
+        check = self.env["account.return.check"].create(
+            {
+                "name": "Expression review",
+                "code": template.code,
+                "return_id": self.audit_2024.id,
+                "template_id": template.id,
+                "action": {
+                    "type": "ir.actions.client",
+                    "tag": "account_report",
+                    "domain": "[('company_id', '=', company_id)]",
+                    "context": "{'active_model': active_model}",
+                    "params": "{'report_id': ref('account.trial_balance_report')}",
+                },
+            }
+        )
+
+        action = check.action_review()
+
+        self.assertEqual(
+            action["domain"],
+            [("company_id", "=", self.env.company.id), ("date", ">=", "2024-01-01")],
+        )
+        self.assertEqual(
+            action["context"],
+            {"active_model": "account.return", "return_id": self.audit_2024.id},
+        )
+        self.assertEqual(
+            action["params"],
+            {
+                "report_id": self.env.ref("account.trial_balance_report").id,
+                "currency_id": self.env.ref("base.USD").id,
+            },
+        )
+        self.assertEqual(action["active_id"], self.audit_2024.id)
+        self.assertEqual(action["active_model"], "account.return")
+        self.assertIsInstance(check.action["domain"], str)
+
+        template.additional_action_domain = "[('company_id', '=', company_id())]"
         with self.assertRaisesRegex(ValidationError, "Invalid code"):
-            check._parse_expression("[", {})
-        for expression in ("unknown_helper()", "company_id.real()", "(lambda: 1)()"):
-            with self.subTest(expression=expression), self.assertRaises(ValueError):
-                check._parse_expression(expression, {})
+            check.action_review()
 
     def test_account_return_check_template_basic(self):
         # 1. Create audit return type

@@ -267,12 +267,11 @@ class AccountReturnCheck(models.Model):
         # context (e.g. ref()) are resolved, so no arbitrary code can be executed.
         try:
             tree = ast.parse(value, mode="eval")
-        except SyntaxError, ValueError:
-            raise ValidationError(_("Invalid code"))  # noqa: B904
-
-        transformer = CheckActionExpressionTransformer(context)
-        transformed_tree = transformer.visit(tree)
-        return ast.literal_eval(transformed_tree)
+            transformer = CheckActionExpressionTransformer(context)
+            transformed_tree = transformer.visit(tree)
+            return ast.literal_eval(transformed_tree)
+        except (SyntaxError, TypeError, ValueError) as error:
+            raise ValidationError(_("Invalid code")) from error
 
     def action_review(self):
         """Preprocess and return the action that must be triggered when clicking a check.
@@ -393,9 +392,11 @@ class CheckActionExpressionTransformer(ast.NodeTransformer):
         return args
 
     def visit_Call(self, node):
-        if isinstance(node.func, ast.Name) and node.func.id in self.evaluation_context:
-            return ast.Constant(
-                self.evaluation_context[node.func.id](*self.get_call_args(node.args))
-            )
+        if (
+            isinstance(node.func, ast.Name)
+            and not node.keywords
+            and callable(helper := self.evaluation_context.get(node.func.id))
+        ):
+            return ast.Constant(helper(*self.get_call_args(node.args)))
         # Preserve unsupported calls so literal_eval rejects them as invalid expressions.
         return node
