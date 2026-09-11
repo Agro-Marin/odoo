@@ -117,13 +117,13 @@ export class TreeEditor extends Component {
             loaded = await this.keepLastInfo.add(
                 Promise.all([
                     this.fieldService.loadFields(props.resModel),
-                    this.treeProcessor.makeGetFieldDef(props.resModel, this.tree),
+                    // a readonly editor needs the descriptions too; the tree
+                    // context resolves the defs once for both
                     props.readonly
-                        ? this.treeProcessor.makeGetConditionDescription(
-                              props.resModel,
-                              this.tree,
-                          )
-                        : undefined,
+                        ? this.treeProcessor.makeTreeContext(props.resModel, this.tree)
+                        : this.treeProcessor
+                              .makeGetFieldDef(props.resModel, this.tree)
+                              .then((getFieldDef) => ({ getFieldDef })),
                 ]),
             );
         } catch (error) {
@@ -132,7 +132,7 @@ export class TreeEditor extends Component {
             }
             throw error;
         }
-        const [fieldDefs, getFieldDef, getConditionDescription] = loaded;
+        const [fieldDefs, { getFieldDef, getConditionDescription }] = loaded;
         this.getFieldDef = getFieldDef;
         this.defaultCondition = props.getDefaultCondition(fieldDefs);
 
@@ -343,11 +343,10 @@ export class TreeEditor extends Component {
      * @param {Condition} node
      * @param {string} path
      */
-    async _updatePath(node, path) {
-        const { fieldDef } = await this.fieldService.loadFieldInfo(
-            this.props.resModel,
-            path,
-        );
+    async _updatePath(node, path, fieldInfo) {
+        const { fieldDef } =
+            fieldInfo ??
+            (await this.fieldService.loadFieldInfo(this.props.resModel, path));
         node.path = path;
         node.negate = false;
         node.operator = this.props.getDefaultOperator(fieldDef);
@@ -359,8 +358,8 @@ export class TreeEditor extends Component {
      * @param {Condition} node
      * @param {string} path
      */
-    async updatePath(node, path) {
-        return this.updateNode(node, () => this._updatePath(node, path));
+    async updatePath(node, path, fieldInfo) {
+        return this.updateNode(node, () => this._updatePath(node, path, fieldInfo));
     }
 
     /**

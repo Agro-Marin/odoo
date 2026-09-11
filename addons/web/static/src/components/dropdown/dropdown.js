@@ -241,7 +241,6 @@ export class Dropdown extends Component {
             }
             if (nextProps.disabled) {
                 this.state.close();
-                this.closePopover();
             }
         });
     }

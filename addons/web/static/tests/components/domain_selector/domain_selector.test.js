@@ -2834,3 +2834,21 @@ test(`swith from [(0, "=", 1)] to other condition`, async () => {
         `["&", ("datetime", ">=", "today"), ("datetime", "<", "today +1d")]`,
     ]);
 });
+
+test("Include archived: a negated root keeps its negation and its archived leaf", async () => {
+    Partner._fields.active = fields.Boolean();
+    let updated = "";
+    await makeDomainSelector({
+        isDebugMode: true,
+        domain: `["!", "&", ("active", "in", [True, False]), ("bar", "=", True)]`,
+        update: (domain) => {
+            updated = domain;
+        },
+    });
+    expect('.form-switch label:contains("Include archived")').toHaveCount(1);
+    expect(".form-switch input").not.toBeChecked();
+    expect(SELECTORS.debugArea).toHaveValue(
+        `["!", "&", ("active", "in", [True, False]), ("bar", "=", True)]`,
+    );
+    expect(updated).toBe("");
+});

@@ -57,7 +57,7 @@ export class TagsList extends Component {
      * @returns {string | number}
      */
     tagKey(tag, index) {
-        return /** @type {any} */ (tag).resId || tag.id || index;
+        return /** @type {any} */ (tag).resId || tag.id || `index-${index}`;
     }
 
     /** @returns {number} */

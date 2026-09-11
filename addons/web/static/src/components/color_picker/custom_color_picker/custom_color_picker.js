@@ -33,10 +33,8 @@ export class CustomColorPicker extends Component {
         defaultColor: { type: String, optional: true },
         selectedColor: { type: String, optional: true },
         noTransparency: { type: Boolean, optional: true },
-        stopClickPropagation: { type: Boolean, optional: true },
         onColorSelect: { type: Function, optional: true },
         onColorPreview: { type: Function, optional: true },
-        onInputEnter: { type: Function, optional: true },
         defaultOpacity: { type: Number, optional: true },
         setOnCloseCallback: { type: Function, optional: true },
         setOperationCallbacks: { type: Function, optional: true },
@@ -45,10 +43,8 @@ export class CustomColorPicker extends Component {
         defaultColor: DEFAULT_COLOR,
         defaultOpacity: 100,
         noTransparency: false,
-        stopClickPropagation: false,
         onColorSelect: () => {},
         onColorPreview: () => {},
-        onInputEnter: () => {},
     };
 
     setup() {
@@ -442,15 +438,12 @@ export class CustomColorPicker extends Component {
      */
     onKeydown(ev) {
         if (ev.key === "Enter") {
+            // the hex input applies on blur, not on a form submit
             ev.preventDefault();
-            this.props.onInputEnter(ev);
         }
     }
     /** @param {MouseEvent} ev */
     onClick(ev) {
-        if (this.props.stopClickPropagation) {
-            ev.stopPropagation();
-        }
         const target = /** @type {HTMLInputElement} */ (ev.target);
         if (target.dataset.colorMethod === "hex" && !this.selectedHexValue) {
             target.select();

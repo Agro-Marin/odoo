@@ -95,6 +95,9 @@ export class MultiRecordSelector extends BaseRecordSelector {
 
     /** @param {number[]} resIds */
     update(resIds) {
+        if (!resIds.length) {
+            return;
+        }
         this.props.update([...this.props.resIds, ...resIds]);
     }
 }

@@ -139,7 +139,7 @@ export class ActionSwiper extends Component {
     onTouchMove(ev) {
         if (this.state.isSwiping) {
             if (this.props.swipeInvalid && this.props.swipeInvalid()) {
-                this.state.isSwiping = false;
+                this.reset();
                 return;
             }
             const { onLeftSwipe, onRightSwipe } = this.localizedProps;
