@@ -11054,14 +11054,22 @@ var FullCalendar = (function (exports) {
       const right = left + realColWidth;
       return { col, left, right };
   }
-  function computeRowFromPosition(positionTop, cellRows, rowHeightMap) {
+  function computeRowFromPosition(positionTop, cellRows, rowHeightMap, rootEl) {
       let row = 0;
       let top = 0;
       let bottom = 0;
       for (const cells of cellRows) {
           const key = cells[0].key;
           top = bottom;
-          bottom = top + rowHeightMap.get(key);
+          // AgroMarin: (FC v7.0.2) the heights arrive through a ResizeObserver,
+          // so a pointerdown in the frame the grid mounted in read null for
+          // every row and walked past the last one. Measure the row element
+          // until the observer has.
+          let height = rowHeightMap.get(key);
+          if (height == null) {
+              height = getRowEl(rootEl, row)?.getBoundingClientRect().height ?? 0;
+          }
+          bottom = top + height;
           if (positionTop < bottom) {
               break;
           }
@@ -11427,7 +11435,7 @@ var FullCalendar = (function (exports) {
           const { props } = this;
           const colCount = props.cellRows[0].length;
           const { col, left, right } = computeColFromPosition(positionLeft, elWidth, props.colWidth, colCount, isRtl);
-          const { row, top, bottom } = computeRowFromPosition(positionTop, props.cellRows, this.rowHeightRefMap.current);
+          const { row, top, bottom } = computeRowFromPosition(positionTop, props.cellRows, this.rowHeightRefMap.current, this.rootEl);
           const cell = props.cellRows[row]?.[col];
           if (!cell) {
               return null;

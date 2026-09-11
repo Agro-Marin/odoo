@@ -2,7 +2,7 @@ import { defineHrHolidaysModels } from "@hr_holidays/../tests/hr_holidays_test_h
 import { HrLeave } from "@hr_holidays/../tests/mock_server/mock_models/hr_leave";
 import { ResUsers } from "@hr_holidays/../tests/mock_server/mock_models/res_users";
 import { describe, test } from "@odoo/hoot";
-import { click, waitFor } from "@odoo/hoot-dom";
+import { click, waitFor, waitForNone } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
 import { clickDate } from "@web/../tests/views/calendar/calendar_test_helpers";
 import { mountView, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -91,6 +91,7 @@ test("Test request creator buttons", async () => {
     await click(".o_cw_popover_link");
     await waitFor("button:contains(Delete Time Off)");
     await click(".btn-close");
+    await waitForNone(".modal");
     await clickDate("2024-01-10");
     await click(".o_cw_popover_link");
     await waitFor("button:contains(Cancel Time Off)");
