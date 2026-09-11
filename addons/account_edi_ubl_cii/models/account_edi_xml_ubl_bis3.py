@@ -4,6 +4,7 @@ from markupsafe import Markup
 from stdnum.no import mva
 
 from odoo import _, api, models
+from odoo.fields import Domain
 from odoo.tools.misc import NON_BREAKING_SPACE, formatLang
 from odoo.tools.xml_utils import dict_to_xml
 
@@ -1006,11 +1007,12 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
         payment_term_name = self._find_value(xpath, tree)
         if not payment_term_name:
             return False
-        payment_term_domain = self.env["account.payment.term"]._check_company_domain(
-            company_id
+        PaymentTerm = self.env["account.payment.term"]
+        return PaymentTerm.search(
+            PaymentTerm._check_company_domain(company_id)
+            & Domain("name", "=", payment_term_name),
+            limit=1,
         )
-        payment_term_domain.append(("name", "=", payment_term_name))
-        return self.env["account.payment.term"].search(payment_term_domain, limit=1)
 
     def _prepare_order_vals(self, order, tree):
         order_vals = {}
@@ -1019,7 +1021,7 @@ class AccountEdiXmlUbl_Bis3(models.AbstractModel):
         order_vals["date_order"] = tree.findtext(".//{*}EndDate") or tree.findtext(
             ".//{*}IssueDate"
         )
-        order_vals["note"] = self._import_description(tree, xpaths=["./{*}Note"])
+        order_vals["notes"] = self._import_description(tree, xpaths=["./{*}Note"])
         order_vals["payment_term_id"] = self._import_order_payment_terms_id(
             order.company_id, tree, ".//cac:PaymentTerms/cbc:Note"
         )

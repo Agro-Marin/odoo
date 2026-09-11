@@ -323,7 +323,7 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
 
     def _prepare_order_vals(self, order, tree):
         order_vals, logs = super()._prepare_order_vals(order, tree)
-        order_vals.pop("note", False)
+        order_vals.pop("notes", False)
         partner, partner_logs = self._import_partner(
             order.company_id,
             **self._import_retrieve_partner_vals(tree, "BuyerCustomer"),
@@ -372,9 +372,9 @@ class SaleEdiXmlUbl_Bis3(models.AbstractModel):
 
     def _import_order_ubl(self, order, file_data, new):
         res = super()._import_order_ubl(order, file_data, new)
-        lines_with_products = order.line_ids.filtered("product_id")
-        lines_with_products._compute_price_unit()
-        lines_with_products._compute_discount()
+        order.line_ids.filtered("product_id").with_context(
+            force_price_recomputation=True
+        )._compute_price_and_discount()
 
         return res
 

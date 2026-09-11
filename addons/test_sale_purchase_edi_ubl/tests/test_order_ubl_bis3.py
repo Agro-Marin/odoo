@@ -247,7 +247,6 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         # Update lines vals depending on sale order field names
         for line in po_line_vals:
             line_product = self.env["product.product"].browse(line["product_id"])
-            line["product_uom_qty"] = line.pop("product_qty")
             line["discount"] = 0.0
             # Set sales tax related to purchase tax
             line["tax_ids"] = related_sale_tax.ids
@@ -260,14 +259,14 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
             {
                 "product_id": self.place_prdct.id,
                 "product_uom_id": self.uom_units.id,
-                "product_uom_qty": 10.0,
+                "product_qty": 10.0,
                 "tax_ids": self.sale_tax.ids,
                 "discount": 10.0,
             },
             {
                 "product_id": self.displace_prdct.id,
                 "product_uom_id": self.uom_units.id,
-                "product_uom_qty": 50.0,
+                "product_qty": 50.0,
                 "tax_ids": self.sale_tax.ids,
                 "discount": 0.0,
             },
@@ -295,7 +294,6 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         # Update lines vals depending on purchase order field names
         for line in so_line_vals:
             line_product = self.env["product.product"].browse(line["product_id"])
-            line["product_qty"] = line.pop("product_uom_qty")
             # Set purchase tax related to sale tax
             line["tax_ids"] = related_purchase_tax.ids
             line["price_unit"] = line_product.list_price
@@ -321,11 +319,9 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         for line in po_line_vals:
             line_product = self.env["product.product"].browse(line["product_id"])
             product_uom_id = self.env["uom.uom"].browse(line["product_uom_id"])
-            line["product_uom_qty"] = line["product_qty"]
             line["price_unit"] = line_product.uom_id._compute_price(
                 line_product.list_price, product_uom_id
             )
-            del line["product_qty"]
 
         self.assertRecordValues(so.line_ids, po_line_vals)
 
@@ -335,7 +331,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
                 "product_id": self.displace_prdct.id,
                 "price_unit": 1100.0,
                 "product_uom_id": self.uom_dozens.id,
-                "product_uom_qty": 5.0,
+                "product_qty": 5.0,
             }
         ]
         xml_attachment = self.get_sale_xml(so_line_vals)
@@ -344,10 +340,6 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
             .with_context(default_partner_id=self.env.user.partner_id.id)
             ._create_records_from_attachments(xml_attachment)
         )
-        # Update lines vals depending on purchase order field names
-        for line in so_line_vals:
-            line["product_qty"] = line.pop("product_uom_qty")
-
         self.assertRecordValues(po.line_ids, so_line_vals)
 
     def test_so_no_matching_product_found(self):
