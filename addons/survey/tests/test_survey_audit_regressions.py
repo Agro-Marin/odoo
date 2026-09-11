@@ -1,4 +1,8 @@
+import base64
+import io
 import json
+
+from PIL import Image
 
 from odoo import http
 from odoo.exceptions import ValidationError
@@ -1113,3 +1117,72 @@ class TestWebhookSsrf(TestSurveyAuditCommon):
 
         source = inspect.getsource(survey_user_input.SurveyUser_Input._fire_webhook)
         self.assertIn("allow_redirects=False", source)
+
+
+@tagged("post_install", "-at_install")
+class TestSuggestedAnswerContent(TestSurveyAuditCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.question = cls.env["survey.question"].create(
+            {"title": "Pick a painting", "question_type": "simple_choice"}
+        )
+        buffer = io.BytesIO()
+        Image.new("RGB", (4, 4), "red").save(buffer, format="PNG")
+        cls.image = base64.b64encode(buffer.getvalue())
+
+    def test_an_image_without_a_filename_is_an_answer(self):
+        answer = self.env["survey.question.answer"].create(
+            {"question_id": self.question.id, "value": "", "value_image": self.image}
+        )
+        self.assertTrue(answer.value_image)
+
+    def test_a_filename_without_an_image_is_not_an_answer(self):
+        with self.assertRaises(ValidationError):
+            self.env["survey.question.answer"].create(
+                {
+                    "question_id": self.question.id,
+                    "value": "",
+                    "value_image_filename": "painting.png",
+                }
+            )
+
+    def test_blank_text_without_an_image_is_not_an_answer(self):
+        with self.assertRaises(ValidationError):
+            self.env["survey.question.answer"].create(
+                {"question_id": self.question.id, "value": "   "}
+            )
+
+    def test_the_results_table_shows_an_image_without_a_filename(self):
+        survey = self.env["survey.survey"].create(
+            {
+                "title": "Paintings",
+                "access_mode": "public",
+                "question_and_page_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "title": "Pick a painting",
+                            "question_type": "simple_choice",
+                            "suggested_answer_ids": [
+                                (0, 0, {"value": "", "value_image": self.image})
+                            ],
+                        },
+                    )
+                ],
+            }
+        )
+        question = survey.question_ids
+        answer = survey._create_answer(user=self.public_user)
+        answer._mark_in_progress()
+        answer._save_lines(question, str(question.suggested_answer_ids.id))
+        answer._mark_done()
+        question_data = question._prepare_question_statistics(
+            answer.user_input_line_ids
+        )[0]
+        rendered = self.env["ir.qweb"]._render(
+            "survey.survey_page_statistics_question",
+            {"survey": survey, "question": question, "question_data": question_data},
+        )
+        self.assertIn("<th>Image</th>", rendered)

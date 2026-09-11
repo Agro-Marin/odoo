@@ -322,7 +322,7 @@
         <t t-set="table_data" t-value="question_data['table_data']" />
         <t
             t-set="question_has_image_answers"
-            t-value="any(answer.value_image_filename for answer in question.suggested_answer_ids)" />
+            t-value="any(answer.value_image for answer in question.suggested_answer_ids)" />
 
         <div class="o_survey_results_question pb-3">
             <t

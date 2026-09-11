@@ -72,10 +72,10 @@ class SurveyQuestionAnswer(models.Model):
 
     # `value` is translate=True, so the column is jsonb: a CHECK for NOT NULL passes
     # on {"en_US": ""}, which is exactly the case it was written to reject.
-    @api.constrains("value", "value_image_filename")
+    @api.constrains("value", "value_image")
     def _check_value_not_empty(self) -> None:
         for label in self:
-            if not (label.value or "").strip() and not label.value_image_filename:
+            if not (label.value or "").strip() and not label.value_image:
                 raise ValidationError(
                     _(
                         "Suggested answer value must not be empty (a text and/or an "

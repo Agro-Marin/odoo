@@ -434,6 +434,7 @@
                 name="value_image"
                 type="base64"
                 file="survey/static/src/img/burger_quiz_guernica.jpg" />
+            <field name="value_image_filename">burger_quiz_guernica.jpg</field>
         </record>
         <record id="survey_demo_burger_quiz_p5_q2_sug2" model="survey.question.answer">
             <field name="question_id" ref="survey_demo_burger_quiz_p5_q2" />
@@ -443,6 +444,7 @@
                 name="value_image"
                 type="base64"
                 file="survey/static/src/img/burger_quiz_cubism_klein.jpg" />
+            <field name="value_image_filename">burger_quiz_cubism_klein.jpg</field>
             <field name="is_correct" eval="True" />
             <field name="answer_score">10</field>
         </record>
@@ -454,6 +456,7 @@
                 name="value_image"
                 type="base64"
                 file="survey/static/src/img/burger_quiz_don_quixote.jpg" />
+            <field name="value_image_filename">burger_quiz_don_quixote.jpg</field>
         </record>
         <record id="survey_demo_burger_quiz_p5_q2_sug4" model="survey.question.answer">
             <field name="question_id" ref="survey_demo_burger_quiz_p5_q2" />
@@ -463,6 +466,7 @@
                 name="value_image"
                 type="base64"
                 file="survey/static/src/img/burger_quiz_self_portrait.jpg" />
+            <field name="value_image_filename">burger_quiz_self_portrait.jpg</field>
         </record>
         <record id="survey_demo_burger_quiz_p5_q3" model="survey.question">
             <field name="survey_id" ref="survey_demo_burger_quiz" />
