@@ -511,23 +511,9 @@ registerWebsitePreviewTour(
             run: "edit 44 - UK",
         },
         {
-            content: "Check that the input value is the full option value",
-            trigger: ".o_we_table_wrapper table input[name='display_name']:eq(3)",
-            run: () => {
-                // We need this 'setTimeout' to ensure that the 'input' event of
-                // the input has enough time to be executed (see the
-                // '_onListItemBlurInput' function of the 'we-list' widget).
-                setTimeout(() => {
-                    const addedOptionEl = document
-                        .querySelector("iframe")
-                        .contentDocument.querySelector(
-                            '.s_website_form_field select option[value="44 - UK"]',
-                        );
-                    if (!addedOptionEl) {
-                        console.error("The number option was not correctly added");
-                    }
-                }, 500);
-            },
+            content: "Check that the option value is the full option label",
+            trigger:
+                ':iframe .s_website_form_field select:has(option[value="44 - UK"])',
         },
         {
             content: "Check the resulting snippet",

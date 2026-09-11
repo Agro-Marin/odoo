@@ -591,3 +591,42 @@ test("Option list input editing is enabled for custom forms", async () => {
         .querySelectorAll(".o-hb-input-base");
     expect([...inputs].every((input) => input.disabled)).toBe(false);
 });
+
+test("Relabelling a custom option list entry moves the value it submits", async () => {
+    onRpc("get_fields_authorized", () => ({}));
+    await setupWebsiteBuilder(
+        `<section class="s_website_form"><form data-model_name="mail.mail">
+            <div data-name="Field" class="s_website_form_field mb-3 col-12 s_website_form_custom" data-type="many2one">
+                <div class="row s_col_no_resize s_col_no_bgcolor">
+                    <label class="col-form-label col-sm-auto s_website_form_label" for="ozp7023vqhe">
+                        <span class="s_website_form_label_content">Country</span>
+                    </label>
+                    <div class="col-sm">
+                        <select class="form-select s_website_form_input" name="Country" id="ozp7023vqhe">
+                            <option id="ozp7023vqhe0" value="Option 1">Option 1</option>
+                            <option id="ozp7023vqhe1" value="Option 2">Option 2</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="s_website_form_submit">
+                <div class="s_website_form_label"/>
+                <a>Submit</a>
+            </div>
+        </form></section>`,
+    );
+    await contains(":iframe .s_website_form_field").click();
+
+    await contains(".options-container input[name='display_name'][data-id='0']").edit(
+        "44 - UK",
+    );
+    expect(":iframe select option[value='44 - UK']").toHaveText("44 - UK");
+    expect(":iframe select option[value='Option 1']").toHaveCount(0);
+
+    await contains(".options-container .builder_list_add_item").click();
+    await contains(".options-container input[name='display_name'][data-id='2']").edit(
+        "Canada",
+    );
+    expect(":iframe select option[value='Canada']").toHaveText("Canada");
+    expect(":iframe select option[value='Item']").toHaveCount(0);
+});

@@ -1458,6 +1458,15 @@ export class SetFormCustomFieldValueListAction extends BuilderAction {
     }
     apply({ editingElement: fieldEl, value, loadResult: fields }) {
         let valueList = JSON.parse(value);
+        if (isFieldCustom(fieldEl)) {
+            // A custom field posts its labels, so each value follows its label.
+            valueList = valueList.map((record) => ({
+                ...record,
+                id: isSmallInteger(record.display_name)
+                    ? parseInt(record.display_name)
+                    : record.display_name,
+            }));
+        }
         if (getSelect(fieldEl)) {
             valueList = valueList.filter(
                 (value) => value.id !== "" || value.display_name !== "",
