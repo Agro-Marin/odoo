@@ -233,6 +233,15 @@ class ApprovalBinding(models.Model):
         if not steps:
             return [self._get_button_flat_step(request, rows, decided, user, is_open)]
         assignment = request._get_step_assignment() if request else {}
+        company = (
+            request.company_id
+            or (
+                record.company_id
+                if record and "company_id" in record._fields
+                else False
+            )
+            or self.env.company
+        )
         return [
             {
                 "id": step.id,
@@ -241,7 +250,7 @@ class ApprovalBinding(models.Model):
                 "minimum": step.minimum,
                 "exclusive": step.exclusive,
                 "can_decide": is_open
-                and user.id in step._get_pool_user_ids(record)
+                and user.id in step._get_pool_user_ids(record, company)
                 and (not request or request._can_decide_step(step, user)),
                 "decisions": [
                     self._get_button_decision(row, request, user, step)

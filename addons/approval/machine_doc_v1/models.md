@@ -853,7 +853,7 @@ does not is left as it was.
 | `subject_user_path` | Char | Yes | No | string="Approvers From". A field path on the source document ending in `res.users` (e.g. `employee_id.leave_manager_id`): each document names its own approvers, who join the step's members. What a time off manager is, and neither a listed member nor a group can say |
 | `activity_type_id` | Many2one(`mail.activity.type`) | Yes | No | The activity this step's asked approvers get; empty uses `approval.mail_activity_data_approval` |
 | `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
-| `_get_member_user_ids(document)` / `_get_pool_user_ids(document)` | Listed members within their term plus the users the document names, who are asked; the pool adds the group's users, who may decide but are not asked. Every caller passes the request's source document, or the gated record on the approval button |
+| `_get_member_user_ids(document, company)` / `_get_pool_user_ids(document, company)` | Listed members within their term plus the users the document names, who are asked; the pool adds the group's users, who may decide but are not asked. Given a company, both keep only users allowed in it (`_filter_company_user_ids`), since an approver row belongs to its request's company. Every caller passes the request's source document and company, or on the approval button the gated record and the company its request is (or would be) raised in. `_get_managed_approver_user_ids` alone reads the pool unscoped, so a row whose user lost the company is still recognised as routing's own |
 | `_unlink_except_step_holding_decisions()` | A step some approver row decided under cannot be deleted; archive it |
 | `_check_pool()` | Fires on `user_ids` too, so an approvers list given without a group is checked after its inverse has created the members |
 
@@ -868,7 +868,7 @@ does not is left as it was.
 
 | Method | Purpose |
 |--------|---------|
-| `_get_pool_user_ids(document)` | Who may approve today: members whose `date_end` has not passed, the active users `subject_user_path` resolves to on the document (read under `sudo`), plus the group's users |
+| `_get_pool_user_ids(document, company)` | Who may approve today: members whose `date_end` has not passed, the active users `subject_user_path` resolves to on the document (read under `sudo`), plus the group's users -- of those, the ones whose `company_ids` include `company` when one is given |
 | `_get_source_user_ids(document)` | The users the path names on this document; empty for another model, no document, or no path. Confirm refuses a step whose document names nobody through `_check_steps_can_be_met` |
 | `_is_applicable_to_request(request)` | No condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
 

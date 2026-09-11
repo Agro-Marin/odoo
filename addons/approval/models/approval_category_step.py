@@ -191,14 +191,18 @@ class ApprovalCategoryStep(models.Model):
             ).unlink()
         self._check_pool()
 
-    def _get_member_user_ids(self, document=None) -> set[int]:
+    def _get_member_user_ids(self, document=None, company=None) -> set[int]:
         self.check_singleton()
         today = fields.Date.context_today(self)
-        return {
-            member.user_id.id
-            for member in self.member_ids
-            if not member.date_end or member.date_end >= today
-        } | self._get_source_user_ids(document)
+        return self._filter_company_user_ids(
+            {
+                member.user_id.id
+                for member in self.member_ids
+                if not member.date_end or member.date_end >= today
+            }
+            | self._get_source_user_ids(document),
+            company,
+        )
 
     def _get_source_user_ids(self, document) -> set[int]:
         self.check_singleton()
@@ -211,14 +215,26 @@ class ApprovalCategoryStep(models.Model):
         users = document.sudo().exists().mapped(self.subject_user_path)
         return set(users.filtered("active").ids)
 
-    def _get_pool_user_ids(self, document=None) -> set[int]:
+    def _get_pool_user_ids(self, document=None, company=None) -> set[int]:
         """Who may approve this step today: valid members, the users the document
-        names, and the group's users."""
+        names, and the group's users -- of those, the ones who work in `company`."""
         self.check_singleton()
-        users = self._get_member_user_ids(document)
+        users = self._get_member_user_ids(document, company)
         if self.group_id:
-            users.update(self.group_id.all_user_ids.ids)
+            users.update(
+                self._filter_company_user_ids(
+                    set(self.group_id.all_user_ids.ids), company
+                )
+            )
         return users
+
+    def _filter_company_user_ids(self, user_ids: set[int], company) -> set[int]:
+        """An approver row belongs to its request's company, so only a user allowed
+        in that company can hold one."""
+        if not company or not user_ids:
+            return user_ids
+        users = self.env["res.users"].sudo().browse(user_ids)
+        return set(users.filtered(lambda user: company in user.company_ids).ids)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_step_holding_decisions(self) -> None:

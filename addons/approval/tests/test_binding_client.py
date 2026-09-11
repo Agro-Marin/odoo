@@ -162,6 +162,44 @@ class TestApprovalBindingClient(common.TransactionCase):
         )
         self.assertEqual(result["steps"][0]["decisions"], [])
 
+    def test_the_button_offers_a_step_only_to_users_of_the_request_company(self):
+        company_b = self.env["res.company"].create({"name": "Client Company B"})
+        member_b = self._user("client_member_b")
+        member_b.write({"company_ids": [(4, company_b.id)], "company_id": company_b.id})
+        category = self.env["approval.category"].create(
+            {"name": "Client Company Steps", "approval_minimum": 1, "company_id": False}
+        )
+        first, _later = (
+            self.env["approval.category.step"].create(
+                {
+                    "category_id": category.id,
+                    "name": name,
+                    "sequence": sequence,
+                    "member_ids": [(0, 0, {"user_id": user.id}) for user in users],
+                }
+            )
+            for name, sequence, users in (
+                ("First", 10, member_b),
+                ("Later", 20, member_b | self.peer),
+            )
+        )
+        self._bind(category)
+        partner = self._partner()
+
+        self.Binding.with_user(member_b).with_company(company_b).action_decide_approval(
+            "res.partner", partner.id, "action_archive", False, True, first.id
+        )
+
+        request = self.env["approval.request"].search(
+            [("res_model", "=", "res.partner"), ("res_id", "=", partner.id)]
+        )
+        self.assertEqual(request.company_id, company_b)
+        self.assertNotIn(self.peer, request.approver_ids.user_id)
+        steps = {step["name"]: step for step in self._spec(partner, self.peer)["steps"]}
+        self.assertFalse(steps["Later"]["can_decide"])
+        steps = {step["name"]: step for step in self._spec(partner, member_b)["steps"]}
+        self.assertTrue(steps["Later"]["can_decide"])
+
     def test_the_button_decides_the_step_it_is_drawn_under(self):
         category = self.env["approval.category"].create(
             {"name": "Client Two Pools", "approval_minimum": 1}

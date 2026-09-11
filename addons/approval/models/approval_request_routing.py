@@ -69,7 +69,9 @@ class ApprovalRequestRouting(models.Model):
                     "minimum": step.minimum,
                     "exclusive": step.exclusive,
                     "group": step.group_id.name or False,
-                    "members": sorted(step._get_pool_user_ids(document)),
+                    "members": sorted(
+                        step._get_pool_user_ids(document, self.company_id)
+                    ),
                     "condition": step.subject_domain or False,
                     "source_user_path": step.subject_user_path or False,
                 }
@@ -640,7 +642,7 @@ class ApprovalRequestRouting(models.Model):
         if steps:
             document = self.get_source_document()
             for step in steps:
-                for user_id in step._get_pool_user_ids(document):
+                for user_id in step._get_pool_user_ids(document, self.company_id):
                     self._merge_approver_to_staging(
                         approver_staging, user_id, False, step.sequence
                     )

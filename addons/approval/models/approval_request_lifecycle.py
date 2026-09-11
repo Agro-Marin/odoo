@@ -889,7 +889,7 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         document = self.get_source_document()
         for step in steps:
-            pool = step._get_pool_user_ids(document)
+            pool = step._get_pool_user_ids(document, self.company_id)
             if len(pool) < step.minimum:
                 raise UserError(
                     self.env._(
