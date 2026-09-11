@@ -468,7 +468,7 @@
                         </div>
                         <div class="card-body col-md-10">
                             <a t-attf-href="/customers/#{slug(reference)}">
-                                <span t-field="reference.self" />
+                                <span t-out="reference.display_name" />
                             </a>
                             <t t-if="reference.primary_industry_id">
                                 <span class="badge ms-1 text-bg-secondary"><t t-out="reference.primary_industry_id.name" /></span>

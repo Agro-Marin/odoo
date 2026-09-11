@@ -35,7 +35,7 @@
                 <t t-if="contact_details">
                     <div class="o_wcrm_contact_details">
                         <div
-                            t-field="partner.self"
+                            t-out="partner"
                             t-options="{                         &quot;widget&quot;: &quot;contact&quot;,                         &quot;fields&quot;: [&quot;address&quot;, &quot;website&quot;, &quot;phone&quot;, &quot;email&quot;],                         &quot;with_microdata&quot;: True,                     }" />
                         <t t-out="left_column or ''" />
                     </div>

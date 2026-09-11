@@ -439,7 +439,7 @@
         inherit_id="website_crm_partner_assign.index">
         <xpath expr="//small[@id='o_wcrm_partners_address']" position="inside">
             <div
-                t-field="partner.self"
+                t-out="partner"
                 t-options="{                 'widget': 'contact',                 'fields': ['country_id']             }"
                 class="py-2" />
         </xpath>
@@ -493,7 +493,7 @@
                             t-options="{&quot;widget&quot;: &quot;image&quot;, &quot;qweb_img_responsive&quot;: False, &quot;class&quot;: &quot;img-fluid rounded mw-100&quot;}" />
                     </div>
                     <div class="card-body col-md-10">
-                        <span t-field="reference.self" />
+                        <span t-out="reference.display_name" />
                         <div t-field="reference.website_short_description" />
                     </div>
                 </div>
