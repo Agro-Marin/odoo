@@ -125,6 +125,12 @@ class ResUsers(models.Model):
     _description = "User"
     _inherits = {"res.partner": "partner_id"}
     _order = "name, login"
+    _display_name_column = "name"
+    _display_name_context_keys = (
+        "formatted_display_name",
+        "crm_formatted_display_name_team",
+    )
+    _display_name_search_exact = ("login",)
     _allow_sudo_commands = False
 
     @property

@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from odoo import models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessDenied, AccessError, UserError, ValidationError
 from odoo.fields import Command
@@ -2125,3 +2126,40 @@ class TestLoginPath(TransactionCase):
             admin_credential, {**agent, "base_location": "http://later.test"}
         )
         self.assertEqual(ICP.get_param("web.base.url"), "http://from-login.test")
+
+
+class TestUsersDisplayName(TransactionCase):
+    def test_name_is_the_display_name_without_context(self):
+        Users = self.env["res.users"].with_context({})
+        new_test_user(self.env, "dn_column_user", name="Column User")
+        for user in Users.with_context(active_test=False).search([]):
+            self.assertEqual(
+                user.display_name,
+                user.name,
+                "with no display context, display_name must be the declared column",
+            )
+        self.assertEqual(Users._display_name_column, "name")
+
+    def test_an_exact_login_takes_precedence_over_the_name_search(self):
+        Users = self.env["res.users"]
+        exact = new_test_user(self.env, "exact_login", name="Someone Else")
+        new_test_user(self.env, "other_login", name="exact_login by name")
+        self.assertEqual(Users._display_name_search_exact, ("login",))
+        self.assertEqual(
+            Users._search_display_name("ilike", "exact_login"),
+            [("id", "in", [exact.id])],
+        )
+        self.assertEqual(
+            Users._search_display_name("in", ["exact_login", "nobody"]),
+            [("id", "in", [exact.id])],
+        )
+        self.assertEqual(
+            Users._search_display_name("ilike", "by name"),
+            models.BaseModel._search_display_name(Users, "ilike", "by name"),
+            "without an exact login the default composition answers",
+        )
+        self.assertEqual(
+            Users._search_display_name("=", "exact_login"),
+            models.BaseModel._search_display_name(Users, "=", "exact_login"),
+            "precedence applies to 'in' and 'ilike' only",
+        )

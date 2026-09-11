@@ -63,6 +63,7 @@ class _ModelStubs:
         _display_name_column_guard: str | None
         _display_name_context_keys: tuple[str, ...]
         _display_name_search_default: bool
+        _display_name_search_exact: tuple[str, ...]
         _table_objects: dict
         _check_company_auto: bool
 

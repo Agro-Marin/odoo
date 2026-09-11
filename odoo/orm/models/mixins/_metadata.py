@@ -68,6 +68,10 @@ class _ModelMetadataMixin(_ModelStubs):
     # the model's _search_display_name is the default composition whenever the
     # context carries none of the keys above
     _display_name_search_default: bool = False
+    # stored fields whose exact match takes precedence in _search_display_name:
+    # for "in" / "ilike" with a value, rows matching one of them exactly are the
+    # whole answer when any exist, the default composition answers otherwise
+    _display_name_search_exact: tuple[str, ...] = ()
     _fold_name: str = "fold"
 
     _translate: bool = True
