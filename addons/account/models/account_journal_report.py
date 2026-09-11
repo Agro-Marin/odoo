@@ -376,7 +376,8 @@ class AccountJournalReportHandler(models.AbstractModel):
                 landscape=False,
                 specific_paperformat_args={
                     "data-report-margin-top": 10,
-                    "data-report-header-spacing": 10,
+                    "data-report-margin-left": 7,
+                    "data-report-margin-right": 7,
                     "data-report-margin-bottom": 15,
                 },
             )

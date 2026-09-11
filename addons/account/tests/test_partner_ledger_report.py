@@ -998,6 +998,51 @@ class TestPartnerLedgerReport(TestAccountReportsCommon):
             )
         )
 
+    def test_print_drops_amount_currency_col_without_foreign_currency_lines(self):
+        self.assertGreater(len(self.env["res.currency"].search([])), 1)
+        eur_currency = self.env.ref("base.EUR")
+        eur_currency.active = True
+        partner = self.env["res.partner"].create({"name": "Single Currency Partner"})
+
+        self.init_invoice(
+            "out_invoice",
+            partner=partner,
+            invoice_date="2024-03-01",
+            amounts=[1000.0],
+            taxes=[],
+            post=True,
+        )
+
+        def has_amount_currency_col(export_mode):
+            options = self._generate_options(
+                self.report,
+                "2024-01-01",
+                "2024-12-31",
+                default_options={
+                    "partner_ids": partner.ids,
+                    "export_mode": export_mode,
+                },
+            )
+            return any(
+                col["expression_label"] == "amount_currency"
+                for col in options["columns"]
+            )
+
+        self.assertTrue(has_amount_currency_col(None))
+        self.assertFalse(has_amount_currency_col("print"))
+
+        self.init_invoice(
+            "out_invoice",
+            partner=partner,
+            invoice_date="2024-03-02",
+            amounts=[1000.0],
+            taxes=[],
+            currency=eur_currency,
+            post=True,
+        )
+
+        self.assertTrue(has_amount_currency_col("print"))
+
     def test_partner_ledger_fully_reconcile_previous_year(self):
         """
         A partner with a zero balance whose journal items all predate the report period is

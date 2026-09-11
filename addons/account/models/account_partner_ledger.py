@@ -202,7 +202,10 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
 
         options["forced_domain"] = options.get("forced_domain", []) + domain
 
-        if self.env.user.has_group("base.group_multi_currency"):
+        if self.env.user.has_group("base.group_multi_currency") and (
+            options["export_mode"] != "print"
+            or self._has_foreign_currency_lines(report, options)
+        ):
             options["multi_currency"] = True
         else:
             options["columns"] = [
@@ -220,6 +223,16 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                 "AccountReportLineName": "account.PartnerLedgerLineName",
             },
         }
+
+    def _has_foreign_currency_lines(self, report, options):
+        # The Amount Currency column is only filled for lines whose currency differs
+        # from the company's: _get_query_sums returns NULL as soon as they match. A
+        # printed scope with none of them carries the column as blank width, which
+        # on a landscape letter sheet pushes Balance past the printable area.
+        domain = report._get_domain_options(options, "from_beginning") & Domain(
+            "currency_id", "!=", self.env.company.currency_id.id
+        )
+        return bool(self.env["account.move.line"].search_count(domain, limit=1))
 
     def _custom_unfold_all_batch_data_generator(
         self, report, options, lines_to_expand_by_function
