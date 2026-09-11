@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import Command, fields
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 from odoo.tools.misc import ReadonlyDict
 from odoo.tools.translate import CodeTranslations
@@ -1587,6 +1587,36 @@ class TestAccountReturn(TestAccountReportsCommon):
         )
 
         self.assertEqual(len(audits), 2)
+
+    def test_check_action_expression_context(self):
+        company = self.env.company
+        check = self.env["account.return.check"]
+        context = {
+            "company_id": company.id,
+            "ref": lambda xml_id: self.env.ref(xml_id).id,
+        }
+
+        action_domain = check._parse_expression(
+            "[('company_id', '=', company_id), ('currency_id', '=', ref('base.USD'))]",
+            context,
+        )
+
+        self.assertEqual(
+            action_domain,
+            [
+                ("company_id", "=", company.id),
+                ("currency_id", "=", self.env.ref("base.USD").id),
+            ],
+        )
+
+    def test_check_action_expression_invalid(self):
+        check = self.env["account.return.check"]
+
+        with self.assertRaisesRegex(ValidationError, "Invalid code"):
+            check._parse_expression("[", {})
+        for expression in ("unknown_helper()", "company_id.real()", "(lambda: 1)()"):
+            with self.subTest(expression=expression), self.assertRaises(ValueError):
+                check._parse_expression(expression, {})
 
     def test_account_return_check_template_basic(self):
         # 1. Create audit return type

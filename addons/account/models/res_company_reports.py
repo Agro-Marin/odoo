@@ -4,7 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 
-from ..models.account_return import PERIODS
+from .account_return_type import PERIODS
 
 
 class ResCompany(models.Model):

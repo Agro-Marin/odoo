@@ -133,7 +133,10 @@ from . import balance_sheet
 from . import account_fiscal_position_reports
 from . import account_customer_statement
 from . import account_followup_report
+from . import account_return_type
 from . import account_return
+from . import account_return_check_template
+from . import account_return_check
 from . import mail_activity
 from . import mail_message_reports
 from . import mail_scheduled_message
