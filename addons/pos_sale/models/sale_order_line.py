@@ -147,7 +147,10 @@ class SaleOrderLine(models.Model):
                 product_uom_id = sale_line.product_id.uom_id
                 sale_line_uom = sale_line.product_uom_id
                 item = sale_line.read(field_names, load=False)[0]
-                if sale_line.product_id.tracking != "none":
+                if (
+                    sale_line.product_id.tracking != "none"
+                    and "move_ids" in sale_line._fields
+                ):
                     move_lines = sale_line.move_ids.move_line_ids.filtered(
                         lambda ml, sale_line=sale_line: (
                             ml.product_id.id == sale_line.product_id.id
