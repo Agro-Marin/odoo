@@ -385,6 +385,7 @@ class ApprovalApprover(models.Model):
                     "res_model_id": model_id,
                     "res_id": key[0],
                     "user_id": key[1],
+                    "approver_id": approver.id,
                 },
             )
         if create_vals_list:

@@ -675,6 +675,7 @@ class ApprovalRequestEscalation(models.Model):
                 self.activity_schedule(
                     "approval.mail_activity_data_approval",
                     user_id=effective_user.id,
+                    approver_id=approver.id,
                     summary=self.env._("Approval Reminder: %(name)s", name=self.name),
                     note=reminder_note,
                 )

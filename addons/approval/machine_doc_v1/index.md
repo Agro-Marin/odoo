@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.1.8.0 (matches `__manifest__.py`) |
+| Version | 19.0.1.9.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `automation`, `mixin_report_sql`, `mail` |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -60,7 +60,7 @@ dashboards.
 | `approval_document_requirement.py` | `approval.document.requirement` | Required document types per category. A LABEL model since 19.0.1.0.23: the confirm-time check reads `ir.attachment.approval_requirement_id`, not the file name |
 | `approval_utils.py` | — (no model) | Module-level helpers shared across the split files: `is_approval_manager(env)` and `boolean_search_domain()` (the `search=` builder behind `is_overdue`, `is_delegated`, `is_pending_my_review`) |
 | `ir_attachment.py` | extends `ir.attachment` | `approval_requirement_id` — which required document a file IS — and blocks deletion of attachments on finalized requests |
-| `mail_activity.py` | extends `mail.activity` | Adds approval_request_id and approver_id computed fields; an approval activity marked done by its approver approves |
+| `mail_activity.py` | extends `mail.activity` | Stores `approver_id`, the approver row an approval activity asks, and derives `approval_request_id` from it; an approval activity marked done by its row's effective approver approves, on the request or on the document |
 | `mail_activity_type.py` | extends `mail.activity.type` | Registers approval activity type metadata |
 | `models.py` | extends `base` | `get_views` flags every related model that has a Block or Request binding (`has_approval_bindings`) |
 | `res_groups.py` | extends `res.groups` | Drops the escalation-manager memo when group membership moves from the GROUP side |
@@ -88,6 +88,7 @@ dashboards.
 |------|---------------|
 | `common.py` | `ApprovalCommon` base class (shared users/category/request fixtures) + product helpers |
 | `test_activity_done.py` | An approval activity marked done: by its approver it approves, by anyone else or the system it only dismisses, and an approval that cannot be recorded leaves it open |
+| `test_activity_link.py` | An approval activity stores its approver row: engine activities store it, an activity on the document approves when done and goes with its request, and a delegator's old activity decides nothing |
 | `test_approvals.py` | Core approval lifecycle, state transitions (`TestRequest`) |
 | `test_approver_computation.py` | _sync_approvers, category changes, band matching |
 | `test_sequential_approval.py` | Sequential workflow, ordering, locking |
@@ -221,8 +222,8 @@ approval/
 |   +-- approver_performance.py       # SQL view: approver stats
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 20 script directories (1.0.1 .. 1.8)
-+-- tests/                            # 41 test modules + common.py
++-- migrations/                       # 21 script directories (1.0.1 .. 1.8)
++-- tests/                            # 42 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -235,7 +236,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
-| Python test files | 41 (+ `common.py`) |
+| Python test files | 42 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 16 |
@@ -247,7 +248,7 @@ approval/
 | Transient models | 2 |
 | Test-only models | 1 |
 | Cron jobs | 3 |
-| Migration script directories | 20 |
+| Migration script directories | 21 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'

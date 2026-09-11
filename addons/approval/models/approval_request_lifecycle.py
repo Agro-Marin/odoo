@@ -1067,23 +1067,24 @@ class ApprovalRequestLifecycle(models.Model):
         Unlinked, not marked done: their approver decided nothing.
         """
         self.check_singleton()
-        activity_type = self.env.ref("approval.mail_activity_data_approval")
-        stale = self.activity_ids.filtered(
+        stale = self._get_approval_activities().filtered(
             lambda activity: (
-                activity.activity_type_id == activity_type
-                and activity.approver_id.state == "pending"
+                activity.approver_id.state == "pending"
                 and activity.approver_id.step_ids
                 and not activity.approver_id._is_notifiable()
             )
         )
         stale.sudo().unlink()
 
+    def _get_approval_activities(self, user: Any = None) -> Any:
+        """The approval activities asking this request's approvers, wherever they live."""
+        domain = [("approver_id.request_id", "in", self.ids)]
+        if user:
+            domain.append(("user_id", "=", user.id))
+        return self.env["mail.activity"].sudo().search(domain)
+
     def _cancel_activities(self) -> None:
-        approval_activity = self.env.ref("approval.mail_activity_data_approval")
-        activities = self.activity_ids.filtered(
-            lambda a: a.activity_type_id == approval_activity,
-        )
-        activities.sudo().unlink()
+        self._get_approval_activities().unlink()
 
     def _get_request_activities(self, activity_xmlid: str, user: Any = None) -> Any:
         domain = [
@@ -1096,9 +1097,7 @@ class ApprovalRequestLifecycle(models.Model):
         return self.env["mail.activity"].search(domain)
 
     def _get_user_approval_activities(self, user: Any) -> Any:
-        return self._get_request_activities(
-            "approval.mail_activity_data_approval", user=user
-        )
+        return self._get_approval_activities(user=user)
 
     def _get_change_request_activities(self) -> Any:
         return self._get_request_activities(

@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 02:35+0000\n"
-"PO-Revision-Date: 2026-09-11 02:35+0000\n"
+"POT-Creation-Date: 2026-09-11 02:55+0000\n"
+"PO-Revision-Date: 2026-09-11 02:55+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -5642,6 +5642,14 @@ msgid ""
 "The approver record making this decision. Empty in batch mode, where "
 "request_ids carries the targets and each request resolves its own pending "
 "row for the current user."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_mail_activity__approver_id
+msgid ""
+"The approver row this activity asks. Stored when the engine creates the "
+"activity, so the activity is an approval wherever it lives -- on the request"
+" or on the document it approves."
 msgstr ""
 
 #. module: approval

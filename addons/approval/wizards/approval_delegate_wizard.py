@@ -247,6 +247,7 @@ class ApprovalDelegateWizard(models.TransientModel):
             request.activity_schedule(
                 "approval.mail_activity_data_approval",
                 user_id=self.delegate_id.id,
+                approver_id=approver.id,
                 summary=self.env._("Delegated Approval: %s", request.name),
                 note=self.env._(
                     "<p>%(user)s has delegated their approval to you for this request.</p>"

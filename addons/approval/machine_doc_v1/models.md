@@ -80,8 +80,8 @@ approval.dashboard (Singleton)
     +-- most_pending_approver_id -> res.users
 
 mail.activity (extended)
-    +-- approval_request_id -> approval.request (computed)
-    +-- approver_id -------> approval.approver (computed)
+    +-- approval_request_id -> approval.request (computed from approver_id)
+    +-- approver_id -------> approval.approver (stored)
 ```
 
 **Product lines are NOT part of this module.** `approval.request.line`,
@@ -371,6 +371,7 @@ requester re-submits (`action_resubmit`).
 | `_compute_desired_approvers()` | routing.py | Pure decision step of the sync (no writes, unit-testable); returns a `DesiredApprovers` dataclass |
 | `_force_terminal()` | lifecycle.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
 | `_revoke(new_state, body, ...)` | lifecycle.py | Overturns an **approved** request into `refused` or `cancelled` from outside its decisions (a validated leave refused by an officer): writes `revoked_state`, stamps the refusal metadata, cancels activities, notifies the source document once, runs `_refuse_approval_request()` for a refusal. Every approver row keeps its decision. A non-approved request raises `UserError`; `approved` as the target raises `ValueError` |
+| `_get_approval_activities(user=None)` | lifecycle.py | The approval activities asking this request's approvers, found through `mail.activity.approver_id` wherever they live. `_cancel_activities`, `_retire_unasked_approval_activities` and `_get_user_approval_activities` all read it |
 | `_notify_if_terminal_transition()` | lifecycle.py | Fire source-doc hook once on entering a terminal state |
 | `_get_notifiable_source_document()` | lifecycle.py | The adopting document to tell, or None: registry, `mixin.approval` and two-way-link checks; returned under `sudo()` with `approval_acting_user_id` |
 | `_notify_source_document_progress()` | lifecycle.py | Calls the document's `_on_approval_progress()` after an approval that met a step while the request stays pending |
@@ -1161,10 +1162,10 @@ is computed and non-stored, recalculated per read.
 
 | File | `models/mail_activity.py` |
 |------|--------------------------|
-| Fields | `approval_request_id` (compute+search), `approver_id` (compute) |
+| Fields | `approver_id` (stored Many2one, indexed, ondelete cascade: the row the activity asks, written by `approval.approver._create_activity`, the delegation wizard and escalation reminders), `approval_request_id` (compute from `approver_id`, searched through it) |
 | Method | `_to_store_defaults()` adds approver state to Store |
 
-`_action_done` asks `_get_answering_approvers` which rows the activities approve: an approval activity marked done by the user it was asked of approves that user's pending row through `approval.approver.action_approve`. Anyone else, the system included, only dismisses it. The done runs first and the approval after it, both inside one savepoint: the feedback given with the activity is posted (approving first let the decision close the activity without it), and a decision that cannot be recorded raises and rolls the done back, so the activity stays open.
+`_action_done` asks `_get_answering_approvers` which rows the activities approve: an approval activity -- one with an `approver_id`, wherever it lives, on the request or on the document -- marked done by the user it was asked of approves that row through `approval.approver.action_approve`, provided that user is still the row's effective approver: after a delegation the delegator's old activity decides nothing. Anyone else, the system included, only dismisses it. The done runs first and the approval after it, both inside one savepoint: the feedback given with the activity is posted (approving first let the decision close the activity without it), and a decision that cannot be recorded raises and rolls the done back, so the activity stays open.
 
 ### mail.activity.type (extended)
 
