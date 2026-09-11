@@ -490,6 +490,10 @@ class MixinApproval(models.AbstractModel):
                 message_type="notification",
             )
 
+    def _on_approval_progress(self) -> None:
+        """A decision met a step of this document's request, which is still pending."""
+        self.check_singleton()
+
     def _on_approval_approved(self) -> None:
         self.check_singleton()
         self.message_post(

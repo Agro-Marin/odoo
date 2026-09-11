@@ -42,6 +42,10 @@ class ApprovalTestDocument(models.Model):
     last_approval_state = fields.Char(
         help="Records the last state received by _on_approval_state_changed",
     )
+    progress_call_count = fields.Integer(
+        default=0,
+        help="How many times _on_approval_progress was called",
+    )
     test_category_id = fields.Many2one(
         comodel_name="approval.category",
         help="Category to use for approval (for testing)",
@@ -91,3 +95,6 @@ class ApprovalTestDocument(models.Model):
             self.sudo().state = "rejected"
 
         super()._on_approval_state_changed(new_state)
+
+    def _on_approval_progress(self) -> None:
+        self.sudo().progress_call_count += 1

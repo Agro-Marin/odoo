@@ -6,4 +6,5 @@ from . import (
     test_document_is_not_reachable,
     test_rate_limit,
     test_source_document,
+    test_step_progress,
 )

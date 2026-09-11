@@ -550,6 +550,17 @@ refusal learns its request is live again; the base `_on_approval_reset`
 says the prior approval no longer holds only when that state was
 `approved`, and otherwise that the request can be submitted again.
 
+Between those outcomes the document also hears **progress**. After an approval that
+meets at least one step and leaves the request `pending`, `_apply_decision` calls the
+source document's `_on_approval_progress()` (a no-op on `mixin.approval`). It compares
+the request's unmet steps before and after the decision, so a decision that meets no
+step reports nothing, a refusal reports nothing, and the final approval reports its
+outcome through the terminal notification instead. A double-validation leave uses it
+to move to its intermediate state however the manager step was approved. Both
+notifications find the document through `_get_notifiable_source_document()`, which
+holds the registry, `mixin.approval` and two-way-link checks and returns it under
+`sudo()` with `approval_acting_user_id`.
+
 ---
 
 ## Banded and Conditional Routing
@@ -789,6 +800,7 @@ and `has_product` now live in `approval_product`, which depends on
 | `_can_consent_approve()` | Veto consent auto-approval | approval_account |
 | `_refuse_approval_request()` | Cooperative rollback of documents created from the approval | account / purchase / sale satellites |
 | `_on_approval_approved()` / `_on_approval_refused()` / `_on_approval_cancelled()` / `_on_approval_revoked()` / `_on_approval_reset()` | React to one transition in source documents. Omit `super()` when your message replaces the base's generic note. Put any document-advancing call inside `_approval_side_effect()` — the hook runs inside the approver's transaction and that helper carries the savepoint, catch and chatter note | account / sale / purchase / stock / rma / credit_management_approval |
+| `_on_approval_progress()` | React to a step of the request being met while it stays pending -- the intermediate state of a multi-step document workflow. No-op on the mixin | hr_holidays (time off validate1) |
 | `_on_approval_state_changed()` | The dispatcher. **Do not override** — it exists to route to the per-transition hooks above | Base only |
 | `_get_domain_approval_category()` | Which categories are candidates for this document type | Any mixin consumer |
 | `approval.category._is_applicable_for(document)` | Whether a candidate category matches this document. Fail-closed when criteria exist; fall through to `super()` for foreign documents | account / sale / purchase / stock / maintenance |

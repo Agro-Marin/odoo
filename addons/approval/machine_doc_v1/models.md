@@ -372,6 +372,8 @@ requester re-submits (`action_resubmit`).
 | `_force_terminal()` | lifecycle.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
 | `_revoke(new_state, body, ...)` | lifecycle.py | Overturns an **approved** request into `refused` or `cancelled` from outside its decisions (a validated leave refused by an officer): writes `revoked_state`, stamps the refusal metadata, cancels activities, notifies the source document once, runs `_refuse_approval_request()` for a refusal. Every approver row keeps its decision. A non-approved request raises `UserError`; `approved` as the target raises `ValueError` |
 | `_notify_if_terminal_transition()` | lifecycle.py | Fire source-doc hook once on entering a terminal state |
+| `_get_notifiable_source_document()` | lifecycle.py | The adopting document to tell, or None: registry, `mixin.approval` and two-way-link checks; returned under `sudo()` with `approval_acting_user_id` |
+| `_notify_source_document_progress()` | lifecycle.py | Calls the document's `_on_approval_progress()` after an approval that met a step while the request stays pending |
 | `_lock_for_approval_action()` | lifecycle.py | SELECT FOR UPDATE to prevent race conditions |
 | `_update_next_approvers_state()` | lifecycle.py | Sequential propagation; anchors on min (sequence,id) of the acting rows; never re-promotes terminal rows |
 | `_check_auto_action_rules()` | routing.py | Auto-approve/refuse rules; auto-refuse stamps `refusal_reason_auto_rule` metadata |

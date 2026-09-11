@@ -142,6 +142,9 @@ class ApprovalRequestLifecycle(models.Model):
                 ),
             )
         old_state = self.state
+        unmet_before = (
+            set(self._get_unmet_steps().ids) if self.approver_ids.step_ids else None
+        )
         if not isinstance(approver, models.BaseModel):
             candidate = self.approver_ids.filtered(
                 lambda a: a._get_effective_approver() == self.env.user,
@@ -252,6 +255,13 @@ class ApprovalRequestLifecycle(models.Model):
                 lambda a: a.state == "pending",
             ).write({"state": "waiting"})
         self._notify_if_terminal_transition(old_state)
+        if (
+            unmet_before is not None
+            and decision == "approve"
+            and self.state == "pending"
+            and set(self._get_unmet_steps().ids) < unmet_before
+        ):
+            self._notify_source_document_progress()
         self._log_cycle("decide", decision=decision, actor=acting_user.login)
         if decision == "refuse" and self.state == "refused":
             self._refuse_approval_request()
@@ -1243,11 +1253,15 @@ class ApprovalRequestLifecycle(models.Model):
             return
         request.binding_id._replay(request)
 
-    def _notify_source_document_state_change(self, new_state: str) -> None:
+    def _get_notifiable_source_document(self):
+        """The adopting document to tell about this request, or None.
+
+        Only a mixin.approval document that references this request back is told, so
+        a stale res_id cannot drive a foreign record's workflow.
+        """
         self.check_singleton()
         if not self.res_model or not self.res_id:
-            return
-
+            return None
         try:
             source_doc = self.env[self.res_model].browse(self.res_id)
             mixin_cls = self.env.registry["mixin.approval"]
@@ -1256,9 +1270,9 @@ class ApprovalRequestLifecycle(models.Model):
                 "Source model %s not in registry; skipping approval state notification",
                 self.res_model,
             )
-            return
+            return None
         if not isinstance(source_doc, mixin_cls):
-            return
+            return None
         if source_doc.approval_request_id != self:
             _logger.warning(
                 "Approval request %s points at %s#%s but that document does "
@@ -1267,14 +1281,33 @@ class ApprovalRequestLifecycle(models.Model):
                 self.res_model,
                 self.res_id,
             )
+            return None
+        return source_doc.sudo().with_context(approval_acting_user_id=self.env.uid)
+
+    def _notify_source_document_state_change(self, new_state: str) -> None:
+        self.check_singleton()
+        source_doc = self._get_notifiable_source_document()
+        if source_doc is None:
             return
         try:
-            source_doc.sudo().with_context(
-                approval_acting_user_id=self.env.uid,
-            )._on_approval_state_changed(new_state)
+            source_doc._on_approval_state_changed(new_state)
         except MissingError:
             _logger.debug(
                 "Could not notify source document %s#%s of approval state change",
+                self.res_model,
+                self.res_id,
+            )
+
+    def _notify_source_document_progress(self) -> None:
+        self.check_singleton()
+        source_doc = self._get_notifiable_source_document()
+        if source_doc is None:
+            return
+        try:
+            source_doc._on_approval_progress()
+        except MissingError:
+            _logger.debug(
+                "Could not notify source document %s#%s of approval progress",
                 self.res_model,
                 self.res_id,
             )
