@@ -10,6 +10,17 @@ from odoo.addons.account_payment_provider.tests.common import AccountPaymentComm
 
 @tagged("-at_install", "post_install")
 class TestAccountPayment(AccountPaymentCommon):
+    def test_cancelled_invoice_rejects_payment_initiation(self):
+        invoice = self.misc_entry
+        invoice.action_cancel()
+        for flow in ("direct", "redirect", "token"):
+            with self.subTest(flow=flow):
+                with self.assertRaises(ValidationError), self.cr.savepoint():
+                    self._create_transaction(
+                        flow, invoice_ids=[Command.set(invoice.ids)]
+                    )
+        self.assertFalse(invoice.transaction_ids)
+
     def test_no_amount_available_for_refund_when_no_tx(self):
         payment = self.env["account.payment"].create({"amount": 10})
         self.assertEqual(

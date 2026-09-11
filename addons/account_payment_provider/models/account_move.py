@@ -1,7 +1,7 @@
 import base64
 
 from odoo import api, fields, models
-from odoo.tools import format_date, str2bool
+from odoo.tools import SQL, format_date, str2bool
 from odoo.tools.image import image_data_uri
 from odoo.tools.translate import _
 
@@ -10,6 +10,30 @@ from odoo.addons.payment import utils as payment_utils
 
 class AccountMove(models.Model):
     _inherit = "account.move"
+
+    def _lock_for_payment(self):
+        """Serialize payment initiation and cancellation, including stale snapshots.
+
+        A row lock alone cannot make a repeatable-read snapshot observe a newly
+        linked transaction. Updating the owner row forces that contender to retry.
+        """
+        if not self:
+            return
+        self.flush_recordset()
+        self.env.cr.execute(
+            SQL(
+                """
+            WITH locked AS MATERIALIZED (
+                SELECT id FROM account_move
+                WHERE id = ANY(%s) ORDER BY id FOR NO KEY UPDATE
+            )
+            UPDATE account_move AS invoice SET write_date = invoice.write_date
+            FROM locked WHERE invoice.id = locked.id
+            """,
+                self.ids,
+            )
+        )
+        self.invalidate_recordset(["state", "transaction_ids"])
 
     transaction_ids = fields.Many2many(
         string="Transactions",

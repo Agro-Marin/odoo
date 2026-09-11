@@ -1,8 +1,20 @@
 from odoo import SUPERUSER_ID, _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class PaymentTransaction(models.Model):
     _inherit = "payment.transaction"
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        transactions = super().create(vals_list)
+        invoices = transactions.filtered(
+            lambda tx: tx.operation not in ("refund", "validation")
+        ).invoice_ids
+        invoices._lock_for_payment()
+        if any(invoice.state == "cancel" for invoice in invoices):
+            raise ValidationError(_("You cannot pay a cancelled invoice."))
+        return transactions
 
     # The edge is stored once, on `account.payment.transaction_id`, and a partial
     # unique index there makes the one-to-one real rather than asserted in a

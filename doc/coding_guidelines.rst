@@ -1291,7 +1291,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   330
 §2.4.2   … of those, spelled ``_check_<field>``                        146
 §2.4.2   Multi-field constraints named for one trigger                  62
-§2.4.3   Non-test methods declared on a model class                 27,485
+§2.4.3   Non-test methods declared on a model class                 27,487
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               105
 §2.4.4   Model methods with an abolished verb behind a noun            171
