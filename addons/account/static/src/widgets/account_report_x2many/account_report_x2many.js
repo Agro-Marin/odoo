@@ -28,6 +28,7 @@ export class AccountReportListRenderer extends ListRenderer {
         this.keyOptionalFields = `optional_fields,${this.createViewKey()}`;
         this.optionalActiveFields = this.computeOptionalActiveFields();
         this.columns = this.getActiveColumns();
+        this.visibleOptionalColumns = this.getVisibleOptionalColumns();
 
         this.props.list.config.orderBy = [
             {
@@ -56,6 +57,7 @@ export class AccountReportListRenderer extends ListRenderer {
                 this.props.list,
             );
             this.columns = this.getActiveColumns();
+            this.visibleOptionalColumns = this.getVisibleOptionalColumns();
         });
     }
 
