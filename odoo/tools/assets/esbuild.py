@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path
 from typing import NamedTuple
 
@@ -220,6 +220,7 @@ class EsbuildCompiler:
         addon_flags_provider: Callable[[Path], tuple[list[str], list[str]]]
         | None = None,
         exported_specs: Collection[str] | None = None,
+        registered_reach: Mapping[str, str] | None = None,
     ) -> None:
         self.name = name
         self.native_modules = list(native_modules)
@@ -230,6 +231,7 @@ class EsbuildCompiler:
         self._exported_specs = (
             None if exported_specs is None else frozenset(exported_specs)
         )
+        self._registered_reach = dict(registered_reach or {})
         self._addon_flags_provider = (
             addon_flags_provider or self._get_esbuild_addon_flags
         )
@@ -561,6 +563,19 @@ class EsbuildCompiler:
             source_maps = ""
         return timeout_s, target, source_maps
 
+    @staticmethod
+    def _reached_module_path(url: str, odoo_root: Path) -> str | None:
+        from odoo.tools.misc import file_path
+
+        rel = url.lstrip("/")
+        for candidate in (rel, rel.removesuffix(".js") + "/index.js"):
+            try:
+                path = file_path(candidate)
+            except ValueError, FileNotFoundError:
+                continue
+            return "./" + os.path.relpath(path, odoo_root)
+        return None
+
     def _standalone_alias_flags(
         self, odoo_root: Path, already_aliased: set[str]
     ) -> list[str]:
@@ -622,6 +637,15 @@ class EsbuildCompiler:
             for name in names:
                 register_entries.append(f"  {json.dumps(name)}: __m{i}")
                 registered_specs.add(name)
+        for i, (spec, url) in enumerate(sorted(self._registered_reach.items())):
+            if spec in registered_specs:
+                continue
+            path = self._reached_module_path(url, odoo_root)
+            if path is None:
+                continue
+            entry_lines.append(f"import * as __r{i} from {json.dumps(path)};")
+            register_entries.append(f"  {json.dumps(spec)}: __r{i}")
+            registered_specs.add(spec)
 
         if self._standalone:
             entry_lines.append("if (globalThis.odoo?.loader?.registerNativeModules) {")

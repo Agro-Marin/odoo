@@ -81,6 +81,7 @@ def _pipeline_fingerprint() -> str:
     for source in _pipeline_sources():
         if source.is_dir():
             files.extend(source.glob("*.py"))
+            files.extend(source.glob("js/*.mjs"))
         elif source.is_file():
             files.append(source)
         else:

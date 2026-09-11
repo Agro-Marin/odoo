@@ -345,7 +345,9 @@ class AssetsBundle:
         return EsbuildCompiler._get_esbuild_addon_flags(odoo_root)
 
     def _prepare_esbuild_compiler(
-        self, exported_specs: Collection[str] | None = None
+        self,
+        exported_specs: Collection[str] | None = None,
+        registered_reach: Mapping[str, str] | None = None,
     ) -> EsbuildCompiler:
         registry = esm_registry()
         return EsbuildCompiler(
@@ -357,6 +359,7 @@ class AssetsBundle:
             standalone=self.name in registry.standalone_bundles,
             addon_flags_provider=self._get_esbuild_addon_flags,
             exported_specs=exported_specs,
+            registered_reach=registered_reach,
         )
 
     def esbuild_native_bundle(
@@ -367,8 +370,9 @@ class AssetsBundle:
         dynamic_child_specs: frozenset[str] | None = None,
         secondary_parent_stubs: dict[str, str] | None = None,
         exported_specs: Collection[str] | None = None,
+        registered_reach: Mapping[str, str] | None = None,
     ) -> EsbuildResult:
-        return self._prepare_esbuild_compiler(exported_specs).compile(
+        return self._prepare_esbuild_compiler(exported_specs, registered_reach).compile(
             timeout_s=timeout_s,
             target=target,
             source_maps=source_maps,

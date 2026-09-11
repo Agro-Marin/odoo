@@ -261,6 +261,34 @@ class TestBridgeShimSources(TransactionCase):
         self.assertEqual(discovered["@web/core/c"], set())
         self.assertEqual(ext_seen, set())
 
+    def test_a_re_export_is_an_edge_esbuild_follows_so_it_is_bridged(self):
+        modules = [
+            _Mod("@a/facade", 'export { x } from "@web/core/a";\n'),
+            _Mod("@a/star", 'export * from "@web/core/b";\n'),
+            _Mod("@a/dflt", 'export { default } from "@web/core/c";\n'),
+        ]
+        discovered, _ext = self._manager()._discover_bridge_specifiers(
+            set(), set(), modules=modules
+        )
+        self.assertEqual(discovered["@web/core/a"], set())
+        self.assertEqual(discovered["@web/core/b"], {"__star__"})
+        self.assertEqual(discovered["@web/core/c"], {"__default__"})
+
+    def test_the_reach_walks_through_a_facade_the_page_does_not_provide(self):
+        modules = [
+            _Mod("@a/one", 'import { actionService } from "@web/webclient/actions";\n')
+        ]
+        provided = {"@web/core/registry", "@web/core/browser/router"}
+        direct, _ext = self._manager()._discover_bridge_specifiers(
+            set(), set(), modules=modules
+        )
+        reached, _ext = self._manager()._discover_reachable_specifiers(
+            set(), set(), provided=provided, modules=modules
+        )
+        self.assertEqual(set(direct), {"@web/webclient/actions"})
+        self.assertIn("@web/webclient/actions/action_service", reached)
+        self.assertLessEqual(provided, set(reached))
+
     def test_a_bundle_member_is_not_bridged_to_itself(self):
         modules = [_Mod("@a/one", 'import { x } from "@a/two";\n')]
         discovered, _ext = self._manager()._discover_bridge_specifiers(

@@ -243,6 +243,40 @@ class TestEsmRegistryInstallationScope(TransactionCase):
             )
 
 
+class TestSatelliteReachIsProvidedToRuntimeChildren(TransactionCase):
+    PARENT = "web.assets_frontend"
+    SATELLITE = "web.assets_tests"
+
+    def test_what_the_satellite_registers_is_what_the_group_stubs(self):
+        q = self.env["ir.qweb"]
+        params = q.env["ir.asset"]._prepare_assets_params()
+        if self.SATELLITE not in esm_registry().secondary_import_map_includes.get(
+            self.PARENT, ()
+        ):
+            self.skipTest("the satellite is not declared under the parent")
+        inlined = q._get_secondary_inlined_reach(
+            self.SATELLITE, params, page_scope=(self.PARENT,)
+        )
+        if not inlined:
+            self.skipTest("the satellite reaches nothing the page lacks")
+        page = set(
+            q._get_asset_bundle(
+                self.PARENT,
+                js=True,
+                css=False,
+                debug_assets=False,
+                assets_params=params,
+            ).get_native_module_data(with_bridges=False)["import_map"]
+        )
+        self.assertTrue(set(inlined).isdisjoint(page), "the page already carries it")
+        without = q._get_runtime_parent_specs((self.PARENT,), params, False)
+        with_satellites = q._get_runtime_parent_specs((self.PARENT,), params, True)
+        self.assertTrue(set(inlined).isdisjoint(without))
+        self.assertLessEqual(set(inlined), with_satellites)
+        for spec, url in inlined.items():
+            self.assertTrue(url.startswith("/") and url.endswith(".js"), (spec, url))
+
+
 class TestSecondarySingletonSurface(TransactionCase):
     BUNDLE = "web.assets_tests"
     PARENT = "web.assets_web"

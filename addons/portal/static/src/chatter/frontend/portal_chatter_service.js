@@ -2,7 +2,6 @@
 import { loadCssFromBundle } from "@mail/utils/common/misc";
 import { App } from "@odoo/owl";
 import { PortalChatter } from "@portal/chatter/frontend/portal_chatter";
-import { reportUncaught } from "@web/core/errors/error_utils";
 import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
@@ -90,8 +89,7 @@ export const portalChatterService = {
             if (error instanceof ConnectionLostError) {
                 // the connection handlers own a lost or cut transport; a
                 // request interrupted by navigating away is the usual one
-                reportUncaught(error);
-                return;
+                throw error;
             }
             console.error("Portal chatter failed to initialize", error);
         });

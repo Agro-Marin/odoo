@@ -4,7 +4,10 @@ from typing import Any
 
 from odoo import models
 from odoo.libs.asset_log import get_asset_logger, log_event
-from odoo.tools.assets.esm_graph import discover_transitive_import_specifiers
+from odoo.tools.assets.esm_graph import (
+    discover_transitive_import_specifiers,
+    resolve_specifier_url,
+)
 from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.assets.nodes import AssetNode
 
@@ -130,18 +133,18 @@ class IrQweb(models.AbstractModel):
             return set()
         return (set.union if page_scope else set.intersection)(*spec_sets)
 
-    def _get_secondary_shared_specs(
+    def _get_secondary_reach(
         self,
         bundle: str,
         assets_params: dict[str, Any] | None,
         page_scope: tuple[str, ...] = (),
         sec_ab: AssetsBundle | None = None,
-    ) -> frozenset[str]:
+    ) -> tuple[frozenset[str], frozenset[str]]:
         if not esm_registry().secondary_parents.get(bundle):
-            return frozenset()
+            return frozenset(), frozenset()
         shared = self._get_secondary_provider_specs(bundle, assets_params, page_scope)
         if not shared:
-            return frozenset()
+            return frozenset(), frozenset()
         if sec_ab is None:
             sec_ab = self._get_asset_bundle(
                 bundle,
@@ -156,20 +159,40 @@ class IrQweb(models.AbstractModel):
             set(self._external_libs()),
             provided=shared,
         )
-        reachable = set(discovered)
-        if inlined := reachable - shared:
-            reachable |= discover_transitive_import_specifiers(
-                inlined,
-                known_specifiers=own_specs,
-                ext_libs=self._external_libs(),
-                bundle_name=bundle,
-            )
-        stubbed = frozenset(reachable & shared)
-        if page_scope:
+        reached = set(discovered) - own_specs
+        return frozenset(reached & shared), frozenset(reached - shared)
+
+    def _get_secondary_shared_specs(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+        page_scope: tuple[str, ...] = (),
+        sec_ab: AssetsBundle | None = None,
+    ) -> frozenset[str]:
+        stubbed, inlined = self._get_secondary_reach(
+            bundle, assets_params, page_scope, sec_ab
+        )
+        if page_scope and (stubbed or inlined):
             self._warn_on_late_secondary_providers(
-                bundle, assets_params, reachable, stubbed
+                bundle, assets_params, stubbed | inlined, stubbed
             )
         return stubbed
+
+    def _get_secondary_inlined_reach(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+        page_scope: tuple[str, ...] = (),
+        sec_ab: AssetsBundle | None = None,
+    ) -> dict[str, str]:
+        # what the satellite carries beyond its own modules: registered by the
+        # satellite so a runtime child loaded after it binds to that copy
+        _stubbed, inlined = self._get_secondary_reach(
+            bundle, assets_params, page_scope, sec_ab
+        )
+        ext_libs = self._external_libs()
+        urls = {spec: resolve_specifier_url(spec, ext_libs) for spec in sorted(inlined)}
+        return {spec: url for spec, url in urls.items() if url}
 
     def _warn_on_late_secondary_providers(
         self,

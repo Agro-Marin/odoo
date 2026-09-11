@@ -1,5 +1,6 @@
 import logging
 import posixpath
+import re
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
@@ -237,26 +238,9 @@ class BridgeShimManager:
                 discovered.setdefault(specifier, set())
 
         for asset in modules:
-            lexed = lex_module(asset.raw_content)
-            if lexed is not None:
-                for imp in lexed["imports"]:
-                    specifier = imp["n"]
-                    if not specifier.startswith("@"):
-                        continue
-                    kind = {
-                        "default": "__default__",
-                        "star": "__star__",
-                    }.get(imp["kind"])
+            for specifier, kind in _static_edges(asset.raw_content):
+                if specifier.startswith("@"):
                     record(specifier, kind)
-                continue
-            for match in _IMPORT_ANY_RE.finditer(asset.raw_content):
-                specifier = match.group("spec") or match.group("side")
-                if match.group("default") is not None:
-                    record(specifier, "__default__")
-                elif match.group("star") is not None:
-                    record(specifier, "__star__")
-                else:
-                    record(specifier, None)
         return discovered, ext_seen
 
     def _discover_reachable_specifiers(
@@ -357,22 +341,53 @@ class BridgeShimManager:
         return bridge_map
 
 
-def _lexed_imports(src: str, *, base_spec: str) -> list[tuple[str, str | None]]:
+_EDGE_KINDS = {"default": "__default__", "star": "__star__"}
+
+_REEXPORT_ANY_RE = re.compile(
+    r"(?<![\w$.])export\s*(?P<star>\*(?:\s*as\s+[\w$]+)?|\{(?P<names>[^}]*)\})\s*"
+    r"""from\s*["'](?P<spec>[^"'\n]+)["']"""
+)
+
+
+def _static_edges(src: str) -> list[tuple[str, str | None]]:
+    # every specifier esbuild follows at bundle time: import bindings, side
+    # imports, and `export ... from`, which the lexer keeps out of `imports`
     lexed = lex_module(src)
-    if lexed is None:
-        return []
+    if lexed is not None:
+        return [
+            (record["n"], _EDGE_KINDS.get(record["kind"]))
+            for record in (*lexed["imports"], *lexed.get("reexports", ()))
+            if record["n"]
+        ]
+    edges: list[tuple[str, str | None]] = []
+    for match in _IMPORT_ANY_RE.finditer(src):
+        specifier = match.group("spec") or match.group("side")
+        if match.group("default") is not None:
+            edges.append((specifier, "__default__"))
+        elif match.group("star") is not None:
+            edges.append((specifier, "__star__"))
+        else:
+            edges.append((specifier, None))
+    for match in _REEXPORT_ANY_RE.finditer(src):
+        if match.group("star"):
+            kind = "__star__"
+        elif re.search(r"\bdefault\b", match.group("names") or ""):
+            kind = "__default__"
+        else:
+            kind = None
+        edges.append((match.group("spec"), kind))
+    return edges
+
+
+def _lexed_imports(src: str, *, base_spec: str) -> list[tuple[str, str | None]]:
     out = []
-    for imp in lexed["imports"]:
-        specifier = imp["n"]
-        if not specifier:
-            continue
+    for specifier, kind in _static_edges(src):
         if specifier.startswith("."):
             specifier = _relative_to_specifier(base_spec, specifier)
             if specifier is None:
                 continue
         elif not specifier.startswith("@"):
             continue
-        kind = {"default": "__default__", "star": "__star__"}.get(imp["kind"])
         out.append((specifier, kind))
     return out
 

@@ -15,7 +15,6 @@ from odoo.tools.assets.esbuild import (
 from odoo.tools.assets.esm_graph import (
     _TRANSITIVE_IMPORT_RE,
     _get_import_specifiers,
-    discover_transitive_import_specifiers,
     get_escaping_relative_imports,
 )
 from odoo.tools.assets.esm_lexer import lex_module
@@ -35,6 +34,7 @@ def _get_specs_imported_by_consumers(
     consumers: list[AssetsBundle], members: set[str]
 ) -> set[str]:
     imported: set[str] = set()
+    ext_lib_names = set(external_libs())
     for consumer in consumers:
         own = [a for a in consumer.native_modules if a.module_path not in members]
         own_specs = {name for a in own for name in module_specifiers(a)}
@@ -46,6 +46,10 @@ def _get_specs_imported_by_consumers(
             else:
                 direct.update(_get_import_specifiers(asset.raw_content))
         imported.update(spec for spec in direct if spec in members)
+        reached, _ext = consumer._bridges._discover_reachable_specifiers(
+            own_specs, ext_lib_names, provided=members, modules=own
+        )
+        imported.update(spec for spec in reached if spec in members)
         imported.update(
             resolved
             for _module, _spec, resolved in get_escaping_relative_imports(
@@ -53,21 +57,6 @@ def _get_specs_imported_by_consumers(
             )
             if resolved in members
         )
-        inlined = {
-            spec
-            for spec in direct
-            if spec.startswith("@") and spec not in members and spec not in own_specs
-        }
-        if inlined:
-            imported.update(
-                discover_transitive_import_specifiers(
-                    inlined,
-                    known_specifiers=own_specs,
-                    ext_libs=external_libs(),
-                    bundle_name=consumer.name,
-                )
-                & members
-            )
     return imported
 
 
@@ -145,6 +134,7 @@ class IrQweb(models.AbstractModel):
         dynamic_child_specs: frozenset[str] | None,
         secondary_stubs: dict[str, str],
         exported_specs: frozenset[str] | None = None,
+        registered_reach: dict[str, str] | None = None,
     ) -> EsbuildResult:
         config = self._get_esbuild_config()
         try:
@@ -166,6 +156,7 @@ class IrQweb(models.AbstractModel):
                     dynamic_child_specs=dynamic_child_specs,
                     secondary_parent_stubs=secondary_stubs or None,
                     exported_specs=exported_specs,
+                    registered_reach=registered_reach,
                 )
                 span.set(chars=len(result.code) if result.code else 0)
         except Exception as exc:
@@ -216,6 +207,7 @@ class IrQweb(models.AbstractModel):
                 bundle, assets_params, debug_assets=False
             )
             exported_specs = None
+            registered_reach = None
             if standalone:
                 dynamic_child_specs, secondary_stubs = None, {}
             else:
@@ -225,10 +217,11 @@ class IrQweb(models.AbstractModel):
                     )
                 )
                 registry = esm_registry()
-                if (
-                    bundle not in registry.secondary_bundle_names
-                    and bundle not in registry.import_map_included_bundles
-                ):
+                if bundle in registry.secondary_bundle_names:
+                    registered_reach = self._get_secondary_inlined_reach(
+                        bundle, assets_params, page_scope, sec_ab=asset_bundle
+                    )
+                elif bundle not in registry.import_map_included_bundles:
                     exported_specs = self._get_exported_specs(
                         bundle, asset_bundle, assets_params, child_bundles
                     )
@@ -248,6 +241,7 @@ class IrQweb(models.AbstractModel):
                 dynamic_child_specs,
                 secondary_stubs,
                 exported_specs,
+                registered_reach,
             )
             if result.code:
                 result = result._replace(source_key=source_key)
@@ -424,6 +418,12 @@ class IrQweb(models.AbstractModel):
                         assets_params=assets_params,
                     ).get_native_module_data(with_bridges=False)["import_map"]
                 )
+                if owner != parent:
+                    specs |= set(
+                        self._get_secondary_inlined_reach(
+                            owner, assets_params, page_scope=(parent,)
+                        )
+                    )
             if specs:
                 spec_sets.append(specs)
         if not spec_sets:
