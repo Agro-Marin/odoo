@@ -59,9 +59,11 @@ class ResourceResource(models.Model):
     @api.depends_context("uid")
     @api.depends("employee_id")
     def _compute_avatar_128(self):
+        super()._compute_avatar_128()
         for resource in self:
             employee = resource.employee_id
-            resource.avatar_128 = employee[0].avatar_128 if employee else False
+            if employee:
+                resource.avatar_128 = employee[0].avatar_128
 
     def _get_resources_without_contract(self):
         employee_ids_with_active_contracts = {

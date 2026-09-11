@@ -10,6 +10,26 @@ from .common import TestHrCommon
 
 
 class TestResource(TestHrCommon):
+    def test_resource_avatar_without_employee_uses_contact(self):
+        partner = self.env["res.partner"].create({"name": "Resource contact"})
+        resource = self.env["resource.resource"].create(
+            {"name": "Independent resource", "partner_id": partner.id}
+        )
+        self.assertFalse(resource.employee_id)
+        self.assertTrue(partner.avatar_128)
+        self.assertEqual(resource.avatar_128, partner.avatar_128)
+
+    def test_resource_avatar_follows_employee_avatar_changes(self):
+        employee = self.env["hr.employee"].create({"name": "Avatar First"})
+        resource = employee.resource_id
+        initial = resource.avatar_128
+        self.assertTrue(initial)
+        self.assertEqual(initial, employee.avatar_128)
+        replacement = self.env["res.partner"].create({"name": "Different Second"})
+        employee.image_1920 = replacement._prepare_avatar_svg()
+        self.assertNotEqual(initial, employee.avatar_128)
+        self.assertEqual(resource.avatar_128, employee.avatar_128)
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
