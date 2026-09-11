@@ -47,6 +47,19 @@ describe("groupby", () => {
         });
     });
 
+    test("groupBy stringifies callback keys and omits absent groups", () => {
+        const symbol = Symbol("key");
+        const grouped = groupBy([1, 2], () => symbol);
+        expect(Object.keys(grouped)).toEqual(["Symbol(key)"]);
+        expect(Object.getOwnPropertySymbols(grouped)).toEqual([]);
+        expect(grouped[String(symbol)]).toEqual([1, 2]);
+        expect(groupBy([1], () => true)).toEqual({ true: [1] });
+        expect(groupBy([], () => "missing")).toEqual({});
+        expect(groupBy([1], () => ({ toString: () => "object key" }))).toEqual({
+            "object key": [1],
+        });
+    });
+
     test("groupBy by property", () => {
         expect(groupBy([{ x: "a" }, { x: "a" }, { x: "b" }], "x")).toEqual({
             a: [{ x: "a" }, { x: "a" }],

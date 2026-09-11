@@ -354,11 +354,9 @@ export class StatusBarField extends FieldComponent {
     getSortedItems() {
         const before = [];
         const after = [];
-        const { true: inline = [], false: folded = [] } = /** @type {any} */ (
-            groupBy(
-                this.allItems,
-                /** @type {any} */ ((item) => item.isSelected || !item.isFolded),
-            )
+        const { true: inline = [], false: folded = [] } = groupBy(
+            this.allItems,
+            (item) => item.isSelected || !item.isFolded,
         );
         inline.reverse();
         after.push(...folded);

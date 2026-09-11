@@ -576,8 +576,8 @@ export class CalendarModel extends Model {
         });
         const aggregates = {};
         const [aggregateField, aggregator] = this.aggregate.split(":");
-        for (const group of Object.keys(groups)) {
-            const values = groups[group]
+        for (const [group, groupRecords] of Object.entries(groups)) {
+            const values = /** @type {typeof records} */ (groupRecords)
                 .map(({ rawRecord }) => rawRecord[aggregateField])
                 .filter((value) => typeof value === "number");
             if (!values.length) {

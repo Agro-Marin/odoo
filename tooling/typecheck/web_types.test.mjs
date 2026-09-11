@@ -57,7 +57,7 @@ test("web utility contracts preserve arguments, absence, and promise identity", 
     config.options.strictBindCallApply = true;
     const fixture = resolve(root, "tooling/typecheck/web_contracts.ts");
     const source = `
-import { cartesian, ensureArray, intersection, symmetricalDifference, zip, zipWith } from "@web/core/utils/collections/arrays";
+import { cartesian, ensureArray, groupBy, intersection, symmetricalDifference, zip, zipWith } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
 import { Deferred, InFlight } from "@web/core/utils/concurrency";
 import { LruCache } from "@web/core/utils/lru_cache";
@@ -167,6 +167,28 @@ numberDeferred.resolve(Promise.resolve("wrong"));
 new Deferred<void>().resolve();
 new Deferred<number | undefined>().resolve();
 new Deferred().resolve();
+
+groupBy(["a"], null).a?.[0].toUpperCase();
+const grouped = groupBy([1, 2], (n): "odd" | "even" => n % 2 ? "odd" : "even");
+grouped.odd?.[0].toFixed();
+// @ts-expect-error A possible group is not necessarily present in the input.
+grouped.even[0].toFixed();
+// @ts-expect-error A literal criterion restricts the possible group names.
+grouped.unrelated;
+const booleans = groupBy([1, 2], n => n > 1);
+booleans.true?.[0].toFixed();
+booleans.false?.[0].toFixed();
+const numericGroups = groupBy(["a"], (): 42 => 42);
+numericGroups["42"]?.[0].toUpperCase();
+const symbol = Symbol("group");
+const symbols = groupBy([1], () => symbol);
+symbols[String(symbol)]?.[0].toFixed();
+// @ts-expect-error Symbols are stringified rather than preserved as symbol keys.
+symbols[symbol];
+const objects = groupBy([1], () => ({ toString: () => "key" }));
+objects.key?.[0].toFixed();
+groupBy([1], () => null).null?.[0].toFixed();
+groupBy([1], () => undefined).undefined?.[0].toFixed();
 
 const noProduct: undefined[] = cartesian();
 const flatProduct: number[] = cartesian([1, 2]);

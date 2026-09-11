@@ -3,8 +3,8 @@
 
 /**
  * @template T
- * @template {string | number | symbol} K
- * @typedef {string | ((item: T) => K)} Criterion
+ * @template K
+ * @typedef {string | ((item: T) => K) | null} Criterion
  */
 
 /**
@@ -35,7 +35,7 @@ function _cartesian(...args) {
 /**
  * @private
  * @template T
- * @template {string | number | symbol} K
+ * @template K
  * @param {Criterion<T, K>} [criterion]
  * @returns {(element: T) => any}
  */
@@ -98,15 +98,20 @@ export function isIterable(value) {
 }
 
 /**
- * @template T
- * @template {string | number | symbol} K
+ * @template K
+ * @typedef {K extends string | number | bigint | boolean | null | undefined ? `${K}` : string} GroupKey
+ */
+
+/**
+ * Keys are stringified, including symbols, and groups absent from the input are absent from the result.
+ * @template T, K
  * @param {Iterable<T>} iterable
  * @param {Criterion<T, K>} [criterion]
- * @returns {Record<K, T[]>}
+ * @returns {Partial<Record<GroupKey<K>, T[]>>}
  */
 export function groupBy(iterable, criterion) {
     const extract = _getExtractorFrom(criterion);
-    return /** @type {Record<K, T[]>} */ (
+    return /** @type {Partial<Record<GroupKey<K>, T[]>>} */ (
         Object.groupBy(iterable, (element) => String(extract(element)))
     );
 }

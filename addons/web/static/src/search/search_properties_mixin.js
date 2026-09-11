@@ -261,7 +261,10 @@ export const SearchPropertiesMixin = (Base) =>
                 Object.values(definitions),
                 (definition) => definition.record_id,
             );
-            return Object.entries(result).map(([recordId, definitions]) => ({
+            const entries = /** @type {[string, Record<string, any>[]][]} */ (
+                Object.entries(result)
+            );
+            return entries.map(([recordId, definitions]) => ({
                 definitionRecordId: Number.parseInt(recordId, 10),
                 definitionRecordName: definitions[0]?.record_name,
                 definitions,
