@@ -29,6 +29,17 @@ from .account_report_engine import (
     AccountReportFileDownloadException,
 )
 
+# Side margins are explicit: a company paperformat with margin_left/right at 0 lets a
+# table wider than the sheet bleed into the printer's non-printable edge and lose the
+# last digit of its widest column. No data-report-header-spacing: WeasyPrint has no
+# equivalent and logs a warning per render.
+PDF_PAPERFORMAT_ARGS = {
+    "data-report-margin-top": 10,
+    "data-report-margin-left": 7,
+    "data-report-margin-right": 7,
+    "data-report-margin-bottom": 15,
+}
+
 
 class AccountReportExport(models.Model):
     _inherit = "account.report"
@@ -236,12 +247,7 @@ class AccountReportExport(models.Model):
                         bodies_list,
                         landscape=is_landscape
                         or self.env.context.get("force_landscape_printing"),
-                        specific_paperformat_args={
-                            "data-report-margin-top": 10,
-                            "data-report-margin-left": 7,
-                            "data-report-margin-right": 7,
-                            "data-report-margin-bottom": 15,
-                        },
+                        specific_paperformat_args=PDF_PAPERFORMAT_ARGS,
                     )
                 )
             )

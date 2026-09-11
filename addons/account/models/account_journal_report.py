@@ -11,6 +11,7 @@ from odoo.fields import Domain
 from odoo.tools import SQL
 from odoo.tools.misc import file_path
 
+from .account_report_export import PDF_PAPERFORMAT_ARGS
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
 XLSX_GRAY_200 = "#EEEEEE"
@@ -374,12 +375,7 @@ class AccountJournalReportHandler(models.AbstractModel):
             action_report._render_html_to_pdf(
                 [body_with_footer],
                 landscape=False,
-                specific_paperformat_args={
-                    "data-report-margin-top": 10,
-                    "data-report-margin-left": 7,
-                    "data-report-margin-right": 7,
-                    "data-report-margin-bottom": 15,
-                },
+                specific_paperformat_args=PDF_PAPERFORMAT_ARGS,
             )
         )
 
