@@ -54,6 +54,16 @@ function _getExtractorFrom(criterion) {
 }
 
 /**
+ * @overload
+ * @returns {undefined[]}
+ */
+/**
+ * @template T
+ * @overload
+ * @param {T} value
+ * @returns {(T extends string ? T : T extends Iterable<infer U> ? U : T)[]}
+ */
+/**
  * @template T
  * @param {T | Iterable<T>} [value]
  * @returns {T[]}
@@ -177,11 +187,28 @@ export function unique(iterable) {
 }
 
 /**
+ * With padding, either side may be absent when the iterables differ in length.
+ * @template T1, T2
+ * @overload
+ * @param {Iterable<T1>} iter1
+ * @param {Iterable<T2>} iter2
+ * @param {false} [fill]
+ * @returns {[T1, T2][]}
+ */
+/**
+ * @template T1, T2
+ * @overload
+ * @param {Iterable<T1>} iter1
+ * @param {Iterable<T2>} iter2
+ * @param {boolean} fill
+ * @returns {[T1 | undefined, T2 | undefined][]}
+ */
+/**
  * @template T1, T2
  * @param {Iterable<T1>} iter1
  * @param {Iterable<T2>} iter2
  * @param {boolean} [fill=false]
- * @returns {[T1, T2][]}
+ * @returns {[T1 | undefined, T2 | undefined][]}
  */
 export function zip(iter1, iter2, fill = false) {
     const array1 = [...iter1];

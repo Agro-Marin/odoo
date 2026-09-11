@@ -259,9 +259,10 @@ export class InFlight {
         return this._count > 0;
     }
     /**
-     * @template T
-     * @param {Promise<T>} promise
-     * @returns {Promise<T>}
+     * Returns the original promise, including any caller-provided methods.
+     * @template {Promise<unknown>} P
+     * @param {P} promise
+     * @returns {P}
      */
     track(promise) {
         this._count++;

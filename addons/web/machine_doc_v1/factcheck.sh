@@ -487,7 +487,7 @@ assert_eq "OWL ships ESM only (UMD build dropped)" \
 # The constant was renamed; the strategy is what matters, so assert the
 # handler and its dispatch rather than a since-renamed identifier.
 assert_range "stale-while-revalidate strategy wired in SW" \
-    "$(grep -c "staleWhileRevalidate" "$WEB/static/src/service_worker.js")" 2 3
+    "$(grep -cE "^(const staleWhileRevalidate|[[:space:]]+event.respondWith\(staleWhileRevalidate|[[:space:]]+staleWhileRevalidate,)" "$WEB/static/src/service_worker.js")" 2 3
 
 # ------- Security: XSS surface (NEW assertions) -------
 assert_eq ".innerHTML = usages (gated: isMarkup() in html.js, instanceof Markup in colibri.js)" \
@@ -509,7 +509,7 @@ for p in sorted(pathlib.Path(sys.argv[1]).rglob("*.js")):
 print(n)
 PYEOF
 )
-assert_eq "markup() trust-hatch import sites" "${markup_importers:-PARSE_FAILED}" "17"
+assert_eq "markup() trust-hatch import sites" "${markup_importers:-PARSE_FAILED}" "14"
 
 # startViewTransition cannot wrap OWL's render; lock its absence so the
 # feature cannot half-return without the docs moving with it.
@@ -1750,7 +1750,7 @@ fi
 # describes, at the end of the JS-improvement campaign. They are DERIVED rather
 # than literal so the page cannot drift while the campaign is still moving.
 
-OBS_NAMESPACES=$(grep -cE '^export const \w+Log = _makeNamespacedLog' \
+OBS_NAMESPACES=$(grep -cE '^(export )?const \w+Log = _makeNamespacedLog' \
     "$WEB/static/src/core/utils/asset_log.js")
 assert_doc_cites "OBSERVABILITY cites the trace namespace count" \
     "$OBS_NAMESPACES" '%s namespaces, each with its own flag' OBSERVABILITY.md
@@ -1764,13 +1764,12 @@ OBS_ROWS=$(awk '/^\| Namespace \| Flag substring \|/,/^$/' "$DOC/OBSERVABILITY.m
 assert_eq "OBSERVABILITY documents every trace namespace" \
     "$OBS_ROWS" "$OBS_NAMESPACES"
 
-# Each namespace also needs a make<Name>Log factory; the doc claims both. The
-# factories became `export const make*Log = _categoryBinder(...)` in d2430ad22ad,
-# so the grep accepts either spelling.
+# Category factories are exposed only where callers need them. Count them
+# separately from namespaces, including namespaces with private loggers.
 OBS_FACTORIES=$(grep -cE '^export (const|function) make\w+Log' \
     "$WEB/static/src/core/utils/asset_log.js")
-assert_eq "Every trace namespace has a make*Log factory" \
-    "$OBS_FACTORIES" "$OBS_NAMESPACES"
+assert_doc_cites "OBSERVABILITY cites the category factory count" \
+    "$OBS_FACTORIES" '%s category factories' OBSERVABILITY.md
 
 # The round-trip claim is about the whole scanned tree, so it is pinned to the
 # same src JS count ARCHITECTURE.md cites rather than to a second copy of it.

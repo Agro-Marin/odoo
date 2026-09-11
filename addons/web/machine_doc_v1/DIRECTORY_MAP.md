@@ -234,7 +234,7 @@
 | `views/widgets/signature/` | widgets | 1 | Opens a signature dialog and writes the captured image to a field |
 | `views/widgets/week_days/` | widgets | 1 | Seven day-of-week checkboxes respecting the locale's week start |
 | `webclient/` | pages | 7 | App shell root: `WebClient`, the `currency` / `reloadCompany` / `lazy_session` / `service_worker` services, swipe navigation, and the `actions` face |
-| `webclient/actions/` | pages | 24 | Action manager: the `action` service, the navigation clock (`navigation_token.js`), dispatch and loading, button executor, container and controller components, breadcrumb manager/cache, URL and storage state, cache invalidation |
+| `webclient/actions/` | pages | 25 | Action manager: the `action` service, the navigation clock (`navigation_token.js`), dispatch and loading, button executor, container and controller components, breadcrumb manager/cache, URL and storage state, cache invalidation |
 | `webclient/actions/action_executors/` | pages | 5 | One executor per action type: `act_url`, `act_window`, `client`, `close`, `server` |
 | `webclient/actions/reports/` | pages | 4 | Report client action: HTML report in an iframe, its executor and hook |
 | `webclient/actions/reports/layout_assets/` | pages | 0 | Report layout SCSS assets |

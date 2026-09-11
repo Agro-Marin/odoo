@@ -231,9 +231,9 @@ registerField({ name: "text", view: "list" }, listTextField);
 registerField({ name: "text", view: "liist" }, buggyVariant);
 ```
 
-**Don't drop the string form** — 83 of the 116 fork-wide `registerField` /
+**Don't drop the string form** — 81 of the 115 fork-wide `registerField` /
 `registerFallbackField` sites are plain strings with no view prefix and no typo
-risk; the other 33 already use the spec object. Reserve the typed form for
+risk; the other 34 already use the spec object. Reserve the typed form for
 view-prefixed registrations and for `aliases`, which the string form cannot
 express.
 
@@ -346,11 +346,25 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
 
 ## Verification recipe
 
-1. **Static parse**: `node --check <file>` — catches malformed JSDoc that
-   would crash the asset bundler.
-2. **esbuild graph**: `esbuild --bundle <entry>` — catches import drift
+1. **JavaScript parse**: `node --check <file>` checks executable syntax, not
+   JSDoc: Node ignores comment contents. It cannot validate a type annotation.
+2. **JSDoc parse and caller contracts**:
+   `node --test tooling/typecheck/web_jsdoc.test.mjs tooling/typecheck/web_types.test.mjs`.
+   The parser checks owned JavaScript comments; the type tests use the full
+   project file list and ambient environment. Caller fixtures exercise both valid
+   calls and expected errors, so an annotation that silently widens to `any`
+   cannot pass merely because the implementation compiles.
+3. **esbuild graph**: `esbuild --bundle <entry>` — catches import drift
    from typedef-only changes (importing a value instead of a type).
-3. **TypeScript compile**: `tsc --noEmit` — the actual win; counts new errors.
+4. **TypeScript compile**: `tsc --noEmit` — check caller fallout across the
+   project, as well as the strict and implicit-any scope gates.
+
+The utility caller fixtures pin distinctions that implementation-only checks
+miss: `ensureArray()` wraps missing values and strings, padded `zip()` can
+produce missing elements, cache paths retain their loader's argument prefix
+while allowing extra keys, and `InFlight.track()` returns the original promise
+with its extra methods intact. These contracts describe existing runtime
+behavior; tightening them must not change that behavior to satisfy the compiler.
 
 ## What this recipe does NOT cover
 

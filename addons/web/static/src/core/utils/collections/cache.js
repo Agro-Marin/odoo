@@ -18,11 +18,15 @@ function assertPrimitiveSegment(segment) {
     }
 }
 
-/** @template T */
+/**
+ * Lookup paths start with the loader arguments and may include extra cache keys.
+ * @template T
+ * @template {any[]} [Args=any[]]
+ */
 export class Cache {
     /**
-     * @param {(...args: any[]) => T} getValue
-     * @param {((...args: any[]) => string) | undefined} [getKey]
+     * @param {(...args: Args) => T} getValue
+     * @param {((...args: Args) => string) | undefined} [getKey]
      */
     constructor(getValue, getKey) {
         /** @type {Record<string, any>} */
@@ -32,14 +36,19 @@ export class Cache {
     }
 
     /**
-     * @param {any[]} path
+     * @param {[...Args, ...any[]]} path
      * @param {boolean} create
      * @returns {{ cache: Record<string, any> | null, key: string }}
      */
     _getCacheAndKey(path, create) {
         let cache = this.cache;
         if (this.getKey) {
-            return { cache, key: this.getKey(...path) };
+            return {
+                cache,
+                key: this.getKey(
+                    .../** @type {Args} */ (/** @type {unknown} */ (path)),
+                ),
+            };
         }
         if (!path.length) {
             throw new TypeError("Cache: a lookup path must have at least one segment.");
@@ -60,7 +69,7 @@ export class Cache {
         return { cache, key: path.at(-1) };
     }
 
-    /** @param {any[]} path */
+    /** @param {[...Args, ...any[]]} path */
     clear(...path) {
         const { cache, key } = this._getCacheAndKey(path, false);
         if (cache) {
@@ -74,7 +83,7 @@ export class Cache {
 
     /**
      * @param {T} value
-     * @param {any[]} path
+     * @param {[...Args, ...any[]]} path
      */
     set(value, ...path) {
         const { cache, key } = this._getCacheAndKey(path, true);
@@ -82,14 +91,16 @@ export class Cache {
     }
 
     /**
-     * @param {any[]} path
+     * @param {[...Args, ...any[]]} path
      * @returns {T}
      */
     read(...path) {
         const { cache: node, key } = this._getCacheAndKey(path, true);
         const cache = /** @type {Record<string, any>} */ (node);
         if (!(key in cache)) {
-            const value = this.getValue(...path);
+            const value = this.getValue(
+                .../** @type {Args} */ (/** @type {unknown} */ (path)),
+            );
             cache[key] = value;
             if (value && typeof (/** @type {any} */ (value).then) === "function") {
                 Promise.resolve(value).catch(() => {

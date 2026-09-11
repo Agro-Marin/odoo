@@ -106,8 +106,10 @@ zero is a claim about the probe until the guard has been checked.
 
 ## The namespaces
 
-10 namespaces, each with its own flag and its own `make<Name>Log(category)`
-factory.
+10 namespaces, each with its own flag. There are 7 category factories
+(`make<Name>Log(category)`) for callers that bind a category once; the other
+loggers accept the category directly. The livechat logger is private and
+exposed through its category factory.
 
 | Namespace | Flag substring | Wired at | Answers |
 |---|---|---|---|
@@ -147,7 +149,7 @@ Four properties make it safe to run against a shared tree:
 
 1. **Reversible exactly.** Every inserted line carries a `// trace-stamp`
    trailing comment; `--revert` removes lines carrying it and nothing else. An
-   apply/revert cycle over `addons/web/static/src` returns all 862 files
+   apply/revert cycle over `addons/web/static/src` returns all 863 files
    byte-identical.
 2. **Idempotent.** A second `--apply` stamps 0 lines.
 3. **Lint-clean on arrival — and `--fix` must NOT be run.** A stamped tree
