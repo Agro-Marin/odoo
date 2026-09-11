@@ -2334,7 +2334,7 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **A ``bool`` return does not make a predicate** ``[review]``. **337** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **312**
+this repository are annotated ``-> bool`` and are not predicates, against **311**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
