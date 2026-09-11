@@ -148,15 +148,22 @@ class TestUBLDKOIOUBL21(TestUBLCommon, TestAccountMoveSendCommon):
 
     @classmethod
     def _send_patched(cls, invoice):
-        with patch(
-            "odoo.addons.l10n_dk_nemhandel.models.res_partner.ResPartner._get_nemhandel_verification_state",
-            return_value="not_valid",
+        wizard = (
+            cls.env["account.move.send.wizard"]
+            .with_context(active_model=invoice._name, active_ids=invoice.ids)
+            .create({})
+        )
+        with (
+            patch(
+                "odoo.addons.l10n_dk_nemhandel.models.res_partner.ResPartner._get_nemhandel_verification_state",
+                return_value="valid",
+            ),
+            patch.object(
+                cls.env.registry["account_edi_proxy_client.user"],
+                "_call_nemhandel_proxy",
+                return_value={},
+            ),
         ):
-            wizard = (
-                cls.env["account.move.send.wizard"]
-                .with_context(active_model=invoice._name, active_ids=invoice.ids)
-                .create({})
-            )
             wizard.action_send_and_print()
 
     @classmethod
@@ -330,17 +337,16 @@ class TestUBLDKOIOUBL21(TestUBLCommon, TestAccountMoveSendCommon):
 
     @freeze_time("2017-01-01")
     def test_oioubl_export_partner_without_vat_number(self):
-        """This test verifies that we can't export an OIOUBL file for a partner
-        who doesn't have a tax ID. It verifies that we receive a UserError
-        telling to the user that this field is missing.
+        """A partner without a tax ID gets no OIOUBL file: the invoice is sent with its
+        PDF only.
         """
         self.partner_b.vat = None
         self.partner_b.invoice_edi_format = (
             "oioubl_21"  # default format recomputes when vat is changed
         )
-        with self.assertRaises(UserError) as exception:
-            self.create_post_and_send_invoice(partner=self.partner_b)
-        self.assertIn(
-            f"The field '{self.partner_b._fields['vat'].string}' is required",
-            exception.exception.args[0],
+        invoice = self.create_post_and_send_invoice(partner=self.partner_b)
+        self.assertFalse(invoice.ubl_cii_xml_id)
+        self.assertEqual(len(invoice.attachment_ids), 1)
+        self.assertEqual(
+            invoice.attachment_ids[0].res_name, "INV/2017/00001 (ref_move)"
         )

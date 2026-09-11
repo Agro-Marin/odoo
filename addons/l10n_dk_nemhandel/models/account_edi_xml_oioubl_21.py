@@ -153,7 +153,7 @@ class AccountEdiXmlOIOUBL21(models.AbstractModel):
     def _get_party_node(self, vals):
         # EXTENDS account.edi.xml.ubl_20
         party_node = super()._get_party_node(vals)
-        partner = vals["partner"]
+        partner = vals["partner"].commercial_partner_id
         vat = format_vat_number(partner, partner.vat)
         cvr = format_vat_number(partner, partner.company_registry) or vat
         party_node["cac:PartyLegalEntity"].update(
@@ -166,22 +166,23 @@ class AccountEdiXmlOIOUBL21(models.AbstractModel):
                 },
             }
         )
-        party_node["cac:PartyTaxScheme"].update(
-            {
-                # Only DK:SE for PartyTaxScheme https://oioubl21.oioubl.dk/Classes/da/PartyTaxScheme.html
-                "cbc:CompanyID": {
-                    "_text": vat,
-                    "schemeID": "DK:SE" if vat[:2] == "DK" else "ZZZ",
-                },
-                "cac:TaxScheme": {
-                    "cbc:ID": {
-                        "_text": 63,
-                        "schemeID": "urn:oioubl:id:taxschemeid-1.5",
+        if vat and vat != "/":
+            party_node["cac:PartyTaxScheme"].update(
+                {
+                    # Only DK:SE for PartyTaxScheme https://oioubl21.oioubl.dk/Classes/da/PartyTaxScheme.html
+                    "cbc:CompanyID": {
+                        "_text": vat,
+                        "schemeID": "DK:SE" if vat[:2] == "DK" else "ZZZ",
                     },
-                    "cbc:Name": {"_text": "Moms"},
-                },
-            }
-        )
+                    "cac:TaxScheme": {
+                        "cbc:ID": {
+                            "_text": 63,
+                            "schemeID": "urn:oioubl:id:taxschemeid-1.5",
+                        },
+                        "cbc:Name": {"_text": "Moms"},
+                    },
+                }
+            )
         if partner.nemhandel_identifier_type and partner.nemhandel_identifier_value:
             prefix = "DK" if partner.nemhandel_identifier_type == "0184" else ""
             party_node["cbc:EndpointID"] = {
