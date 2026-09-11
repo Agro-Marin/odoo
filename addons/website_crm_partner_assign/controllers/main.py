@@ -306,6 +306,25 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
             if not qs or qs.lower() in loc:
                 yield {"loc": loc}
 
+    def _get_partners_url(self, grade, country, search, country_all, current_industry):
+        slug = request.env["ir.http"]._slug
+        if grade and not country:
+            url = "/partners/grade/" + slug(grade)
+        elif country and not grade:
+            url = "/partners/country/" + slug(country)
+        elif country and grade:
+            url = "/partners/grade/" + slug(grade) + "/country/" + slug(country)
+        else:
+            url = "/partners"
+        url_args = {}
+        if search:
+            url_args["search"] = search
+        if country_all:
+            url_args["country_all"] = True
+        if current_industry:
+            url_args["industry"] = slug(current_industry)
+        return url, url_args
+
     def _get_partners_values(
         self, country=None, grade=None, page=0, references_per_page=20, **post
     ):
@@ -418,22 +437,9 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
                 )
             ]
 
-        slug = request.env["ir.http"]._slug
-        if grade and not country:
-            url = "/partners/grade/" + slug(grade)
-        elif country and not grade:
-            url = "/partners/country/" + slug(country)
-        elif country and grade:
-            url = "/partners/grade/" + slug(grade) + "/country/" + slug(country)
-        else:
-            url = "/partners"
-        url_args = {}
-        if search:
-            url_args["search"] = search
-        if country_all:
-            url_args["country_all"] = True
-        if current_industry:
-            url_args["industry"] = slug(current_industry)
+        url, url_args = self._get_partners_url(
+            grade, country, search, country_all, current_industry
+        )
 
         partner_count = partner_obj.sudo().search_count(base_partner_domain)
         pager = request.website.pager(

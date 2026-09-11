@@ -1,10 +1,8 @@
 import json
 from types import GeneratorType
 
-from werkzeug.exceptions import InternalServerError
-
 from odoo import http
-from odoo.http import prepare_content_disposition_header, request
+from odoo.http import InternalServerError, prepare_content_disposition_header, request
 from odoo.tools.misc import html_escape
 
 from odoo.addons.account.controllers.download_docs import _get_headers
@@ -14,9 +12,6 @@ from odoo.addons.account.models.account_report_engine import (
 
 
 class AccountReportController(http.Controller):
-    # No csrf=False here: this POST reaches dispatch_report_action, which calls any
-    # public method named by `file_generator`, several of which write. Its only caller
-    # is web's download() helper, which already appends odoo.csrf_token to the form.
     @http.route("/account_reports", type="http", auth="user", methods=["POST"])
     def get_report(self, options, file_generator, **kwargs):
         uid = request.env.uid
