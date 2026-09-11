@@ -22,6 +22,7 @@ used to break:
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
+from freezegun import freeze_time
 
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
@@ -1256,3 +1257,30 @@ class TestCalendarUnavailableAttendees(TransactionCase):
         self.assertEqual(clash_a.unavailable_partner_ids, clash_b.partner_ids)
         self.assertEqual(clash_b.unavailable_partner_ids, clash_a.partner_ids)
         self.assertFalse(alone.unavailable_partner_ids)
+
+
+@tagged("post_install", "-at_install")
+class TestCalendarIcsAllDay(TransactionCase):
+    def test_an_all_day_event_exports_exclusive_date_bounds_under_frozen_time(self):
+        with freeze_time("2030-12-01"):
+            event = (
+                self.env["calendar.event"]
+                .with_context(no_mail_to_attendees=True)
+                .create(
+                    {
+                        "name": "Holidays",
+                        "allday": True,
+                        "start": datetime(2030, 12, 24, 8, 0),
+                        "stop": datetime(2030, 12, 26, 18, 0),
+                        "partner_ids": [self.env.user.partner_id.id],
+                    }
+                )
+            )
+            self.env.flush_all()
+            event.invalidate_recordset(["start", "stop"])
+            content = event._get_ics_file().get(event.id)
+
+        self.assertTrue(content, "vobject is required for this test")
+        lines = content.decode().splitlines()
+        self.assertIn("DTSTART;VALUE=DATE:20301224", lines)
+        self.assertIn("DTEND;VALUE=DATE:20301227", lines)

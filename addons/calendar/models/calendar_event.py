@@ -92,6 +92,13 @@ class RecurrencePolicy(NamedTuple):
     from_base_event: bool
 
 
+def _add_ics_date(vevent, name, day):
+    prop = vevent.add(name)
+    prop.value = day.strftime("%Y%m%d")
+    prop.value_param = "DATE"
+    prop.isNative = False
+
+
 class CalendarEvent(models.Model):
     _name = "calendar.event"
     _description = "Calendar Event"
@@ -2717,8 +2724,8 @@ class CalendarEvent(models.Model):
                 # DTEND is exclusive for a DATE value (RFC 5545 3.8.2.2), so a
                 # 24th-to-26th event ends on the 27th. Emitting the 26th made
                 # every multi-day all-day event a day short.
-                event.add("dtstart").value = meeting.start.date()
-                event.add("dtend").value = meeting.stop.date() + timedelta(days=1)
+                _add_ics_date(event, "dtstart", meeting.start.date())
+                _add_ics_date(event, "dtend", meeting.stop.date() + timedelta(days=1))
             else:
                 event.add("dtstart").value = ics_datetime(meeting.start)
                 event.add("dtend").value = ics_datetime(meeting.stop)
