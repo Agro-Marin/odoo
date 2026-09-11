@@ -1,3 +1,4 @@
+// @ts-check
 /* eslint-disable -- generated file; the body must stay strict JSON (see below)
  * and prettier's trailing commas would break the python json.loads parse. */
 export default {

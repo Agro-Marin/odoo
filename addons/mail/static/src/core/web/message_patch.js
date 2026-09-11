@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { Message } from "@mail/core/common/message";
@@ -22,7 +23,7 @@ import { patch } from "@web/core/utils/patch";
 import { usePopover } from "@web/ui/popover";
 patch(Message.prototype, {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.action = useService("action");
         this.avatarCard = usePopover(discussComponentRegistry.get("AvatarCardPopover"));
     },
@@ -64,13 +65,15 @@ patch(Message.prototype, {
     },
 
     async onClickMessageForward() {
-        await this.messageActions.actions.find((a) => a.name === "forward")?.onClick();
+        await this.messageActions.actions
+            .find((a) => a.id === "forward")
+            ?.onSelected(undefined);
     },
 
     async onClickMessageReplyAll() {
         await this.messageActions.actions
-            .find((a) => a.name === "reply-all")
-            ?.onClick();
+            .find((a) => a.id === "reply-all")
+            ?.onSelected(undefined);
     },
 
     /**
@@ -89,7 +92,7 @@ patch(Message.prototype, {
     /**
      * @param {{fieldType: string, floatPrecision?: number, currencyId?: number}} trackingFieldInfo
      * @param {*} trackingValue
-     * @returns {string}
+     * @returns {string | import("@odoo/owl").Markup}
      */
     formatTracking(trackingFieldInfo, trackingValue) {
         switch (trackingFieldInfo.fieldType) {
@@ -131,7 +134,7 @@ patch(Message.prototype, {
     /**
      * @param {{fieldType: string, floatPrecision?: number, currencyId?: number}} trackingFieldInfo
      * @param {*} trackingValue
-     * @returns {string}
+     * @returns {string | import("@odoo/owl").Markup}
      */
     formatTrackingOrNone(trackingFieldInfo, trackingValue) {
         const formattedValue = this.formatTracking(trackingFieldInfo, trackingValue);

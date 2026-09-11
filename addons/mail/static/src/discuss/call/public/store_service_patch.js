@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Store } from "@mail/core/common/store_service";
 import { browser } from "@web/core/browser/browser";

@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, mockGetMedia } from "@mail/../tests/mail_test_helpers";
 import { LocalMediaController } from "@mail/discuss/call/common/local_media_controller";
 import { describe, expect, test } from "@odoo/hoot";
@@ -25,7 +26,7 @@ function makeController() {
     const session = { isMute: false, is_muted: false, isTalking: false };
     const settings = {
         audioConstraints: true,
-        cameraConstraints: true,
+        cameraConstraints: { width: 640 },
         useBlur: false,
         use_push_to_talk: true,
         voiceActivationThreshold: 0.05,

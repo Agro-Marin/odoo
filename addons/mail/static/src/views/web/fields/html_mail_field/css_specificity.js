@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 
 /**
@@ -116,6 +117,7 @@ export function _getRightmostSelectorTokens(selector) {
  * @returns {Object<string, string>}
  */
 function _normalizeStyle(style) {
+    /** @type {Object<string, string>} */
     const normalizedStyle = {};
     for (const styleName of style) {
         const value = style[styleName];

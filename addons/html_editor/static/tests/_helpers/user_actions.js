@@ -16,9 +16,10 @@ import { setSelection } from "./selection.js";
 import { execCommand } from "./userCommands.js";
 
 /** @typedef {import("@html_editor/editor").Editor} Editor */
+/** @typedef {{document: Document, editable: Element} & Partial<Pick<Editor, "isReady" | "isDestroyed" | "shared">>} TextInputEditor */
 
 /**
- * @param {Editor} editor
+ * @param {TextInputEditor} editor
  * @param {string} text
  */
 export async function insertText(editor, text) {
@@ -127,7 +128,7 @@ export async function insertSpace(editor) {
 }
 
 /**
- * @param {Editor} editor
+ * @param {TextInputEditor} editor
  */
 function simulateBrowserAutoBRRemoval(editor) {
     if (!editor.isReady || editor.isDestroyed || !editor?.shared?.selection) {
@@ -360,7 +361,7 @@ export function setColor(color, mode) {
 }
 
 /**
- * @param {Editor} editor
+ * @param {{editable: Element}} editor
  * @param {string} text
  * @param {string} type
  */
@@ -371,21 +372,21 @@ function pasteData(editor, text, type) {
     editor.editable.dispatchEvent(pasteEvent);
 }
 /**
- * @param {Editor} editor
+ * @param {{editable: Element}} editor
  * @param {string} text
  */
 export function pasteText(editor, text) {
     return pasteData(editor, text, "text/plain");
 }
 /**
- * @param {Editor} editor
+ * @param {{editable: Element}} editor
  * @param {string} html
  */
 export function pasteHtml(editor, html) {
     return pasteData(editor, html, "text/html");
 }
 /**
- * @param {Editor} editor
+ * @param {{editable: Element}} editor
  * @param {string} html
  */
 export function pasteOdooEditorHtml(editor, html) {

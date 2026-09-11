@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DateSection } from "@mail/core/common/date_section";
 import { Message } from "@mail/core/common/message";
@@ -27,6 +28,7 @@ import { NotificationMessage } from "./notification_message.js";
 export const PRESENT_VIEWPORT_THRESHOLD = 1;
 /**
  * @typedef {Object} Props
+ * @property {number} [autofocus]
  * @property {boolean} [isInChatWindow=false]
  * @property {number} [jumpPresent=0]
  * @property {number} [jumpToNewMessage=0]
@@ -216,7 +218,7 @@ export class Thread extends Component {
                 for (const message of this.props.thread.messages) {
                     if (
                         Number.isInteger(message.id) &&
-                        message.id < separatorId &&
+                        Number(message.id) < separatorId &&
                         (!jumpMessage || message.id > jumpMessage.id)
                     ) {
                         jumpMessage = message;

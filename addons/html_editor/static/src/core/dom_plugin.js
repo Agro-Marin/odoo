@@ -131,7 +131,7 @@ export class DomPlugin extends Plugin {
     }
 
     /**
-     * @param {string | DocumentFragment | Element | null} content
+     * @param {string | DocumentFragment | Element | Text | null} content
      */
     insert(content) {
         if (!content) {

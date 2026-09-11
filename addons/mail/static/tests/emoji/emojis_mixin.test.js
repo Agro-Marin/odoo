@@ -1,3 +1,4 @@
+// @ts-check
 import { formatText } from "@mail/utils/web/emojis_mixin";
 import { expect, test } from "@odoo/hoot";
 

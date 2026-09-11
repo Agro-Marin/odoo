@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { EmojisFieldCommon } from "@mail/views/web/fields/emojis_field_common/emojis_field_common";
 import { useRef } from "@odoo/owl";
@@ -17,6 +18,7 @@ export const emojisCharField = {
     ...charField,
     component: EmojisCharField,
     additionalClasses: [...(charField.additionalClasses || []), "o_field_text"],
+    /** @param {Parameters<typeof charField.extractProps>} args */
     extractProps: (...args) => ({ ...charField.extractProps(...args), trim: false }),
 };
 

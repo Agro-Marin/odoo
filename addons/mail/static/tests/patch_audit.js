@@ -1,3 +1,4 @@
+// @ts-check
 import { getPatchedTargets, patchInfo } from "@web/core/utils/patch";
 
 /**

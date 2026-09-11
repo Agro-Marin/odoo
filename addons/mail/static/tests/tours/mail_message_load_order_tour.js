@@ -1,3 +1,4 @@
+// @ts-check
 import { contains, scroll } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 
@@ -31,7 +32,7 @@ registry.category("web_tour.tours").add("mail_message_load_order_tour", {
                 await contains(".o-mail-Thread", { scroll: 0 });
                 const messages = Array.from(
                     document.querySelectorAll(".o-mail-Thread .o-mail-Message-content"),
-                ).map((el) => el.innerText);
+                ).map((el) => /** @type {HTMLElement} */ (el).innerText);
                 for (let i = 0; i < 31; i++) {
                     if (messages[i] !== (i + 1).toString()) {
                         throw new Error("Wrong message order after loading around");
@@ -47,7 +48,7 @@ registry.category("web_tour.tours").add("mail_message_load_order_tour", {
                 await contains(".o-mail-Thread .o-mail-Message", { count: 60 });
                 const messages = Array.from(
                     document.querySelectorAll(".o-mail-Thread .o-mail-Message-content"),
-                ).map((el) => el.innerText);
+                ).map((el) => /** @type {HTMLElement} */ (el).innerText);
                 for (let i = 0; i < 60; i++) {
                     if (messages[i] !== (i + 1).toString()) {
                         throw new Error("Wrong message order after loading after");

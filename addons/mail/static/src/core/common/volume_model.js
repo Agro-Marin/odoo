@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, OR, Record } from "./record.js";
 

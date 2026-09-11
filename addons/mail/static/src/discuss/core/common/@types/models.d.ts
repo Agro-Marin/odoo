@@ -23,9 +23,9 @@ declare module "models" {
         channel_types_with_seen_infos: string[];
         channelIdsFetchingDeferred: Map<number, Deferred>;
         createGroupChat: (param0: {
-            default_display_mode: string;
+            default_display_mode?: string;
             partners_to: number[];
-            name: string;
+            name?: string;
         }) => Promise<Thread>;
         "discuss.channel.member": StaticMailRecord<
             ChannelMember,
@@ -39,7 +39,17 @@ declare module "models" {
         updateBusSubscription: (() => unknown) & { cancel: () => void };
     }
     export interface Thread {
-        _computeOfflineMembers: () => ChannelMember[];
+        notifyAvatarToServer(data: string): Promise<void>;
+        notifyDescriptionToServer(description: string): Promise<void>;
+        _setupMembershipFields(): void;
+        _setupSeenStateFields(): void;
+        _setupChannelStateFields(): void;
+        _computeFirstUnreadMessage(): Message | null;
+        _computeLastMessageSeenByAllId(): number | string | undefined;
+        _computeMaxSeenMessageIdByOthers(): number;
+        _computeMaxFetchedMessageIdByOthers(): number;
+        _computeLastSelfMessageSeenByEveryone(): Message | false | undefined;
+        _computeOfflineMembers(): ChannelMember[];
         allow_invite_by_email: Readonly<boolean>;
         allowedToLeaveChannelTypes: Readonly<string[]>;
         allowedToUnpinChannelTypes: Readonly<string[]>;
@@ -59,7 +69,7 @@ declare module "models" {
         ) => Promise<any>;
         fetchChannelInfoState: "not_fetched" | "fetching" | "fetched";
         fetchChannelMembers: () => Promise<void>;
-        fetchMoreAttachments: (limit: number) => Promise<void>;
+        fetchMoreAttachments: (limit?: number) => Promise<void>;
         firstUnreadMessage: Message;
         group_ids: ResGroups[];
         has_mail_thread: boolean | undefined;
@@ -76,7 +86,9 @@ declare module "models" {
         markAsFetched: () => Promise<void>;
         markedAsUnread: boolean;
         markingAsRead: boolean;
-        markReadSequential: () => Promise<any>;
+        markReadSequential: ReturnType<
+            typeof import("@mail/utils/common/misc").makeSequential
+        >;
         maxFetchedMessageIdByOthers: number;
         maxSeenMessageIdByOthers: number;
         member_count: number | undefined;

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CONNECTION_TYPES } from "@mail/discuss/call/common/rtc_service";
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";

@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -43,12 +44,12 @@ test("make voice message in chat", async () => {
         async fetchFile() {
             return super.fetchFile("/mail/static/src/audio/call-invitation.mp3");
         },
-        _fetch(url) {
+        _fetch(url, options) {
             if (url.includes("call-invitation.mp3")) {
                 const realFetch = globals.fetch;
-                return realFetch(...arguments);
+                return realFetch(url, options);
             }
-            return super._fetch(...arguments);
+            return super._fetch(url, options);
         },
     });
     mockGetMedia();
@@ -93,7 +94,10 @@ test("deleting a non-playing voice message keeps cross-player exclusivity", asyn
     const metaB = store["discuss.voice.metadata"].insert({ id: 2 });
     const attachmentA = store["ir.attachment"].insert({ id: 10, voice_ids: [metaA] });
     const attachmentB = store["ir.attachment"].insert({ id: 11, voice_ids: [metaB] });
-    voiceService.activePlayer = { props: { attachment: attachmentA } };
+    voiceService.activePlayer =
+        /** @type {import("@mail/discuss/voice_message/common/voice_player").VoicePlayer} */ ({
+            props: { attachment: attachmentA },
+        });
     attachmentB.delete();
     expect(voiceService.activePlayer).not.toBe(null);
     expect(voiceService.activePlayer.props.attachment.eq(attachmentA)).toBe(true);

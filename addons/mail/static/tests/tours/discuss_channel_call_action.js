@@ -1,3 +1,4 @@
+// @ts-check
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("discuss_channel_call_action.js", {

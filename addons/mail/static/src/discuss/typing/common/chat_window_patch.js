@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ChatWindow } from "@mail/core/common/chat_window";
 import { Typing } from "@mail/discuss/typing/common/typing";

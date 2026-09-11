@@ -1,3 +1,4 @@
+// @ts-check
 import { registry } from "@web/core/registry";
 
 registry

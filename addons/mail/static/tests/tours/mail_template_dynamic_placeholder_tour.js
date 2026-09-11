@@ -1,3 +1,4 @@
+// @ts-check
 import { registry } from "@web/core/registry";
 import { delay } from "@web/core/utils/concurrency";
 import { stepUtils } from "@web_tour/tour_utils";
@@ -47,7 +48,7 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
                         'div[name="model_id"] .ui-autocomplete .dropdown-item',
                     ),
                 ).find((el) => el.textContent === "Contact");
-                await contact.click();
+                await /** @type {HTMLElement} */ (contact).click();
             },
         },
         {

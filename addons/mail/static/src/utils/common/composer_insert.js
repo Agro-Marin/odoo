@@ -1,10 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 
 /**
- * @param {import("models").Composer} composer
+ * @param {{composerText: string, selection: {start: number, end: number}}} composer
  * @param {string} text
  * @param {Object} [options]
- * @param {import("@html_editor/editor").Editor} [options.editor]
+ * @param {{shared: {dom: {insert(text: string): unknown}, history: {addStep(): unknown}}}} [options.editor]
  * @param {(position: number) => void} [options.moveCursor]
  */
 export function insertAtSelection(composer, text, { editor, moveCursor } = {}) {

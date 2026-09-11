@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { browser } from "@web/core/browser/browser";
@@ -31,7 +32,7 @@ export class OutOfFocusService {
 
     /**
      * @param {import("models").Message} message
-     * @param {import("models").Thread} thread
+     * @param {import("models").Thread} [thread]
      */
     async notify(message, thread) {
         const modelsHandleByPush = ["mixin.mail.thread", "discuss.channel"];
@@ -128,13 +129,10 @@ export class OutOfFocusService {
             body: message,
             icon,
         });
-        notification.addEventListener(
-            "click",
-            /** @param {Event} ev */ ({ target: notification }) => {
-                window.focus();
-                notification.close();
-            },
-        );
+        notification.addEventListener("click", () => {
+            window.focus();
+            notification.close();
+        });
         if (sound) {
             this._playSound();
         }

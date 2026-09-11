@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { SearchMessageInput } from "@mail/core/common/search_message_input";

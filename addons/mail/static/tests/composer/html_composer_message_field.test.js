@@ -1,7 +1,7 @@
+// @ts-check
 import { setSelection } from "@html_editor/../tests/_helpers/selection";
 import { insertText } from "@html_editor/../tests/_helpers/user_actions";
 import { FileSelector } from "@html_editor/main/media/media_dialog/file_selector";
-import { uploadService } from "@html_editor/main/media/media_dialog/upload_progress_toast/upload_service";
 import { HtmlComposerMessageField } from "@mail/views/web/fields/html_composer_message_field/html_composer_message_field";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
@@ -38,7 +38,7 @@ import {
 
 mailModels.MailComposeMessage._views = {};
 
-defineMailModels([]);
+defineMailModels();
 
 let htmlEditor;
 beforeEach(() => {
@@ -58,8 +58,6 @@ test("media dialog: upload", async function () {
             isUploaded.resolve();
         },
     });
-
-    mockService("upload", uploadService);
 
     const { env } = await makeMockServer();
     const resId = env["mail.compose.message"].create({
@@ -129,7 +127,7 @@ test("media dialog: upload", async function () {
     );
     fileInputs.forEach((input) =>
         Object.defineProperty(input, "files", {
-            value: [new File(fileBytes, "test.jpg", { type: "image/jpeg" })],
+            value: [new File([fileBytes], "test.jpg", { type: "image/jpeg" })],
         }),
     );
     fileInputs.forEach((input) => {

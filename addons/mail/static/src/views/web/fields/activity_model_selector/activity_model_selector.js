@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { ModelSelector } from "@web/components/model_selector";
@@ -34,7 +35,7 @@ class ActivityModelSelector extends Component {
         );
     }
 
-    /** @param {{technical: string, label?: string}} value */
+    /** @param {{technical: string | false, label?: string | false}} value */
     async onModelSelected(value) {
         this.state.resModel = value.technical;
         this.state.resModelName = value.label || "";

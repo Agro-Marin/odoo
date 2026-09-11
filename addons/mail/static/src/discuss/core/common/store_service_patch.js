@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
@@ -7,7 +8,7 @@ import { debounce } from "@web/core/utils/timing";
 const storeServicePatch = {
     setup() {
         super.setup();
-        /** @type {Map<number, Deferred>} */
+        /** @type {Map<number, import("@web/core/utils/concurrency").Deferred>} */
         this.channelIdsFetchingDeferred = new Map();
         /** @type {string[]} */
         this.channel_types_with_seen_infos = [];
@@ -21,9 +22,9 @@ const storeServicePatch = {
     },
     /**
      * @param {Object} param0
-     * @param {string} param0.default_display_mode
+     * @param {string} [param0.default_display_mode]
      * @param {number[]} param0.partners_to
-     * @param {string} param0.name
+     * @param {string} [param0.name]
      * @returns {Promise<import("models").Thread>}
      */
     async createGroupChat({ default_display_mode, partners_to, name }) {
@@ -51,7 +52,8 @@ const storeServicePatch = {
             )
             .sort(
                 (a, b) =>
-                    compareDatetime(b.lastInterestDt, a.lastInterestDt) || b.id - a.id,
+                    compareDatetime(b.lastInterestDt, a.lastInterestDt) ||
+                    Number(b.id) - Number(a.id),
             )
             .map((thread) => thread.correspondent.partner_id.id);
     },

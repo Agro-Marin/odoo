@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { threadCompareRegistry } from "@mail/core/common/thread_compare";

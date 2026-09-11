@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
@@ -6,7 +7,7 @@ import { patch } from "@web/core/utils/patch";
 /** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const StorePatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.initChannelsUnreadCounter = 0;
         this.counterChannels = fields.Many("Thread", {
             inverse: "storeAsCounterChannel",
@@ -49,7 +50,8 @@ const StorePatch = {
             )
             .sort(
                 (a, b) =>
-                    compareDatetime(b.lastInterestDt, a.lastInterestDt) || b.id - a.id,
+                    compareDatetime(b.lastInterestDt, a.lastInterestDt) ||
+                    Number(b.id) - Number(a.id),
             );
     },
     onStarted() {

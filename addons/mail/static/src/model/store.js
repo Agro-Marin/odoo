@@ -1,13 +1,14 @@
+// @ts-check
 /** @odoo-module native */
 import { reactive, toRaw } from "@odoo/owl";
 
 import { IS_DELETED_SYM, isRelation, modelRegistry, STORE_SYM } from "./misc.js";
 import { Record } from "./record.js";
 
-/** @typedef {import("./record_list").RecordList} RecordList */
-/** @typedef {import("./record").RecordData} RecordData */
-/** @typedef {import("./record").RecordFields} RecordFields */
-/** @typedef {import("./record").StoreModels} StoreModels */
+/** @import { RecordList } from "./record_list" */
+/** @import { RecordData } from "./record" */
+/** @import { RecordFields } from "./record" */
+/** @import { StoreModels } from "./record" */
 
 /**
  * @param {Object} target
@@ -27,7 +28,7 @@ export function observeKey(target, key, callback) {
     /** @type {Object<string, any>} */
     let proxy;
     function observe() {
-        const val = proxy?.[key];
+        const val = proxy?.[/** @type {string} */ (key)];
         if (typeof val === "object" && val !== null) {
             void Object.keys(val);
         }
@@ -51,6 +52,8 @@ export function observeKey(target, key, callback) {
     };
 }
 export class Store extends Record {
+    /** @type {StoreModels} */
+    Models;
     /** @returns {any|void} */
     _makeInsertContext() {}
     /**
@@ -434,8 +437,8 @@ export class Store extends Record {
     /**
      * @param {Record} record
      * @param {string|string[]} key
-     * @param {(observe: Function) => any} callback
-     * @returns {function}
+     * @param {(observe: () => void) => any} callback
+     * @returns {() => void}
      */
     _onChange(record, key, callback) {
         return observeKey(record, key, callback);

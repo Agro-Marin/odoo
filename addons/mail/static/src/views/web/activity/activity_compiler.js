@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { createElement, extractAttributes } from "@web/core/utils/dom/xml";
 import { toInterpolatedStringExpression, ViewCompiler } from "@web/views/view_compiler";

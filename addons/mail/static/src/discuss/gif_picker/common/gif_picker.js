@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
 import { useOnBottomScrolled } from "@mail/utils/common/hooks";
@@ -9,7 +10,7 @@ import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 /**
- * @param {...any} args
+ * @param {Parameters<typeof usePicker> extends [unknown, ...infer Args] ? Args : never} args
  * @returns {ReturnType<typeof usePicker>}
  */
 export function useGifPicker(...args) {
@@ -49,6 +50,7 @@ export function useGifPicker(...args) {
  * @property {string} [className]
  * @property {function} [close]
  * @property {Object} [state]
+ * @property {Object} [PICKERS]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 
@@ -69,7 +71,7 @@ export class GifPicker extends Component {
                     if (!this.showFavorite) {
                         this.search();
                     } else {
-                        this.loadFavoritesDebounced(this.offset);
+                        this.loadFavoritesDebounced();
                     }
                 }
             },
@@ -92,12 +94,12 @@ export class GifPicker extends Component {
             loadingGif: false,
             loadingError: false,
             evenGif: {
-                /** @type {Map<Number, TenorGif>} */
+                /** @type {Map<string, TenorGif>} */
                 gifs: new Map(),
                 columnSize: 0,
             },
             oddGif: {
-                /** @type {Map<Number, TenorGif>} */
+                /** @type {Map<string, TenorGif>} */
                 gifs: new Map(),
                 columnSize: 0,
             },

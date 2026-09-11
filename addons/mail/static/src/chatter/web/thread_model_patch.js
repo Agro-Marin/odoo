@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import "@mail/chatter/web_portal/thread_model_patch";
 

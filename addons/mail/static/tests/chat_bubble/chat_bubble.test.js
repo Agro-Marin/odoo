@@ -1,3 +1,4 @@
+// @ts-check
 import { describe, expect, test } from "@odoo/hoot";
 import { leave, runAllTimers } from "@odoo/hoot-dom";
 import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";

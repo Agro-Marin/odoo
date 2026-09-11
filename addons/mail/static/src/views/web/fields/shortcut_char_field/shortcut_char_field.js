@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";

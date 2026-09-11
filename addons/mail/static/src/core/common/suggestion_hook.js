@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { isContentEditable, isTextNode } from "@html_editor/utils/dom_info";
 import { rightPos } from "@html_editor/utils/position";
@@ -25,7 +26,7 @@ import { useDebounced } from "@web/core/utils/timing";
  * @property {import("models").ResPartner} [partner]
  * @property {import("models").Thread} [thread]
  * @property {import("models").CannedResponse} [cannedResponse]
- * @property {import("@web/components/emoji_picker").Emoji} [emoji]
+ * @property {import("@web/components/emoji_picker/emoji_picker").Emoji} [emoji]
  * @property {string} [help]
  * @property {string} [source]
  * @property {true} [isSpecial]
@@ -39,7 +40,7 @@ import { useDebounced } from "@web/core/utils/timing";
  * @property {number|undefined} position
  * @property {string} term
  */
-/** @typedef {import("models").ResPartner | import("models").ResRole | import("models").Thread | import("models").CannedResponse | import("@web/components/emoji_picker").Emoji | (import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}) | import("@mail/core/common/store_service").SpecialMention} Suggestion */
+/** @typedef {import("models").ResPartner | import("models").ResRole | import("models").Thread | import("models").CannedResponse | import("@web/components/emoji_picker/emoji_picker").Emoji | (import("@mail/discuss/core/common/channel_commands").ChannelCommand & {name: string}) | import("@mail/core/common/store_service").SpecialMention} Suggestion */
 export const DELAY_FETCH = 250;
 
 export class UseSuggestion {
@@ -112,7 +113,10 @@ export class UseSuggestion {
         this.composer.mentionedRoles.length = 0;
     }
     clearCannedResponses() {
-        this.composer.cannedResponses = [];
+        this.composer.cannedResponses =
+            /** @type {typeof this.composer.cannedResponses} */ (
+                /** @type {unknown} */ ([])
+            );
     }
     clearSearch() {
         Object.assign(this.search, {
@@ -370,7 +374,9 @@ function mapPartnerSuggestionsToOptions(suggestions, classList, { thread } = {})
     return {
         optionTemplate: "mail.Composer.suggestionPartner",
         options:
-            /** @type {(import("models").ResPartner | import("models").ResRole | import("@mail/core/common/store_service").SpecialMention)[]} */ (suggestions).map((suggestion) => {
+            /** @type {(import("models").ResPartner | import("models").ResRole | import("@mail/core/common/store_service").SpecialMention)[]} */ (
+                suggestions
+            ).map((suggestion) => {
                 if ("isSpecial" in suggestion) {
                     return {
                         ...suggestion,
@@ -451,7 +457,7 @@ export function mapSuggestionsToOptions(type, suggestions, { thread } = {}) {
             return {
                 optionTemplate: "mail.Composer.suggestionEmoji",
                 options:
-                    /** @type {(import("@web/components/emoji_picker").Emoji)[]} */ (
+                    /** @type {(import("@web/components/emoji_picker/emoji_picker").Emoji)[]} */ (
                         suggestions
                     ).map((suggestion) => ({
                         emoji: suggestion,

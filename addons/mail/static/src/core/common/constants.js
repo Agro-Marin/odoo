@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 
 export const FETCH_DATA_DEBOUNCE_DELAY = 1;

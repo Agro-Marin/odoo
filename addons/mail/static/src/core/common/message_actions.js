@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
@@ -101,7 +102,7 @@ registerMessageAction("reply-to", {
         }
         if (
             !message.isSelfAuthored &&
-            message.model !== "discuss.channel" &&
+            message.thread?.model !== "discuss.channel" &&
             message.author
         ) {
             composer.insertReplyFromNote(message);
@@ -141,7 +142,7 @@ registerMessageAction("mark-as-read", {
 });
 registerMessageAction("reactions", {
     /** @param {ActionParams} params */
-    condition: ({ message }) => message.reactions.length,
+    condition: ({ message }) => message.reactions.length > 0,
     icon: "fa-regular fa-face-smile",
     name: _t("View Reactions"),
     /** @param {ActionParams} params */
@@ -260,16 +261,17 @@ export class MessageAction extends Action {
     /** @type {() => Thread} */
     threadFn;
     /**
-     * @param {Object} param0
-     * @param {MessageActionOwner} param0.owner
-     * @param {string} param0.id
-     * @param {MessageActionDefinition} param0.definition
-     * @param {import("models").Store} [param0.store]
-     * @param {Message|(() => Message)} [param0.message]
-     * @param {Thread|(() => Thread)} [param0.thread]
+     * @param {Object} options
+     * @param {MessageActionOwner} options.owner
+     * @param {string} options.id
+     * @param {MessageActionDefinition} options.definition
+     * @param {import("models").Store} [options.store]
+     * @param {Message|(() => Message)} [options.message]
+     * @param {Thread|(() => Thread)} [options.thread]
      */
-    constructor({ message, thread }) {
-        super(...arguments);
+    constructor(options) {
+        super(options);
+        const { message, thread } = options;
         this.messageFn = typeof message === "function" ? message : () => message;
         this.threadFn = typeof thread === "function" ? thread : () => thread;
     }

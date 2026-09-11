@@ -166,3 +166,10 @@ declare module "models" {
         Volume: Volume;
     }
 }
+
+declare module "models" {
+    interface Store {
+        /** Supplied by res.users initialization data. */
+        hasCannedResponses: boolean;
+    }
+}

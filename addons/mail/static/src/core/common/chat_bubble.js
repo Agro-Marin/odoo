@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";

@@ -18,6 +18,12 @@ import { SERVICES_METADATA } from "@web/core/utils/hooks";
 import { session } from "@web/session";
 
 const log = makeAssetLog("env");
+/**
+ * A component mounted with the web environment may require its services,
+ * while a reusable Owl component may only expose the base environment.
+ * @template [P=any]
+ * @typedef {new (props: P, env: OdooEnv) => Component<P>} OdooComponentConstructor
+ */
 
 /**
  * @typedef {{

@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -59,6 +60,7 @@ test("Basic jump to present when scrolling to outdated messages", async () => {
 });
 
 test("thread scrolling recovers when a smooth scroll never emits scrollend", async () => {
+    /** @type {Thread} */
     let threadComponent;
     patchWithCleanup(Thread.prototype, {
         setup() {

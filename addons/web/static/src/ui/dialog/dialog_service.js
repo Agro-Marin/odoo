@@ -36,7 +36,7 @@ class DialogWrapper extends Component {
 /**
  * @typedef {{
  * add(
- * Component: import("@odoo/owl").ComponentConstructor,
+ * Component: (new (props: any, env: import("@web/env").OdooEnv) => import("@odoo/owl").Component),
  * props?: Record<string, any>,
  * options?: DialogServiceInterfaceAddOptions
  * ): (closeParams?: any) => Promise<void>;
@@ -67,7 +67,7 @@ export class DialogService {
     }
 
     /**
-     * @param {import("@odoo/owl").ComponentConstructor} dialogClass
+     * @param {(new (props: any, env: import("@web/env").OdooEnv) => import("@odoo/owl").Component)} dialogClass
      * @param {Record<string, any>} [props]
      * @param {DialogServiceInterfaceAddOptions} [options]
      * @returns {(closeParams?: any) => Promise<void>}

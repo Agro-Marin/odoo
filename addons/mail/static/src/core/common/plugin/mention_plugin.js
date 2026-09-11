@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
@@ -94,7 +95,11 @@ export class MentionPlugin extends Plugin {
         for (const { selector, checker, validMentionsHandler } of this
             .MENTION_SELECTORS) {
             const mentionLinks =
-                Array.from(this.editable.querySelectorAll(selector)) || [];
+                Array.from(
+                    /** @type {NodeListOf<HTMLAnchorElement>} */ (
+                        this.editable.querySelectorAll(selector)
+                    ),
+                ) || [];
             const validMentionLinks = (
                 await Promise.all(
                     mentionLinks.map(async (el) => ({

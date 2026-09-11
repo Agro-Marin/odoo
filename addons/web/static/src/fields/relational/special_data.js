@@ -42,7 +42,7 @@ function subscribersFor(specialDataCaches, key) {
 
 /**
  * @template T, [Props=any]
- * @param {(orm: Services["orm"], props: Component<Props>["props"]) => Promise<T>} loadFn
+ * @param {(orm: import("@web/core/network/orm_service").ORM, props: Component<Props>["props"]) => Promise<T>} loadFn
  * @returns {{ data: T }}
  */
 export function useSpecialData(loadFn) {

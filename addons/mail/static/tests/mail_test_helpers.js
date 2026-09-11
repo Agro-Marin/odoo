@@ -1,3 +1,5 @@
+/** @import { OdooEnv } from "@web/env" */
+// @ts-check
 import { addBusMessageHandler, busModels } from "@bus/../tests/bus_test_helpers";
 import { CHAT_HUB_KEY } from "@mail/core/common/chat_hub_model";
 import { UPDATE_EVENT } from "@mail/discuss/call/common/peer_to_peer";
@@ -98,7 +100,7 @@ addBusMessageHandler("mail.record/insert", (_env, _id, payload) => {
 
 export function defineMailModels() {
     registerMailMockRoutes();
-    defineParams({ suite: "mail" }, "replace");
+    defineParams({}, { mode: "replace" });
     return defineModels(mailModels);
 }
 
@@ -151,7 +153,7 @@ export const mailModels = {
 
 /**
  * @param {Function|string} route
- * @param {Function} callback
+ * @param {Function} [callback]
  */
 export function onRpcBefore(route, callback) {
     if (typeof route === "string") {
@@ -160,7 +162,7 @@ export function onRpcBefore(route, callback) {
     } else {
         const onRpcBeforeGlobal = registry
             .category("mail.on_rpc_before_global")
-            .get(true);
+            .get("global");
         patchWithCleanup(onRpcBeforeGlobal, { cb: route });
     }
 }
@@ -180,6 +182,7 @@ export function registerArchs(newArchs) {
     after(() => (archs = {}));
 }
 
+/** @param {Parameters<typeof test>} args */
 export function onlineTest(...args) {
     if (navigator.onLine) {
         return test(...args);
@@ -188,6 +191,10 @@ export function onlineTest(...args) {
     }
 }
 
+/**
+ * @param {string | number} [activeId]
+ * @param {{target?: import("@web/env").OdooEnv}} [options]
+ */
 export async function openDiscuss(activeId, { target } = {}) {
     const actionService = target?.services.action ?? getService("action");
     await actionService.doAction({
@@ -223,6 +230,15 @@ export async function openListView(resModel, params) {
     });
 }
 
+/**
+ * @param {Object} options
+ * @param {string} options.res_model
+ * @param {Array<[number | false | string, import("@web/views/view").ViewType]>} options.views
+ * @param {Object} [options.context]
+ * @param {number | false} [options.res_id]
+ * @param {import("@web/core/domain").DomainRepr} [options.domain]
+ * @param {string} [options.arch]
+ */
 export async function openView({
     context,
     res_model,
@@ -244,7 +260,7 @@ export async function openView({
     const options = parseViewProps({
         type,
         resModel: res_model,
-        resId: res_id,
+        resId: res_id || undefined,
         arch:
             params?.arch || archs[viewRef || res_model + `,false,` + type] || undefined,
         viewId,
@@ -266,15 +282,15 @@ async function addSwitchTabDropdownItem(rootTarget, tabTarget) {
     const onClickDropdownItem = (e) => {
         const dropdownToggle = dropdownDiv.querySelector(".dropdown-toggle");
         dropdownToggle.innerText = `Switch Tab (${e.target.innerText})`;
-        tabs.forEach((tab) => (tab.style.zIndex = -zIndexMainTab));
+        tabs.forEach((tab) => (tab.style.zIndex = String(-zIndexMainTab)));
         if (e.target.innerText !== "Hoot") {
-            tabTarget.style.zIndex = zIndexMainTab;
+            tabTarget.style.zIndex = String(zIndexMainTab);
         }
     };
     if (!dropdownDiv) {
-        tabTarget.style.zIndex = zIndexMainTab;
+        tabTarget.style.zIndex = String(zIndexMainTab);
         dropdownDiv = document.createElement("div");
-        dropdownDiv.style.zIndex = zIndexMainTab + 1;
+        dropdownDiv.style.zIndex = String(zIndexMainTab + 1);
         dropdownDiv.style.top = "10%";
         dropdownDiv.style.right = "5%";
         dropdownDiv.style.position = "absolute";
@@ -303,7 +319,13 @@ async function addSwitchTabDropdownItem(rootTarget, tabTarget) {
 
 let discussAsTabId = 0;
 
-/** @param {{ */
+/**
+ * @param {Object} [options]
+ * @param {false | {id: number, _name: "mail.guest"} | {id: number, _name?: "res.users", login: string, password: string}} [options.authenticateAs]
+ * @param {boolean} [options.asTab]
+ * @param {typeof Component} [options.root]
+ * @param {Partial<import("@web/env").OdooEnv>} [options.env]
+ */
 export async function start(options) {
     patchWithCleanup(Rtc.prototype, {
         start() {
@@ -350,7 +372,7 @@ export async function start(options) {
         const rootTarget = target;
         target = document.createElement("div");
         target.classList.add("o-mail-Discuss-asTabContainer");
-        target.dataset.asTabId = discussAsTabId;
+        target.dataset.asTabId = String(discussAsTabId);
         rootTarget.appendChild(target);
         addSwitchTabDropdownItem(rootTarget, target);
         const selector = `.o-mail-Discuss-asTabContainer[data-as-tab-id="${target.dataset.asTabId}"]`;
@@ -451,16 +473,15 @@ export function mockGetMedia() {
     const streams = [];
     patchWithCleanup(browser.navigator.permissions, {
         async query() {
-            return {
-                state: "granted",
-                addEventListener: () => {},
-                removeEventListener: () => {},
+            return Object.assign(new EventTarget(), {
+                state: /** @type {const} */ ("granted"),
+                name: /** @type {PermissionName} */ ("microphone"),
                 onchange: null,
-            };
+            });
         },
     });
     patchWithCleanup(browser.navigator.mediaDevices, {
-        getUserMedia(constraints) {
+        async getUserMedia(constraints) {
             if (constraints.audio) {
                 const audioStream = createAudioStream();
                 streams.push(audioStream);
@@ -471,7 +492,7 @@ export function mockGetMedia() {
                 return videoStream;
             }
         },
-        getDisplayMedia: () => {
+        getDisplayMedia: async () => {
             const videoStream = createVideoStream();
             streams.push(videoStream);
             return videoStream;
@@ -485,7 +506,7 @@ export function mockGetMedia() {
  * @property {number} sessionId
  * @property {function(string):Promise} updateConnectionState
  * @property {function(import("@mail/discuss/call/common/rtc_service").streamType,MediaStreamTrack):Promise} updateUpload
- * @property {function(import("@mail/discuss/call/common/rtc_session_model").SessionInfo):Promise} updateInfo
+ * @property {function(Parameters<import("@mail/discuss/call/common/rtc_service").Rtc["_applySessionInfo"]>[1]):Promise} updateInfo
  */
 /**
  * @typedef {Object} MockNetwork
@@ -511,8 +532,10 @@ export async function makeMockRtcNetwork({ env, channelId }) {
                 rtcServiceIsListening.resolve();
                 rtc.network.p2p.disconnect();
             }
-            mockNetwork.addEventListener(name, f);
-            after(() => mockNetwork.removeEventListener(name, f));
+            mockNetwork.addEventListener(name, /** @type {EventListener} */ (f));
+            after(() =>
+                mockNetwork.removeEventListener(name, /** @type {EventListener} */ (f)),
+            );
         },
     });
 
@@ -560,7 +583,7 @@ export async function makeMockRtcNetwork({ env, channelId }) {
 
 /**
  * @param {"default" | "denied" | "granted"} permission
- * @param {"default" | "denied" | "granted"} requestPermissionResult
+ * @param {"default" | "denied" | "granted"} [requestPermissionResult]
  */
 export function patchBrowserNotification(
     permission = "default",
@@ -655,7 +678,7 @@ export function prepareObserveRenders() {
     after(() => observeRenderResults.clear());
 }
 
-/** @returns {() => Map<Component.constructor, number>} */
+/** @returns {() => Map<Function, number>} */
 export function observeRenders() {
     const id = nextObserveRenderResults++;
     observeRenderResults.set(id, new Map());
@@ -698,7 +721,7 @@ export async function isInViewportOf(childSelector, parentSelector) {
             expect(false).toBe(true, { message: failMsg });
             inViewportDeferred.reject(new Error(failMsg));
         } else {
-            parent.addEventListener("scrollend", check, { once: true });
+            parent.addEventListener("scrollend", () => check(), { once: true });
         }
     };
     check();
@@ -782,7 +805,7 @@ export function listenStoreFetch(
 }
 
 /**
- * @param {string|string[]} nameOrNames
+ * @param {string|Array<string|[string, Object]>} nameOrNames
  * @param {Object} [options={}]
  * @param {boolean} [options.ignoreOrder=false]
  * @param {string[]} [options.stepsAfter=[]]
@@ -823,7 +846,7 @@ export function userContext() {
 
 /**
  * @typedef VoiceMessagePatchResources
- * @property {AudioWorkletNode} audioProcessor
+ * @property {{process(allInputs: Float32Array[][]): boolean}} audioProcessor
  */
 /** @returns {VoiceMessagePatchResources} */
 export function patchVoiceMessageAudio() {
@@ -836,7 +859,7 @@ export function patchVoiceMessageAudio() {
         GainNode,
         MediaStreamAudioSourceNode,
     } = browser;
-    Object.assign(browser, {
+    const audioMocks = {
         AnalyserNode: class {
             connect() {}
             disconnect() {}
@@ -861,23 +884,22 @@ export function patchVoiceMessageAudio() {
                 };
             }
             async close() {}
-            /** @returns {AnalyserNode} */
             createAnalyser() {
-                return new browser.AnalyserNode();
+                return new audioMocks.AnalyserNode();
             }
-            /** @returns {AudioBufferSourceNode} */
             createBufferSource() {
-                return new browser.AudioBufferSourceNode();
+                return new audioMocks.AudioBufferSourceNode();
             }
-            /** @returns {GainNode} */
             createGain() {
-                return new browser.GainNode();
+                return new audioMocks.GainNode();
             }
-            /** @returns {MediaStreamAudioSourceNode} */
             createMediaStreamSource(microphone) {
-                return new browser.MediaStreamAudioSourceNode();
+                return new audioMocks.MediaStreamAudioSourceNode();
             }
-            /** @returns {AudioBuffer} */
+            /**
+             * @param {Parameters<AudioContext["decodeAudioData"]>} args
+             * @returns {Promise<AudioBuffer>}
+             */
             decodeAudioData(...args) {
                 return new AudioContext().decodeAudioData(...args);
             }
@@ -912,7 +934,8 @@ export function patchVoiceMessageAudio() {
             connect(processor) {}
             disconnect() {}
         },
-    });
+    };
+    Object.assign(browser, audioMocks);
     after(() => {
         Object.assign(browser, {
             AnalyserNode,
@@ -929,12 +952,11 @@ export function patchVoiceMessageAudio() {
 export function mockPermissionsPrompt() {
     patchWithCleanup(browser.navigator.permissions, {
         async query() {
-            return {
-                state: "prompt",
-                addEventListener: () => {},
-                removeEventListener: () => {},
+            return Object.assign(new EventTarget(), {
+                state: /** @type {const} */ ("prompt"),
+                name: /** @type {PermissionName} */ ("microphone"),
                 onchange: null,
-            };
+            });
         },
     });
 }

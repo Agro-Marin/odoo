@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 const HUMAN_VOICE_FREQUENCY_RANGE = [80, 1000];
 
@@ -181,7 +182,7 @@ async function _loadAudioWorkletProcessor(
 }
 
 /**
- * @param {AnalyserNode & {_freqBuffer?: Uint8Array}} analyser
+ * @param {AnalyserNode & {_freqBuffer?: Uint8Array<ArrayBuffer>}} analyser
  * @param {number} lowerFrequency
  * @param {number} higherFrequency
  * @returns {number}

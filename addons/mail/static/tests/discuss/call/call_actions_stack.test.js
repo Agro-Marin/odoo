@@ -1,3 +1,4 @@
+// @ts-check
 import { computeActionsStack } from "@mail/discuss/call/common/call_actions";
 import { describe, expect, test } from "@odoo/hoot";
 

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CallContextMenu } from "@mail/discuss/call/common/call_context_menu";
 import { CallDropdown } from "@mail/discuss/call/common/call_dropdown";
@@ -255,7 +256,10 @@ export class CallParticipantCard extends Component {
                 const bottomOffset = this.env.inChatWindow
                     ? this.window.innerHeight * 0.05
                     : 0;
-                if (parseInt(insetEl.style.left) < insetEl.parentNode.offsetWidth / 2) {
+                if (
+                    parseInt(insetEl.style.left) <
+                    insetEl.parentElement.offsetWidth / 2
+                ) {
                     insetEl.style.left = "1vh";
                     insetEl.style.right = "";
                 } else {
@@ -264,7 +268,7 @@ export class CallParticipantCard extends Component {
                 }
                 if (
                     parseInt(insetEl.style.top) <
-                    (insetEl.parentNode.offsetHeight - bottomOffset) / 2
+                    (insetEl.parentElement.offsetHeight - bottomOffset) / 2
                 ) {
                     insetEl.style.top = "1vh";
                     insetEl.style.bottom = "";
@@ -302,17 +306,17 @@ export class CallParticipantCard extends Component {
             return;
         }
         this.isDrag = true;
-        const parent = insetEl.parentNode;
+        const parent = insetEl.parentElement;
         const boundingRect =
             this.parentBoundingRect ||
             (this.parentBoundingRect = parent.getBoundingClientRect());
         const bottomOffset = this.env.inChatWindow ? this.window.innerHeight * 0.05 : 0;
         const clientX = Math.max(
-            (ev.clientX ?? ev.touches[0].clientX) - boundingRect.left,
+            ("touches" in ev ? ev.touches[0].clientX : ev.clientX) - boundingRect.left,
             0,
         );
         const clientY = Math.max(
-            (ev.clientY ?? ev.touches[0].clientY) - boundingRect.top,
+            ("touches" in ev ? ev.touches[0].clientY : ev.clientY) - boundingRect.top,
             0,
         );
         if (!this.dragPos) {

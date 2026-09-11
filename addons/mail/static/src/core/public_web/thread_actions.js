@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ACTION_TAGS } from "@mail/core/common/action";
 import { registerThreadAction } from "@mail/core/common/thread_actions";
@@ -14,8 +15,6 @@ registerThreadAction("leave", {
         thread.canLeave ? _t("Leave Channel") : _t("Unpin Conversation"),
     /** @param {ActionParams} params */
     open: ({ thread }) => (thread.canLeave ? thread.leaveChannel() : thread.unpin()),
-    /** @param {ActionParams} params */
-    partition: ({ owner }) => owner.env.inChatWindow,
     sequence: 10,
     sequenceGroup: 40,
     tags: ACTION_TAGS.DANGER,

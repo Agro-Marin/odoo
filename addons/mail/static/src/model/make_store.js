@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 
@@ -20,7 +21,7 @@ import { StoreInternal } from "./store_internal.js";
  * @returns {{current: import("models").Store}}
  */
 function createProvisionalStore(env) {
-    const store = new Store();
+    const store = /** @type {import("models").Store} */ (new Store());
     store.env = env;
     store.Model = Store;
     store._ = markRaw(new StoreInternal());
@@ -34,7 +35,7 @@ function createProvisionalStore(env) {
 /**
  * @param {Record} record
  * @param {typeof Record} Model
- * @param {string} name
+ * @param {string | symbol} name
  * @param {Record} receiver
  */
 function recordProxyGet(record, Model, name, receiver) {
@@ -67,7 +68,7 @@ function recordProxyGet(record, Model, name, receiver) {
  * @param {Record} record
  * @param {typeof Record} Model
  * @param {{current: import("models").Store}} storeRef
- * @param {string} name
+ * @param {string | symbol} name
  */
 function recordProxyDeleteProperty(record, Model, storeRef, name) {
     return storeRef.current.MAKE_UPDATE(function recordDeleteProperty() {
@@ -82,7 +83,7 @@ function recordProxyDeleteProperty(record, Model, storeRef, name) {
 /**
  * @param {Record} record
  * @param {{current: import("models").Store}} storeRef
- * @param {string} name
+ * @param {string | symbol} name
  * @param {any} val
  * @param {Record} receiver
  * @returns {boolean}
@@ -110,10 +111,11 @@ function recordProxySet(record, storeRef, name, val, receiver) {
     });
 }
 /**
- * @param {Record} record
+ * @template {Record} R
+ * @param {R} record
  * @param {typeof Record} Model
  * @param {{current: import("models").Store}} storeRef
- * @returns {Record}
+ * @returns {R}
  */
 function makeRecordProxy(record, Model, storeRef) {
     return new Proxy(record, {
@@ -134,23 +136,36 @@ function makeRecordProxy(record, Model, storeRef) {
 function makeRecordClass(OgClass, Model, storeRef) {
     return {
         [OgClass.getName()]: class extends OgClass {
+            /** @type {this} */
+            _raw = undefined;
+            /** @type {this} */
+            _proxy = undefined;
+            /** @type {this} */
+            _proxyInternal = undefined;
             constructor() {
                 super();
                 this.setup();
+                /** @type {this} */
                 const record = this;
                 record._raw = record;
                 record.Model = Model;
                 record._ = markRaw(
                     record[STORE_SYM] ? new StoreInternal() : new RecordInternal(),
                 );
-                const recordProxyInternal = makeRecordProxy(record, Model, storeRef);
+                const recordProxyInternal = /** @type {typeof record} */ (
+                    makeRecordProxy(record, Model, storeRef)
+                );
                 record._proxyInternal = recordProxyInternal;
-                const recordProxy = reactive(recordProxyInternal);
+                const recordProxy = /** @type {this} */ (reactive(recordProxyInternal));
                 record._proxy = recordProxy;
                 if (record?.[STORE_SYM]) {
-                    record.recordByLocalId = storeRef.current.recordByLocalId;
+                    /** @type {import("models").Store} */ (
+                        /** @type {unknown} */ (record)
+                    ).recordByLocalId = storeRef.current.recordByLocalId;
                     record._ = markRaw(toRaw(storeRef.current._));
-                    storeRef.current = record;
+                    storeRef.current = /** @type {import("models").Store} */ (
+                        /** @type {unknown} */ (record)
+                    );
                     Record.store = storeRef.current;
                 }
                 for (const name of Model._.fields.keys()) {
@@ -162,7 +177,7 @@ function makeRecordClass(OgClass, Model, storeRef) {
     }[OgClass.getName()];
 }
 /**
- * @param {typeof Record} Model
+ * @param {{_: import("./model_internal").ModelInternal, id: import("./misc").IdExpression}} Model
  * @param {typeof Record} OgClass
  */
 function collectModelFields(Model, OgClass) {

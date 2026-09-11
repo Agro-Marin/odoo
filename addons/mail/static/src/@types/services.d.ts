@@ -20,7 +20,14 @@ declare module "services" {
     import { suggestionService } from "@mail/core/common/suggestion_service";
     import { voiceMessageService } from "@mail/discuss/voice_message/common/voice_message_service";
 
+    import { composerService } from "@mail/core/common/composer_service";
+    import { fullscreenService } from "@mail/core/common/mail_fullscreen";
+    import { callPipService } from "@mail/discuss/call/common/pip_service";
+
     export interface Services {
+        "mail.composer": typeof composerService;
+        "mail.fullscreen": typeof fullscreenService;
+        "discuss.pip_service": typeof callPipService;
         "discuss.core.common": typeof discussCoreCommon;
         "discuss.core.public": typeof discussCorePublic;
         "discuss.core.public.web": typeof discussCorePublicWeb;

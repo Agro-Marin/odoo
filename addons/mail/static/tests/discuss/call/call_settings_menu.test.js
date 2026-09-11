@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -26,11 +27,29 @@ test("Renders the call settings", async () => {
         enumerateDevices: () =>
             Promise.resolve([
                 {
+                    groupId: "",
+                    toJSON() {
+                        return {
+                            deviceId: this.deviceId,
+                            groupId: this.groupId,
+                            kind: this.kind,
+                            label: this.label,
+                        };
+                    },
                     deviceId: "mockAudioDeviceId",
                     kind: "audioinput",
                     label: "mockAudioDeviceLabel",
                 },
                 {
+                    groupId: "",
+                    toJSON() {
+                        return {
+                            deviceId: this.deviceId,
+                            groupId: this.groupId,
+                            kind: this.kind,
+                            label: this.label,
+                        };
+                    },
                     deviceId: "mockVideoDeviceId",
                     kind: "videoinput",
                     label: "mockVideoDeviceLabel",

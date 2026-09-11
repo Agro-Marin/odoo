@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { EMOJI_REGEX } from "@mail/utils/common/format";
 import { markup } from "@odoo/owl";

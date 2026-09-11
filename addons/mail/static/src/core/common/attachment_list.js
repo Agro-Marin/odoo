@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
 import { attClassObjectToString } from "@mail/utils/common/format";

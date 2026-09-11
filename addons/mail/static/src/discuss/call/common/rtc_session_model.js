@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { browser } from "@web/core/browser/browser";
@@ -15,17 +16,20 @@ import { Deferred } from "@web/core/utils/concurrency";
 export class RtcSession extends Record {
     static _name = "discuss.channel.rtc.session";
     static id = "id";
-    /** @type {Map<number, import("@web/core/utils/concurrency").Deferred>} */
+    /** @type {Map<number, Deferred<import("models").RtcSession | undefined> & {_timeout?: ReturnType<typeof browser.setTimeout>}>} */
     static awaitedRecords = new Map();
-    static _insert() {
+    /** @param {Parameters<typeof Record._insert>} args */
+    static _insert(...args) {
         /** @type {import("models").RtcSession} */
-        const session = super._insert(...arguments);
+        const session = /** @type {import("models").RtcSession} */ (
+            super._insert(...args)
+        );
         session.channel?.rtc_session_ids.add(session);
         return session;
     }
     /**
      * @param {number} id
-     * @returns {Promise<import("models").RtcSession>}
+     * @returns {Promise<import("models").RtcSession | undefined>}
      */
     static async getWhenReady(id) {
         const session = this.get(id);
@@ -45,16 +49,27 @@ export class RtcSession extends Record {
         }
         return session;
     }
-    /** @returns {import("models").RtcSession} */
-    static new() {
-        const record = super.new(...arguments);
-        const deferred = this.awaitedRecords.get(record.id);
+    /**
+     * @template {typeof Record} T
+     * @this {T}
+     * @param {import("@mail/model/record").RecordData} data
+     * @param {import("@mail/model/record").RecordData} ids
+     * @returns {InstanceType<T>}
+     */
+    static new(data, ids) {
+        const record = /** @type {import("models").RtcSession} */ (
+            /** @type {unknown} */ (super.new(data, ids))
+        );
+        const Model = /** @type {T & Pick<typeof RtcSession, "awaitedRecords">} */ (
+            this
+        );
+        const deferred = Model.awaitedRecords.get(record.id);
         if (deferred) {
             browser.clearTimeout(deferred._timeout);
             deferred.resolve(record);
-            this.awaitedRecords.delete(record.id);
+            Model.awaitedRecords.delete(record.id);
         }
-        return record;
+        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (record));
     }
 
     channel_member_id = fields.One("discuss.channel.member", { inverse: "rtcSession" });
@@ -155,7 +170,7 @@ export class RtcSession extends Record {
     videoComponentCount = 0;
     /** @type {Map<'screen'|'camera', MediaStream>} */
     videoStreams = new Map();
-    /** @type {string} */
+    /** @type {"screen" | "camera"} */
     mainVideoStreamType;
     /** @type {number} */
     sequence = 0;

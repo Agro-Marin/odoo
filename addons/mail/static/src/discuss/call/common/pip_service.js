@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { markRaw, reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -39,9 +40,9 @@ export class CallPipService {
 
     /**
      * @param {Object} [param0]
-     * @param {Component} [param0.context]
+     * @param {import("@odoo/owl").Component} [param0.context]
      */
-    async openPip({ context }) {
+    async openPip({ context } = {}) {
         const rtc = this.env.services["discuss.rtc"];
         if (!rtc?.channel) {
             return;

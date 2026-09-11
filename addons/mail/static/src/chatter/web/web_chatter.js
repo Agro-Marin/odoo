@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ScheduledMessage } from "@mail/chatter/web/scheduled_message";
 import { Chatter } from "@mail/chatter/web_portal/chatter";
@@ -118,8 +119,14 @@ export class WebChatter extends Chatter {
                     if (this.state.composerType) {
                         return;
                     }
-                    if (isDragSourceExternalFile(ev.dataTransfer)) {
-                        const files = [...ev.dataTransfer.files];
+                    if (
+                        isDragSourceExternalFile(
+                            /** @type {DragEvent} */ (ev).dataTransfer,
+                        )
+                    ) {
+                        const files = [
+                            .../** @type {DragEvent} */ (ev).dataTransfer.files,
+                        ];
                         if (!this.state.thread.id) {
                             const saved = await this.props.saveRecord?.();
                             if (!saved) {
@@ -194,7 +201,7 @@ export class WebChatter extends Chatter {
     }
     setup() {
         this.messageHighlight = useMessageScrolling();
-        super.setup(...arguments);
+        super.setup();
         this._setupServicesAndState();
         this._setupChatterDropzone();
         this._setupChatterEffects();
@@ -343,7 +350,7 @@ export class WebChatter extends Chatter {
      * @param {number|false} threadId
      */
     changeThread(threadModel, threadId) {
-        super.changeThread(...arguments);
+        super.changeThread(threadModel, threadId);
         this.attachmentUploader.thread = this.state.thread;
         if (threadId === false) {
             this.state.composerType = false;
@@ -366,7 +373,7 @@ export class WebChatter extends Chatter {
      * @param {string[]} requestList
      */
     async load(thread, requestList) {
-        await super.load(...arguments);
+        await super.load(thread, requestList);
         if (!thread.id || !this.state.thread?.eq(thread)) {
             return;
         }
@@ -425,7 +432,7 @@ export class WebChatter extends Chatter {
     /** @param {boolean} isDiscard */
     onCloseFullComposerCallback(isDiscard) {
         this.toggleComposer();
-        super.onCloseFullComposerCallback(...arguments);
+        super.onCloseFullComposerCallback();
         if (!isDiscard) {
             this.reloadParentView();
         }
@@ -438,7 +445,9 @@ export class WebChatter extends Chatter {
     _onMounted() {
         super._onMounted();
         if (this.state.thread && this.props.highlightMessageId) {
-            this.state.thread.highlightMessage = this.props.highlightMessageId;
+            this.state.thread.highlightMessage = this.store["mail.message"].insert({
+                id: this.props.highlightMessageId,
+            });
         }
     }
 
@@ -462,8 +471,8 @@ export class WebChatter extends Chatter {
     }
 
     /**
-     * @param {string} data
-     * @param {import("models").Thread} thread
+     * @param {Parameters<ReturnType<import("@mail/core/common/attachment_uploader_hook").useAttachmentUploader>["uploadData"]>[0]} data
+     * @param {{thread?: import("models").Thread}} [options]
      */
     onUploaded(data, { thread } = {}) {
         const threadLocalId = thread.localId;
@@ -471,7 +480,7 @@ export class WebChatter extends Chatter {
             const self = this;
             this.uploadHandlers.set(
                 threadLocalId,
-                /** @param {string} data */
+                /** @param {{data: string, name: string, type: string}} data */
                 async function handleUpload(data) {
                     try {
                         const uploadThread =
@@ -541,7 +550,10 @@ export class WebChatter extends Chatter {
 
     toggleChatterCollapse() {
         this.state.isCollapsed = !this.state.isCollapsed;
-        browser.localStorage.setItem("chatter_aside_collapsed", this.state.isCollapsed);
+        browser.localStorage.setItem(
+            "chatter_aside_collapsed",
+            String(this.state.isCollapsed),
+        );
     }
 
     /**

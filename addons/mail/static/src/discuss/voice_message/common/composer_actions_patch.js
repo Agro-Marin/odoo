@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registerComposerAction } from "@mail/core/common/composer_actions";
 import { Component, xml } from "@odoo/owl";

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import "@mail/discuss/core/public_web/discuss_app_model_patch";
 

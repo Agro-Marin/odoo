@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CallActionList } from "@mail/discuss/call/common/call_action_list";
 import { Component, useSubEnv } from "@odoo/owl";

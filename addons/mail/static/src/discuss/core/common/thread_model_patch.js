@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
@@ -66,6 +67,7 @@ const threadStaticPatch = {
         if (fetchChannelInfoDeferred) {
             return fetchChannelInfoDeferred;
         }
+        /** @type {Deferred<import("models").Thread | undefined>} */
         const def = new Deferred();
         this.store.channelIdsFetchingDeferred.set(data.id, def);
         this.store.fetchChannel(data.id).then(
@@ -254,7 +256,11 @@ const threadPatch = {
         if (separator === 0 && !this.loadOlder) {
             return messages[0];
         }
-        if (!separator || messages.length === 0 || messages.at(-1).id < separator) {
+        if (
+            !separator ||
+            messages.length === 0 ||
+            Number(messages.at(-1).id) < separator
+        ) {
             return null;
         }
         let message = this.store["mail.message"].get({ id: separator });
@@ -262,7 +268,7 @@ const threadPatch = {
             message = nearestGreaterThanOrEqual(
                 messages,
                 separator,
-                /** @param {import("models").Message} msg */ (msg) => msg.id,
+                /** @param {import("models").Message} msg */ (msg) => Number(msg.id),
             );
         }
         return message;
@@ -272,15 +278,21 @@ const threadPatch = {
         if (!this.hasSeenFeature) {
             return;
         }
-        return this.channel_member_ids.reduce((lastMessageSeenByAllId, member) => {
-            if (member.notEq(this.self_member_id) && member.seen_message_id) {
-                return lastMessageSeenByAllId
-                    ? Math.min(lastMessageSeenByAllId, member.seen_message_id.id)
-                    : member.seen_message_id.id;
-            } else {
-                return lastMessageSeenByAllId;
-            }
-        }, undefined);
+        return this.channel_member_ids.reduce(
+            (/** @type {number | undefined} */ lastMessageSeenByAllId, member) => {
+                if (member.notEq(this.self_member_id) && member.seen_message_id) {
+                    return lastMessageSeenByAllId
+                        ? Math.min(
+                              lastMessageSeenByAllId,
+                              Number(member.seen_message_id.id),
+                          )
+                        : Number(member.seen_message_id.id);
+                } else {
+                    return lastMessageSeenByAllId;
+                }
+            },
+            undefined,
+        );
     },
     /** @this {import("models").Thread} */
     _computeMaxSeenMessageIdByOthers() {
@@ -294,7 +306,7 @@ const threadPatch = {
                 member.persona &&
                 member.seen_message_id
             ) {
-                max = Math.max(max, member.seen_message_id.id);
+                max = Math.max(max, Number(member.seen_message_id.id));
             }
         }
         return max;
@@ -311,7 +323,7 @@ const threadPatch = {
                 member.persona &&
                 member.fetched_message_id
             ) {
-                max = Math.max(max, member.fetched_message_id.id);
+                max = Math.max(max, Number(member.fetched_message_id.id));
             }
         }
         return max;
@@ -328,7 +340,7 @@ const threadPatch = {
             if (
                 !message.isSelfAuthored ||
                 message.isNotification ||
-                message.id > this.lastMessageSeenByAllId
+                Number(message.id) > this.lastMessageSeenByAllId
             ) {
                 continue;
             }
@@ -359,7 +371,7 @@ const threadPatch = {
         return (
             this.allowedToLeaveChannelTypes.includes(this.channel_type) &&
             this.group_ids.length === 0 &&
-            this.store.self_partner
+            Boolean(this.store.self_partner)
         );
     },
     get allowedToUnpinChannelTypes() {
@@ -618,7 +630,7 @@ const threadPatch = {
     },
     get avatarUrl() {
         if (this.channel_type === "channel" || this.channel_type === "group") {
-            return imageUrl("discuss.channel", this.id, "avatar_128", {
+            return imageUrl("discuss.channel", Number(this.id), "avatar_128", {
                 unique: this.avatar_cache_key,
             });
         }
@@ -814,7 +826,7 @@ const threadPatch = {
             return;
         }
         this.self_member_id.seen_message_id = message;
-        this.self_member_id.new_message_separator = message.id + 1;
+        this.self_member_id.new_message_separator = Number(message.id) + 1;
         this.self_member_id.new_message_separator_ui =
             this.self_member_id.new_message_separator;
         this.markedAsUnread = false;

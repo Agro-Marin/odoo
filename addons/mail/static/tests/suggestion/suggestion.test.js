@@ -1,3 +1,4 @@
+// @ts-check
 import { insertText as htmlInsertText } from "@html_editor/../tests/_helpers/user_actions";
 import {
     click,

@@ -22,12 +22,12 @@ class MyModel(models.Model):
 It then has `message_ids`, `message_follower_ids`, `activity_ids`, tracking, and the email
 gateway. Class-level knobs on `mixin.mail.thread` tune behavior:
 
-| Attribute | Default | Effect |
-|-----------|---------|--------|
-| `_mail_post_access` | `"write"` | Access level required to post on the record |
-| `_mail_flat_thread` | `True` | Link orphan messages to the first message instead of threading |
-| `_mail_thread_customer` | `False` | Treat the record's partner as the customer for notifications |
-| `_primary_email` | `"email"` | Field used when the gateway creates a record from an alias |
+| Attribute               | Default   | Effect                                                         |
+| ----------------------- | --------- | -------------------------------------------------------------- |
+| `_mail_post_access`     | `"write"` | Access level required to post on the record                    |
+| `_mail_flat_thread`     | `True`    | Link orphan messages to the first message instead of threading |
+| `_mail_thread_customer` | `False`   | Treat the record's partner as the customer for notifications   |
+| `_primary_email`        | `"email"` | Field used when the gateway creates a record from an alias     |
 
 ### 2. `message_post` is the canonical posting API
 
@@ -67,10 +67,11 @@ time-in-stage and "rotting".
 ### 5. The email gateway two-hook contract
 
 Incoming email routed to a model calls exactly one of two hooks:
+
 - `message_new(msg_dict, custom_values=None)` — create a new record from the email.
 - `message_update(msg_dict, update_vals=None)` — append the email to an existing thread.
-Override these (not `message_process`/`message_route`, which are framework routing) to
-customize gateway behavior. `mixin.mail.thread.cc` overrides both to track `email_cc`.
+  Override these (not `message_process`/`message_route`, which are framework routing) to
+  customize gateway behavior. `mixin.mail.thread.cc` overrides both to track `email_cc`.
 
 ### 6. `mixin.template.reset` for module-shipped records
 
@@ -86,6 +87,7 @@ Every JS model is a `Record` subclass with a `static id`, `fields.*` declaration
 trailing `.register()` (see `STATE_MANAGEMENT.md`). There are **39** such classes (counted
 by `.register()` call sites, not by grepping `extends Record` — see `ARCHITECTURE.md`). When
 adding one:
+
 1. `static _name = "<python.model>"` (omit only for JS-only models like `Composer`, `ChatHub`).
 2. Declare relations with `fields.One(Target)` / `fields.Many(Target)`, and add
    `{inverse: "<field>"}` **only when the target model declares the reciprocal relation** —
@@ -98,10 +100,11 @@ adding one:
    down at boot rather than degrading quietly — there is no gate to add, the store itself is
    the gate and every HOOT suite boots it.
 
-   > `RecordUses` does **not** depend on `inverse`, contrary to what this list said until
-   > 2026-08-17. It is maintained from the `RecordList` itself — `record._.uses.add(recordList)`
-   > in `model/record_list.js`, called unconditionally — while `inverse` is only ever read
-   > inside `if (inverse)` guards. Omitting `inverse` cannot make `RecordUses` inconsistent.
+    > `RecordUses` does **not** depend on `inverse`, contrary to what this list said until
+    > 2026-08-17. It is maintained from the `RecordList` itself — `record._.uses.add(recordList)`
+    > in `model/record_list.js`, called unconditionally — while `inverse` is only ever read
+    > inside `if (inverse)` guards. Omitting `inverse` cannot make `RecordUses` inconsistent.
+
 3. `<Class>.register();` at the file's end — this adds it to `modelRegistry`
    (`registry.category("discuss.model")`). Forgetting it means the model never exists at runtime.
 
@@ -109,6 +112,7 @@ adding one:
 
 Server data — initial payload, `/mail/data` fetch, or a `mail.record/insert` bus push — is
 merged with `store.insert(dataByModel)` (upsert keyed by `static id`). Consequences:
+
 - Always insert by **python model name** (`this["res.partner"].insert(...)`,
   `this["mail.message"].insert(...)`); `Store.insert` maps py→js names via `pyToJsModels`.
 - Inserting is safe to repeat — the second call with the same id is a no-op beyond field
@@ -151,8 +155,8 @@ registries holding different things:
 - `discussComponentRegistry` (`core/common/discuss_component_registry.js`) →
   `registry.category("discuss.component")` holds **overridable OWL components** (message
   actions, action lists, avatar cards, call dropdowns); populated by explicit `.add()`.
-Extending message actions or the avatar card means adding to
-`discussComponentRegistry` (category `discuss.component`), not `modelRegistry`.
+  Extending message actions or the avatar card means adding to
+  `discussComponentRegistry` (category `discuss.component`), not `modelRegistry`.
 
 ## Controller / auth conventions
 
@@ -197,15 +201,15 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    `Thread`, `Volume`. (The other 25 declare one.) Their `getName()` falls back to the class name, so a server
    payload keyed by a python model cannot address them.
 
-   **"No `static _name`" does not mean "no python counterpart"** — that is the trap:
-   - `Thread` is the one exception to the rule above: python payloads *do* reach it, because
-     `pyToJsModels` maps `discuss.channel` and `mixin.mail.thread` onto it (gotcha 6).
-   - `Settings` mirrors `res.users.settings`, but is fed by the dedicated
-     `res.users.settings` **bus type** (`res_users_settings.py` → `_bus_send`), not by
-     model-keyed insertion.
+    **"No `static _name`" does not mean "no python counterpart"** — that is the trap:
+    - `Thread` is the one exception to the rule above: python payloads _do_ reach it, because
+      `pyToJsModels` maps `discuss.channel` and `mixin.mail.thread` onto it (gotcha 6).
+    - `Settings` mirrors `res.users.settings`, but is fed by the dedicated
+      `res.users.settings` **bus type** (`res_users_settings.py` → `_bus_send`), not by
+      model-keyed insertion.
 
-   Only `Composer`, `ChatHub`, `ChatWindow`, `Failure` and `DataResponse` are truly
-   client-side-only state with no server model behind them at all.
+    Only `Composer`, `ChatHub`, `ChatWindow`, `Failure` and `DataResponse` are truly
+    client-side-only state with no server model behind them at all.
 
 5. **Persona = `res.partner` ∪ `mail.guest`.** There is no single `Persona` model. `store.self`
    resolves to `self_partner || self_guest`. Author of a message may be `author_id`
@@ -220,7 +224,7 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    notified regardless, and that is intended.** In
    `mail.followers._get_recipient_data`, the JOIN drops share partners from an
    `internal = True` subtype (e.g. `mail.mt_note`), but it keys off each
-   *follower's* own subscription; the `pids` branch of the UNION hardcodes
+   _follower's_ own subscription; the `pids` branch of the UNION hardcodes
    `internal = FALSE`, so a partner named in `partner_ids` is always notified.
    That is deliberate — `test_mail`'s `TestServerActionsEmail.test_action_message_post`
    asserts a share partner receives a `mail.mt_note` post — so **do not "fix" it**
@@ -228,14 +232,14 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    `partner_share = True`, so such a guard silences ordinary customer
    notifications and breaks ~7 `test_mail` tests.
 
-   Know the consequence, though: log-note mode still ships @mentions as
-   `partner_ids` (`static/src/core/common/message_post.js`), so @mentioning a
-   *portal user* in a Log Note e-mails them the note body while
-   `mail.message._get_forbidden_access` denies them read access to that same
-   message (its share-user branch forbids `subtype.internal` before the
-   "notified" exemption is considered). The notification side legitimately
-   out-reaches the read ACL here; any change to that is a product decision, not a
-   bug fix.
+    Know the consequence, though: log-note mode still ships @mentions as
+    `partner_ids` (`static/src/core/common/message_post.js`), so @mentioning a
+    _portal user_ in a Log Note e-mails them the note body while
+    `mail.message._get_forbidden_access` denies them read access to that same
+    message (its share-user branch forbids `subtype.internal` before the
+    "notified" exemption is considered). The notification side legitimately
+    out-reaches the read ACL here; any change to that is a product decision, not a
+    bug fix.
 
 8. **Restricted ("static") rendering resolves an expression's declared root.**
    `mail_allowed_qweb_expressions` (`models/base.py`) is the security boundary for
@@ -245,16 +249,16 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    not guessed. Do not go back to `expr.split(".")[1:]` against the record — that
    made the allow-list and the evaluator disagree about what is being read.
 
-   **It is no longer a regex, and that matters.** The safety check
-   (`_is_static_expression` → `ir.qweb._is_expression_allowed`) and the renderer
-   (`_render_template_qweb_static` / `_render_template_inline_template_static`) now
-   walk the **same parsed tree**. They used to disagree: the check walked the
-   element tree while the renderer ran a regex over a normalised source string, and
-   lxml exposes no element for text inside a comment, `<script>` or `<style>` — so a
-   directive written there was called safe, handed to the regex renderer, and raised
-   a bare `SyntaxError` that reached the user as "Oops! We couldn't save your
-   template". If you are looking for `_render_regex_resolve`, that is the name it
-   had before the two were made one walk.
+    **It is no longer a regex, and that matters.** The safety check
+    (`_is_static_expression` → `ir.qweb._is_expression_allowed`) and the renderer
+    (`_render_template_qweb_static` / `_render_template_inline_template_static`) now
+    walk the **same parsed tree**. They used to disagree: the check walked the
+    element tree while the renderer ran a regex over a normalised source string, and
+    lxml exposes no element for text inside a comment, `<script>` or `<style>` — so a
+    directive written there was called safe, handed to the regex renderer, and raised
+    a bare `SyntaxError` that reached the user as "Oops! We couldn't save your
+    template". If you are looking for `_render_regex_resolve`, that is the name it
+    had before the two were made one walk.
 
 9. **The round-numbered hardening suites are gone — do not add another.**
    `test_mail_hardening_v2..v13` and `test_mail_audit_v6*` were AgroMarin regression
@@ -267,3 +271,41 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    is the parity pin, which asserts the access rule's two spellings agree rather than
    re-asserting one round's findings. Upstream is still the baseline, not the ceiling;
    only the filing changed. See `TEST_TAGS.md`.
+
+## JavaScript type contracts
+
+Follow web's [JSDoc recipe](../../web/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md): preserve JavaScript assets and
+describe the actual receiver, arguments and return values in JSDoc. Generic
+parameters need names; give public generic classes defaults where callers also
+use the unspecialized form. Keep the mail model `Record` alias distinct from
+TypeScript's dictionary `Record<K, V>`.
+
+Relations expose model instances through the store. `fields.Many` therefore
+describes a `RecordList` of the target model, including its relation mutators,
+not a plain array. Mock route callbacks derive their receiver and arguments
+from web's callback contract but return a promise, since mail's fixtures are
+async functions.
+
+From the checkout root, run:
+
+```bash
+node --test tooling/typecheck/web_jsdoc.test.mjs tooling/typecheck/mail_types.test.mjs
+```
+
+Every owned browser JavaScript file in mail's source and tests carries
+`// @ts-check`. The mail guard enumerates those files from disk, requires their
+inclusion in the browser program, and checks their diagnostics. Removing a
+pragma or excluding a file cannot turn an error into a passing check.
+
+Run the complete browser compiler too, since mail's model and component
+contracts have consumers in other addons:
+
+```bash
+node node_modules/typescript/bin/tsc --project tsconfig.json --noEmit
+```
+
+`service_worker.js` is excluded from this browser check because it runs in a
+worker environment. Browser opt-in does not enable the separate
+`strictNullChecks` and `noImplicitAny` migration in `tsconfig.strict.json`.
+The consumer fixtures use strict settings to verify generic inference and
+rejected invalid property access.

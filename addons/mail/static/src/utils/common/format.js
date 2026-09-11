@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { htmlEscape, markup } from "@odoo/owl";
 import { loadEmoji, loader } from "@web/components/emoji_picker";
@@ -37,7 +38,7 @@ function getMessageUrlRegExp() {
  * @param {string|ReturnType<markup>} rawBody
  * @param {Object} [param1]
  * @param {Object} [param1.validMentions]
- * @param {import("models").ResPartner[]} [param1.validMentions.partners]
+ * @param {(Pick<import("models").ResPartner, "id" | "name"> & {displayName?: string})[]} [param1.validMentions.partners]
  * @param {import("models").ResRole[]} [param1.validMentions.roles]
  * @param {import("models").Thread[]} [param1.validMentions.threads]
  * @param {string[]} [param1.validMentions.specialMentions]
@@ -79,7 +80,7 @@ export async function generateEmojisOnHtml(
  * @param {string|ReturnType<markup>} rawBody
  * @param {Object} [param1]
  * @param {Object} [param1.validMentions]
- * @param {import("models").ResPartner[]} [param1.validMentions.partners]
+ * @param {(Pick<import("models").ResPartner, "id" | "name"> & {displayName?: string})[]} [param1.validMentions.partners]
  * @param {boolean} [param1.allowEmojiLoading=true]
  * @returns {Promise<string|ReturnType<markup>>}
  */
@@ -192,7 +193,7 @@ export function addLink(node, transformChildren) {
 /**
  * @param {Object} mention
  * @param {string} mention.className
- * @param {number} mention.id
+ * @param {string | number} mention.id
  * @param {string} mention.model
  * @param {string} mention.text
  * @returns {HTMLAnchorElement}
@@ -212,7 +213,7 @@ function generateMentionElement({ className, id, model, text }) {
 }
 
 /**
- * @param {import("models").ResPartner} partner
+ * @param {Pick<import("models").ResPartner, "id" | "name"> & {displayName?: string}} partner
  * @param {import("models").Thread} thread
  */
 export function generatePartnerMentionElement(partner, thread) {
@@ -245,7 +246,7 @@ export function generateSpecialMentionElement(label) {
     return link;
 }
 
-/** @param {import("models").Thread} thread */
+/** @param {Pick<import("models").Thread, "id" | "model"> & Partial<Pick<import("models").Thread, "parent_channel_id" | "fullNameWithParent">>} thread */
 export function generateThreadMentionElement(thread) {
     return generateMentionElement({
         className: `o_channel_redirect${
@@ -260,10 +261,10 @@ export function generateThreadMentionElement(thread) {
 /**
  * @param {string|ReturnType<markup>} body
  * @param {Object} param1
- * @param {import("models").ResPartner[]} param1.partners
- * @param {import("models").ResRole[]} param1.roles
- * @param {import("models").Thread[]} param1.threads
- * @param {string[]} param1.specialMentions
+ * @param {(Pick<import("models").ResPartner, "id" | "name"> & {displayName?: string})[]} [param1.partners]
+ * @param {import("models").ResRole[]} [param1.roles]
+ * @param {import("models").Thread[]} [param1.threads]
+ * @param {string[]} [param1.specialMentions]
  * @param {import("models").Thread} param1.thread
  * @return {ReturnType<markup>}
  */
@@ -445,7 +446,7 @@ export function trimEmptyBlocksAround(content) {
 
     /** @param {Node} node */
     const removeNode = (node) => {
-        node.remove();
+        /** @type {ChildNode} */ (node).remove();
         changed = true;
     };
 
@@ -596,7 +597,7 @@ export function decorateEmojis(content) {
                     )}">${codepoints}</span>`,
             ),
         );
-        node.replaceWith(...span.childNodes);
+        /** @type {ChildNode} */ (node).replaceWith(...span.childNodes);
     }
     return markup(doc.body.innerHTML);
 }

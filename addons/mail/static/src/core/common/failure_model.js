@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { _t } from "@web/core/translation";
@@ -40,7 +41,7 @@ export class Failure extends Record {
             return lastMsg;
         },
     });
-    /** @type {'sms' | 'email'} */
+    /** @type {import("models").Notification["notification_type"]} */
     get type() {
         return this.notifications?.[0]?.notification_type;
     }

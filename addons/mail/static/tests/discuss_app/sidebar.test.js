@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -1108,6 +1109,7 @@ test("chat - avatar: should have correct avatar", async () => {
 });
 
 test("chat should be sorted by last activity time", async () => {
+    mockDate("2021-03-01 12:00:00");
     const pyEnv = await startServer();
     const [demo_id, yoshi_id] = pyEnv["res.partner"].create([
         { name: "Demo" },
@@ -1138,20 +1140,18 @@ test("chat should be sorted by last activity time", async () => {
     ]);
     await start();
     await openDiscuss();
-    await contains(
-        ".o-mail-DiscussSidebarChannel",
-        { text: "Yoshi" },
-        { before: [".o-mail-DiscussSidebarChannel", { text: "Demo" }] },
-    );
+    await contains(".o-mail-DiscussSidebarChannel", {
+        text: "Yoshi",
+        before: [".o-mail-DiscussSidebarChannel", { text: "Demo" }],
+    });
     await click(".o-mail-DiscussSidebarChannel", { text: "Demo" });
     await insertText(".o-mail-Composer-input[placeholder='Message Demo…']", "Blabla");
     await press("Enter");
     await contains(".o-mail-Message", { text: "Blabla" });
-    await contains(
-        ".o-mail-DiscussSidebarChannel",
-        { text: "Demo" },
-        { before: [".o-mail-DiscussSidebarChannel", { text: "Yoshi" }] },
-    );
+    await contains(".o-mail-DiscussSidebarChannel", {
+        text: "Demo",
+        before: [".o-mail-DiscussSidebarChannel", { text: "Yoshi" }],
+    });
 });
 
 test("Can unpin chat channel", async () => {
@@ -1336,7 +1336,7 @@ test("Can make sidebar smaller", async () => {
 });
 
 test("Sidebar compact is locally persistent (saved in local storage)", async () => {
-    browser.localStorage.setItem(DISCUSS_SIDEBAR_COMPACT_LS, true);
+    browser.localStorage.setItem(DISCUSS_SIDEBAR_COMPACT_LS, String(true));
     await start();
     await openDiscuss();
     await contains(".o-mail-DiscussSidebar.o-compact");

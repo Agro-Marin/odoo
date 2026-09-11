@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { isBlock } from "@html_editor/utils/blocks";
 import { getAdjacentPreviousSiblings } from "@html_editor/utils/dom_traversal";
@@ -15,7 +16,7 @@ import {
 export { splitSelectorAroundCommasOutsideParentheses };
 
 /** @typedef {CSSStyleDeclaration & Record<string, string>} IndexableStyle */
-/** @typedef {Object<string, string>} StyleMap */
+/** @typedef {Object<string, string> & { [IMPORTANT_KEYS]?: Set<string> }} StyleMap */
 const IMPORTANT_KEYS = Symbol("importantKeys");
 /**
  * @typedef {Object} CssRule
@@ -374,7 +375,7 @@ function _normalizeBootstrapColumns(tr) {
         }
         columnIndex++;
     }
-    return bootstrapColumns;
+    return /** @type {HTMLElement[]} */ (bootstrapColumns);
 }
 /**
  * @param {HTMLTableRowElement} tr
@@ -523,7 +524,10 @@ export function bootstrapToTable(element) {
         for (const bootstrapRow of [...table.children].filter((c) =>
             c.classList.contains("row"),
         )) {
-            _convertBootstrapRowToRows(bootstrapRow, containerWidth);
+            _convertBootstrapRowToRows(
+                /** @type {HTMLElement} */ (bootstrapRow),
+                containerWidth,
+            );
         }
     }
     for (const node of element.querySelectorAll("[o-temp-width]")) {
@@ -1045,7 +1049,8 @@ function markMasonryRowFullHeight(tr) {
             td.prepend(centeringSpan);
             if (td.style.height.includes("%")) {
                 const newHeight =
-                    (height * parseFloat(td.style.height.replace("%").trim())) / 100;
+                    (height * parseFloat(td.style.height.replace("%", "").trim())) /
+                    100;
                 td.style.setProperty("height", newHeight + "px");
                 td.style.setProperty("max-height", newHeight + "px");
                 wrapper.style.setProperty("max-height", newHeight + "px");

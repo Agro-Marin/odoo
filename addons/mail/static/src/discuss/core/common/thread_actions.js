@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ACTION_TAGS } from "@mail/core/common/action";
 import { registerThreadAction } from "@mail/core/common/thread_actions";

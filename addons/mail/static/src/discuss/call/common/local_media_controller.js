@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { BlurManager } from "@mail/discuss/call/common/blur_manager";
 import { monitorAudio } from "@mail/utils/common/media_monitoring";
@@ -19,13 +20,13 @@ const SCREEN_CONFIG = {
 
 /**
  * @typedef {Object} LocalMediaHooks
- * @property {() => import("models").Settings} getSettings
- * @property {() => import("models").RtcSession|undefined} getLocalSession
- * @property {() => import("models").RtcSession|undefined} getSelfSession
- * @property {(type: string, track: MediaStreamTrack|undefined) => Promise} updateTrackUpload
+ * @property {() => Pick<import("models").Settings, "audioConstraints" | "cameraConstraints" | "useBlur" | "use_push_to_talk" | "voiceActivationThreshold" | "cameraFacingMode" | "setUseBlur"> & Partial<Pick<import("models").Settings, "backgroundBlurAmount" | "edgeBlurAmount">>} getSettings
+ * @property {() => Pick<import("models").RtcSession, "isMute" | "is_muted" | "isTalking">|undefined} getLocalSession
+ * @property {() => Pick<import("models").RtcSession, "isMute" | "is_muted" | "isTalking">|undefined} getSelfSession
+ * @property {(type: import("./rtc_service").streamType, track: MediaStreamTrack|undefined) => Promise} updateTrackUpload
  * @property {(isMute: boolean) => Promise} setMute
  * @property {(media: {microphone?: boolean, camera?: boolean, screen?: boolean}) => void} onMediaUnavailable
- * @property {(type: string, options: Object|boolean) => Promise} toggleVideo
+ * @property {(type: "camera" | "screen", options: Object|boolean) => Promise} toggleVideo
  * @property {(soundName: string) => void} playSound
  * @property {(text: string) => void} notify
  * @property {(isTalking: boolean) => void} setTalking
@@ -34,7 +35,7 @@ const SCREEN_CONFIG = {
 export class LocalMediaController {
     /** @type {AudioContext} */
     audioContext;
-    /** @type {BlurManager|undefined} */
+    /** @type {Pick<BlurManager, "stream" | "close" | "backgroundBlur" | "edgeBlur">|undefined} */
     blurManager;
     _audioTrackMutex = new Mutex();
     _videoMutexes = { camera: new Mutex(), screen: new Mutex() };
@@ -42,7 +43,7 @@ export class LocalMediaController {
 
     /**
      * @param {Object} param0
-     * @param {import("@mail/discuss/call/common/rtc_service").RtcCallState} param0.state
+     * @param {Pick<import("./rtc_service").RtcCallState, "micAudioTrack" | "screenAudioTrack" | "audioTrack" | "cameraTrack" | "screenTrack" | "disconnectAudioMonitor" | "sourceCameraStream" | "sourceScreenStream" | "sendCamera" | "sendScreen"> & {channel?: Pick<import("models").Thread, "id">}} param0.state
      * @param {LocalMediaHooks} param0.hooks
      */
     constructor({ state, hooks }) {
@@ -53,7 +54,7 @@ export class LocalMediaController {
 
     /**
      * @param {MediaStream} videoStream
-     * @returns {Promise<BlurManager>}
+     * @returns {Promise<Pick<BlurManager, "stream" | "close" | "backgroundBlur" | "edgeBlur">>}
      */
     async applyBlurEffect(videoStream) {
         const settings = this.hooks.getSettings();
@@ -267,7 +268,10 @@ export class LocalMediaController {
             });
             if (type === "camera" && isMobileOS()) {
                 const trackSettings = outputTrack.getSettings();
-                if (trackSettings?.facingMode) {
+                if (
+                    trackSettings?.facingMode === "user" ||
+                    trackSettings?.facingMode === "environment"
+                ) {
                     settings.cameraFacingMode = trackSettings.facingMode;
                 } else if (!settings.cameraFacingMode) {
                     settings.cameraFacingMode = "user";
@@ -322,7 +326,7 @@ export class LocalMediaController {
      * @param {boolean} [options.force]
      * @param {boolean} [options.unmute]
      */
-    async resetMicAudioTrack({ force = false, unmute = true }) {
+    async resetMicAudioTrack({ force = false, unmute = true } = {}) {
         const wasMuted = Boolean(this.hooks.getLocalSession()?.is_muted);
         this.state.micAudioTrack?.stop();
         this.state.micAudioTrack = undefined;

@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { useHover, useLongPress } from "@mail/utils/common/hooks";
 import { describe, expect, test } from "@odoo/hoot";
@@ -9,8 +10,9 @@ describe.current.tags("desktop");
 defineMailModels();
 
 function touch(selector, type, { clientX = 0, clientY = 0 } = {}) {
-    const ev = new Event(type, { bubbles: true });
-    ev.touches = [{ clientX, clientY }];
+    const ev = Object.assign(new Event(type, { bubbles: true }), {
+        touches: [{ clientX, clientY }],
+    });
     queryOne(selector).dispatchEvent(ev);
 }
 

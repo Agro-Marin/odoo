@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { MESSAGE_SOUND } from "@mail/core/common/settings_model";
 import { Component, useState } from "@odoo/owl";
@@ -28,7 +29,7 @@ export class DiscussNotificationSettings extends Component {
     }
 
     disableMessageSound() {
-        browser.localStorage.setItem(MESSAGE_SOUND, false);
+        browser.localStorage.setItem(MESSAGE_SOUND, String(false));
         this.store.settings._recomputeMessageSound++;
     }
 }

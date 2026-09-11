@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActivityArchParser } from "@mail/views/web/activity/activity_arch_parser";
 import { ActivityController } from "@mail/views/web/activity/activity_controller";

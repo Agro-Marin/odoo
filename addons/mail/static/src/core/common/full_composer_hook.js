@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { saveComposerDraft } from "@mail/core/common/composer_draft";
 import { EventBus, toRaw, useComponent, useState } from "@odoo/owl";

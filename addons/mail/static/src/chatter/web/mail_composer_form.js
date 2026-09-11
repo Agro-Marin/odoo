@@ -1,4 +1,6 @@
+// @ts-check
 /** @odoo-module native */
+/** @import { SuggestedRecipient } from "@mail/core/common/thread_model" */
 import { MailAttachmentDropzone } from "@mail/core/common/mail_attachment_dropzone";
 import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
 import { EventBus, toRaw, useEffect, useRef, useSubEnv } from "@odoo/owl";
@@ -92,7 +94,8 @@ export class MailComposerFormRenderer extends formView.Renderer {
                     this.props.record.resModel === "mail.scheduled.message"
                         ? { attachments: [] }
                         : thread.composer;
-                for (const file of event.dataTransfer.files) {
+                for (const file of /** @type {DragEvent} */ (event).dataTransfer
+                    .files) {
                     const attachment = await this.attachmentUploadService.upload(
                         thread,
                         composer,
@@ -111,6 +114,7 @@ export class MailComposerFormRenderer extends formView.Renderer {
     _updateThreadRecipients(thread, selectedPartners, selectedPartnerIds) {
         /** @param {SuggestedRecipient} recipient */
         const isSelected = (recipient) =>
+            recipient.partner_id !== false &&
             selectedPartnerIds.includes(recipient.partner_id);
         /** @param {SuggestedRecipient} recipient */
         const merged = (recipient) =>

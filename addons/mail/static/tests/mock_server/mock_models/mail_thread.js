@@ -1,3 +1,4 @@
+// @ts-check
 import {
     mailDataHelpers,
     registeredRoutes,
@@ -72,6 +73,7 @@ export class MailThread extends models.ServerModel {
         /** @type {import("mock_models").MailFollowers} */
         const MailFollowers = this.env["mail.followers"];
 
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const domain = [
             ["res_id", "=", ids[0]],
             ["res_model", "=", this._name],
@@ -164,14 +166,16 @@ export class MailThread extends models.ServerModel {
             res_id: id,
         });
         delete values.context;
-        delete values.subtype_xmlid;
-        const messageId = MailMessage.create(values);
+        Reflect.deleteProperty(values, "subtype_xmlid");
+        const messageId = /** @type {number} */ (MailMessage.create(values));
         for (const partnerId of kwargs.partner_ids || []) {
-            MailNotification.create({
-                mail_message_id: messageId,
-                notification_type: "inbox",
-                res_partner_id: partnerId,
-            });
+            /** @type {number} */ (
+                MailNotification.create({
+                    mail_message_id: messageId,
+                    notification_type: "inbox",
+                    res_partner_id: partnerId,
+                })
+            );
         }
         MailThread._notify_thread.call(
             this,
@@ -213,13 +217,15 @@ export class MailThread extends models.ServerModel {
                             ["res_model", "=", false],
                         ]);
                     }
-                    followerId = MailFollowers.create({
-                        is_active: true,
-                        partner_id,
-                        res_id: id,
-                        res_model: this._name,
-                        subtype_ids: subtype_ids,
-                    });
+                    followerId = /** @type {number} */ (
+                        MailFollowers.create({
+                            is_active: true,
+                            partner_id,
+                            res_id: id,
+                            res_model: this._name,
+                            subtype_ids: subtype_ids,
+                        })
+                    );
                 }
                 this.env[this._name].write(ids, {
                     message_follower_ids: [Command.link(followerId)],
@@ -292,11 +298,11 @@ export class MailThread extends models.ServerModel {
     /**
      * @param {number} id
      * @param {Object} result
-     * @param {number} partner
-     * @param {string} email
-     * @param {string} lang
-     * @param {string} reason
-     * @param {string} name
+     * @param {Object} [partner]
+     * @param {string} [email]
+     * @param {string} [lang]
+     * @param {string} [reason]
+     * @param {string} [name]
      */
     _message_add_suggested_recipient(
         id,
@@ -420,22 +426,19 @@ export class MailThread extends models.ServerModel {
                 primary_email,
             );
         }
-        const result = ids.reduce((result, id) => (result[id] = []), {});
+        const result = [];
         const model = this.env[this._name];
-        for (const record in model.browse(ids)) {
+        for (const record of model.browse(ids)) {
             if (record.user_id) {
-                const user = ResUsers.browse(record.user_id);
+                const [user] = ResUsers.browse(record.user_id);
                 if (user.partner_id) {
                     const reason = model._fields["user_id"].string;
-                    const partner = ResPartner.browse(user.partner_id);
+                    const [partner] = ResPartner.browse(user.partner_id);
                     MailThread._message_add_suggested_recipient.call(
                         this,
+                        record.id,
                         result,
-                        makeKwArgs({
-                            email: partner.email,
-                            partner: user.partner_id,
-                            reason,
-                        }),
+                        makeKwArgs({ email: partner.email, partner, reason }),
                     );
                 }
             }
@@ -467,6 +470,7 @@ export class MailThread extends models.ServerModel {
         const ResUsers = this.env["res.users"];
 
         const [message] = MailMessage.browse(message_id);
+        /** @type {[any, string, any][]} */
         const notifications = [];
         if (this._name === "discuss.channel") {
             const channels = DiscussChannel.browse(message.res_id);
@@ -475,15 +479,18 @@ export class MailThread extends models.ServerModel {
                     channel,
                     "discuss.channel/new_message",
                     {
-                        data: new mailDataHelpers.Store(
-                            MailMessage.browse(message_id),
-                        ).get_result(),
+                        data: new mailDataHelpers.Store(MailMessage.browse(message_id))
+                            .add(DiscussChannel.browse(channel.id), [
+                                "last_interest_dt",
+                            ])
+                            .get_result(),
                         id: channel.id,
                         message_id: message.id,
                         temporary_id,
                     },
                 ]);
-                const memberOfCurrentUser = this._get_or_create_member_for_self(ids[0]);
+                const memberOfCurrentUser =
+                    DiscussChannel._get_or_create_member_for_self(ids[0]);
                 if (memberOfCurrentUser) {
                     this.env["discuss.channel.member"]._set_last_seen_message(
                         [memberOfCurrentUser.id],
@@ -569,7 +576,7 @@ export class MailThread extends models.ServerModel {
             MailThread.message_post.call(
                 this,
                 [record.id],
-                subtype.id,
+                subtype && subtype.id,
                 trackingValueIds,
             );
         }
@@ -619,7 +626,10 @@ export class MailThread extends models.ServerModel {
         return initialTrackedFieldValuesByRecordId;
     }
 
-    /** @param {Object} initial_values */
+    /**
+     * @param {Object} initial_values
+     * @returns {false | {id: number}}
+     */
     _track_subtype(initial_values) {
         return false;
     }
@@ -724,7 +734,9 @@ export class MailThread extends models.ServerModel {
         }
         if (request_list.includes("suggestedRecipients")) {
             res["suggestedRecipients"] =
-                MailThread._message_get_suggested_recipients.call(this, [thread.id]);
+                MailThread._message_get_suggested_recipients.call(this, [
+                    Number(thread.id),
+                ]);
         }
         if (request_list.includes("scheduledMessages")) {
             res["scheduledMessages"] = mailDataHelpers.Store.many(

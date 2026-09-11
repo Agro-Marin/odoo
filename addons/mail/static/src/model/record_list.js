@@ -1,10 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 
 import { isOne as isOneField, isRecord } from "./misc.js";
 
-/** @typedef {import("./record").Record} Record */
-/** @typedef {import("./record").StoreModels} StoreModels */
+/** @import { Record } from "./record" */
+/** @import { StoreModels } from "./record" */
 
 /**
  * @param {Record} record
@@ -33,7 +34,7 @@ function isOne(reclist) {
 }
 
 /**
- * @template {Record}
+ * @template {Record} [R=Record]
  * @param {RecordList<R>} recordList
  * @param {RecordList<R>} recordListFullProxy
  * @returns {Map<string, R>}
@@ -49,7 +50,7 @@ function recordByLocalIdFor(recordList, recordListFullProxy) {
 }
 
 /**
- * @template {Record}
+ * @template {Record} [R=Record]
  * @param {RecordList<R>} receiver
  * @returns {{list: RecordList<R>, proxy: RecordList<R>, byLocalId: Map<string, R>, data: string[]}}
  */
@@ -185,8 +186,9 @@ function recordListSet(recordList, name, val, recordListProxy) {
     });
 }
 /**
- * @param {RecordList<any>} recordList
- * @returns {RecordList<any>}
+ * @template {RecordList<any>} L
+ * @param {L} recordList
+ * @returns {L}
  */
 function makeRecordListProxy(recordList) {
     return new Proxy(recordList, {
@@ -196,7 +198,7 @@ function makeRecordListProxy(recordList) {
     });
 }
 /**
- * @template {Record}
+ * @template {Record} [R=Record]
  * @param {RecordList<R>} receiver
  * @returns {{list: RecordList<R>, proxy: RecordList<R>, store: import("models").Store}}
  */
@@ -342,7 +344,7 @@ class RecordListInternal {
         const self = this;
         const store = recordList._store;
         return store.MAKE_UPDATE(function recordListAssign() {
-            /** @type {Record[]|Set<Record>|RecordList} */
+            /** @type {Iterable<Record | false>} */
             const collection = isRecord(data)
                 ? [/** @type {Record} */ (/** @type {unknown} */ (data))]
                 : data;
@@ -430,8 +432,10 @@ class RecordListInternal {
         }
     }
     /**
-     * @param {RecordList} recordList
-     * @param {RecordList} fullProxy
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
+     * @param {RecordList<R>} fullProxy
+     * @returns {RecordList<R>}
      */
     downgradeProxy(recordList, fullProxy) {
         return recordList._proxy === fullProxy ? recordList._proxyInternal : fullProxy;
@@ -506,7 +510,7 @@ class RecordListInternal {
 }
 
 /**
- * @template {Record}
+ * @template {Record} [R=Record]
  * @extends {Array<R>}
  */
 export class RecordList extends Array {
@@ -675,7 +679,7 @@ export class RecordList extends Array {
             .concat(...collections.map((c) => [...c]));
     }
     /**
-     * @param {...R} records
+     * @param {...(R | Partial<R>)} records
      * @returns {R|R[]}
      */
     add(...records) {
@@ -734,12 +738,13 @@ export class RecordList extends Array {
             return records.length === 1 ? res[0] : res;
         });
     }
-    /** @param {...R} records */
+    /** @param {...(R | false | string | number)} records */
     delete(...records) {
         const recordList = toRaw(this)._raw;
         const store = recordList._store;
         return store.MAKE_UPDATE(function recordListDelete() {
             for (const val of records) {
+                /** @type {Record | string | number | false} */
                 let target = val;
                 if (val === undefined || val === null || val === false) {
                     continue;
@@ -801,7 +806,7 @@ export class RecordList extends Array {
             yield index;
         }
     }
-    /** @yields {[number, R]} */
+    /** @returns {Generator<[number, R], void, unknown>} */
     *entries() {
         const { data, byLocalId } = cursorOf(this);
         for (let index = 0; index < data.length; index++) {
@@ -813,20 +818,24 @@ export class RecordList extends Array {
         const { data, byLocalId } = cursorOf(this);
         return byLocalId.get(data.at(index));
     }
-    /** @param {(record: R, index: number, recordList: this) => any} fn */
+    /**
+     * @template U
+     * @param {(record: R, index: number, recordList: R[]) => U} fn
+     * @returns {U[]}
+     */
     map(fn) {
         const { data, byLocalId } = cursorOf(this);
         return data.map((localId, index) => fn(byLocalId.get(localId), index, this));
     }
     /**
-     * @param {(record: R, index: number, recordList: this) => any} fn
+     * @param {(record: R, index: number, recordList: R[]) => any} fn
      * @returns {any[]}
      */
     flatMap(fn) {
         return this.map(fn).flat();
     }
     /**
-     * @param {(record: R, index: number, recordList: this) => boolean} fn
+     * @param {(record: R, index: number, recordList: R[]) => boolean} fn
      * @returns {R[]}
      */
     filter(fn) {
@@ -841,8 +850,19 @@ export class RecordList extends Array {
         return result;
     }
     /**
-     * @param {(record: R, index: number, recordList: this) => boolean} fn
-     * @returns {R|undefined}
+     * @template {R} S
+     * @overload
+     * @param {(record: R, index: number, recordList: R[]) => record is S} fn
+     * @returns {S | undefined}
+     */
+    /**
+     * @overload
+     * @param {(record: R, index: number, recordList: R[]) => unknown} fn
+     * @returns {R | undefined}
+     */
+    /**
+     * @param {(record: R, index: number, recordList: R[]) => unknown} fn
+     * @returns {R | undefined}
      */
     find(fn) {
         const { data, byLocalId } = cursorOf(this);
@@ -855,8 +875,19 @@ export class RecordList extends Array {
         return undefined;
     }
     /**
-     * @param {(record: R, index: number, recordList: this) => boolean} fn
-     * @returns {R|undefined}
+     * @template {R} S
+     * @overload
+     * @param {(record: R, index: number, recordList: R[]) => record is S} fn
+     * @returns {S | undefined}
+     */
+    /**
+     * @overload
+     * @param {(record: R, index: number, recordList: R[]) => unknown} fn
+     * @returns {R | undefined}
+     */
+    /**
+     * @param {(record: R, index: number, recordList: R[]) => unknown} fn
+     * @returns {R | undefined}
      */
     findLast(fn) {
         const { data, byLocalId } = cursorOf(this);
@@ -869,7 +900,7 @@ export class RecordList extends Array {
         return undefined;
     }
     /**
-     * @param {(record: R, index: number, recordList: this) => boolean} fn
+     * @param {(record: R, index: number, recordList: R[]) => boolean} fn
      * @returns {number}
      */
     findLastIndex(fn) {
@@ -881,7 +912,7 @@ export class RecordList extends Array {
         }
         return -1;
     }
-    /** @param {(record: R, index: number, recordList: this) => boolean} fn */
+    /** @param {(record: R, index: number, recordList: R[]) => boolean} fn */
     findIndex(fn) {
         const { data, byLocalId } = cursorOf(this);
         for (let index = 0; index < data.length; index++) {
@@ -891,11 +922,22 @@ export class RecordList extends Array {
         }
         return -1;
     }
-    /** @param {(record: R, index: number, recordList: this) => boolean} fn */
+    /** @param {(record: R, index: number, recordList: R[]) => boolean} fn */
     some(fn) {
         return this.findIndex(fn) !== -1;
     }
-    /** @param {(record: R, index: number, recordList: this) => boolean} fn */
+    /**
+     * @template {R} S
+     * @overload
+     * @param {(record: R, index: number, recordList: R[]) => record is S} fn
+     * @returns {this is this & S[]}
+     */
+    /**
+     * @overload
+     * @param {(record: R, index: number, recordList: R[]) => unknown} fn
+     * @returns {boolean}
+     */
+    /** @param {(record: R, index: number, recordList: R[]) => unknown} fn */
     every(fn) {
         const { data, byLocalId } = cursorOf(this);
         for (let index = 0; index < data.length; index++) {
@@ -905,7 +947,7 @@ export class RecordList extends Array {
         }
         return true;
     }
-    /** @param {(record: R, index: number, recordList: this) => void} fn */
+    /** @param {(record: R, index: number, recordList: R[]) => void} fn */
     forEach(fn) {
         const { data, byLocalId } = cursorOf(this);
         for (let index = 0; index < data.length; index++) {
@@ -913,7 +955,7 @@ export class RecordList extends Array {
         }
     }
     /**
-     * @param {(acc: any, record: R, index: number, recordList: this) => any} fn
+     * @param {(acc: any, record: R, index: number, recordList: R[]) => any} fn
      * @param {...any} init
      * @returns {any}
      */
@@ -938,7 +980,7 @@ export class RecordList extends Array {
         return acc;
     }
     /**
-     * @param {(acc: any, record: R, index: number, recordList: this) => any} fn
+     * @param {(acc: any, record: R, index: number, recordList: R[]) => any} fn
      * @param {...any} init
      * @returns {any}
      */
@@ -1027,6 +1069,7 @@ export class RecordList extends Array {
     with(index, value) {
         return this.slice().with(index, value);
     }
+    /** @returns {never} */
     reverse() {
         const recordList = toRaw(this)._raw;
         throw new Error(
@@ -1035,6 +1078,7 @@ export class RecordList extends Array {
             }": in-place mutators are not supported; use sort(), splice() or assignment instead.`,
         );
     }
+    /** @returns {never} */
     fill() {
         const recordList = toRaw(this)._raw;
         throw new Error(
@@ -1043,6 +1087,7 @@ export class RecordList extends Array {
             }": in-place mutators are not supported; use sort(), splice() or assignment instead.`,
         );
     }
+    /** @returns {never} */
     copyWithin() {
         const recordList = toRaw(this)._raw;
         throw new Error(

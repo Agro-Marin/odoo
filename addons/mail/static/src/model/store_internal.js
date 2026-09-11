@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 /** @typedef {import("./record").Record} Record */
 /** @typedef {import("./record_list").RecordList} RecordList */
@@ -131,14 +132,15 @@ export class StoreInternal extends RecordInternal {
         }
     }
     /**
-     * @param {RecordList} recordListFullProxy
-     * @param {(r1: Record, r2: Record) => number} func
+     * @template {Record} R
+     * @param {import("./record_list").RecordList<R>} recordListFullProxy
+     * @param {(r1: R, r2: R) => number} func
      */
     sortRecordList(recordListFullProxy, func) {
         const recordList = toRaw(recordListFullProxy)._raw;
         const recordByLocalId = recordListFullProxy._store.recordByLocalId;
-        const recordsFullProxy = recordListFullProxy.data.map((localId) =>
-            recordByLocalId.get(localId),
+        const recordsFullProxy = recordListFullProxy.data.map(
+            (localId) => /** @type {R} */ (recordByLocalId.get(localId)),
         );
         recordsFullProxy.sort(func);
         const data = recordsFullProxy.map(
@@ -151,7 +153,7 @@ export class StoreInternal extends RecordInternal {
     }
     /**
      * @param {Record} record
-     * @param {string} fieldName
+     * @param {string | symbol} fieldName
      * @param {any} value
      */
     updateAttr(record, fieldName, value) {
@@ -275,7 +277,9 @@ export class StoreInternal extends RecordInternal {
      * @param {Object} vals
      */
     updateFields(record, vals) {
-        const fieldEntries = Object.entries(vals).concat(
+        const fieldEntries = /** @type {[string | symbol, any][]} */ (
+            Object.entries(vals)
+        ).concat(
             Object.getOwnPropertySymbols(vals).map(
                 (sym) => /** @type {[string|symbol, any]} */ ([sym, vals[sym]]),
             ),
@@ -287,7 +291,7 @@ export class StoreInternal extends RecordInternal {
             ) {
                 this.checkIdFieldUnchanged(record, fieldName, value);
             }
-            if (isRelation(record.Model, fieldName)) {
+            if (typeof fieldName === "string" && isRelation(record.Model, fieldName)) {
                 this.updateRelation(record, fieldName, value);
             } else {
                 this.updateAttr(record, fieldName, value);

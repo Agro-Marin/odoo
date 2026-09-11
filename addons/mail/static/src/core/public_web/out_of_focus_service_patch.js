@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import {
     OutOfFocusService,
@@ -7,7 +8,7 @@ import { patch } from "@web/core/utils/patch";
 patch(OutOfFocusService.prototype, {
     /**
      * @param {import("@web/env").OdooEnv} env
-     * @param {Object} services
+     * @param {import("services").ServiceFactories} services
      */
     setup(env, services) {
         super.setup(env, services);
@@ -21,15 +22,18 @@ patch(OutOfFocusService.prototype, {
         this.contributingMessageLocalIds.clear();
         this.titleService.setCounters({ discuss: undefined });
     },
-    /** @param {import("models").Message} message */
-    notify(message) {
+    /**
+     * @param {import("models").Message} message
+     * @param {import("models").Thread} [thread]
+     */
+    async notify(message, thread) {
         if (this.contributingMessageLocalIds.has(message.localId)) {
             return;
         }
         this.contributingMessageLocalIds.add(message.localId);
         this.counter++;
         this.titleService.setCounters({ discuss: this.counter });
-        super.notify(...arguments);
+        return super.notify(message, thread);
     },
     onWindowFocus() {
         this.clearUnreadMessage();

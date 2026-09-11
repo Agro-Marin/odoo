@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { KanbanRecord } from "@web/views/kanban";
 export class RottingKanbanRecord extends KanbanRecord {

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { partnerCompareRegistry } from "@mail/core/common/partner_compare";
 import { cleanTerm } from "@mail/utils/common/format";
@@ -27,7 +28,7 @@ function byPrefixThenAlphaThenId(cleanedKeyFn, cleanedSearchTerm) {
     };
 }
 
-/** @typedef {import("@web/components/emoji_picker").Emoji} Emoji */
+/** @typedef {import("@web/components/emoji_picker/emoji_picker").Emoji} Emoji */
 /** @typedef {import("@mail/core/common/suggestion_hook").Suggestion} Suggestion */
 export class SuggestionService {
     /**
@@ -117,7 +118,7 @@ export class SuggestionService {
         /** @type {{search: string, channel_id?: number}} */
         const kwargs = { search: term };
         if (thread?.isChannelKind) {
-            kwargs.channel_id = thread.id;
+            kwargs.channel_id = Number(thread.id);
         }
         const data = await this.makeOrmCall(
             "res.partner",
@@ -180,7 +181,7 @@ export class SuggestionService {
             emojis = fuzzyLookup(
                 cleanedSearchTerm,
                 this.emojis,
-                /** @param {{shortcodes: string[]}} emoji */
+                /** @param {Emoji} emoji */
                 (emoji) => emoji.shortcodes,
             );
         }
@@ -308,10 +309,11 @@ export class SuggestionService {
     }
 
     /**
-     * @param {(import("models").ResPartner|import("@mail/core/common/store_service").SpecialMention)[]} [partners]
+     * @template {import("models").ResPartner | import("@mail/core/common/store_service").SpecialMention} T
+     * @param {T[]} [partners]
      * @param {String} [searchTerm]
      * @param {import("models").Thread} thread
-     * @returns {(import("models").ResPartner|import("@mail/core/common/store_service").SpecialMention)[]}
+     * @returns {T[]}
      */
     sortPartnerSuggestions(partners, searchTerm = "", thread = undefined) {
         const cleanedSearchTerm = cleanTerm(searchTerm);
@@ -342,7 +344,7 @@ export class SuggestionService {
             }
             return 0;
         });
-        return [...specials, ...regular];
+        return /** @type {T[]} */ ([...specials, ...regular]);
     }
 
     /** @param {import("models").Thread} [thread] */

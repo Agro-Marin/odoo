@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start as start2 } from "@mail/../tests/mail_test_helpers";
 import { makeStore, Record, Store } from "@mail/core/common/record";
 import { fields } from "@mail/model/misc";
@@ -367,5 +368,7 @@ test("an Array method with no record-list reimplementation throws instead of cop
     expect(() => john.tasks.hootProbe()).toThrow(
         /Array\.prototype\.hootProbe\(\) is not supported/,
     );
-    expect([1].hootProbe()).toBe("materialized");
+    expect(/** @type {number[] & {hootProbe(): string}} */ ([1]).hootProbe()).toBe(
+        "materialized",
+    );
 });

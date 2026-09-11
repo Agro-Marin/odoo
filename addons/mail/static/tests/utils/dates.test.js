@@ -1,3 +1,4 @@
+// @ts-check
 import { computeDelay, getMsToTomorrow, isToday } from "@mail/utils/common/dates";
 import { beforeEach, describe, expect, mockDate, test } from "@odoo/hoot";
 import { freezeTime } from "@odoo/hoot-dom";
@@ -63,7 +64,7 @@ test("getMsToTomorrow is positive and under 24h in every zone", () => {
         withUserZone(zone, () => {
             const ms = getMsToTomorrow();
             expect(ms > 0 && ms <= 24 * 3600 * 1000).toBe(true, {
-                message: `offset ${zone.offset()}: expected a positive sub-24h delay, got ${ms}`,
+                message: `offset ${zone.offset(Date.now())}: expected a positive sub-24h delay, got ${ms}`,
             });
         });
     }

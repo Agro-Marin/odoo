@@ -1,3 +1,4 @@
+// @ts-check
 import {
     contains,
     defineMailModels,
@@ -17,8 +18,9 @@ describe.current.tags("desktop");
 defineMailModels();
 
 function touchStart(selector) {
-    const ev = new Event("touchstart", { bubbles: true });
-    ev.touches = [{ clientX: 0, clientY: 0 }];
+    const ev = Object.assign(new Event("touchstart", { bubbles: true }), {
+        touches: [{ clientX: 0, clientY: 0 }],
+    });
     queryOne(selector).dispatchEvent(ev);
 }
 

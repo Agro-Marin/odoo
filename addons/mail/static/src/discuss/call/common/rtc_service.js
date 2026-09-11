@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { CallInfiniteMirroringWarning } from "@mail/discuss/call/common/call_infinite_mirroring_warning";
@@ -32,8 +33,8 @@ export {
 /**
  * @param {EventTarget} target
  * @param {string} event
- * @param {Function} f
- * @return {Function}
+ * @param {EventListener} f
+ * @return {() => void}
  */
 function subscribe(target, event, f) {
     target.addEventListener(event, f);
@@ -228,6 +229,8 @@ export class Rtc extends Record {
     cameraPermission;
     /** @type {ReturnType<typeof import("@mail/discuss/call/common/pip_service").callPipService.start>} */
     pipService;
+    /** @type {import("services").ServiceFactories["discuss.p2p"]} */
+    p2pService;
     /** @type {ReturnType<typeof import("@mail/core/common/mail_fullscreen").fullscreenService.start>} */
     fullscreen;
     localSession = fields.One("discuss.channel.rtc.session");
@@ -296,7 +299,7 @@ export class Rtc extends Record {
     get network() {
         return this.transport?.network;
     }
-    /** @type {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient|undefined} */
+    /** @type {import("@mail/discuss/call/common/call_transport").SfuTransport|undefined} */
     get sfuClient() {
         return this.transport?.sfuClient;
     }
@@ -587,7 +590,7 @@ export class Rtc extends Record {
     }
 
     /**
-     * @param {KeyboardEvent|Event} ev
+     * @param {KeyboardEvent|Event} [ev]
      * @returns {boolean}
      */
     isPushToTalkRelease(ev) {
@@ -1028,7 +1031,7 @@ export class Rtc extends Record {
     async _initConnection() {
         await this.transport.initConnection({
             sessionId: this.localSession.id,
-            channelId: this.state.channel.id,
+            channelId: Number(this.state.channel.id),
         });
     }
 
@@ -1057,7 +1060,7 @@ export class Rtc extends Record {
     /** @param {Object<number, Object>} changes */
     _updateRemoteTabs(changes) {
         this.crossTab.updateRemoteTabs(
-            this.state.channel.id,
+            Number(this.state.channel.id),
             this.localSession.id,
             changes,
         );
@@ -1114,6 +1117,7 @@ export class Rtc extends Record {
      * @param {String} [param2.step]
      * @param {String} [param2.state]
      * @param {Boolean} [param2.important]
+     * @param {string} [param2.level]
      */
     log(session, entry, param2 = {}) {
         if (!session) {
@@ -1283,7 +1287,7 @@ export class Rtc extends Record {
 
     /**
      * @param {number} sessionId
-     * @param {import("#src/models/session.js").SessionInfo} info
+     * @param {Partial<import("@mail/discuss/call/common/peer_to_peer").Info & Pick<import("models").RtcSession, "is_muted" | "is_deaf" | "is_camera_on" | "is_screen_sharing_on">>} info
      * @param {number} stamp
      */
     async _applySessionInfo(sessionId, info, stamp) {
@@ -1330,9 +1334,11 @@ export class Rtc extends Record {
         session.updateStreamState(type, active);
         await this.updateStream(session, track, {
             mute: this.localSession.is_deaf,
-            videoType: type,
+            videoType: type === "audio" ? undefined : type,
         });
-        this.updateActiveSession(session, type, { addVideo: true });
+        if (type !== "audio") {
+            this.updateActiveSession(session, type, { addVideo: true });
+        }
     }
 
     /**
@@ -1449,7 +1455,7 @@ export class Rtc extends Record {
 
     newLogs() {
         this.state.logs = {
-            channelId: this.state.channel.id,
+            channelId: Number(this.state.channel.id),
             selfSessionId: this.localSession.id,
             start: new Date().toISOString(),
             hasTurn: hasTurn(this.iceServers),
@@ -1697,7 +1703,7 @@ export class Rtc extends Record {
 
     /**
      * @param {MediaStream} videoStream
-     * @returns {Promise<BlurManager>}
+     * @returns {ReturnType<LocalMediaController["applyBlurEffect"]>}
      */
     async applyBlurEffect(videoStream) {
         return this.media.applyBlurEffect(videoStream);
@@ -1707,7 +1713,7 @@ export class Rtc extends Record {
      * @param {Exclude<streamType, "audio">} type
      * @param {Object} [param1]
      * @param {boolean} [param1.force]
-     * @param {boolean} [param1.env]
+     * @param {import("@odoo/owl").Env} [param1.env]
      * @param {boolean} [param1.refreshStream]
      */
     async toggleVideo(type, { force, env, refreshStream } = {}) {
@@ -1893,7 +1899,7 @@ export class Rtc extends Record {
     /**
      * @param {import("models").RtcSession} session
      * @param {Object} [param1]
-     * @param {streamType} [param1.type]
+     * @param {"camera" | "screen"} [param1.type]
      * @param {boolean} [param1.cleanup]
      */
     removeVideoFromSession(session, { type, cleanup = true } = {}) {

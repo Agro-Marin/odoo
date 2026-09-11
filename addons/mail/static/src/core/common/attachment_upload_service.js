@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -30,18 +31,20 @@ export class AttachmentUploadService {
         this.deferredByAttachmentId = new Map();
         this.tmpUrlByAttachmentId = new Map();
         this.uploadingAttachmentIds = new Set();
-        /** @type {Map<number, {composer: import("models").Composer, thread: import("models").Thread}>} */
+        /** @type {Map<number, {composer: {attachments: import("models").Attachment[]}, thread: import("models").Thread}>} */
         this.targetsByTmpId = new Map();
-        for (const [event, handler] of [
+        for (const [event, handler] of /** @type {const} */ ([
             ["FILE_UPLOAD_ADDED", this._onUploadAdded],
             ["FILE_UPLOAD_LOADED", this._onUploadLoaded],
             ["FILE_UPLOAD_ERROR", this._onUploadError],
-        ]) {
+        ])) {
             this.fileUploadService.bus.addEventListener(
                 event,
                 /** @param {CustomEvent<{upload: Upload}>} ev */
                 ({ detail: { upload } }) => {
-                    const tmpId = parseInt(upload.data.get("temporary_id"));
+                    const tmpId = parseInt(
+                        /** @type {string} */ (upload.data.get("temporary_id")),
+                    );
                     if (this.uploadingAttachmentIds.has(tmpId)) {
                         handler.call(this, upload, tmpId);
                     }
@@ -56,7 +59,7 @@ export class AttachmentUploadService {
      */
     _onUploadAdded(upload, tmpId) {
         const { thread, composer } = this.targetsByTmpId.get(tmpId);
-        const tmpUrl = upload.data.get("tmp_url");
+        const tmpUrl = /** @type {string} */ (upload.data.get("tmp_url"));
         this.abortByAttachmentId.set(tmpId, upload.xhr.abort.bind(upload.xhr));
         const attachment = this.store["ir.attachment"].insert(
             this._makeAttachmentData(
@@ -133,7 +136,7 @@ export class AttachmentUploadService {
 
     /**
      * @param {import("models").Thread} thread
-     * @param {import("models").Composer|undefined} composer
+     * @param {{attachments: import("models").Attachment[]}|undefined} composer
      * @param {{data: {store_data: Object, attachment_id: number}}} response
      * @param {number} tmpId
      * @param {import("@web/core/utils/concurrency").Deferred} def
@@ -192,7 +195,7 @@ export class AttachmentUploadService {
 
     /**
      * @param {import("models").Thread} thread
-     * @param {import("models").Composer|undefined} composer
+     * @param {{attachments: import("models").Attachment[]}|undefined} composer
      * @param {File} file
      * @param {Object} [options]
      * @param {import("models").Activity} [options.activity]
@@ -206,9 +209,9 @@ export class AttachmentUploadService {
 
     /**
      * @param {import("models").Thread} thread
-     * @param {import("models").Composer|undefined} composer
+     * @param {{attachments: import("models").Attachment[]}|undefined} composer
      * @param {File} file
-     * @param {Object} [options]
+     * @param {Object | undefined} options
      * @param {number} tmpId
      * @param {string} tmpURL
      * @returns {Promise<import("models").Attachment|undefined>}
@@ -217,6 +220,7 @@ export class AttachmentUploadService {
         this.targetsByTmpId.set(tmpId, { composer, thread });
         this.tmpUrlByAttachmentId.set(tmpId, tmpURL);
         this.uploadingAttachmentIds.add(tmpId);
+        /** @type {Deferred<import("models").Attachment | undefined>} */
         const uploadDoneDeferred = new Deferred();
         this.deferredByAttachmentId.set(tmpId, uploadDoneDeferred);
         await this.fileUploadService
@@ -245,20 +249,20 @@ export class AttachmentUploadService {
      * @param {FormData} formData
      * @param {string} tmpURL
      * @param {import("models").Thread} thread
-     * @param {import("models").Composer|undefined} composer
+     * @param {{attachments: import("models").Attachment[]}|undefined} composer
      * @param {number} tmpId
      * @param {Object} [options]
      * @param {import("models").Activity} [options.activity]
      * @returns {FormData}
      */
     _updateFormData(formData, tmpURL, thread, composer, tmpId, options) {
-        formData.append("thread_id", thread.id);
+        formData.append("thread_id", String(thread.id));
         formData.append("tmp_url", tmpURL);
         formData.append("thread_model", thread.model);
-        formData.append("is_pending", Boolean(composer));
-        formData.append("temporary_id", tmpId);
+        formData.append("is_pending", String(Boolean(composer)));
+        formData.append("temporary_id", String(tmpId));
         if (options?.activity) {
-            formData.append("activity_id", options.activity.id);
+            formData.append("activity_id", String(options.activity.id));
         }
         return formData;
     }

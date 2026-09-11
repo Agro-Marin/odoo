@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { toRaw, useComponent, useEffect, useRef, useState } from "@odoo/owl";
@@ -10,13 +11,13 @@ export const composerActionsRegistry = registry.category("mail.composer/actions"
 
 /** @typedef {import("@odoo/owl").Component} Component */
 /** @typedef {{ isOpen?: boolean, open: (options?: {el?: HTMLElement|null}) => void, close: () => void, }} ComposerPicker */
-/** @typedef {Component & { voiceRecorder?: {isOpen?: boolean}, sendMessageState?: {active: boolean}, isSendButtonDisabled?: boolean, fullComposer?: {isOpen?: boolean}, fileUploaderRef?: {el?: HTMLElement|null}, allowUpload?: boolean, setActivePicker?: (picker: ComposerPicker|null) => void, getActivePicker?: () => ComposerPicker|null, pickerTargetRef?: {el?: HTMLElement|null}, quickActionsRef?: {el?: HTMLElement|null}, moreActionsRef?: {el?: HTMLElement|null}, extraActionsRef?: {el?: HTMLElement|null}, sendMessage?: () => void|Promise<void>, sendGifMessage?: (gif: any) => void|Promise<void>, addEmoji?: (str: string) => any, onClickInsertCannedResponse?: (ev: Event) => void, onClickFullComposer?: (ev: Event) => void, }} ComposerActionOwner */
+/** @typedef {Component & { voiceRecorder?: ReturnType<typeof import("@mail/discuss/voice_message/common/voice_recorder").useVoiceRecorder> & {isOpen?: boolean}, sendMessageState?: {active: boolean}, isSendButtonDisabled?: boolean, fullComposer?: {isOpen?: boolean}, fileUploaderRef?: {el?: HTMLElement|null}, allowUpload?: boolean, setActivePicker?: (picker: ComposerPicker|null) => void, getActivePicker?: () => ComposerPicker|null, pickerTargetRef?: {el?: HTMLElement|null}, quickActionsRef?: {el?: HTMLElement|null}, moreActionsRef?: {el?: HTMLElement|null}, extraActionsRef?: {el?: HTMLElement|null}, sendMessage?: () => void|Promise<void>, sendGifMessage?: (gif: any) => void|Promise<void>, addEmoji?: (str: string) => any, onClickInsertCannedResponse?: (ev: Event) => void, onClickFullComposer?: () => void, }} ComposerActionOwner */
 /** @typedef {import("@mail/core/common/action").ActionDefinition<ComposerActionOwner, ActionParams, ComposerAction>} ActionDefinition */
 /** @typedef {import("models").Composer} Composer */
 /** @typedef {import("@mail/core/common/action").ActionParams<ComposerActionOwner> & { action: ComposerAction, composer: Composer }} ActionParams */
 /**
  * @typedef {Object} ComposerActionSpecificDefinition
- * @property {boolean|((this: ComposerAction, params: ActionParams) => boolean)} [condition=true]
+ * @property {boolean|((this: ComposerAction, params: ActionParams) => unknown)} [condition=true]
  * @property {boolean} [isPicker]
  * @property {string|((comp: Component) => string)} [pickerName]
  */
@@ -207,23 +208,23 @@ export class ComposerAction extends Action {
     ref;
 
     /**
-     * @param {Object} param0
-     * @param {Composer|(() => Composer)} param0.composer
+     * @param {ConstructorParameters<typeof Action<ComposerActionOwner, ComposerActionDefinition>>[0] & {composer: Composer|(() => Composer)}} options
      */
-    constructor({ composer }) {
-        super(...arguments);
+    constructor(options) {
+        super(options);
+        const { composer } = options;
         this.composerFn = typeof composer === "function" ? composer : () => composer;
     }
 
     /**
-     * @param {ActionParams} param0
-     * @param {Composer} param0.composer
+     * @param {ActionParams} params
      */
-    _disabledCondition({ composer }) {
+    _disabledCondition(params) {
+        const { composer } = params;
         if (composer.restoredFromFullComposer && this.id !== "open-full-composer") {
             return true;
         }
-        return super._disabledCondition(...arguments);
+        return super._disabledCondition(params);
     }
 
     get params() {
@@ -236,7 +237,7 @@ export class ComposerAction extends Action {
 
     get pickerName() {
         return typeof this.definition.pickerName === "function"
-            ? this.definition.pickerName(this._component)
+            ? this.definition.pickerName(this.owner)
             : this.definition.pickerName;
     }
 }

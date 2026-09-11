@@ -1,9 +1,10 @@
+// @ts-check
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker";
 /**
- * @param {typeof import("@odoo/owl").Component} T
- * @returns {typeof T}
+ * @template {new (...args: any[]) => any} T
+ * @param {T} T
  */
 export const EmojisFieldCommon = (T) =>
     class EmojisFieldCommon extends T {

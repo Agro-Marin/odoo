@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { assignDefined } from "@mail/utils/common/misc";
@@ -8,12 +9,14 @@ export class Activity extends Record {
     /**
      * @param {Object} data
      * @param {Object} [param1]
-     * @param {boolean} param1.broadcast
+     * @param {boolean} [param1.broadcast]
      * @returns {import("models").Activity}
      */
     static _insert(data, { broadcast = true } = {}) {
         /** @type {import("models").Activity} */
-        const activity = this.preinsert(data);
+        const activity = /** @type {import("models").Activity} */ (
+            this.preinsert(data)
+        );
         assignDefined(activity, data);
         if (broadcast) {
             this.store.activityBroadcastChannel?.postMessage({
@@ -53,7 +56,7 @@ export class Activity extends Record {
     res_id;
     /** @type {string} */
     res_name;
-    /** @type {'overdue'|'planned'|'today'} */
+    /** @type {'overdue'|'planned'|'today'|'done'} */
     state;
     /** @type {string} */
     summary;

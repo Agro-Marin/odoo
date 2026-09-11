@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
 import { LinkPreviewConfirmDelete } from "@mail/core/common/link_preview_confirm_delete";

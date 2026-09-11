@@ -1,3 +1,4 @@
+// @ts-check
 import { models } from "@web/../tests/web_test_helpers";
 
 export class MailPushDevice extends models.ServerModel {

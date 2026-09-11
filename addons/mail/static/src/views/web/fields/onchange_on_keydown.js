@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import { exprToBoolean } from "@web/core/utils/format/strings";
@@ -7,7 +8,7 @@ import { CharField, charField } from "@web/fields/basic/char/char_field";
 import { TextField, textField } from "@web/fields/basic/text/text_field";
 const onchangeOnKeydownMixin = () => ({
     setup() {
-        super.setup(...arguments);
+        super.setup();
 
         if (this.props.onchangeOnKeydown) {
             const input = this.input || this.textareaRef;
@@ -40,27 +41,20 @@ const onchangeOnKeydownMixin = () => ({
 patch(CharField.prototype, onchangeOnKeydownMixin());
 patch(TextField.prototype, onchangeOnKeydownMixin());
 
-CharField.props = {
-    ...CharField.props,
+const extraProps = {
     onchangeOnKeydown: { type: Boolean, optional: true },
     keydownDebounceDelay: { type: Number, optional: true },
 };
-
-TextField.props = {
-    ...TextField.props,
-    onchangeOnKeydown: { type: Boolean, optional: true },
-    keydownDebounceDelay: { type: Number, optional: true },
-};
+Object.assign(CharField.props, extraProps);
+Object.assign(TextField.props, extraProps);
 
 /**
- * @param {(fieldInfo: Object) => Object} baseExtractProps
- * @returns {(fieldInfo: Object) => Object}
+ * @param {NonNullable<typeof charField.extractProps>} baseExtractProps
+ * @returns {NonNullable<typeof charField.extractProps>}
  */
 function extendExtractProps(baseExtractProps) {
-    return /** @param {{attrs: Object, options: Object, viewType?: string}} fieldInfo */ (
-        fieldInfo,
-    ) =>
-        Object.assign(baseExtractProps(fieldInfo), {
+    return (fieldInfo, dynamicInfo) =>
+        Object.assign(baseExtractProps(fieldInfo, dynamicInfo), {
             onchangeOnKeydown: exprToBoolean(fieldInfo.attrs.onchange_on_keydown),
             keydownDebounceDelay: fieldInfo.attrs.keydown_debounce_delay
                 ? Number(fieldInfo.attrs.keydown_debounce_delay)

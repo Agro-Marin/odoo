@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { deserializeDateTime, serializeDateTime } from "@web/core/l10n/dates";
@@ -30,7 +31,7 @@ class ScheduledDateFieldCommon extends Component {
             isRemovable: this.isRemovable,
             scheduledDate: this.scheduledDate,
         });
-        ev.currentTarget.blur();
+        /** @type {HTMLElement} */ (ev.currentTarget).blur();
     }
 }
 

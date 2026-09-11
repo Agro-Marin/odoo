@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DiscussCommandPalette } from "@mail/discuss/core/public_web/discuss_command_palette";
 import { registry } from "@web/core/registry";

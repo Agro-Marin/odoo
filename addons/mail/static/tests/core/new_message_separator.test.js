@@ -1,3 +1,4 @@
+// @ts-check
 import { waitNotifications } from "@bus/../tests/bus_test_helpers";
 import {
     createChannel,

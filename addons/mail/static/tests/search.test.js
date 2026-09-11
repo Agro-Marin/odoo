@@ -1,3 +1,4 @@
+// @ts-check
 import { nearestGreaterThanOrEqual } from "@mail/utils/common/misc";
 import { describe, expect, test } from "@odoo/hoot";
 

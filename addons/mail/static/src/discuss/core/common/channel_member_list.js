@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
@@ -46,7 +47,7 @@ export class ChannelMemberList extends Component {
         return (
             !this.store.inPublicPage &&
             !member.guest_id &&
-            member.partner_id.main_user_id
+            Boolean(member.partner_id.main_user_id)
         );
     }
 

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { isToday } from "@mail/utils/common/dates";
 import { Component } from "@odoo/owl";

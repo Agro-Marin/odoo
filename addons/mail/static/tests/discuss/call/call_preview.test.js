@@ -1,3 +1,4 @@
+// @ts-check
 import { mockBlurManager } from "@mail/../tests/discuss/call/mock_blur_manager";
 import {
     contains,

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { rpc } from "@web/core/network";
@@ -11,6 +12,8 @@ export class Follower extends Record {
     id;
     /** @type {boolean} */
     is_active;
+    /** @type {string} */
+    display_name;
     partner_id = fields.One("res.partner");
     subtype_ids = fields.Many("mail.message.subtype");
 

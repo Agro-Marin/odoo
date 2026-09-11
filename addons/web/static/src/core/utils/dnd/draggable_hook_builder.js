@@ -44,12 +44,12 @@ export { DRAGGED_CLASS };
  * throttle: typeof import("@web/core/utils/timing")["useThrottleForAnimation"];
  * wrapState: typeof import("@odoo/owl")["reactive"];
  * }} setupHooks
- * @property {(params: DraggableBuildHandlerParams) => any} onComputeParams
- * @property {(params: DraggableBuildHandlerParams) => any} onDragStart
- * @property {(params: DraggableBuildHandlerParams) => any} onDrag
- * @property {(params: DraggableBuildHandlerParams) => any} onDragEnd
- * @property {(params: DraggableBuildHandlerParams) => any} onDrop
- * @property {(params: DraggableBuildHandlerParams) => any} onWillStartDrag
+ * @property {(params: DraggableBuildHandlerParams) => any} [onComputeParams]
+ * @property {(params: DraggableBuildHandlerParams) => any} [onDragStart]
+ * @property {(params: DraggableBuildHandlerParams) => any} [onDrag]
+ * @property {(params: DraggableBuildHandlerParams) => any} [onDragEnd]
+ * @property {(params: DraggableBuildHandlerParams) => any} [onDrop]
+ * @property {(params: DraggableBuildHandlerParams) => any} [onWillStartDrag]
  * @typedef {{
  * ref: { el: HTMLElement | null };
  * elementSelector?: string | null;
@@ -102,7 +102,7 @@ export { DRAGGED_CLASS };
 
 /**
  * @param {DraggableBuilderParams} hookParams
- * @returns {(params: Record<keyof typeof DEFAULT_ACCEPTED_PARAMS, any>) => { dragging: boolean }}
+ * @returns {(params: Partial<Record<keyof typeof DEFAULT_ACCEPTED_PARAMS | "onDragStart" | "onDrag" | "onDragEnd" | "onDrop" | "onWillStartDrag", any>>) => { dragging: boolean }}
  */
 export function makeNativeDraggableHook(hookParams) {
     hookParams = getReturnValue(hookParams);

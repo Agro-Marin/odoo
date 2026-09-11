@@ -1,3 +1,4 @@
+// @ts-check
 import { insertAtSelection } from "@mail/utils/common/composer_insert";
 import { expect, test } from "@odoo/hoot";
 

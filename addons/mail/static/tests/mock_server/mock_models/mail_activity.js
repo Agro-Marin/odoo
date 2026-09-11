@@ -1,3 +1,4 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import {
     fields,
@@ -56,7 +57,7 @@ export class MailActivity extends models.ServerModel {
         return new mailDataHelpers.Store(this.browse(ids)).get_result();
     }
 
-    /** @param {number[]} ids */
+    /** @param {import("@mail/../tests/mock_server/mail_mock_server").Store} store */
     _to_store(store, fields) {
         /** @type {import("mock_models").MailActivityType} */
         const MailActivityType = this.env["mail.activity.type"];
@@ -76,7 +77,7 @@ export class MailActivity extends models.ServerModel {
                 ? MailActivityType.find((r) => r.id === data.activity_type_id[0])
                 : false;
             if (activityType) {
-                data.display_name = activityType.name;
+                data.display_name = String(activityType.name || "");
                 data.icon = activityType.icon;
                 data.mail_template_ids = activityType.mail_template_ids.map(
                     (template_id) => {
@@ -127,7 +128,7 @@ export class MailActivity extends models.ServerModel {
 
     /**
      * @param {string} res_model
-     * @param {string} domain
+     * @param {import("@web/core/domain").DomainRepr} domain
      * @param {number} limit
      * @param {number} offset
      * @param {boolean} fetch_done
@@ -164,6 +165,7 @@ export class MailActivity extends models.ServerModel {
         ]).toList();
         const allRecords = this.env[res_model]._filter(domain ?? []);
         const records = limit ? allRecords.slice(offset, offset + limit) : allRecords;
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const activityDomain = [["res_model", "=", res_model]];
         const isFiltered = domain || limit || offset;
         const domainResIds = records.map((r) => r.id);
@@ -184,14 +186,12 @@ export class MailActivity extends models.ServerModel {
         } else {
             attachmentsById = {};
         }
-        const groupedCompleted = groupBy(allCompleted, (a) => [
-            a.res_id,
-            a.activity_type_id,
-        ]);
-        const groupedOngoing = groupBy(allOngoing, (a) => [
-            a.res_id,
-            a.activity_type_id,
-        ]);
+        const groupedCompleted = groupBy(allCompleted, (a) =>
+            [a.res_id, a.activity_type_id].join(","),
+        );
+        const groupedOngoing = groupBy(allOngoing, (a) =>
+            [a.res_id, a.activity_type_id].join(","),
+        );
         const resIdToDeadline = {};
         const resIdToDateDone = {};
         const groupedActivities = {};
@@ -323,7 +323,7 @@ export class MailActivity extends models.ServerModel {
     }
 }
 
-/** @this {import("@web/../tests/web_test_helpers").ServerModel} */
+/** @this {import("@web/../tests/_framework/mock_server/mock_model").Model} */
 export function computeActivityNext() {
     /** @type {import("mock_models").MailActivity} */
     const MailActivity = this.env["mail.activity"];

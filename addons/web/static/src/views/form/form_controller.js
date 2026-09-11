@@ -70,6 +70,7 @@ export class FormController extends ViewController {
         Widget,
     };
 
+    /** @type {Record<string, any>} */
     static props = {
         ...standardViewProps,
         discardRecord: { type: Function, optional: true },

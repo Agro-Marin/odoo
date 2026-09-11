@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useComponent } from "@odoo/owl";
 import { Domain } from "@web/core/domain";

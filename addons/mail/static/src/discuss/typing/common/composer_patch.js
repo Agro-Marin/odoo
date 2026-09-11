@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { Typing } from "@mail/discuss/typing/common/typing";
@@ -31,7 +32,7 @@ patch(Composer.prototype, {
     },
     /** @param {boolean} [is_typing=true] */
     notifyIsTyping(is_typing = true) {
-        if (this.thread?.model === "discuss.channel" && this.thread.id > 0) {
+        if (this.thread?.model === "discuss.channel" && Number(this.thread.id) > 0) {
             rpc(
                 "/discuss/channel/notify_typing",
                 {
@@ -45,7 +46,7 @@ patch(Composer.prototype, {
     /** @param {InputEvent} ev */
     onInput(ev) {
         super.onInput(ev);
-        this.updateTypingState(ev);
+        this.updateTypingState();
     },
     updateTypingState() {
         if (this.props.composer.message) {

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { toRaw } from "@odoo/owl";
 

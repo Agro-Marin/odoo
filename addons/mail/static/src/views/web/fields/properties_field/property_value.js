@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
 import { TagsList } from "@web/components/tags_list";

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { MessageConfirmDialog } from "@mail/core/common/message_confirm_dialog";
 import { Message } from "@mail/core/common/message_model";
@@ -5,7 +6,8 @@ import { fields } from "@mail/core/common/record";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
-patch(Message.prototype, {
+/** @type {Partial<import("models").Message> & ThisType<import("models").Message>} */
+const modelPatch = {
     setup() {
         super.setup();
         this.pinned_at = fields.Datetime();
@@ -15,6 +17,7 @@ patch(Message.prototype, {
         if (this.pinned_at) {
             return this.unpin();
         }
+        /** @type {Deferred<boolean>} */
         const def = new Deferred();
         this.store.env.services.dialog.add(
             MessageConfirmDialog,
@@ -45,6 +48,7 @@ patch(Message.prototype, {
     },
     /** @returns {Deferred<boolean>} */
     unpin() {
+        /** @type {Deferred<boolean>} */
         const def = new Deferred();
         this.store.env.services.dialog.add(
             MessageConfirmDialog,
@@ -71,4 +75,5 @@ patch(Message.prototype, {
         );
         return def;
     },
-});
+};
+patch(Message.prototype, modelPatch);

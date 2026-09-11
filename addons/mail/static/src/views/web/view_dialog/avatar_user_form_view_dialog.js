@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { onMounted, onWillUnmount } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

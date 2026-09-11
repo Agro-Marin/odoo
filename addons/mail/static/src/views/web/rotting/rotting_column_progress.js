@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ColumnProgress } from "@web/views/kanban";
 export class RottingColumnProgress extends ColumnProgress {

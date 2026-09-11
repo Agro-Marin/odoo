@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import {
     Component,
@@ -59,7 +60,9 @@ export class VoicePlayer extends Component {
         super.setup();
         this.wrapperRef = useRef("wrapper");
         this.drawerRef = useRef("drawer");
+        /** @type {import("@odoo/owl").Ref<HTMLCanvasElement>} */
         this.waveRef = useRef("wave");
+        /** @type {import("@odoo/owl").Ref<HTMLCanvasElement>} */
         this.progressRef = useRef("progress");
         /** @type {import("@mail/discuss/voice_message/common/voice_message_service").VoiceMessageService} */
         this.voiceMessageService = useService("discuss.voice_message");
@@ -141,7 +144,7 @@ export class VoicePlayer extends Component {
     }
 
     /**
-     * @param {...any} args
+     * @param {Parameters<typeof fetch>} args
      * @returns {Promise<Response>}
      */
     _fetch(...args) {
@@ -251,9 +254,7 @@ export class VoicePlayer extends Component {
     /**
      * @param {number} [start]
      * @param {number} [end]
-     * @returns {Object}
-     * @returns {number}
-     * @returns {number}
+     * @returns {{start: number, end: number}}
      */
     seekToElapsed(start, end) {
         this.scheduledPause = null;

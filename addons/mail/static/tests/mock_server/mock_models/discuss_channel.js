@@ -1,3 +1,4 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { convertBrToLineBreak } from "@mail/utils/common/format";
 import { markup } from "@odoo/owl";
@@ -56,7 +57,7 @@ export class DiscussChannel extends models.ServerModel {
     /** @param {number[]} ids */
     action_unfollow(ids) {
         const kwargs = getKwArgs(arguments, "ids");
-        ids = kwargs.ids;
+        ids = Array.isArray(kwargs.ids) ? kwargs.ids : [kwargs.ids];
         delete kwargs.ids;
 
         /** @type {import("mock_models").BusBus} */
@@ -80,6 +81,14 @@ export class DiscussChannel extends models.ServerModel {
         if (!channelMember) {
             return true;
         }
+        // Preserve the relation's id before unlink removes the mock row.
+        const removedMembers = mailDataHelpers.Store.many(
+            DiscussChannelMember.browse(channelMember.id),
+            makeKwArgs({ only_id: true, mode: "DELETE" }),
+        );
+        const store = new mailDataHelpers.Store(this.browse(channel.id), {
+            channel_member_ids: removedMembers,
+        });
         this.write([channel.id], {
             channel_member_ids: [Command.delete(channelMember.id)],
         });
@@ -91,17 +100,15 @@ export class DiscussChannel extends models.ServerModel {
                 subtype_xmlid: "mail.mt_comment",
             }),
         );
-        const store = new mailDataHelpers.Store(this.browse(channel.id), {
-            channel_member_ids: mailDataHelpers.Store.many(
-                DiscussChannelMember.browse(channelMember.id),
-                makeKwArgs({ only_id: true, mode: "DELETE" }),
-            ),
+        store.add(this.browse(channel.id), {
             member_count: DiscussChannelMember.search_count([
                 ["channel_id", "=", channel.id],
             ]),
         });
-        BusBus._sendone(channel, "mail.record/insert", store.get_result());
-        BusBus._sendone(partner, "mail.record/insert", store.get_result());
+
+        const removalData = store.get_result();
+        BusBus._sendone(channel, "mail.record/insert", removalData);
+        BusBus._sendone(partner, "mail.record/insert", removalData);
     }
 
     /**
@@ -138,16 +145,18 @@ export class DiscussChannel extends models.ServerModel {
         }
         const insertedChannelMembers = [];
         for (const partner of partners) {
-            const channelMember = DiscussChannelMember.create({
-                channel_id: channel.id,
-                partner_id: partner.id,
-                create_uid: this.env.uid,
-            });
+            const channelMember = /** @type {number} */ (
+                DiscussChannelMember.create({
+                    channel_id: channel.id,
+                    partner_id: partner.id,
+                    create_uid: this.env.uid,
+                })
+            );
             insertedChannelMembers.push(channelMember);
             BusBus._sendone(partner, "discuss.channel/joined", {
                 channel_id: channel.id,
                 data: new mailDataHelpers.Store(this.browse(channel.id), {
-                    ...this._channel_basic_info([channel.id]),
+                    ...this._channel_basic_info([Number(channel.id)]),
                     model: "discuss.channel",
                 })
                     .add(DiscussChannelMember.browse(channelMember), "unpin_dt")
@@ -213,7 +222,7 @@ export class DiscussChannel extends models.ServerModel {
         for (const channel of channels) {
             BusBus._sendone(channel, "discuss.channel/delete", { id: channel.id });
         }
-        return super.unlink(...arguments);
+        return super.unlink(ids);
     }
 
     /**
@@ -230,14 +239,16 @@ export class DiscussChannel extends models.ServerModel {
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 
-        const id = this.create({
-            channel_member_ids: [
-                Command.create({ partner_id: this.env.user.partner_id }),
-            ],
-            channel_type: "channel",
-            name,
-            group_public_id: group_id,
-        });
+        const id = /** @type {number} */ (
+            this.create({
+                channel_member_ids: [
+                    Command.create({ partner_id: this.env.user.partner_id }),
+                ],
+                channel_type: "channel",
+                name,
+                group_public_id: group_id,
+            })
+        );
         this.write([id], { group_public_id: group_id });
         this.message_post(
             id,
@@ -247,7 +258,7 @@ export class DiscussChannel extends models.ServerModel {
             }),
         );
         const [partner] = ResPartner.read(this.env.user.partner_id);
-        this._broadcast([id], [partner]);
+        this._broadcast([id], [Number(partner.id)]);
         return DiscussChannel.browse(id);
     }
 
@@ -384,19 +395,21 @@ export class DiscussChannel extends models.ServerModel {
                 return DiscussChannel.browse(channel.id);
             }
         }
-        const id = this.create({
-            channel_member_ids: partners.map((partner) =>
-                Command.create({
-                    partner_id: partner.id,
-                    unpin_dt:
-                        partner.id === serverState.partnerId
-                            ? false
-                            : serializeDateTime(today()),
-                }),
-            ),
-            channel_type: "chat",
-            name: partners.map((partner) => partner.name).join(", "),
-        });
+        const id = /** @type {number} */ (
+            this.create({
+                channel_member_ids: partners.map((partner) =>
+                    Command.create({
+                        partner_id: partner.id,
+                        unpin_dt:
+                            partner.id === serverState.partnerId
+                                ? false
+                                : serializeDateTime(today()),
+                    }),
+                ),
+                channel_type: "chat",
+                name: partners.map((partner) => partner.name).join(", "),
+            })
+        );
         this._broadcast(
             [id],
             partners.map(({ id }) => id),
@@ -434,7 +447,7 @@ export class DiscussChannel extends models.ServerModel {
                 const isChannelOrGroup = ["channel", "group"].includes(
                     channel.channel_type,
                 );
-                const res = this._channel_basic_info([channel.id]);
+                const res = this._channel_basic_info([Number(channel.id)]);
                 res.fetchChannelInfoState = "fetched";
                 if (isChannelOrGroup) {
                     res.parent_channel_id = mailDataHelpers.Store.one(
@@ -483,7 +496,7 @@ export class DiscussChannel extends models.ServerModel {
                     });
                 }
                 const memberOfCurrentUser = this._get_or_create_member_for_self(
-                    channel.id,
+                    Number(channel.id),
                 );
                 if (memberOfCurrentUser) {
                     const message_unread_counter = this.env[
@@ -648,7 +661,7 @@ export class DiscussChannel extends models.ServerModel {
     /**
      * @param {number[]} partners_to
      * @param {string} [default_display_mode=undefined]
-     * @param {string} name
+     * @param {string} [name]
      */
     _create_group(partners_to, default_display_mode, name) {
         const kwargs = getKwArgs(
@@ -667,14 +680,16 @@ export class DiscussChannel extends models.ServerModel {
         const ResPartner = this.env["res.partner"];
 
         const partners = ResPartner.browse(partners_to);
-        const id = this.create({
-            channel_type: "group",
-            channel_member_ids: partners.map((partner) =>
-                Command.create({ partner_id: partner.id }),
-            ),
-            default_display_mode: default_display_mode,
-            name,
-        });
+        const id = /** @type {number} */ (
+            this.create({
+                channel_type: "group",
+                channel_member_ids: partners.map((partner) =>
+                    Command.create({ partner_id: partner.id }),
+                ),
+                default_display_mode: default_display_mode,
+                name,
+            })
+        );
         this._broadcast(
             [id],
             partners.map((partner) => partner.id),
@@ -703,16 +718,18 @@ export class DiscussChannel extends models.ServerModel {
         }
         const [partner] = ResPartner._get_current_persona();
         const subChannels = this.browse(
-            this.create({
-                channel_member_ids: [Command.create({ partner_id: partner.id })],
-                channel_type: "channel",
-                group_public_id: self.group_public_id,
-                from_message_id: message?.id,
-                name: message
-                    ? convertBrToLineBreak(markup(message.body)).substring(0, 30)
-                    : name || "New Thread",
-                parent_channel_id: self.id,
-            }),
+            /** @type {number} */ (
+                this.create({
+                    channel_member_ids: [Command.create({ partner_id: partner.id })],
+                    channel_type: "channel",
+                    group_public_id: self.group_public_id,
+                    from_message_id: message?.id,
+                    name: message
+                        ? convertBrToLineBreak(markup(message.body)).substring(0, 30)
+                        : name || "New Thread",
+                    parent_channel_id: self.id,
+                })
+            ),
         );
         const store = new mailDataHelpers.Store(subChannels);
         BusBus._sendone(partner, "mail.record/insert", store.get_result());
@@ -730,7 +747,7 @@ export class DiscussChannel extends models.ServerModel {
         };
     }
 
-    /** @param {number} id */
+    /** @param {number[]} ids */
     execute_command_help(ids) {
         const kwargs = getKwArgs(arguments, "ids");
         ids = kwargs.ids;
@@ -832,6 +849,7 @@ export class DiscussChannel extends models.ServerModel {
         const MailGuest = this.env["mail.guest"];
 
         const guest = MailGuest._get_guest_from_context();
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const memberDomain = guest
             ? [["guest_id", "=", guest.id]]
             : [["partner_id", "=", this.env.user.partner_id]];
@@ -858,7 +876,7 @@ export class DiscussChannel extends models.ServerModel {
         limit = kwargs.limit || 8;
 
         /**
-         * @param {this[]} channels
+         * @param {import("@web/../tests/web_test_helpers").ModelRecord[]} channels
          * @param {string} search
          * @param {number} limit
          * @returns {Object[]}
@@ -868,7 +886,7 @@ export class DiscussChannel extends models.ServerModel {
                 if (!search) {
                     return true;
                 }
-                if (channel.name && channel.name.includes(search)) {
+                if (channel.name && String(channel.name).includes(search)) {
                     return true;
                 }
                 return false;
@@ -1022,7 +1040,8 @@ export class DiscussChannel extends models.ServerModel {
                 });
             }
         }
-        const result = super.write(...arguments);
+        const result = super.write(idOrIds, values);
+        /** @type {[any, string, any][]} */
         const notifications = [];
         for (const channel of channels) {
             const basicInfo = this._channel_basic_info(channel.id);
@@ -1063,6 +1082,7 @@ export class DiscussChannel extends models.ServerModel {
         /** @type {import("mock_models").BusBus} */
         const BusBus = this.env["bus.bus"];
 
+        /** @type {[any, string, any][]} */
         const notifications = this._channel_channel_notifications(ids, partner_ids);
         BusBus._sendmany(notifications);
     }
@@ -1084,6 +1104,7 @@ export class DiscussChannel extends models.ServerModel {
         /** @type {import("mock_models").ResUsers} */
         const ResUsers = this.env["res.users"];
 
+        /** @type {[any, string, any][]} */
         const notifications = [];
         for (const partner_id of partner_ids) {
             const user = ResUsers._filter([["partner_id", "in", partner_id]])[0];
@@ -1115,6 +1136,7 @@ export class DiscussChannel extends models.ServerModel {
         const MailGuest = this.env["mail.guest"];
 
         const guest = MailGuest._get_guest_from_context();
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const memberDomain = guest
             ? [["guest_id", "=", guest.id]]
             : [["partner_id", "=", this.env.user.partner_id]];
@@ -1133,7 +1155,7 @@ export class DiscussChannel extends models.ServerModel {
 
     /**
      * @param {number} id
-     * @returns {import("mock_models").DiscussChannelMember}
+     * @returns {import("@web/../tests/_framework/mock_server/mock_model").ModelRecord}
      */
     _get_or_create_member_for_self(id) {
         /** @type {import("mock_models").DiscussChannelMember} */
@@ -1165,7 +1187,7 @@ export class DiscussChannel extends models.ServerModel {
         }
         const guestId =
             MailGuest._get_guest_from_context()?.id ??
-            MailGuest.create({ name: guest_name });
+            /** @type {number} */ (MailGuest.create({ name: guest_name }));
         this.write([id], {
             channel_member_ids: [Command.create({ guest_id: guestId })],
         });

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { PinnedMessagesPanel } from "@mail/discuss/message_pin/common/pinned_messages_panel";

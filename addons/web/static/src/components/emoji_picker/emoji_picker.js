@@ -787,7 +787,7 @@ class MobilePickerHost {
 }
 
 /**
- * @param {import("@odoo/owl").ComponentConstructor} PickerComponent
+ * @param {import("@web/env").OdooComponentConstructor} PickerComponent
  * @param {{ el: HTMLElement | null }} ref
  * @param {Record<string, any>} props
  * @param {Record<string, any>} [options]

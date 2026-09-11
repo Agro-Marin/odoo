@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module */
 
 export const PUSH_NOTIFICATION_TYPE = {

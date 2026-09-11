@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { cleanTerm } from "@mail/utils/common/format";
@@ -130,7 +131,6 @@ async function makeNewChannel(name, store) {
 export class DiscussCommandPalette {
     /**
      * @param {import("@web/env").OdooEnv} env
-     * @param {import("services").ServiceFactories} env.services
      * @param {Object} options
      */
     constructor(env, options) {
@@ -154,7 +154,7 @@ export class DiscussCommandPalette {
         ]);
     }
 
-    /** @param {Set<Record>} [filtered] */
+    /** @param {Set<import("@mail/model/record").Record>} [filtered] */
     addCommands(filtered) {
         const TOTAL_LIMIT = this.ui.isSmall ? 7 : 10;
         const remaining = TOTAL_LIMIT - (filtered ? filtered.size : 0);
@@ -190,7 +190,7 @@ export class DiscussCommandPalette {
                 } else if (!c1.self_member_id && c2.self_member_id) {
                     return 1;
                 }
-                return c1.id - c2.id;
+                return Number(c1.id) - Number(c2.id);
             })
             .slice(0, TOTAL_LIMIT);
         const elligiblePersonas = [];
@@ -223,15 +223,18 @@ export class DiscussCommandPalette {
     }
 
     /**
-     * @param {import("models").Thread|import("models").Persona|symbol} threadOrPersona
+     * @param {import("models").Thread|import("models").Persona|string} threadOrPersona
      * @param {string} [category]
      * @returns {Object}
      * @throws {Error}
      */
     makeDiscussCommand(threadOrPersona, category) {
-        if (threadOrPersona?.Model?.name === "Thread") {
+        if (
+            typeof threadOrPersona !== "string" &&
+            threadOrPersona?.Model?.name === "Thread"
+        ) {
             /** @type {import("models").Thread} */
-            const thread = threadOrPersona;
+            const thread = /** @type {import("models").Thread} */ (threadOrPersona);
             return {
                 Component: DiscussCommand,
                 action: async () => {
@@ -251,9 +254,14 @@ export class DiscussCommandPalette {
                 },
             };
         }
-        if (threadOrPersona?.Model?._name === "res.partner") {
+        if (
+            typeof threadOrPersona !== "string" &&
+            threadOrPersona?.Model?._name === "res.partner"
+        ) {
             /** @type {import("models").ResPartner} */
-            const persona = threadOrPersona;
+            const persona = /** @type {import("models").ResPartner} */ (
+                threadOrPersona
+            );
             const chat = persona.searchChat();
             return {
                 Component: DiscussCommand,

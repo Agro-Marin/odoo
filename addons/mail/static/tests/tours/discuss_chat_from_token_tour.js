@@ -1,3 +1,4 @@
+// @ts-check
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("discuss_chat_from_token_tour", {

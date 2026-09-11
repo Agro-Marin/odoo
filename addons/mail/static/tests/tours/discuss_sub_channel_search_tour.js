@@ -1,3 +1,4 @@
+// @ts-check
 import { status } from "@odoo/owl";
 import { contains, dragenterFiles, dropFiles, scroll } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";

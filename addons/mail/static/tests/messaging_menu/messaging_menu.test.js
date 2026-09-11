@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -17,7 +18,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { describe, expect, test } from "@odoo/hoot";
-import { Deferred, mockUserAgent } from "@odoo/hoot-mock";
+import { Deferred } from "@odoo/hoot-mock";
 import {
     asyncStep,
     Command,
@@ -155,9 +156,10 @@ test("respond to notification prompt (granted)", async () => {
 
 test("no suggestion to enable chat push notifications in mobile app", async () => {
     patchBrowserNotification("default");
-    mockUserAgent(
-        "Chrome/0.0.0 Android (OdooMobile; Linux; Android 13; Odoo TestSuite)",
-    );
+    patchWithCleanup(browser.navigator, {
+        userAgent:
+            "Chrome/0.0.0 Android (OdooMobile; Linux; Android 13; Odoo TestSuite)",
+    });
     await start();
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-MessagingMenu-counter", { count: 0 });
@@ -181,7 +183,7 @@ test("rendering with PWA installation request", async () => {
     const [odoobot] = pyEnv["res.partner"].read(serverState.odoobotId);
     await start();
     mockService("pwa", {
-        show() {
+        async show() {
             asyncStep("show prompt");
         },
     });
@@ -228,7 +230,7 @@ test("installation of the PWA request can be dismissed", async () => {
     });
     await start();
     mockService("pwa", {
-        show() {
+        async show() {
             asyncStep("show prompt should not be triggered");
         },
     });
@@ -653,12 +655,7 @@ test("Counter is updated when receiving new message", async () => {
 });
 
 test("basic rendering", async () => {
-    patchWithCleanup(browser, {
-        Notification: {
-            ...browser.Notification,
-            permission: "denied",
-        },
-    });
+    patchBrowserNotification("denied");
     await start();
     await contains(".o_menu_systray .dropdown-toggle:has(i[aria-label='Messages'])");
     expect(
@@ -1355,14 +1352,14 @@ test("keyboard navigation", async () => {
     await click(".o_menu_systray .dropdown-toggle:has(i[aria-label='Messages'])");
     await contains(".o-mail-NotificationItem", { count: 3 });
     triggerHotkey("ArrowDown");
-    await contains(".o-mail-NotificationItem:eq(0).o-active", { name: "Channel-2" });
+    await contains(".o-mail-NotificationItem:eq(0).o-active", { text: "Channel-2" });
     triggerHotkey("ArrowDown");
-    await contains(".o-mail-NotificationItem:eq(1).o-active", { name: "Channel-1" });
+    await contains(".o-mail-NotificationItem:eq(1).o-active", { text: "Channel-1" });
     triggerHotkey("ArrowUp");
-    await contains(".o-mail-NotificationItem:eq(0).o-active", { name: "Channel-2" });
+    await contains(".o-mail-NotificationItem:eq(0).o-active", { text: "Channel-2" });
     triggerHotkey("ArrowUp");
     await contains(".o-mail-NotificationItem:last.o-active", {
-        name: "Mitchell Admin",
+        text: "Mitchell Admin",
     });
     triggerHotkey("Enter");
     await contains(".o-mail-ChatWindow", { text: "Mitchell Admin" });

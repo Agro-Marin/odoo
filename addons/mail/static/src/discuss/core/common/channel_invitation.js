@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
@@ -137,7 +138,10 @@ export class ChannelInvitation extends Component {
     }
 
     onInput() {
-        this.searchStr = this.inputRef.el.value;
+        this.searchStr =
+            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                this.inputRef.el
+            ).value;
         if (this.store.self_partner) {
             this.debouncedFetchPartnersToInvite();
         }
@@ -179,12 +183,13 @@ export class ChannelInvitation extends Component {
 
     /** @param {FocusEvent} ev */
     onFocusInvitationLinkInput(ev) {
-        ev.target.select();
+        /** @type {HTMLInputElement} */ (ev.target).select();
     }
 
     /** @param {MouseEvent} ev */
     async onClickCopy(ev) {
         let notification = _t("Invitation link copied!");
+        /** @type {"success" | "danger"} */
         let type = "success";
         const clipboard = this.env.inDiscussCallView?.isPip
             ? this.rtc.pipService.pipWindow?.navigator.clipboard

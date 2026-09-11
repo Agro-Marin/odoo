@@ -1,3 +1,4 @@
+// @ts-check
 import { reactive } from "@odoo/owl";
 import { click, inputFiles } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
@@ -21,16 +22,20 @@ registry.category("web_tour.tours").add("discuss_channel_public_tour.js", {
                 document.body.classList.add("o_discuss_channel_public_modules_loaded");
                 if (
                     !document.title.includes(
-                        document.querySelector(".o-mail-DiscussContent-threadName")
-                            ?.value,
+                        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                            document.querySelector(".o-mail-DiscussContent-threadName")
+                        )?.value,
                     )
                 ) {
                     console.error(
                         `Tab title should match conversation name. Got "${
                             document.title
                         }" instead of "${
-                            document.querySelector(".o-mail-DiscussContent-threadName")
-                                ?.value
+                            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                                document.querySelector(
+                                    ".o-mail-DiscussContent-threadName",
+                                )
+                            )?.value
                         }".`,
                     );
                 }

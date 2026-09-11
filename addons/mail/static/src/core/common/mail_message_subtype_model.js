@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Record } from "@mail/model/record";
 

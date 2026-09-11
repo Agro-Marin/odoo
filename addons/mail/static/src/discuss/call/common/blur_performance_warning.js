@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CallDropdown } from "@mail/discuss/call/common/call_dropdown";
 import { Component } from "@odoo/owl";

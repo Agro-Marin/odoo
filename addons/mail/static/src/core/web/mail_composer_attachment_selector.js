@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { dataUrlToBlob } from "@mail/core/common/attachment_uploader_hook";
 import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
@@ -26,6 +27,7 @@ export class MailComposerAttachmentSelector extends Component {
         const [thread] = getComposerTargetThreads(this.mailStore, this.props.record);
         const file = new File([dataUrlToBlob(data, type)], name, { type });
         const isThreadComposer = this.props.record.context.is_thread_composer;
+        /** @type {{attachments: import("models").Attachment[]}|undefined} */
         let composer = isThreadComposer ? thread.composer : undefined;
         if (this.props.record.resModel === "mail.scheduled.message") {
             composer = { attachments: [] };

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -9,6 +10,7 @@ import {
 } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+/** @returns {Promise<PermissionState>} */
 async function getIosPwaPermission() {
     if (browser.location.protocol !== "https:") {
         return "denied";
@@ -21,7 +23,7 @@ export const notificationPermissionService = {
     dependencies: ["notification"],
 
     /**
-     * @param {NotificationPermission|undefined} permission
+     * @param {NotificationPermission|PermissionState|undefined} permission
      * @returns {"prompt"|"granted"|"denied"}
      */
     _normalizePermission(permission) {
@@ -41,6 +43,7 @@ export const notificationPermissionService = {
      */
     async start(env, services) {
         const notification = services.notification;
+        /** @type {PermissionStatus | {state: PermissionState} | undefined} */
         let permission;
         try {
             if (isIOS() && isDisplayStandalone()) {
@@ -86,7 +89,7 @@ export const notificationPermissionService = {
                 }
             },
         });
-        if (permission && !isIOS()) {
+        if (permission && "addEventListener" in permission && !isIOS()) {
             permission.addEventListener(
                 "change",
                 () => (state.permission = permission.state),

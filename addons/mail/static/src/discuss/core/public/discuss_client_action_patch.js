@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { WelcomePage } from "@mail/discuss/core/public/welcome_page";
@@ -7,7 +8,7 @@ import { patch } from "@web/core/utils/patch";
 DiscussClientAction.components = { ...DiscussClientAction.components, WelcomePage };
 patch(DiscussClientAction.prototype, {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         if (this.store.isChannelTokenSecret) {
             browser.history.replaceState(
                 browser.history.state,
@@ -23,7 +24,7 @@ patch(DiscussClientAction.prototype, {
         );
     },
     getActiveId() {
-        const currentURL = new URL(browser.location);
+        const currentURL = new URL(browser.location.href);
         if (!/\/discuss\/channel\/\d+$/.test(currentURL.pathname)) {
             return (
                 this.store.Thread.localIdToActiveId(

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { Activity } from "@mail/core/common/activity_model";
@@ -7,8 +8,9 @@ import { _t } from "@web/core/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { patch } from "@web/core/utils/patch";
 patch(Activity.prototype, {
+    /** @this {import("models").Activity} */
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.isNoteEmpty = fields.Attr(true, {
             /** @this {import("models").Activity} */
             compute() {

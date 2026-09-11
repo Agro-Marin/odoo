@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";

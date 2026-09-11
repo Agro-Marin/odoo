@@ -19,7 +19,9 @@ declare module "models" {
             DiscussAppCategory,
             typeof DiscussAppCategoryClass
         >;
-        fetchSearchConversationsSequential: () => Promise<any>;
+        fetchSearchConversationsSequential: ReturnType<
+            typeof import("@mail/utils/common/misc").makeSequential
+        >;
         searchConversations: (searchValue: string) => Promise<void>;
     }
     export interface Thread {

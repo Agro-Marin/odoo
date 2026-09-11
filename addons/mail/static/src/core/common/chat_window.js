@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
 import { AutoresizeInput } from "@mail/core/common/autoresize_input";
@@ -126,8 +127,8 @@ export class ChatWindow extends Component {
             return;
         }
         if (
-            ev.target.closest(".o-dropdown") ||
-            ev.target.closest(".o-dropdown--menu")
+            /** @type {Element} */ (ev.target).closest(".o-dropdown") ||
+            /** @type {Element} */ (ev.target).closest(".o-dropdown--menu")
         ) {
             return;
         }

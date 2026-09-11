@@ -1,3 +1,4 @@
+// @ts-check
 import { waitUntilSubscribe } from "@bus/../tests/bus_test_helpers";
 import {
     contains,
@@ -37,17 +38,21 @@ test("open channel in discuss from push notification", async () => {
 
 test("notify message to user as non member", async () => {
     patchWithCleanup(browser, {
-        Notification: class Notification {
-            static get permission() {
-                return "granted";
-            }
-            constructor() {
-                expect.step("push notification");
-            }
-            addEventListener() {}
-        },
+        Notification: /** @type {typeof window.Notification} */ (
+            /** @type {unknown} */ (
+                class Notification {
+                    static get permission() {
+                        return "granted";
+                    }
+                    constructor() {
+                        expect.step("push notification");
+                    }
+                    addEventListener() {}
+                }
+            )
+        ),
     });
-    mockService("multi_tab", { isOnMainTab: () => true });
+    mockService("multi_tab", { isOnMainTab: async () => true });
     const pyEnv = await startServer();
     const johnUser = pyEnv["res.users"].create({ name: "John" });
     const johnPartner = pyEnv["res.partner"].create({
@@ -59,10 +64,7 @@ test("notify message to user as non member", async () => {
         channel_member_ids: [Command.create({ partner_id: johnPartner })],
     });
     await start();
-    await Promise.all([
-        openDiscuss(channelId),
-        waitUntilSubscribe(`discuss.channel_${channelId}`),
-    ]);
+    await Promise.all([openDiscuss(channelId), waitUntilSubscribe()]);
     await withUser(johnUser, () =>
         rpc("/mail/message/post", {
             post_data: { body: "Hello!", message_type: "comment" },
@@ -88,7 +90,7 @@ test("RTC logs pushed by the service worker are offered as a download", async ()
     const clicked = [];
     patchWithCleanup(URL, {
         createObjectURL(blob) {
-            blobs.push(blob);
+            blobs.push(/** @type {Blob} */ (blob));
             return "blob:rtc-logs";
         },
         revokeObjectURL(url) {
@@ -131,7 +133,7 @@ test("RTC logs pushed with no payload still carry the version info", async () =>
     const blobs = [];
     patchWithCleanup(URL, {
         createObjectURL(blob) {
-            blobs.push(blob);
+            blobs.push(/** @type {Blob} */ (blob));
             return "blob:rtc-logs";
         },
         revokeObjectURL() {},

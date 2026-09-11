@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CallPreview } from "@mail/discuss/call/common/call_preview";
 import { Component, useState, useSubEnv } from "@odoo/owl";
@@ -35,11 +36,11 @@ export class WelcomePage extends Component {
         }
         browser.localStorage.setItem(
             "discuss_call_preview_join_mute",
-            !this.state.hasMicrophone,
+            String(!this.state.hasMicrophone),
         );
         browser.localStorage.setItem(
             "discuss_call_preview_join_video",
-            Boolean(this.state.hasCamera),
+            String(Boolean(this.state.hasCamera)),
         );
         this.props.proceed?.();
     }

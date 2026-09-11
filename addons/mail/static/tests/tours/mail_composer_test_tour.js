@@ -1,3 +1,4 @@
+// @ts-check
 import { contains, dragenterFiles, dropFiles, inputFiles } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 
@@ -59,9 +60,10 @@ registry
                 content: "Check subject is autofilled",
                 trigger: '[name="subject"] input',
                 run() {
-                    const subjectValue = document.querySelector(
-                        '[name="subject"] input',
-                    ).value;
+                    const subjectValue =
+                        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                            document.querySelector('[name="subject"] input')
+                        ).value;
                     if (subjectValue !== "Jane") {
                         console.error(
                             `Full composer should have "Jane" in subject input (actual: ${subjectValue})`,
@@ -252,8 +254,9 @@ registry
                 trigger: ".o-mail-Composer button[title='Open Full Composer'].active",
                 run({ queryFirst }) {
                     if (
-                        queryFirst(".o-mail-Composer-input").value !==
-                        "keep the content"
+                        /** @type {HTMLTextAreaElement} */ (
+                            queryFirst(".o-mail-Composer-input")
+                        ).value !== "keep the content"
                     ) {
                         console.error(
                             "Composer in chatter should contain full composer text after discarding.",

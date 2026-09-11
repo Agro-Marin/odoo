@@ -1,3 +1,4 @@
+// @ts-check
 import { addLink, parseAndTransform } from "@mail/utils/common/format";
 import { makeSequential } from "@mail/utils/common/misc";
 import { describe, expect, test } from "@odoo/hoot";
@@ -106,8 +107,8 @@ test("addLink: utility function and special entities", () => {
 
     for (const [content, result] of testInputs) {
         const output = parseAndTransform(content, addLink);
-        expect(output).toBeInstanceOf(markup().constructor);
-        expect(output.toString()).toBe(result);
+        expect(output).toBeInstanceOf(markup("").constructor);
+        expect(output.toString()).toBe(String(result));
     }
 });
 
@@ -120,7 +121,7 @@ test("addLink: linkify inside text node (1 occurrence)", async () => {
     const fragment = document.createDocumentFragment();
     const div = document.createElement("div");
     fragment.appendChild(div);
-    div.innerHTML = linkified;
+    div.innerHTML = String(linkified);
     expect(div).toHaveText("some text https://somelink.com");
     await contains("a", { target: div });
     expect(div.querySelector(":scope a")).toHaveText("https://somelink.com");
@@ -134,7 +135,7 @@ test("addLink: linkify inside text node (2 occurrences)", () => {
     const fragment = document.createDocumentFragment();
     const div = document.createElement("div");
     fragment.appendChild(div);
-    div.innerHTML = linkified;
+    div.innerHTML = String(linkified);
     expect(div).toHaveText(
         "some text https://somelink.com and again https://somelink2.com ...",
     );

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
 import { onWillUnmount, status, useComponent, useState } from "@odoo/owl";
@@ -203,7 +204,7 @@ class VoiceRecorder {
             this.audioContext.close();
         }
 
-        this.startTimeStamp = false;
+        this.startTimeStamp = undefined;
         this.microphone?.getTracks().forEach((track) => track.stop());
         this.microphone = null;
         this.encoder = null;

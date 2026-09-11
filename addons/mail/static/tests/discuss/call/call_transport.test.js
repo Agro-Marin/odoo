@@ -1,3 +1,4 @@
+// @ts-check
 import {
     MOCK_SFU_CLIENT_STATE,
     MockSfuClient,
@@ -46,6 +47,7 @@ class MockP2p extends EventTarget {
     }
 }
 
+/** @param {{loadSfuClient?: typeof import("@mail/discuss/call/common/call_transport").loadSfuClient, peerSessionIds?: number[]}} [options] */
 function makeTransport({ loadSfuClient, peerSessionIds = [] } = {}) {
     const p2p = new MockP2p();
     const state = {
@@ -179,7 +181,9 @@ test("SFU connection timeout downgrades to p2p", async () => {
 test("hot-swap during an established call aborts the stale connection epoch", async () => {
     const sfuA = new MockSfuClient();
     const sfuB = new MockSfuClient();
+    /** @type {Deferred<Awaited<ReturnType<typeof import("@mail/discuss/call/common/call_transport").loadSfuClient>>>} */
     const firstLoad = new Deferred();
+    /** @type {Deferred<Awaited<ReturnType<typeof import("@mail/discuss/call/common/call_transport").loadSfuClient>>>} */
     const secondLoad = new Deferred();
     let loadCount = 0;
     const { transport, state } = makeTransport({
@@ -225,6 +229,7 @@ test("SFU closed by the server: 'full' leaves the call, otherwise downgrade", as
 
 test("p2p events during the SFU bundle load are not dropped", async () => {
     const sfu = new MockSfuClient();
+    /** @type {Deferred<Awaited<ReturnType<typeof import("@mail/discuss/call/common/call_transport").loadSfuClient>>>} */
     const load = new Deferred();
     const { transport, p2p, steps } = makeTransport({ loadSfuClient: () => load });
     transport.serverInfo = SERVER_INFO;
@@ -240,6 +245,7 @@ test("p2p events during the SFU bundle load are not dropped", async () => {
 
 test("dispose aborts in-flight connection attempts", async () => {
     const sfuA = new MockSfuClient();
+    /** @type {Deferred<Awaited<ReturnType<typeof import("@mail/discuss/call/common/call_transport").loadSfuClient>>>} */
     const load = new Deferred();
     const { transport, state } = makeTransport({ loadSfuClient: () => load });
     transport.serverInfo = SERVER_INFO;

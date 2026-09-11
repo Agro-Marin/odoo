@@ -1,3 +1,4 @@
+// @ts-check
 import { getKwArgs, models } from "@web/../tests/web_test_helpers";
 import { patch } from "@web/core/utils/patch";
 

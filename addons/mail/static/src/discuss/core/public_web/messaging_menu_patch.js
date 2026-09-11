@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { patch } from "@web/core/utils/patch";

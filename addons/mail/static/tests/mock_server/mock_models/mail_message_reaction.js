@@ -1,3 +1,4 @@
+// @ts-check
 import { makeKwArgs, models } from "@web/../tests/web_test_helpers";
 import { groupBy } from "@web/core/utils/collections/arrays";
 
@@ -12,7 +13,9 @@ export class MailMessageReaction extends models.ServerModel {
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 
-        const reactionGroups = groupBy(this, (r) => [r.message_id, r.content]);
+        const reactionGroups = groupBy(this, (r) =>
+            [r.message_id, r.content].join(","),
+        );
         for (const groupId in reactionGroups) {
             const reactionGroup = reactionGroups[groupId];
             const { message_id, content } = reactionGroups[groupId][0];
@@ -34,7 +37,9 @@ export class MailMessageReaction extends models.ServerModel {
                     partners,
                     makeKwArgs({ fields: ["avatar_128", "name"] }),
                 ),
-                sequence: Math.min(reactionGroup.map((reaction) => reaction.id)),
+                sequence: Math.min(
+                    ...reactionGroup.map((reaction) => Number(reaction.id)),
+                ),
             };
             store.add("MessageReactions", data);
         }

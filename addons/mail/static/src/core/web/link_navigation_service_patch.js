@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { LinkNavigation } from "@mail/core/common/link_navigation_service";
 import { patch } from "@web/core/utils/patch";

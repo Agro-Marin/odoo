@@ -1,3 +1,4 @@
+// @ts-check
 import { CrossTabSync, PING_INTERVAL } from "@mail/discuss/call/common/cross_tab_sync";
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
@@ -24,6 +25,9 @@ function makeWire() {
     };
 }
 
+/** @param {ReturnType<typeof makeWire>} wire
+ * @param {{isHost?: () => boolean}} [options]
+ */
 function makeSync(wire, { isHost = () => false } = {}) {
     const state = {
         remoteSessionId: undefined,

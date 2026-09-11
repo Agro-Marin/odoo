@@ -1,10 +1,12 @@
+// @ts-check
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { router } from "@web/core/browser/router";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { ConfirmationDialog } from "@web/ui/dialog";
-patch(Thread.prototype, {
+/** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
+const modelPatch = {
     /** @param {import("models").Message} message */
     async notifyMessageToUser(message) {
         const channel_notifications =
@@ -48,7 +50,7 @@ patch(Thread.prototype, {
     get notifyWhenOutOfFocus() {
         return true;
     },
-    /** @param {boolean} pushState */
+    /** @param {boolean} [pushState] */
     setAsDiscussThread(pushState) {
         if (pushState === undefined) {
             pushState = this.notEq(this.store.discuss.thread);
@@ -118,4 +120,5 @@ patch(Thread.prototype, {
             });
         });
     },
-});
+};
+patch(Thread.prototype, modelPatch);

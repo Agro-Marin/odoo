@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { Deferred, KeepLast } from "@web/core/utils/concurrency";
@@ -57,8 +58,9 @@ export class Gif extends Component {
         this.keepLast = new KeepLast();
     }
 
-    onLoad() {
-        this.props.onLoad?.(...arguments);
+    /** @param {Event} event */
+    onLoad(event) {
+        this.props.onLoad?.(event);
         this.keepLast
             .add(this.generateGifSnapshot(this.props.src))
             .then((snapshot) => (this.state.snapshot = snapshot));

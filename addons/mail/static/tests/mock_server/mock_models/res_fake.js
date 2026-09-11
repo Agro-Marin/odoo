@@ -1,3 +1,4 @@
+// @ts-check
 import { parseEmail } from "@mail/utils/common/format";
 import { fields, makeKwArgs, models } from "@web/../tests/web_test_helpers";
 

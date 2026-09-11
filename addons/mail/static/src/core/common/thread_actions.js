@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Action, UseActions } from "@mail/core/common/action";
 import { SearchMessagesPanel } from "@mail/core/common/search_messages_panel";
@@ -12,10 +13,10 @@ export const threadActionsRegistry = registry.category("mixin.mail.thread/action
 /** @typedef {import("models").Thread} Thread */
 /** @typedef {Component & { threadActions?: UseThreadActions, isDiscussSidebarChannelActions?: boolean, isDiscussContent?: boolean, root?: {el?: HTMLElement|null}, state?: Object, thread?: Thread, close?: () => void, toggleFold?: () => void, }} ThreadActionOwner */
 /** @typedef {import("@mail/core/common/action").ActionDefinition<ThreadActionOwner, ActionParams, ThreadAction>} ActionDefinition */
-/** @typedef {import("@mail/core/common/action").ActionParams<ThreadActionOwner> & { action: ThreadAction, thread: Thread }} ActionParams */
+/** @typedef {import("@mail/core/common/action").ActionParams<ThreadActionOwner> & { action: ThreadAction, thread: Thread, nextActiveAction?: Object }} ActionParams */
 /**
  * @typedef {Object} ThreadActionSpecificDefinition
- * @property {import("@odoo/owl").ComponentConstructor<any, import("@web/env").OdooEnv>} [actionPanelComponent]
+ * @property {(new (props: any, env: import("@web/env").OdooEnv) => Component)} [actionPanelComponent]
  * @property {(this: ThreadAction, params: ActionParams) => Object} [actionPanelComponentProps]
  * @property {(this: ThreadAction, params: ActionParams & { nextActiveAction?: Object }) => void} [close]
  * @property {boolean|((this: ThreadAction, params: ActionParams) => boolean)} [condition=true]
@@ -108,15 +109,16 @@ export class ThreadAction extends Action {
     threadFn;
 
     /**
-     * @param {Object} param0
-     * @param {ThreadActionOwner} param0.owner
-     * @param {string} param0.id
-     * @param {ThreadActionDefinition} param0.definition
-     * @param {import("models").Store} [param0.store]
-     * @param {Thread|(() => Thread)} [param0.thread]
+     * @param {Object} options
+     * @param {ThreadActionOwner} options.owner
+     * @param {string} options.id
+     * @param {ThreadActionDefinition} options.definition
+     * @param {import("models").Store} [options.store]
+     * @param {Thread|(() => Thread)} [options.thread]
      */
-    constructor({ thread }) {
-        super(...arguments);
+    constructor(options) {
+        super(options);
+        const { thread } = options;
         this.threadFn = typeof thread === "function" ? thread : () => thread;
     }
 

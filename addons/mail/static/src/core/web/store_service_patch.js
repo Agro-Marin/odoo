@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
@@ -15,7 +16,7 @@ const unread_store = (() => {
 /** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const StorePatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.activityCounter = 0;
         this.activity_counter_bus_id = 0;
         /** @type {Object[]} */
@@ -60,21 +61,21 @@ const StorePatch = {
     },
     onStarted() {
         super.onStarted(...arguments);
-        this.inbox = {
+        this.inbox = this.Thread.insert({
             display_name: _t("Inbox"),
             id: "inbox",
             model: "mail.box",
-        };
-        this.starred = {
+        });
+        this.starred = this.Thread.insert({
             display_name: _t("Starred messages"),
             id: "starred",
             model: "mail.box",
-        };
-        this.history = {
+        });
+        this.history = this.Thread.insert({
             display_name: _t("History"),
             id: "history",
             model: "mail.box",
-        };
+        });
         try {
             this.activityBroadcastChannel = new browser.BroadcastChannel(
                 "mail.activity.channel",
@@ -87,8 +88,8 @@ const StorePatch = {
     },
     onUpdateActivityGroups() {},
     /**
-     * @param {string} resModel
-     * @param {number[]} resIds
+     * @param {string | false} resModel
+     * @param {(number | string)[] | false} resIds
      * @param {number|undefined} defaultActivityTypeId
      */
     async scheduleActivity(resModel, resIds, defaultActivityTypeId = undefined) {
@@ -135,7 +136,7 @@ const StorePatch = {
     },
     /**
      * @param {object} param0
-     * @param {{ type: "INSERT"|"DELETE"|"RELOAD_CHATTER", payload: Partial<import("models").Activity> }} param0.data
+     * @param {({type: "INSERT"|"DELETE", payload: Partial<import("models").Activity>} | {type: "RELOAD_CHATTER", payload: {model: string, id: number}})} param0.data
      */
     _onActivityBroadcastChannelMessage({ data }) {
         switch (data.type) {
@@ -168,7 +169,9 @@ const StorePatch = {
             message.starred = false;
         }
         starredBox.counter = 0;
-        starredBox.messages = [];
+        starredBox.messages = /** @type {typeof starredBox.messages} */ (
+            /** @type {unknown} */ ([])
+        );
         try {
             await this.env.services.orm.call("mail.message", "unstar_all");
         } catch (error) {
@@ -176,7 +179,9 @@ const StorePatch = {
                 message.starred = true;
             }
             counterSnapshot.restore();
-            starredBox.messages = messages;
+            starredBox.messages = /** @type {typeof starredBox.messages} */ (
+                /** @type {unknown} */ (messages)
+            );
             throw error;
         }
     },

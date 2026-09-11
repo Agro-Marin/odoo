@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { closestElement, lastLeaf } from "@html_editor/utils/dom_traversal";
 import { rightPos } from "@html_editor/utils/position";
@@ -366,7 +367,7 @@ export class Composer extends Component {
             this.props.onDiscardCallback(ev);
         }
         if (composer.message && target.dataset?.type === EDIT_CLICK_TYPE.SAVE) {
-            this.editMessage(ev);
+            this.editMessage();
         }
     }
 
@@ -681,15 +682,15 @@ export class Composer extends Component {
      * @property {import("models").Attachment[]} attachments
      * @property {boolean} emailAddSignature
      * @property {boolean} isNote
-     * @property {number} parentId
+     * @property {number | string} parentId
      * @property {import("models").Thread[]} mentionedChannels
      * @property {import("models").ResPartner[]} mentionedPartners
      * @property {import("models").ResRole[]} mentionedRoles
      * @property {number[]} cannedResponseIds
      */
     /**
-     * @param {ReturnType<markup>} value
-     * @param {postData} postData
+     * @param {ReturnType<markup> | string} value
+     * @param {Partial<postData>} postData
      * @param {Object} extraData
      */
     async _sendMessage(value, postData, extraData) {

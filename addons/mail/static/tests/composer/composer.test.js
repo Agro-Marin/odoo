@@ -1,3 +1,4 @@
+// @ts-check
 import {
     insertText as htmlInsertText,
     pasteText,
@@ -255,12 +256,14 @@ test("add emoji replaces (keyboard) text selection", async () => {
     await openDiscuss(channelId);
     await insertText(".o-mail-Composer-input", "Blabla");
     await contains(".o-mail-Composer-input", { value: "Blabla" });
-    document
-        .querySelector(".o-mail-Composer-input")
-        .setSelectionRange(
-            0,
-            document.querySelector(".o-mail-Composer-input").value.length,
-        );
+    /** @type {HTMLInputElement | HTMLTextAreaElement} */ (
+        document.querySelector(".o-mail-Composer-input")
+    ).setSelectionRange(
+        0,
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            document.querySelector(".o-mail-Composer-input")
+        ).value.length,
+    );
     await animationFrame();
     await click("button[title='Add Emojis']");
     await click(".o-Emoji", { text: "🤠" });
@@ -276,14 +279,21 @@ test("Cursor is positioned after emoji after adding it", async () => {
     await openDiscuss(channelId);
     await insertText(".o-mail-Composer-input", "Blabla");
     const textarea = document.querySelector(".o-mail-Composer-input");
-    textarea.setSelectionRange(2, 2);
+    /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).setSelectionRange(
+        2,
+        2,
+    );
     await animationFrame();
     await click("button[title='Add Emojis']");
     await click(".o-Emoji", { text: "🤠" });
     await contains(".o-mail-Composer-input", { value: "Bl🤠abla" });
     const expectedPos = 2 + "🤠".length;
-    expect(textarea.selectionStart).toBe(expectedPos);
-    expect(textarea.selectionEnd).toBe(expectedPos);
+    expect(
+        /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).selectionStart,
+    ).toBe(expectedPos);
+    expect(
+        /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).selectionEnd,
+    ).toBe(expectedPos);
 });
 
 test("selected text is not replaced after cancelling the selection", async () => {
@@ -295,12 +305,14 @@ test("selected text is not replaced after cancelling the selection", async () =>
     await openDiscuss(channelId);
     await insertText(".o-mail-Composer-input", "Blabla");
     await contains(".o-mail-Composer-input", { value: "Blabla" });
-    document
-        .querySelector(".o-mail-Composer-input")
-        .setSelectionRange(
-            0,
-            document.querySelector(".o-mail-Composer-input").value.length,
-        );
+    /** @type {HTMLInputElement | HTMLTextAreaElement} */ (
+        document.querySelector(".o-mail-Composer-input")
+    ).setSelectionRange(
+        0,
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            document.querySelector(".o-mail-Composer-input")
+        ).value.length,
+    );
     await animationFrame();
     await click(".o-mail-DiscussContent");
     await animationFrame();
@@ -319,12 +331,25 @@ test("Selection is kept when changing channel and going back to original channel
     await openDiscuss(channelId);
     await insertText(".o-mail-Composer-input", "Foo");
     const textarea = queryFirst(".o-mail-Composer-input");
-    textarea.setSelectionRange(0, textarea.value.length);
+    /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).setSelectionRange(
+        0,
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            textarea
+        ).value.length,
+    );
     await animationFrame();
     await click(":nth-child(2 of .o-mail-DiscussSidebarChannel-container)");
     await click(":nth-child(1 of .o-mail-DiscussSidebarChannel-container)");
-    expect(textarea.selectionStart).toBe(0);
-    expect(textarea.selectionEnd).toBe(textarea.value.length);
+    expect(
+        /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).selectionStart,
+    ).toBe(0);
+    expect(
+        /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).selectionEnd,
+    ).toBe(
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            textarea
+        ).value.length,
+    );
 });
 
 test("click on emoji button, select emoji, then re-click on button should show emoji picker", async () => {
@@ -575,10 +600,19 @@ test("composer suggestion should match with input selection", async () => {
     await contains(".o-mail-Composer-input", { value: "#Mario Party " });
     await insertText(".o-mail-Composer-input", "@");
     await contains(".o-mail-Composer-suggestion", { text: "Luigi" });
-    queryFirst(".o-mail-Composer-input").setSelectionRange(3, 3);
+    /** @type {HTMLInputElement | HTMLTextAreaElement} */ (
+        queryFirst(".o-mail-Composer-input")
+    ).setSelectionRange(3, 3);
     await contains(".o-mail-Composer-suggestion", { text: "Mario Party" });
     const textarea = queryFirst(".o-mail-Composer-input");
-    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).setSelectionRange(
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            textarea
+        ).value.length,
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            textarea
+        ).value.length,
+    );
     await contains(".o-mail-Composer-suggestion", { text: "Luigi" });
 });
 
@@ -1536,7 +1570,7 @@ test("can quickly add emoji with ':' keyword", async () => {
     await htmlInsertText(editor, " :sw");
     await contains(".o-mail-Composer-suggestionList .o-open");
     await contains(".o-mail-NavigableList-item", { text: "😅:sweat_smile:" });
-    await htmlInsertText(editor, ":s", { replace: true });
+    await htmlInsertText(editor, ":s");
     await contains(".o-mail-Composer-suggestionList .o-open", { count: 0 });
 });
 

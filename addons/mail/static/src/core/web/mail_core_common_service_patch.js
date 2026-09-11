@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { MailCoreCommon } from "@mail/core/common/mail_core_common_service";
 import { applyCounterDelta } from "@mail/utils/common/counters";

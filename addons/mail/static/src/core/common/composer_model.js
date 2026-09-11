@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { getMentionsFromText } from "@mail/core/common/message_post";
 import { fields, OR, Record } from "@mail/core/common/record";
@@ -145,7 +146,12 @@ export class Composer extends Record {
 
     /** @param {import("models").Message} message */
     insertReplyFromNote(message) {
-        this.mentionedPartners.add(message.author);
+        // Notes mention partners; guests do not have partner mention identities.
+        const author = message.author_id;
+        if (!author) {
+            return;
+        }
+        this.mentionedPartners.add(author);
         if (!this.store.env.services["mail.composer"].htmlEnabled) {
             const mentionText = `@${message.authorName} `;
             if (!this.composerText.includes(mentionText)) {
@@ -162,7 +168,7 @@ export class Composer extends Record {
             return;
         }
         composerBody.firstElementChild.prepend(
-            generatePartnerMentionElement(message.author, this.thread),
+            generatePartnerMentionElement(author, this.thread),
             nbsp,
         );
         this.composerHtml = markup(composerBody.innerHTML);

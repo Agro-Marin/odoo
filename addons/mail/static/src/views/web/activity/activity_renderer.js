@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { MailColumnProgress } from "@mail/core/web/mail_column_progress";
 import { ActivityCell } from "@mail/views/web/activity/activity_cell";
@@ -193,7 +194,7 @@ export class ActivityRenderer extends Component {
      * @param {{value: string}|string} bar
      */
     onSetProgressBarState(typeId, bar) {
-        const name = bar.value;
+        const name = typeof bar === "string" ? bar : bar.value;
         if (this.activeFilter.progressValue.active === name) {
             this.activeFilter.progressValue.active = null;
             this.activeFilter.activityTypeId = null;
@@ -220,7 +221,7 @@ export class ActivityRenderer extends Component {
 
     setupStorageActiveColumns() {
         const storageActiveColumnsList = browser.localStorage
-            .getItem(this.storageKey)
+            .getItem(this.storageKey.join(","))
             ?.split(",");
 
         this.storageActiveColumns = useState({});
@@ -239,9 +240,9 @@ export class ActivityRenderer extends Component {
         this.storageActiveColumns[typeId] = !this.storageActiveColumns[typeId];
         browser.localStorage.setItem(
             this.storageKey.join(","),
-            Object.keys(this.storageActiveColumns).filter(
-                (activityType) => this.storageActiveColumns[activityType],
-            ),
+            Object.keys(this.storageActiveColumns)
+                .filter((activityType) => this.storageActiveColumns[activityType])
+                .join(","),
         );
     }
 }

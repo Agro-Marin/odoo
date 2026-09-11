@@ -28,7 +28,7 @@ export function createDocumentFragmentFromContent(content) {
 /**
  * @param {string} elementName
  * @param {string | Markup} content
- * @returns {Element}
+ * @returns {HTMLElement}
  */
 export function createElementWithContent(elementName, content) {
     const element = document.createElement(elementName);

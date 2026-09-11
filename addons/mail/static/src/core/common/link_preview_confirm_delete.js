@@ -1,10 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 /**
  * @typedef {Object} Props
- * @property {import("models").LinkPreview} linkPreview
+ * @property {import("models").MessageLinkPreview} linkPreview
  * @property {function} [delete]
  * @property {function} [deleteAll]
  * @property {function} close

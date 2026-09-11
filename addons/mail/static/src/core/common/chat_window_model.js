@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 /** @typedef {{ thread?: import("models").Thread }} ChatWindowData */
@@ -66,8 +67,12 @@ export class ChatWindow extends Record {
         options.notifyState ??= true;
         const chatHub = this.store.chatHub;
         const indexAsOpened = chatHub.opened.findIndex((w) => w.eq(this));
-        this.store.chatHub.opened.delete(this);
-        this.store.chatHub.folded.delete(this);
+        this.store.chatHub.opened.delete(
+            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
+        );
+        this.store.chatHub.folded.delete(
+            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
+        );
         if (options.notifyState) {
             this.store.chatHub.save();
         }
@@ -91,9 +96,15 @@ export class ChatWindow extends Record {
 
     async fold() {
         await this.store.chatHub.initPromise;
-        this.store.chatHub.opened.delete(this);
-        this.store.chatHub.folded.delete(this);
-        this.store.chatHub.folded.unshift(this);
+        this.store.chatHub.opened.delete(
+            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
+        );
+        this.store.chatHub.folded.delete(
+            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
+        );
+        this.store.chatHub.folded.unshift(
+            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
+        );
         this.store.chatHub.save();
         this.bypassCompact = false;
     }
@@ -113,10 +124,27 @@ export class ChatWindow extends Record {
     } = {}) {
         await this.store.chatHub.initPromise;
         this.store.env.bus.trigger("ChatWindow:will-open");
-        this.store.chatHub.folded.delete(this);
-        if (swapOpened || !this.store.chatHub.opened.includes(this)) {
-            this.store.chatHub.opened.delete(this);
-            this.store.chatHub.opened.unshift(this);
+        this.store.chatHub.folded.delete(
+            /** @type {import("models").ChatWindow} */ (/** @type {unknown} */ (this)),
+        );
+        if (
+            swapOpened ||
+            !this.store.chatHub.opened.includes(
+                /** @type {import("models").ChatWindow} */ (
+                    /** @type {unknown} */ (this)
+                ),
+            )
+        ) {
+            this.store.chatHub.opened.delete(
+                /** @type {import("models").ChatWindow} */ (
+                    /** @type {unknown} */ (this)
+                ),
+            );
+            this.store.chatHub.opened.unshift(
+                /** @type {import("models").ChatWindow} */ (
+                    /** @type {unknown} */ (this)
+                ),
+            );
         }
         if (notifyState) {
             this.store.chatHub.save();
@@ -126,7 +154,8 @@ export class ChatWindow extends Record {
         }
     }
 
-    _onClose() {}
+    /** @param {Parameters<ChatWindow["close"]>[0]} options */
+    _onClose(options) {}
 }
 
 ChatWindow.register();

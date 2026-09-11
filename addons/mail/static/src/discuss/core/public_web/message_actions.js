@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registerMessageAction } from "@mail/core/common/message_actions";
 import { _t } from "@web/core/translation";

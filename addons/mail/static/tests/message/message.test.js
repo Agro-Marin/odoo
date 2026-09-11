@@ -1,3 +1,4 @@
+// @ts-check
 import { setSelection } from "@html_editor/../tests/_helpers/selection";
 import {
     insertText as htmlInsertText,
@@ -423,9 +424,16 @@ test("Cursor is at end of composer input on edit", async () => {
     await openDiscuss(channelId);
     await click(".o-mail-Message [title='Edit']");
     const textarea = queryFirst(".o-mail-Composer-input");
-    const contentLength = textarea.value.length;
-    expect(textarea.selectionStart).toBe(contentLength);
-    expect(textarea.selectionEnd).toBe(contentLength);
+    const contentLength =
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            textarea
+        ).value.length;
+    expect(
+        /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).selectionStart,
+    ).toBe(contentLength);
+    expect(
+        /** @type {HTMLInputElement | HTMLTextAreaElement} */ (textarea).selectionEnd,
+    ).toBe(contentLength);
 });
 
 test("Stop edition on click cancel", async () => {
@@ -1021,14 +1029,13 @@ test("Reaction summary", async () => {
             await click(".o-mail-Message-actions [title='Add a Reaction']");
             await click(".o-mail-QuickReactionMenu button", { text: "😅" });
             await waitFor(`.o-mail-MessageReaction:text(😅 ${idx + 1})`, {
-                exact: true,
                 timeout: 3000,
             });
             await hover(".o-mail-MessageReaction");
             await contains(".o-mail-MessageReactionList-preview", {
                 text: `${expectedSummaries[idx]}`,
             });
-            await leave(".o-mail-MessageReaction");
+            await leave();
         });
     }
 });
@@ -1207,7 +1214,6 @@ test("open author avatar card", async () => {
         partner_id: partnerId,
         name: "Demo",
     });
-    window.pyEnv = pyEnv;
     const [channelId_1] = pyEnv["discuss.channel"].create([
         { name: "General" },
         {
@@ -1927,7 +1933,7 @@ test("a #channel mention in an EMAIL body opens the channel", async () => {
     );
     const link = host?.shadowRoot.querySelector("a.o_channel_redirect");
     expect(link).toBeInstanceOf(HTMLAnchorElement);
-    link.click();
+    /** @type {HTMLElement} */ (link).click();
     await contains(".o-mail-DiscussContent-threadName", { value: "my-channel" });
 });
 
@@ -2355,7 +2361,7 @@ test("Copy Message Link", async () => {
     patchWithCleanup(browser.navigator.clipboard, {
         writeText(text) {
             asyncStep(text);
-            super.writeText(text);
+            return super.writeText(text);
         },
     });
     const pyEnv = await startServer();
@@ -2494,7 +2500,7 @@ test("Clicking message link does not open a new tab", async () => {
     patchWithCleanup(window, {
         open() {
             expect.step("new_window");
-            super.open();
+            return super.open();
         },
     });
     const pyEnv = await startServer();

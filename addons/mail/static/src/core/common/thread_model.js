@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { getMessagePostParams } from "@mail/core/common/message_post";
 import { AND, fields, Record } from "@mail/core/common/record";
@@ -10,11 +11,11 @@ import { user } from "@web/core/user";
 import { Deferred } from "@web/core/utils/concurrency";
 /**
  * @typedef SuggestedRecipient
- * @property {string} display_name
+ * @property {string} [display_name]
  * @property {string} email
  * @property {string} name
  * @property {string} [lang]
- * @property {number} [partner_id]
+ * @property {number | false} [partner_id]
  */
 
 export class Thread extends Record {
@@ -30,7 +31,7 @@ export class Thread extends Record {
         return localId.split(",").slice(1).join("_").replace(" AND ", "_");
     }
     /**
-     * @param {{model: string, id: number}} data
+     * @param {{model: string, id: number | string}} data
      * @param {string[]} [fieldNames=[]]
      * @returns {Promise<import("models").Thread|undefined>}
      */
@@ -38,7 +39,7 @@ export class Thread extends Record {
         const thread = /** @type {import("models").Thread|undefined} */ (
             this.get(data)
         );
-        if (!(data.id > 0)) {
+        if (!(Number(data.id) > 0)) {
             return thread;
         }
         const store = this.store;
@@ -99,7 +100,7 @@ export class Thread extends Record {
 
     autofocus = 0;
     create_uid = fields.One("res.users");
-    /** @type {number} */
+    /** @type {number | string} */
     id;
     /** @type {string} */
     uuid;
@@ -287,11 +288,11 @@ export class Thread extends Record {
     pendingNewMessages = fields.Many("mail.message");
     needactionMessages = fields.Many("mail.message", {
         inverse: "threadAsNeedaction",
-        sort: (message1, message2) => message1.id - message2.id,
+        sort: (message1, message2) => Number(message1.id) - Number(message2.id),
     });
     portal_partner = fields.One("res.partner");
     status = "new";
-    /** @type {number|'bottom'} */
+    /** @type {number | "bottom" | "bottom-smooth"} */
     scrollTop = "bottom";
     transientMessages = fields.Many("mail.message");
     additionalRecipients = fields.Attr([]);
@@ -370,7 +371,7 @@ export class Thread extends Record {
     }
 
     /**
-     * @param {import("models").ResPartner|import("models").MailGuest} persona
+     * @param {{name: string, displayName?: string}} persona
      * @returns {string}
      */
     getPersonaName(persona) {
@@ -417,7 +418,7 @@ export class Thread extends Record {
     }
 
     get isTransient() {
-        return !this.id || this.id < 0;
+        return !this.id || Number(this.id) < 0;
     }
 
     get lastEditableMessageOfSelf() {
@@ -443,7 +444,10 @@ export class Thread extends Record {
     });
 
     get newestPersistentMessage() {
-        return this.messages.findLast((msg) => Number.isInteger(msg.id));
+        return this.messages.findLast(
+            /** @returns {msg is import("models").Message & {id: number}} */ (msg) =>
+                Number.isInteger(msg.id),
+        );
     }
 
     newestPersistentOfAllMessage = fields.One("mail.message", {
@@ -463,7 +467,10 @@ export class Thread extends Record {
     });
 
     get oldestPersistentMessage() {
-        return this.messages.find((msg) => Number.isInteger(msg.id));
+        return this.messages.find(
+            /** @returns {msg is import("models").Message & {id: number}} */ (msg) =>
+                Number.isInteger(msg.id),
+        );
     }
 
     onPinStateUpdated() {}
@@ -505,7 +512,7 @@ export class Thread extends Record {
         return this.isMailbox || Boolean(this.id);
     }
 
-    /** @param {{after?: number, around?: number, before?: number}} [param0] */
+    /** @param {{after?: number, around?: number | string, before?: number}} [param0] */
     async fetchMessages({ after, around, before } = {}) {
         this.status = "loading";
         if (!this.canFetchMessages) {
@@ -532,7 +539,7 @@ export class Thread extends Record {
         return msgs;
     }
 
-    /** @param {{after?: number, around?: number, before?: number}} [param0] */
+    /** @param {{after?: number, around?: number | string, before?: number}} [param0] */
     async fetchMessagesData({ after, around, before } = {}) {
         return await rpc(this.getFetchRoute(), {
             ...this.getFetchParams(),
@@ -592,12 +599,14 @@ export class Thread extends Record {
                 );
                 if (missingMessages.length > 0) {
                     this.messages.push(...missingMessages);
-                    this.messages.sort((m1, m2) => m1.id - m2.id);
+                    this.messages.sort((m1, m2) => Number(m1.id) - Number(m2.id));
                 }
             }
         }
         this._enrichMessagesWithTransient();
-        this.pendingNewMessages = [];
+        this.pendingNewMessages = /** @type {typeof this.pendingNewMessages} */ (
+            /** @type {unknown} */ ([])
+        );
     }
 
     /** @returns {import("models").ResPartner|import("models").MailGuest} */
@@ -647,7 +656,7 @@ export class Thread extends Record {
             filtered.length > 0 &&
             alreadyKnownMessages.size > 0
         ) {
-            this.messages.sort((m1, m2) => m1.id - m2.id);
+            this.messages.sort((m1, m2) => Number(m1.id) - Number(m2.id));
         }
         if (after === undefined) {
             this.loadOlder = fetched.length === this.store.FETCH_LIMIT;
@@ -686,7 +695,7 @@ export class Thread extends Record {
 
     _loadAroundSequential = makeSequential();
 
-    /** @param {number} [messageId] */
+    /** @param {number | string} [messageId] */
     async loadAround(messageId) {
         if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
             return;
@@ -694,7 +703,7 @@ export class Thread extends Record {
         return this._loadAroundSequential(() => this._loadAround(messageId));
     }
 
-    /** @param {number} [messageId] */
+    /** @param {number | string} [messageId] */
     async _loadAround(messageId) {
         if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
             return;
@@ -708,7 +717,9 @@ export class Thread extends Record {
             this.isLoaded = true;
             return;
         } finally {
-            this.phantomMessages = [];
+            this.phantomMessages = /** @type {typeof this.phantomMessages} */ (
+                /** @type {unknown} */ ([])
+            );
         }
         this.isLoaded = true;
         this.loadNewer = messageId !== undefined ? true : false;
@@ -719,10 +730,10 @@ export class Thread extends Record {
                 : this.store.FETCH_LIMIT * 2;
         if (this.messages.length < limit) {
             const olderMessagesCount = this.messages.filter(
-                ({ id }) => id < messageId,
+                ({ id }) => Number(id) < Number(messageId),
             ).length;
             const newerMessagesCount = this.messages.filter(
-                ({ id }) => id > messageId,
+                ({ id }) => Number(id) > Number(messageId),
             ).length;
             if (olderMessagesCount < limit / 2 - 1) {
                 this.loadOlder = false;
@@ -877,7 +888,7 @@ export class Thread extends Record {
 
     /**
      * @param {number} tmpId
-     * @param {ReturnType<import("@odoo/owl").markup>} body
+     * @param {string | ReturnType<import("@odoo/owl").markup>} body
      * @param {Object} postData
      * @returns {Promise<import("models").Message|undefined>}
      */
@@ -886,7 +897,7 @@ export class Thread extends Record {
     }
 
     /**
-     * @param {ReturnType<import("@odoo/owl").markup>} body
+     * @param {string | ReturnType<import("@odoo/owl").markup>} body
      * @param {Object} [postData={}]
      * @param {Object} [extraData={}]
      * @returns {Promise<import("models").Message|undefined>}
@@ -897,7 +908,9 @@ export class Thread extends Record {
         const params = await getMessagePostParams(this.store, {
             body,
             postData,
-            thread: this,
+            thread: /** @type {import("models").Thread} */ (
+                /** @type {unknown} */ (this)
+            ),
         });
         Object.assign(params, extraData);
         const tmpId = this.store.getNextTemporaryId();
@@ -950,10 +963,13 @@ export class Thread extends Record {
             if (message.in(this.messages)) {
                 continue;
             }
-            if (message.id < this.oldestPersistentMessage?.id && !this.loadOlder) {
+            if (
+                Number(message.id) < this.oldestPersistentMessage?.id &&
+                !this.loadOlder
+            ) {
                 this.messages.unshift(message);
             } else if (
-                message.id > this.newestPersistentMessage?.id &&
+                Number(message.id) > this.newestPersistentMessage?.id &&
                 !this.loadNewer
             ) {
                 this.messages.push(message);
@@ -977,7 +993,7 @@ export class Thread extends Record {
         return undefined;
     }
 
-    /** @returns {import("models").ChannelMember[]} */
+    /** @returns {Readonly<import("models").ChannelMember[]>} */
     get membersThatCanSeen() {
         return [];
     }
@@ -993,7 +1009,7 @@ export class Thread extends Record {
     }
 
     /**
-     * @param {import("models").ResPartner|import("models").MailGuest} persona
+     * @param {{name: string, displayName?: string}} persona
      * @returns {boolean}
      */
     isChatWith(persona) {

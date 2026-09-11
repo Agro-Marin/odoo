@@ -1,3 +1,4 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { computeActivityNext } from "@mail/../tests/mock_server/mock_models/mail_activity";
 import {
@@ -71,7 +72,10 @@ export class ResPartner extends webModels.ResPartner {
                     if (!search) {
                         return true;
                     }
-                    if (partner.name && partner.name.toLowerCase().includes(search)) {
+                    if (
+                        partner.name &&
+                        String(partner.name).toLowerCase().includes(search)
+                    ) {
                         return true;
                     }
                     if (partner.email && partner.email.toLowerCase().includes(search)) {
@@ -134,7 +138,7 @@ export class ResPartner extends webModels.ResPartner {
         const DiscussChannelMember = this.env["discuss.channel.member"];
         /** @type {import("mock_models").ResUsers} */
         const ResUsers = this.env["res.users"];
-        /** @type {import("mock_models").DiscussChannel} */
+        /** @type {ModelRecord} */
         const channel = this.env["discuss.channel"].browse(channel_id)[0];
         const searchLower = search.toLowerCase();
 
@@ -286,8 +290,9 @@ export class ResPartner extends webModels.ResPartner {
     }
 
     /**
-     * @param {number[]} ids
-     * @returns {Record<string, ModelRecord>}
+     * @param {import("../mail_mock_server").Store} store
+     * @param {string[]} fields
+     * @param {string[]} [extra_fields]
      */
     _to_store(store, fields, extra_fields) {
         const kwargs = getKwArgs(arguments, "store", "fields", "extra_fields");
@@ -344,10 +349,7 @@ export class ResPartner extends webModels.ResPartner {
                     const users = ResUsers.search([["login", "=", "admin"]]);
                     store._add_record_fields(ResUsers.browse(partner.main_user_id), {
                         is_admin:
-                            this.env.cookie.get("authenticated_user_sid") ===
-                            (Number.isInteger(users?.[0])
-                                ? users?.[0]
-                                : users?.[0]?.id),
+                            this.env.cookie.get("authenticated_user_sid") === users[0],
                     });
                 }
                 if (partner.main_user_id && fields.includes("notification_type")) {
@@ -448,7 +450,10 @@ export class ResPartner extends webModels.ResPartner {
                 if (!search_term) {
                     return true;
                 }
-                if (partner.name && partner.name.toLowerCase().includes(search_term)) {
+                if (
+                    partner.name &&
+                    String(partner.name).toLowerCase().includes(search_term)
+                ) {
                     return true;
                 }
                 return false;

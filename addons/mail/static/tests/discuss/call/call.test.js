@@ -1,3 +1,4 @@
+// @ts-check
 import { waitNotifications } from "@bus/../tests/bus_test_helpers";
 import {
     click,
@@ -150,12 +151,14 @@ test("should disconnect when closing page while in call", async () => {
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
     await start();
     await openDiscuss(channelId);
-    mockSendBeacon(async (route, data) => {
+    mockSendBeacon((route, data) => {
         if (data instanceof Blob && route === "/mail/rtc/channel/leave_call") {
-            const blobText = await data.text();
-            const blobData = JSON.parse(blobText);
-            asyncStep(`sendBeacon_leave_call:${blobData.params.channel_id}`);
+            data.text().then((blobText) => {
+                const blobData = JSON.parse(blobText);
+                asyncStep(`sendBeacon_leave_call:${blobData.params.channel_id}`);
+            });
         }
+        return true;
     });
 
     await click("[title='Start Call']");
@@ -408,17 +411,15 @@ test("Dropzones below fullscreen meeting view are disabled", async () => {
         },
         close: () => {
             popoutWindow.closed = true;
-            popoutIframe.remove(
-                popoutWindow.document.querySelector(".o-mail-PopoutAttachmentView"),
-            );
+            popoutIframe.remove();
         },
     };
-    patchWithCleanup(window, { documentPictureInPicture: false });
+    patchWithCleanup(window, { documentPictureInPicture: undefined });
     patchWithCleanup(browser, {
         open: () => {
             popoutWindow.closed = false;
             outsideArea.append(popoutIframe);
-            return popoutWindow;
+            return /** @type {Window} */ (/** @type {unknown} */ (popoutWindow));
         },
     });
 
@@ -454,7 +455,7 @@ test("Dropzones below fullscreen meeting view are disabled", async () => {
     await contains(".o-mail-Meeting .o-mail-AttachmentContainer:not(.o-isUploading)");
     await click("button[title='Picture in Picture']");
     await contains(".o-mail-Meeting:not(.o-fullscreen)", {
-        target: popoutIframe.contentDocument,
+        target: popoutIframe.contentDocument.body,
     });
     const textFile_2 = new File(["hello, world"], "text-2.txt", { type: "text/plain" });
     await dragenterFiles(".o-mail-Discuss .o-mail-Thread", [textFile_1]);
@@ -690,7 +691,11 @@ test("Use saved volume settings", async () => {
     await click("button[title='Participant options']");
     await contains(".o-discuss-CallContextMenu");
     const rangeInput = queryFirst(".o-discuss-CallContextMenu input[type='range']");
-    expect(rangeInput.value).toBe(expectedVolume.toString());
+    expect(
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            rangeInput
+        ).value,
+    ).toBe(expectedVolume.toString());
     rangeInput.dispatchEvent(new Event("change"));
     await click(".o-discuss-CallActionList button[aria-label='Disconnect']");
 });

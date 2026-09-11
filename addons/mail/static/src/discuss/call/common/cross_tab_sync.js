@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 
@@ -28,16 +29,16 @@ export const PING_INTERVAL = 30_000;
  * @property {(entry: string, options?: Object) => void} log
  */
 export class CrossTabSync {
-    /** @type {BroadcastChannel|undefined} */
+    /** @type {Pick<BroadcastChannel, "onmessage" | "postMessage">|undefined} */
     _broadcastChannel;
     /** @type {number} */
     _crossTabTimeoutId;
 
     /**
      * @param {Object} param0
-     * @param {import("@mail/discuss/call/common/rtc_service").RtcCallState} param0.state
+     * @param {Pick<import("./rtc_service").RtcCallState, "remoteSessionId" | "remoteChannelId" | "isPipMode">} param0.state
      * @param {CrossTabSyncHooks} param0.hooks
-     * @param {() => BroadcastChannel} [param0.createBroadcastChannel]
+     * @param {() => Pick<BroadcastChannel, "onmessage" | "postMessage">} [param0.createBroadcastChannel]
      */
     constructor({ state, hooks, createBroadcastChannel }) {
         this.state = state;

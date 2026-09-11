@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { KanbanRenderer } from "@web/views/kanban";
 

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
@@ -57,7 +58,7 @@ export class ImStatusService {
     /**
      * @param {Object} payload
      * @param {string} payload.presence_status
-     * @param {string} payload.im_status
+     * @param {import("./mail_guest_model").ImStatus} payload.im_status
      * @param {number} [payload.partner_id]
      * @param {number} [payload.guest_id]
      * @param {boolean} [payload.debounce=true]

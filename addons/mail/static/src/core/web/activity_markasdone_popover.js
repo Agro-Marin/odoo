@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
 

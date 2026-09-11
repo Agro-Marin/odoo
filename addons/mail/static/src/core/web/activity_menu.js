@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useDiscussSystray } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
@@ -27,8 +28,10 @@ export class ActivityMenu extends Component {
             global: true,
             hotkeyOptions: { bypassEditableProtection: true },
             isAvailable: () =>
-                !this.ui.activeElement.querySelector(
-                    "[data-hotkey='shift+a'], .o_mail_activity_schedule_wizard",
+                !(
+                    /** @type {ParentNode} */ (this.ui.activeElement).querySelector(
+                        "[data-hotkey='shift+a'], .o_mail_activity_schedule_wizard",
+                    )
                 ),
         });
     }

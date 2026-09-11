@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { useMessageSearch } from "@mail/core/common/message_search_hook";
@@ -26,7 +27,7 @@ import { MeetingSideActions } from "./meeting_side_actions.js";
 /** @typedef {"chat"|"invite"} MeetingPanel */
 /**
  * @typedef {Object} Props
- * @property {ThreadActionDefinition.id} [autoOpenAction]
+ * @property {string} [autoOpenAction]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Meeting extends Component {
@@ -70,8 +71,12 @@ export class Meeting extends Component {
             messageHighlight: this.messageHighlight,
             messageSearch: this.messageSearch,
         });
-        onMounted(() => (this.store.meetingViewOpened = true));
-        onWillUnmount(() => (this.store.meetingViewOpened = false));
+        onMounted(() => {
+            this.store.meetingViewOpened = true;
+        });
+        onWillUnmount(() => {
+            this.store.meetingViewOpened = false;
+        });
     }
 
     get thread() {

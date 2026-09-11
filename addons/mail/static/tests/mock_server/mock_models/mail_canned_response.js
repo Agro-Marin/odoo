@@ -1,3 +1,4 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { getKwArgs, makeKwArgs, models } from "@web/../tests/web_test_helpers";
 
@@ -26,21 +27,22 @@ export class MailCannedResponse extends models.ServerModel {
         `,
     };
 
-    create() {
-        const cannedReponseIds = super.create(...arguments);
+    /** @param {Parameters<import("@web/../tests/_framework/mock_server/mock_model").Model["create"]>} args */
+    create(...args) {
+        const cannedReponseIds = super.create(...args);
         this._broadcast(cannedReponseIds);
         return cannedReponseIds;
     }
 
-    write(ids) {
-        const res = super.write(...arguments);
+    write(ids, values) {
+        const res = super.write(ids, values);
         this._broadcast(ids);
         return res;
     }
 
     unlink(ids) {
         this._broadcast(ids, makeKwArgs({ delete: true }));
-        return super.unlink(...arguments);
+        return super.unlink(ids);
     }
 
     _broadcast(ids, _delete) {

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CallSettings } from "@mail/discuss/call/common/call_settings";
 import { Component } from "@odoo/owl";

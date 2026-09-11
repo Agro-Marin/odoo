@@ -1,10 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread";
 import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import { toRaw } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
-/** @type {Thread} */
+/** @type {Partial<Thread> & ThisType<Thread>} */
 const threadPatch = {
     /** @param {import("models").Thread} thread */
     applyScrollContextually(thread) {

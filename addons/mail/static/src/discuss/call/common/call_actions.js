@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { attClassObjectToString } from "@mail/utils/common/format";
@@ -187,7 +188,7 @@ registerCallAction("raise-hand", {
     name: ({ store }) =>
         store.rtc.selfSession.raisingHand ? _t("Lower Hand") : _t("Raise Hand"),
     /** @param {ActionParams} params */
-    isActive: ({ store }) => store.rtc.selfSession?.raisingHand,
+    isActive: ({ store }) => Boolean(store.rtc.selfSession?.raisingHand),
     isTracked: true,
     icon: "fa-regular fa-hand",
     /** @param {ActionParams} params */
@@ -233,8 +234,9 @@ registerCallAction("auto-focus", {
     icon: ({ action }) =>
         action.isActive ? "fa-regular fa-eye" : "fa-regular fa-eye-slash",
     /** @param {ActionParams} params */
-    onSelected: ({ store }) =>
-        (store.settings.useCallAutoFocus = !store.settings.useCallAutoFocus),
+    onSelected: ({ store }) => {
+        store.settings.useCallAutoFocus = !store.settings.useCallAutoFocus;
+    },
     sequence: 50,
     sequenceGroup: 200,
 });
@@ -450,15 +452,16 @@ export class CallAction extends Action {
     threadFn;
 
     /**
-     * @param {Object} param0
-     * @param {CallActionOwner} param0.owner
-     * @param {string} param0.id
-     * @param {CallActionDefinition} param0.definition
-     * @param {import("models").Store} [param0.store]
-     * @param {Thread|(() => Thread)} [param0.thread]
+     * @param {Object} options
+     * @param {CallActionOwner} options.owner
+     * @param {string} options.id
+     * @param {CallActionDefinition} options.definition
+     * @param {import("models").Store} [options.store]
+     * @param {Thread|(() => Thread)} [options.thread]
      */
-    constructor({ thread }) {
-        super(...arguments);
+    constructor(options) {
+        super(options);
+        const { thread } = options;
         this.threadFn = typeof thread === "function" ? thread : () => thread;
     }
 

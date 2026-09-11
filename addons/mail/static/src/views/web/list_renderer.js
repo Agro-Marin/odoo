@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { ListRenderer } from "@web/views/list";

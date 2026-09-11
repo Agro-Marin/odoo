@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { rpc } from "@web/core/network";
@@ -63,7 +64,7 @@ export class FollowerSubtypeDialog extends Component {
      * @param {import("models").MailMessageSubtype} subtype
      */
     onChangeCheckbox(ev, subtype) {
-        if (ev.target.checked) {
+        if (/** @type {HTMLInputElement} */ (ev.target).checked) {
             if (!this.isSelected(subtype.id)) {
                 this.state.selectedIds.push(subtype.id);
             }
@@ -91,7 +92,10 @@ export class FollowerSubtypeDialog extends Component {
                     subtype_ids: subtypes.map((subtype) => subtype.id),
                 },
             );
-            this.props.follower.subtype_ids = subtypes;
+            this.props.follower.subtype_ids =
+                /** @type {typeof this.props.follower.subtype_ids} */ (
+                    /** @type {unknown} */ (subtypes)
+                );
             if (this.store.mt_comment.notIn(subtypes)) {
                 this.props.follower.removeRecipient();
             }

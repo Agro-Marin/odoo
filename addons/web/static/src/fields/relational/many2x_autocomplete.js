@@ -220,7 +220,7 @@ export class Many2XAutocomplete extends Component {
         return this.props.activeActions || {};
     }
 
-    /** @returns {import("@odoo/owl").ComponentConstructor} */
+    /** @returns {import("@web/env").OdooComponentConstructor} */
     get createDialog() {
         return getFormViewDialog();
     }
@@ -626,7 +626,7 @@ export class Many2XAutocomplete extends Component {
  * @param {Object} params.activeActions
  * @param {boolean} params.isToMany
  * @param {Function} [params.onClose]
- * @param {import("@odoo/owl").ComponentConstructor | null} [params.component]
+ * @param {import("@web/env").OdooComponentConstructor | null} [params.component]
  * @param {string} [params.size]
  * @returns {Function}
  */

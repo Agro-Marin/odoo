@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActivityButton } from "@mail/core/web/activity_button";
 import { Component } from "@odoo/owl";

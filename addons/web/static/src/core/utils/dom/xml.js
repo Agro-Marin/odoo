@@ -153,11 +153,11 @@ export function getTag(node, lower = false) {
 
 /**
  * @param {Element} node
- * @param {Record<string, string>} attributes
+ * @param {Record<string, string | number | boolean>} attributes
  */
 export function setAttributes(node, attributes) {
     for (const [name, value] of Object.entries(attributes)) {
-        node.setAttribute(name, value);
+        node.setAttribute(name, String(value));
     }
 }
 

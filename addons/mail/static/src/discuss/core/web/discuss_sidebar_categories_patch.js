@@ -1,10 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 
 import { DiscussSidebarCategory } from "../public_web/discuss_sidebar_categories.js";
-/** @type {import("@mail/discuss/core/public_web/discuss_sidebar_categories").DiscussSidebarCategory} */
+/** @type {Partial<DiscussSidebarCategory> & ThisType<DiscussSidebarCategory>} */
 const DiscussSidebarCategoryPatch = {
     setup() {
         super.setup();

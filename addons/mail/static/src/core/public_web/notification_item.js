@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { isToday } from "@mail/utils/common/dates";
 import { useHover } from "@mail/utils/common/hooks";
@@ -58,6 +59,8 @@ export class NotificationItem extends Component {
 
     /** @param {MouseEvent} ev */
     onClick(ev) {
-        this.props.onClick(this.markAsReadRef.el?.contains(ev.target));
+        this.props.onClick(
+            this.markAsReadRef.el?.contains(/** @type {Node} */ (ev.target)),
+        );
     }
 }

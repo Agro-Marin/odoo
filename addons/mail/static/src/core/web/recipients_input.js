@@ -1,4 +1,6 @@
+// @ts-check
 /** @odoo-module native */
+/** @import { SuggestedRecipient } from "@mail/core/common/thread_model" */
 import { parseEmail } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
@@ -189,7 +191,11 @@ export class RecipientsInput extends Component {
                 /** @param {string} term */
                 options: async (term) => {
                     const limit = 8;
-                    const [name, email] = term ? parseEmail(term) : ["", ""];
+                    const [parsedName, parsedEmail] = term
+                        ? parseEmail(term)
+                        : ["", ""];
+                    const name = parsedName || "";
+                    const email = parsedEmail || "";
                     const matches = await this.searchRecipientCandidates(
                         name,
                         email,
@@ -248,7 +254,7 @@ export class RecipientsInput extends Component {
                             };
                             this.action.doAction(action);
                         };
-                        this.popover.open(ev.target, {
+                        this.popover.open(/** @type {HTMLElement} */ (ev.target), {
                             viewProfileBtnOverride,
                             id: recipient.partner_id,
                         });

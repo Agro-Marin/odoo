@@ -37,7 +37,7 @@ function camelToPascal(name) {
  * @param {T} type
  * @param {{
  * aggregator?: Aggregator;
- * defaults?: Partial<MockFieldDefinition<T> & MockFieldProperties>;
+ * defaults?: Partial<Omit<MockFieldDefinition<T>, "related"> & MockFieldProperties & {related: string|false}>;
  * requiredKeys?: R[];
  * }} params
  */
@@ -54,7 +54,7 @@ function makeFieldGenerator(type, { aggregator, defaults, requiredKeys = [] } = 
     Object.assign(defaultDef, defaults);
 
     return {
-        /** @param {Partial<MockFieldDefinition<T> & MockFieldProperties>} [properties] */
+        /** @param {Partial<Omit<MockFieldDefinition<T>, "related"> & MockFieldProperties & {related: string|false}>} [properties] */
         [constructorFnName](properties) {
             const field = {
                 ...defaultDef,

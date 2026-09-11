@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { Typing } from "@mail/discuss/typing/common/typing";

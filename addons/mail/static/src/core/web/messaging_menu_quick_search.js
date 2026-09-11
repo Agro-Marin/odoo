@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";

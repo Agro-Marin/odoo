@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CallSettingsDialog } from "@mail/discuss/call/common/call_settings";
 import { DeviceSelect } from "@mail/discuss/call/common/device_select";

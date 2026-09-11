@@ -1,3 +1,4 @@
+// @ts-check
 import { createChannel } from "@mail/../tests/mail_scenarios";
 import {
     click,

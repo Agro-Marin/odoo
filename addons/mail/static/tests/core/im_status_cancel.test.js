@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start } from "@mail/../tests/mail_test_helpers";
 import { IM_STATUS_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { MailGuest } from "@mail/core/common/mail_guest_model";
@@ -9,10 +10,10 @@ import { getService, patchWithCleanup } from "@web/../tests/web_test_helpers";
 describe.current.tags("desktop");
 defineMailModels();
 
-for (const [label, Model, modelName] of [
+for (const [label, Model, modelName] of /** @type {const} */ ([
     ["partner", ResPartner, "res.partner"],
     ["guest", MailGuest, "mail.guest"],
-]) {
+])) {
     test(`deleting a ${label} cancels its pending im_status update`, async () => {
         await start();
         const store = getService("mail.store");

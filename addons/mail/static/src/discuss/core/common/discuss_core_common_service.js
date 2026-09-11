@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { applyCounterDelta } from "@mail/utils/common/counters";
 import { markup, reactive } from "@odoo/owl";
@@ -99,7 +100,7 @@ export class DiscussCoreCommon {
 
     /**
      * @param {import("models").Thread} thread
-     * @param {{ notifId: number}} metadata
+     * @param {{id: number}} metadata
      */
     async _handleNotificationChannelDelete(thread, metadata) {
         await thread.closeChatWindow({ force: true });
@@ -150,7 +151,9 @@ export class DiscussCoreCommon {
                     channel.isDisplayed &&
                     channel.self_member_id?.new_message_separator_ui === 0
                 ) {
-                    channel.self_member_id.new_message_separator_ui = message.id;
+                    channel.self_member_id.new_message_separator_ui = Number(
+                        message.id,
+                    );
                 }
                 if (!channel.isDisplayed && channel.self_member_id) {
                     channel.scrollUnread = true;
@@ -204,7 +207,7 @@ export const discussCoreCommon = {
      */
     start(env, services) {
         const discussCoreCommon = reactive(new DiscussCoreCommon(env, services));
-        discussCoreCommon.setup(env, services);
+        discussCoreCommon.setup();
         return discussCoreCommon;
     },
 };

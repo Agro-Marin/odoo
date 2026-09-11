@@ -1,3 +1,4 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { makeKwArgs, models } from "@web/../tests/web_test_helpers";
 

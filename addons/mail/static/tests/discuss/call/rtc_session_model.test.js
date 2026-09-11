@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime, tick } from "@odoo/hoot-mock";
@@ -9,6 +10,7 @@ defineMailModels();
 test("getWhenReady resolves with the session once it is inserted", async () => {
     await start();
     const RtcSession = getService("mail.store")["discuss.channel.rtc.session"];
+    /** @type {import("models").RtcSession | undefined} */
     let resolved;
     RtcSession.getWhenReady(101).then((session) => (resolved = session));
     await tick();
@@ -22,6 +24,7 @@ test("getWhenReady returns an already-present session immediately", async () => 
     await start();
     const RtcSession = getService("mail.store")["discuss.channel.rtc.session"];
     RtcSession.insert({ id: 102 });
+    /** @type {import("models").RtcSession | undefined} */
     let resolved;
     RtcSession.getWhenReady(102).then((session) => (resolved = session));
     await tick();
@@ -41,6 +44,7 @@ test("getWhenReady's 120s fallback timer is cleared when the session arrives, so
     firstSession.delete();
     await tick();
     await advanceTime(60_000);
+    /** @type {import("models").RtcSession | undefined} */
     let secondResult;
     RtcSession.getWhenReady(303).then((session) => (secondResult = session));
 

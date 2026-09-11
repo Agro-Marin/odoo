@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Message } from "@mail/core/common/message";
 import { onWillUnmount } from "@odoo/owl";
@@ -79,10 +80,18 @@ function isQuoted(childEl) {
     );
 }
 
+/**
+ * @typedef {Message & {
+ *   state: Message["state"] & {lastReadMoreIndex: number, isReadMoreByIndex: Map<number, boolean>},
+ *   collectQuoteGroups: (body: HTMLElement) => (Element | CharacterData)[][],
+ *   insertEllipsisbtnForGroup: (group: (Element | CharacterData)[]) => void,
+ *   insertEllipsisbtn: (body: HTMLElement) => void,
+ * }} MessageWithReadMore
+ */
 /** @type {Partial<MessageWithReadMore> & ThisType<MessageWithReadMore>} */
 const messagePatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.state.lastReadMoreIndex = 0;
         this.state.isReadMoreByIndex = new Map();
         onWillUnmount(() => {

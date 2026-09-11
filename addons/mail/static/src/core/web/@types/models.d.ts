@@ -1,12 +1,13 @@
 declare module "models" {
     export interface Activity {
+        isNoteEmpty: boolean;
         dateCreateFormatted: Readonly<string>;
         dateDeadlineFormatted: Readonly<string>;
         dateDoneFormatted: Readonly<string>;
         edit: () => Promise<void>;
         markAsDone: (attachmentIds: number[]) => Promise<void>;
         markAsDoneAndScheduleNext: () => Promise<ActionDescription>;
-        remove: (param0: { broadcast: boolean }) => void;
+        remove: (param0?: { broadcast?: boolean }) => void;
     }
     export interface Message {
         canForward: (thread: Thread) => boolean;
@@ -14,10 +15,15 @@ declare module "models" {
     }
     export interface Store {
         _onActivityBroadcastChannelMessage: (param0: {
-            data: {
-                type: "INSERT" | "DELETE" | "RELOAD_CHATTER";
-                payload: Partial<Activity>;
-            };
+            data:
+                | {
+                      type: "INSERT" | "DELETE";
+                      payload: Partial<Activity>;
+                  }
+                | {
+                      type: "RELOAD_CHATTER";
+                      payload: { model: string; id: number };
+                  };
         }) => void;
         activity_counter_bus_id: number;
         activityBroadcastChannel: BroadcastChannel | null;
@@ -30,9 +36,9 @@ declare module "models" {
         onLinkFollowed: (fromThread: Thread) => void;
         onUpdateActivityGroups: () => void;
         scheduleActivity: (
-            resModel: string,
-            resIds: number[],
-            defaultActivityTypeId: number | undefined,
+            resModel: string | false,
+            resIds: (number | string)[] | false,
+            defaultActivityTypeId?: number,
         ) => Promise<void>;
         starred: Thread;
         unstarAll: () => Promise<void>;
@@ -44,6 +50,6 @@ declare module "models" {
         isDisplayedInDiscussAppDesktop: boolean;
         openRecordActionRequest: Readonly<ActionDescription>;
         loadMoreFollowers: () => Promise<void>;
-        recipients: Follower[];
+        recipients: import("@mail/model/record_list").RecordList<Follower>;
     }
 }

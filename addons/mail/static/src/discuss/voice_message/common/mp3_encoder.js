@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 const MAX_SAMPLES = 1152;
 
@@ -6,7 +7,7 @@ export class Mp3Encoder {
     config;
     /** @type {boolean} */
     encoding;
-    /** @type {lameJs.Mp3Encoder} */
+    /** @type {InstanceType<typeof lamejs.Mp3Encoder>} */
     mp3Encoder;
     /** @type {Int16Array} */
     samplesMono;

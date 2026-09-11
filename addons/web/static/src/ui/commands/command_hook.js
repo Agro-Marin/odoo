@@ -9,7 +9,7 @@ import { useService } from "@web/core/utils/hooks";
 
 /**
  * @param {string} name
- * @param {()=>(void | import("@web/ui/commands/command_palette").CommandPaletteConfig)} action
+ * @param {()=>(void | import("@web/ui/commands/command_palette").CommandPaletteConfig | Promise<void | import("@web/ui/commands/command_palette").CommandPaletteConfig>)} action
  * @param {CommandOptions} [options]
  */
 export function useCommand(name, action, options = {}) {

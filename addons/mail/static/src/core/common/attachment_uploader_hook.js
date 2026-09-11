@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
@@ -21,7 +22,8 @@ export class AttachmentUploader {
      */
     constructor(thread, { composer } = {}) {
         this.attachmentUploadService = useService("mail.attachment_upload");
-        Object.assign(this, { thread, composer });
+        this.thread = thread;
+        this.composer = composer;
     }
 
     /**

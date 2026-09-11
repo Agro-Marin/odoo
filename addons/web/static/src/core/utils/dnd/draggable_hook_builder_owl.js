@@ -14,9 +14,7 @@ export const OWL_SETUP_HOOKS = Object.freeze({
     wrapState: reactive,
 });
 
-/** @type {typeof makeNativeDraggableHook} */
+/** @param {Omit<import("./draggable_hook_builder").DraggableBuilderParams, "setupHooks">} params */
 export function makeDraggableHook(params) {
-    return makeNativeDraggableHook(
-        /** @type {any} */ ({ ...params, setupHooks: OWL_SETUP_HOOKS }),
-    );
+    return makeNativeDraggableHook({ ...params, setupHooks: OWL_SETUP_HOOKS });
 }

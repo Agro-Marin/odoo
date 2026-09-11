@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { RecipientsInputTagsList } from "@mail/core/web/recipients_input_tags_list";
 import { RecipientsPopover } from "@mail/core/web/recipients_popover";
@@ -64,7 +65,7 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
              * @param {RelationalRecord} record
              */
             (acc, record) => {
-                acc[record.resId] = record.data.email;
+                acc[Number(record.resId)] = record.data.email;
                 return acc;
             },
             /** @type {Object<number, string>} */ ({}),
@@ -160,14 +161,14 @@ export const fieldMany2ManyTagsEmail = {
      * @param {Object} dynamicInfo
      * @returns {Object}
      */
-    extractProps({ options, attrs }, dynamicInfo) {
-        const props = many2ManyTagsField.extractProps(...arguments);
+    extractProps(fieldInfo, dynamicInfo) {
+        const { options, attrs } = fieldInfo;
+        const props = many2ManyTagsField.extractProps(fieldInfo, dynamicInfo);
         props.context = dynamicInfo.context;
         const hasEditPermission = attrs.can_write
             ? evaluateBooleanExpr(attrs.can_write)
             : true;
-        props.canEditTags = options.edit_tags ? hasEditPermission : false;
-        return props;
+        return { ...props, canEditTags: options.edit_tags ? hasEditPermission : false };
     },
     /**
      * @param {{attrs: Object, options: Object, viewType?: string}} fieldInfo

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { DiscussApp } from "@mail/core/public_web/discuss_app_model";
@@ -5,7 +6,7 @@ import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 const discussAppPatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.allCategories = fields.Many("DiscussAppCategory", {
             inverse: "app",
             sort: (c1, c2) =>

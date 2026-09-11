@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
 import { AttachmentList } from "@mail/core/common/attachment_list";
@@ -102,15 +103,18 @@ export class Message extends Component {
         "isReadOnly?",
     ];
     static template = "mail.Message";
-    /** @type {{body: string, description: string, result: boolean}|undefined} */
+    /** @type {{body: string | import("@odoo/owl").Markup, description: string, result: boolean}|undefined} */
     subtypeDescriptionCache;
 
     _setupServicesAndRefs() {
         this.store = useService("mail.store");
         this.linkNavigation = useService("mail.link_navigation");
-        this.popover = usePopover(this.constructor.components.Popover, {
-            position: "top",
-        });
+        this.popover = usePopover(
+            /** @type {typeof Message} */ (this.constructor).components.Popover,
+            {
+                position: "top",
+            },
+        );
         this.state = useState({
             isHovered: false,
             isClicked: false,
@@ -214,13 +218,13 @@ export class Message extends Component {
                 color: ${color} !important;
             }
             a, a * {
-                color: ${this.constructor.SHADOW_LINK_COLOR} !important;
+                color: ${/** @type {typeof Message} */ (this.constructor).SHADOW_LINK_COLOR} !important;
             }
             a:hover, a *:hover {
-                color: ${this.constructor.SHADOW_LINK_HOVER_COLOR} !important;
+                color: ${/** @type {typeof Message} */ (this.constructor).SHADOW_LINK_HOVER_COLOR} !important;
             }
             .o-mail-Message-searchHighlight {
-                background: ${this.constructor.SHADOW_HIGHLIGHT_COLOR} !important;
+                background: ${/** @type {typeof Message} */ (this.constructor).SHADOW_HIGHLIGHT_COLOR} !important;
             }
         `;
         if (!this.store.isOdooWhiteTheme) {
@@ -272,8 +276,8 @@ export class Message extends Component {
         const moreActions =
             allActions.length > this.quickActionCount
                 ? allActions.slice(this.quickActionCount - 1)
-                : false;
-        const moreAction = moreActions?.length
+                : [];
+        const moreAction = moreActions.length
             ? this.messageActions.more({
                   actions: moreActions,
                   dropdownMenuClass: "o-mail-Message-moreMenu",
@@ -535,7 +539,7 @@ export class Message extends Component {
         if (message.failureNotifications.length > 0) {
             markEventHandled(ev, "Message.ClickFailure");
         }
-        this.popover.open(ev.target, { message });
+        this.popover.open(/** @type {HTMLElement} */ (ev.target), { message });
     }
 
     /** @param {MouseEvent} [ev] */

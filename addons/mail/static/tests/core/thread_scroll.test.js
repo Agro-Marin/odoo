@@ -1,3 +1,4 @@
+// @ts-check
 import {
     AT_BOTTOM_THRESHOLD,
     computeSavedScrollTop,
@@ -9,6 +10,10 @@ import { describe, expect, test } from "@odoo/hoot";
 
 describe.current.tags("desktop");
 
+/**
+ * @param {Partial<Parameters<typeof computeScrollAction>[0]>} [overrides]
+ * @returns {Parameters<typeof computeScrollAction>[0]}
+ */
 function params(overrides = {}) {
     return {
         order: "asc",

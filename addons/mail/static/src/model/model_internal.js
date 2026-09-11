@@ -1,28 +1,34 @@
+// @ts-check
 /** @odoo-module native */
 import { ATTR_SYM, MANY_SYM, ONE_SYM } from "./misc.js";
 
+/**
+ * Metadata has string field names, while proxy lookups can also supply symbols.
+ * @template V
+ * @typedef {Map<string, V> & Pick<Map<string | symbol, V>, "get" | "has">} FieldMap
+ */
 export class ModelInternal {
-    /** @type {Map<string, ATTR_SYM|ONE_SYM|MANY_SYM>} */
+    /** @type {FieldMap< ATTR_SYM|ONE_SYM|MANY_SYM>} */
     fields = new Map();
-    /** @type {Map<string, boolean>} */
+    /** @type {FieldMap< boolean>} */
     fieldsHtml = new Map();
-    /** @type {Map<string, string>} */
+    /** @type {FieldMap< string>} */
     fieldsTargetModel = new Map();
-    /** @type {Map<string, () => any>} */
+    /** @type {FieldMap< () => any>} */
     fieldsCompute = new Map();
-    /** @type {Map<string, any>} */
+    /** @type {FieldMap< any>} */
     fieldsDefault = new Map();
-    /** @type {Map<string, string>} */
+    /** @type {FieldMap< string>} */
     fieldsInverse = new Map();
-    /** @type {Map<string, () => void>} */
+    /** @type {FieldMap< (record: import("./record").Record) => void>} */
     fieldsOnAdd = new Map();
-    /** @type {Map<string, () => void>} */
+    /** @type {FieldMap< (record: import("./record").Record) => void>} */
     fieldsOnDelete = new Map();
-    /** @type {Map<string, () => void>} */
+    /** @type {FieldMap< () => void>} */
     fieldsOnUpdate = new Map();
-    /** @type {Map<string, () => number>} */
+    /** @type {FieldMap< () => number>} */
     fieldsSort = new Map();
-    /** @type {Map<string, string>} */
+    /** @type {FieldMap< string>} */
     fieldsType = new Map();
     /** @type {Set<string>} */
     idFields = new Set();

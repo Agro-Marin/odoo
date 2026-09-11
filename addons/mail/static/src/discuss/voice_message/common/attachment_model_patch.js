@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Attachment } from "@mail/core/common/attachment_model";
 import { fields } from "@mail/core/common/record";
@@ -5,7 +6,7 @@ import { patch } from "@web/core/utils/patch";
 /** @type {Partial<import("models").Attachment> & ThisType<import("models").Attachment>} */
 const attachmentPatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.voice_ids = fields.Many("discuss.voice.metadata");
     },
     get isViewable() {

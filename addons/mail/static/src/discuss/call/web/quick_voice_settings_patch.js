@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { QuickVoiceSettings } from "@mail/discuss/call/common/quick_voice_settings";
 import { _t } from "@web/core/translation";

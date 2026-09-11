@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
@@ -6,7 +7,7 @@ import { patch } from "@web/core/utils/patch";
 /** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const StorePatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.rtc = fields.One("Rtc", {
             /** @this {import("models").Store} */
             compute() {
@@ -76,12 +77,12 @@ const StorePatch = {
             const m1RaisingValue = m1.rtcSession?.raisingHand || Infinity;
             const m2RaisingValue = m2.rtcSession?.raisingHand || Infinity;
             if (m1HasRtc && m1RaisingValue !== m2RaisingValue) {
-                return m1RaisingValue - m2RaisingValue;
+                return Number(m1RaisingValue) - Number(m2RaisingValue);
             } else {
                 return super.sortMembers(m1, m2);
             }
         } else {
-            return m2HasRtc - m1HasRtc;
+            return Number(m2HasRtc) - Number(m1HasRtc);
         }
     },
 };

@@ -1,6 +1,6 @@
+// @ts-check
 /** @odoo-module native */
-/** @typedef {import("./record").Record} Record */
-/** @typedef {import("./record_list").RecordList} RecordList */
+/** @import { Record } from "./record" */
 
 import { reactive, toRaw } from "@odoo/owl";
 
@@ -12,14 +12,14 @@ export class RecordInternal {
     [IS_RECORD_SYM] = true;
     /** @type {Map<string, () => void>} */
     fieldsOnUpdateObserves = new Map();
-    /** @type {Map<string, this>} */
+    /** @type {Map<string, Record>} */
     fieldsSortProxy2 = new Map();
-    /** @type {Map<string, this>} */
+    /** @type {Map<string, Record>} */
     fieldsComputeProxy2 = new Map();
     uses = new RecordUses();
-    /** @type {Map<string, true>} */
+    /** @type {Map<string | symbol, true>} */
     updatingAttrs = new Map();
-    /** @type {Map<string, true>} */
+    /** @type {Map<string | symbol, true>} */
     proxyUsed = new Map();
     /** @type {string} */
     localId;

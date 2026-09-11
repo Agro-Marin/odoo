@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { monitorAudio } from "@mail/utils/common/media_monitoring";
 import { onChange } from "@mail/utils/common/misc";
@@ -199,7 +200,7 @@ function makeHoverSwitch(state, { onHover, onAway, onHovering }) {
     };
 }
 /**
- * @param {string|string[]|Function|Function[]} refNames
+ * @param {string | ReturnType<typeof import("@web/core/utils/hooks").useChildRef> | Array<string | ReturnType<typeof import("@web/core/utils/hooks").useChildRef>>} refNames
  * @returns {HoverTarget[]}
  */
 function useHoverTargets(refNames) {
@@ -279,7 +280,7 @@ function bindHoverListeners(targets, onEnter, onLeave) {
     }
 }
 /**
- * @param {string | string[] | Function} refNames
+ * @param {Parameters<typeof useHoverTargets>[0]} refNames
  * @param {Object} param1
  * @param {() => void} [param1.onHover]
  * @param {() => void} [param1.onAway]
@@ -447,7 +448,10 @@ export function useVisible(refName, cb, { ready = true } = {}) {
  * @typedef {Object} MessageScrolling
  * @property {function} clear
  * @property {function} highlightMessage
- * @property {number|null} highlightedMessageId
+ * @property {number|string|null} highlightedMessageId
+ * @property {boolean} initiated
+ * @property {import("@web/core/utils/concurrency").Deferred | null} startupDeferred
+ * @property {(el: Element) => Promise<unknown>} scrollTo
  */
 
 /**

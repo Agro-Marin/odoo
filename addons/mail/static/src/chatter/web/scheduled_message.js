@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { RelativeTime } from "@mail/core/common/relative_time";
@@ -72,7 +73,7 @@ export class ScheduledMessage extends Component {
     /** @param {MouseEvent} ev */
     onClickAuthor(ev) {
         if (!this.avatarCard.isOpen) {
-            this.avatarCard.open(ev.currentTarget, {
+            this.avatarCard.open(/** @type {HTMLElement} */ (ev.currentTarget), {
                 id: this.props.scheduledMessage.author_id.main_user_id?.id,
             });
         }

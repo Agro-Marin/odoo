@@ -1,8 +1,9 @@
+// @ts-check
 import { fields, getKwArgs, webModels } from "@web/../tests/web_test_helpers";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { patch } from "@web/core/utils/patch";
 /**
- * @template
+ * @template T
  * @typedef {import("@web/../tests/web_test_helpers").KwArgs<T>} KwArgs
  */
 
@@ -11,7 +12,7 @@ export class ResUsersSettings extends webModels.ResUsersSettings {
     is_discuss_sidebar_category_chat_open = fields.Generic({ default: true });
 
     /**
-     * @param {number} guest_id
+     * @param {number|false} [guest_id]
      * @param {number} partner_id
      * @param {number} volume
      */
@@ -35,19 +36,22 @@ export class ResUsersSettings extends webModels.ResUsersSettings {
             partner_id ? ["partner_id", "=", partner_id] : ["guest_id", "=", guest_id],
         ]);
         if (!volumeSettings) {
-            volumeSettings = ResUsersSettingsVolumes.create({
-                partner_id,
-                guest_id,
-                volume,
-            });
+            const volumeSettingsId = /** @type {number} */ (
+                ResUsersSettingsVolumes.create({
+                    partner_id,
+                    guest_id,
+                    volume,
+                })
+            );
+            [volumeSettings] = ResUsersSettingsVolumes.browse(volumeSettingsId);
         } else {
             ResUsersSettingsVolumes.write(volumeSettings.id, { volume });
         }
         const [partner] = ResPartner.read(this.env.user.partner_id);
         BusBus._sendone(partner, "res.users.settings.volumes", {
-            ...ResUsersSettingsVolumes.discuss_users_settings_volume_format(
-                volumeSettings.id,
-            ),
+            ...ResUsersSettingsVolumes.discuss_users_settings_volume_format([
+                Number(volumeSettings.id),
+            ]),
         });
         return volumeSettings;
     }

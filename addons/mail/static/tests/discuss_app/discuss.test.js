@@ -1,3 +1,4 @@
+// @ts-check
 import { waitNotifications, waitUntilSubscribe } from "@bus/../tests/bus_test_helpers";
 import { insertText as htmlInsertText } from "@html_editor/../tests/_helpers/user_actions";
 import {
@@ -1119,8 +1120,10 @@ test("post several messages with failures", async () => {
     expect(".o-mail-Message-content:eq(0)").toHaveStyle({ opacity: "0.5" });
     expect(".o-mail-Message-content:eq(1)").toHaveStyle({ opacity: "1" });
     expect(".o-mail-Message-content:eq(2)").toHaveStyle({ opacity: "0.5" });
-    messagePostDefs[0] = true;
-    messagePostDefs[2] = true;
+    messagePostDefs[0] = new Deferred();
+    messagePostDefs[0].resolve();
+    messagePostDefs[2] = new Deferred();
+    messagePostDefs[2].resolve();
     await click(
         ".o-mail-Message:contains(0) button[title='Failed to post the message. Click to retry']",
     );
@@ -1527,7 +1530,7 @@ test("inbox notifs shouldn't play sound nor open chat bubble", async () => {
     const userId = pyEnv["res.users"].create({ partner_id: partnerId });
     pyEnv["discuss.channel"].create({ name: "general", channel_type: "channel" });
     patchWithCleanup(OutOfFocusService.prototype, {
-        _playSound() {
+        async _playSound() {
             asyncStep("play_sound");
         },
     });
@@ -1623,7 +1626,7 @@ test("message sound on receiving new message based on user preferences", async (
     );
     await waitFor(".o-mail-ChatBubble .badge:contains(1)", { timeout: 3000 });
     await waitForSteps(["sound:new-message"]);
-    browser.localStorage.setItem("mail.user_setting.message_sound", false);
+    browser.localStorage.setItem("mail.user_setting.message_sound", String(false));
     await animationFrame();
     await withUser(userId, () =>
         rpc("/mail/message/post", {

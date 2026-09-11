@@ -1,8 +1,12 @@
 declare module "registries" {
     interface TourStep {
-        content?: string;
+        content?: string | import("@odoo/owl").Markup;
         trigger?: string;
-        run?: string | (() => void | Promise<void>);
+        run?:
+            | string
+            | ((
+                  helpers: import("@web_tour/js/tour_automatic/tour_helpers").TourHelpers,
+              ) => void | Promise<void>);
         [key: string]: any;
     }
 

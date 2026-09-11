@@ -1,3 +1,4 @@
+// @ts-check
 import { waitForChannels } from "@bus/../tests/bus_test_helpers";
 import { onWebsocketEvent } from "@bus/../tests/mock_websocket";
 import {

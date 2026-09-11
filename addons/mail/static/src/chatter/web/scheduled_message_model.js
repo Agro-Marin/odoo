@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
@@ -8,15 +9,8 @@ const ALREADY_SENT_EXCEPTION = "odoo.exceptions.MissingError";
 export class ScheduledMessage extends Record {
     static _name = "mail.scheduled.message";
     static id = "id";
-    /** @type {Object.<number, import("models").ScheduledMessage>} */
+    /** @type {Object.<string, import("models").ScheduledMessage>} */
     static records = {};
-    /**
-     * @param {Object|number} data
-     * @returns {import("models").ScheduledMessage}
-     */
-    static get(data) {
-        return super.get(data);
-    }
     /** @type {number} */
     id;
     attachment_ids = fields.Many("ir.attachment");

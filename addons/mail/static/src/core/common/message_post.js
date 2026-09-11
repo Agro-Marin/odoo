@@ -1,9 +1,10 @@
+// @ts-check
 /** @odoo-module native */
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
 import { createDocumentFragmentFromContent, isMarkup } from "@web/core/utils/dom/html";
 import { renderToElement } from "@web/core/utils/render";
 
-/** @param {HTMLAnchorElement[]} channelLinks */
+/** @param {HTMLElement[]} channelLinks */
 export function handleValidChannelMention(channelLinks) {
     for (const linkEl of channelLinks.filter(
         (el) => !el.querySelector(".fa-comments-o, .fa-hashtag"),
@@ -29,6 +30,8 @@ export function handleValidChannelMention(channelLinks) {
  * @property {import("models").ResRole[]} [mentionedRoles]
  * @property {string|ReturnType<import("@odoo/owl").markup>} [body]
  * @property {boolean} [email_add_signature]
+ * @property {string} [subject]
+ * @property {number} [parent_id]
  * @property {string} [message_type]
  * @property {string} [subtype_xmlid]
  * @property {number[]} [attachment_ids]
@@ -119,7 +122,7 @@ const CLIENT_ONLY_POST_DATA_KEYS = new Set([
  * @param {string|ReturnType<import("@odoo/owl").markup>} param1.body
  * @param {MessagePostData} param1.postData
  * @param {import("models").Thread} param1.thread
- * @returns {Promise<{ post_data: MessagePostData, thread_id: number, thread_model: string, canned_response_ids?: number[], }>}
+ * @returns {Promise<{ post_data: MessagePostData, thread_id: number | string, thread_model: string, canned_response_ids?: number[], context?: object, }>}
  */
 export async function getMessagePostParams(store, { body, postData, thread }) {
     const {

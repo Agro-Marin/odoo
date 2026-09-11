@@ -5,7 +5,7 @@ import test from "node:test";
 
 import ts from "typescript";
 
-const root = new URL("../../addons/web/static/", import.meta.url);
+const root = new URL("../../addons/", import.meta.url);
 
 function diagnostics(file, source) {
     const parsed = ts.createSourceFile(
@@ -24,25 +24,30 @@ function diagnostics(file, source) {
     });
 }
 
-test("web JSDoc types parse in source, tests, and HOOT", () => {
-    const failures = [];
-    let count = 0;
-    for (const directory of ["src/", "tests/", "lib/hoot/", "lib/hoot-dom/"]) {
-        const base = new URL(directory, root);
-        for (const file of readdirSync(base, { recursive: true })) {
-            if (!file.endsWith(".js")) {
-                continue;
+for (const [module, directories] of [
+    ["web", ["src/", "tests/", "lib/hoot/", "lib/hoot-dom/"]],
+    ["mail", ["src/", "tests/"]],
+]) {
+    test(`${module} JSDoc types parse in owned JavaScript`, () => {
+        const failures = [];
+        let count = 0;
+        for (const directory of directories) {
+            const base = new URL(`${module}/static/${directory}`, root);
+            for (const file of readdirSync(base, { recursive: true })) {
+                if (!file.endsWith(".js")) {
+                    continue;
+                }
+                const path = new URL(file, base);
+                failures.push(
+                    ...diagnostics(fileURLToPath(path), readFileSync(path, "utf8")),
+                );
+                count++;
             }
-            const path = new URL(file, base);
-            failures.push(
-                ...diagnostics(fileURLToPath(path), readFileSync(path, "utf8")),
-            );
-            count++;
         }
-    }
-    assert.ok(count > 0);
-    assert.deepEqual(failures, []);
-});
+        assert.ok(count > 0);
+        assert.deepEqual(failures, []);
+    });
+}
 
 test("the parser rejects stripped type bodies and template names", () => {
     for (const annotation of ["@typedef {{", "@template", "@param {{", "@returns {{"]) {

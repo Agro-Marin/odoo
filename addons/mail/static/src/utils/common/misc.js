@@ -1,10 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { observeKey } from "@mail/model/store";
 import { AssetsLoadingError, getBundle } from "@web/core/assets";
 import { memoize } from "@web/core/utils/functions";
 import { effect } from "@web/core/utils/reactive";
 /**
- * @template {Object}
+ * @template {Object} T
  * @param {T} obj
  * @param {Object<string, any>} data
  * @param {string[]} [keys=Object.keys(data)]
@@ -38,7 +39,7 @@ export function assignGetter(obj, data) {
 }
 
 /**
- * @template {Object}
+ * @template {Object} T
  * @param {T} obj
  * @param {Object<string, any>} data
  * @param {string[]} [keys=Object.keys(data)]
@@ -55,7 +56,7 @@ export function assignIn(obj, data, keys = Object.keys(data)) {
 }
 
 /**
- * @template
+ * @template T
  * @param {T[]} list
  * @param {number} target
  * @param {(item: T) => number} [itemToCompareVal]
@@ -246,7 +247,7 @@ export const hasHardwareAcceleration = memoize(() => {
 });
 
 /**
- * @template {object}
+ * @template {object} T
  * @param {Object} options
  * @param {(...dependencies: any[]) => void | (() => void)} options.effect
  * @param {(...args: T[]) => Object<string, any>|any[]} options.dependencies
@@ -275,7 +276,9 @@ export function effectWithCleanup({ effect: effectFn, dependencies, reactiveTarg
                 prevDependencies = Array.isArray(nextDependencies)
                     ? [...nextDependencies]
                     : { ...nextDependencies };
-                cleanup?.();
+                if (cleanup) {
+                    cleanup();
+                }
                 cleanup = Array.isArray(nextDependencies)
                     ? effectFn(...nextDependencies)
                     : effectFn({ ...nextDependencies });
@@ -286,8 +289,8 @@ export function effectWithCleanup({ effect: effectFn, dependencies, reactiveTarg
 }
 
 /**
- * @template {object}
- * @template {Object<string, any>}
+ * @template {object} T
+ * @template {Object<string, any>} D
  * @param {Object} options
  * @param {(dependencies: D) => (() => void)} options.effect
  * @param {number} options.delay
@@ -316,7 +319,7 @@ export function effectWithDebouncedCleanup({
             }
             clearTimeout(timeout);
             if (!active) {
-                cleanup = effectFn(/** @type {D} */ (deps));
+                cleanup = effectFn(/** @type {D} */ (/** @type {unknown} */ (deps)));
                 active = true;
             }
             return () => {
@@ -335,7 +338,7 @@ export function effectWithDebouncedCleanup({
 }
 
 /**
- * @param {HTMLElement} targetNode
+ * @param {HTMLElement | ShadowRoot} targetNode
  * @param {string} bundleName
  */
 export async function loadCssFromBundle(targetNode, bundleName) {

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
@@ -19,6 +20,8 @@ export class MailComposerTemplateSelector extends Component {
 
         const { context } = this.props.record.evalContext;
         this.state = useState({
+            /** @type {Object[]} */
+            templates: undefined,
             hideMailTemplateManagementOptions:
                 context?.hide_mail_template_management_options,
         });

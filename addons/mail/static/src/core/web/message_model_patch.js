@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Message } from "@mail/core/common/message_model";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";

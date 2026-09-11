@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Action, ACTION_TAGS } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
@@ -82,6 +83,7 @@ export class CallInvitation extends Component {
     get otherActions() {
         return [
             new Action({
+                owner: this,
                 id: "toggle-camera-preview",
                 definition: {
                     name: () =>

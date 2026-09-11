@@ -57,7 +57,7 @@ export const selectionField = {
     supportedTypes: ["many2one", "selection"],
     isEmpty: isFalseEmpty,
     interactiveOutsideEdition: ({ viewType }) => viewType === "kanban",
-    extractProps({ viewType, placeholder }, dynamicInfo) {
+    extractProps({ viewType, placeholder = undefined }, dynamicInfo) {
         return {
             autosave: viewType === "kanban",
             placeholder,

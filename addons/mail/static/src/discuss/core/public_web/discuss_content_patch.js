@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DiscussContent } from "@mail/core/public_web/discuss_content";
 import { Call } from "@mail/discuss/call/common/call";
@@ -8,7 +9,7 @@ Object.assign(DiscussContent.components, { Call, PipBanner });
 
 patch(DiscussContent.prototype, {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.rtc = useService("discuss.rtc");
     },
 });

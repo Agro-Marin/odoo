@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
@@ -42,6 +43,8 @@ export class MessagingMenu extends Component {
         this.hasTouch = hasTouch;
         this.ui = useService("ui");
         this.state = useState({
+            /** @type {boolean|undefined} */
+            searchOpen: undefined,
             activeIndex: null,
         });
         this.dropdown = useDropdownState();
@@ -181,7 +184,7 @@ export class MessagingMenu extends Component {
         return this.store.standaloneInboxMessages;
     }
 
-    /** @type {{ id: string, icon: string, label: string }[]} */
+    /** @type {{ id: string, icon: string, label: string, sequence: number, counter?: number, channelHasUnread?: boolean }[]} */
     get _tabs() {
         return [
             {
@@ -212,7 +215,7 @@ export class MessagingMenu extends Component {
         );
     }
 
-    /** @param {string} tabId */
+    /** @param {import("models").DiscussApp["activeTab"]} tabId */
     onClickNavTab(tabId) {
         if (this.store.discuss.activeTab === tabId) {
             return;

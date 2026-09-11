@@ -1,3 +1,4 @@
+// @ts-check
 import { getKwArgs, models } from "@web/../tests/web_test_helpers";
 import { capitalize } from "@web/core/utils/format/strings";
 import { patch } from "@web/core/utils/patch";
@@ -27,7 +28,7 @@ export class MailTrackingValue extends models.ServerModel {
      * @param {ModelRecord} new_value
      * @param {string} col_name
      * @param {Object} col_info
-     * @param {models.ServerModel} record
+     * @param {import("@web/../tests/_framework/mock_server/mock_model").Model} record
      */
     _prepare_tracking_values(initial_value, new_value, col_name, col_info, record) {
         const kwargs = getKwArgs(
@@ -129,7 +130,8 @@ export class MailTrackingValue extends models.ServerModel {
                     currencyId: tracking.currency_id,
                     fieldType: irField.ttype,
                     floatPrecision:
-                        this.env[irField.model]._fields[irField.name].digits,
+                        this.env[String(irField.model)]._fields[String(irField.name)]
+                            .digits,
                 },
                 newValue: this._format_display_value(tracking, "new"),
                 oldValue: this._format_display_value(tracking, "old"),

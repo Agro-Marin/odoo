@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { browser } from "@web/core/browser/browser";
@@ -5,7 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 patch(DiscussClientAction.prototype, {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.rtc = useService("discuss.rtc");
     },
     async restoreDiscussThread() {

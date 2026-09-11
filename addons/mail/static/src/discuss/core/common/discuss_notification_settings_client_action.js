@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DiscussNotificationSettings } from "@mail/discuss/core/common/discuss_notification_settings";
 import { Component, xml } from "@odoo/owl";

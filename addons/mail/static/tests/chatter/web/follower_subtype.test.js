@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -151,6 +152,7 @@ test("apply keeps the subtypes the dialog does not manage", async () => {
         res_id: serverState.partnerId,
         subtype_ids: [shownId, hiddenId],
     });
+    /** @type {number[]|undefined} */
     let sent;
     onRpc("res.partner", "message_subscribe", ({ kwargs }) => {
         sent = kwargs.subtype_ids;
@@ -251,6 +253,7 @@ test("apply keeps unmanaged subtypes when the server sends them as bare ids", as
             subtype_ids: [shownId],
         };
     });
+    /** @type {number[]|undefined} */
     let sent;
     onRpc("res.partner", "message_subscribe", ({ kwargs }) => {
         sent = kwargs.subtype_ids;

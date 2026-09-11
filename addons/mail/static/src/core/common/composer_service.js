@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -6,7 +7,7 @@ const HTML_ENABLED_KEY = "mail.html_composer.enabled";
 export class ComposerService {
     /**
      * @param {import("@web/env").OdooEnv} env
-     * @param {Partial<import("services").Services>} services
+     * @param {Pick<import("services").ServiceFactories, "legacy_multi_tab">} services
      */
     constructor(env, services) {
         this.env = env;
@@ -51,7 +52,7 @@ export const composerService = {
     dependencies: ["mail.store", "legacy_multi_tab"],
     /**
      * @param {import("@web/env").OdooEnv} env
-     * @param {Partial<import("services").Services>} services
+     * @param {Pick<import("services").ServiceFactories, "legacy_multi_tab">} services
      */
     start(env, services) {
         const composer = reactive(new ComposerService(env, services));

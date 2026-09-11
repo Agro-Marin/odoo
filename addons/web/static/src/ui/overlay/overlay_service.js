@@ -86,7 +86,7 @@ class OverlayService {
     }
 
     /**
-     * @param {import("@odoo/owl").ComponentConstructor} component
+     * @param {(new (props: any, env: import("@web/env").OdooEnv) => import("@odoo/owl").Component)} component
      * @param {object} props
      * @param {OverlayServiceAddOptions} [options]
      * @returns {(removeParams?: any) => Promise<void>}

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import {
     Component,
@@ -161,7 +162,7 @@ export function usePopoutAttachment() {
  * @typedef {Object} Props
  * @property {number} threadId
  * @property {string} threadModel
- * @extends {Component<Props, import("@web/env").OdooEnv>}
+ * @extends {AbstractAttachmentView}
  */
 export class AttachmentView extends AbstractAttachmentView {
     setup() {

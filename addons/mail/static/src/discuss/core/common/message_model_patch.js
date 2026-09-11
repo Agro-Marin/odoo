@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Message } from "@mail/core/common/message_model";
 import { fields } from "@mail/core/common/record";
@@ -22,7 +23,7 @@ const messagePatch = {
             /** @this {import("models").Message} */
             compute() {
                 if (this.isSelfAuthored && this.thread) {
-                    return this.thread.maxFetchedMessageIdByOthers >= this.id;
+                    return this.thread.maxFetchedMessageIdByOthers >= Number(this.id);
                 }
                 return this.thread?.channel_member_ids.some(
                     (m) =>
@@ -35,7 +36,7 @@ const messagePatch = {
             /** @this {import("models").Message} */
             compute() {
                 if (this.isSelfAuthored && this.thread) {
-                    return this.thread.maxSeenMessageIdByOthers >= this.id;
+                    return this.thread.maxSeenMessageIdByOthers >= Number(this.id);
                 }
                 return this.thread?.membersThatCanSeen
                     .filter((member) => member.persona?.notEq(this.author))
@@ -51,7 +52,7 @@ const messagePatch = {
                 return this.id < this.thread.lastSelfMessageSeenByEveryone.id;
             },
         });
-        /** @type {Promise<Thread>[]} */
+        /** @type {Promise<import("models").Thread>[]} */
         this.mentionedChannelPromises = [];
         this.threadAsFirstUnread = fields.One("Thread", {
             inverse: "firstUnreadMessage",
@@ -64,7 +65,7 @@ const messagePatch = {
         );
     },
     /**
-     * @param {string|ReturnType<markup>} body
+     * @param {string|import("@odoo/owl").Markup} body
      * @param {import("models").Attachment[]} [attachments=[]]
      * @param {Object} [mentions]
      * @param {import("models").Thread[]} [mentions.mentionedChannels=[]]

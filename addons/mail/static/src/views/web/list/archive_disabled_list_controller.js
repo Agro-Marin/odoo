@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";

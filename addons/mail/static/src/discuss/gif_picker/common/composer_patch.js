@@ -1,8 +1,9 @@
+// @ts-check
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { markup } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
-/** @type {Composer} */
+/** @type {Partial<Composer> & ThisType<Composer>} */
 const composerPatch = {
     /** @param {import("@mail/discuss/gif_picker/common/gif_picker").TenorGif} gif */
     async sendGifMessage(gif) {

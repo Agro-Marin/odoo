@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { AttachmentList } from "@mail/core/common/attachment_list";
@@ -44,6 +45,7 @@ export class AttachmentPanel extends Component {
 
     /** @return {Object<string, import("models").Attachment[]>} */
     get attachmentsByDate() {
+        /** @type {Object<string, import("models").Attachment[]>} */
         const attachmentsByDate = {};
         for (const attachment of this.props.thread.attachments) {
             const attachments = attachmentsByDate[attachment.monthYear] ?? [];

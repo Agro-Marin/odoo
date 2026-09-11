@@ -1,3 +1,4 @@
+// @ts-check
 import { setSelection } from "@html_editor/../tests/_helpers/selection";
 import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
 import { insertText } from "@html_editor/../tests/_helpers/user_actions";
@@ -29,7 +30,7 @@ function setSelectionInHtmlField(selector = "p", fieldName = "body") {
 function useCustomStyleRules(rules = "") {
     let style;
     before(() => {
-        style = document.createElement("STYLE");
+        style = document.createElement("style");
         style.type = "text/css";
         style.append(document.createTextNode(rules));
         document.head.append(style);

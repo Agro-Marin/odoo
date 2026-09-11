@@ -1,4 +1,7 @@
 declare module "models" {
+    export interface Thread {
+        storeAsCounterChannel: Store;
+    }
     export interface Store {
         counterChannels: Thread[];
         getSelfImportantChannels: () => Thread[];

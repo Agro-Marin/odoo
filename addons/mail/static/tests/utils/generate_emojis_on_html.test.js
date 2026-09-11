@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
 import { expect, test } from "@odoo/hoot";

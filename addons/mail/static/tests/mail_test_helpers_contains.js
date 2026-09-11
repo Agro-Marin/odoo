@@ -1,3 +1,5 @@
+/** @import { OdooEnv } from "@web/env" */
+// @ts-check
 /** @odoo-module alias=@web/../tests/utils default=false */
 
 import { __debug__, after, afterEach, expect, getFixture } from "@odoo/hoot";
@@ -6,17 +8,20 @@ import { animationFrame, Deferred, tick } from "@odoo/hoot-mock";
 import { isMacOS } from "@web/core/browser/feature_detection";
 import { isVisible } from "@web/core/utils/dom/ui";
 
+/** @typedef {import("@web/../tests/helpers/utils").EventType} EventType */
+/** @typedef {{skipVisibilityCheck?: boolean, sync?: boolean}} TriggerEventOptions */
+
 export const TIMEOUT = 10_000;
 
 const TICK_DELAY = 3000;
 
-/** @param {EventInit} [args] */
+/** @param {EventInit & {pageX?: number, pageY?: number, touches?: TouchInit[]}} [args] */
 const mapBubblingEvent = (args) => ({ ...args, bubbles: true });
 
-/** @param {EventInit} [args] */
+/** @param {EventInit & {pageX?: number, pageY?: number, touches?: TouchInit[]}} [args] */
 const mapNonBubblingEvent = (args) => ({ ...args, bubbles: false });
 
-/** @param {EventInit} [args={}] */
+/** @param {EventInit & {pageX?: number, pageY?: number, touches?: TouchInit[]}} [args={}] */
 const mapBubblingPointerEvent = (args = {}) => ({
     clientX: args.pageX,
     clientY: args.pageY,
@@ -26,14 +31,14 @@ const mapBubblingPointerEvent = (args = {}) => ({
     view: window,
 });
 
-/** @param {EventInit} [args] */
+/** @param {EventInit & {pageX?: number, pageY?: number, touches?: TouchInit[]}} [args] */
 const mapNonBubblingPointerEvent = (args) => ({
     ...mapBubblingPointerEvent(args),
     bubbles: false,
     cancelable: false,
 });
 
-/** @param {EventInit} [args={}] */
+/** @param {EventInit & {pageX?: number, pageY?: number, touches?: TouchInit[]}} [args={}] */
 const mapCancelableTouchEvent = (args = {}) => ({
     ...args,
     bubbles: true,
@@ -45,13 +50,13 @@ const mapCancelableTouchEvent = (args = {}) => ({
     zoom: 1.0,
 });
 
-/** @param {EventInit} [args] */
+/** @param {EventInit & {pageX?: number, pageY?: number, touches?: TouchInit[]}} [args] */
 const mapNonCancelableTouchEvent = (args) => ({
     ...mapCancelableTouchEvent(args),
     cancelable: false,
 });
 
-/** @param {EventInit} [args] */
+/** @param {EventInit & {pageX?: number, pageY?: number, touches?: TouchInit[]}} [args] */
 const mapKeyboardEvent = (args) => ({
     ...args,
     bubbles: true,
@@ -59,9 +64,8 @@ const mapKeyboardEvent = (args) => ({
 });
 
 /**
- * @template {typeof Event}
  * @param {EventType} eventType
- * @returns {[T, (attrs: EventInit) => EventInit]}
+ * @returns {[(new (type: string, eventInitDict?: EventInit) => Event), (attrs?: EventInit) => EventInit]}
  */
 const getEventConstructor = (eventType) => {
     switch (eventType) {
@@ -159,13 +163,12 @@ function findElement(el, selector) {
 }
 
 /**
- * @template {EventType}
  * @param {Element} el
  * @param {string | null | undefined | false} selector
- * @param {T} eventType
+ * @param {EventType} eventType
  * @param {EventInit} [eventInit]
  * @param {TriggerEventOptions} [options={}]
- * @returns {GlobalEventHandlersEventMap[T] | Promise<GlobalEventHandlersEventMap[T]>}
+ * @returns {Event | Promise<Event>}
  */
 function triggerEvent(el, selector, eventType, eventInit, options = {}) {
     const errors = [];
@@ -195,7 +198,7 @@ function triggerEvent(el, selector, eventType, eventInit, options = {}) {
         const group = `%c[${event.type.toUpperCase()}]`;
         console.groupCollapsed(group, "color: #b52c9b");
         console.log(target, event);
-        console.groupEnd(group, "color: #b52c9b");
+        console.groupEnd();
     }
 
     if (options.sync) {
@@ -288,7 +291,7 @@ export async function editInput(el, selector, value) {
             }
             dataTransfer.items.add(file);
         }
-        input.files = dataTransfer.files;
+        /** @type {HTMLInputElement} */ (input).files = dataTransfer.files;
         eventOpts.skipVisibilityCheck = true;
     } else {
         input.value = value;
@@ -319,8 +322,7 @@ function createFakeDataTransfer(files) {
 
 /**
  * @param {import("@odoo/hoot-dom").Target} selector
- * @param {ContainsOptions} [options]
- * @param {boolean} [options.shiftKey]
+ * @param {ContainsOptions & {shiftKey?: boolean}} [options]
  */
 export async function click(selector, options = {}) {
     const { shiftKey } = options;
@@ -384,8 +386,7 @@ export async function focus(selector, options) {
 /**
  * @param {import("@odoo/hoot-dom").Target} selector
  * @param {string} content
- * @param {ContainsOptions} [options]
- * @param {boolean} [options.replace=false]
+ * @param {ContainsOptions & {replace?: boolean}} [options]
  */
 export async function insertText(selector, content, options = {}) {
     const { replace = false } = options;
@@ -462,7 +463,7 @@ function log(ok, message) {
 let hasUsedContainsPositively = false;
 afterEach(() => (hasUsedContainsPositively = false), { global: true });
 /**
- * @typedef {[string, ContainsOptions]} ContainsTuple
+ * @typedef {[string, ContainsOptions?]} ContainsTuple
  * @typedef {Object} ContainsOptions
  * @property {ContainsTuple} [after]
  * @property {ContainsTuple} [before]
@@ -480,7 +481,7 @@ afterEach(() => (hasUsedContainsPositively = false), { global: true });
  * @property {boolean} [setFocus]
  * @property {boolean} [shadowRoot]
  * @property {number|"bottom"} [setScroll]
- * @property {HTMLElement|OdooEnv} [target=getFixture()]
+ * @property {HTMLElement|ShadowRoot|OdooEnv} [target=getFixture()]
  * @property {(EventType|[EventType, EventInit])[]} [triggerEvents]
  * @property {string} [text]
  * @property {string} [textContent]
@@ -498,8 +499,8 @@ class Contains {
         this.options = options;
         this.options.count ??= 1;
         let targetParam;
-        if (this.options.target?.testEnv) {
-            targetParam = this.options.target?.target;
+        if (this.options.target && "testEnv" in this.options.target) {
+            targetParam = this.options.target.target;
         }
         if (!targetParam) {
             targetParam = this.options.target;
@@ -540,7 +541,9 @@ class Contains {
         }
         this.selectorMessage = selectorMessage;
         if (this.options.contains && !Array.isArray(this.options.contains[0])) {
-            this.options.contains = [this.options.contains];
+            this.options.contains = [
+                /** @type {ContainsTuple} */ (this.options.contains),
+            ];
         }
         if (this.options.count) {
             hasUsedContainsPositively = true;
@@ -612,7 +615,7 @@ class Contains {
      * @param {Object} [options={}]
      * @param {boolean} [options.crashOnFail=false]
      * @param {boolean} [options.executeOnSuccess=true]
-     * @returns {HTMLElement[]|undefined}
+     * @returns {(HTMLElement | ShadowRoot)[]|undefined}
      */
     runOnce(whenMessage, { crashOnFail = false, executeOnSuccess = true } = {}) {
         const res = this.select();
@@ -632,7 +635,7 @@ class Contains {
         if ((res?.length ?? 0) === this.options.count) {
             this.successMessage = `Found ${this.selectorMessage} (${whenMessage})`;
             if (executeOnSuccess) {
-                this.executeAction(res[0]);
+                this.executeAction(/** @type {HTMLElement} */ (res[0]));
             }
             return res;
         } else {
@@ -705,7 +708,7 @@ class Contains {
             for (const file of this.options.inputFiles) {
                 dataTransfer.items.add(file);
             }
-            el.files = dataTransfer.files;
+            /** @type {HTMLInputElement} */ (el).files = dataTransfer.files;
             const versionRaw = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
             const chromeVersion = versionRaw ? parseInt(versionRaw[2], 10) : false;
             if (!chromeVersion || chromeVersion >= 73) {
@@ -716,7 +719,9 @@ class Contains {
             message = `${message} and inserted text "${this.options.insertText.content}" (replace: ${this.options.insertText.replace})`;
             el.focus();
             if (this.options.insertText.replace) {
-                el.value = "";
+                /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                    el
+                ).value = "";
                 el.dispatchEvent(
                     new window.KeyboardEvent("keydown", { key: "Backspace" }),
                 );
@@ -726,7 +731,9 @@ class Contains {
                 el.dispatchEvent(new window.InputEvent("input"));
             }
             for (const char of this.options.insertText.content) {
-                el.value += char;
+                /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                    el
+                ).value += char;
                 el.dispatchEvent(new window.KeyboardEvent("keydown", { key: char }));
                 el.dispatchEvent(new window.KeyboardEvent("keyup", { key: char }));
                 el.dispatchEvent(new window.InputEvent("input"));
@@ -768,7 +775,7 @@ class Contains {
         this.def?.resolve();
     }
 
-    /** @returns {HTMLElement[]|undefined} */
+    /** @returns {(HTMLElement | ShadowRoot)[]|undefined} */
     select() {
         const target = this.selectParent();
         if (!target) {
@@ -789,16 +796,25 @@ class Contains {
             let condition =
                 (this.options.textContent === undefined ||
                     el.textContent.trim() === this.options.textContent) &&
-                (this.options.value === undefined || el.value === this.options.value) &&
+                (this.options.value === undefined ||
+                    /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                        el
+                    ).value === this.options.value) &&
                 (this.options.scroll === undefined ||
                     (this.options.scroll === "bottom"
-                        ? Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <=
-                          1
-                        : Math.abs(el.scrollTop - this.options.scroll) <= 1));
+                        ? Math.abs(
+                              /** @type {HTMLElement} */ (el).scrollHeight -
+                                  /** @type {HTMLElement} */ (el).clientHeight -
+                                  /** @type {HTMLElement} */ (el).scrollTop,
+                          ) <= 1
+                        : Math.abs(
+                              /** @type {HTMLElement} */ (el).scrollTop -
+                                  this.options.scroll,
+                          ) <= 1));
             if (condition && this.options.text !== undefined) {
                 if (
                     el.textContent.trim() !== this.options.text &&
-                    [...el.querySelectorAll("*")].every(
+                    [.../** @type {ParentNode} */ (el).querySelectorAll("*")].every(
                         (el) => el.textContent.trim() !== this.options.text,
                     )
                 ) {
@@ -882,7 +898,7 @@ class Contains {
         return res;
     }
 
-    /** @returns {HTMLElement|undefined} */
+    /** @returns {HTMLElement | ShadowRoot | undefined} */
     selectParent() {
         if (this.options.parent) {
             this.parentContains = new Contains(this.options.parent[0], {
@@ -893,7 +909,7 @@ class Contains {
                 executeOnSuccess: false,
             })?.[0];
         }
-        return this.options.target;
+        return /** @type {HTMLElement} */ (this.options.target);
     }
 }
 

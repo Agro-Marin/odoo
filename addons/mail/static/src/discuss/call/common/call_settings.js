@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { DeviceSelect } from "@mail/discuss/call/common/device_select";
@@ -39,8 +40,18 @@ export class CallSettings extends Component {
                 this.store.settings.edgeBlurAmount.toString(),
             );
         }, 2000);
-        useExternalListener(browser, "keydown", this._onKeyDown, { capture: true });
-        useExternalListener(browser, "keyup", this._onKeyUp, { capture: true });
+        useExternalListener(
+            browser,
+            "keydown",
+            /** @type {EventListener} */ (this._onKeyDown),
+            { capture: true },
+        );
+        useExternalListener(
+            browser,
+            "keyup",
+            /** @type {EventListener} */ (this._onKeyUp),
+            { capture: true },
+        );
         onWillStart(async () => {
             if (!browser.navigator.mediaDevices) {
                 this.notification.add(
@@ -108,12 +119,18 @@ export class CallSettings extends Component {
 
     /** @param {Event} ev */
     onChangeLogRtc(ev) {
-        this.store.settings.logRtc = ev.target.checked;
+        this.store.settings.logRtc = /** @type {HTMLInputElement} */ (
+            ev.target
+        ).checked;
     }
 
     /** @param {Event} ev */
     onChangeSelectAudioInput(ev) {
-        this.store.settings.setAudioInputDevice(ev.target.value);
+        this.store.settings.setAudioInputDevice(
+            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                ev.target
+            ).value,
+        );
     }
 
     onClickDownloadLogs() {
@@ -126,21 +143,27 @@ export class CallSettings extends Component {
 
     /** @param {Event} ev */
     onChangeDelay(ev) {
-        this.store.settings.setDelayValue(ev.target.value);
+        this.store.settings.setDelayValue(
+            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                ev.target
+            ).value,
+        );
     }
 
     /** @param {Event} ev */
     onChangeBlur(ev) {
-        this.store.settings.setUseBlur(ev.target.checked);
+        this.store.settings.setUseBlur(
+            /** @type {HTMLInputElement} */ (ev.target).checked,
+        );
     }
 
     /** @param {Event} ev */
     onChangeShowOnlyVideo(ev) {
-        const showOnlyVideo = ev.target.checked;
+        const showOnlyVideo = /** @type {HTMLInputElement} */ (ev.target).checked;
         this.store.settings.showOnlyVideo = showOnlyVideo;
         browser.localStorage.setItem(
             "mail_user_setting_show_only_video",
-            this.store.settings.showOnlyVideo,
+            String(this.store.settings.showOnlyVideo),
         );
         const activeRtcSessions = this.store.allActiveRtcSessions;
         if (showOnlyVideo && activeRtcSessions) {
@@ -154,13 +177,21 @@ export class CallSettings extends Component {
 
     /** @param {Event} ev */
     onChangeBackgroundBlurAmount(ev) {
-        this.store.settings.backgroundBlurAmount = Number(ev.target.value);
+        this.store.settings.backgroundBlurAmount = Number(
+            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                ev.target
+            ).value,
+        );
         this.saveBackgroundBlurAmount();
     }
 
     /** @param {Event} ev */
     onChangeEdgeBlurAmount(ev) {
-        this.store.settings.edgeBlurAmount = Number(ev.target.value);
+        this.store.settings.edgeBlurAmount = Number(
+            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                ev.target
+            ).value,
+        );
         this.saveEdgeBlurAmount();
     }
 }

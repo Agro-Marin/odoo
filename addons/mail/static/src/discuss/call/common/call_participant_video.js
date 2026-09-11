@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import {
     Component,
@@ -10,6 +11,7 @@ import {
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
+ * @property {"camera" | "screen"} type
  * @property {import("models").RtcSession} session
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
@@ -21,7 +23,9 @@ export class CallParticipantVideo extends Component {
         super.setup();
         this.rtc = useService("discuss.rtc");
         this.store = useService("mail.store");
-        this.root = useRef("root");
+        this.root = /** @type {import("@odoo/owl").Ref<HTMLVideoElement>} */ (
+            useRef("root")
+        );
         onMounted(() => this._update());
         onPatched(() => this._update());
         useExternalListener(this.env.bus, "RTC-SERVICE:PLAY_MEDIA", async () => {
@@ -34,7 +38,7 @@ export class CallParticipantVideo extends Component {
             return;
         }
         const stream = this.props.session?.getStream(this.props.type);
-        const srcObject = stream ?? null;
+        const srcObject = stream || null;
         if (this.root.el.srcObject === srcObject) {
             return;
         }

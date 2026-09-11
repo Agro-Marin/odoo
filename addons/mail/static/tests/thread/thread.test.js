@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -534,8 +535,10 @@ test("mention a channel when replacing the space after the mention by another ch
     await insertText(".o-mail-Composer-input", "#");
     await click(".o-mail-Composer-suggestion");
     await contains(".o-mail-Composer-input", { value: "#General good " });
-    const text = queryValue(".o-mail-Composer-input:first");
-    queryFirst(".o-mail-Composer-input").value = text.slice(0, -1);
+    const text = String(queryValue(".o-mail-Composer-input:first"));
+    /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+        queryFirst(".o-mail-Composer-input")
+    ).value = text.slice(0, -1);
     await insertText(".o-mail-Composer-input", ", test");
     await press("Enter");
     await contains(".o-mail-Message-body .o_channel_redirect", {

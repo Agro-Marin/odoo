@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

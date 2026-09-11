@@ -1,3 +1,4 @@
+// @ts-check
 import { insertText as htmlInsertText } from "@html_editor/../tests/_helpers/user_actions";
 import {
     click,
@@ -10,7 +11,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { Composer } from "@mail/core/common/composer";
 import { beforeEach, describe, test } from "@odoo/hoot";
-import { press } from "@odoo/hoot-dom";
+import { press, queryFirst } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
 import {
     Command,
@@ -57,7 +58,7 @@ test("display command suggestions on typing '/'", async () => {
     await openDiscuss(channelId);
     await contains(".o-mail-Composer-suggestionList");
     await contains(".o-mail-Composer-suggestionList .o-open", { count: 0 });
-    await focus(".o-mail-Composer-html.odoo-editor-editable");
+    queryFirst(".o-mail-Composer-html.odoo-editor-editable").focus();
     const editor = {
         document,
         editable: document.querySelector(".o-mail-Composer-html.odoo-editor-editable"),
@@ -89,7 +90,7 @@ test("use a command for a specific channel type", async () => {
     await openDiscuss(channelId);
     await contains(".o-mail-Composer-suggestionList");
     await contains(".o-mail-Composer-suggestionList .o-open", { count: 0 });
-    await focus(".o-mail-Composer-html.odoo-editor-editable");
+    queryFirst(".o-mail-Composer-html.odoo-editor-editable").focus();
     const editor = {
         document,
         editable: document.querySelector(".o-mail-Composer-html.odoo-editor-editable"),
@@ -129,7 +130,7 @@ test("command suggestion should only open if command is the first character", as
     await openDiscuss(channelId);
     await contains(".o-mail-Composer-suggestionList");
     await contains(".o-mail-Composer-suggestionList .o-open", { count: 0 });
-    await focus(".o-mail-Composer-html.odoo-editor-editable");
+    queryFirst(".o-mail-Composer-html.odoo-editor-editable").focus();
     const editor = {
         document,
         editable: document.querySelector(".o-mail-Composer-html.odoo-editor-editable"),
@@ -237,7 +238,12 @@ test("mention suggestion are shown after deleting a character", async () => {
     await insertText(".o-mail-Composer-input", "a");
     await contains(".o-mail-Composer-suggestion strong", { count: 0, text: "John D" });
     const textarea = document.querySelector(".o-mail-Composer-input");
-    textarea.value = textarea.value.slice(0, -1);
+    /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+        textarea
+    ).value =
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            textarea
+        ).value.slice(0, -1);
     await contains(".o-mail-Composer-suggestion strong", { text: "John Doe" });
 });
 
@@ -259,7 +265,12 @@ test("[text composer] command suggestion are shown after deleting a character", 
     await insertText(".o-mail-Composer-input", "e");
     await contains(".o-mail-Composer-suggestion strong", { count: 0, text: "help" });
     const textarea = document.querySelector(".o-mail-Composer-input");
-    textarea.value = textarea.value.slice(0, -1);
+    /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+        textarea
+    ).value =
+        /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+            textarea
+        ).value.slice(0, -1);
     await contains(".o-mail-Composer-suggestion strong", { text: "help" });
 });
 
@@ -281,7 +292,7 @@ test("command suggestion are shown after deleting a character", async () => {
     await openDiscuss(channelId);
     await contains(".o-mail-Composer-suggestionList");
     await contains(".o-mail-Composer-suggestionList .o-open", { count: 0 });
-    await focus(".o-mail-Composer-html.odoo-editor-editable");
+    queryFirst(".o-mail-Composer-html.odoo-editor-editable").focus();
     const editor = {
         document,
         editable: document.querySelector(".o-mail-Composer-html.odoo-editor-editable"),

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Call } from "@mail/discuss/call/common/call";
 import { Meeting } from "@mail/discuss/call/common/meeting";

@@ -31,23 +31,26 @@ function makeStorage() {
     };
 }
 
+/** @type {import("@web/views/list/list_renderer").Column[]} */
 const COLUMNS = [
-    { type: "field", name: "a", optional: "show" },
-    { type: "field", name: "b", optional: "hide" },
-    { type: "field", name: "c" },
+    { id: "a", type: "field", name: "a", optional: "show" },
+    { id: "b", type: "field", name: "b", optional: "hide" },
+    { id: "c", type: "field", name: "c" },
     {
         type: "field",
+        id: "p1",
         name: "p1",
         optional: "hide",
         relatedPropertyField: { id: "grp" },
     },
     {
         type: "field",
+        id: "p2",
         name: "p2",
         optional: "hide",
         relatedPropertyField: { id: "grp" },
     },
-    { type: "widget", name: "w", optional: "show" },
+    { id: "w", type: "widget", name: "w", optional: "show" },
 ];
 
 function setup(/** @type {ReturnType<typeof makeStorage>} */ storage) {

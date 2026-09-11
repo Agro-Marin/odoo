@@ -1,3 +1,4 @@
+// @ts-check
 import { Command, serverState } from "@web/../tests/web_test_helpers";
 
 /** @typedef {"self" | number | Object} MemberEntry */
@@ -28,21 +29,18 @@ function memberCommand(member) {
  * @returns {{ partnerId: number, userId: number }}
  */
 export function createUserAndPartner(pyEnv, name, { partner = {}, user = {} } = {}) {
-    const partnerId = pyEnv["res.partner"].create({ name, ...partner });
-    const userId = pyEnv["res.users"].create({ name, partner_id: partnerId, ...user });
+    const partnerId = /** @type {number} */ (
+        pyEnv["res.partner"].create({ name, ...partner })
+    );
+    const userId = /** @type {number} */ (
+        pyEnv["res.users"].create({ name, partner_id: partnerId, ...user })
+    );
     return { partnerId, userId };
 }
 
 /**
  * @param {import("@web/../tests/web_test_helpers").MockServerEnvironment} pyEnv
- * @param {string | Object} nameOrOptions
- * @param {string} [nameOrOptions.name]
- * @param {number} [nameOrOptions.partnerId]
- * @param {Object | false} [nameOrOptions.user]
- * @param {Object} [nameOrOptions.partner]
- * @param {Object} [nameOrOptions.selfMember]
- * @param {Object} [nameOrOptions.member]
- * @param {Object} [nameOrOptions.channel]
+ * @param {string | {name?: string, partnerId?: number, user?: Object | false, partner?: Object, selfMember?: Object, member?: Object, channel?: Object}} nameOrOptions
  * @returns {{ channelId: number, partnerId: number, userId: number | undefined }}
  */
 export function createChatWith(pyEnv, nameOrOptions) {
@@ -59,23 +57,29 @@ export function createChatWith(pyEnv, nameOrOptions) {
     let { partnerId } = options;
     let userId;
     if (partnerId === undefined) {
-        partnerId = pyEnv["res.partner"].create({ name, ...partner });
+        partnerId = /** @type {number} */ (
+            pyEnv["res.partner"].create({ name, ...partner })
+        );
         if (user !== false) {
-            userId = pyEnv["res.users"].create({
-                name,
-                partner_id: partnerId,
-                ...user,
-            });
+            userId = /** @type {number} */ (
+                pyEnv["res.users"].create({
+                    name,
+                    partner_id: partnerId,
+                    ...user,
+                })
+            );
         }
     }
-    const channelId = pyEnv["discuss.channel"].create({
-        channel_member_ids: [
-            Command.create({ partner_id: serverState.partnerId, ...selfMember }),
-            Command.create({ partner_id: partnerId, ...member }),
-        ],
-        channel_type: "chat",
-        ...channel,
-    });
+    const channelId = /** @type {number} */ (
+        pyEnv["discuss.channel"].create({
+            channel_member_ids: [
+                Command.create({ partner_id: serverState.partnerId, ...selfMember }),
+                Command.create({ partner_id: partnerId, ...member }),
+            ],
+            channel_type: "chat",
+            ...channel,
+        })
+    );
     return { channelId, partnerId, userId };
 }
 
@@ -90,7 +94,7 @@ export function createChannel(pyEnv, nameOrVals = {}) {
     if (members) {
         vals.channel_member_ids = members.map(memberCommand);
     }
-    return pyEnv["discuss.channel"].create(vals);
+    return /** @type {number} */ (pyEnv["discuss.channel"].create(vals));
 }
 
 /**
@@ -119,12 +123,14 @@ export function createChannelWithUnreads(pyEnv, options = {}) {
  * @returns {number[]}
  */
 export function createChannelMessages(pyEnv, channelId, messages) {
-    return pyEnv["mail.message"].create(
-        messages.map((message) => ({
-            model: "discuss.channel",
-            res_id: channelId,
-            ...(typeof message === "string" ? { body: message } : message),
-        })),
+    return /** @type {number[]} */ (
+        pyEnv["mail.message"].create(
+            messages.map((message) => ({
+                model: "discuss.channel",
+                res_id: channelId,
+                ...(typeof message === "string" ? { body: message } : message),
+            })),
+        )
     );
 }
 

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { makeSequential } from "@mail/utils/common/misc";
 import { markup, onWillUnmount, useState } from "@odoo/owl";
@@ -8,7 +9,7 @@ export const HIGHLIGHT_CLASS = "o-mail-Message-searchHighlight";
 
 /**
  * @param {string} searchTerm
- * @param {string} target
+ * @param {string | import("@odoo/owl").Markup} target
  */
 export function searchHighlight(searchTerm, target) {
     if (!searchTerm) {
@@ -56,19 +57,19 @@ export function searchHighlight(searchTerm, target) {
                     newNode.push(node);
                 }
             }
-            element.replaceChildren(...newNode);
+            /** @type {ParentNode} */ (element).replaceChildren(...newNode);
         }
     }
     return markup(htmlDoc.body.innerHTML);
 }
 
-/** @param {import('models').Thread} thread */
+/** @param {import('models').Thread} [thread] */
 export function useMessageSearch(thread) {
     const store = useService("mail.store");
     const sequential = makeSequential();
     const state = useState({
         thread,
-        /** @param {boolean} [before=false] */
+        /** @param {number | false} [before=false] */
         async search(before = false) {
             if (this.searchTerm || this.is_notification !== undefined) {
                 this.searching = true;
@@ -121,7 +122,7 @@ export function useMessageSearch(thread) {
         searchTerm: undefined,
         searched: false,
         searching: false,
-        /** @param {string} target */
+        /** @param {string | import("@odoo/owl").Markup} target */
         highlight: (target) => searchHighlight(state.searchTerm, target),
     });
     onWillUnmount(() => {

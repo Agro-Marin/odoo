@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DiscussContent } from "@mail/core/public_web/discuss_content";
 import { DiscussSidebar } from "@mail/core/public_web/discuss_sidebar";

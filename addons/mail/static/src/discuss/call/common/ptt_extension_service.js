@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { parseVersion } from "@mail/utils/common/misc";
 import { markRaw, markup, reactive } from "@odoo/owl";

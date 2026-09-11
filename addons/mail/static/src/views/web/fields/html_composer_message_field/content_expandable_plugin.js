@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { fillEmpty } from "@html_editor/utils/dom";
@@ -44,7 +45,10 @@ export class ContentExpandablePlugin extends Plugin {
         if (
             ev.type === "click" &&
             ev.target &&
-            closestElement(ev.target, ".o-mail-Message-viewMore-btn")
+            closestElement(
+                /** @type {Node} */ (ev.target),
+                ".o-mail-Message-viewMore-btn",
+            )
         ) {
             return true;
         }
@@ -74,20 +78,26 @@ export class ContentExpandablePlugin extends Plugin {
 
     /** @param {MouseEvent} ev */
     onClickViewButton(ev) {
-        const ele = closestElement(ev.target, ".o_mail_reply_container");
+        const ele = closestElement(
+            /** @type {Node} */ (ev.target),
+            ".o_mail_reply_container",
+        );
         if (!ele) {
             return;
         }
         for (const subEl of ele.querySelectorAll(":scope > .o_mail_reply_content")) {
             subEl.classList.toggle("d-none");
         }
-        closestElement(ev.target, ".o-mail-Message-viewMore-container")?.remove();
+        closestElement(
+            /** @type {Node} */ (ev.target),
+            ".o-mail-Message-viewMore-container",
+        )?.remove();
     }
 
     /** @param {HTMLElement} root */
     cleanForSave(root) {
         for (const el of selectElements(root, ".o_mail_reply_container")) {
-            delete el.dataset.oeProtected;
+            delete (/** @type {HTMLElement} */ (el).dataset.oeProtected);
             for (const subEl of el.querySelectorAll(".o_mail_reply_content")) {
                 delete subEl.dataset.oeProtected;
                 subEl.classList.remove("d-none");

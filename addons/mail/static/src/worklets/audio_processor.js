@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 class BiquadBandpassFilter {
     /**
@@ -53,6 +54,7 @@ class ThresholdProcessor extends globalThis.AudioWorkletProcessor {
      * @param {number} [param0.processorOptions.minimumActiveCycles]
      * @param {boolean} [param0.processorOptions.postAllTics]
      * @param {number} [param0.processorOptions.volumeThreshold]
+     * @param {number} [param0.processorOptions.processInterval]
      * @param {{ boost, shift }} [param0.processorOptions.normalizationParameters]
      */
     constructor({

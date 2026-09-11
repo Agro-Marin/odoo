@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { computeUpdateDelay } from "@mail/core/common/relative_time";
 import { describe, expect, test } from "@odoo/hoot";

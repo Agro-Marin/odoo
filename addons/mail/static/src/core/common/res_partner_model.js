@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { IM_STATUS_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, Record } from "@mail/core/common/record";
@@ -10,15 +11,28 @@ const { DateTime } = luxon;
 export class ResPartner extends Record {
     static id = "id";
     static _name = "res.partner";
-    static new() {
+    /** @type {boolean} */
+    active;
+    /** @type {string} */
+    lang_name;
+    /**
+     * @template {typeof Record} T
+     * @this {T}
+     * @param {import("@mail/model/record").RecordData} data
+     * @param {import("@mail/model/record").RecordData} ids
+     * @returns {InstanceType<T>}
+     */
+    static new(data, ids) {
         /** @type {import("models").ResPartner} */
-        const record = super.new(...arguments);
+        const record = /** @type {import("models").ResPartner} */ (
+            /** @type {unknown} */ (super.new(data, ids))
+        );
         record.debouncedSetImStatus = debounce(
-            /** @param {string} newStatus */
+            /** @param {import("./mail_guest_model").ImStatus} newStatus */
             (newStatus) => record.updateImStatus(newStatus),
             IM_STATUS_DEBOUNCE_DELAY,
         );
-        return record;
+        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (record));
     }
 
     _triggerPresenceSubscription = fields.Attr(null, {
@@ -46,7 +60,7 @@ export class ResPartner extends Record {
     /** @type {string} */
     commercial_company_name;
     country_id = fields.One("res.country");
-    /** @type {(newStatus: string) => void} */
+    /** @type {ReturnType<typeof debounce<(newStatus: import("./mail_guest_model").ImStatus) => void>>} */
     debouncedSetImStatus;
     /** @type {string} */
     email;
@@ -55,7 +69,7 @@ export class ResPartner extends Record {
     group_ids = fields.Many("res.groups", { inverse: "partners" });
     /** @type {number} */
     id;
-    /** @type {ImStatus} */
+    /** @type {import("./mail_guest_model").ImStatus} */
     im_status = fields.Attr(null, {
         /** @this {import("models").ResPartner} */
         onUpdate() {
@@ -123,16 +137,20 @@ export class ResPartner extends Record {
 
     searchChat() {
         return Object.values(this.store.Thread.records).find((thread) =>
-            thread.isChatWith(this),
+            thread.isChatWith(
+                /** @type {import("models").ResPartner} */ (
+                    /** @type {unknown} */ (this)
+                ),
+            ),
         );
     }
 
     delete() {
         toRaw(this)._raw.debouncedSetImStatus.cancel();
-        super.delete(...arguments);
+        super.delete();
     }
 
-    /** @param {string} newStatus */
+    /** @param {import("./mail_guest_model").ImStatus} newStatus */
     updateImStatus(newStatus) {
         if (newStatus === "offline") {
             this.offline_since = DateTime.now();

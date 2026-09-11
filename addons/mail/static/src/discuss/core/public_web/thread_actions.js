@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { NO_MEMBERS_DEFAULT_OPEN_LS } from "@mail/core/public_web/discuss_app_model";
@@ -75,7 +76,7 @@ registerThreadAction("member-list", {
             owner.env.inDiscussApp &&
             store.discuss?.shouldDisableMemberPanelAutoOpenFromClose(nextActiveAction)
         ) {
-            browser.localStorage.setItem(NO_MEMBERS_DEFAULT_OPEN_LS, true);
+            browser.localStorage.setItem(NO_MEMBERS_DEFAULT_OPEN_LS, String(true));
             store.discuss._recomputeIsMemberPanelOpenByDefault++;
         }
     },

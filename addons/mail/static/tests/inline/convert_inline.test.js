@@ -1,3 +1,4 @@
+// @ts-check
 import {
     addTables,
     bootstrapToTable,
@@ -31,6 +32,7 @@ function removeGeneratedMarkers(element) {
         node.removeAttribute("data-o-mail-generated");
     });
 }
+/** @param {{before: string, after: string, title: string, stepFunction?: (element: HTMLElement) => void}} options */
 function testConvertGrid({ before, after, title, stepFunction }) {
     editable.innerHTML = before;
     (stepFunction || bootstrapToTable)(editable);
@@ -1362,14 +1364,18 @@ describe("Convert classes to inline styles", () => {
 
         getFixture().append(iframe);
         const iframeEditable = document.createElement("div");
-        iframe.contentDocument.body.append(iframeEditable);
+        /** @type {HTMLIFrameElement} */ (iframe).contentDocument.body.append(
+            iframeEditable,
+        );
         const styleEl = document.createElement("style");
         styleEl.type = "text/css";
         styleEl.title = "test-stylesheet";
-        iframe.contentDocument.head.appendChild(styleEl);
-        const styleSheet = [...iframe.contentDocument.styleSheets].find(
-            (sheet) => sheet.title === "test-stylesheet",
+        /** @type {HTMLIFrameElement} */ (iframe).contentDocument.head.appendChild(
+            styleEl,
         );
+        const styleSheet = [
+            .../** @type {HTMLIFrameElement} */ (iframe).contentDocument.styleSheets,
+        ].find((sheet) => sheet.title === "test-stylesheet");
         const borderColor = `rgb(255, 0, 0)`;
         styleSheet.insertRule(
             `

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { compareDatetime } from "@mail/utils/common/misc";

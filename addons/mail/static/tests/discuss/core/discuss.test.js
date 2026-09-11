@@ -1,3 +1,4 @@
+// @ts-check
 import { onWebsocketEvent } from "@bus/../tests/mock_websocket";
 import {
     click,

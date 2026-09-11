@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 export const threadCompareRegistry = registry.category("mail.thread_compare");

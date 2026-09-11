@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start, startServer } from "@mail/../tests/mail_test_helpers";
 import storeContract from "@mail/../tests/mock_server/contract/store_shapes";
 import { describe, expect, test } from "@odoo/hoot";

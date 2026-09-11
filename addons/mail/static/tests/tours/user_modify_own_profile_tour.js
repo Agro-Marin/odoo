@@ -1,3 +1,4 @@
+// @ts-check
 import { click, contains } from "@web/../tests/utils";
 import { registry } from "@web/core/registry";
 

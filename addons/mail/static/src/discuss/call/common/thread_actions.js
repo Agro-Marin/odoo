@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ACTION_TAGS } from "@mail/core/common/action";
 import { registerThreadAction } from "@mail/core/common/thread_actions";
@@ -14,7 +15,8 @@ registerThreadAction("meeting-chat", {
     badgeIcon: ({ thread }) =>
         !thread.importantCounter && "fa-solid fa-circle text-700",
     /** @param {ActionParams} params */
-    badgeText: ({ thread }) => thread.importantCounter || undefined,
+    badgeText: ({ thread }) =>
+        thread.importantCounter ? String(thread.importantCounter) : undefined,
     /** @param {ActionParams} params */
     condition: ({ owner }) => owner.env.inMeetingView,
     icon: "fa-solid fa-comments",

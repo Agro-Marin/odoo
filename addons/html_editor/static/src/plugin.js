@@ -53,9 +53,10 @@ export class Plugin {
     }
 
     /**
-     * @param {Element} target
-     * @param {string} eventName
-     * @param {function(Event):void} fn
+     * @template {string} K
+     * @param {Element | Document} target
+     * @param {K} eventName
+     * @param {(event: K extends keyof GlobalEventHandlersEventMap ? GlobalEventHandlersEventMap[K] : Event) => void} fn
      * @param {boolean | AddEventListenerOptions} [capture=false]
      * @param {boolean} [isGlobal=false]
      */

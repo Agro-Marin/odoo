@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useAttachmentUploader } from "@mail/core/common/attachment_uploader_hook";
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
@@ -65,7 +66,7 @@ export class Activity extends Component {
             this.markDonePopover.close();
             return;
         }
-        this.markDonePopover.open(ev.currentTarget, {
+        this.markDonePopover.open(/** @type {HTMLElement} */ (ev.currentTarget), {
             activity: this.props.activity,
             hasHeader: true,
             onActivityChanged: this.props.onActivityChanged,
@@ -90,7 +91,7 @@ export class Activity extends Component {
         }
         const target = ev.currentTarget;
         if (!this.avatarCard.isOpen) {
-            this.avatarCard.open(target, {
+            this.avatarCard.open(/** @type {HTMLElement} */ (target), {
                 id: this.props.activity.user_id.id,
             });
         }

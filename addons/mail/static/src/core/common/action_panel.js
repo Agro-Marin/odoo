@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { Component, useSubEnv } from "@odoo/owl";
@@ -5,7 +6,10 @@ import { ResizablePanel } from "@web/components/resizable_panel";
 import { useForwardRefToParent, useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
- * @prop {string} title
+ * @prop {string} [title]
+ * @prop {boolean} [resizable]
+ * @prop {number} [initialWidth]
+ * @prop {number} [minWidth]
  * @prop {Object} [slots]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */

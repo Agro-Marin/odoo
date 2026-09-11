@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { WebChatter } from "@mail/chatter/web/web_chatter";
 import { AttachmentView } from "@mail/core/common/attachment_view";

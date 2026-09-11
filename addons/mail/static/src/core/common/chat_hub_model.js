@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
@@ -15,10 +16,18 @@ export class ChatHub extends Record {
     WINDOW_INBETWEEN = 5;
     WINDOW = 380;
 
-    /** @returns {import("models").ChatHub} */
-    static new() {
+    /**
+     * @template {typeof Record} T
+     * @this {T}
+     * @param {import("@mail/model/record").RecordData} data
+     * @param {import("@mail/model/record").RecordData} ids
+     * @returns {InstanceType<T>}
+     */
+    static new(data, ids) {
         /** @type {import("models").ChatHub} */
-        const chatHub = super.new(...arguments);
+        const chatHub = /** @type {import("models").ChatHub} */ (
+            /** @type {unknown} */ (super.new(data, ids))
+        );
         chatHub._onStorage = /** @param {StorageEvent} ev */ (ev) => {
             if (ev.key === CHAT_HUB_KEY) {
                 chatHub.load(ev.newValue || undefined).catch(() => {});
@@ -34,13 +43,15 @@ export class ChatHub extends Record {
             .load(browser.localStorage.getItem(CHAT_HUB_KEY) ?? undefined)
             .catch(() => {})
             .finally(() => chatHub.initPromise.resolve());
-        return chatHub;
+        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (chatHub));
     }
 
     delete() {
         browser.removeEventListener("storage", this._onStorage);
-        super.delete(...arguments);
+        super.delete();
     }
+    /** @type {(event: StorageEvent) => void} */
+    _onStorage;
     _recomputeCompact = 0;
     compact = fields.Attr(false, {
         /** @this {import("models").ChatHub} */
@@ -77,7 +88,7 @@ export class ChatHub extends Record {
         for (const cw of this.opened) {
             cw.bypassCompact = false;
         }
-        browser.localStorage.setItem(CHAT_HUB_COMPACT_LS, true);
+        browser.localStorage.setItem(CHAT_HUB_COMPACT_LS, String(true));
         this._recomputeCompact++;
     }
 
@@ -95,7 +106,7 @@ export class ChatHub extends Record {
 
     /** @param {string} str */
     async _load(str) {
-        /** @type {{ opened: Object[], folded: Object[] }} */
+        /** @type {{ opened?: Object[], folded?: Object[] }} */
         let parsed;
         try {
             parsed = str && str !== "undefined" ? JSON.parse(str) : {};
@@ -128,11 +139,15 @@ export class ChatHub extends Record {
         const toOpen = insertChatWindows(openThreads);
         for (const chatWindow of [...this.opened, ...this.folded]) {
             if (chatWindow.notIn(toOpen) && chatWindow.notIn(toFold)) {
-                chatWindow.close({ force: true, notifyState: false });
+                chatWindow.close({ notifyState: false });
             }
         }
-        this.folded = toFold;
-        this.opened = toOpen;
+        this.folded = /** @type {typeof this.folded} */ (
+            /** @type {unknown} */ (toFold)
+        );
+        this.opened = /** @type {typeof this.opened} */ (
+            /** @type {unknown} */ (toOpen)
+        );
     }
 
     get maxOpened() {

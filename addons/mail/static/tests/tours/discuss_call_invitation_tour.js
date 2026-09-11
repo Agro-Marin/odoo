@@ -1,3 +1,4 @@
+// @ts-check
 import { patchWithCleanup } from "@web/../tests/helpers/utils";
 import { registry } from "@web/core/registry";
 

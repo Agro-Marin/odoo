@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import {
@@ -13,6 +14,7 @@ import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
+ * @property {boolean} [compact]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussSidebarCallParticipants extends Component {

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { App } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -114,7 +115,7 @@ class MailPopout {
 
     /**
      * @param {any} id
-     * @param {typeof import("@odoo/owl").Component} component
+     * @param {import("@web/env").OdooComponentConstructor} component
      * @param {Object} [props]
      * @param {import("@web/env").OdooEnv} [env]
      */
@@ -132,7 +133,9 @@ class MailPopout {
     }
 
     /**
-     * @param {Object} param2
+     * @param {any} id
+     * @param {(new (props: any, env: import("@web/env").OdooEnv) => import("@odoo/owl").Component)} component
+     * @param {Object} [param2]
      * @param {Object} [param2.props]
      * @param {Object} [param2.options]
      * @param {number} [param2.options.width]
@@ -170,7 +173,7 @@ class MailPopout {
 
     /**
      * @param {any} id
-     * @param {typeof import("@odoo/owl").Component} component
+     * @param {import("@web/env").OdooComponentConstructor} component
      * @param {Object} props
      * @returns {Window}
      */
@@ -208,8 +211,8 @@ class MailPopout {
         const service = this;
         return {
             /**
-             * @param {Function} beforePopout
-             * @param {Function} afterPopoutClosed
+             * @param {() => void} beforePopout
+             * @param {() => void} afterPopoutClosed
              */
             addHooks(beforePopout = () => {}, afterPopoutClosed = () => {}) {
                 service.addHooks(id, { beforePopout, afterPopoutClosed });

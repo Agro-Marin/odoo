@@ -1,11 +1,18 @@
+// @ts-check
 import { Action } from "@mail/core/common/action";
+import { ComposerAction } from "@mail/core/common/composer_actions";
 import { describe, expect, test } from "@odoo/hoot";
+import { Component } from "@odoo/owl";
 
 describe.current.tags("desktop");
 
 test("store is correctly set on actions", async () => {
-    const storeSym = Symbol("STORE");
-    const ownerSym = Symbol("COMPONENT");
+    const storeSym = /** @type {import("models").Store} */ (
+        /** @type {unknown} */ (Symbol("STORE"))
+    );
+    const ownerSym = /** @type {import("@mail/core/common/action").ActionOwner} */ (
+        /** @type {unknown} */ (Symbol("COMPONENT"))
+    );
     const action = new Action({
         owner: ownerSym,
         id: "test",
@@ -24,8 +31,8 @@ test("every documented option is resolvable, as a value and as a callback", asyn
         dropdownComponent: "component-or-factory, resolved by prototype check",
     };
     const sentinel = Symbol("resolved");
-    const owner = {};
-    const store = {};
+    const owner = /** @type {import("@mail/core/common/action").ActionOwner} */ ({});
+    const store = /** @type {import("models").Store} */ ({});
     const optionNames = Object.getOwnPropertyNames(Action.prototype)
         .filter((name) => name.startsWith("_") && name !== "_option")
         .filter((name) => !["_optionOr", "_callOption"].includes(name))
@@ -65,4 +72,16 @@ test("every hook has a getter and every getter that reads an option has a hook",
     expect(missingGetter).toEqual([], {
         message: `override hooks with no getter reading them: ${missingGetter}`,
     });
+});
+
+test("a picker-name callback receives the owning composer component", () => {
+    const owner = new Component({ label: "GIFs" }, {});
+    const action = new ComposerAction({
+        owner,
+        id: "picker",
+        composer: undefined,
+        store: /** @type {import("models").Store} */ ({}),
+        definition: { pickerName: (component) => component.props.label },
+    });
+    expect(action.pickerName).toBe("GIFs");
 });

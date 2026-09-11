@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Follower } from "@mail/core/web/follower";
 import { FollowerSubtypeDialog } from "@mail/core/web/follower_subtype_dialog";
@@ -8,6 +9,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
+ * @property {import("@web/components/dropdown").DropdownState} dropdown
  * @property {function} [onAddFollowers]
  * @property {function} [onFollowerChanged]
  * @property {import("models").Thread} thread

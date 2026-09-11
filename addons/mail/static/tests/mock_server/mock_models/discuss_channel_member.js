@@ -1,3 +1,4 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { fields, getKwArgs, makeKwArgs, models } from "@web/../tests/web_test_helpers";
 import { serializeDateTime, today } from "@web/core/l10n/dates";
@@ -110,6 +111,7 @@ export class DiscussChannelMember extends models.ServerModel {
         const DiscussChannelMember = this.env["discuss.channel.member"];
 
         const members = this.browse(ids);
+        /** @type {[any, string, any][]} */
         const notifications = [];
         for (const member of members) {
             const [channel] = DiscussChannel.browse(member.channel_id);
@@ -250,7 +252,8 @@ export class DiscussChannelMember extends models.ServerModel {
             "fetched_message_id",
             "seen_message_id",
             "last_seen_dt",
-        ].concat(this._to_store_persona());
+            ...this._to_store_persona(),
+        ];
     }
 
     _get_fields_store_partner(fields) {
@@ -328,17 +331,15 @@ export class DiscussChannelMember extends models.ServerModel {
             BusBus._sendone(
                 target,
                 "mail.record/insert",
-                new mailDataHelpers.Store(
-                    DiscussChannelMember.browse(member.id),
-                    [
-                        mailDataHelpers.Store.one(
-                            "channel_id",
-                            makeKwArgs({ as_thread: true, only_id: true }),
-                        ),
+                new mailDataHelpers.Store(DiscussChannelMember.browse(member.id), [
+                    mailDataHelpers.Store.one(
+                        "channel_id",
+                        makeKwArgs({ as_thread: true, only_id: true }),
+                    ),
 
-                        "seen_message_id",
-                    ].concat(this._to_store_persona()),
-                ).get_result(),
+                    "seen_message_id",
+                    ...this._to_store_persona(),
+                ]).get_result(),
             );
         }
     }

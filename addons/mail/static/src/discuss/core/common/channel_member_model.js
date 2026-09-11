@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { OTHER_LONG_TYPING } from "@mail/core/common/constants";
 import { fields, Record } from "@mail/core/common/record";

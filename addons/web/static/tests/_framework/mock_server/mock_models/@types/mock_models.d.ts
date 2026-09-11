@@ -1,10 +1,13 @@
 declare module "mock_models" {
-    import { webModels } from "@web/../tests/web_test_helpers";
+    import { IrModelFields as IrModelFieldsClass } from "@web/../tests/_framework/mock_server/mock_models/ir_model_fields";
+    import { IrModuleCategory as IrModuleCategoryClass } from "@web/../tests/_framework/mock_server/mock_models/ir_module_category";
+    import { ResGroups as ResGroupsClass } from "@web/../tests/_framework/mock_server/mock_models/res_groups";
+    import { ResGroupsPrivilege as ResGroupsPrivilegeClass } from "@web/../tests/_framework/mock_server/mock_models/res_groups_privilege";
 
-    export interface IrModelFields extends webModels.IrModelFields {}
-    export interface IrModuleCategory extends webModels.IrModuleCategory {}
-    export interface ResGroups extends webModels.ResGroups {}
-    export interface ResGroupsPrivilege extends webModels.ResGroupsPrivilege {}
+    export interface IrModelFields extends IrModelFieldsClass {}
+    export interface IrModuleCategory extends IrModuleCategoryClass {}
+    export interface ResGroups extends ResGroupsClass {}
+    export interface ResGroupsPrivilege extends ResGroupsClassPrivilege {}
 
     export interface Models {
         "ir.model.fields": IrModelFields;

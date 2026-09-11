@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { fields } from "@mail/model/misc";
@@ -8,7 +9,7 @@ import { patch } from "@web/core/utils/patch";
 /** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const threadPatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.appAsUnreadChannels = fields.One("DiscussApp", {
             /** @this {import("models").Thread} */
             compute() {
@@ -41,7 +42,8 @@ const threadPatch = {
         this.sub_channel_ids = fields.Many("Thread", {
             inverse: "parent_channel_id",
             sort: (a, b) =>
-                compareDatetime(b.lastInterestDt, a.lastInterestDt) || b.id - a.id,
+                compareDatetime(b.lastInterestDt, a.lastInterestDt) ||
+                Number(b.id) - Number(a.id),
         });
         this.displayInSidebar = fields.Attr(false, {
             /** @this {import("models").Thread} */

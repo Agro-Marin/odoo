@@ -1,3 +1,4 @@
+// @ts-check
 import { getDoublePatchedPairs } from "@mail/../tests/patch_audit";
 import { describe, expect, test } from "@odoo/hoot";
 

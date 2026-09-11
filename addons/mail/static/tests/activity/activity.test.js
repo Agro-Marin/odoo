@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -743,30 +744,36 @@ test("activity updates are shared between tabs", async () => {
         summary: "Send another email",
     });
     const store = getService("mail.store");
-    store.activityBroadcastChannel.onmessage({
-        data: {
-            type: "INSERT",
-            payload: new mailDataHelpers.Store()
-                .add(
-                    pyEnv["res.partner"].browse(serverState.partnerId),
-                    makeKwArgs({ as_thread: true, request_list: ["activities"] }),
-                )
-                .get_result(),
-        },
-    });
+    store.activityBroadcastChannel.onmessage(
+        new MessageEvent("message", {
+            data: {
+                type: "INSERT",
+                payload: new mailDataHelpers.Store()
+                    .add(
+                        pyEnv["res.partner"].browse(serverState.partnerId),
+                        makeKwArgs({ as_thread: true, request_list: ["activities"] }),
+                    )
+                    .get_result(),
+            },
+        }),
+    );
     await contains(".o-mail-Activity-info:has(:text(“Send another email”))");
-    store.activityBroadcastChannel.onmessage({
-        data: { type: "DELETE", payload: { id: newActivityId } },
-    });
+    store.activityBroadcastChannel.onmessage(
+        new MessageEvent("message", {
+            data: { type: "DELETE", payload: { id: newActivityId } },
+        }),
+    );
     await contains(".o-mail-Activity-info:has(:text(“Send another email”))", {
         count: 0,
     });
     onRpc("/mail/thread/messages", () => expect.step("/mail/thread/messages"));
-    store.activityBroadcastChannel.onmessage({
-        data: {
-            type: "RELOAD_CHATTER",
-            payload: { id: serverState.partnerId, model: "res.partner" },
-        },
-    });
+    store.activityBroadcastChannel.onmessage(
+        new MessageEvent("message", {
+            data: {
+                type: "RELOAD_CHATTER",
+                payload: { id: serverState.partnerId, model: "res.partner" },
+            },
+        }),
+    );
     await expect.waitForSteps(["/mail/thread/messages", "/mail/data"]);
 });

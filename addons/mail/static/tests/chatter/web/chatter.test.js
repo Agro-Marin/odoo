@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -9,6 +10,7 @@ import {
     onRpcBefore,
     openFormView,
     patchUiSize,
+    registerArchs,
     scroll,
     SIZES,
     start,
@@ -527,7 +529,8 @@ test('chatter just contains "creating a new record" message during the creation 
                     <chatter/>
                 </form>`,
     };
-    await start({ serverData: { views } });
+    registerArchs(views);
+    await start();
     await openFormView("res.partner", partnerId);
     await click(".o_control_panel_main_buttons .o_form_button_create");
     await contains(".o-mail-Message");
@@ -783,7 +786,9 @@ test("Update primary email in recipient without saving", async () => {
     await openFormView("res.fake", fakeId);
     await click("button", { text: "Send message" });
     await insertText("div[name='email_cc'] input", "test@test.be");
-    document.querySelector("div[name='email_cc'] input").blur();
+    /** @type {HTMLElement} */ (
+        document.querySelector("div[name='email_cc'] input")
+    ).blur();
     await contains(".o-mail-RecipientsInput .o_tag_badge_text", {
         text: "test@test.be",
     });

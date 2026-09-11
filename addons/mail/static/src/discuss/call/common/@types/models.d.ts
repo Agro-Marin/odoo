@@ -21,7 +21,7 @@ declare module "models" {
     export interface Store {
         _hasFullscreenUrl: boolean;
         _hasFullscreenUrlOnUpdate: () => void;
-        allActiveRtcSessions: RtcSession[];
+        allActiveRtcSessions: import("@mail/model/record_list").RecordList<RtcSession>;
         "discuss.channel.rtc.session": StaticMailRecord<
             RtcSession,
             typeof RtcSessionClass
@@ -29,25 +29,28 @@ declare module "models" {
         fullscreenChannel: Thread;
         meetingViewOpened: boolean;
         nextTalkingTime: number;
-        ringingThreads: Thread[];
+        ringingThreads: import("@mail/model/record_list").RecordList<Thread>;
         rtc: Rtc;
         startMeeting: () => Promise<void>;
         Rtc: StaticMailRecord<Rtc, typeof RtcClass>;
     }
     export interface Thread {
+        _onRtcSessionIdsUpdate(): Promise<void>;
+        _computeVisibleCards(): import("@mail/discuss/call/common/call").CardData[];
+        _computeUseCameraByDefault(): boolean | null;
         activeRtcSession: RtcSession;
         cancelRtcInvitationTimeout: number | undefined;
         focusAvailableVideo: () => void;
-        focusStack: RtcSession[];
+        focusStack: import("@mail/model/record_list").RecordList<RtcSession>;
         hadSelfSession: boolean;
         isCallDisplayedInChatWindow: boolean;
-        isSelfInCall: RtcSession | undefined | false;
+        isSelfInCall: boolean | undefined;
         lastSessionIds: Set<number>;
         promoteFullscreen: (typeof CALL_PROMOTE_FULLSCREEN)[keyof CALL_PROMOTE_FULLSCREEN];
-        rtc_session_ids: RtcSession[];
+        rtc_session_ids: import("@mail/model/record_list").RecordList<RtcSession>;
         showCallView: Readonly<boolean>;
         updateCallFocusStack: (session: RtcSession) => void;
-        useCameraByDefault: null;
+        useCameraByDefault: boolean | null;
         videoCount: number;
         videoCountNotSelf: number;
         visibleCards: CardData[];

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
 import { fillEmpty } from "@html_editor/utils/dom";
@@ -58,7 +59,7 @@ export class HtmlComposerMessageField extends HtmlMailField {
     }
 
     getConfig() {
-        const config = super.getConfig(...arguments);
+        const config = super.getConfig();
         config.Plugins = config.Plugins.filter(
             (plugin) => !["video"].includes(plugin.id),
         ).concat([DisableBannerCommandsPlugin, MentionPlugin]);

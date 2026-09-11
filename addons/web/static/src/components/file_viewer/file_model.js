@@ -59,6 +59,10 @@ const VIDEO_MIMETYPES = new Set([
  * @property {boolean} [uploading]
  */
 
+/**
+ * @template {new (...args: any[]) => any} T
+ * @param {T} T
+ */
 export const FileModelMixin = (T) =>
     class extends T {
         get defaultSource() {

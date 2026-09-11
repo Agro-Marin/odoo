@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";

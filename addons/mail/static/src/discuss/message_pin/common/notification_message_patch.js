@@ -1,10 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { NotificationMessage } from "@mail/core/common/notification_message";
 import { patch } from "@web/core/utils/patch";
 patch(NotificationMessage.prototype, {
     /** @param {MouseEvent} ev */
     async onClickNotificationMessage(ev) {
-        const { oeType } = ev.target.dataset;
+        const { oeType } = /** @type {HTMLElement} */ (ev.target).dataset;
         if (oeType === "pin-menu") {
             this.env.pinMenu?.open();
         }

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DISCUSS_SIDEBAR_COMPACT_LS } from "@mail/core/public_web/discuss_app_model";
 import { Component, onMounted, useSubEnv } from "@odoo/owl";
@@ -42,7 +43,7 @@ export class DiscussSidebar extends Component {
             return;
         }
         if (width <= 100) {
-            browser.localStorage.setItem(DISCUSS_SIDEBAR_COMPACT_LS, true);
+            browser.localStorage.setItem(DISCUSS_SIDEBAR_COMPACT_LS, String(true));
         } else {
             browser.localStorage.removeItem(DISCUSS_SIDEBAR_COMPACT_LS);
         }

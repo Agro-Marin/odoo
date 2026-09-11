@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ProtectedNodePlugin } from "@html_editor/core/protected_node_plugin";
 import { ShortCutPlugin } from "@html_editor/core/shortcut_plugin";

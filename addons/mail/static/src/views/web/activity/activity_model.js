@@ -1,8 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { toRaw } from "@odoo/owl";
 import { RelationalModel } from "@web/model/relational_model";
 export class ActivityModel extends RelationalModel {
     static DEFAULT_LIMIT = 100;
+    /** @type {number | undefined} */
+    _activityDataToken;
 
     /** @param {Object} [params={}] */
     async load(params = {}) {

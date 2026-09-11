@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActivityListPopoverItem } from "@mail/core/web/activity_list_popover_item";
 import { compareDatetime } from "@mail/utils/common/misc";
@@ -9,6 +10,7 @@ import { useService } from "@web/core/utils/hooks";
  * @property {function} close
  * @property {number} [defaultActivityTypeId]
  * @property {function} onActivityChanged
+ * @property {number[]} [resIds]
  * @property {number} resId
  * @property {string} resModel
  * @extends {Component<Props, import("@web/env").OdooEnv>}

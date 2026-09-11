@@ -1,3 +1,4 @@
+// @ts-check
 import { markup } from "@odoo/owl";
 import {
     authenticate,
@@ -22,12 +23,15 @@ const mockRpcRegistry = registry.category("mail.mock_rpc");
 export const DISCUSS_ACTION_ID = 104;
 
 /**
- * @template
- * @typedef {import("@web/../tests/web_test_helpers").RouteCallback<T>} RouteCallback
+ * @typedef {import("@web/../tests/web_test_helpers").RouteCallback} WebRouteCallback
+ */
+/**
+ * Mail route fixtures are asynchronous; retain web's receiver and request arguments.
+ * @typedef {(this: ThisParameterType<WebRouteCallback>, ...args: Parameters<WebRouteCallback>) => Promise<Awaited<ReturnType<WebRouteCallback>>>} RouteCallback
  */
 const { DateTime } = luxon;
 
-/** @param {import("mock_models").MailGuest} guest */
+/** @param {{id: number}} guest */
 export const authenticateGuest = (guest) => {
     const { env } = MockServer;
     /** @type {import("mock_models").ResUsers} */
@@ -74,8 +78,8 @@ export const parseRequestParams = async (request) => {
 
 const onRpcBeforeGlobal = { cb: (route, args) => {} };
 const onRpcAfterGlobal = { cb: (route, args) => {} };
-registry.category("mail.on_rpc_before_global").add(true, onRpcBeforeGlobal);
-registry.category("mail.on_rpc_after_global").add(true, onRpcAfterGlobal);
+registry.category("mail.on_rpc_before_global").add("global", onRpcBeforeGlobal);
+registry.category("mail.on_rpc_after_global").add("global", onRpcAfterGlobal);
 
 export const registeredRoutes = [];
 
@@ -86,7 +90,8 @@ export function registerMailMockRoutes() {
 }
 
 export function registerRoute(route, handler) {
-    async function beforeCallableHandler(request) {
+    /** @type {RouteCallback & {before?: (args: any) => any, after?: (response: any) => any}} */
+    const beforeCallableHandler = async function (request) {
         let args;
         try {
             args = await parseRequestParams(request);
@@ -107,7 +112,7 @@ export function registerRoute(route, handler) {
             return res;
         }
         return response;
-    }
+    };
     mockRpcRegistry.add(route, beforeCallableHandler);
     registeredRoutes.push([route, beforeCallableHandler]);
     onRpc(route, beforeCallableHandler);
@@ -122,18 +127,22 @@ async function mail_attachment_upload(request) {
     const IrAttachment = this.env["ir.attachment"];
 
     const body = await request.formData();
-    const ufile = body.get("ufile");
+    const ufile = /** @type {File} */ (body.get("ufile"));
     const is_pending = body.get("is_pending") === "true";
     const model = is_pending ? "mail.compose.message" : body.get("thread_model");
-    const id = is_pending ? 0 : parseInt(body.get("thread_id"));
-    const attachmentId = IrAttachment.create({
-        mimetype: ufile.type,
-        name: ufile.name,
-        res_id: id,
-        res_model: model,
-    });
+    const id = is_pending ? 0 : parseInt(/** @type {string} */ (body.get("thread_id")));
+    const attachmentId = /** @type {number} */ (
+        IrAttachment.create({
+            mimetype: ufile.type,
+            name: ufile.name,
+            res_id: id,
+            res_model: model,
+        })
+    );
     if (body.get("voice")) {
-        DiscussVoiceMetadata.create({ attachment_id: attachmentId });
+        /** @type {number} */ (
+            DiscussVoiceMetadata.create({ attachment_id: attachmentId })
+        );
     }
     return {
         data: {
@@ -175,7 +184,7 @@ async function load_attachments(request) {
             res_id === channel_id &&
             res_model === "discuss.channel" &&
             (!before || id < before),
-    ).sort((a1, a2) => a2.id - a1.id);
+    ).sort((a1, a2) => Number(a2.id) - Number(a1.id));
     const attachmentIds = matching.slice(0, limit).map(({ id }) => id);
     return {
         count: attachmentIds.length,
@@ -199,12 +208,14 @@ async function channel_call_join(request) {
     const { channel_id } = await parseRequestParams(request);
     const memberOfCurrentUser =
         DiscussChannel._get_or_create_member_for_self(channel_id);
-    const sessionId = DiscussChannelRtcSession.create({
-        channel_member_id: memberOfCurrentUser.id,
-        channel_id,
-        guest_id: memberOfCurrentUser.guest_id,
-        partner_id: memberOfCurrentUser.partner_id,
-    });
+    const sessionId = /** @type {number} */ (
+        DiscussChannelRtcSession.create({
+            channel_member_id: memberOfCurrentUser.id,
+            channel_id,
+            guest_id: memberOfCurrentUser.guest_id,
+            partner_id: memberOfCurrentUser.partner_id,
+        })
+    );
     const channelMembers = DiscussChannelMember._filter([
         ["channel_id", "=", channel_id],
     ]);
@@ -258,6 +269,7 @@ async function channel_call_leave(request) {
             channelMembers.map((channelMember) => channelMember.id),
         ],
     ]);
+    /** @type {[any, string, any][]} */
     const notifications = [];
     const sessionsByChannelId = {};
     for (const session of rtcSessions) {
@@ -387,6 +399,7 @@ async function discuss_channel_sub_channel_fetch(request) {
     /** @type {import("mock_models").MailMessage} */
     const MailMessage = this.env["mail.message"];
     const { parent_channel_id, before, limit } = await parseRequestParams(request);
+    /** @type {import("@web/core/domain").DomainListRepr} */
     const domain = [["parent_channel_id", "=", parent_channel_id]];
     if (before) {
         domain.push(["id", "<", before]);
@@ -483,7 +496,7 @@ async function discuss_channel_notify_typing(request) {
     if (!memberOfCurrentUser) {
         return;
     }
-    DiscussChannelMember.notify_typing([memberOfCurrentUser.id], is_typing);
+    DiscussChannelMember.notify_typing([Number(memberOfCurrentUser.id)], is_typing);
 }
 
 registerRoute("/discuss/channel/ping", channel_ping);
@@ -558,7 +571,9 @@ async function add_favorite(request) {
     if (
         !DiscussGifFavorite.search([["tenor_gif_id", "=", String(tenor_gif_id)]]).length
     ) {
-        DiscussGifFavorite.create({ tenor_gif_id: String(tenor_gif_id) });
+        /** @type {number} */ (
+            DiscussGifFavorite.create({ tenor_gif_id: String(tenor_gif_id) })
+        );
     }
 }
 
@@ -582,6 +597,7 @@ async function discuss_history_messages(request) {
     const MailNotification = this.env["mail.notification"];
 
     const { fetch_params = {} } = await parseRequestParams(request);
+    /** @type {import("@web/core/domain").DomainListRepr} */
     const domain = [["needaction", "=", false]];
     const res = MailMessage._message_fetch(domain, makeKwArgs(fetch_params));
     const { messages } = res;
@@ -611,6 +627,7 @@ async function discuss_inbox_messages(request) {
     const MailMessage = this.env["mail.message"];
 
     const { fetch_params = {} } = await parseRequestParams(request);
+    /** @type {import("@web/core/domain").DomainListRepr} */
     const domain = [["needaction", "=", true]];
     const res = MailMessage._message_fetch(domain, makeKwArgs(fetch_params));
     const { messages } = res;
@@ -663,33 +680,45 @@ async function mail_link_preview(request) {
     );
     if (link) {
         const isGifPreview =
-            link.href.startsWith("https://tenor.com") ||
-            link.href.startsWith("https://media.tenor.com");
-        const sourceUrl = isGifPreview ? link.href : "https://make-link-preview.com";
+            /** @type {HTMLAnchorElement} */ (link).href.startsWith(
+                "https://tenor.com",
+            ) ||
+            /** @type {HTMLAnchorElement} */ (link).href.startsWith(
+                "https://media.tenor.com",
+            );
+        const sourceUrl = isGifPreview
+            ? /** @type {HTMLAnchorElement} */ (link).href
+            : "https://make-link-preview.com";
         const [existingLinkPreviewId] = MailLinkPreview.search([
             ["source_url", "=", sourceUrl],
         ]);
         const linkPreviewId =
             existingLinkPreviewId ??
-            MailLinkPreview.create({
-                og_description: isGifPreview
-                    ? "Click to view the GIF"
-                    : "test description",
-                og_image: isGifPreview ? link.href : undefined,
-                og_mimetype: isGifPreview ? "image/gif" : undefined,
-                og_title: isGifPreview ? "Gif title" : "Article title",
-                og_type: isGifPreview ? "video.other" : "article",
-                source_url: sourceUrl,
-            });
+            /** @type {number} */ (
+                MailLinkPreview.create({
+                    og_description: isGifPreview
+                        ? "Click to view the GIF"
+                        : "test description",
+                    og_image: isGifPreview
+                        ? /** @type {HTMLAnchorElement} */ (link).href
+                        : undefined,
+                    og_mimetype: isGifPreview ? "image/gif" : undefined,
+                    og_title: isGifPreview ? "Gif title" : "Article title",
+                    og_type: isGifPreview ? "video.other" : "article",
+                    source_url: sourceUrl,
+                })
+            );
         const alreadyOnMessage = MailMessageLinkPreview.search([
             ["message_id", "=", message.id],
             ["link_preview_id", "=", linkPreviewId],
         ]);
         if (alreadyOnMessage.length === 0) {
-            MailMessageLinkPreview.create({
-                message_id: message.id,
-                link_preview_id: linkPreviewId,
-            });
+            /** @type {number} */ (
+                MailMessageLinkPreview.create({
+                    message_id: message.id,
+                    link_preview_id: linkPreviewId,
+                })
+            );
         }
         BusBus._sendone(
             MailMessage._bus_notification_target(message_id),
@@ -753,10 +782,12 @@ export async function mail_message_post(request) {
             if (partner.length !== 0) {
                 post_data.partner_ids.push(partner[0].id);
             } else {
-                const partner_id = ResPartner.create({
-                    email,
-                    name: email,
-                });
+                const partner_id = /** @type {number} */ (
+                    ResPartner.create({
+                        email,
+                        name: email,
+                    })
+                );
                 post_data.partner_ids.push(partner_id);
             }
         }
@@ -932,10 +963,12 @@ async function mail_thread_partner_from_email(request) {
     for (const index in partners) {
         if (!partners[index]) {
             const email = emails[index];
-            partners[index] = ResPartner.create({
-                email,
-                name: email,
-            });
+            partners[index] = /** @type {number} */ (
+                ResPartner.create({
+                    email,
+                    name: email,
+                })
+            );
         }
     }
     return partners.map((partner_id) => {
@@ -989,7 +1022,7 @@ async function session_update_and_broadcast(request) {
         ["id", "=", session.channel_member_id[0]],
     ]);
     if (session && currentChannelMember.partner_id[0] === serverState.partnerId) {
-        DiscussChannelRtcSession._update_and_broadcast(session.id, values);
+        DiscussChannelRtcSession._update_and_broadcast(Number(session.id), values);
     }
 }
 
@@ -1000,6 +1033,7 @@ async function discuss_starred_messages(request) {
     const MailMessage = this.env["mail.message"];
 
     const { fetch_params = {} } = await parseRequestParams(request);
+    /** @type {import("@web/core/domain").DomainListRepr} */
     const domain = [["starred_partner_ids", "in", [this.env.user.partner_id]]];
     const res = MailMessage._message_fetch(domain, makeKwArgs(fetch_params));
     const { messages } = res;
@@ -1067,10 +1101,12 @@ async function search(request) {
     const ResPartner = this.env["res.partner"];
 
     const store = new mailDataHelpers.Store();
+    /** @type {import("@web/core/domain").DomainListRepr} */
     const base_domain = [
         ["name", "ilike", term],
         ["channel_type", "!=", "chat"],
     ];
+    /** @type {import("@web/core/domain").DomainRepr[]} */
     const priority_conditions = [
         [["is_member", "=", true], ...base_domain],
         base_domain,
@@ -1192,7 +1228,7 @@ function _process_request_for_all(store, name, params, context = {}) {
             !MailGuest._get_guest_from_context() ||
             !ResUsers._is_public(this.env.uid)
         ) {
-            ResUsers._init_messaging([this.env.uid], store, context);
+            ResUsers._init_messaging([this.env.uid], store);
         }
         const guest =
             ResUsers._is_public(this.env.uid) && MailGuest._get_guest_from_context();
@@ -1202,6 +1238,7 @@ function _process_request_for_all(store, name, params, context = {}) {
                 : ["partner_id", "=", this.env.user.partner_id],
             ["rtc_inviting_session_id", "!=", false],
         ]);
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const channelsDomain = [["id", "in", members.map((m) => m.channel_id)]];
         store.add(DiscussChannel.browse(DiscussChannel.search(channelsDomain)));
     }
@@ -1254,7 +1291,7 @@ function _process_request_for_all(store, name, params, context = {}) {
         const channels = DiscussChannel.search([["id", "=", params]]);
         store.add(DiscussChannel.browse(channels));
         for (const channelId of params.filter((id) => !channels.includes(id))) {
-            const channel = DiscussChannel.browse();
+            const channel = DiscussChannel.browse([]);
             channel.push({ id: channelId });
             store.add(channel, makeKwArgs({ delete: true }));
         }
@@ -1416,7 +1453,7 @@ export class StoreRelation extends StoreAttr {
             throw new Error(`StoreRelation ${this.name} cannot be used with records`);
         }
 
-        return new this.constructor(
+        return new /** @type {new (...args: any[]) => this} */ (this.constructor)(
             target,
             makeKwArgs({
                 fields: this.fields,
@@ -1500,6 +1537,8 @@ export class StoreMany extends StoreRelation {
             }),
         );
         this.mode = mode;
+        /** @type {false | ((a: import("@web/../tests/_framework/mock_server/mock_model").ModelRecord, b: import("@web/../tests/_framework/mock_server/mock_model").ModelRecord) => number)} */
+        this.sort = sort;
     }
     _copy_with_records(target, record) {
         const res = super._copy_with_records(target, record);
@@ -1525,10 +1564,9 @@ export class StoreMany extends StoreRelation {
         const res = [];
 
         if (this.records._name === "mail.message.reaction") {
-            const reactionGroups = groupBy(this.records, (r) => [
-                r.message_id,
-                r.content,
-            ]);
+            const reactionGroups = groupBy(this.records, (r) =>
+                [r.message_id, r.content].join(","),
+            );
             for (const groupId in reactionGroups) {
                 const { message_id, content } = reactionGroups[groupId][0];
                 res.push({ message: message_id, content: content });
@@ -1552,7 +1590,7 @@ export class StoreMany extends StoreRelation {
     }
 }
 
-class Store {
+export class Store {
     constructor(data, fields, as_thread, _delete, kwargs) {
         this.data = new Map();
         this.data_id = null;

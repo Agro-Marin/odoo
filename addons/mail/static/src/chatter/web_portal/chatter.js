@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { Thread } from "@mail/core/common/thread";
@@ -28,8 +29,8 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @property {boolean} [isTopStickyPinned]
  */
 /**
- * @template {Props}
- * @template {State}
+ * @template {Props} [P=Props]
+ * @template {State} [S=State]
  * @extends {Component<P, import("@web/env").OdooEnv>}
  */
 export class Chatter extends Component {
@@ -109,23 +110,29 @@ export class Chatter extends Component {
             if (this.state.thread.messages.length === 0) {
                 const { effectiveSelf } = this.state.thread;
                 const authorModelName = effectiveSelf.Model.getName();
-                this.state.thread.messages.push({
-                    id: this.store.getNextTemporaryId(),
-                    author_id:
-                        authorModelName === "res.partner"
-                            ? /** @type {import("models").ResPartner} */ (effectiveSelf)
-                            : undefined,
-                    author_guest_id:
-                        authorModelName === "mail.guest"
-                            ? /** @type {import("models").MailGuest} */ (effectiveSelf)
-                            : undefined,
-                    body: _t("Creating a new record..."),
-                    message_type: "notification",
-                    thread: this.state.thread,
-                    trackingValues: [],
-                    res_id: threadId,
-                    model: threadModel,
-                });
+                this.state.thread.messages.push(
+                    this.store["mail.message"].insert({
+                        id: this.store.getNextTemporaryId(),
+                        author_id:
+                            authorModelName === "res.partner"
+                                ? /** @type {import("models").ResPartner} */ (
+                                      effectiveSelf
+                                  )
+                                : undefined,
+                        author_guest_id:
+                            authorModelName === "mail.guest"
+                                ? /** @type {import("models").MailGuest} */ (
+                                      effectiveSelf
+                                  )
+                                : undefined,
+                        body: _t("Creating a new record..."),
+                        message_type: "notification",
+                        thread: this.state.thread,
+                        trackingValues: [],
+                        res_id: threadId,
+                        model: threadModel,
+                    }),
+                );
             }
         }
     }
@@ -141,7 +148,8 @@ export class Chatter extends Component {
         await thread.fetchThreadData(requestList);
     }
 
-    onCloseFullComposerCallback() {
+    /** @param {boolean} [isDiscard] */
+    onCloseFullComposerCallback(isDiscard) {
         this.load(this.state.thread, this.onCloseFullComposerRequestList);
     }
 

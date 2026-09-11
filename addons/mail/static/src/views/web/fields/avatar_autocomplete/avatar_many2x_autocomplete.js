@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { AvatarUserFormViewDialog } from "@mail/views/web/view_dialog/avatar_user_form_view_dialog";
 import { _t } from "@web/core/translation";

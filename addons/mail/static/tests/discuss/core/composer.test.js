@@ -1,3 +1,4 @@
+// @ts-check
 import { insertText as htmlInsertText } from "@html_editor/../tests/_helpers/user_actions";
 import {
     click,
@@ -133,6 +134,7 @@ test("html composer: trim boundary empty formatting on send", async () => {
         name: "General",
         channel_type: "channel",
     });
+    /** @type {string|undefined} */
     let body;
     onRpcBefore("/mail/message/post", (args) => {
         expect.step("/mail/message/post");

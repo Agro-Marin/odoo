@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { toRaw } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -11,9 +12,9 @@ export const getSequence = () => sequence++;
 /** @typedef {'audio' | 'camera' | 'screen' } streamType */
 export const CONNECTION_TYPES = { P2P: "p2p", SERVER: "server" };
 
-/** @return {Promise<{ SfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: import("@mail/../lib/odoo_sfu/odoo_sfu").SFU_CLIENT_STATE }>} */
+/** @return {Promise<{ SfuClient: SfuTransport, SFU_CLIENT_STATE: import("@mail/../lib/odoo_sfu/odoo_sfu").SFU_CLIENT_STATE }>} */
 
-/** @returns {Promise<{ sfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: Object }>} */
+/** @returns {Promise<{ sfuClient: SfuTransport, SFU_CLIENT_STATE: Object }>} */
 export async function loadSfuClient() {
     const load = async () => {
         const sfuModule = await import("@odoo/sfu");
@@ -38,7 +39,7 @@ export async function loadSfuClient() {
 }
 
 /**
- * @param {Array<RTCIceServer>} iceServers
+ * @param {Array<Partial<RTCIceServer> & {url?: string}>} iceServers
  * @returns {Boolean}
  */
 export function hasTurn(iceServers) {
@@ -60,16 +61,20 @@ export function hasTurn(iceServers) {
     });
 }
 
+/** @typedef {Pick<import("@mail/discuss/call/common/peer_to_peer").PeerToPeer, "connect" | "disconnect" | "removePeer" | "removeAllPeers" | "updateUpload" | "updateDownload" | "updateInfo" > & Pick<EventTarget, "addEventListener" | "removeEventListener"> & {addPeer(...args: Parameters<import("./peer_to_peer").PeerToPeer["addPeer"]>): void}} P2pTransport */
+/** @typedef {Pick<import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, "state" | "errors" | "_consumers" | "connect" | "disconnect" | "broadcast" | "updateInfo" | "updateUpload" | "updateDownload" | "addEventListener" | "removeEventListener" | "getStats">} SfuTransport */
+/** @typedef {{connectionType?: string, fallbackMode: boolean, channel?: {id: number | string, rtc_session_ids: {id: number}[]}}} TransportState */
+
 export class Network {
-    /** @type {import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} */
+    /** @type {P2pTransport} */
     p2p;
-    /** @type {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient} */
+    /** @type {SfuTransport} */
     sfu;
-    /** @type {Array<{ name: string, f: EventListener }>} */
+    /** @type {Array<{ name: string, f: (event: CustomEvent) => void }>} */
     _listeners = [];
     /**
-     * @param {import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} p2p
-     * @param {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient} [sfu]
+     * @param {P2pTransport} p2p
+     * @param {SfuTransport} [sfu]
      */
     constructor(p2p, sfu) {
         this.p2p = p2p;
@@ -104,14 +109,14 @@ export class Network {
         });
     }
 
-    /** @param {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient} sfu */
+    /** @param {SfuTransport} sfu */
     addSfu(sfu) {
         if (this.sfu) {
             this.removeSfu();
         }
         this.sfu = sfu;
         for (const { name, f } of this._listeners) {
-            sfu.addEventListener(name, f);
+            sfu.addEventListener(name, /** @type {EventListener} */ (f));
         }
     }
     removeSfu() {
@@ -119,19 +124,19 @@ export class Network {
             return;
         }
         for (const { name, f } of this._listeners) {
-            this.sfu.removeEventListener(name, f);
+            this.sfu.removeEventListener(name, /** @type {EventListener} */ (f));
         }
         this.sfu.disconnect();
         this.sfu = undefined;
     }
     /**
      * @param {string} name
-     * @param {function} f
+     * @param {(event: CustomEvent) => void} f
      */
     addEventListener(name, f) {
         this._listeners.push({ name, f });
-        this.p2p.addEventListener(name, f);
-        this.sfu?.addEventListener(name, f);
+        this.p2p.addEventListener(name, /** @type {EventListener} */ (f));
+        this.sfu?.addEventListener(name, /** @type {EventListener} */ (f));
     }
     /**
      * @param {streamType} type
@@ -146,24 +151,24 @@ export class Network {
     }
     /**
      * @param {number} sessionId
-     * @param {Object<[streamType, boolean]>} states
+     * @param {Partial<Record<streamType, boolean>>} states
      */
     updateDownload(sessionId, states) {
         this.p2p.updateDownload(sessionId, states);
         this.sfu?.updateDownload(sessionId, states);
     }
     /**
-     * @param {import("#src/models/session.js").SessionInfo} info
+     * @param {Partial<import("@mail/discuss/call/common/peer_to_peer").Info>} info
      * @param {Object} [options]
      */
     updateInfo(info, options = {}) {
-        this.p2p.updateInfo(info, options);
+        this.p2p.updateInfo(info);
         this.sfu?.updateInfo(info, options);
     }
     disconnect() {
         for (const { name, f } of this._listeners.splice(0)) {
-            this.p2p.removeEventListener(name, f);
-            this.sfu?.removeEventListener(name, f);
+            this.p2p.removeEventListener(name, /** @type {EventListener} */ (f));
+            this.sfu?.removeEventListener(name, /** @type {EventListener} */ (f));
         }
         this.p2p.disconnect();
         this.sfu?.disconnect();
@@ -175,6 +180,7 @@ export class Network {
  * @property {string} url
  * @property {string} jsonWebToken
  * @property {string} channelUUID
+ * @property {RTCIceServer[]} [iceServers]
  */
 
 /**
@@ -193,7 +199,7 @@ export class Network {
 export class CallTransport {
     /** @type {Network|undefined} */
     network;
-    /** @type {import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient|undefined} */
+    /** @type {SfuTransport|undefined} */
     sfuClient;
     /** @type {import("@mail/../lib/odoo_sfu/odoo_sfu").SFU_CLIENT_STATE|undefined} */
     SFU_CLIENT_STATE;
@@ -208,8 +214,8 @@ export class CallTransport {
 
     /**
      * @param {Object} param0
-     * @param {() => import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} param0.getP2p
-     * @param {import("@mail/discuss/call/common/rtc_service").RtcCallState} param0.state
+     * @param {() => P2pTransport} param0.getP2p
+     * @param {TransportState} param0.state
      * @param {CallTransportHooks} param0.hooks
      * @param {typeof loadSfuClient} [param0.loadSfuClient]
      */
@@ -228,7 +234,7 @@ export class CallTransport {
         );
     }
 
-    /** @returns {import("@mail/discuss/call/common/peer_to_peer").PeerToPeer} */
+    /** @returns {P2pTransport} */
     get p2p() {
         return this._getP2p();
     }

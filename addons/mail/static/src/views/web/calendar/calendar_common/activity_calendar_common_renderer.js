@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { CalendarCommonRenderer } from "@web/views/calendar";
 

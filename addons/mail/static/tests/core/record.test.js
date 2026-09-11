@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start as start2 } from "@mail/../tests/mail_test_helpers";
 import { makeStore, Record, Store } from "@mail/core/common/record";
 import { AND, fields, OR } from "@mail/model/misc";
@@ -9,7 +10,7 @@ import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { effect } from "@web/core/utils/reactive";
 
-const Markup = markup().constructor;
+const Markup = markup("").constructor;
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -734,9 +735,10 @@ test("store updates can be observed", async () => {
     expect.verifySteps(["abc:undefined"]);
     store.abc = 1;
     expect.verifySteps(["abc:1"]);
-    rawStore.store.abc = 2;
+    /** @type {import("models").Store & {abc: number}} */ (rawStore.store).abc = 2;
     expect.verifySteps(["abc:2"]);
-    rawStore.Model.store.abc = 3;
+    /** @type {import("models").Store & {abc: number}} */ (rawStore.Model.store).abc =
+        3;
     expect.verifySteps(["abc:3"]);
 });
 

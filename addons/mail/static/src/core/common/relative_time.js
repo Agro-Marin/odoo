@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, onWillDestroy, onWillUpdateProps, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

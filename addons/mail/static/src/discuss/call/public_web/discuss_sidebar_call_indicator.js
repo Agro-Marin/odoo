@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { discussSidebarChannelIndicatorsRegistry } from "@mail/discuss/core/public_web/discuss_sidebar_categories";
@@ -5,7 +6,7 @@ import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
- * @property {import(models").Thread} thread
+ * @property {import("models").Thread} thread
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussSidebarCallIndicator extends Component {

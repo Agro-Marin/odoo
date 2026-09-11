@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import { Avatar } from "@mail/views/web/fields/avatar/avatar";

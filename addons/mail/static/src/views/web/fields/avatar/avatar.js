@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { Component } from "@odoo/owl";
@@ -18,7 +19,9 @@ export class Avatar extends Component {
     };
 
     setup() {
-        this.avatarCard = usePopover(this.constructor.components.Popover);
+        this.avatarCard = usePopover(
+            /** @type {typeof Avatar} */ (this.constructor).components.Popover,
+        );
     }
 
     get canOpenPopover() {
@@ -36,7 +39,10 @@ export class Avatar extends Component {
     onClickAvatar(ev) {
         const target = ev.currentTarget;
         if (!this.avatarCard.isOpen && this.canOpenPopover) {
-            this.avatarCard.open(target, this.popoverProps);
+            this.avatarCard.open(
+                /** @type {HTMLElement} */ (target),
+                this.popoverProps,
+            );
         }
     }
 }

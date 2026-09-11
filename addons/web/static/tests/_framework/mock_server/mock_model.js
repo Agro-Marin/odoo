@@ -664,14 +664,15 @@ function getReadGroupOrder(order, groupby, aggregates) {
 }
 
 /**
+ * @template {ModelRecord | ModelRecordGroup} [R=ModelRecord]
  * @param {Model} model
  * @param {string} [orderBy]
- * @param {ModelRecord[]} [records]
- * @returns {ModelRecord[]}
+ * @param {R[]} [records]
+ * @returns {R[]}
  */
 function orderByField(model, orderBy, records) {
     if (!records) {
-        records = model;
+        records = /** @type {R[]} */ (/** @type {unknown} */ (model));
     }
     if (!orderBy) {
         orderBy = model._order;
@@ -2033,7 +2034,7 @@ export class Model extends Array {
         readGroupResult = orderByField(
             this,
             order || groupby.join(","),
-            /** @type {any} */ (readGroupResult),
+            readGroupResult,
         );
 
         if (limit) {
@@ -2334,7 +2335,7 @@ export class Model extends Array {
             context: kwargs.context,
             domain,
             limit,
-            offset,
+            offset: /** @type {number|undefined} */ (offset),
             order,
         });
         return records.map((record) => /** @type {number} */ (record.id));
@@ -2702,7 +2703,7 @@ export class Model extends Array {
      * @param {number} [offset]
      * @param {number} [limit]
      * @param {string} [order]
-     * @param {boolean} [load=true]
+     * @param {boolean | KwArgs<{context: object}>} [load=true]
      */
     search_read(domain, fields, offset, limit, order, load = true) {
         const kwargs = getKwArgs(
@@ -3128,7 +3129,11 @@ export class Model extends Array {
 
         let ids = ensureArray(idOrIds);
         if (ids.length && knownValues) {
-            this._checkConcurrentFieldChanges(ids, values, knownValues);
+            this._checkConcurrentFieldChanges(
+                ids.filter((id) => id !== false),
+                values,
+                knownValues,
+            );
         }
         if (ids.length === 0) {
             ids = /** @type {number[]} */ (
@@ -3334,7 +3339,7 @@ export class Model extends Array {
         const originalRecords = {};
         for (const id of ids) {
             originalRecords[id] = { ...this.browse(id)[0] };
-            this._write(/** @type {any} */ (values), id);
+            this._write(/** @type {any} */ (values), /** @type {number} */ (id));
         }
         this.browse(ids)._applyComputesAndValidate(originalRecords);
         return true;

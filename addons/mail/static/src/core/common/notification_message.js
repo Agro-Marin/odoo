@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useRegisterMessageRef } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
@@ -20,7 +21,7 @@ export class NotificationMessage extends Component {
     /** @param {MouseEvent} ev */
     async onClickNotificationMessage(ev) {
         this.linkNavigation.handleClickOnLink(ev, this.props.thread);
-        const { oeType, oeId } = ev.target.dataset;
+        const { oeType, oeId } = /** @type {HTMLElement} */ (ev.target).dataset;
         if (oeType === "highlight") {
             await this.env.messageHighlight?.highlightMessage(
                 this.store["mail.message"].insert({

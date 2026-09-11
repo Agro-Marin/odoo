@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import {
@@ -29,10 +30,10 @@ import {
 import { url } from "@web/core/utils/urls";
 const { DateTime } = luxon;
 
-/** @type {WeakMap<import("models").Message, luxon.DateTime>} */
+/** @type {WeakMap<Message, luxon.DateTime>} */
 const fallbackDatetimes = new WeakMap();
 
-/** @type {WeakMap<object, DocumentFragment>} */
+/** @type {WeakMap<object, Document>} */
 const parsedBodies = new WeakMap();
 /** @param {string|ReturnType<markup>} body */
 function parseBody(body) {
@@ -156,6 +157,8 @@ export class Message extends Record {
     });
     /** @type {number|string} */
     id;
+    /** @type {string} */
+    email_from;
     /** @type {string[][]} */
     incoming_email_cc;
     /** @type {string[][]} */
@@ -221,7 +224,7 @@ export class Message extends Record {
     subject;
     /** @type {Object[]} */
     trackingValues = [];
-    /** @type {string|undefined} */
+    /** @type {string | import("@odoo/owl").Markup | undefined} */
     translationValue;
     /** @type {string|undefined} */
     translationSource;
@@ -574,6 +577,7 @@ export class Message extends Record {
 
     async copyLink() {
         let notification = _t("Message Link Copied!");
+        /** @type {"info" | "danger"} */
         let type = "info";
         try {
             await browser.navigator.clipboard.writeText(
@@ -607,7 +611,7 @@ export class Message extends Record {
      * @param {import("models").Attachment[]} [attachments=[]]
      * @param {Object} [mentions]
      * @param {import("models").Thread[]} [mentions.mentionedChannels=[]]
-     * @param {import("models").Persona[]} [mentions.mentionedPartners=[]]
+     * @param {import("models").ResPartner[]} [mentions.mentionedPartners=[]]
      * @param {Object[]} [mentions.mentionedRoles=[]]
      */
     async edit(
@@ -662,12 +666,14 @@ export class Message extends Record {
         const validChannels = (
             await Promise.all(
                 Array.from(
-                    doc.querySelectorAll(
-                        ".o_channel_redirect[data-oe-model='discuss.channel']",
+                    /** @type {NodeListOf<HTMLAnchorElement>} */ (
+                        doc.querySelectorAll(
+                            ".o_channel_redirect[data-oe-model='discuss.channel']",
+                        )
                     ),
                 ).map(async (/** @type {HTMLElement} */ el) =>
                     this.store.Thread.getOrFetch({
-                        id: el.dataset.oeId,
+                        id: Number(el.dataset.oeId),
                         model: "discuss.channel",
                     }),
                 ),
@@ -682,17 +688,19 @@ export class Message extends Record {
         if (thread?.messageInEdition) {
             thread.messageInEdition.composer = undefined;
         }
-        this.composer = {
-            composerHtml: getNonEditableMentions(this.body),
-            mentionedChannels: validChannels,
-            mentionedPartners: this.partner_ids,
-            mentionedRoles: validRoles,
-            selection: {
-                start: text.length,
-                end: text.length,
-                direction: "none",
-            },
-        };
+        this.composer = /** @type {typeof this.composer} */ (
+            /** @type {unknown} */ ({
+                composerHtml: getNonEditableMentions(this.body),
+                mentionedChannels: validChannels,
+                mentionedPartners: this.partner_ids,
+                mentionedRoles: validRoles,
+                selection: {
+                    start: text.length,
+                    end: text.length,
+                    direction: "none",
+                },
+            })
+        );
     }
 
     /** @param {import("models").Thread} thread */
@@ -759,8 +767,10 @@ export class Message extends Record {
         });
         this.store.insert(data);
         if (this.thread && removeFromThread) {
-            this.thread.messages = this.thread.messages.filter((message) =>
-                message.notEq(this),
+            this.thread.messages = /** @type {typeof this.thread.messages} */ (
+                /** @type {unknown} */ (
+                    this.thread.messages.filter((message) => message.notEq(this))
+                )
             );
         }
         this.composer = undefined;
@@ -789,7 +799,11 @@ export class Message extends Record {
         if (wasNeedaction) {
             this.needaction = false;
             if (inbox) {
-                inbox.messages.delete(this);
+                inbox.messages.delete(
+                    /** @type {import("models").Message} */ (
+                        /** @type {unknown} */ (this)
+                    ),
+                );
                 inboxApplied = applyCounterDelta(inbox, "counter", -1);
             }
             if (this.thread) {
@@ -810,7 +824,11 @@ export class Message extends Record {
             if (wasNeedaction) {
                 this.needaction = true;
                 if (inbox) {
-                    inbox.messages.add(this);
+                    inbox.messages.add(
+                        /** @type {import("models").Message} */ (
+                            /** @type {unknown} */ (this)
+                        ),
+                    );
                     inboxSnapshot.restoreDelta(-inboxApplied);
                 }
                 threadSnapshot?.restoreDelta(-threadApplied);

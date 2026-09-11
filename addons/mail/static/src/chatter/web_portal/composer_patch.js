@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { _t } from "@web/core/translation";

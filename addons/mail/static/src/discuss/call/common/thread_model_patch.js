@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
@@ -12,7 +13,7 @@ export const CALL_PROMOTE_FULLSCREEN = Object.freeze({
 /** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const ThreadPatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.activeRtcSession = fields.One("discuss.channel.rtc.session", {
             /** @this {import("models").Thread} */
             onAdd(r) {

@@ -1,5 +1,6 @@
 declare module "registries" {
-    import { Component, ComponentConstructor } from "@odoo/owl";
+    import { Component } from "@odoo/owl";
+    import { OdooComponentConstructor as ComponentConstructor } from "@web/env";
     import { OdooEnv } from "@web/env";
     import { NotificationOptions } from "@web/ui/notification/notification_service";
     import { Interaction } from "@web/public/interaction";

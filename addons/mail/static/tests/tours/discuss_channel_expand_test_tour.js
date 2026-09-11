@@ -1,3 +1,4 @@
+// @ts-check
 import { registry } from "@web/core/registry";
 
 /** @see mail/tests/test_discuss_channel_expand.py */

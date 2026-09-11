@@ -1,9 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 /**
  * @typedef {Object} Props
- * @property {import("models").Thread} channel
+ * @property {import("models").Thread} [channel]
+ * @property {import("models").ChannelMember} [member]
  * @property {string} [size]
  * @property {boolean} [displayText]
  * @extends {Component<Props, import("@web/env").OdooEnv>}

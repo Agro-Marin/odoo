@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 /* eslint-disable no-restricted-globals */
 

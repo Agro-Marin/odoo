@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 class AudioProcessor extends AudioWorkletProcessor {
     /** @param {AudioWorkletNodeOptions} [options] */

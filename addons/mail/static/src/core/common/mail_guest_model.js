@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { IM_STATUS_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, Record } from "@mail/core/common/record";
@@ -21,22 +22,31 @@ const { DateTime } = luxon;
 export class MailGuest extends Record {
     static id = "id";
     static _name = "mail.guest";
-    static new() {
+    /**
+     * @template {typeof Record} T
+     * @this {T}
+     * @param {import("@mail/model/record").RecordData} data
+     * @param {import("@mail/model/record").RecordData} ids
+     * @returns {InstanceType<T>}
+     */
+    static new(data, ids) {
         /** @type {import("models").MailGuest} */
-        const record = super.new(...arguments);
+        const record = /** @type {import("models").MailGuest} */ (
+            /** @type {unknown} */ (super.new(data, ids))
+        );
         record.debouncedSetImStatus = debounce(
-            /** @param {string} newStatus */
+            /** @param {ImStatus} newStatus */
             (newStatus) => record.updateImStatus(newStatus),
             IM_STATUS_DEBOUNCE_DELAY,
         );
-        return record;
+        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (record));
     }
 
     /** @type {string} */
     avatar_128_access_token;
     /** @type {number} */
     id;
-    /** @type {(newStatus: string) => void} */
+    /** @type {ReturnType<typeof debounce<(newStatus: ImStatus) => void>>} */
     debouncedSetImStatus;
     monitorPresence = fields.Attr(false, {
         /** @this {import("models").MailGuest} */
@@ -125,10 +135,10 @@ export class MailGuest extends Record {
 
     delete() {
         toRaw(this)._raw.debouncedSetImStatus.cancel();
-        super.delete(...arguments);
+        super.delete();
     }
 
-    /** @param {string} newStatus */
+    /** @param {ImStatus} newStatus */
     updateImStatus(newStatus) {
         if (newStatus === "offline") {
             this.offline_since = DateTime.now();

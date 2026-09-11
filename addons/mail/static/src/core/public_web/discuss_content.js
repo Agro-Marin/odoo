@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
 import { AutoresizeInput } from "@mail/core/common/autoresize_input";

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { markup, toRaw } from "@odoo/owl";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
@@ -13,10 +14,10 @@ import {
     OR_SYM,
 } from "./misc.js";
 
-/** @typedef {import("./misc").FieldDefinition} FieldDefinition */
-/** @typedef {import("./record_list").RecordList} RecordList */
+/** @import { FieldDefinition } from "./misc" */
+/** @import { RecordList } from "./record_list" */
 /** @typedef {Object<string, any>} RecordData */
-/** @typedef {Object<string, any>} RecordFields */
+/** @typedef {Object<string | symbol, any>} RecordFields */
 /** @typedef {Object<string, typeof Record>} StoreModels */
 /**
  * @typedef {Object} Ongoing
@@ -75,12 +76,14 @@ export class Record {
         return toRaw(record)._raw._rawStore.onChange(record, name, cb);
     }
     /**
+     * @template {typeof Record} T
+     * @this {T}
      * @param {Object|string|number} data
-     * @returns {Record|undefined}
+     * @returns {InstanceType<T>|undefined}
      */
     static get(data) {
         const Model = toRaw(this);
-        return this.records[Model.localId(data)];
+        return /** @type {InstanceType<T>} */ (this.records[Model.localId(data)]);
     }
     /** @returns {string} */
     static getName() {
@@ -151,7 +154,13 @@ export class Record {
         }
         const vals = [];
         for (let i = 1; i < expr.length; i++) {
-            vals.push(Model._localId(expr[i], data, { brackets: true }));
+            vals.push(
+                Model._localId(
+                    /** @type {import("./misc").IdExpression} */ (expr[i]),
+                    data,
+                    { brackets: true },
+                ),
+            );
         }
         let res = vals.join(expr[0] === OR_SYM ? " OR " : " AND ");
         if (brackets) {
@@ -206,9 +215,11 @@ export class Record {
     /** @type {typeof Record} */
     static Class;
     /**
+     * @template {typeof Record} T
+     * @this {T}
      * @param {RecordData} data
      * @param {RecordData} ids
-     * @returns {Record}
+     * @returns {InstanceType<T>}
      */
     static new(data, ids) {
         const Model = toRaw(this);
@@ -230,32 +241,39 @@ export class Record {
                 record._.requestCompute?.(record, fieldName);
                 record._.requestSort?.(record, fieldName);
             }
-            return recordProxy;
+            return /** @type {InstanceType<T>} */ (recordProxy);
         });
     }
     /**
-     * @param {RecordData|RecordData[]} data
+     * @template {typeof Record} T
+     * @template {RecordData|RecordData[]} [D=RecordData]
+     * @this {T}
+     * @param {D} [data]
      * @param {Object} [options]
-     * @returns {Record|Record[]}
+     * @returns {0 extends (1 & D) ? any : D extends RecordData[] ? InstanceType<T>[] : InstanceType<T>}
      */
     static insert(data, options = {}) {
         const ModelFullProxy = this;
         const Model = toRaw(ModelFullProxy);
         const store = Model._rawStore;
-        return store.MAKE_UPDATE(function RecordInsert() {
-            const isMulti = Array.isArray(data);
-            const dataList = isMulti ? data : [data];
-            const res = dataList.map(
-                /** @param {RecordData} d */
-                function RecordInsertMap(d) {
-                    return Model._insert.call(ModelFullProxy, d, options);
-                },
-            );
-            if (!isMulti) {
-                return res[0];
-            }
-            return res;
-        });
+        return /** @type {0 extends (1 & D) ? any : D extends RecordData[] ? InstanceType<T>[] : InstanceType<T>} */ (
+            /** @type {unknown} */ (
+                store.MAKE_UPDATE(function RecordInsert() {
+                    const isMulti = Array.isArray(data);
+                    const dataList = isMulti ? data : [data];
+                    const res = dataList.map(
+                        /** @param {RecordData} d */
+                        function RecordInsertMap(d) {
+                            return Model._insert.call(ModelFullProxy, d, options);
+                        },
+                    );
+                    if (!isMulti) {
+                        return res[0];
+                    }
+                    return res;
+                })
+            )
+        );
     }
     /**
      * @param {RecordData} data

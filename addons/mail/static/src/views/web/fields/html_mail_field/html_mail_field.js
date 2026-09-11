@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { HtmlField, htmlField } from "@html_editor/fields/html_field";
 import { ColumnPlugin } from "@html_editor/main/column_plugin";
@@ -10,7 +11,7 @@ const cssRulesByElement = new WeakMap();
 export class HtmlMailField extends HtmlField {
     /**
      * @param {WeakMap} cssRulesByElement
-     * @param {Editor} editor
+     * @param {import("@html_editor/editor").Editor} editor
      * @param {HTMLElement} el
      */
     static async getInlinedEditorContent(cssRulesByElement, editor, el) {

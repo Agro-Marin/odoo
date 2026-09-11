@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { applyCounterAbsolute, applyCounterDelta } from "@mail/utils/common/counters";
 import { reactive } from "@odoo/owl";
@@ -119,7 +120,7 @@ export class MailCoreWeb {
                         });
                     }
                     message.needaction = false;
-                    inbox.messages.delete({ id: messageId });
+                    inbox.messages.delete(message);
                     const history = this.store.history;
                     history.messages.add(message);
                 }

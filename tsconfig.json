@@ -16,6 +16,7 @@
         "disableSizeLimit": true,
         "types": [],
         "paths": {
+            "@odoo/sfu": ["addons/mail/static/lib/odoo_sfu/odoo_sfu.js"],
             "/web/static/lib/bootstrap/bootstrap.esm.js": [
                 "addons/web/static/lib/bootstrap/bootstrap.esm.js"
             ],

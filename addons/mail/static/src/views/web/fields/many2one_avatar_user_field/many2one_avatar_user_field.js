@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useAssignUserCommand } from "@mail/views/web/fields/assign_user_command_hook";
 import { Component } from "@odoo/owl";

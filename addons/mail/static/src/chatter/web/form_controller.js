@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { EventBus, useSubEnv } from "@odoo/owl";
 import { x2ManyCommands } from "@web/core/network";
@@ -12,7 +13,7 @@ FormController.props = {
 
 patch(FormController.prototype, {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         if (this.env.services["mail.store"]) {
             this.mailStore = useService("mail.store");
         }
@@ -53,7 +54,7 @@ patch(FormController.prototype, {
                 '[data-oe-model="res.partner"]',
             );
             const partnerIds = Array.from(partnerElements).map((element) =>
-                parseInt(element.dataset.oeId),
+                parseInt(/** @type {HTMLElement} */ (element).dataset.oeId),
             );
             if (partnerIds.length) {
                 changes.partner_ids ??= [];

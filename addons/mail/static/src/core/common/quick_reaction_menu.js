@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
@@ -63,7 +64,7 @@ export class QuickReactionMenu extends Component {
                 if (
                     !this.dropdown.isOpen ||
                     this.picker.isOpen ||
-                    !this.toggle.el?.contains(ev.target) ||
+                    !this.toggle.el?.contains(/** @type {Node} */ (ev.target)) ||
                     ["Shift", "Control", "Meta", "Alt"].includes(ev.key)
                 ) {
                     return;
@@ -93,7 +94,7 @@ export class QuickReactionMenu extends Component {
     }
 
     onClick() {
-        if (!this.store.emojiLoader.isLoaded) {
+        if (!this.store.emojiLoader.loaded) {
             loadEmoji();
         }
         if (this.ui.isSmall) {

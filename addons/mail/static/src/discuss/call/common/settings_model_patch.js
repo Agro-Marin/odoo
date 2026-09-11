@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Settings } from "@mail/core/common/settings_model";
 import { patch } from "@web/core/utils/patch";

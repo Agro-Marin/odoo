@@ -14,7 +14,7 @@ import { CommandPalette, DefaultFooter } from "./command_palette.js";
 /**
  * @typedef {{
  * name: string;
- * action: ()=>(void | CommandPaletteConfig);
+ * action: ()=>(void | CommandPaletteConfig | Promise<void | CommandPaletteConfig>);
  * category?: string;
  * href?: string;
  * className?: string;
@@ -264,7 +264,7 @@ class CommandService {
 
     /**
      * @param {string} name
-     * @param {()=>(void | CommandPaletteConfig)} action
+     * @param {()=>(void | CommandPaletteConfig | Promise<void | CommandPaletteConfig>)} action
      * @param {CommandOptions} [options]
      * @returns {() => void}
      */

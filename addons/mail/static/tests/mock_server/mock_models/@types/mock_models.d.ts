@@ -1,4 +1,8 @@
 declare module "mock_models" {
+    import { DiscussGifFavorite as DiscussGifFavoriteClass } from "@mail/../tests/mock_server/mock_models/discuss_gif_favorite";
+    export interface DiscussGifFavorite extends DiscussGifFavoriteClass {}
+    import { ResCountry as ResCountryClass } from "@mail/../tests/mock_server/mock_models/res_country";
+    export interface ResCountry extends ResCountryClass {}
     import { Base as Base2 } from "@mail/../tests/mock_server/mock_models/base";
     import { DiscussChannel as DiscussChannel2 } from "@mail/../tests/mock_server/mock_models/discuss_channel";
     import { DiscussChannelMember as DiscussChannelMember2 } from "@mail/../tests/mock_server/mock_models/discuss_channel_member";
@@ -15,7 +19,7 @@ declare module "mock_models" {
     import { MailMessageReaction as MailMessageReaction2 } from "@mail/../tests/mock_server/mock_models/mail_message_reaction";
     import { MailMessageSubtype as MailMessageSubtype2 } from "@mail/../tests/mock_server/mock_models/mail_message_subtype";
     import { MailNotification as MailNotification2 } from "@mail/../tests/mock_server/mock_models/mail_notification";
-    import { MailScheduledMessage as MailScheduledMessage2 } from "@mail/.../tests/mock_server/mock_models/mail_scheduled_message";
+    import { MailScheduledMessage as MailScheduledMessage2 } from "@mail/../tests/mock_server/mock_models/mail_scheduled_message";
     import { MailShortcode as MailShortcode2 } from "@mail/../tests/mock_server/mock_models/mail_shortcode";
     import { MailTemplate as MailTemplate2 } from "@mail/../tests/mock_server/mock_models/mail_template";
     import { MailThread as MailThread2 } from "@mail/../tests/mock_server/mock_models/mail_thread";

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -17,7 +18,6 @@ commandProviderRegistry.add("activity", {
             category: "activity",
             action() {
                 env.services.action.doAction("mail.mail_activity_action_my", {
-                    target: "current",
                     clearBreadcrumbs: true,
                 });
             },
@@ -27,7 +27,6 @@ commandProviderRegistry.add("activity", {
             category: "activity",
             action() {
                 env.services.action.doAction("mail.mail_activity_action", {
-                    target: "current",
                     clearBreadcrumbs: true,
                 });
             },

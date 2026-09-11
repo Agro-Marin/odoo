@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 /** @typedef {import("./record").Record} Record */
 /** @typedef {import("./record_list").RecordList} RecordList */

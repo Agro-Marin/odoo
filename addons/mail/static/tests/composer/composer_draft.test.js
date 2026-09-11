@@ -1,3 +1,4 @@
+// @ts-check
 import {
     clearComposerDraft,
     restoreComposerDraft,
@@ -34,7 +35,9 @@ test("draft save/restore round-trip keeps content and metadata", () => {
     });
     const restored = makeComposer();
     restoreComposerDraft(restored);
-    expect(restored.composerHtml).toEqual(["markup", "<p>Hello <b>world</b></p>"]);
+    expect(JSON.stringify(restored.composerHtml)).toBe(
+        JSON.stringify(["markup", "<p>Hello <b>world</b></p>"]),
+    );
     expect(restored.emailAddSignature).toBe(false);
     expect(restored.restoredFromFullComposer).toBe(false);
     expect(restored.replyToMessage).toEqual({ id: 7 });

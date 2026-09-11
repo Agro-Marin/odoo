@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ChatWindow } from "@mail/core/common/chat_window";
 import { Call } from "@mail/discuss/call/common/call";
@@ -8,7 +9,7 @@ Object.assign(ChatWindow.components, { Call, PipBanner });
 
 patch(ChatWindow.prototype, {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.rtc = useService("discuss.rtc");
     },
 });

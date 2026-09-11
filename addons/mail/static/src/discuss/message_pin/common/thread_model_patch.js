@@ -1,9 +1,11 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
-patch(Thread.prototype, {
+/** @type {Partial<import("models").Thread>} */
+const threadPatch = {
     setup() {
         super.setup();
 
@@ -12,11 +14,11 @@ patch(Thread.prototype, {
         this.pinnedMessages = fields.Many("mail.message", {
             /** @this {import("models").Thread} */
             compute() {
-                return this.allMessages.filter((m) => m.pinned_at);
+                return this.allMessages.filter((m) => Boolean(m.pinned_at));
             },
             sort: (m1, m2) => {
                 if (m1.pinned_at.equals(m2.pinned_at)) {
-                    return m1.id - m2.id;
+                    return Number(m1.id) - Number(m2.id);
                 }
                 return m1.pinned_at < m2.pinned_at ? 1 : -1;
             },
@@ -43,4 +45,5 @@ patch(Thread.prototype, {
         this.store.insert(data);
         this.pinnedMessagesState = "loaded";
     },
-});
+};
+patch(Thread.prototype, threadPatch);

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { isRecord, STORE_SYM } from "@mail/model/misc";
 import { Component, toRaw } from "@odoo/owl";
@@ -14,27 +15,27 @@ export const ACTION_TAGS = Object.freeze({
     JOIN_LEAVE_CALL: "JOIN_LEAVE_CALL",
 });
 
-/** @typedef {import("@mail/model/record").Record} Record */
-/** @typedef {Component|Record} ActionOwner */
+/** @typedef {import("@mail/model/record").Record} MailRecord */
+/** @typedef {Component|MailRecord} ActionOwner */
 /**
- * @template {ActionOwner}
+ * @template {ActionOwner} [O=ActionOwner]
  * @typedef {{ action: Action<O>, store: import("models").Store, owner: O }} ActionParams
  */
 /**
- * @template {ActionOwner}
- * @template {ActionParams<O>}
- * @template {Action<O>}
+ * @template {ActionOwner} [O=ActionOwner]
+ * @template {ActionParams<O>} [P=ActionParams<O>]
+ * @template {Action<O>} [A=Action<O>]
  * @typedef {Object} ActionDefinition
  * @property {boolean|((this: A, params: P) => boolean)} [badge]
  * @property {string|((this: A, params: P) => string)} [badgeIcon]
  * @property {string|((this: A, params: P) => string)} [badgeText]
  * @property {string|((this: A, params: P) => string)} [btnClass]
- * @property {import("@odoo/owl").ComponentConstructor<any, import("@web/env").OdooEnv>} [component]
+ * @property {(new (props: any, env: import("@web/env").OdooEnv) => Component)} [component]
  * @property {boolean|((this: A, params: P) => boolean)} [componentCondition=true]
  * @property {(this: A, params: P) => Object} [componentProps]
  * @property {boolean|((this: A, params: P) => boolean)} [disabledCondition]
  * @property {boolean} [dropdown]
- * @property {import("@odoo/owl").ComponentConstructor<any, import("@web/env").OdooEnv>|((this: A, params: P) => import("@odoo/owl").ComponentConstructor<any, import("@web/env").OdooEnv>)} [dropdownComponent]
+ * @property {(new (props: any, env: import("@web/env").OdooEnv) => Component)|((this: A, params: P) => (new (props: any, env: import("@web/env").OdooEnv) => Component))} [dropdownComponent]
  * @property {Object|((this: A, params: P) => Object)} [dropdownComponentProps]
  * @property {string|((this: A, params: P) => string)} [dropdownMenuClass]
  * @property {string|((this: A, params: P) => string)} [dropdownPosition]
@@ -57,8 +58,8 @@ export const ACTION_TAGS = Object.freeze({
  * @property {boolean} [isMoreAction]
  */
 /**
- * @template {ActionOwner}
- * @template {ActionDefinition<O, any, any>}
+ * @template {ActionOwner} [O=ActionOwner]
+ * @template {ActionDefinition<O, any, any>} [D=ActionDefinition<O, any, any>]
  */
 export class Action {
     /** @type {D} */
@@ -196,7 +197,9 @@ export class Action {
             this._dropdownComponent(this.params) ??
             (typeof this.definition.dropdownComponent === "function" &&
             Object.getPrototypeOf(this.definition.dropdownComponent) !== Component
-                ? this.definition.dropdownComponent.call(this, this.params)
+                ? /** @type {(this: Action<O, D>, params: ActionParams<O>) => (new (props: any, env: import("@web/env").OdooEnv) => Component)} */ (
+                      this.definition.dropdownComponent
+                  ).call(this, this.params)
                 : this.definition.dropdownComponent)
         );
     }
@@ -329,7 +332,7 @@ export class Action {
     }
 }
 
-/** @template {Action<any>} */
+/** @template {Action<any>} [A=Action<any>] */
 export class UseActions extends SignalStore {
     /** @type {new (...args: any[]) => A} */
     ActionClass = /** @type {any} */ (Action);
@@ -356,7 +359,7 @@ export class UseActions extends SignalStore {
 
     /**
      * @param {ActionDefinition} data
-     * @param {string} id
+     * @param {string} [id]
      * @returns {A}
      */
     more(data = {}, id) {

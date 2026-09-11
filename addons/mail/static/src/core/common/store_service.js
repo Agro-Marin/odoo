@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import "@mail/core/common/im_status_service";
 import "./_models.js";
@@ -97,12 +98,13 @@ export class Store extends BaseStore {
          * @param {import("models").Failure} f1
          * @param {import("models").Failure} f2
          */
-        sort: (f1, f2) => (f2.lastMessage?.id ?? 0) - (f1.lastMessage?.id ?? 0),
+        sort: (f1, f2) =>
+            Number(f2.lastMessage?.id ?? 0) - Number(f1.lastMessage?.id ?? 0),
     });
     settings = fields.One("Settings");
     emojiLoader = loader;
 
-    /** @type {[[string, any, import("models").DataResponse]]} */
+    /** @type {Array<[string, any, import("./data_response_model").DataResponse]>} */
     fetchParams = [];
     fetchReadonly = true;
     fetchSilent = true;
@@ -116,6 +118,7 @@ export class Store extends BaseStore {
 
     cannedResponses = this.makeCachedFetchData("mail.canned.response");
 
+    /** @type {SpecialMention[]} */
     specialMentions = [
         {
             isSpecial: true,
@@ -237,7 +240,7 @@ export class Store extends BaseStore {
 
     /**
      * @param {string} name
-     * @param {any} params
+     * @param {any} [params]
      * @param {Object} [options={}]
      * @param {boolean} [options.requestData=false]
      * @param {boolean} [options.readonly=true]
@@ -260,7 +263,10 @@ export class Store extends BaseStore {
                 return queued[2]._resultDef;
             }
         }
-        const dataRequest = this.DataResponse.createRequest();
+        const dataRequest =
+            /** @type {typeof import("./data_response_model").DataResponse} */ (
+                this.Models.DataResponse
+            ).createRequest();
         dataRequest._autoResolve = !requestData;
         this.fetchParams.push([name, params, dataRequest]);
         this.fetchReadonly = this.fetchReadonly && readonly;
@@ -319,7 +325,9 @@ export class Store extends BaseStore {
         let def = null;
         let invalidatedWhileFetching = false;
         const r = reactive({
-            status: "not_fetched",
+            status: /** @type {"not_fetched" | "fetching" | "fetched"} */ (
+                "not_fetched"
+            ),
             fetch: () => {
                 if (["fetching", "fetched"].includes(r.status)) {
                     return def;
@@ -434,7 +442,6 @@ export class Store extends BaseStore {
         );
     }
 
-    /** @param {string} tab */
     setup() {
         super.setup();
         this._prevLastMessageId = null;
@@ -445,6 +452,7 @@ export class Store extends BaseStore {
         );
     }
 
+    /** @this {import("models").Store} */
     onStarted() {
         this.isOdooWhiteTheme = !colorScheme.isDark || this.inPublicPage;
         /** @param {MessageEvent} ev */
@@ -489,8 +497,8 @@ export class Store extends BaseStore {
 
     /**
      * @param {Object} param0
-     * @param {number} param0.userId
-     * @param {number} param0.partnerId
+     * @param {number} [param0.userId]
+     * @param {number} [param0.partnerId]
      * @returns {Promise<import("models").Thread | undefined>}
      */
     async getChat({ userId, partnerId }) {
@@ -540,8 +548,8 @@ export class Store extends BaseStore {
 
     /**
      * @param {Object} param0
-     * @param {number} param0.userId
-     * @param {number} param0.partnerId
+     * @param {number} [param0.userId]
+     * @param {number} [param0.partnerId]
      * @returns {Promise<import("models").ResPartner|undefined>}
      */
     async getPartner({ userId, partnerId }) {
@@ -635,8 +643,8 @@ export class Store extends BaseStore {
 
     /**
      * @param {string} searchTerm
-     * @param {Thread} thread
-     * @param {number} before
+     * @param {import("models").Thread} thread
+     * @param {number | false} before
      * @param {true|false|undefined} is_notification
      */
     async searchMessagesInThread(searchTerm, thread, before, is_notification) {
@@ -675,8 +683,12 @@ export const storeService = {
         services.bus_service.addEventListener("BUS:RECONNECT", () => {
             store._threadFetchAttempted.clear();
         });
-        store.self_guest ??= { id: -1 };
-        store.settings ??= {};
+        store.self_guest ??= /** @type {typeof store.self_guest} */ (
+            /** @type {unknown} */ ({ id: -1 })
+        );
+        store.settings ??= /** @type {typeof store.settings} */ (
+            /** @type {unknown} */ ({})
+        );
         store.onStarted();
         return store;
     },

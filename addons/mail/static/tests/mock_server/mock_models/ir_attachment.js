@@ -1,3 +1,4 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { getKwArgs, makeKwArgs, webModels } from "@web/../tests/web_test_helpers";
 
@@ -31,7 +32,7 @@ export class IrAttachment extends webModels.IrAttachment {
     }
 
     /**
-     * @param {mailDataHelpers.Store} store
+     * @param {import("@mail/../tests/mock_server/mail_mock_server").Store} store
      * @param {Array} fields
      */
     _to_store(store, fields) {

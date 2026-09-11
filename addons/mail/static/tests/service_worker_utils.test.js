@@ -1,3 +1,4 @@
+// @ts-check
 import {
     arrayBufferToBase64Url,
     notificationTargetPath,
@@ -35,6 +36,9 @@ test("planPushNotification: CALL shows the notification", () => {
         },
     });
     expect(plan.type).toBe("show");
+    if (plan.type !== "show") {
+        throw new Error("Expected a displayed notification");
+    }
     expect(plan.title).toBe("Incoming call");
     expect(plan.options.actions).toHaveLength(1);
 });
@@ -52,6 +56,9 @@ test("planPushNotification: CALL on Android drops the ACCEPT action (no mutation
     };
     const plan = planPushNotification(notification, { isAndroid: true });
     expect(plan.type).toBe("show");
+    if (plan.type !== "show") {
+        throw new Error("Expected a displayed notification");
+    }
     expect(plan.options.actions.map((a) => a.action)).toEqual([
         PUSH_NOTIFICATION_ACTION.DECLINE,
     ]);
@@ -67,6 +74,9 @@ test("planPushNotification: tag-less CANCEL is ignored, tagged CANCEL cancels", 
         options: { data: { type: "CANCEL" }, tag: "call-42" },
     });
     expect(plan.type).toBe("cancel");
+    if (plan.type !== "cancel") {
+        throw new Error("Expected a cancellation");
+    }
     expect(plan.tag).toBe("call-42");
 });
 

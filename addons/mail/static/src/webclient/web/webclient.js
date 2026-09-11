@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -97,6 +98,7 @@ patch(WebClient.prototype, {
                 return;
             }
         }
+        /** @type {PushSubscriptionJSON & {previous_endpoint?: string, vapid_public_key?: string}} */
         const kwargs = subscription.toJSON();
         if (previousEndpoint && subscription.endpoint !== previousEndpoint) {
             kwargs.previous_endpoint = previousEndpoint;
@@ -157,7 +159,7 @@ patch(WebClient.prototype, {
         return registration?.pushManager;
     },
 
-    /** @return {Promise<Uint8Array>} */
+    /** @return {Promise<Uint8Array<ArrayBuffer>>} */
     async _getApplicationServerKey() {
         const vapid_public_key_base64 = await this.orm.call(
             USER_DEVICES_MODEL,

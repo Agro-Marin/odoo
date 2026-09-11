@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
@@ -55,7 +56,7 @@ export class SoundEffects {
      * @param {String} soundEffectName
      * @param {Object} param1
      * @param {boolean} [param1.loop]
-     * @param {float} [param1.volume]
+     * @param {number} [param1.volume]
      */
     play(soundEffectName, { loop = false, volume } = {}) {
         if (typeof browser.Audio === "undefined") {

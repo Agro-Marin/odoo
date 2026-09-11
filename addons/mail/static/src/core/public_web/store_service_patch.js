@@ -1,18 +1,20 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Store, storeService } from "@mail/core/common/store_service";
 import { router } from "@web/core/browser/router";
 import { patch } from "@web/core/utils/patch";
-patch(Store.prototype, {
+/** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
+const modelPatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.discuss = fields.One("DiscussApp");
         /** @type {number|undefined} */
         this.action_discuss_id;
     },
     onStarted() {
         super.onStarted(...arguments);
-        this.discuss = { activeTab: "notification" };
+        this.discuss = this.DiscussApp.insert({ activeTab: "notification" });
         this.env.bus.addEventListener(
             "discuss.channel/new_message",
             /** @param {CustomEvent<{channel: import("models").Thread, message: import("models").Message, silent?: boolean}>} ev */
@@ -24,7 +26,8 @@ patch(Store.prototype, {
             },
         );
     },
-});
+};
+patch(Store.prototype, modelPatch);
 
 patch(storeService, {
     /**

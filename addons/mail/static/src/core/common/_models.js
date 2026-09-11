@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import "./activity_model.js";
 import "./attachment_model.js";

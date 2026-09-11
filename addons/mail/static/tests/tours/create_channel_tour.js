@@ -1,3 +1,4 @@
+// @ts-check
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("can_create_channel_from_form_view", {

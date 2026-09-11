@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { hasHardwareAcceleration } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
@@ -14,12 +15,21 @@ export class Settings extends Record {
     /** @type {number} */
     id;
 
-    static new() {
+    /**
+     * @template {typeof Record} T
+     * @this {T}
+     * @param {import("@mail/model/record").RecordData} data
+     * @param {import("@mail/model/record").RecordData} ids
+     * @returns {InstanceType<T>}
+     */
+    static new(data, ids) {
         /** @type {import("models").Settings} */
-        const record = super.new(...arguments);
+        const record = /** @type {import("models").Settings} */ (
+            /** @type {unknown} */ (super.new(data, ids))
+        );
         record.onStorage = record.onStorage.bind(record);
         browser.addEventListener("storage", record.onStorage);
-        return record;
+        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (record));
     }
 
     setup() {
@@ -44,10 +54,10 @@ export class Settings extends Record {
         this.volumeSettingsTimeouts.clear();
         browser.clearTimeout(this.globalSettingsTimeout);
         this.saveVoiceThresholdDebounce.cancel();
-        super.delete(...arguments);
+        super.delete();
     }
 
-    /** @type {"mentions"|"all"|"no_notif"} */
+    /** @type {"mentions"|"all"|"no_notif"|false} */
     channel_notifications = fields.Attr("mentions", {
         /** @this {import("models").Settings} */
         compute() {
@@ -92,7 +102,7 @@ export class Settings extends Record {
     use_push_to_talk = false;
     voice_active_duration = 200;
     volumes = fields.Many("Volume");
-    /** @type {Map<number, number>} */
+    /** @type {Map<string, number>} */
     volumeSettingsTimeouts = new Map();
     voiceActivationThreshold = 0.05;
     isRegisteringKey = false;
@@ -203,7 +213,7 @@ export class Settings extends Record {
     /** @param {boolean} newValue */
     setUseBlur(newValue) {
         if (newValue) {
-            browser.localStorage.setItem(USE_BLUR_LS, true);
+            browser.localStorage.setItem(USE_BLUR_LS, "true");
         } else {
             browser.localStorage.removeItem(USE_BLUR_LS);
         }
@@ -317,7 +327,7 @@ export class Settings extends Record {
             ),
         );
     }
-    /** @param {float} voiceActivationThreshold */
+    /** @param {number} voiceActivationThreshold */
     setThresholdValue(voiceActivationThreshold) {
         this.voiceActivationThreshold = voiceActivationThreshold;
         this.saveVoiceThresholdDebounce();
@@ -325,9 +335,9 @@ export class Settings extends Record {
 
     /**
      * @param {Object} shortcut
-     * @param {boolean} [shortcut.shiftKey]
-     * @param {boolean} [shortcut.ctrlKey]
-     * @param {boolean} [shortcut.altKey]
+     * @param {boolean|string} [shortcut.shiftKey]
+     * @param {boolean|string} [shortcut.ctrlKey]
+     * @param {boolean|string} [shortcut.altKey]
      * @param {string|false} [shortcut.key]
      * @returns {Set<string>}
      */

@@ -1,10 +1,12 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { patch } from "@web/core/utils/patch";
-patch(Thread.prototype, {
+/** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
+const modelPatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.storeAsCounterChannel = fields.One("Store", {
             /** @this {import("models").Thread} */
             compute() {
@@ -36,4 +38,5 @@ patch(Thread.prototype, {
             }
         }
     },
-});
+};
+patch(Thread.prototype, modelPatch);

@@ -1,3 +1,4 @@
+// @ts-check
 import { LocalMediaController } from "@mail/discuss/call/common/local_media_controller";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 
@@ -17,6 +18,10 @@ export class MockBlurManager {
     blurStream = makeMockBlurStream();
     stream = Promise.resolve(this.blurStream);
 
+    /**
+     * @param {MediaStream} sourceStream
+     * @param {{backgroundBlur?: number, edgeBlur?: number}} [options]
+     */
     constructor(sourceStream, { backgroundBlur, edgeBlur } = {}) {
         this.sourceStream = sourceStream;
         this.backgroundBlur = backgroundBlur;

@@ -1,3 +1,4 @@
+// @ts-check
 import { busModels } from "@bus/../tests/bus_test_helpers";
 import { makeKwArgs } from "@web/../tests/web_test_helpers";
 import { isIterable } from "@web/core/utils/collections/arrays";
@@ -20,6 +21,10 @@ export class IrWebSocket extends busModels.IrWebSocket {
         const [authenticatedPartner] = authenticatedUserId
             ? ResPartner.search_read(
                   [["user_ids", "in", [authenticatedUserId]]],
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
                   makeKwArgs({ context: { active_test: false } }),
               )
             : [];

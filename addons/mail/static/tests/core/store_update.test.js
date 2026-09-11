@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start as start2 } from "@mail/../tests/mail_test_helpers";
 import { makeStore, Record, Store } from "@mail/core/common/record";
 import { fields } from "@mail/model/misc";

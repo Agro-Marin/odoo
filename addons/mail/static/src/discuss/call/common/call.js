@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ACTION_TAGS } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
@@ -25,7 +26,8 @@ import { useService } from "@web/core/utils/hooks";
  * @typedef CardData
  * @property {string} key
  * @property {import("models").RtcSession} session
- * @property {MediaStream} videoStream
+ * @property {MediaStream | false | undefined} videoStream
+ * @property {"camera" | "screen"} [type]
  * @property {import("models").ChannelMember} [member]
  */
 
@@ -33,6 +35,7 @@ import { useService } from "@web/core/utils/hooks";
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
  * @property {boolean} [compact]
+ * @property {boolean} [isPip]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Call extends Component {
@@ -142,7 +145,7 @@ export class Call extends Component {
 
     /**
      * @param {import("models").RtcSession} session
-     * @param {string} [videoType]
+     * @param {"camera" | "screen"} [videoType]
      * @returns {CardData}
      */
     makeCard(session, videoType) {
@@ -156,7 +159,7 @@ export class Call extends Component {
 
     /**
      * @param {import("models").RtcSession} session
-     * @param {string} [videoType]
+     * @param {"camera" | "screen"} [videoType]
      */
     setInset(session, videoType) {
         this.insetCard = this.makeCard(session, videoType);
@@ -187,7 +190,10 @@ export class Call extends Component {
 
     /** @param {MouseEvent} ev */
     onMouseleaveMain(ev) {
-        if (ev.relatedTarget && ev.relatedTarget.closest(".o-dropdown--menu")) {
+        if (
+            ev.relatedTarget &&
+            /** @type {Element} */ (ev.relatedTarget).closest(".o-dropdown--menu")
+        ) {
             return;
         }
         this.state.overlay = false;

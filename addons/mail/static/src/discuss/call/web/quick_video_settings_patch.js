@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";

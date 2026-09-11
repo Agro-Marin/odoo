@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { assignDefined } from "@mail/utils/common/misc";
@@ -9,15 +10,24 @@ import { imageUrl, url } from "@web/core/utils/urls";
 export class Attachment extends FileModelMixin(Record) {
     static _name = "ir.attachment";
     static id = "id";
-    static new() {
+    /**
+     * @template {typeof Record} T
+     * @this {T}
+     * @param {import("@mail/model/record").RecordData} data
+     * @param {import("@mail/model/record").RecordData} ids
+     * @returns {InstanceType<T>}
+     */
+    static new(data, ids) {
         /** @type {import("models").Attachment} */
-        const attachment = super.new(...arguments);
+        const attachment = /** @type {import("models").Attachment} */ (
+            /** @type {unknown} */ (super.new(data, ids))
+        );
         Record.onChange(attachment, ["extension", "name"], () => {
             if (!attachment.extension && attachment.name) {
                 attachment.extension = attachment.name.split(".").pop();
             }
         });
-        return attachment;
+        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (attachment));
     }
 
     composer = fields.One("Composer", { inverse: "attachments" });
@@ -40,7 +50,7 @@ export class Attachment extends FileModelMixin(Record) {
                 !this.has_thumbnail &&
                 (this.ownership_token ||
                     ((!this.thread || this.thread.hasWriteAccess) &&
-                        this.store.self.main_user_id?.share === false))
+                        this.store.self_partner?.main_user_id?.share === false))
             ) {
                 this.setPdfThumbnail();
             }
@@ -70,7 +80,7 @@ export class Attachment extends FileModelMixin(Record) {
     }
 
     get isDeletable() {
-        if (this.message && this.store.self.main_user_id?.share !== false) {
+        if (this.message && this.store.self_partner?.main_user_id?.share !== false) {
             return this.message.editable;
         }
         return true;

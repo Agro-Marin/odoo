@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import {
@@ -44,8 +45,10 @@ export class CallDropdown extends Component {
             isNavigationAvailable: () => this.state.isOpen,
             getItems: () => {
                 if (this.state.isOpen && this.menuRef.el) {
-                    return this.menuRef.el.querySelectorAll(
-                        ":scope .o-navigable, :scope .o-dropdown",
+                    return Array.from(
+                        this.menuRef.el.querySelectorAll(
+                            ":scope .o-navigable, :scope .o-dropdown",
+                        ),
                     );
                 }
                 return [];
@@ -102,8 +105,8 @@ export class CallDropdown extends Component {
             return;
         }
         const isOutsideClick =
-            !this.triggerRef.el?.contains(ev.target) &&
-            !this.menuRef.el?.contains(ev.target);
+            !this.triggerRef.el?.contains(/** @type {Node} */ (ev.target)) &&
+            !this.menuRef.el?.contains(/** @type {Node} */ (ev.target));
         if (isOutsideClick) {
             this.close();
         }

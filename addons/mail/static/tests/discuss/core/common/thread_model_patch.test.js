@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start } from "@mail/../tests/mail_test_helpers";
 import { Store } from "@mail/core/common/store_service";
 import { describe, expect, test } from "@odoo/hoot";
@@ -43,6 +44,7 @@ test("getOrFetch resolves (never rejects) when the channel fetch fails", async (
         },
     });
     let rejected = false;
+    /** @type {string|import("models").Thread|undefined} */
     let result = "unset";
     await store.Thread.getOrFetch({ id: 999, model: "discuss.channel" }).then(
         (thread) => (result = thread),

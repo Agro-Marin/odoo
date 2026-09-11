@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { parseEmail } from "@mail/utils/common/format";
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
@@ -14,13 +15,13 @@ export class RecipientsInputTagsListPopover extends Component {
 
     setup() {
         this.orm = useService("orm");
-        this.state = useState({ value: "" });
+        this.state = useState({ value: "", error: false });
         this.popoverRef = useRef("tagsListPopoverRef");
         useExternalListener(
             window,
             "click",
             /** @param {MouseEvent} ev */ (ev) => {
-                if (!this.popoverRef.el?.contains(ev.target)) {
+                if (!this.popoverRef.el?.contains(/** @type {Node} */ (ev.target))) {
                     this.discardTag();
                 }
             },

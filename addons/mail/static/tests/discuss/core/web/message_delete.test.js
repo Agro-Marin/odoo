@@ -1,3 +1,4 @@
+// @ts-check
 import { waitUntilSubscribe } from "@bus/../tests/bus_test_helpers";
 import {
     defineMailModels,

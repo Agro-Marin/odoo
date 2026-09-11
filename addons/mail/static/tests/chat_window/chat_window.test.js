@@ -1,3 +1,4 @@
+// @ts-check
 import {
     assertChatBubbleAndWindowImStatus,
     assertChatHub,
@@ -845,7 +846,9 @@ test("mark as read when opening chat window", async () => {
     await click(".o-mail-NotificationItem", { text: "bob" });
     await contains(".o-mail-ChatWindow .o-mail-ChatWindow-header", { text: "bob" });
     await contains(".o-mail-Composer-input:focus");
-    document.querySelector(".o-mail-Composer-input").blur();
+    /** @type {HTMLElement} */ (
+        document.querySelector(".o-mail-Composer-input")
+    ).blur();
     await contains(".o-mail-Composer-input:not(:focus");
     await withUser(bobUserId, () =>
         rpc("/mail/message/post", {

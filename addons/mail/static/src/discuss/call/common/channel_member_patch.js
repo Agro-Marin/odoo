@@ -1,13 +1,14 @@
+// @ts-check
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { ChannelMember } from "@mail/discuss/core/common/channel_member_model";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
-ChannelMember.CANCEL_CALL_INVITE_DELAY = 30000;
+const CANCEL_CALL_INVITE_DELAY = 30000;
 /** @type {Partial<import("models").ChannelMember> & ThisType<import("models").ChannelMember>} */
 const ChannelMemberPatch = {
     setup() {
-        super.setup(...arguments);
+        super.setup();
         this.rtc_inviting_session_id = fields.One("discuss.channel.rtc.session", {
             /** @this {import("models").ChannelMember} */
             onAdd(r) {
@@ -18,7 +19,7 @@ const ChannelMemberPatch = {
                 this.store.ringingThreads.add(this.channel_id);
                 this.channel_id.cancelRtcInvitationTimeout = browser.setTimeout(() => {
                     this.store.env.services["discuss.rtc"].leaveCall(this.channel_id);
-                }, ChannelMember.CANCEL_CALL_INVITE_DELAY);
+                }, CANCEL_CALL_INVITE_DELAY);
             },
             /** @this {import("models").ChannelMember} */
             onDelete() {

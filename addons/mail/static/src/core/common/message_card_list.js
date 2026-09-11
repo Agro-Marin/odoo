@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Message } from "@mail/core/common/message";
 import { useVisible } from "@mail/utils/common/hooks";

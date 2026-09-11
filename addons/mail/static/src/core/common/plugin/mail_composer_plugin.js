@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
@@ -50,12 +51,12 @@ export class MailComposerPlugin extends Plugin {
          * @returns {HTMLElement[]|undefined}
          */
         hint_targets_providers: (selectionData, editable) => {
-            const el = editable.firstChild;
+            const el = /** @type {HTMLElement} */ (editable.firstChild);
             if (
                 !selectionData.documentSelectionIsInEditable &&
                 childNodes(editable).length === 1 &&
                 isEmptyBlock(el) &&
-                el.matches(baseContainerGlobalSelector)
+                /** @type {Element} */ (el).matches(baseContainerGlobalSelector)
             ) {
                 return [el];
             } else {
@@ -99,18 +100,21 @@ export class MailComposerPlugin extends Plugin {
                     return;
                 }
                 if (!ALLOWED_TAGS.includes(tagName)) {
-                    node.replaceWith(document.createTextNode(node.textContent));
+                    /** @type {ChildNode} */ (node).replaceWith(
+                        document.createTextNode(node.textContent),
+                    );
                     return;
                 }
-                node.removeAttribute("style");
-                if (node.hasAttribute("class")) {
-                    const preservedClasses = [...node.classList].filter((className) =>
-                        PRESERVED_CLASSNAMES.has(className),
-                    );
+                /** @type {Element} */ (node).removeAttribute("style");
+                if (/** @type {Element} */ (node).hasAttribute("class")) {
+                    const preservedClasses = [
+                        .../** @type {Element} */ (node).classList,
+                    ].filter((className) => PRESERVED_CLASSNAMES.has(className));
                     if (preservedClasses.length) {
-                        node.className = preservedClasses.join(" ");
+                        /** @type {Element} */ (node).className =
+                            preservedClasses.join(" ");
                     } else {
-                        node.removeAttribute("class");
+                        /** @type {Element} */ (node).removeAttribute("class");
                     }
                 }
                 [...node.childNodes].forEach(removeStyle);

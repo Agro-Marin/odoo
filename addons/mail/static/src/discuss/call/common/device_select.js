@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, onWillDestroy, onWillStart, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -113,28 +114,56 @@ export class DeviceSelect extends Component {
         switch (this.props.kind) {
             case "audioinput":
                 this.store.rtc
-                    .askForBrowserPermission({ audio: true, deviceId: ev.target.value })
+                    .askForBrowserPermission({
+                        audio: true,
+                        deviceId:
+                            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                                ev.target
+                            ).value,
+                    })
                     .then((granted) => {
                         if (granted) {
-                            this.store.settings.setAudioInputDevice(ev.target.value);
+                            this.store.settings.setAudioInputDevice(
+                                /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                                    ev.target
+                                ).value,
+                            );
                         } else {
-                            ev.target.value = this.store.settings.audioInputDeviceId;
+                            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                                ev.target
+                            ).value = this.store.settings.audioInputDeviceId;
                         }
                     });
                 return;
             case "videoinput":
                 this.store.rtc
-                    .askForBrowserPermission({ video: true, deviceId: ev.target.value })
+                    .askForBrowserPermission({
+                        video: true,
+                        deviceId:
+                            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                                ev.target
+                            ).value,
+                    })
                     .then((granted) => {
                         if (granted) {
-                            this.store.settings.setCameraInputDevice(ev.target.value);
+                            this.store.settings.setCameraInputDevice(
+                                /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                                    ev.target
+                                ).value,
+                            );
                         } else {
-                            ev.target.value = this.store.settings.cameraInputDeviceId;
+                            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                                ev.target
+                            ).value = this.store.settings.cameraInputDeviceId;
                         }
                     });
                 return;
             case "audiooutput":
-                this.store.settings.setAudioOutputDevice(ev.target.value);
+                this.store.settings.setAudioOutputDevice(
+                    /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
+                        ev.target
+                    ).value,
+                );
                 return;
         }
     }

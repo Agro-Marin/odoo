@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { formatDuration } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
@@ -10,6 +11,7 @@ export class StatusBarDurationField extends StatusBarField {
     static template = "mail.StatusBarDurationField";
 
     getAllItems() {
+        /** @type {(ReturnType<StatusBarField["getAllItems"]>[number] & {shortTimeInStage?: string|number, fullTimeInStage?: string})[]} */
         const items = super.getAllItems();
         const durationTracking = this.props.record.data.duration_tracking || {};
         if (Object.keys(durationTracking).length) {

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { DateTimeInput } from "@web/components/datetime";

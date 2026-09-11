@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { browser } from "@web/core/browser/browser";
@@ -8,7 +9,7 @@ export const LAST_DISCUSS_ACTIVE_ID_LS = "mail.user_setting.discuss_last_active_
 export class DiscussApp extends Record {
     INSPECTOR_WIDTH = 300;
     COMPACT_SIDEBAR_WIDTH = 60;
-    /** @type {'notification'|'channel'|'chat'|'livechat'|'inbox'} */
+    /** @type {'notification'|'channel'|'chat'|'livechat'|'inbox'|'starred'} */
     activeTab = "notification";
     searchTerm = "";
     isActive = false;
@@ -53,17 +54,26 @@ export class DiscussApp extends Record {
     });
     hasRestoredThread = false;
 
-    static new() {
+    /**
+     * @template {typeof Record} T
+     * @this {T}
+     * @param {import("@mail/model/record").RecordData} data
+     * @param {import("@mail/model/record").RecordData} ids
+     * @returns {InstanceType<T>}
+     */
+    static new(data, ids) {
         /** @type {import("models").DiscussApp} */
-        const record = super.new(...arguments);
+        const record = /** @type {import("models").DiscussApp} */ (
+            /** @type {unknown} */ (super.new(data, ids))
+        );
         record.onStorage = record.onStorage.bind(record);
         browser.addEventListener("storage", record.onStorage);
-        return record;
+        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (record));
     }
 
     delete() {
         browser.removeEventListener("storage", this.onStorage);
-        super.delete(...arguments);
+        super.delete();
     }
 
     /** @param {StorageEvent} ev */

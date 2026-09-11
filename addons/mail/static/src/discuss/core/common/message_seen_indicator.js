@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, useExternalListener, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -15,9 +16,9 @@ class MessageSeenIndicatorDialog extends Component {
         useExternalListener(
             browser,
             "click",
-            /** @param {MouseEvent} ev */
+            /** @param {Event} ev */
             (ev) => {
-                if (!this.contentRef?.el.contains(ev.target)) {
+                if (!this.contentRef?.el.contains(/** @type {Node} */ (ev.target))) {
                     this.props.close();
                 }
             },

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { compareDatetime } from "@mail/utils/common/misc";
@@ -15,10 +16,11 @@ export class DiscussAppCategory extends Record {
         }
         if (this.id === "chats") {
             return (
-                compareDatetime(t2.lastInterestDt, t1.lastInterestDt) || t2.id - t1.id
+                compareDatetime(t2.lastInterestDt, t1.lastInterestDt) ||
+                Number(t2.id) - Number(t1.id)
             );
         }
-        return t2.id - t1.id;
+        return Number(t2.id) - Number(t1.id);
     }
 
     get isVisible() {
@@ -54,7 +56,7 @@ export class DiscussAppCategory extends Record {
                     browser.localStorage.removeItem(key);
                 }
             } else {
-                browser.localStorage.setItem(key, true);
+                browser.localStorage.setItem(key, String(true));
             }
         },
     });
@@ -119,7 +121,7 @@ export class DiscussAppCategory extends Record {
             );
         } else {
             this._openLocally = value;
-            browser.localStorage.setItem(this.localStateKey, value);
+            browser.localStorage.setItem(this.localStateKey, String(value));
         }
     }
 

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { useService } from "@web/core/utils/hooks";

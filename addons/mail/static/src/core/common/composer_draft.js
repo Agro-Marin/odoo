@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import {
     Component,
@@ -13,14 +14,14 @@ import { usePopover } from "@web/ui/popover";
 
 /**
  * @typedef {Object} ComposerDraft
- * @property {string|ReturnType<markup>|["markup", string]} composerHtml
+ * @property {string|import("@odoo/owl").Markup|["markup", string]} composerHtml
  * @property {boolean} emailAddSignature
- * @property {number} [replyToMessageId]
+ * @property {number | string} [replyToMessageId]
  * @property {boolean} [fromFullComposer=false]
  */
 /**
- * @param {import("models").Composer} composer
- * @param {ComposerDraft} draft
+ * @param {Pick<import("models").Composer, "localId">} composer
+ * @param {Omit<ComposerDraft, "composerHtml"> & {composerHtml: string | import("@odoo/owl").Markup}} draft
  */
 export function saveComposerDraft(
     composer,
@@ -43,7 +44,12 @@ export function saveComposerDraft(
     }
 }
 
-/** @param {import("models").Composer} composer */
+/**
+ * @param {Pick<import("models").Composer, "localId" | "composerHtml" | "emailAddSignature" | "restoredFromFullComposer"> & {
+ * thread?: {isChannelKind: boolean}, replyToMessage?: {id: number | string},
+ * store: {"mail.message": {insert(id: number): {id: number | string}}}
+ * }} composer
+ */
 export function restoreComposerDraft(composer) {
     let config;
     try {
@@ -68,7 +74,7 @@ export function restoreComposerDraft(composer) {
     }
 }
 
-/** @param {import("models").Composer} composer */
+/** @param {Pick<import("models").Composer, "localId">} composer */
 export function clearComposerDraft(composer) {
     browser.localStorage.removeItem(composer.localId);
 }

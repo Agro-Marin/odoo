@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { NavigableList } from "@mail/core/common/navigable_list";
 import { mapSuggestionsToOptions } from "@mail/core/common/suggestion_hook";

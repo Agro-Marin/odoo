@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Discuss } from "@mail/core/public_web/discuss";
 import {
@@ -15,8 +16,11 @@ import { useService } from "@web/core/utils/hooks";
  * @property {Object} action
  * @property {Object} action.context
  * @property {number} [action.context.active_id]
+ * @property {string} [action.context.call]
  * @property {Object} [action.params]
- * @property {number} [action.params.active_id]
+ * @property {string | number} [action.params.active_id]
+ * @property {string} [action.params.call]
+ * @property {number} [action.params.highlight_message_id]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class DiscussClientAction extends Component {
@@ -35,8 +39,12 @@ export class DiscussClientAction extends Component {
                 this.restoreDiscussThread(nextProps);
             },
         );
-        onMounted(() => (this.store.discuss.isActive = true));
-        onWillUnmount(() => (this.store.discuss.isActive = false));
+        onMounted(() => {
+            this.store.discuss.isActive = true;
+        });
+        onWillUnmount(() => {
+            this.store.discuss.isActive = false;
+        });
     }
 
     /**
@@ -52,10 +60,16 @@ export class DiscussClientAction extends Component {
         );
     }
 
-    /** @param {string} [rawActiveId] */
+    /**
+     * @param {string | number} [rawActiveId]
+     * @returns {[string, string | number] | undefined}
+     */
     parseActiveId(rawActiveId) {
         if (!rawActiveId) {
             return undefined;
+        }
+        if (typeof rawActiveId === "number") {
+            return ["discuss.channel", rawActiveId];
         }
         const [model, id] = rawActiveId.split("_");
         if (model === "mail.box") {
@@ -89,7 +103,9 @@ export class DiscussClientAction extends Component {
                 props.action?.params?.highlight_message_id ||
                 router.current.highlight_message_id;
             if (highlight_message_id) {
-                activeThread.highlightMessage = highlight_message_id;
+                activeThread.highlightMessage = this.store["mail.message"].insert({
+                    id: highlight_message_id,
+                });
                 delete props.action?.params?.highlight_message_id;
                 delete router.current?.highlight_message_id;
             }

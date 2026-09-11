@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { loadBundle } from "@web/core/assets";
 import { registry } from "@web/core/registry";

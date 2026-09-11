@@ -23,12 +23,7 @@ import { IrWebSocket } from "./mock_server/mock_models/ir_websocket.js";
 import { getWebSocketWorker, onWebsocketEvent } from "./mock_websocket.js";
 
 /**
- * @typedef {[
- *  env?: OdooEnv,
- *  type: string,
- *  payload: NotificationPayload,
- *  options?: ExpectedNotificationOptions,
- * ]} ExpectedNotification
+ * @typedef {[env: OdooEnv, type: string, payload?: NotificationPayload, options?: ExpectedNotificationOptions] | [type: string, payload?: NotificationPayload, options?: ExpectedNotificationOptions]} ExpectedNotification
  *
  * @typedef {{
  *  received?: boolean;

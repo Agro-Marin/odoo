@@ -1,3 +1,4 @@
+// @ts-check
 import {
     defineMailModels,
     mockGetMedia,
@@ -26,9 +27,10 @@ defineMailModels();
 class Network {
     _peerToPeerInstances = new Map();
     _notificationRoute;
+    /** @param {`${string}/${string}`} [route] */
     constructor(route) {
         this._notificationRoute = route || "/any/mock/notification";
-        onRpc(this._notificationRoute, async (req) => {
+        onRpc(this._notificationRoute, async (/** @type {Request} */ req) => {
             const {
                 params: { peer_notifications },
             } = await req.json();
@@ -41,7 +43,7 @@ class Network {
             }
         });
     }
-    /** @return {{id, p2p: PeerToPeer}} */
+    /** @return {{id: number, p2p: PeerToPeer, remoteStates?: Map<number, string>, remoteMedia?: Map<number, Object>, inbox?: {senderId: number, message: string}[]}} */
     register(id) {
         const p2p = new PeerToPeer({ notificationRoute: this._notificationRoute });
         this._peerToPeerInstances.set(id, p2p);
@@ -232,7 +234,9 @@ test("an offer queued while the notification RPC is in flight is not dropped", a
     const batches = [];
     let markFirstStarted;
     const firstStarted = new Promise((resolve) => (markFirstStarted = resolve));
+    /** @type {() => void} */
     let releaseFirst;
+    /** @type {Promise<void>} */
     const firstReleased = new Promise((resolve) => (releaseFirst = resolve));
     let rpcCount = 0;
     onRpc(route, async (req) => {
@@ -296,7 +300,7 @@ onlineTest("can reject arbitrary offers", async () => {
             asyncStep("offer rejected");
         }
     };
-    user2.p2p.acceptOffer = (id, sequence) => id !== user1.id || sequence > 20;
+    user2.p2p.acceptOffer = async (id, sequence) => id !== user1.id || sequence > 20;
     user1.p2p.addPeer(user2.id, { sequence: 19 });
     await waitForSteps(["offer rejected"]);
     network.close();

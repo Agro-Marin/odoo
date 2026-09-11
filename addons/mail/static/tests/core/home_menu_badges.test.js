@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start } from "@mail/../tests/mail_test_helpers";
 import {
     provideMailBadges,

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { visitXML } from "@web/core/utils/dom/xml";
 import { parseFieldNode } from "@web/views/field_arch";

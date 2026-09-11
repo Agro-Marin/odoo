@@ -21,7 +21,7 @@ declare module "models" {
         notifyMessageToUser: (message: Message) => Promise<void>;
         notifyWhenOutOfFocus: Readonly<boolean>;
         setActiveURL: () => void;
-        setAsDiscussThread: (pushState: boolean) => void;
+        setAsDiscussThread: (pushState?: boolean) => void;
         unpin: () => Promise<void>;
     }
 

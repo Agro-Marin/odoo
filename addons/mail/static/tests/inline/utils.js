@@ -1,3 +1,4 @@
+// @ts-check
 import {
     TABLE_ATTRIBUTES,
     TABLE_STYLES,
@@ -41,7 +42,7 @@ export function getTdHtml(colspan, text, containerWidth) {
     return `<td colspan="${colspan}"${style}>${text}</td>`;
 }
 /**
- * @param {Array<Array<Array<[Number, Number, string?, number?]>>>} matrix
+ * @param {Array<Array<[number, number, string?, number?]>>} matrix
  * @param {Number} [containerWidth]
  * @returns {string}
  */
@@ -75,6 +76,7 @@ export function getTableHtml(matrix, containerWidth) {
  * @returns {string}
  */
 export function getRegularGridHtml(nRows, nCols) {
+    /** @type {Array<Array<number | null>>} */
     const matrix = new Array(nRows)
         .fill()
         .map((_, iRow) => new Array(Array.isArray(nCols) ? nCols[iRow] : nCols).fill());
@@ -85,10 +87,11 @@ export function getRegularGridHtml(nRows, nCols) {
  * @param {Number|Number[]} nCols
  * @param {Number|Number[]} colspan
  * @param {Number|Number[]} width
- * @param {Number} containerWidth
+ * @param {Number} [containerWidth]
  * @returns {string}
  */
 export function getRegularTableHtml(nRows, nCols, colspan, width, containerWidth) {
+    /** @type {Array<Array<[number, number]>>} */
     const matrix = new Array(nRows)
         .fill()
         .map((_, iRow) =>

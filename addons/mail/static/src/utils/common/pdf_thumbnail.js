@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { loadPDFJS } from "@web/core/utils/pdfjs";
 /**

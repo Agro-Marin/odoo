@@ -1,10 +1,12 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import { getKwArgs, makeKwArgs, models } from "@web/../tests/web_test_helpers";
 
 export class DiscussChannelRtcSession extends models.ServerModel {
     _name = "discuss.channel.rtc.session";
 
-    create() {
+    /** @param {Parameters<import("@web/../tests/_framework/mock_server/mock_model").Model["create"]>} args */
+    create(...args) {
         /** @type {import("mock_models").BusBus} */
         const BusBus = this.env["bus.bus"];
         /** @type {import("mock_models").DiscussChannel} */
@@ -12,9 +14,9 @@ export class DiscussChannelRtcSession extends models.ServerModel {
         /** @type {import("mock_models").DiscussChannelMember} */
         const DiscussChannelMember = this.env["discuss.channel.member"];
 
-        const sessionIds = super.create(...arguments);
+        const sessionIds = super.create(...args);
         const rtcSessions = this.browse(sessionIds);
-        /** @type {Record<string, DiscussChannelRtcSession>} */
+        /** @type {Record<string, import("@web/../tests/web_test_helpers").ModelRecord[]>} */
         const sessionsByChannelId = {};
         for (const session of rtcSessions) {
             const [member] = DiscussChannelMember.browse(session.channel_member_id);
@@ -23,6 +25,7 @@ export class DiscussChannelRtcSession extends models.ServerModel {
             }
             sessionsByChannelId[member.channel_id].push(session);
         }
+        /** @type {[any, string, any][]} */
         const notifications = [];
         for (const [channelId, sessions] of Object.entries(sessionsByChannelId)) {
             const [channel] = DiscussChannel.search_read([
@@ -89,11 +92,11 @@ export class DiscussChannelRtcSession extends models.ServerModel {
                 ],
             ]);
         }
-        super.unlink(...arguments);
+        return super.unlink(ids);
     }
 
     /**
-     * @param {mailDataHelpers.Store} store
+     * @param {import("@mail/../tests/mock_server/mail_mock_server").Store} store
      * @param {Array} fields
      * @param {boolean} [extra]
      */
@@ -104,6 +107,7 @@ export class DiscussChannelRtcSession extends models.ServerModel {
 
         store._add_record_fields(this, []);
         for (const rtcSession of this) {
+            /** @type {(string | import("../mail_mock_server").StoreAttr)[]} */
             let data = [
                 mailDataHelpers.Store.one(
                     "channel_member_id",

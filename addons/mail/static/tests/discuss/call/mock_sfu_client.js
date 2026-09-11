@@ -1,3 +1,4 @@
+// @ts-check
 export const MOCK_SFU_CLIENT_STATE = Object.freeze({
     DISCONNECTED: "disconnected",
     CONNECTING: "connecting",
@@ -14,6 +15,7 @@ export class MockSfuClient extends EventTarget {
     _consumers = new Map();
     /** @type {Array<Array>} */
     calls = [];
+    /** @type {(typeof MOCK_SFU_CLIENT_STATE)[keyof typeof MOCK_SFU_CLIENT_STATE]} */
     _state = MOCK_SFU_CLIENT_STATE.DISCONNECTED;
 
     /**
@@ -71,7 +73,7 @@ export class MockSfuClient extends EventTarget {
 
     async getStats() {
         this.calls.push(["getStats"]);
-        return {};
+        return { uploadStats: {}, downloadStats: {} };
     }
 
     simulateConnected() {

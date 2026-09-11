@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { useAssignUserCommand } from "@mail/views/web/fields/assign_user_command_hook";
@@ -21,13 +22,13 @@ export class Many2ManyAvatarUserTagsList extends TagsList {
 }
 
 /**
- * @template {typeof import("@odoo/owl").Component}
+ * @template {new (...args: any[]) => any} T
  * @param {T} T
  */
 const WithUserChatter = (T) =>
     class UserChatterMixin extends T {
         setup() {
-            super.setup(...arguments);
+            super.setup();
             if (this.props.withCommand) {
                 useAssignUserCommand();
             }
@@ -44,7 +45,7 @@ const WithUserChatter = (T) =>
 
         /**
          * @param {import("@web/model/relational_model/record").RelationalRecord} record
-         * @returns {{id: number, model: string}}
+         * @returns {{id: number | false, model: string}}
          */
         getAvatarCardProps(record) {
             return {
@@ -70,7 +71,10 @@ const WithUserChatter = (T) =>
                         !this.avatarCard.isOpen ||
                         (this.lastOpenedId && record.resId !== this.lastOpenedId)
                     ) {
-                        this.avatarCard.open(target, this.getAvatarCardProps(record));
+                        this.avatarCard.open(
+                            /** @type {HTMLElement} */ (target),
+                            this.getAvatarCardProps(record),
+                        );
                         this.lastOpenedId = record.resId;
                     }
                 },

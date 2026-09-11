@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, onMounted, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
@@ -27,7 +28,9 @@ export class AutoresizeInput extends Component {
             value: this.props.value,
             isFocused: false,
         });
-        this.inputRef = useRef("input");
+        this.inputRef = /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */ (
+            useRef("input")
+        );
         onWillUpdateProps(
             /** @param {{value: string}} nextProps */ (nextProps) => {
                 if (this.props.value !== nextProps.value && !this.state.isFocused) {
@@ -39,7 +42,9 @@ export class AutoresizeInput extends Component {
         onMounted(() => {
             if (this.props.autofocus) {
                 this.inputRef.el.focus();
-                this.inputRef.el.setSelectionRange(-1, -1);
+                /** @type {HTMLInputElement | HTMLTextAreaElement} */ (
+                    this.inputRef.el
+                ).setSelectionRange(-1, -1);
             }
         });
     }

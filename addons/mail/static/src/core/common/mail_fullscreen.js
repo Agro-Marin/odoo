@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -35,7 +36,9 @@ export class MailFullscreenService {
     }
 
     /**
+     * @param {import("@odoo/owl").ComponentConstructor} component
      * @param {object} [options]
+     * @param {object} [options.props]
      * @param {any} [options.id]
      * @param {boolean} [options.keepBrowserHeader]
      * @param {string} [options.rootId]

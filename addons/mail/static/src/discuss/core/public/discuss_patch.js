@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Discuss } from "@mail/core/public_web/discuss";
 import { useEffect } from "@odoo/owl";

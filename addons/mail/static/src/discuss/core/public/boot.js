@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { whenReady } from "@odoo/owl";

@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -263,7 +264,11 @@ test("the form renderer inserts the record's thread once, not once per layout re
     let threadInserts = 0;
     patchWithCleanup(Thread, {
         insert(data) {
-            if (data?.model === "res.partner" && data?.id === partnerId) {
+            if (
+                !Array.isArray(data) &&
+                data?.model === "res.partner" &&
+                data?.id === partnerId
+            ) {
                 threadInserts++;
             }
             return super.insert(...arguments);

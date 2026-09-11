@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { ImStatus } from "@mail/core/common/im_status";

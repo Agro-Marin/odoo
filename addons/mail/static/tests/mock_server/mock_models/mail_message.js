@@ -1,3 +1,4 @@
+// @ts-check
 import { mailDataHelpers } from "@mail/../tests/mock_server/mail_mock_server";
 import {
     Command,
@@ -29,6 +30,7 @@ export class MailMessage extends models.ServerModel {
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 
+        /** @type {import("@web/core/domain").DomainListRepr} */
         const notifDomain = [
             ["res_partner_id", "=", this.env.user.partner_id],
             ["is_read", "=", false],
@@ -246,6 +248,7 @@ export class MailMessage extends models.ServerModel {
 
         const isInternal = this._store_target_is_internal();
         for (const message of this) {
+            /** @type {{author_id: false | import("../mail_mock_server").StoreOne, author_guest_id: false | import("../mail_mock_server").StoreOne, email_from?: string}} */
             const data = {
                 author_id: false,
                 author_guest_id: false,
@@ -310,7 +313,7 @@ export class MailMessage extends models.ServerModel {
         return notifications.map((notification) => notification.mail_message_id);
     }
 
-    unlink() {
+    unlink(ids) {
         const messageByPartnerId = {};
         for (const message of this) {
             for (const partnerId of message.partner_ids) {
@@ -332,7 +335,7 @@ export class MailMessage extends models.ServerModel {
                 message_ids: messages.map(({ id }) => id),
             });
         }
-        return super.unlink(...arguments);
+        return super.unlink(ids);
     }
 
     /** @param {number[]} ids */
@@ -417,7 +420,7 @@ export class MailMessage extends models.ServerModel {
      * @param {number} partner_id
      * @param {number} guest_id
      * @param {string} action
-     * @param {import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store} store
+     * @param {InstanceType<typeof import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store>} store
      */
     _message_reaction(id, content, partner_id, guest_id, action, store) {
         ({ id, content, partner_id, guest_id, action, store } = getKwArgs(
@@ -440,12 +443,14 @@ export class MailMessage extends models.ServerModel {
             ["guest_id", "=", guest_id],
         ]);
         if (action === "add" && !reaction) {
-            MailMessageReaction.create({
-                content,
-                message_id: id,
-                partner_id,
-                guest_id,
-            });
+            /** @type {number} */ (
+                MailMessageReaction.create({
+                    content,
+                    message_id: id,
+                    partner_id,
+                    guest_id,
+                })
+            );
         }
         if (action === "remove" && reaction) {
             MailMessageReaction.unlink(reaction.id);
@@ -474,6 +479,7 @@ export class MailMessage extends models.ServerModel {
             ["message_id", "=", id],
             ["content", "=", content],
         ]);
+        /** @type {import("../mail_mock_server").StoreMany | ["DELETE", {message: number, content: string}][]} */
         let reaction_group = mailDataHelpers.Store.many(
             MailMessageReaction.browse(reactions),
             makeKwArgs({ mode: "ADD" }),
@@ -486,10 +492,14 @@ export class MailMessage extends models.ServerModel {
 
     /**
      * @param {DomainListRepr} domain
+     * @param {Object} [thread]
+     * @param {string} [search_term]
+     * @param {boolean} [is_notification]
      * @param {number} [before]
      * @param {number} [after]
+     * @param {number} [around]
      * @param {number} [limit=30]
-     * @returns {Object[]}
+     * @returns {{messages: Object[], count?: number, count_is_capped?: boolean}}
      */
     _message_fetch(
         domain,
@@ -541,7 +551,6 @@ export class MailMessage extends models.ServerModel {
             domain.push(["message_type", "!=", "notification"]);
         }
         if (search_term) {
-            domain = new Domain(domain || []);
             search_term = search_term.replaceAll(" ", "%");
             const subtypeIds = MailMessageSubtype.search([
                 ["description", "ilike", search_term],
@@ -610,9 +619,8 @@ export class MailMessage extends models.ServerModel {
     }
 
     _get_tracking_values_domain(search_term) {
-        let numeric_term = false;
         const epsilon = 1e-9;
-        numeric_term = parseFloat(search_term);
+        const numeric_term = parseFloat(search_term);
         const field_names = [
             "old_value_char",
             "new_value_char",
@@ -648,7 +656,7 @@ export class MailMessage extends models.ServerModel {
         return domain;
     }
 
-    /** @param {import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store} store */
+    /** @param {InstanceType<typeof import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store>} store */
     _store_add_linked_messages(store) {
         const mids = [];
         for (const message of this) {
@@ -692,7 +700,7 @@ export class MailMessage extends models.ServerModel {
 
     /**
      * @param {number[]} ids
-     * @param {import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store} store
+     * @param {InstanceType<typeof import("@mail/../tests/mock_server/mail_mock_server").mailDataHelpers.Store>} store
      */
     _message_notifications_to_store(ids, store) {
         /** @type {import("mock_models").MailNotification} */

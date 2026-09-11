@@ -1,6 +1,7 @@
+// @ts-check
 /** @odoo-module native */
 /** @typedef {import("./record").Record} Record */
-/** @typedef {import("./record_list").RecordList} RecordList */
+/** @import { RecordList } from "./record_list" */
 /** @typedef {import("@web/core/l10n/luxon").luxon} luxon */
 
 import { registry } from "@web/core/registry";
@@ -17,7 +18,21 @@ export const IS_RECORD_SYM = Symbol("isRecord");
 export const IS_DELETED_SYM = Symbol("isDeleted");
 export const STORE_SYM = Symbol("store");
 
-/** @typedef {string|[typeof AND_SYM|typeof OR_SYM, ...IdExpression[]]} IdExpression */
+/** @typedef {import("models").MailIdExpression} IdExpression */
+/**
+ * Raw metadata consumed by ModelInternal before the store replaces a field with its value.
+ * @typedef {Object<string | symbol, any>} FieldDefinition
+ * @property {boolean} [html]
+ * @property {string} [targetModel]
+ * @property {unknown} [default]
+ * @property {string} [type]
+ * @property {string} [inverse]
+ * @property {Function} [compute]
+ * @property {Function} [onAdd]
+ * @property {Function} [onDelete]
+ * @property {Function} [onUpdate]
+ * @property {Function} [sort]
+ */
 
 /**
  * @param {...IdExpression} args
@@ -88,7 +103,7 @@ export function isRecord(record) {
 }
 /**
  * @param {typeof import("./record").Record} Model
- * @param {string} fieldName
+ * @param {string | symbol} fieldName
  * @returns {boolean}
  */
 export function isRelation(Model, fieldName) {
@@ -105,49 +120,53 @@ export function isFieldDefinition(val) {
 
 export const fields = {
     /**
-     * @template {keyof import("models").Models}
-     * @template {Record}
+     * @template {string} M
+     * @template {Record} [R=any]
      * @param {M} targetModel
      * @param {Object} [param1={}]
      * @param {(this: R) => any} [param1.compute]
      * @param {string} [param1.inverse]
-     * @param {(this: R, r: import("models").Models[M]) => void} [param1.onAdd]
-     * @param {(this: R, r: import("models").Models[M]) => void} [param1.onDelete]
+     * @param {(this: R, r: import("models").MailModel<M>) => void} [param1.onAdd]
+     * @param {(this: R, r: import("models").MailModel<M>) => void} [param1.onDelete]
      * @param {(this: R) => void} [param1.onUpdate]
-     * @returns {import("models").Models[M]}
+     * @returns {import("models").MailModel<M>}
      */
     One(targetModel, param1) {
-        return {
-            ...param1,
-            targetModel,
-            [FIELD_DEFINITION_SYM]: true,
-            [ONE_SYM]: true,
-        };
+        return /** @type {import("models").MailModel<M>} */ (
+            /** @type {unknown} */ ({
+                ...param1,
+                targetModel,
+                [FIELD_DEFINITION_SYM]: true,
+                [ONE_SYM]: true,
+            })
+        );
     },
     /**
-     * @template {keyof import("models").Models}
-     * @template {Record}
+     * @template {string} M
+     * @template {Record} [R=any]
      * @param {M} targetModel
      * @param {Object} [param1={}]
      * @param {(this: R) => any} [param1.compute]
      * @param {string} [param1.inverse]
-     * @param {(this: R, r: import("models").Models[M]) => void} [param1.onAdd]
-     * @param {(this: R, r: import("models").Models[M]) => void} [param1.onDelete]
+     * @param {(this: R, r: import("models").MailModel<M>) => void} [param1.onAdd]
+     * @param {(this: R, r: import("models").MailModel<M>) => void} [param1.onDelete]
      * @param {(this: R) => void} [param1.onUpdate]
-     * @param {(this: R, r1: import("models").Models[M], r2: import("models").Models[M]) => number} [param1.sort]
-     * @returns {import("models").Models[M][]}
+     * @param {(this: R, r1: import("models").MailModel<M>, r2: import("models").MailModel<M>) => number} [param1.sort]
+     * @returns {RecordList<import("models").MailModel<M>>}
      */
     Many(targetModel, param1) {
-        return {
-            ...param1,
-            targetModel,
-            [FIELD_DEFINITION_SYM]: true,
-            [MANY_SYM]: true,
-        };
+        return /** @type {RecordList<import("models").MailModel<M>>} */ (
+            /** @type {unknown} */ ({
+                ...param1,
+                targetModel,
+                [FIELD_DEFINITION_SYM]: true,
+                [MANY_SYM]: true,
+            })
+        );
     },
     /**
-     * @template
-     * @template {Record}
+     * @template T
+     * @template {Record} [R=any]
      * @param {T} def
      * @param {Object} [param1={}]
      * @param {(this: R) => any} [param1.compute]
@@ -157,22 +176,25 @@ export const fields = {
      * @returns {T}
      */
     Attr(def, param1) {
-        return {
-            ...param1,
-            [FIELD_DEFINITION_SYM]: true,
-            [ATTR_SYM]: true,
-            default: def,
-        };
+        return /** @type {T} */ (
+            /** @type {unknown} */ ({
+                ...param1,
+                [FIELD_DEFINITION_SYM]: true,
+                [ATTR_SYM]: true,
+                default: def,
+            })
+        );
     },
     /**
-     * @template {Record}
-     * @param {string} def
+     * @template {Record} [R=any]
+     * @param {string | import("@odoo/owl").Markup} def
      * @param {Object} [param1={}]
      * @param {(this: R) => any} [param1.compute]
      * @param {(this: R) => void} [param1.onUpdate]
-     * @returns {string|markup }
+     * @returns {string | import("@odoo/owl").Markup}
      */
     Html(def, param1) {
+        /** @type {FieldDefinition} */
         const definition = {
             ...param1,
             [FIELD_DEFINITION_SYM]: true,
@@ -180,36 +202,42 @@ export const fields = {
             default: def,
         };
         definition.html = true;
-        return definition;
+        return /** @type {string | import("@odoo/owl").Markup} */ (
+            /** @type {unknown} */ (definition)
+        );
     },
     /**
-     * @template {Record}
+     * @template {Record} [R=any]
      * @param {Object} [param0={}]
      * @param {(this: R) => any} [param0.compute]
      * @param {(this: R) => void} [param0.onUpdate]
      * @returns {luxon.DateTime}
      */
     Date(param0) {
-        return {
-            ...param0,
-            [FIELD_DEFINITION_SYM]: true,
-            [ATTR_SYM]: true,
-            type: "date",
-        };
+        return /** @type {luxon.DateTime} */ (
+            /** @type {unknown} */ ({
+                ...param0,
+                [FIELD_DEFINITION_SYM]: true,
+                [ATTR_SYM]: true,
+                type: "date",
+            })
+        );
     },
     /**
-     * @template {Record}
+     * @template {Record} [R=any]
      * @param {Object} [param0={}]
      * @param {(this: R) => any} [param0.compute]
      * @param {(this: R) => void} [param0.onUpdate]
      * @returns {luxon.DateTime}
      */
     Datetime(param0) {
-        return {
-            ...param0,
-            [FIELD_DEFINITION_SYM]: true,
-            [ATTR_SYM]: true,
-            type: "datetime",
-        };
+        return /** @type {luxon.DateTime} */ (
+            /** @type {unknown} */ ({
+                ...param0,
+                [FIELD_DEFINITION_SYM]: true,
+                [ATTR_SYM]: true,
+                type: "datetime",
+            })
+        );
     },
 };

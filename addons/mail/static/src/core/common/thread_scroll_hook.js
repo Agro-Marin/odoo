@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Record } from "@mail/core/common/record";
 import { useVisible } from "@mail/utils/common/hooks";
@@ -128,8 +129,8 @@ export function computeScrollAction({
     } else {
         value =
             order === "asc"
-                ? threadScrollTop
-                : scrollHeight - threadScrollTop - clientHeight;
+                ? Number(threadScrollTop)
+                : scrollHeight - Number(threadScrollTop) - clientHeight;
     }
     if (
         (lastSetValue !== undefined && Math.abs(lastSetValue - value) <= 1) ||
@@ -146,6 +147,10 @@ export function computeScrollAction({
 }
 
 export class ThreadScroll {
+    /** @type {ReturnType<typeof useVisible>} */
+    loadOlderState;
+    /** @type {ReturnType<typeof useVisible>} */
+    loadNewerState;
     /** @type {Deferred|undefined} */
     smoothScrollingDeferred;
     /** @type {number|undefined} */

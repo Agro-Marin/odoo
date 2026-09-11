@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useMessageActions } from "@mail/core/common/message_actions";
 import { MessageReactionList } from "@mail/core/common/message_reaction_list";

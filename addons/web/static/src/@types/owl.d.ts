@@ -39,7 +39,10 @@ declare module "@odoo/owl" {
             flush(): void;
             processTasks(): void;
         };
-        static registerTemplate(name: string, template: string | Element | Function): void;
+        static registerTemplate(
+            name: string,
+            template: string | Element | Function,
+        ): void;
         getTemplate(name: string): Function;
         addTemplate(name: string, template: string | Element): void;
         addTemplates(templates: string | Document): void;
@@ -129,6 +132,26 @@ declare module "@odoo/owl" {
         EventDetailMap extends Record<string, any> = Record<string, any>,
     > extends EventTarget {
         constructor();
+        addEventListener<K extends keyof EventDetailMap & string>(
+            name: K,
+            listener: (event: CustomEvent<EventDetailMap[K]>) => unknown,
+            options?: boolean | AddEventListenerOptions,
+        ): void;
+        addEventListener(
+            name: string,
+            listener: EventListenerOrEventListenerObject,
+            options?: boolean | AddEventListenerOptions,
+        ): void;
+        removeEventListener<K extends keyof EventDetailMap & string>(
+            name: K,
+            listener: (event: CustomEvent<EventDetailMap[K]>) => unknown,
+            options?: boolean | EventListenerOptions,
+        ): void;
+        removeEventListener(
+            name: string,
+            listener: EventListenerOrEventListenerObject,
+            options?: boolean | EventListenerOptions,
+        ): void;
         trigger<K extends keyof EventDetailMap & string>(
             name: K,
             detail?: EventDetailMap[K],
@@ -154,7 +177,7 @@ declare module "@odoo/owl" {
 
     export function status(
         component: Component,
-    ): "new" | "mounted" | "unmounted" | "destroyed";
+    ): "new" | "mounted" | "cancelled" | "destroyed";
 
     export function validate(value: any, schema: any): void;
     export type PropType =

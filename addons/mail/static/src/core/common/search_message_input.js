@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, useExternalListener, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
@@ -30,8 +31,9 @@ export class SearchMessageInput extends Component {
         useExternalListener(
             browser,
             "keydown",
-            /** @param {KeyboardEvent} ev */
-            (ev) => {
+            /** @param {Event} event */
+            (event) => {
+                const ev = /** @type {KeyboardEvent} */ (event);
                 if (ev.key === "Escape") {
                     this.props.closeSearch?.();
                 }

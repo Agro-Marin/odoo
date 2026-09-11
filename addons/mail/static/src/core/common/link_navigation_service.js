@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
@@ -47,7 +48,7 @@ export class LinkNavigation {
         }
         if (
             this.env.services.ui.isSmall &&
-            ev.target.closest(".o-mail-ChatWindow") &&
+            /** @type {Element} */ (ev.target).closest(".o-mail-ChatWindow") &&
             link.href &&
             !link.href.startsWith("#")
         ) {

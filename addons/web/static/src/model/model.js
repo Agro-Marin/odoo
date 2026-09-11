@@ -27,7 +27,10 @@ import { getSearchParamsIssues } from "./search_params_schema.js";
 /** @import { OdooEnv } from "@web/env" */
 /** @import { SearchParams } from "@web/model/types" */
 /** @import { ServiceFactories as Services } from "services" */
-/** @typedef {{new(env: OdooEnv, params: Object, services: Object): Model; services: string[]; prototype: Model; name: string}} ModelConstructor */
+/**
+ * @template {Model} [M=Model]
+ * @typedef {{new(env: OdooEnv, params: Object, services: Object): M; services: string[]; prototype: M; name: string}} ModelConstructor
+ */
 
 /** @template {object} [E=OdooEnv] */
 export class Model extends SignalStore {
@@ -180,9 +183,10 @@ function reloadFromProps(model, props) {
 }
 
 /**
- * @param {ModelConstructor} ModelClass
+ * @template {Model} M
+ * @param {ModelConstructor<M>} ModelClass
  * @param {(component: import("@odoo/owl").Component) => Object} buildParams
- * @returns {{ component: import("@odoo/owl").Component, model: Model }}
+ * @returns {{ component: import("@odoo/owl").Component, model: M }}
  */
 function makeModel(ModelClass, buildParams) {
     const component = useComponent();
@@ -199,11 +203,12 @@ function makeModel(ModelClass, buildParams) {
 }
 
 /**
- * @param {ModelConstructor} ModelClass
+ * @template {Model} M
+ * @param {ModelConstructor<M>} ModelClass
  * @param {Object} params
  * @param {Object} [options]
  * @param {Function} [options.beforeFirstLoad]
- * @returns {Model}
+ * @returns {M}
  */
 export function useModel(ModelClass, params, options = {}) {
     const { component, model } = makeModel(ModelClass, () => params);
@@ -217,11 +222,12 @@ export function useModel(ModelClass, params, options = {}) {
 }
 
 /**
- * @param {ModelConstructor} ModelClass
+ * @template {Model} M
+ * @param {ModelConstructor<M>} ModelClass
  * @param {Object} params
  * @param {Object} [options]
  * @param {boolean} [options.lazy=false]
- * @returns {Model}
+ * @returns {M}
  */
 export function useModelWithSampleData(ModelClass, params, options = {}) {
     if (!(ModelClass.prototype instanceof Model)) {

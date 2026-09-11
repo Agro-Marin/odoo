@@ -1,3 +1,4 @@
+// @ts-check
 import { defineMailModels, start, startServer } from "@mail/../tests/mail_test_helpers";
 import { CallParticipantCard } from "@mail/discuss/call/common/call_participant_card";
 import { describe, expect, test } from "@odoo/hoot";
@@ -31,10 +32,13 @@ async function setupPausedScreenShare() {
     };
     const selfSession = makeSession(SELF_SESSION_ID);
     const remoteSession = makeSession(REMOTE_SESSION_ID);
-    thread.rtc_session_ids = [selfSession, remoteSession];
+    thread.rtc_session_ids.add(selfSession, remoteSession);
     const rtc = getService("discuss.rtc");
     rtc.localSession = selfSession;
-    rtc.state.screenTrack = { enabled: false, stop: () => {} };
+    rtc.state.screenTrack = /** @type {MediaStreamTrack} */ ({
+        enabled: false,
+        stop: () => {},
+    });
     return { thread };
 }
 

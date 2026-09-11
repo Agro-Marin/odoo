@@ -1,10 +1,13 @@
+// @ts-check
 /** @odoo-module native */
 import { closeStream } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
 const FPS = 30;
+/** @typedef {HTMLCanvasElement | HTMLVideoElement | HTMLImageElement | ImageBitmap} RasterImage */
+/** @typedef {{image: RasterImage, segmentationMask: RasterImage}} SegmentationResult */
 
 /**
- * @param {CanvasImageSource & {width: number, height: number}} image
+ * @param {RasterImage} image
  * @param {number} blurAmount
  * @param {HTMLCanvasElement} canvas
  */
@@ -102,7 +105,7 @@ export class BlurManager {
             modelSelection,
         });
         this.selfieSegmentation.onResults(
-            /** @param {{image: CanvasImageSource, segmentationMask: CanvasImageSource}} r */
+            /** @param {{image: RasterImage, segmentationMask: RasterImage}} r */
             (r) => this._onSelfieSegmentationResults(r),
         );
         this.video.autoplay = true;
@@ -143,7 +146,7 @@ export class BlurManager {
     }
 
     /**
-     * @param {CanvasImageSource} image
+     * @param {RasterImage} image
      * @param {GlobalCompositeOperation} compositeOperation
      */
     _drawWithCompositing(image, compositeOperation) {
@@ -183,8 +186,8 @@ export class BlurManager {
 
     /**
      * @param {Object} results
-     * @param {CanvasImageSource & {width: number, height: number}} results.image
-     * @param {CanvasImageSource} results.segmentationMask
+     * @param {RasterImage} results.image
+     * @param {RasterImage} results.segmentationMask
      */
     _onSelfieSegmentationResults(results) {
         drawAndBlurImageOnCanvas(results.image, this.backgroundBlur, this.canvasBlur);

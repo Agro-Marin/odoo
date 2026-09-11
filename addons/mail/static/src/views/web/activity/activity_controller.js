@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
@@ -19,7 +20,14 @@ export class ActivityController extends Component {
     static template = "mail.ActivityController";
 
     setup() {
-        this.model = useState(useModel(this.props.Model, this.modelParams));
+        this.model = useState(
+            useModel(
+                /** @type {typeof import("./activity_model").ActivityModel} */ (
+                    this.props.Model
+                ),
+                this.modelParams,
+            ),
+        );
         this.chassis = useViewChassis();
 
         this.dialog = useService("dialog");

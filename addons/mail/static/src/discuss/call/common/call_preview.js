@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Action, ACTION_TAGS } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
@@ -24,7 +25,7 @@ import { useService } from "@web/core/utils/hooks";
  * @typedef {Object} Props
  * @property {Number} [activateCamera]
  * @property {Number} [activateMicrophone]
- * @property {({ microphone?: boolean, camera?: boolean }) => void} [onSettingsChanged]
+ * @property {(settings: { microphone?: boolean, camera?: boolean }) => void} [onSettingsChanged]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class CallPreview extends Component {
@@ -43,7 +44,9 @@ export class CallPreview extends Component {
             blurStream: null,
             videoStream: null,
         });
-        this.audioRef = useRef("audio");
+        this.audioRef = /** @type {import("@odoo/owl").Ref<HTMLAudioElement>} */ (
+            useRef("audio")
+        );
         this.videoRef = useRef("video");
     }
     _setupPreviewEffect() {
@@ -168,7 +171,7 @@ export class CallPreview extends Component {
                 this.state.videoStream ? _t("Stop camera") : _t("Turn camera on"),
             isActive: () => this.state.videoStream,
             onSelected: () => this.toggleCamera(),
-            /** @param {...import("./call_actions").ActionParams} args */
+            /** @param {[import("./call_actions").ActionParams]} args */
             tags: (...args) => {
                 const tags = cameraOnAction.tags?.(...args) ?? [];
                 if (!args[0].action.isActive) {

@@ -1,3 +1,4 @@
+// @ts-check
 import {
     click,
     contains,
@@ -428,7 +429,7 @@ test("download url of non-viewable binary file", async () => {
     await contains(".fa-download");
 
     patchWithCleanup(download, {
-        _download: (options) => {
+        _download: async (options) => {
             expect(options.url).toBe(
                 `${getOrigin()}/web/content/${attachmentId}?access_token=${attachmentId}&filename=test.o&download=true`,
             );

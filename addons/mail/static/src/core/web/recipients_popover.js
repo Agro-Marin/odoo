@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
 import { _t } from "@web/core/translation";

@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { cleanTerm } from "@mail/utils/common/format";
 import { registry } from "@web/core/registry";
