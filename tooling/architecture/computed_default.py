@@ -28,6 +28,8 @@ REVIEWED: dict[str, str] = {
     "account.payment.state": "the compute starts from the stored state and only moves it forward; every payment starts in draft",
     "account.analytic.line.user_id": "probed: a timesheet created for another user's employee stores that employee's user",
     "appointment.question.is_reusable": "the compute only ever sets True, the default",
+    "appointment.slot.end_hour": "create derives end_hour from start_hour and the appointment duration before defaults apply (AppointmentSlot.create)",
+    "appointment.type.staff_user_ids": "probed: a resource-based type is created with no staff with or without the default; user-based types keep the creator as staff",
     "calendar.event.stop": "create derives stop from start and duration before defaults apply (_create_prepare_stop)",
     "delivery.carrier.country_id": "the compute keeps a country already set",
     "event.event.kanban_state": "the compute resets to normal unless cancelled; normal is where every event starts",
@@ -71,24 +73,11 @@ REVIEWED: dict[str, str] = {
 
 PENDING: frozenset[str] = frozenset(
     {
-        "appointment.slot.end_hour",
-        "appointment.type.staff_user_ids",
-        "esg.emission.source.scope",
-        "hr.appraisal.goal.progression",
-        "hr.payslip.run.date_end",
-        "hr.payslip.run.date_start",
-        "hr.payslip.run.schedule_pay",
-        "hr.salary.attachment.duration_type",
-        "hr.version.l10n_au_income_stream_type",
         "hr.version.l10n_au_medicare_reduction",
         "hr.version.l10n_be_dimona_next_action",
         "hr.version.l10n_in_basic_percentage",
-        "hr.version.schedule_pay",
-        "hr.version.wage_type",
-        "l10n_hk.rental.company_id",
         "loyalty.program.portal_point_name",
         "planning.slot.allocated_percentage",
-        "quality.check.team_id",
     }
 )
 
