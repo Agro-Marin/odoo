@@ -17,7 +17,6 @@ class AccountMove(models.Model):
         compute="_compute_l10n_tr_gib_invoice_type",
         store=True,
         readonly=False,
-        default="SATIS",
         string="GIB Invoice Type",
         selection=[
             ("SATIS", "Sales"),
@@ -77,8 +76,7 @@ class AccountMove(models.Model):
 
     @api.depends("l10n_tr_gib_invoice_scenario", "l10n_tr_is_export_invoice")
     def _compute_l10n_tr_gib_invoice_type(self):
-        for record in self:
-            record.l10n_tr_gib_invoice_type = False
+        self.l10n_tr_gib_invoice_type = "SATIS"
 
     @api.depends(
         "l10n_tr_gib_invoice_scenario", "l10n_tr_gib_invoice_type", "partner_id"

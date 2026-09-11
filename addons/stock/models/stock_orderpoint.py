@@ -110,9 +110,9 @@ class StockWarehouseOrderpoint(models.Model):
         string="Max Quantity",
         digits="Product Unit",
         required=True,
-        default=0.0,
         compute="_compute_product_max_qty",
         store=True,
+        precompute=True,
         readonly=False,
         help="Stock level to reach when replenishing.",
     )

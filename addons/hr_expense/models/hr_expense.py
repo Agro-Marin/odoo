@@ -36,17 +36,6 @@ class HrExpense(models.Model):
     _order = "date desc, id desc"
     _check_company_auto = True
 
-    @api.model
-    def _default_employee_id(self):
-        employee = self.env.user.employee_id
-        if not employee and not self.env.user.has_group(
-            "hr_expense.group_hr_expense_team_approver"
-        ):
-            raise ValidationError(
-                _("The current user has no related employee. Please, create one.")
-            )
-        return employee
-
     name = fields.Char(
         string="Description",
         compute="_compute_name",
@@ -66,7 +55,6 @@ class HrExpense(models.Model):
         readonly=False,
         required=True,
         index=True,
-        default=_default_employee_id,
         check_company=True,
         domain=[("filter_for_expense", "=", True)],
         tracking=True,
@@ -779,11 +767,17 @@ class HrExpense(models.Model):
 
     @api.depends("company_id")
     def _compute_employee_id(self):
-        if not self.env.context.get("default_employee_id"):
-            for expense in self:
-                expense.employee_id = self.env.user.with_company(
-                    expense.company_id
-                ).employee_id
+        if self.env.context.get("default_employee_id"):
+            return
+        for expense in self:
+            employee = self.env.user.with_company(expense.company_id).employee_id
+            if not employee and not self.env.user.has_group(
+                "hr_expense.group_hr_expense_team_approver"
+            ):
+                raise ValidationError(
+                    _("The current user has no related employee. Please, create one.")
+                )
+            expense.employee_id = employee
 
     @api.depends("attachment_ids")
     def _compute_same_receipt_expense_ids(self):

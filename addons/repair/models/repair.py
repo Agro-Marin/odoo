@@ -29,10 +29,6 @@ class RepairOrder(models.Model):
     _date_category_field = "schedule_date"
     _check_company_auto = True
 
-    @api.model
-    def _default_picking_type_id(self):
-        return self._get_picking_type().get((self.env.company, self.env.user))
-
     # Common Fields
     name = fields.Char(
         "Repair Reference",
@@ -133,7 +129,6 @@ class RepairOrder(models.Model):
         compute="_compute_product_qty",
         readonly=False,
         store=True,
-        default=1.0,
         digits="Product Unit",
     )
     allowed_uom_ids = fields.Many2many("uom.uom", compute="_compute_allowed_uom_ids")
@@ -167,7 +162,6 @@ class RepairOrder(models.Model):
         readonly=False,
         compute="_compute_picking_type_id",
         store=True,
-        default=_default_picking_type_id,
         domain="[('code', '=', 'repair_operation'), ('company_id', '=', company_id)]",
         required=True,
         precompute=True,
@@ -601,17 +595,9 @@ class RepairOrder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # We generate a standard reference
         for vals in vals_list:
-            picking_type = self.env["stock.picking.type"].browse(
-                vals.get(
-                    "picking_type_id",
-                    self.default_get(["picking_type_id"])["picking_type_id"],
-                )
-            )
-            if "picking_type_id" not in vals:
-                vals["picking_type_id"] = picking_type.id
-            if not vals.get("name", False) or vals["name"] == "New":
+            if not vals.get("name") or vals["name"] == "New":
+                picking_type = self._picking_type_for_create(vals)
                 vals["name"] = picking_type.sequence_id.next_by_id()
             if not vals.get("reference_ids"):
                 # References are system-managed plumbing: repair users have no
@@ -625,6 +611,20 @@ class RepairOrder(models.Model):
                     )
                 ]
         return super().create(vals_list)
+
+    @api.model
+    def _picking_type_for_create(self, vals):
+        defaults = self.default_get(["picking_type_id", "company_id", "user_id"])
+        if picking_type_id := vals.get(
+            "picking_type_id", defaults.get("picking_type_id")
+        ):
+            return self.env["stock.picking.type"].browse(picking_type_id)
+        return self.new(
+            {
+                "company_id": vals.get("company_id", defaults.get("company_id")),
+                "user_id": vals.get("user_id", defaults.get("user_id")),
+            }
+        ).picking_type_id
 
     def write(self, vals):
         moves_to_reassign = self.env["stock.move"]

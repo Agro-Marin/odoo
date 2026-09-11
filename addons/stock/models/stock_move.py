@@ -363,7 +363,6 @@ class StockMove(models.Model):
         store=True,
         readonly=False,
         copy=False,
-        default=False,
         help="This checkbox is just indicative, it doesn't validate or generate any product moves.",
     )
     is_locked = fields.Boolean(

@@ -33,3 +33,4 @@ from . import test_party_stored_mirrors
 from . import test_employee_change_request
 from . import test_employee_copy
 from . import test_hr_department_company_on_create
+from . import test_version_structure_type

@@ -46,6 +46,7 @@ REVIEWED: dict[str, str] = {
     "loyalty.program.applies_on": "deliberate: _with_program_type_values documents that filling it on create broke the pos_loyalty tour",
     "mailing.mailing.mailing_model_id": "marketing_card's create derives it from the card campaign before defaults apply",
     "product.template.expense_policy": "every compute override only ever writes no, the default",
+    "product.template.is_storable": "the compute only ever clears it on a product that is not goods; False, the default, is what it leaves on a create that names neither",
     "product.template.purchase_ok": "the compute only ever sets True, the default",
     "product.template.service_tracking": "every compute override only ever writes no, the default",
     "product.template.tracking": "the compute only ever writes none, the default",
@@ -70,15 +71,10 @@ REVIEWED: dict[str, str] = {
 
 PENDING: frozenset[str] = frozenset(
     {
-        "account.move.l10n_tr_gib_invoice_type",
         "appointment.slot.end_hour",
         "appointment.type.staff_user_ids",
         "esg.emission.source.scope",
-        "fleet.vehicle.fuel_type",
-        "fleet.vehicle.trailer_hook",
         "hr.appraisal.goal.progression",
-        "hr.attendance.overtime.rule.amount_rate",
-        "hr.expense.employee_id",
         "hr.payslip.run.date_end",
         "hr.payslip.run.date_start",
         "hr.payslip.run.schedule_pay",
@@ -88,20 +84,11 @@ PENDING: frozenset[str] = frozenset(
         "hr.version.l10n_be_dimona_next_action",
         "hr.version.l10n_in_basic_percentage",
         "hr.version.schedule_pay",
-        "hr.version.structure_type_id",
         "hr.version.wage_type",
         "l10n_hk.rental.company_id",
         "loyalty.program.portal_point_name",
         "planning.slot.allocated_percentage",
-        "product.asset.log.date",
-        "product.asset.log.state",
-        "product.template.is_storable",
         "quality.check.team_id",
-        "repair.order.picking_type_id",
-        "repair.order.product_qty",
-        "stock.move.picked",
-        "stock.picking.type.require_responsible",
-        "stock.warehouse.orderpoint.product_max_qty",
     }
 )
 
@@ -127,7 +114,7 @@ def _string(node: ast.AST) -> str | None:
     return None
 
 
-def _model_names(cls: ast.ClassDef) -> list[str]:
+def _model_declaration(cls: ast.ClassDef) -> tuple[str | None, list[str]]:
     name, inherit = None, []
     for stmt in cls.body:
         if not (
@@ -143,17 +130,17 @@ def _model_names(cls: ast.ClassDef) -> list[str]:
                 inherit = [single]
             elif isinstance(stmt.value, (ast.List, ast.Tuple)):
                 inherit = [n for n in map(_string, stmt.value.elts) if n]
+    return name, inherit
+
+
+def _model_names(cls: ast.ClassDef) -> list[str]:
+    name, inherit = _model_declaration(cls)
     return [name] if name else inherit
 
 
 def _extends_only(cls: ast.ClassDef) -> bool:
-    return not any(
-        isinstance(stmt, ast.Assign)
-        and len(stmt.targets) == 1
-        and isinstance(stmt.targets[0], ast.Name)
-        and stmt.targets[0].id == "_name"
-        for stmt in cls.body
-    )
+    name, inherit = _model_declaration(cls)
+    return name is None or name in inherit
 
 
 def _field_call(stmt: ast.stmt) -> tuple[str, ast.Call] | None:

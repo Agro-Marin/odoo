@@ -21,3 +21,15 @@ class TestVehicleModelValues(TransactionCase):
         )
 
         self.assertEqual(vehicle.range_unit, "km")
+
+    def test_a_new_vehicle_takes_its_trailer_hitch_from_the_model(self):
+        self.model_in_miles.trailer_hook = True
+
+        vehicle = self.env["fleet.vehicle"].create({"model_id": self.model_in_miles.id})
+
+        self.assertTrue(vehicle.trailer_hook)
+
+    def test_a_new_vehicle_of_a_model_without_hitch_has_none(self):
+        vehicle = self.env["fleet.vehicle"].create({"model_id": self.model_in_miles.id})
+
+        self.assertFalse(vehicle.trailer_hook)

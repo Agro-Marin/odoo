@@ -76,7 +76,6 @@ class FleetVehicle(models.Model):
         copy=False,
     )
     trailer_hook = fields.Boolean(
-        default=False,
         string="Trailer Hitch",
         compute="_compute_trailer_hook",
         store=True,

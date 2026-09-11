@@ -125,6 +125,34 @@ def test_an_extension_setting_default_none_removes_the_base_default(tmp_path):
     assert _fields(tmp_path, files) == []
 
 
+def test_a_class_naming_the_model_it_inherits_extends_it(tmp_path):
+    base = (
+        "class Rule(models.Model):\n"
+        '    _name = "hr.attendance.overtime.rule"\n'
+        "    amount_rate = fields.Float(default=1.0)\n"
+    )
+    extension = (
+        "class Rule(models.Model):\n"
+        '    _name = "hr.attendance.overtime.rule"\n'
+        '    _inherit = "hr.attendance.overtime.rule"\n'
+        "    amount_rate = fields.Float(\n"
+        '        compute="_compute_amount_rate", store=True, readonly=False{default}\n'
+        "    )\n"
+    )
+    removed = {
+        "a_payroll/models/rule.py": extension.format(default=", default=None"),
+        "b_attendance/models/rule.py": base,
+    }
+    kept = {
+        "a_payroll/models/rule.py": extension.format(default=""),
+        "b_attendance/models/rule.py": base,
+    }
+    assert _fields(tmp_path / "removed", removed) == []
+    assert _fields(tmp_path / "kept", kept) == [
+        "hr.attendance.overtime.rule.amount_rate"
+    ]
+
+
 def test_an_extension_default_is_applied_after_the_base_it_extends(tmp_path):
     base = (
         "class Mailing(models.Model):\n"

@@ -67,9 +67,6 @@ class HrVersion(models.Model):
             [("country_id", "=", country_id)], limit=1
         ) or StructureType.search([("country_id", "=", False)], limit=1)
 
-    def _default_structure_type_id(self):
-        return self._get_default_structure_type(self.env.company.country_id.id)
-
     company_id = fields.Many2one(
         "res.company",
         compute="_compute_company_id",
@@ -272,7 +269,6 @@ class HrVersion(models.Model):
         store=True,
         tracking=True,
         groups="hr.group_hr_manager",
-        default=_default_structure_type_id,
     )
     active_employee = fields.Boolean(
         related="employee_id.active",
