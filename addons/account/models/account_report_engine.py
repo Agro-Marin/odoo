@@ -194,8 +194,9 @@ class AccountReport(models.Model):
         ]
 
     def _link_annual_statements(self, root_annual_statements):
+        Report = self.env["account.report"].with_context(active_test=False)
         for asr_section_report in self:
-            annual_statements = self.env["account.report"].search(
+            annual_statements = Report.search(
                 [
                     ("root_report_id", "=", root_annual_statements.id),
                     ("country_id", "=", asr_section_report.country_id.id),
@@ -203,7 +204,7 @@ class AccountReport(models.Model):
                 ]
             )
             if not annual_statements:
-                annual_statements = self.env["account.report"].create(
+                annual_statements = Report.create(
                     {
                         "name": _("Annual Statements"),
                         "root_report_id": root_annual_statements.id,

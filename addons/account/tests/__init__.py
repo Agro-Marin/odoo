@@ -141,6 +141,7 @@ from . import test_all_reports_generation
 from . import test_analytic_reports
 from . import test_deferred_reports
 from . import test_report_sections
+from . import test_annual_statements_sections
 from . import test_budget
 from . import test_currency_table
 from . import test_followup_report
