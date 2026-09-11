@@ -51,7 +51,6 @@ STUDIO_EDITORS = re.compile(
 )
 # Base view types with no Studio editor, each with why. Shrink-only.
 STUDIO_EDITOR_PINNED: dict[str, str] = {
-    "hierarchy": "not yet contributed: web_hierarchy ships no editor",
     "geoengine": "not yet contributed: an agromarin type, and web_studio is enterprise",
     "threed": "not yet contributed: an agromarin type, and web_studio is enterprise",
 }
