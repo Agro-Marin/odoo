@@ -2548,21 +2548,12 @@ class AccountMove(models.Model):
     def _update_tax_country_id(self):
         self.fetch(["fiscal_position_id", "company_id"])
         records = self.with_context(skip_is_manually_modified=True)
-        foreign_vat_records = records.filtered(
-            lambda r: r.fiscal_position_id.foreign_vat
-        )
-        for fiscal_position_id, record_group in groupby(
-            foreign_vat_records, key=lambda r: r.fiscal_position_id
+        for (fiscal_position, company), record_group in groupby(
+            records, key=lambda r: (r.fiscal_position_id, r.company_id)
         ):
             records.browse(
                 [record.id for record in record_group]
-            ).tax_country_id = fiscal_position_id.country_id
-        for company_id, record_group in groupby(
-            (records - foreign_vat_records), key=lambda r: r.company_id
-        ):
-            records.browse(
-                [record.id for record in record_group]
-            ).tax_country_id = company_id.account_fiscal_country_id
+            ).tax_country_id = fiscal_position._get_tax_country(company)
 
     @api.depends("tax_country_id")
     def _compute_tax_country_code(self):

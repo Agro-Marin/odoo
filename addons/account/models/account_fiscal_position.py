@@ -306,6 +306,11 @@ class AccountFiscalPosition(models.Model):
         template_code = chart_template._guess_chart_template(country)
         return chart_template._get_chart_template_mapping()[template_code]
 
+    def _get_tax_country(self, company):
+        if self.foreign_vat:
+            return self.country_id
+        return company.account_fiscal_country_id
+
     def map_tax(self, taxes):
         if not self:
             return taxes

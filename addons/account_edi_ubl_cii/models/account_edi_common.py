@@ -545,13 +545,17 @@ class AccountEdiCommon(models.AbstractModel):
 
         # Update the invoice.
         invoice.move_type = move_type
-        with invoice._get_edi_creation() as invoice:
+        with invoice.with_context(
+            disable_onchange_name_predictive=True
+        )._get_edi_creation() as invoice:
             fill_invoice_logs = self._import_fill_invoice(invoice, tree, qty_factor)
 
         # For UBL, we should override the computed tax amount if it is less than 0.05 different of the one in the xml.
         # In order to support use case where the tax total is adapted for rounding purpose.
         # This has to be done after the first import in order to let Odoo compute the taxes before overriding if needed.
-        with invoice._get_edi_creation() as invoice:
+        with invoice.with_context(
+            disable_onchange_name_predictive=True
+        )._get_edi_creation() as invoice:
             self._correct_invoice_tax_amount(tree, invoice)
 
         source_attachment = file_data["attachment"] or self.env["ir.attachment"]
@@ -1215,7 +1219,7 @@ class AccountEdiCommon(models.AbstractModel):
                     return tax
         return self.env["account.tax"]
 
-    def _get_taxes(self, record, line_values, tax_type, tax_exigibility=False):
+    def _get_taxes(self, record, line_values, tax_type, tax_exigibility=None):
         """
         Retrieve the taxes on the document line at import.
 
@@ -1226,6 +1230,10 @@ class AccountEdiCommon(models.AbstractModel):
         # if no results, try to fetch the price_include=True taxes. If results, need to adapt the price_unit.
         logs = []
         taxes = []
+        tax_country = record.fiscal_position_id._get_tax_country(record.company_id)
+        fpos_domain = [("fiscal_position_ids", "=", record.fiscal_position_id.id)]
+        if record.fiscal_position_id.is_domestic:
+            fpos_domain = ["|", ("fiscal_position_ids", "=", False), *fpos_domain]
         for tax_node in line_values.pop("tax_nodes"):
             amount = float(tax_node.text)
             domain = [
@@ -1235,27 +1243,27 @@ class AccountEdiCommon(models.AbstractModel):
                 ("amount_type", "=", "percent"),
                 ("type_tax_use", "=", tax_type),
                 ("amount", "=", amount),
+                ("country_id", "=", tax_country.id),
             ]
             tax = self.env["account.tax"]
             if hasattr(record, "_get_specific_tax"):
                 tax = record._get_specific_tax(
                     line_values["name"], "percent", amount, tax_type
-                )
-            if tax_exigibility:
-                if not tax and tax_exigibility:
+                ).filtered_domain(domain)[:1]
+            if tax_exigibility is not None:
+                for extra, price_include in (
+                    (fpos_domain, False),
+                    (fpos_domain, True),
+                    ([], False),
+                    ([], True),
+                ):
+                    if tax:
+                        break
                     tax = self.env["account.tax"].search(
                         domain
+                        + extra
                         + [
-                            ("price_include", "=", False),
-                            ("tax_exigibility", "=", tax_exigibility),
-                        ],
-                        limit=1,
-                    )
-                if not tax and tax_exigibility:
-                    tax = self.env["account.tax"].search(
-                        domain
-                        + [
-                            ("price_include", "=", True),
+                            ("price_include", "=", price_include),
                             ("tax_exigibility", "=", tax_exigibility),
                         ],
                         limit=1,
@@ -1268,13 +1276,16 @@ class AccountEdiCommon(models.AbstractModel):
                             line=line_values["name"],
                         ),
                     )
-            if not tax:
+            for extra, price_include in (
+                (fpos_domain, False),
+                (fpos_domain, True),
+                ([], False),
+                ([], True),
+            ):
+                if tax:
+                    break
                 tax = self.env["account.tax"].search(
-                    domain + [("price_include", "=", False)], limit=1
-                )
-            if not tax:
-                tax = self.env["account.tax"].search(
-                    domain + [("price_include", "=", True)], limit=1
+                    domain + extra + [("price_include", "=", price_include)], limit=1
                 )
 
             if not tax:

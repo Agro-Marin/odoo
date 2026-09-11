@@ -670,6 +670,168 @@ class TestAccountEdiUblCii(TestUblCiiCommon, HttpCase):
         )
         self.assertRecordValues(new_invoice.invoice_line_ids, line_vals)
 
+    def test_import_takes_the_tax_of_the_invoice_fiscal_position(self):
+        self.env.company.partner_id.write(
+            {"peppol_eas": "0230", "peppol_endpoint": "C2584563200"}
+        )
+        foreign_position = self.env["account.fiscal.position"].create(
+            {"name": "Foreign customers"}
+        )
+        domestic_tax = self.percent_tax(21.0, type_tax_use="sale")
+        foreign_tax = self.percent_tax(
+            21.0,
+            type_tax_use="sale",
+            fiscal_position_ids=[Command.set(foreign_position.ids)],
+        )
+        partner = self.partner_be
+        partner.invoice_edi_format = "ubl_bis3"
+        partner.property_account_position_id = foreign_position
+        invoice = self.env["account.move"].create(
+            {
+                "partner_id": partner.id,
+                "move_type": "out_invoice",
+                "fiscal_position_id": foreign_position.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "price_unit": 100.0,
+                            "tax_ids": [Command.set(foreign_tax.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+        self._generate_invoice_ubl_file(invoice)
+        attachment = invoice.ubl_cii_xml_id
+        self.assertTrue(attachment)
+        # Tax prediction learns from posted history, and this invoice would teach it the
+        # foreign tax regardless of the fiscal position under test.
+        invoice.action_draft()
+        invoice.action_cancel()
+
+        imported = invoice.journal_id._create_document_from_attachment(attachment.ids)
+        self.assertEqual(imported.fiscal_position_id, foreign_position)
+        self.assertEqual(imported.invoice_line_ids.tax_ids, foreign_tax)
+
+        partner.property_account_position_id = False
+        imported = invoice.journal_id._create_document_from_attachment(attachment.ids)
+        self.assertNotEqual(imported.fiscal_position_id, foreign_position)
+        self.assertEqual(imported.invoice_line_ids.tax_ids, domestic_tax)
+
+    def test_import_takes_a_tax_of_the_move_tax_country(self):
+        self.env.company.partner_id.write(
+            {"peppol_eas": "0230", "peppol_endpoint": "C2584563200"}
+        )
+        germany = self.env.ref("base.de")
+        german_group = self.env["account.tax.group"].create(
+            {
+                "name": "German Taxes",
+                "company_ids": [Command.set(self.env.company.ids)],
+                "country_id": germany.id,
+            }
+        )
+        german_tax = self.env["account.tax"].create(
+            {
+                "name": "DE VAT 21%",
+                "amount": 21.0,
+                "amount_type": "percent",
+                "type_tax_use": "sale",
+                "country_id": germany.id,
+                "tax_group_id": german_group.id,
+                "sequence": 0,
+            }
+        )
+        domestic_tax = self.percent_tax(21.0, type_tax_use="sale", sequence=5)
+        partner = self.partner_be
+        partner.invoice_edi_format = "ubl_bis3"
+        invoice = self.env["account.move"].create(
+            {
+                "partner_id": partner.id,
+                "move_type": "out_invoice",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "price_unit": 100.0,
+                            "tax_ids": [Command.set(domestic_tax.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+        self._generate_invoice_ubl_file(invoice)
+        attachment = invoice.ubl_cii_xml_id
+        self.assertTrue(attachment)
+        invoice.action_draft()
+        invoice.action_cancel()
+
+        imported = invoice.journal_id._create_document_from_attachment(attachment.ids)
+        self.assertEqual(
+            imported.tax_country_id, self.env.company.account_fiscal_country_id
+        )
+        self.assertNotEqual(imported.invoice_line_ids.tax_ids, german_tax)
+        self.assertEqual(imported.invoice_line_ids.tax_ids, domestic_tax)
+
+    def test_import_keeps_the_xml_tax_over_the_label_history_of_a_bill(self):
+        self.env.company.partner_id.write(
+            {"peppol_eas": "0230", "peppol_endpoint": "C2584563200"}
+        )
+        label = "Consulting services"
+        history_tax = self.percent_tax(6.0, type_tax_use="purchase")
+        purchase_tax = self.percent_tax(21.0, type_tax_use="purchase")
+        sale_tax = self.percent_tax(21.0, type_tax_use="sale")
+        purchase_journal = self.company_data["default_journal_purchase"]
+        history_bill = self.env["account.move"].create(
+            {
+                "partner_id": self.env.company.partner_id.id,
+                "move_type": "in_invoice",
+                "invoice_date": "2024-01-01",
+                "journal_id": purchase_journal.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": label,
+                            "price_unit": 100.0,
+                            "tax_ids": [Command.set(history_tax.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        history_bill.action_post()
+
+        partner = self.partner_be
+        partner.invoice_edi_format = "ubl_bis3"
+        invoice = self.env["account.move"].create(
+            {
+                "partner_id": partner.id,
+                "move_type": "out_invoice",
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": label,
+                            "price_unit": 100.0,
+                            "tax_ids": [Command.set(sale_tax.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+        self._generate_invoice_ubl_file(invoice)
+        attachment = invoice.ubl_cii_xml_id
+        self.assertTrue(attachment)
+        invoice.action_draft()
+        invoice.action_cancel()
+
+        bill = purchase_journal._create_document_from_attachment(attachment.ids)
+        self.assertEqual(bill.move_type, "in_invoice")
+        self.assertEqual(bill.partner_id, self.env.company.partner_id)
+        self.assertEqual(bill.invoice_line_ids.tax_ids, purchase_tax)
+
     def test_bank_details_import(self):
         acc_number = "1234567890"
         partner_bank = self.env["res.partner.bank"].create(
