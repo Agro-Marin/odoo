@@ -1005,7 +1005,6 @@ class HrLeaveAllocation(models.Model):
             HrLeaveAllocation, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
         allocations._add_lastcalls()
-        allocations._create_approval_requests()
         for allocation in allocations:
             partners_to_subscribe = set()
             if allocation.employee_id.user_id:
@@ -1222,8 +1221,21 @@ class HrLeaveAllocation(models.Model):
     def _get_approval_category_xmlid(self):
         return "hr_holidays.approval_category_allocation"
 
-    def _get_approval_cancelled_state(self):
-        return "refuse"
+    def _get_approval_sync_kinds(self):
+        return {
+            "confirm": "pending",
+            "validate1": "progress",
+            "validate": "approved",
+            "refuse": "refused",
+        }
+
+    def _get_approval_outcome_states(self):
+        return {
+            "progress": "validate1",
+            "approved": "validate",
+            "refused": "refuse",
+            "cancelled": "refuse",
+        }
 
     def _apply_approval_state(self, state):
         self.check_singleton()

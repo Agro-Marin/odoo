@@ -1187,7 +1187,6 @@ Versions:
                 )
         holidays._check_validity()
         self._invalidate_allocation_computes()
-        holidays._create_approval_requests()
 
         for holiday in holidays:
             if not self.env.context.get("leave_fast_create"):
@@ -1827,8 +1826,22 @@ is approved, validated or refused."
     def _get_approval_category_xmlid(self):
         return "hr_holidays.approval_category_leave"
 
-    def _get_approval_cancelled_state(self):
-        return "cancel"
+    def _get_approval_sync_kinds(self):
+        return {
+            "confirm": "pending",
+            "validate1": "progress",
+            "validate": "approved",
+            "refuse": "refused",
+            "cancel": "cancelled",
+        }
+
+    def _get_approval_outcome_states(self):
+        return {
+            "progress": "validate1",
+            "approved": "validate",
+            "refused": "refuse",
+            "cancelled": "cancel",
+        }
 
     def _apply_approval_state(self, state):
         self.check_singleton()
