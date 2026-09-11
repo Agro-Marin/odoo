@@ -1215,7 +1215,7 @@ class AccountReportExport(models.Model):
         - an account is reported in a line of the report but does not exist in the Chart of Accounts (yellow)
         """
 
-        def get_account_domain(prefix):
+        def get_domain_account(prefix):
             # Helper function to get the right domain to find the account
             # This function verifies if we have to look for a tag or if we have
             # to look for an account code.
@@ -1343,13 +1343,13 @@ class AccountReportExport(models.Model):
                 for account_code in account_codes:
                     reported_account_codes.append(account_code)
                     exclude_domain_accounts = [
-                        get_account_domain(exclude_code)
+                        get_domain_account(exclude_code)
                         for exclude_code in account_code["exclude"]
                     ]
                     reported_accounts += AccountAccount.search(
                         [
                             *common_account_domain,
-                            get_account_domain(account_code["prefix"]),
+                            get_domain_account(account_code["prefix"]),
                             *[
                                 excl_domain
                                 for excl_tuple in exclude_domain_accounts
@@ -1363,7 +1363,7 @@ class AccountReportExport(models.Model):
                         "exclude"
                     ]
                     for prefix_to_check in prefixes_to_check:
-                        account_domain = get_account_domain(prefix_to_check)
+                        account_domain = get_domain_account(prefix_to_check)
                         if not AccountAccount.search_count(
                             [
                                 *common_account_domain,

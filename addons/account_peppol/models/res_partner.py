@@ -266,7 +266,7 @@ class ResPartner(models.Model):
                 # We only check it for companies that are actually using Peppol.
                 can_send = self.env[
                     "account_edi_proxy_client.user"
-                ]._get_can_send_domain()
+                ]._get_domain_can_send()
                 all_companies = (
                     self.env["res.company"]
                     .sudo()

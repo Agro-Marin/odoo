@@ -107,7 +107,7 @@ class StockQuantReservation(models.Model):
             lighter = [pkg for pkg in real_packages if pkg[1] < 1]
             qty_by_package = heavier + [(None, 1)] * singles_count + lighter
             taken_packages = get_least_packages(qty_by_package, qty)
-            return self._get_least_packages_domain(taken_packages, domain)
+            return self._get_domain_least_packages(taken_packages, domain)
         except MemoryError:
             _logger.info(
                 "Ran out of memory while trying to use the least_packages strategy to get quants. Domain: %s",
@@ -115,7 +115,7 @@ class StockQuantReservation(models.Model):
             )
             return domain
 
-    def _get_least_packages_domain(self, taken_packages, domain):
+    def _get_domain_least_packages(self, taken_packages, domain):
         single_count = sum(1 for pkg in taken_packages if pkg[0] is None)
         selected_single_items = []
         if single_count:
@@ -139,7 +139,7 @@ class StockQuantReservation(models.Model):
             | Domain("id", "in", selected_single_items)
         ) & domain
 
-    def _get_gather_domain(
+    def _get_domain_gather(
         self,
         product_id,
         location_id,
@@ -166,7 +166,7 @@ class StockQuantReservation(models.Model):
                     Domain("location_id", "=", location_id.id),
                 ),
             )
-        domains.append(self._get_expiration_domain())
+        domains.append(self._get_domain_expiration())
         excluded = self._get_block_types_excluded()
         if excluded is None:
             excluded = self.env[
@@ -191,7 +191,7 @@ class StockQuantReservation(models.Model):
     def _get_block_types_excluded(self):
         return read_internal_payload(self.env.context, CONTEXT_BLOCK_EXCLUDED_TYPES)
 
-    def _get_expiration_domain(self):
+    def _get_domain_expiration(self):
         return Domain.TRUE
 
     def _filtered_not_expired(self):
@@ -210,7 +210,7 @@ class StockQuantReservation(models.Model):
         removal_strategy = self.env.context.get(
             "_gather_removal_strategy"
         ) or self._get_removal_strategy(product_id, location_id)
-        domain = self._get_gather_domain(
+        domain = self._get_domain_gather(
             product_id,
             location_id,
             lot_id,
@@ -261,7 +261,7 @@ class StockQuantReservation(models.Model):
     def _is_gather_domain_extended(
         self, domain, product_id, location_id, lot_id, package_id, owner_id, strict
     ):
-        return domain != StockQuantReservation._get_gather_domain(
+        return domain != StockQuantReservation._get_domain_gather(
             self, product_id, location_id, lot_id, package_id, owner_id, strict
         )
 

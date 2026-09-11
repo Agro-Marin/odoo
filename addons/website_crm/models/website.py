@@ -4,7 +4,7 @@ from odoo import fields, models
 class Website(models.Model):
     _inherit = "website"
 
-    def _get_crm_default_team_domain(self):
+    def _get_domain_crm_default_team(self):
         if not self.env.user.has_group("crm.group_use_lead"):
             return [("use_opportunities", "=", True)]
         return [("use_leads", "=", True)]
@@ -13,7 +13,7 @@ class Website(models.Model):
         "crm.team",
         string="Default Sales Teams",
         default=lambda self: self.env["crm.team"].search([], limit=1),
-        domain=lambda self: self._get_crm_default_team_domain(),
+        domain=lambda self: self._get_domain_crm_default_team(),
         help="Default Sales Team for new leads created through the Contact Us form.",
     )
     crm_default_user_id = fields.Many2one(

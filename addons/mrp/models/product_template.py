@@ -40,7 +40,7 @@ class ProductTemplate(models.Model):
         kit_template_ids = {
             template.id
             for [template] in Bom._read_group(
-                Bom._get_kit_domain() & Domain("product_tmpl_id", "in", self.ids),
+                Bom._get_domain_kit() & Domain("product_tmpl_id", "in", self.ids),
                 ["product_tmpl_id"],
             )
         }
@@ -51,7 +51,7 @@ class ProductTemplate(models.Model):
         if operator != "in" or set(value) != {True}:
             return NotImplemented
         Bom = self.env["mrp.bom"].sudo()
-        bom_query = Bom._search(Bom._get_kit_domain())
+        bom_query = Bom._search(Bom._get_domain_kit())
         return [("id", "in", bom_query.subselect("product_tmpl_id"))]
 
     def action_archive(self):

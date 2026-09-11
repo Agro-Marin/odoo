@@ -74,7 +74,7 @@ class SaleOrder(models.Model):
         for sale_order in self:
             sale_order.attendee_count = attendee_count_data.get(sale_order.id, 0)
 
-    def _get_product_catalog_domain(self):
-        return super()._get_product_catalog_domain() & Domain(
+    def _get_domain_product_catalog(self):
+        return super()._get_domain_product_catalog() & Domain(
             "service_tracking", "!=", "event"
         )

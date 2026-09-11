@@ -30,7 +30,7 @@ class CrmLead(models.Model):
         for lead in self:
             company_currency = lead.company_currency or self.env.company.currency_id
             sale_orders = lead.order_ids.filtered_domain(
-                self._get_lead_sale_order_domain()
+                self._get_domain_lead_sale_order()
             )
             lead.sale_amount_total = sum(
                 order.currency_id._convert(
@@ -42,7 +42,7 @@ class CrmLead(models.Model):
                 for order in sale_orders
             )
             lead.quotation_count = len(
-                lead.order_ids.filtered_domain(self._get_lead_quotation_domain())
+                lead.order_ids.filtered_domain(self._get_domain_lead_quotation())
             )
             lead.sale_order_count = len(sale_orders)
 
@@ -72,11 +72,11 @@ class CrmLead(models.Model):
         action["domain"] = Domain.AND(
             [
                 [("opportunity_id", "=", self.id)],
-                self._get_action_view_sale_quotation_domain(),
+                self._get_domain_action_view_sale_quotation(),
             ]
         )
         quotations = self.order_ids.filtered_domain(
-            self._get_action_view_sale_quotation_domain()
+            self._get_domain_action_view_sale_quotation()
         )
         if len(quotations) == 1:
             action["views"] = [(self.env.ref("sale.view_sale_order_form").id, "form")]
@@ -94,21 +94,21 @@ class CrmLead(models.Model):
             "default_opportunity_id": self.id,
         }
         action["domain"] = Domain.AND(
-            [[("opportunity_id", "=", self.id)], self._get_lead_sale_order_domain()]
+            [[("opportunity_id", "=", self.id)], self._get_domain_lead_sale_order()]
         )
-        orders = self.order_ids.filtered_domain(self._get_lead_sale_order_domain())
+        orders = self.order_ids.filtered_domain(self._get_domain_lead_sale_order())
         if len(orders) == 1:
             action["views"] = [(self.env.ref("sale.view_sale_order_form").id, "form")]
             action["res_id"] = orders.id
         return action
 
-    def _get_action_view_sale_quotation_domain(self):
+    def _get_domain_action_view_sale_quotation(self):
         return [("state", "in", ("draft", "sent", "cancel"))]
 
-    def _get_lead_quotation_domain(self):
+    def _get_domain_lead_quotation(self):
         return [("state", "in", ("draft", "sent"))]
 
-    def _get_lead_sale_order_domain(self):
+    def _get_domain_lead_sale_order(self):
         return [("state", "not in", ("draft", "sent", "cancel"))]
 
     def _prepare_opportunity_quotation_context(self):

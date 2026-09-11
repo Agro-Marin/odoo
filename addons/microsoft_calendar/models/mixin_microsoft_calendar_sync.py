@@ -563,7 +563,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         :param full_sync: If True, all events attended by the user are returned
         :return: events
         """
-        domain = self.with_context(full_sync_m=full_sync)._get_microsoft_sync_domain()
+        domain = self.with_context(full_sync_m=full_sync)._get_domain_microsoft_sync()
         return self.with_context(active_test=False).search(domain)
 
     @api.model
@@ -608,7 +608,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
     def _check_attendees_have_email(self):
         raise NotImplementedError
 
-    def _get_microsoft_sync_domain(self):
+    def _get_domain_microsoft_sync(self):
         """
         Return a domain used to search records to synchronize.
         e.g. return a domain to synchronize records owned by the current user.

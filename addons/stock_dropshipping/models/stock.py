@@ -21,15 +21,15 @@ class StockRule(models.Model):
             return False
         return super()._get_partner_id(values, rule)
 
-    def _get_picking_type_code_domain(self):
-        codes = super()._get_picking_type_code_domain()
+    def _get_domain_picking_type_code(self):
+        codes = super()._get_domain_picking_type_code()
         if self.action == "buy":
             codes = [*codes, "dropship"]
         return codes
 
     @api.model
-    def _get_rule_scope_domain(self, values):
-        domain = super()._get_rule_scope_domain(values)
+    def _get_domain_rule_scope(self, values):
+        domain = super()._get_domain_rule_scope(values)
         if "sale_line_id" in values and values.get("company_id"):
             domain &= Domain("company_id", "=", values["company_id"].id)
         return domain

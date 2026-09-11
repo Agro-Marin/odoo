@@ -15,14 +15,14 @@ class AccountMove(models.Model):
         string="L10n Latam Internal Type",
     )
 
-    def _get_l10n_latam_documents_domain(self):
+    def _get_domain_l10n_latam_documents(self):
         self.check_singleton()
         if (
             self.journal_id.company_id.account_fiscal_country_id
             != self.env.ref("base.cl")
             or not self.l10n_latam_use_documents
         ):
-            return super()._get_l10n_latam_documents_domain()
+            return super()._get_domain_l10n_latam_documents()
         if self.journal_id.type == "sale":
             domain = [("country_id.code", "=", "CL")]
             if self.move_type in ["in_invoice", "out_invoice"]:
@@ -202,8 +202,8 @@ class AccountMove(models.Model):
                 return self._l10n_cl_get_formatted_sequence()
         return super()._get_starting_sequence()
 
-    def _get_last_sequence_domain(self, relaxed=False):
-        where_string, param = super()._get_last_sequence_domain(relaxed)
+    def _get_domain_last_sequence(self, relaxed=False):
+        where_string, param = super()._get_domain_last_sequence(relaxed)
         if (
             self.company_id.account_fiscal_country_id.code == "CL"
             and self.l10n_latam_use_documents

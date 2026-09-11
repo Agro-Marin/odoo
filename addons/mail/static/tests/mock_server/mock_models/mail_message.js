@@ -571,7 +571,7 @@ export class MailMessage extends models.ServerModel {
                 ]);
                 const trackingValueDomain = Domain.and([
                     [["mail_message_id", "in", messageIds]],
-                    this._get_tracking_values_domain(search_term),
+                    this._get_domain_tracking_values(search_term),
                 ]).toList();
                 const trackingValueIds = MailTrackingValue.search(trackingValueDomain);
                 const trackingMessageIds = this.search([
@@ -618,7 +618,7 @@ export class MailMessage extends models.ServerModel {
         return res;
     }
 
-    _get_tracking_values_domain(search_term) {
+    _get_domain_tracking_values(search_term) {
         const epsilon = 1e-9;
         const numeric_term = parseFloat(search_term);
         const field_names = [

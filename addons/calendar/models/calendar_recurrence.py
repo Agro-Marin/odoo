@@ -153,14 +153,14 @@ class CalendarRecurrence(models.Model):
     # ------------------------------------------------------------
 
     @api.model
-    def _get_privacy_domain(self):
+    def _get_domain_privacy(self):
         # The link is an x2many, so the mixin's `any` default would search the
         # comodel with the field's own context and drop recurrences whose events
         # are all archived -- exactly the ones `action_mass_archive` produces.
         # Select through the events instead, with active_test off.
         events = self.env["calendar.event"].with_context(active_test=False)
         visible = events._search(
-            Domain(events._get_default_privacy_domain()),
+            Domain(events._get_domain_default_privacy()),
             active_test=False,
         )
         # A recurrence with no events yet protects nothing, and it is a state the

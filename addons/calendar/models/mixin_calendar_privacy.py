@@ -13,13 +13,13 @@ class MixinCalendarPrivacy(models.AbstractModel):
     _privacy_event_fname = "event_id"
 
     @api.model
-    def _get_privacy_domain(self) -> Domain:
+    def _get_domain_privacy(self) -> Domain:
         """Domain selecting the records whose event the user may see.
 
         ``calendar.event`` protects private events with a matched pair: the
         per-record predicate ``_check_private_event_conditions``, used to mask
         field values after fetching, and its search-domain complement
-        ``_get_default_privacy_domain``, used to keep a domain, an order or a
+        ``_get_domain_default_privacy``, used to keep a domain, an order or a
         group-by from becoming an oracle.
 
         Every model hanging off an event inherits the same obligation, and
@@ -40,7 +40,7 @@ class MixinCalendarPrivacy(models.AbstractModel):
         return Domain(
             self._privacy_event_fname,
             "any",
-            Domain(events._get_default_privacy_domain()),
+            Domain(events._get_domain_default_privacy()),
         )
 
     def _privacy_hidden(self):
@@ -94,7 +94,7 @@ class MixinCalendarPrivacy(models.AbstractModel):
         legitimately need the real value.
         """
         if not (self.env.su or bypass_access):
-            domain = Domain.AND([domain, self._get_privacy_domain()])
+            domain = Domain.AND([domain, self._get_domain_privacy()])
         return super()._search(
             domain,
             offset=offset,

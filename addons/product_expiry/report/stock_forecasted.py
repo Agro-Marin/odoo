@@ -24,8 +24,8 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 )
         return res
 
-    def _get_quant_domain(self, location_ids, products):
-        res = super()._get_quant_domain(location_ids, products)
+    def _get_domain_quant(self, location_ids, products):
+        res = super()._get_domain_quant(location_ids, products)
         if any(products.mapped("use_expiration_date")):
             res += [
                 "|",
@@ -34,7 +34,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             ]
         return res
 
-    def _get_expired_quant_domain(self, location_ids, products):
+    def _get_domain_expired_quant(self, location_ids, products):
         return self._get_domain_base_quant(location_ids, products) + [
             ("removal_date", "<=", fields.Datetime.now()),
         ]
@@ -84,7 +84,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         # otherwise report neither.
         return bool(
             self.env["stock.quant"].search_count(
-                self._get_expired_quant_domain(wh_location_ids, product), limit=1
+                self._get_domain_expired_quant(wh_location_ids, product), limit=1
             )
         )
 
@@ -94,7 +94,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         res = []
         if product.use_expiration_date:
             expired_qty, reserved_expired = self.env["stock.quant"]._read_group(
-                self._get_expired_quant_domain(wh_location_ids, product),
+                self._get_domain_expired_quant(wh_location_ids, product),
                 aggregates=["quantity:sum", "reserved_quantity:sum"],
             )[0]
             unreserved_expired = (expired_qty or 0.0) - (reserved_expired or 0.0)
@@ -109,7 +109,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             to_reduce = sum(d["taken_from_stock"] for d in moves_data.values())
 
             for removal_date, free_stock_at_date in self.env["stock.quant"]._read_group(
-                self._get_quant_domain(wh_location_ids, product),
+                self._get_domain_quant(wh_location_ids, product),
                 ["removal_date:day"],
                 ["available_quantity:sum"],
             ):
@@ -129,7 +129,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             # `free_stock` already covers the dated-removal quantities just
             # broken out above; without this, the undivided line added by
             # super() below double-counts them. Expired quants are NOT in it:
-            # `_get_quant_domain` filters them out, which is why only the
+            # `_get_domain_quant` filters them out, which is why only the
             # dated buckets feed `reported_qty`.
             free_stock += reserved_expired - reported_qty
             if res and product.uom_id.is_zero(free_stock):

@@ -186,7 +186,7 @@ class AccountChangeLockDate(models.TransientModel):
     def _compute_lock_date_exceptions(self):
         for wizard in self:
             exceptions = self.env["account.lock_exception"].search(
-                self.env["account.lock_exception"]._get_active_exceptions_domain(
+                self.env["account.lock_exception"]._get_domain_active_exceptions(
                     wizard.company_id, SOFT_LOCK_DATE_FIELDS
                 )
             )
@@ -226,7 +226,7 @@ class AccountChangeLockDate(models.TransientModel):
                     else False
                 )
 
-    def _get_draft_moves_in_locked_period_domain(self):
+    def _get_domain_draft_moves_in_locked_period(self):
         self.check_singleton()
         lock_date_domains = []
         if self.hard_lock_date:
@@ -267,7 +267,7 @@ class AccountChangeLockDate(models.TransientModel):
     def _compute_show_draft_entries_warning(self):
         for wizard in self:
             draft_entries = self.env["account.move"].search(
-                wizard._get_draft_moves_in_locked_period_domain(), limit=1
+                wizard._get_domain_draft_moves_in_locked_period(), limit=1
             )
             wizard.show_draft_entries_warning = bool(draft_entries)
 
@@ -459,7 +459,7 @@ class AccountChangeLockDate(models.TransientModel):
             "name": _("Draft Entries"),
             "res_model": "account.move",
             "type": "ir.actions.act_window",
-            "domain": self._get_draft_moves_in_locked_period_domain(),
+            "domain": self._get_domain_draft_moves_in_locked_period(),
             "search_view_id": [
                 self.env.ref("account.view_account_move_filter").id,
                 "search",

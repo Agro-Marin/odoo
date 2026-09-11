@@ -72,7 +72,7 @@ class CalendarEvent(models.Model):
 
     @api.model
     def _restart_google_sync(self):
-        self.env["calendar.event"].search(self._get_sync_domain()).write(
+        self.env["calendar.event"].search(self._get_domain_sync()).write(
             {
                 "need_sync": True,
             }
@@ -174,7 +174,7 @@ class CalendarEvent(models.Model):
             return True
         return super()._skip_send_mail_status_update()
 
-    def _get_sync_domain(self):
+    def _get_domain_sync(self):
         # in case of full sync, limit to a range of 1y in past and 1y in the future by default
         ICP = self.env["ir.config_parameter"].sudo()
         day_range = int(ICP.get_param("google_calendar.sync.range_days", default=365))

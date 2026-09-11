@@ -607,12 +607,12 @@ class StockLocation(models.Model):
         return [("id", "not in", list(self._get_occupied_location_ids()))]
 
     @api.model
-    def _get_occupancy_domain(self):
+    def _get_domain_occupancy(self):
         return Domain("quantity", "!=", 0) | Domain("reserved_quantity", "!=", 0)
 
     @api.model
     def _get_occupied_location_ids(self, locations=None):
-        domain = self._get_occupancy_domain() & Domain(
+        domain = self._get_domain_occupancy() & Domain(
             "location_id.usage", "in", STOCKED_USAGES
         )
         if locations is not None:

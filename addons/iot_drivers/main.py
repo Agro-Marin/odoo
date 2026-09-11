@@ -29,12 +29,12 @@ class Manager(Thread):
     def __init__(self):
         super().__init__(daemon=True)
         self.identifier = helpers.get_identifier()
-        self.domain = self._get_domain()
+        self.domain = self._get_domain_name()
         self.version = helpers.get_version(detailed_version=True)
         self.previous_iot_devices = {}
         self.previous_unsupported_devices = {}
 
-    def _get_domain(self):
+    def _get_domain_name(self):
         """
         Get the iot box domain based on the IP address and subject.
         """
@@ -61,7 +61,7 @@ class Manager(Thread):
             changed = True
 
         # IP address change
-        new_domain = self._get_domain()
+        new_domain = self._get_domain_name()
         if self.domain != new_domain:
             self.domain = new_domain
             changed = True

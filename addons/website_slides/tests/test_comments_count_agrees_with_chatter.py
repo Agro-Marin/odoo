@@ -1,6 +1,6 @@
 """The comments badge must count exactly what the comment list shows.
 
-``mail.thread._get_portal_message_fetch_domain`` is the single definition of
+``mail.thread._get_domain_portal_message_fetch`` is the single definition of
 "which messages the portal chatter displays". ``website_slides.comments_count``
 reads it, and so does the chatter fetch controller — that shared definition is
 the whole reason the badge can be trusted.
@@ -40,7 +40,7 @@ class TestCommentsCountAgreesWithChatter(common.SlidesCase):
         return (
             self.env["mail.message"]
             .sudo()
-            .search(self.slide._get_portal_message_fetch_domain())
+            .search(self.slide._get_domain_portal_message_fetch())
         )
 
     def test_bodyless_rating_is_both_shown_and_counted(self):

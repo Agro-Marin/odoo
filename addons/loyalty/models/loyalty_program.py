@@ -307,7 +307,7 @@ class LoyaltyProgram(models.Model):
             program.coupon_count = count_per_program.get(program.id, 0)
 
     @api.model
-    def _get_nominative_domain(self):
+    def _get_domain_nominative(self):
         """Return the domain of programs whose points are held by a customer.
 
         One statement, so that reading `is_nominative`, searching on it and any
@@ -321,7 +321,7 @@ class LoyaltyProgram(models.Model):
 
     @api.depends("program_type", "applies_on")
     def _compute_is_nominative(self):
-        nominative_ids = set(self.filtered_domain(self._get_nominative_domain())._ids)
+        nominative_ids = set(self.filtered_domain(self._get_domain_nominative())._ids)
         for program in self:
             program.is_nominative = program.id in nominative_ids
 
@@ -330,7 +330,7 @@ class LoyaltyProgram(models.Model):
         # value; anything else is handed back rather than guessed at.
         if operator not in ("in", "not in") or set(value) not in ({True}, {False}):
             return NotImplemented
-        domain = self._get_nominative_domain()
+        domain = self._get_domain_nominative()
         return domain if (True in value) == (operator == "in") else ~domain
 
     @api.depends("program_type")
@@ -760,7 +760,7 @@ class LoyaltyProgram(models.Model):
         """
         rule_products = {}
         for rule in self.rule_ids:
-            domain = rule._get_valid_product_domain()
+            domain = rule._get_domain_valid_product()
             if domain:
                 rule_products[rule] = products.filtered_domain(domain)
             elif not domain and rule.program_type != "gift_card":

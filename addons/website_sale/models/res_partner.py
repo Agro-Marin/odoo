@@ -61,7 +61,7 @@ class ResPartner(models.Model):
 
         return frontend_writable_fields
 
-    def _get_order_fiscal_position_recompute_domain(self):
+    def _get_domain_order_fiscal_position_recompute(self):
         """Return a domain of sale orders for which we should recompute fiscal position after address update."""
         return Domain(
             [
@@ -78,7 +78,7 @@ class ResPartner(models.Model):
         if {"country_id", "vat", "zip"} & vals.keys() and self:
             # Recompute fiscal position for open website orders
             order_fpos_recompute_domain = (
-                self._get_order_fiscal_position_recompute_domain()
+                self._get_domain_order_fiscal_position_recompute()
             )
             if (
                 orders_sudo := self.env["sale.order"]

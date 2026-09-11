@@ -73,7 +73,7 @@ class ResPartner(models.Model):
                 partner.grade_id.partner_weight if partner.grade_id else 0
             )
 
-    def _get_contact_opportunities_domain(self):
+    def _get_domain_contact_opportunities(self):
         all_partners = self._get_children_partners_for_hierarchy().ids
         return [
             "|",
@@ -92,7 +92,7 @@ class ResPartner(models.Model):
             self.env["crm.lead"]
             .with_context(active_test=False)
             ._read_group(
-                self._get_contact_opportunities_domain(),
+                self._get_domain_contact_opportunities(),
                 ["partner_assigned_id", "partner_id"],
                 ["__count"],
             )

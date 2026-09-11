@@ -41,7 +41,7 @@ class HrWorkEntry(models.Model):
         default=lambda self: self.env.ref(
             "hr_work_entry.work_entry_type_attendance", raise_if_not_found=False
         ),
-        domain=lambda self: self._get_work_entry_type_domain(),
+        domain=lambda self: self._get_domain_work_entry_type(),
     )
     display_code = fields.Char(related="work_entry_type_id.display_code")
     code = fields.Char(related="work_entry_type_id.code")
@@ -383,7 +383,7 @@ class HrWorkEntry(models.Model):
         finally:
             siblings.exists()._check_if_error()
 
-    def _get_work_entry_type_domain(self):
+    def _get_domain_work_entry_type(self):
         if len(self.env.companies.country_id.ids) > 1:
             return [("country_id", "=", False)]
         return [

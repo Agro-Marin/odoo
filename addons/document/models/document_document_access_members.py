@@ -203,18 +203,18 @@ class DocumentsDocument(models.Model):
                 extra,
                 Domain("shortcut_document_id", "=", False),
                 Domain("id", "in" if no_propagation else "child_of", self.ids),
-                self._get_access_update_domain()
+                self._get_domain_access_update()
                 if access
-                else self._get_propagation_domain(),
+                else self._get_domain_propagation(),
             )
         )
         return self.with_context(active_test=False)._search(domain).select()
 
-    def _get_propagation_domain(self) -> Domain:
+    def _get_domain_propagation(self) -> Domain:
         return Domain.TRUE if self.env.su else Domain("user_permission", "=", "edit")
 
-    def _get_access_update_domain(self) -> Domain:
-        return self._get_propagation_domain()
+    def _get_domain_access_update(self) -> Domain:
+        return self._get_domain_propagation()
 
     @api.model
     def _shortcuts_union_sql(

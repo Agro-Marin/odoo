@@ -1176,7 +1176,7 @@ class AccountJournal(models.Model):
         if "restrict_mode_hash_table" in vals and not vals.get(
             "restrict_mode_hash_table"
         ):
-            domain = self.env["account.move"]._get_move_hash_domain(
+            domain = self.env["account.move"]._get_domain_move_hash(
                 common_domain=[
                     ("journal_id", "in", self.ids),
                     ("inalterable_hash", "!=", False),
@@ -1778,7 +1778,7 @@ class AccountJournal(models.Model):
 
     def _is_payment_method_available(self, payment_method_code, complete_domain=True):
         self.check_singleton()
-        method_domain = self.env["account.payment.method"]._get_payment_method_domain(
+        method_domain = self.env["account.payment.method"]._get_domain_payment_method(
             code=payment_method_code,
             with_country=complete_domain,
             with_currency=complete_domain,

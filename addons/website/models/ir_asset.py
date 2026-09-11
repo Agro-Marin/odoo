@@ -46,7 +46,7 @@ class IrAsset(models.Model):
 
         IrModule = self.env["ir.module.module"].sudo()
         themes = (
-            IrModule.search(IrModule.get_themes_domain())
+            IrModule.search(IrModule.get_domain_themes())
             - self.env["website"].browse(website_id).theme_id
         )
         to_remove = set(themes.mapped("name"))

@@ -14,7 +14,7 @@ from odoo.addons.website_event.controllers.main import WebsiteEventController
 
 
 class ExhibitorController(WebsiteEventController):
-    def _get_event_sponsors_base_domain(self, event):
+    def _get_domain_event_sponsors_base(self, event):
         search_domain_base = [
             ("event_id", "=", event.id),
             ("exhibitor_type", "in", ["exhibitor", "online"]),
@@ -54,7 +54,7 @@ class ExhibitorController(WebsiteEventController):
         searches.setdefault("search", "")
         searches.setdefault("countries", "")
         searches.setdefault("sponsorships", "")
-        search_domain_base = self._get_event_sponsors_base_domain(event)
+        search_domain_base = self._get_domain_event_sponsors_base(event)
         search_domain = search_domain_base
 
         # search on content
@@ -173,7 +173,7 @@ class ExhibitorController(WebsiteEventController):
 
     def _event_exhibitor_get_values(self, event, sponsor, **options):
         # search for exhibitor list
-        search_domain_base = self._get_event_sponsors_base_domain(event)
+        search_domain_base = self._get_domain_event_sponsors_base(event)
         search_domain_base = Domain.AND(
             [search_domain_base, [("id", "!=", sponsor.id)]]
         )

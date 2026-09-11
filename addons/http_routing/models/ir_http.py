@@ -288,7 +288,7 @@ class IrHttp(models.AbstractModel):
     def get_translation_frontend_modules(self) -> list[str]:
         Modules = self.env["ir.module.module"].sudo()
         extra_modules_name = list(self._get_translation_frontend_modules_name())
-        extra_modules_domain = Domain(self._get_translation_frontend_modules_domain())
+        extra_modules_domain = Domain(self._get_domain_translation_frontend_modules())
         if not extra_modules_domain.is_true():
             new = Modules.search(
                 extra_modules_domain & Domain("state", "=", "installed")
@@ -297,7 +297,7 @@ class IrHttp(models.AbstractModel):
         return extra_modules_name
 
     @classmethod
-    def _get_translation_frontend_modules_domain(
+    def _get_domain_translation_frontend_modules(
         cls,
     ) -> list[tuple[str, str, typing.Any]]:
         return []

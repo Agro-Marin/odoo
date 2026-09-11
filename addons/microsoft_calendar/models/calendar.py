@@ -61,7 +61,7 @@ class CalendarEvent(models.Model):
 
     @api.model
     def _restart_microsoft_sync(self):
-        domain = self._get_microsoft_sync_domain()
+        domain = self._get_domain_microsoft_sync()
 
         self.env["calendar.event"].with_context(dont_notify=True).search(domain).write(
             {
@@ -379,7 +379,7 @@ class CalendarEvent(models.Model):
             self._forbid_recurrence_update()
         super().action_mass_archive(recurrence_update_setting)
 
-    def _get_microsoft_sync_domain(self):
+    def _get_domain_microsoft_sync(self):
         # in case of full sync, limit to a range of 1y in past and 1y in the future by default
         ICP = self.env["ir.config_parameter"].sudo()
         day_range = int(

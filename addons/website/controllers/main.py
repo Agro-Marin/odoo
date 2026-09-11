@@ -32,7 +32,7 @@ from odoo.addons.portal.controllers.portal import pager as portal_pager
 from odoo.addons.portal.controllers.web import Home
 from odoo.addons.web.controllers.binary import Binary
 from odoo.addons.web.controllers.session import Session
-from odoo.addons.website.tools import get_base_domain
+from odoo.addons.website.tools import get_base_hostname
 
 _lt = LazyTranslate(__name__)
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ class Website(Home):
 
         if not isredir and website.domain:
             domain_from = request.httprequest.environ.get("HTTP_HOST", "")
-            domain_to = get_base_domain(website.domain)
+            domain_to = get_base_hostname(website.domain)
             if domain_from != domain_to:
                 query_params = urllib.parse.urlencode({"isredir": 1, "path": path})
                 url_to = tools.urls.urljoin(

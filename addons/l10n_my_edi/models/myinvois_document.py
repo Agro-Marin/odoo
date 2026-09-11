@@ -212,7 +212,7 @@ class MyInvoisDocument(models.Model):
         self.check_singleton()
         return "MYINV/%04d/00000" % self.myinvois_issuance_date.year
 
-    def _get_last_sequence_domain(self, relaxed=False):
+    def _get_domain_last_sequence(self, relaxed=False):
         """Returns the SQL WHERE statement to use when fetching the latest record with the same sequence, and its params."""
         self.check_singleton()
         if not self.myinvois_issuance_date:

@@ -170,7 +170,7 @@ class WebsiteSnippetFilter(models.Model):
         :rtype: list[dict]
         """
         CategorySudo = request.env["product.public.category"].sudo()
-        domain = CategorySudo._get_available_category_domain(request.website.id)
+        domain = CategorySudo._get_domain_available_category(request.website.id)
         if parent_id:
             parent_category = CategorySudo.browse(parent_id)
             # Parent category should be first.

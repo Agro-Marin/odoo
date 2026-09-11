@@ -107,7 +107,7 @@ class TestLoyaltyBatching(TransactionCase):
         for reward in rewards:
             with self.subTest(reward=reward.id):
                 searched = self.env["product.product"].search(
-                    reward._get_discount_product_domain()
+                    reward._get_domain_discount_product()
                 )
                 self.assertEqual(batched[reward], searched)
         self.assertIn(deep, batched[rewards[1]], "the category reaches its subtree")

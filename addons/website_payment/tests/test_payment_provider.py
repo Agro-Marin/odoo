@@ -68,7 +68,7 @@ class TestWebsitePaymentProvider(PaymentCommon):
                 "website_id": self.website.id,
             }
         )
-        domain = settings._get_active_providers_domain()
+        domain = settings._get_domain_active_providers()
         self.assertIn(("website_id", "=", self.website.id), list(domain))
 
     def test_base_url_follows_request_root(self):

@@ -1468,7 +1468,7 @@ class Survey(http.Controller):
             ],
         )
 
-    def _get_results_page_user_input_domain(self, survey: Any, **post: Any) -> Domain:
+    def _get_domain_results_page_user_input(self, survey: Any, **post: Any) -> Domain:
         user_input_domains = []
         if post.get("finished"):
             user_input_domains.append(Domain("state", "=", "done"))
@@ -1555,7 +1555,7 @@ class Survey(http.Controller):
                     self._prepare_search_filter_input_line(input_line)
                 )
 
-        user_input_domain = self._get_results_page_user_input_domain(survey, **post)
+        user_input_domain = self._get_domain_results_page_user_input(survey, **post)
 
         if user_input_line_subdomains:
             all_required_lines_domains = [

@@ -54,7 +54,7 @@ class SaleOrder(models.Model):
         action["domain"] = [("sale_order_id", "in", self.ids)]
         return action
 
-    def _get_product_catalog_domain(self):
-        return super()._get_product_catalog_domain() & Domain(
+    def _get_domain_product_catalog(self):
+        return super()._get_domain_product_catalog() & Domain(
             "service_tracking", "!=", "event_booth"
         )

@@ -149,8 +149,8 @@ class SaleOrderLine(models.Model):
         coupons_to_unlink.sudo().unlink()
         return res
 
-    def _get_lines_sellable_domain(self):
-        return super()._get_lines_sellable_domain() & Domain("reward_id", "=", False)
+    def _get_domain_lines_sellable(self):
+        return super()._get_domain_lines_sellable() & Domain("reward_id", "=", False)
 
     def _can_be_edited_on_portal(self):
         return super()._can_be_edited_on_portal() and not self.is_reward_line

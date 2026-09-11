@@ -8,7 +8,7 @@ class TestCatalog(BaseOrderTestCase):
     def test_catalog_domain_includes_ok_field(self):
         order = self._make_order()
 
-        domain = order._get_product_catalog_domain()
+        domain = order._get_domain_product_catalog()
 
         # test model's hook returns "sale_ok"
         self.assertIn(("sale_ok", "=", True), list(domain))

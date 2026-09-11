@@ -70,7 +70,7 @@ class TimesheetCustomerPortal(CustomerPortal):
             "employee_id": {"label": _("Employee"), "sequence": 70},
         }
 
-    def _get_search_domain(self, search_in, search):
+    def _get_domain_search(self, search_in, search):
         if search_in in self._get_searchbar_inputs():
             return Domain(search_in, "ilike", search)
         else:
@@ -224,7 +224,7 @@ class TimesheetCustomerPortal(CustomerPortal):
         domain &= Domain(searchbar_filters[filterby]["domain"])
 
         if search and search_in:
-            domain &= self._get_search_domain(search_in, search)
+            domain &= self._get_domain_search(search_in, search)
 
         if parent_task_id := kw.get("parent_task_id"):
             domain &= Domain("parent_task_id", "=", int(parent_task_id))

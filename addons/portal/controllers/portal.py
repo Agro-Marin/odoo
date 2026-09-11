@@ -266,14 +266,14 @@ class CustomerPortal(Controller):
         commercial_partner_sudo = partner_sudo.commercial_partner_id
         billing_partners_sudo = (
             partner_sudo.search(
-                commercial_partner_sudo._get_billing_address_domain(),
+                commercial_partner_sudo._get_domain_billing_address(),
                 order="id desc",
             )
             | partner_sudo
         )
         delivery_partners_sudo = (
             partner_sudo.search(
-                commercial_partner_sudo._get_delivery_address_domain(),
+                commercial_partner_sudo._get_domain_delivery_address(),
                 order="id desc",
             )
             | partner_sudo

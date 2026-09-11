@@ -195,8 +195,8 @@ class DiscussChannelMember(models.Model):
             ]
         return super()._get_store_guest_fields(field_specs)
 
-    def _get_rtc_invite_members_domain(self, *a, **kw):
-        domain = super()._get_rtc_invite_members_domain(*a, **kw)
+    def _get_domain_rtc_invite_members(self, *a, **kw):
+        domain = super()._get_domain_rtc_invite_members(*a, **kw)
         if self.channel_id.channel_type == "livechat":
             domain &= Domain(
                 "partner_id", "not in", self._get_excluded_rtc_members_partner_ids()

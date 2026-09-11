@@ -219,7 +219,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         )
         exchange_journal = journal.company_id.currency_exchange_journal_id
 
-        bank_miscellaneous_domain = self._get_bank_miscellaneous_move_lines_domain(
+        bank_miscellaneous_domain = self._get_domain_bank_miscellaneous_move_lines(
             options, journal
         )
         bank_miscellaneous_domain = Domain.AND(
@@ -707,7 +707,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
             self._get_bank_journal_and_currencies(options)
         )
         inconsistent_statement = self._get_inconsistent_statements(options, journal).ids
-        bank_miscellaneous_domain = self._get_bank_miscellaneous_move_lines_domain(
+        bank_miscellaneous_domain = self._get_domain_bank_miscellaneous_move_lines(
             options, journal
         )
         has_bank_miscellaneous_move_lines = bank_miscellaneous_domain and bool(
@@ -754,7 +754,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         :rtype: tuple
         """
         # Get domain and balances
-        domain = report._get_options_domain(options, "from_beginning")
+        domain = report._get_domain_options(options, "from_beginning")
         balance_gl = journal._get_journal_bank_account_balance(domain=domain)[0]
         last_statement, balance_end, difference, general_ledger_not_matching = (
             self._compute_balances(options, journal, balance_gl, journal_currency)
@@ -850,7 +850,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
             ]
         )
 
-    def _get_bank_miscellaneous_move_lines_domain(self, options, journal):
+    def _get_domain_bank_miscellaneous_move_lines(self, options, journal):
         """Get the domain retrieving the journal items affecting the bank account but not linked to a
         statement line.
 
@@ -866,7 +866,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
         domain = [
             ("account_id", "=", journal.default_account_id.id),
             ("statement_line_id", "=", False),
-            *report._get_options_domain(options, "from_beginning"),
+            *report._get_domain_options(options, "from_beginning"),
         ]
 
         fiscal_lock_date = journal.company_id._get_user_fiscal_lock_date(journal)
@@ -954,7 +954,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
             "views": [(self.env.ref("account.view_account_move_line_list").id, "list")],
             "domain": self.env[
                 "account.bank.reconciliation.report.handler"
-            ]._get_bank_miscellaneous_move_lines_domain(options, journal),
+            ]._get_domain_bank_miscellaneous_move_lines(options, journal),
         }
 
     def bank_reconciliation_report_open_inconsistent_statements(

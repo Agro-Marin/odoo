@@ -73,7 +73,7 @@ class AccountMove(models.Model):
     l10n_hr_fiscal_user_id = fields.Many2one(
         comodel_name="res.partner",
         string="Fiscal User",
-        domain=lambda self: self._get_l10n_hr_fiscal_user_id_domain(),
+        domain=lambda self: self._get_domain_l10n_hr_fiscal_user_id(),
     )
     l10n_hr_operator_name = fields.Char(
         string="Operator Label", related="l10n_hr_fiscal_user_id.name"
@@ -218,7 +218,7 @@ class AccountMove(models.Model):
         else:
             return False
 
-    def _get_l10n_hr_fiscal_user_id_domain(self):
+    def _get_domain_l10n_hr_fiscal_user_id(self):
         internal_users = self.env.ref("base.group_user")
         domain = [("user_ids", "in", internal_users.user_ids.ids)]
         return domain

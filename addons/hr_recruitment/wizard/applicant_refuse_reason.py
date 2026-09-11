@@ -100,7 +100,7 @@ class ApplicantGetRefuseReason(models.TransientModel):
     def _compute_duplicate_applicant_ids_domain(self):
         for wizard in self:
             domain = (
-                wizard.applicant_ids._get_similar_applicants_domain()
+                wizard.applicant_ids._get_domain_similar_applicants()
                 & Domain("id", "not in", wizard.applicant_ids.ids)
                 & Domain("application_status", "=", "ongoing")
             )

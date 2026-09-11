@@ -21,17 +21,17 @@ class TestDocumentsPropagationDomain(TransactionCaseDocuments):
     def test_access_domain_layers_on_the_propagation_domain(self):
         calls = []
         DocumentsDocument = type(self.env["document.document"])
-        base_rule = DocumentsDocument._get_propagation_domain
+        base_rule = DocumentsDocument._get_domain_propagation
 
         def spy(records):
             calls.append("propagation")
             return base_rule(records)
 
-        self.patch(DocumentsDocument, "_get_propagation_domain", spy)
-        self.env["document.document"]._get_access_update_domain()
+        self.patch(DocumentsDocument, "_get_domain_propagation", spy)
+        self.env["document.document"]._get_domain_access_update()
         self.assertTrue(
             calls,
-            "_get_access_update_domain must layer on _get_propagation_domain, "
+            "_get_domain_access_update must layer on _get_domain_propagation, "
             "not restate the rule",
         )
 
@@ -55,16 +55,16 @@ class TestDocumentsPropagationDomain(TransactionCaseDocuments):
 
         calls = []
         DocumentsDocument = type(self.env["document.document"])
-        base_rule = DocumentsDocument._get_propagation_domain
+        base_rule = DocumentsDocument._get_domain_propagation
 
         def spy(records):
             calls.append("propagation")
             return base_rule(records)
 
-        self.patch(DocumentsDocument, "_get_propagation_domain", spy)
+        self.patch(DocumentsDocument, "_get_domain_propagation", spy)
         folder._update_company(company.id)
         self.assertTrue(
-            calls, "_update_company must go through _get_propagation_domain"
+            calls, "_update_company must go through _get_domain_propagation"
         )
         child.invalidate_recordset()
         self.assertEqual(

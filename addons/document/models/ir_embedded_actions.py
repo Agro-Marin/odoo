@@ -42,7 +42,7 @@ class IrEmbeddedActions(models.Model):
     @api.autovacuum
     def _gc_documents_obsolete(self) -> tuple[int, bool]:
         embeddable = self.env["ir.actions.server"]._search(
-            self.env["document.document"]._get_embeddable_server_action_domain(
+            self.env["document.document"]._get_domain_embeddable_server_action(
                 restrict_to_user_groups=False
             )
         )

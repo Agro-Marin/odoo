@@ -53,7 +53,7 @@ class AccountPayment(models.Model):
                 # To avoid displaying things for nothing, also ensure to only consider withholding taxes matching the payment type.
                 payment_domain = self.env[
                     "mixin.account.withholding.line"
-                ]._get_withholding_tax_domain(
+                ]._get_domain_withholding_tax(
                     company=payment.company_id, payment_type=payment.payment_type
                 )
                 payment_withholding_taxes = withholding_taxes.filtered_domain(

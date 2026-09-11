@@ -65,8 +65,8 @@ class HrVersion(models.Model):
             )
         return self.env.ref("hr_work_entry.work_entry_type_leave")
 
-    def _get_sub_leave_domain(self):
-        return super()._get_sub_leave_domain() | Domain(
+    def _get_domain_sub_leave(self):
+        return super()._get_domain_sub_leave() | Domain(
             "holiday_id.employee_id", "in", self.employee_id.ids
         )
 

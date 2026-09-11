@@ -13,7 +13,7 @@ class EventTrackLiveController(EventTrackController):
         track_suggestion = track._get_track_suggestions(
             restrict_domain=Domain.AND(
                 [
-                    self._get_event_tracks_domain(track.event_id),
+                    self._get_domain_event_tracks(track.event_id),
                     Domain("youtube_video_url", "!=", False),
                 ]
             ),

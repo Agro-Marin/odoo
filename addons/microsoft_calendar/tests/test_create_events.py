@@ -279,7 +279,7 @@ class TestCreateEvents(TestCommon):
         """
         A Odoo recurrent event has been created and synced with Outlook by another user, but nothing
         should happen as it we prevent sync of recurrences from other users
-        ( see microsoft_calendar/models/calendar_recurrence_rule.py::_get_microsoft_sync_domain() )
+        ( see microsoft_calendar/models/calendar_recurrence_rule.py::_get_domain_microsoft_sync() )
         """
         if not self.sync_odoo_recurrences_with_outlook_feature():
             return

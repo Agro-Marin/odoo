@@ -103,7 +103,7 @@ class ProductFeed(models.Model):
         """
         for feed in self:
             product_count = feed.env["product.product"].search_count(
-                feed._get_feed_product_domain(), limit=const.PRODUCT_FEED_SOFT_LIMIT + 1
+                feed._get_domain_feed_product(), limit=const.PRODUCT_FEED_SOFT_LIMIT + 1
             )
             if product_count > const.PRODUCT_FEED_SOFT_LIMIT:
                 raise ValidationError(
@@ -240,8 +240,8 @@ class ProductFeed(models.Model):
             and (price_info := self._prepare_gmc_price_info(product))
         }
 
-    def _get_feed_product_domain(self):
-        product_domain = self.website_id._get_basic_feed_product_domain()
+    def _get_domain_feed_product(self):
+        product_domain = self.website_id._get_domain_basic_feed_product()
         if self.product_category_ids:
             product_domain &= Domain(
                 "public_categ_ids", "child_of", self.product_category_ids.ids
@@ -250,7 +250,7 @@ class ProductFeed(models.Model):
         return product_domain
 
     def _get_feed_products(self):
-        product_domain = self._get_feed_product_domain()
+        product_domain = self._get_domain_feed_product()
 
         products = self.env["product.product"].search(
             product_domain, limit=const.PRODUCT_FEED_HARD_LIMIT

@@ -44,7 +44,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
         if not self.test_file:
             self.export_type = "official"
 
-    def _get_base_domain(self):
+    def _get_domain_base(self):
         domain = [
             (
                 "company_id",
@@ -65,7 +65,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
         This is needed because we have to display only one line for the initial balance of all expense/revenue accounts in the FEC.
         """
         query = self.env["account.move.line"]._search(
-            self._get_base_domain()
+            self._get_domain_base()
             + [
                 ("date", "<", self.date_from),
                 ("account_id.include_initial_balance", "=", False),
@@ -179,7 +179,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
         )
 
         query = self.env["account.move.line"]._search(
-            self._get_base_domain()
+            self._get_domain_base()
             + [
                 ("date", "<", self.date_from),
                 ("account_id.include_initial_balance", "=", True),
@@ -274,7 +274,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
 
         # INITIAL BALANCE - receivable/payable
         query = self.env["account.move.line"]._search(
-            self._get_base_domain()
+            self._get_domain_base()
             + [
                 ("date", "<", self.date_from),
                 ("account_id.include_initial_balance", "=", True),
@@ -341,7 +341,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
             .get_param("l10n_fr_fec.batch_size", 500000)
         )  # To prevent memory errors when fetching the results
         query = self.env["account.move.line"]._search(
-            domain=self._get_base_domain()
+            domain=self._get_domain_base()
             + [
                 ("date", ">=", self.date_from),
                 ("date", "<=", self.date_to),

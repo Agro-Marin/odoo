@@ -33,7 +33,7 @@ class ProductTemplate(models.Model):
                 count += variant_counts.get(variant.id, 0)
             template.product_document_count = count
 
-    def _get_product_document_domain(self):
+    def _get_domain_product_document(self):
         self.check_singleton()
         return (
             Domain("res_model", "=", "product.template")
@@ -79,7 +79,7 @@ class ProductTemplate(models.Model):
                 "default_res_id": self.id,
                 "default_company_id": self.company_id.id,
             },
-            "domain": self._get_product_document_domain(),
+            "domain": self._get_domain_product_document(),
             "target": "current",
             "help": """
                 <p class="o_view_nocontent_smiling_face">

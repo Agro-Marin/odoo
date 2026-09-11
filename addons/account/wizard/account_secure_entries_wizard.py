@@ -89,7 +89,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
             self.env["account.move"]
             .sudo()
             ._read_group(
-                domain=self._get_unhashed_moves_in_hashed_period_domain(
+                domain=self._get_domain_unhashed_moves_in_hashed_period(
                     company_id, hash_date, [("state", "=", "posted")]
                 ),
                 groupby=["journal_id", "sequence_prefix"],
@@ -221,7 +221,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
             )
 
         if self.env["account.move"].search_count(
-            self._get_draft_moves_in_hashed_period_domain(), limit=1
+            self._get_domain_draft_moves_in_hashed_period(), limit=1
         ):
             warnings["account_unhashed_draft_entries"] = {
                 "message": _("There are still draft entries before the selected date."),
@@ -268,7 +268,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
             wizard.warnings = wizard._get_warnings()
 
     @api.model
-    def _get_unhashed_moves_in_hashed_period_domain(
+    def _get_domain_unhashed_moves_in_hashed_period(
         self, company_id, hash_date, domain=False
     ):
         if not (company_id and hash_date):
@@ -284,9 +284,9 @@ class AccountSecureEntriesWizard(models.TransientModel):
             ]
         )
 
-    def _get_draft_moves_in_hashed_period_domain(self):
+    def _get_domain_draft_moves_in_hashed_period(self):
         self.check_singleton()
-        return self._get_unhashed_moves_in_hashed_period_domain(
+        return self._get_domain_unhashed_moves_in_hashed_period(
             self.company_id, self.hash_date, [("state", "=", "draft")]
         )
 
@@ -315,7 +315,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
             "name": _("Draft Entries"),
             "res_model": "account.move",
             "type": "ir.actions.act_window",
-            "domain": list(self._get_draft_moves_in_hashed_period_domain()),
+            "domain": list(self._get_domain_draft_moves_in_hashed_period()),
             "search_view_id": [
                 self.env.ref("account.view_account_move_filter").id,
                 "search",

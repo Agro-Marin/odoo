@@ -469,7 +469,7 @@ class DocumentsDocument(models.Model):
                     ("id", "in" if skip_propagation else "child_of", self.ids),
                 ]
             )
-            candidates_domain &= self._get_access_update_domain()
+            candidates_domain &= self._get_domain_access_update()
             candidates_query = self.with_context(active_test=False)._search(
                 candidates_domain
             )

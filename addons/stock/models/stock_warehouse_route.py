@@ -626,7 +626,7 @@ class StockWarehouseRoute(models.Model):
             ("picking_type_id", "=", self.pick_type_id.id),
         ]
 
-    def _get_resupply_mto_leg_domain(self):
+    def _get_domain_resupply_mto_leg(self):
         self.check_singleton()
         mto_route = self._get_or_create_global_route(
             "stock.route_warehouse0_mto",
@@ -699,7 +699,7 @@ class StockWarehouseRoute(models.Model):
         Rule.search(self._get_domain_resupply_pick_leg(routes)).write(
             {"active": multi_step}
         )
-        mto_domain = self._get_resupply_mto_leg_domain()
+        mto_domain = self._get_domain_resupply_mto_leg()
         if mto_domain:
             Rule.search(mto_domain).write({"active": not multi_step})
 

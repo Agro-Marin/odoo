@@ -307,7 +307,7 @@ class EventMail(models.Model):
         """
         self.check_singleton()
 
-        mail_domain = self.env["event.mail.registration"]._get_skip_domain() + [
+        mail_domain = self.env["event.mail.registration"]._get_domain_skip() + [
             ("scheduler_id", "=", self.id)
         ]
         if context_registrations:

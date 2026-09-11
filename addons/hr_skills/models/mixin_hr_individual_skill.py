@@ -172,7 +172,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
             and (not individual_skill.valid_to or individual_skill.valid_to >= day)
         )
 
-    def _get_matching_individual_skill_domain(self, vals, as_certification):
+    def _get_domain_matching_individual_skill(self, vals, as_certification):
         linked_field = self._linked_field_name()
         domain = Domain.AND(
             [
@@ -222,7 +222,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
             matching_skill_domain = Domain.OR(
                 [
                     matching_skill_domain,
-                    self._get_matching_individual_skill_domain(vals, as_certification),
+                    self._get_domain_matching_individual_skill(vals, as_certification),
                 ]
             )
             if as_certification:

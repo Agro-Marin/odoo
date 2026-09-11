@@ -26,8 +26,8 @@ class ResCompany(models.Model):
             "documents_product_settings", "product_folder_id", folder_id
         )
 
-    def _get_used_folder_ids_domain(self, folder_ids):
-        return super()._get_used_folder_ids_domain(folder_ids) | (
+    def _get_domain_used_folder_ids(self, folder_ids):
+        return super()._get_domain_used_folder_ids(folder_ids) | (
             Domain("product_folder_id", "in", folder_ids)
             & Domain("documents_product_settings", "=", True)
         )

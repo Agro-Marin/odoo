@@ -154,7 +154,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def _add_search_subdomains_hook(self, search):
         return []
 
-    def _get_shop_domain(
+    def _get_domain_shop(
         self, search, category, attribute_value_dict, search_in_description=True
     ):
         domains = [request.website.sale_product_domain()]
@@ -181,7 +181,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
 
         if attribute_value_dict:
             domains.extend(
-                request.env["product.template"]._get_attribute_value_domain(
+                request.env["product.template"]._get_domain_attribute_value(
                     attribute_value_dict
                 )
             )
@@ -418,7 +418,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             # TODO Find an alternative way to obtain the domain through the search metadata.
             Product = request.env["product.template"].with_context(bin_size=True)
             search_term = fuzzy_search_term or search
-            domain = self._get_shop_domain(search_term, category, attribute_value_dict)
+            domain = self._get_domain_shop(search_term, category, attribute_value_dict)
 
             # This is ~4 times more efficient than a search for the cheapest and most expensive products
             query = Product._search(domain)

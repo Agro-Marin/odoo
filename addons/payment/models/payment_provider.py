@@ -1090,7 +1090,7 @@ class PaymentProvider(models.Model):
         :return: None
         """
         existing_providers = self.search(
-            self._get_provider_domain(provider_code, **kwargs)
+            self._get_domain_provider(provider_code, **kwargs)
         )
         main_provider = existing_providers[:1]
         existing_provider_companies = existing_providers.company_id
@@ -1111,11 +1111,11 @@ class PaymentProvider(models.Model):
         :param str provider_code: The code of the provider whose data to remove.
         :return: None
         """
-        providers = self.search(self._get_provider_domain(provider_code, **kwargs))
+        providers = self.search(self._get_domain_provider(provider_code, **kwargs))
         providers.write(self._get_removal_values())
 
     @api.model
-    def _get_provider_domain(self, provider_code, **kwargs):
+    def _get_domain_provider(self, provider_code, **kwargs):
         """Return the payment provider domain.
 
         :param str provider_code: The code of the provider to search for.

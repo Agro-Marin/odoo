@@ -3994,7 +3994,7 @@ class ProjectTask(models.Model):
             project.sudo().message_follower_ids | self.sudo().message_follower_ids
         )
         domain = Domain(
-            self.env["res.partner"]._get_mention_suggestions_domain(search)
+            self.env["res.partner"]._get_domain_mention_suggestions(search)
         ) & Domain("id", "in", followers.partner_id.ids)
         partners = (
             self.env["res.partner"].sudo()._search_mention_suggestions(domain, limit)

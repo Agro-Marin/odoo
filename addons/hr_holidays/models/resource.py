@@ -52,7 +52,7 @@ class ResourceCalendarLeaves(models.Model):
                         )
                     )
 
-    def _get_domain(self, time_domain_dict):
+    def _get_domain_for_periods(self, time_domain_dict):
         return Domain.OR(
             [
                 ("employee_company_id", "=", date["company_id"]),
@@ -80,7 +80,7 @@ class ResourceCalendarLeaves(models.Model):
             {tuple(sorted(entry.items())): entry for entry in time_domain_dict}.values()
         )
 
-        domain = self._get_domain(time_domain_dict)
+        domain = self._get_domain_for_periods(time_domain_dict)
         leaves = self.env["hr.leave"].search(domain)
         if not leaves:
             return

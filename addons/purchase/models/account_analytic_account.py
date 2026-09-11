@@ -10,7 +10,7 @@ class AccountAnalyticAccount(models.Model):
         compute="_compute_purchase_order_count",
     )
 
-    def _get_purchase_order_domain(self):
+    def _get_domain_purchase_order(self):
         return [
             (
                 "line_ids.invoice_line_ids.analytic_line_ids."
@@ -25,7 +25,7 @@ class AccountAnalyticAccount(models.Model):
         for account in self:
             account.purchase_order_count = (
                 self.env["purchase.order"].search_count(
-                    account._get_purchase_order_domain(),
+                    account._get_domain_purchase_order(),
                 )
                 if account.plan_id
                 else 0
@@ -37,12 +37,12 @@ class AccountAnalyticAccount(models.Model):
             "name": _("Purchase Orders"),
             "type": "ir.actions.act_window",
             "res_model": "purchase.order",
-            "domain": self._get_purchase_order_domain(),
+            "domain": self._get_domain_purchase_order(),
             "view_mode": "list,form",
         }
         if self.purchase_order_count == 1:
             purchase_order = self.env["purchase.order"].search(
-                self._get_purchase_order_domain(),
+                self._get_domain_purchase_order(),
                 limit=1,
             )
             result["view_mode"] = "form"

@@ -174,7 +174,7 @@ class LoyaltyRule(models.Model):
         # used to name one at random, which only widened invalidation.
         self.user_has_debug = self.env.user.has_group("base.group_no_one")
 
-    def _get_valid_product_domain(self):
+    def _get_domain_valid_product(self):
         self.check_singleton()
         constrains = []
         if self.product_ids:
@@ -190,7 +190,7 @@ class LoyaltyRule(models.Model):
 
     def _get_valid_products(self):
         self.check_singleton()
-        return self.env["product.product"].search(self._get_valid_product_domain())
+        return self.env["product.product"].search(self._get_domain_valid_product())
 
     def _compute_amount(self, currency_to):
         self.check_singleton()

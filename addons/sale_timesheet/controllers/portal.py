@@ -98,7 +98,7 @@ class SaleTimesheetCustomerPortal(TimesheetCustomerPortal):
             "timesheet_invoice_id": {"label": _("Invoice"), "sequence": 90},
         }
 
-    def _get_search_domain(self, search_in, search):
+    def _get_domain_search(self, search_in, search):
         if search_in == "so":
             return Domain("so_line", "ilike", search) | Domain(
                 "so_line.order_id.name", "ilike", search
@@ -115,7 +115,7 @@ class SaleTimesheetCustomerPortal(TimesheetCustomerPortal):
                 )
             )
         else:
-            return super()._get_search_domain(search_in, search)
+            return super()._get_domain_search(search_in, search)
 
     def _get_searchbar_sortings(self):
         return super()._get_searchbar_sortings() | {

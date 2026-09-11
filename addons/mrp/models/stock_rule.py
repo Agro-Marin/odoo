@@ -39,8 +39,8 @@ class StockRule(models.Model):
         message_dict["manufacture"] = manufacture_message
         return message_dict
 
-    def _get_picking_type_code_domain(self):
-        codes = super()._get_picking_type_code_domain()
+    def _get_domain_picking_type_code(self):
+        codes = super()._get_domain_picking_type_code()
         if self.action == "manufacture":
             codes = [*codes, "mrp_operation"]
         return codes

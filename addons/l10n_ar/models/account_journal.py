@@ -112,7 +112,7 @@ class AccountJournal(models.Model):
             letters = list(set(letters) & set(counterpart_letters))
         return letters
 
-    def _get_journal_codes_domain(self):
+    def _get_domain_journal_codes(self):
         self.check_singleton()
         return self._get_codes_per_journal_type(self.l10n_ar_afip_pos_system)
 

@@ -14,8 +14,8 @@ from odoo.http import BadRequest, NotFound, request
 from odoo.tools.safe_eval import safe_eval
 
 from .json_helpers import (
-    get_date_domain,
-    get_default_domain,
+    get_domain_date,
+    get_domain_default_filter,
     get_groupby,
     get_view_id_and_type,
 )
@@ -74,7 +74,7 @@ class WebJsonController(http.Controller):
         view_tree = etree.fromstring(view["arch"])
 
         if env["ir.ui.view"]._view_type_has_date_range(view_type):
-            domains.append(self._get_json_date_domain(view_tree, kwargs))
+            domains.append(self._get_domain_json_date(view_tree, kwargs))
 
         if view_type == "activity":
             domains.append([("activity_ids", "!=", False)])
@@ -139,7 +139,9 @@ class WebJsonController(http.Controller):
                 raise BadRequest(f"Invalid domain: {exc}") from exc
             domains.append(user_domain)
         else:
-            default_domain = get_default_domain(model, action, context, eval_context)
+            default_domain = get_domain_default_filter(
+                model, action, context, eval_context
+            )
             if default_domain and not Domain(default_domain).is_true():
                 kwargs["domain"] = repr(list(default_domain))
             domains.append(default_domain)
@@ -157,7 +159,7 @@ class WebJsonController(http.Controller):
             kwargs["limit"] = limit
         return limit, offset
 
-    def _get_json_date_domain(self, view_tree, kwargs):
+    def _get_domain_json_date(self, view_tree, kwargs):
         try:
             start_date = date.fromisoformat(kwargs["start_date"])
             end_date = date.fromisoformat(kwargs["end_date"])
@@ -166,7 +168,7 @@ class WebJsonController(http.Controller):
         except KeyError:
             start_date = end_date = None
         try:
-            date_domain = get_date_domain(start_date, end_date, view_tree)
+            date_domain = get_domain_date(start_date, end_date, view_tree)
         except ValueError as exc:
             raise BadRequest(exc.args[0]) from exc
         if "start_date" not in kwargs or "end_date" not in kwargs:

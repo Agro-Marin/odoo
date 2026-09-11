@@ -478,7 +478,7 @@ class ProjectProject(models.Model):
             ],
         }
 
-        return self._get_sale_items_domain(section_domains.get(section_id, []))
+        return self._get_domain_sale_items(section_domains.get(section_id, []))
 
     def _get_profitability_labels(self):
         return {

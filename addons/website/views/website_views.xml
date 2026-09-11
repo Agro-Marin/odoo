@@ -421,7 +421,7 @@
             <field name="target">fullscreen</field>
             <field
                 name="domain"
-                eval="obj().get_themes_domain()"
+                eval="obj().get_domain_themes()"
                 model="ir.module.module" />
             <field
                 name="view_ids"

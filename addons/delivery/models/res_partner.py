@@ -13,7 +13,7 @@ class ResPartner(models.Model):
     )
     is_pickup_location = fields.Boolean()  # Whether it is a pickup point address.
 
-    def _get_delivery_address_domain(self):
-        return super()._get_delivery_address_domain() & Domain(
+    def _get_domain_delivery_address(self):
+        return super()._get_domain_delivery_address() & Domain(
             "is_pickup_location", "=", False
         )

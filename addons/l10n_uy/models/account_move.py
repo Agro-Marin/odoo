@@ -28,8 +28,8 @@ class AccountMove(models.Model):
     def _l10n_uy_get_formatted_sequence(self, number=0):
         return "%s A%07d" % (self.l10n_latam_document_type_id.doc_code_prefix, number)
 
-    def _get_last_sequence_domain(self, relaxed=False):
-        where_string, param = super()._get_last_sequence_domain(relaxed)
+    def _get_domain_last_sequence(self, relaxed=False):
+        where_string, param = super()._get_domain_last_sequence(relaxed)
         if (
             self.company_id.account_fiscal_country_id.code == "UY"
             and self.l10n_latam_use_documents
@@ -42,10 +42,10 @@ class AccountMove(models.Model):
             )
         return where_string, param
 
-    def _get_l10n_latam_documents_domain(self):
+    def _get_domain_l10n_latam_documents(self):
         """If this is a reversal or debit, suggest only related subtypes"""
         self.check_singleton()
-        domain = super()._get_l10n_latam_documents_domain()
+        domain = super()._get_domain_l10n_latam_documents()
         if self.country_code == "UY" and (
             original_move := self.reversed_entry_id or self.debit_origin_id
         ):

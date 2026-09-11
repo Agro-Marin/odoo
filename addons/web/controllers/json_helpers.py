@@ -62,7 +62,7 @@ def get_view_id_and_type(
     return view_id, view_type
 
 
-def get_default_domain(model, action, context, eval_context):
+def get_domain_default_filter(model, action, context, eval_context):
     for ir_filter in model.env["ir.filters"].get_filters(
         model._name, action._origin.id
     ):
@@ -104,7 +104,7 @@ def get_default_domain(model, action, context, eval_context):
     return default_domain
 
 
-def get_date_domain(start_date, end_date, view_tree):
+def get_domain_date(start_date, end_date, view_tree):
     if not start_date or not end_date:
         start_date = date.today() + relativedelta(day=1)
         end_date = start_date + relativedelta(months=1)

@@ -18,12 +18,12 @@ class PortalMailGroup(http.Controller):
     _thread_per_page = 20
     _replies_per_page = 5
 
-    def _get_website_domain(self):
+    def _get_domain_not_rejected(self):
         return [("moderation_status", "!=", "rejected")]
 
     def _get_archives(self, group_id):
         domain = Domain.AND(
-            [self._get_website_domain(), [("mail_group_id", "=", group_id)]]
+            [self._get_domain_not_rejected(), [("mail_group_id", "=", group_id)]]
         )
         results = request.env["mail.group.message"]._read_group(
             domain,
@@ -121,7 +121,7 @@ class PortalMailGroup(http.Controller):
         GroupMessage = request.env["mail.group.message"]
 
         domain = Domain.AND(
-            [self._get_website_domain(), [("mail_group_id", "=", group.id)]]
+            [self._get_domain_not_rejected(), [("mail_group_id", "=", group.id)]]
         )
         if mode == "thread":
             domain &= Domain("group_message_parent_id", "=", False)
@@ -179,7 +179,7 @@ class PortalMailGroup(http.Controller):
         GroupMessage = request.env["mail.group.message"]
         base_domain = Domain.AND(
             [
-                self._get_website_domain(),
+                self._get_domain_not_rejected(),
                 [
                     ("mail_group_id", "=", group.id),
                     (
@@ -228,7 +228,7 @@ class PortalMailGroup(http.Controller):
 
         replies_domain = Domain.AND(
             [
-                self._get_website_domain(),
+                self._get_domain_not_rejected(),
                 [
                     ("id", ">", int(last_displayed_id)),
                     ("group_message_parent_id", "=", message.id),

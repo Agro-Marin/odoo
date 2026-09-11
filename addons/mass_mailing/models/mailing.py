@@ -442,7 +442,7 @@ class MailingMailing(models.Model):
     def _compute_total(self):
         for mass_mailing in self:
             total = self.env[mass_mailing.mailing_model_real].search_count(
-                mass_mailing._get_recipients_domain()
+                mass_mailing._get_domain_recipients()
             )
             if (
                 total
@@ -686,7 +686,7 @@ class MailingMailing(models.Model):
                 mailing.mailing_domain = mailing.mailing_filter_id.mailing_domain
             else:
                 mailing.mailing_domain = repr(
-                    mailing._get_default_mailing_domain() or []
+                    mailing._get_domain_default_mailing() or []
                 )
 
     @api.depends("mailing_model_name")
@@ -1393,7 +1393,7 @@ class MailingMailing(models.Model):
         }
 
     def _get_recipients(self):
-        mailing_domain = self._get_recipients_domain()
+        mailing_domain = self._get_domain_recipients()
         res_ids = self.env[self.mailing_model_real].search(mailing_domain).ids
 
         # randomly choose a fragment
@@ -1414,7 +1414,7 @@ class MailingMailing(models.Model):
             res_ids = random.sample(sorted(remaining), topick)
         return res_ids
 
-    def _get_recipients_domain(self):
+    def _get_domain_recipients(self):
         """Overridable getter used to get the domain of the recipients at the time of sending."""
         return Domain(self._parse_mailing_domain())
 
@@ -2014,7 +2014,7 @@ class MailingMailing(models.Model):
 
         return urls
 
-    def _get_default_mailing_domain(self):
+    def _get_domain_default_mailing(self):
         mailing_domain = Domain.TRUE
         if hasattr(self.env[self.mailing_model_name], "_mailing_get_default_domain"):
             mailing_domain = Domain(

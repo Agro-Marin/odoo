@@ -91,7 +91,7 @@ class CalendarRecurrence(models.Model):
 
     @api.model
     def _restart_google_sync(self):
-        self.env["calendar.recurrence"].search(self._get_sync_domain()).write(
+        self.env["calendar.recurrence"].search(self._get_domain_sync()).write(
             {
                 "need_sync": True,
             }
@@ -272,7 +272,7 @@ class CalendarRecurrence(models.Model):
         )
         return recurrence
 
-    def _get_sync_domain(self):
+    def _get_domain_sync(self):
         # Empty rrule may exists in historical data. It is not a desired behavior but it could have been created with
         # older versions of the module. When synced, these recurrency may come back from Google after database cleaning
         # and trigger errors as the records are not properly populated.

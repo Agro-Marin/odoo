@@ -49,7 +49,7 @@ class DocumentsDocument(models.Model):
                 _("Only one value can be searched for child of `folder_id`.")
             )
         value = values.pop()
-        return self._get_child_of_domain(
+        return self._get_domain_child_of_documents(
             Domain("folder_id", "=", value) | Domain("id", "=", value), value
         )
 
@@ -111,7 +111,7 @@ class DocumentsDocument(models.Model):
                 raise UserError(
                     _("Only one value can be searched for children of `user_folder_id`")
                 )
-            return self._get_child_of_domain(domain, values.pop())
+            return self._get_domain_child_of_documents(domain, values.pop())
         return domain
 
     @api.model
@@ -172,7 +172,9 @@ class DocumentsDocument(models.Model):
         vals.update(new_vals)
 
     @api.model
-    def _get_child_of_domain(self, roots_domain: Domain, value: str | int) -> Domain:
+    def _get_domain_child_of_documents(
+        self, roots_domain: Domain, value: str | int
+    ) -> Domain:
         if not isinstance(value, str | int):
             raise UserError(
                 _(

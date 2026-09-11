@@ -494,7 +494,7 @@ class MixinAccountWithholdingLine(models.AbstractModel):
         return aml_create_values_list
 
     @api.model
-    def _get_withholding_tax_domain(self, company, payment_type):
+    def _get_domain_withholding_tax(self, company, payment_type):
         """Construct and return a domain that will filter withholding taxes available for this company and payment type."""
         # The domain filters account.tax, so account.tax is what must build its
         # company clause: this fork gives it `company_ids` and the plural

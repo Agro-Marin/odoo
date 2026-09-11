@@ -179,9 +179,9 @@ class AccountMove(models.Model):
             and self.move_type in ["in_refund", "out_refund"]
         )
 
-    def _get_l10n_latam_documents_domain(self):
+    def _get_domain_l10n_latam_documents(self):
         self.check_singleton()
-        domain = super()._get_l10n_latam_documents_domain()
+        domain = super()._get_domain_l10n_latam_documents()
         if self.journal_id.company_id.account_fiscal_country_id.code == "AR":
             letters = self.journal_id._get_journal_letter(
                 counterpart_partner=self.partner_id.commercial_partner_id
@@ -190,7 +190,7 @@ class AccountMove(models.Model):
             domain &= Domain("l10n_ar_letter", "=", False) | Domain(
                 "l10n_ar_letter", "in", letters
             )
-            domain &= Domain(self.journal_id._get_journal_codes_domain())
+            domain &= Domain(self.journal_id._get_domain_journal_codes())
             if self.move_type in ["out_refund", "in_refund"]:
                 domain = (
                     Domain("code", "in", self._get_l10n_ar_codes_used_for_inv_and_ref())
@@ -441,8 +441,8 @@ class AccountMove(models.Model):
                 return self._get_formatted_sequence()
         return super()._get_starting_sequence()
 
-    def _get_last_sequence_domain(self, relaxed=False):
-        where_string, param = super()._get_last_sequence_domain(relaxed)
+    def _get_domain_last_sequence(self, relaxed=False):
+        where_string, param = super()._get_domain_last_sequence(relaxed)
         if (
             self.company_id.account_fiscal_country_id.code == "AR"
             and self.l10n_latam_use_documents

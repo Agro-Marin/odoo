@@ -297,9 +297,9 @@ class StockRule(models.Model):
     @api.depends("action")
     def _compute_picking_type_code_domain(self):
         for rule in self:
-            rule.picking_type_code_domain = rule._get_picking_type_code_domain()
+            rule.picking_type_code_domain = rule._get_domain_picking_type_code()
 
-    def _get_picking_type_code_domain(self):
+    def _get_domain_picking_type_code(self):
         return []
 
     def _get_push_new_date(self, move):

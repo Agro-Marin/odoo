@@ -56,7 +56,7 @@ class PaymentPortal(payment_portal.PaymentPortal):
             raise ValidationError(_("Please log in to pay your overdue invoices"))
         partner = request.env.user.partner_id
         overdue_invoices = request.env["account.move"].search(
-            self._get_overdue_invoices_domain()
+            self._get_domain_overdue_invoices()
         )
         currencies = overdue_invoices.mapped("currency_id")
         if not all(currency == currencies[0] for currency in currencies):

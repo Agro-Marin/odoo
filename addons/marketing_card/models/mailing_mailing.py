@@ -95,9 +95,9 @@ class MailingMailing(models.Model):
             "target": "current",
         }
 
-    def _get_recipients_domain(self):
+    def _get_domain_recipients(self):
         """Domain with an additional condition that the card must exist for the records."""
-        domain = Domain(super()._get_recipients_domain())
+        domain = Domain(super()._get_domain_recipients())
         if self.card_campaign_id:
             res_ids = (
                 self.env["card.card"]

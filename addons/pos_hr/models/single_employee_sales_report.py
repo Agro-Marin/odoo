@@ -7,7 +7,7 @@ class ReportPos_HrSingle_Employee_Sales_Report(models.AbstractModel):
     _inherit = ["report.point_of_sale.report_saledetails"]
     _description = "Session sales details for a single employee"
 
-    def _get_domain(
+    def _get_domain_orders(
         self,
         date_start=False,
         date_stop=False,
@@ -17,7 +17,7 @@ class ReportPos_HrSingle_Employee_Sales_Report(models.AbstractModel):
         employee_id=False,
         **kwargs,
     ):
-        domain = super()._get_domain(
+        domain = super()._get_domain_orders(
             date_start, date_stop, config_ids, session_ids, **kwargs
         )
 

@@ -1,7 +1,7 @@
 """Put stored period domains back into the natural bound order.
 
 Until 19.0.1.1.0 this module shipped its own ``daterange`` domain operator, and
-``date.range.get_domain`` deliberately emitted the mirrored bound order --
+``date.range.get_domain_for_field`` deliberately emitted the mirrored bound order --
 ``<=`` before ``>=`` -- so that operator could claim a domain shape the web
 client's own ``in range`` would otherwise have taken first.
 

@@ -67,7 +67,7 @@ class PortalAccount(portal.PortalAccount, PaymentPortal):
             return request.redirect("/my")
 
         overdue_invoices = request.env["account.move"].search(
-            self._get_overdue_invoices_domain()
+            self._get_domain_overdue_invoices()
         )
 
         values = self._overdue_invoices_get_page_view_values(overdue_invoices, **kw)

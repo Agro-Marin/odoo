@@ -259,7 +259,7 @@ class DocumentDocument(models.Model):
     @api.model
     def _cron_refresh_expiration_state(self) -> bool:
         windows = Domain.OR(
-            Domain(company_domain) & self._get_stale_expiration_domain(today)
+            Domain(company_domain) & self._get_domain_stale_expiration(today)
             for today, company_domain in self._iter_expiration_windows()
         )
         stale = self.search(
@@ -272,7 +272,7 @@ class DocumentDocument(models.Model):
         return True
 
     @api.model
-    def _get_stale_expiration_domain(self, today) -> Domain:
+    def _get_domain_stale_expiration(self, today) -> Domain:
         return Domain.OR(
             [
                 Domain("date_expiration", "<", today)

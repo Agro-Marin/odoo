@@ -875,7 +875,7 @@ class AccountReport(models.Model):
         """
         return [comp_data["id"] for comp_data in options["companies"]]
 
-    def _get_unallocated_earnings_lines_domain(self, fiscalyear_start, company_id=None):
+    def _get_domain_unallocated_earnings_lines(self, fiscalyear_start, company_id=None):
         domain = [
             ("account_id.include_initial_balance", "=", False),
             ("date", "<", fiscalyear_start),
@@ -889,7 +889,7 @@ class AccountReport(models.Model):
             query = self._get_report_query(
                 query_options,
                 date_scope,
-                domain=self._get_unallocated_earnings_lines_domain(
+                domain=self._get_domain_unallocated_earnings_lines(
                     self.env[self.custom_handler_model_name]._get_fiscalyear_start_date(
                         query_options
                     )

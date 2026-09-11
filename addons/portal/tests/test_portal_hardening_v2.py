@@ -133,7 +133,7 @@ class TestBillingAddressDomain(TransactionCase):
 
     def test_billing_domain_selects_invoice_and_self(self):
         found = self.env["res.partner"].search(
-            self.company._get_billing_address_domain()
+            self.company._get_domain_billing_address()
         )
 
         self.assertIn(self.invoice, found)
@@ -151,7 +151,7 @@ class TestBillingAddressDomain(TransactionCase):
             ]
         )
         via_hook = self.env["res.partner"].search(
-            self.company._get_billing_address_domain()
+            self.company._get_domain_billing_address()
         )
 
         self.assertEqual(inlined, via_hook)

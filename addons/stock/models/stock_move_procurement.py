@@ -91,7 +91,7 @@ class StockMoveProcurement(models.Model):
                     ]
                     if picking_type_code:
                         domain.append(("picking_type_id.code", "=", picking_type_code))
-                    rule = self.env["stock.rule"]._get_rule_by_domain(
+                    rule = self.env["stock.rule"]._get_domain_rule_by(
                         False,
                         move.packaging_uom_id,
                         product_id,

@@ -99,8 +99,8 @@ class PortalChatter(ThreadController):
         thread_id = to_record_id(thread_id)
         domain = Domain(
             self._setup_portal_message_fetch_extra_domain(kw)
-        ) & model.browse(thread_id)._get_portal_message_fetch_domain(
-            message_domain=self._get_non_empty_message_domain()
+        ) & model.browse(thread_id)._get_domain_portal_message_fetch(
+            message_domain=self._get_domain_non_empty_message()
         )
 
         Message = request.env["mail.message"]
@@ -135,8 +135,8 @@ class PortalChatter(ThreadController):
             "messages": messages.ids,
         }
 
-    def _get_non_empty_message_domain(self):
-        return request.env["mixin.mail.thread"]._get_portal_message_non_empty_domain()
+    def _get_domain_non_empty_message(self):
+        return request.env["mixin.mail.thread"]._get_domain_portal_message_non_empty()
 
     def _setup_portal_message_fetch_extra_domain(self, data) -> Domain:
         return Domain.TRUE

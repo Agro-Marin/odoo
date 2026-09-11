@@ -84,7 +84,7 @@ class AccountAutoReconcileWizard(models.TransientModel):
             "to_date": self.to_date,
         }
 
-    def _get_amls_domain(self):
+    def _get_domain_amls(self):
         self.check_singleton()
         if (
             self.line_ids
@@ -112,7 +112,7 @@ class AccountAutoReconcileWizard(models.TransientModel):
 
     def _auto_reconcile_one_to_one(self):
         grouped_amls_data = self.env["account.move.line"]._read_group(
-            self._get_amls_domain(),
+            self._get_domain_amls(),
             [
                 "account_id",
                 "partner_id",
@@ -141,7 +141,7 @@ class AccountAutoReconcileWizard(models.TransientModel):
 
     def _auto_reconcile_zero_balance(self):
         grouped_amls_data = self.env["account.move.line"]._read_group(
-            self._get_amls_domain(),
+            self._get_domain_amls(),
             groupby=["account_id", "partner_id", "currency_id"],
             aggregates=["id:recordset"],
             having=[("amount_residual_currency:sum_rounded", "=", 0)],

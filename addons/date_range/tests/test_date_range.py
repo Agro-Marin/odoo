@@ -367,7 +367,7 @@ class DateRangeTest(TransactionCase):
                 "type_id": self.type.id,
             }
         )
-        domain = dr.get_domain("my_field")
+        domain = dr.get_domain_for_field("my_field")
         # Bounds are inclusive and in the natural order — the one core's
         # `in range` operator recognises, so the editor offers the period back.
         self.assertEqual(

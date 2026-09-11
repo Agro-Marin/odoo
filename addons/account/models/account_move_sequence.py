@@ -17,7 +17,7 @@ class AccountMove(models.Model):
     def _is_date_sequence_check_required(self):
         return self.state == "posted" and not self.quick_edit_mode
 
-    def _get_reference_move_domain(self, is_payment):
+    def _get_domain_reference_move(self, is_payment):
         domain = [
             ("journal_id", "=", self.journal_id.id),
             ("id", "!=", self.id or self._origin.id),
@@ -65,7 +65,7 @@ class AccountMove(models.Model):
         return None
 
     def _update_strict_last_sequence_clause(self, where_string, param, is_payment):
-        domain = self._get_reference_move_domain(is_payment)
+        domain = self._get_domain_reference_move(is_payment)
         reference_move_name = (
             self.sudo()
             .search(domain + [("date", "<=", self.date)], order="date desc", limit=1)
@@ -93,7 +93,7 @@ class AccountMove(models.Model):
             where_string += " AND sequence_prefix !~ %(anti_regex)s "
         return where_string
 
-    def _get_last_sequence_domain(self, relaxed=False):
+    def _get_domain_last_sequence(self, relaxed=False):
         # pylint: disable=sql-injection
         self.check_singleton()
         if not self.date or not self.journal_id:

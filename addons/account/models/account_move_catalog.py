@@ -27,8 +27,8 @@ class AccountMove(models.Model):
         res["show_sections"] = bool(self.id)
         return res
 
-    def _get_product_catalog_domain(self):
-        domain = super()._get_product_catalog_domain()
+    def _get_domain_product_catalog(self):
+        domain = super()._get_domain_product_catalog()
         if self.is_sale_document():
             return domain & Domain("sale_ok", "=", True)
         elif self.is_purchase_document():

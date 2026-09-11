@@ -18,7 +18,7 @@ class MixinProductCatalog(models.AbstractModel):
             "res_model": "product.product",
             "views": [(kanban_view_id, "kanban"), (False, "form")],
             "search_view_id": [search_view_id, "search"],
-            "domain": self._get_product_catalog_domain(),
+            "domain": self._get_domain_product_catalog(),
             "context": {**self._get_catalog_action_context(), **additional_context},
         }
 
@@ -35,7 +35,7 @@ class MixinProductCatalog(models.AbstractModel):
             "readOnly": self._is_readonly() if self else False,
         }
 
-    def _get_product_catalog_domain(self) -> Domain:
+    def _get_domain_product_catalog(self) -> Domain:
         return (
             Domain("company_id", "=", False)
             | Domain("company_id", "parent_of", self.company_id.id)

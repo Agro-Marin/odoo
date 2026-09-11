@@ -1046,8 +1046,8 @@ class RepairOrder(models.Model):
 
         return {**default_data, **new_default_data}
 
-    def _get_product_catalog_domain(self):
-        return super()._get_product_catalog_domain() & Domain("type", "=", "consu")
+    def _get_domain_product_catalog(self):
+        return super()._get_domain_product_catalog() & Domain("type", "=", "consu")
 
     def _get_product_catalog_order_data(self, products, **kwargs):
         product_catalog = super()._get_product_catalog_order_data(products, **kwargs)

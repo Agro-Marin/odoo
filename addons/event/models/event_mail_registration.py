@@ -45,7 +45,7 @@ class EventMailRegistration(models.Model):
 
     def execute(self):
         # Deprecated, to be called only from parent scheduler
-        skip_domain = self._get_skip_domain() + [
+        skip_domain = self._get_domain_skip() + [
             ("registration_id.state", "in", ("open", "done"))
         ]
         self.filtered_domain(skip_domain)._execute_on_registrations()
@@ -64,7 +64,7 @@ class EventMailRegistration(models.Model):
         todo.mail_sent = True
         return todo
 
-    def _get_skip_domain(self):
+    def _get_domain_skip(self):
         """Domain of mail registrations ot skip: not already done, linked to
         a valid registration, and scheduled in the past."""
         return [

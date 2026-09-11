@@ -24,9 +24,9 @@ class AccountMove(models.Model):
             AccountMove, self - br_debit_notes
         )._compute_l10n_latam_document_type_id()
 
-    def _get_last_sequence_domain(self, relaxed=False):
+    def _get_domain_last_sequence(self, relaxed=False):
         """Override to give sequence names in the same journal their own, independent numbering."""
-        where_string, param = super()._get_last_sequence_domain(relaxed)
+        where_string, param = super()._get_domain_last_sequence(relaxed)
         if self.country_code == "BR" and self.l10n_latam_use_documents:
             where_string += (
                 " AND l10n_latam_document_type_id = %(l10n_latam_document_type_id)s "

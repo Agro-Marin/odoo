@@ -240,7 +240,7 @@ class Website(models.Model):
     @api.model
     def configurator_recommended_themes(self, industry_id, palette, result_nbr_max=3):
         Module = request.env["ir.module.module"]
-        domain = Module.get_themes_domain()
+        domain = Module.get_domain_themes()
         domain = Domain.AND([[("name", "!=", "theme_default")], domain])
         client_themes = Module.search(domain).mapped("name")
         client_themes_img = {

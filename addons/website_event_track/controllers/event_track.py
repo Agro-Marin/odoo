@@ -16,7 +16,7 @@ from odoo.tools.misc import babel_locale_parse
 
 
 class EventTrackController(http.Controller):
-    def _get_event_tracks_agenda_domain(self, event):
+    def _get_domain_event_tracks_agenda(self, event):
         """Base domain for displaying track names (preview). The returned search
         domain will select the tracks that belongs to a track stage that should
         be visible in the agenda (see: 'is_visible_in_agenda'). Published tracks
@@ -29,13 +29,13 @@ class EventTrackController(http.Controller):
             ("stage_id.is_visible_in_agenda", "=", True),
         ]
 
-    def _get_event_tracks_domain(self, event):
+    def _get_domain_event_tracks(self, event):
         """Base domain for displaying tracks. The returned search domain will
         select the tracks that belongs to a track stage that should be visible
         in the agenda (see: 'is_visible_in_agenda'). When the user is a visitor,
         the domain will contain an additional condition that will remove the
         unpublished tracks from the search results."""
-        search_domain_base = self._get_event_tracks_agenda_domain(event)
+        search_domain_base = self._get_domain_event_tracks_agenda(event)
         if not request.env.user.has_group("event.group_event_registration_desk"):
             search_domain_base = Domain.AND(
                 [search_domain_base, [("is_published", "=", True)]]
@@ -97,7 +97,7 @@ class EventTrackController(http.Controller):
         searches.setdefault("search", "")
         searches.setdefault("search_wishlist", "")
         searches.setdefault("tags", "")
-        search_domain = self._get_event_tracks_agenda_domain(event)
+        search_domain = self._get_domain_event_tracks_agenda(event)
 
         # search on content
         if searches.get("search"):
@@ -266,7 +266,7 @@ class EventTrackController(http.Controller):
         lang_code = request.env.context.get("lang")
 
         base_track_domain = Domain.AND(
-            [self._get_event_tracks_agenda_domain(event), [("date", "!=", False)]]
+            [self._get_domain_event_tracks_agenda(event), [("date", "!=", False)]]
         )
         tracks_sudo = request.env["event.track"].sudo().search(base_track_domain)
 
@@ -474,7 +474,7 @@ class EventTrackController(http.Controller):
         )
         # search for tracks list
         tracks_other = track._get_track_suggestions(
-            restrict_domain=self._get_event_tracks_domain(track.event_id), limit=10
+            restrict_domain=self._get_domain_event_tracks(track.event_id), limit=10
         )
 
         return {
@@ -550,7 +550,7 @@ class EventTrackController(http.Controller):
         track_su = self.env["event.track"].sudo().browse(track_id)
         # Check that the visitor has the permission to read the track on the website.
         track = track_su.filtered_domain(
-            self._get_event_tracks_domain(track_su.event_id)
+            self._get_domain_event_tracks(track_su.event_id)
         )
         valid_email_to = tools.email_normalize(
             email_to if request.env.user._is_public() else request.env.user.email

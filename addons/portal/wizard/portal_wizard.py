@@ -113,7 +113,7 @@ class PortalWizardUser(models.TransientModel):
             .with_context(active_test=False)
             .sudo()
             .search_read(
-                self._get_similar_users_domain(portal_users_with_email),
+                self._get_domain_similar_users(portal_users_with_email),
                 self._get_fields_similar_users(),
             )
         )
@@ -291,7 +291,7 @@ class PortalWizardUser(models.TransientModel):
         ):
             self.partner_id.write({"email": email_normalized})
 
-    def _get_similar_users_domain(self, portal_users_with_email):
+    def _get_domain_similar_users(self, portal_users_with_email):
         normalized_emails = [
             email_normalize(portal_user.email)
             for portal_user in portal_users_with_email

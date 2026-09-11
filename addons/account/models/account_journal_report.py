@@ -1648,7 +1648,7 @@ class AccountJournalReportHandler(models.AbstractModel):
         aml_has_tax_domain = Domain("tax_ids", "!=", False)
         if journal_id:
             aml_has_tax_domain &= Domain("journal_id", "=", journal_id)
-        aml_has_tax_domain &= report._get_options_domain(options, "strict_range")
+        aml_has_tax_domain &= report._get_domain_options(options, "strict_range")
         return bool(
             self.env["account.move.line"].search_count(aml_has_tax_domain, limit=1)
         )
@@ -1729,7 +1729,7 @@ class AccountJournalReportHandler(models.AbstractModel):
         # list + Domain shim also returned a list, so the type is unchanged.
         tax_report_options["forced_domain"] = list(
             Domain(tax_report_options.get("forced_domain", []))
-            & journal_report._get_options_domain(options, "strict_range")
+            & journal_report._get_domain_options(options, "strict_range")
         )
 
         # Even though it doesn't have a journal selector, we can force a journal in the options to only get the lines for a specific journal.
@@ -1925,9 +1925,9 @@ class AccountJournalReportHandler(models.AbstractModel):
         domain = (
             self.env["account.report"]
             .browse(options["report_id"])
-            ._get_options_domain(options, "strict_range")
+            ._get_domain_options(options, "strict_range")
             + [("tax_tag_ids", "in", tag_ids)]
-            + self.env["account.move.line"]._get_tax_exigible_domain()
+            + self.env["account.move.line"]._get_domain_tax_exigible()
         )
 
         return {
@@ -2025,7 +2025,7 @@ class AccountJournalReportHandler(models.AbstractModel):
             ("journal_id.id", "=", journal.id),
             ("account_id.id", "=", account.id),
         ]
-        domain += report._get_options_domain(options, "strict_range")
+        domain += report._get_domain_options(options, "strict_range")
 
         return {
             "type": "ir.actions.act_window",

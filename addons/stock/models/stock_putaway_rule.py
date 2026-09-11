@@ -158,7 +158,7 @@ class StockPutawayRule(models.Model):
             return self.env.context.get("active_id")
         return None
 
-    def _get_last_used_search_domain(self, product):
+    def _get_domain_last_used_search(self, product):
         self.check_singleton()
         domain = Domain(
             [
@@ -180,7 +180,7 @@ class StockPutawayRule(models.Model):
         return (
             self.env["stock.move.line"]
             .search(
-                domain=self._get_last_used_search_domain(product),
+                domain=self._get_domain_last_used_search(product),
                 limit=1,
                 order="date desc",
             )

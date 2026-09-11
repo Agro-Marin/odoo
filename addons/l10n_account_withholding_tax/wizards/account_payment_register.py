@@ -130,7 +130,7 @@ class AccountPaymentRegister(models.TransientModel):
 
                 wizard_domain = self.env[
                     "mixin.account.withholding.line"
-                ]._get_withholding_tax_domain(
+                ]._get_domain_withholding_tax(
                     company=wizard.company_id, payment_type=payment_type
                 )
                 wizard_withholding_taxes = withholding_taxes.filtered_domain(

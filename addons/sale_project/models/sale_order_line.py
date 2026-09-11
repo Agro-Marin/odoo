@@ -30,7 +30,7 @@ class SaleOrderLine(models.Model):
         export_string_translation=False,
     )
 
-    def _get_product_from_sol_name_domain(self, product_name):
+    def _get_domain_product_from_sol_name(self, product_name):
         return [
             ("name", "ilike", product_name),
             ("type", "=", "service"),

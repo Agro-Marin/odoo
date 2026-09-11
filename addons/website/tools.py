@@ -80,7 +80,7 @@ def text_from_html(html_fragment, collapse_whitespace=False):
     return content
 
 
-def get_base_domain(url, strip_www=False):
+def get_base_hostname(url, strip_www=False):
     if not url:
         return ""
 

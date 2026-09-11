@@ -2498,7 +2498,7 @@ class AccountMove(models.Model):
     @api.depends("move_type")
     def _compute_invoice_filter_type_domain(self):
         for move in self:
-            move.invoice_filter_type_domain = self._get_invoice_filter_type_domain(
+            move.invoice_filter_type_domain = self._get_domain_invoice_filter_type(
                 move.move_type
             )
 
@@ -6479,7 +6479,7 @@ class AccountMove(models.Model):
 
     @api.model
     def _get_suitable_journal_ids(self, move_type, company=False):
-        journal_type = self._get_invoice_filter_type_domain(move_type) or "general"
+        journal_type = self._get_domain_invoice_filter_type(move_type) or "general"
         return self.env["account.journal"].search(
             [
                 *self.env["account.journal"]._check_company_domain(
@@ -6490,7 +6490,7 @@ class AccountMove(models.Model):
         )
 
     @api.model
-    def _get_invoice_filter_type_domain(self, move_type):
+    def _get_domain_invoice_filter_type(self, move_type):
         if self.is_sale_document(include_receipts=True, move_type=move_type):
             return "sale"
         elif self.is_purchase_document(include_receipts=True, move_type=move_type):

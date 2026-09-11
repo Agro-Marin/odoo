@@ -352,7 +352,7 @@ class DateRange(models.Model):
         for record in self:
             record.is_sub_range = bool(record.parent_id)
 
-    def get_domain(self, field_name):
+    def get_domain_for_field(self, field_name):
         """Return a domain matching records whose field falls within this range.
 
         The bounds are in the natural order, which is also the one the web

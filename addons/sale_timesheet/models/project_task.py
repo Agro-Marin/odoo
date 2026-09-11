@@ -85,7 +85,7 @@ class ProjectTask(models.Model):
     def _compute_last_sol_of_customer(self):
         sol_per_domain = {}
         for task in self:
-            domain = tuple(task._get_last_sol_of_customer_domain())
+            domain = tuple(task._get_domain_last_sol_of_customer())
             if not domain:
                 task.last_sol_of_customer = False
                 continue
@@ -127,7 +127,7 @@ class ProjectTask(models.Model):
                 task.timesheet_ids and task.timesheet_ids.so_line != task.sale_line_id
             )
 
-    def _get_last_sol_of_customer_domain(self):
+    def _get_domain_last_sol_of_customer(self):
         self.check_singleton()
         if not self.partner_id.commercial_partner_id or not self.allow_billable:
             return []

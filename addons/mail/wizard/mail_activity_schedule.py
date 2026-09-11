@@ -246,7 +246,7 @@ class MailActivitySchedule(models.TransientModel):
     @api.depends("company_id", "res_model")
     def _compute_plan_available_ids(self) -> None:
         domains = {
-            scheduler: scheduler._get_plan_available_base_domain() for scheduler in self
+            scheduler: scheduler._get_domain_plan_available_base() for scheduler in self
         }
         plans = self.env["mail.activity.plan"].search(Domain.OR(domains.values()))
         for scheduler, domain in domains.items():
@@ -564,7 +564,7 @@ class MailActivitySchedule(models.TransientModel):
             return None
         return self.env[self.res_model].browse(self._evaluate_res_ids())
 
-    def _get_plan_available_base_domain(self) -> Domain:
+    def _get_domain_plan_available_base(self) -> Domain:
         self.check_singleton()
         return Domain.AND(
             [

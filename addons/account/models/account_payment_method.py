@@ -46,12 +46,12 @@ class AccountPaymentMethod(models.Model):
     def _get_journals_per_payment_method_code(self, codes):
         Journal = self.env["account.journal"]
         return {
-            code: Journal.search(self._get_payment_method_domain(code))
+            code: Journal.search(self._get_domain_payment_method(code))
             for code in codes
         }
 
     @api.model
-    def _get_payment_method_domain(self, code, with_currency=True, with_country=True):
+    def _get_domain_payment_method(self, code, with_currency=True, with_country=True):
         if not code:
             return Domain.TRUE
         information = self._get_payment_method_information().get(code)

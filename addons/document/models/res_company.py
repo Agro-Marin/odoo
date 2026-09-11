@@ -19,5 +19,5 @@ class Company(models.Model):
         bridge_enabling_companies[folder_field_name] = default_folder_id
 
     @api.model
-    def _get_used_folder_ids_domain(self, folder_ids: list[int]) -> Domain:
+    def _get_domain_used_folder_ids(self, folder_ids: list[int]) -> Domain:
         return Domain.FALSE

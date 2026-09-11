@@ -91,7 +91,7 @@ class CalendarRecurrence(models.Model):
 
     @api.model
     def _restart_microsoft_sync(self):
-        self.env["calendar.recurrence"].search(self._get_microsoft_sync_domain()).write(
+        self.env["calendar.recurrence"].search(self._get_domain_microsoft_sync()).write(
             {
                 "need_sync_m": True,
             }
@@ -173,7 +173,7 @@ class CalendarRecurrence(models.Model):
             detached_events.ms_universal_event_id = False
             detached_events.unlink()
 
-    def _get_microsoft_sync_domain(self):
+    def _get_domain_microsoft_sync(self):
         # Do not sync Odoo recurrences with Outlook Calendar anymore.
         return self._extend_microsoft_domain(Domain.FALSE)
 

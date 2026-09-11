@@ -54,7 +54,7 @@ class ResPartner(models.Model):
             return self.env["res.partner"]
         return self.env.user.partner_id
 
-    def _get_billing_address_domain(self):
+    def _get_domain_billing_address(self):
         return Domain(
             [
                 ("id", "child_of", self.ids),
@@ -64,7 +64,7 @@ class ResPartner(models.Model):
             ]
         )
 
-    def _get_delivery_address_domain(self):
+    def _get_domain_delivery_address(self):
         return Domain(
             [
                 ("id", "child_of", self.ids),

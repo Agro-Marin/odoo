@@ -47,10 +47,10 @@ class StockQuant(models.Model):
         help="On hand quantity which hasn't been reserved on a transfer and is still fresh, in the default unit of measure of the product"
     )
 
-    def _get_expiration_domain(self):
+    def _get_domain_expiration(self):
         cutoff = self.env.context.get("with_expiration")
         if not cutoff:
-            return super()._get_expiration_domain()
+            return super()._get_domain_expiration()
         return Domain("removal_date", ">=", cutoff) | Domain("removal_date", "=", False)
 
     def _filtered_not_expired(self):

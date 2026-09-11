@@ -56,7 +56,7 @@ class TestCustomProviderFlows(PaymentCustomCommon):
 
     def test_provider_domain_filters_by_custom_mode(self):
         """The provider domain narrows to the requested custom mode."""
-        domain = self.env["payment.provider"]._get_provider_domain(
+        domain = self.env["payment.provider"]._get_domain_provider(
             "custom", custom_mode="wire_transfer"
         )
 

@@ -36,7 +36,7 @@ class StockWarehouseOrderpoint(models.Model):
     def _prepare_action_replenishment_order_notification(self):
         self.check_singleton()
         production = self.env["mrp.production"].search(
-            self._get_replenishment_source_domain(),
+            self._get_domain_replenishment_source(),
             limit=1,
         )
         if production:
@@ -374,7 +374,7 @@ class StockWarehouseOrderpoint(models.Model):
     @api.constrains("product_id")
     def _check_product_is_not_kit(self):
         Bom = self.env["mrp.bom"]
-        domain = Bom._get_kit_domain(self.company_id) & (
+        domain = Bom._get_domain_kit(self.company_id) & (
             Domain("product_id", "in", self.product_id.ids)
             | (
                 Domain("product_id", "=", False)

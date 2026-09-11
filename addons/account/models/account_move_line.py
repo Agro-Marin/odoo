@@ -2516,7 +2516,7 @@ class AccountMoveLine(models.Model):
                     company_id=line.company_id.id,
                     product=line.product_id.id,
                     account=line.account_id.id,
-                    business_domain=line._get_analytic_business_domain(),
+                    business_domain=line._get_domain_analytic_business(),
                 )
             except ValidationError:
                 line.has_invalid_analytics = True
@@ -3543,7 +3543,7 @@ class AccountMoveLine(models.Model):
     def _get_matched_move_ids(self):
         return self.matched_debit_ids | self.matched_credit_ids
 
-    def _get_analytic_business_domain(self):
+    def _get_domain_analytic_business(self):
         self.check_singleton()
         move = self.move_id
         if move.is_sale_document(include_receipts=True):
@@ -3560,7 +3560,7 @@ class AccountMoveLine(models.Model):
                     company_id=line.company_id.id,
                     product=line.product_id.id,
                     account=line.account_id.id,
-                    business_domain=line._get_analytic_business_domain(),
+                    business_domain=line._get_domain_analytic_business(),
                 )
             except ValidationError:
                 lines_with_missing_analytic_distribution += line
@@ -3868,7 +3868,7 @@ class AccountMoveLine(models.Model):
         )
 
     @api.model
-    def _get_tax_exigible_domain(self):
+    def _get_domain_tax_exigible(self):
         return Domain(
             [
                 "|",

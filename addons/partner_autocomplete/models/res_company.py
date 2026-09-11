@@ -73,7 +73,7 @@ class ResCompany(models.Model):
         self.check_singleton()
         _logger.info("Starting enrich of company %s (%s)", self.name, self.id)
 
-        company_domain = self._get_company_domain()
+        company_domain = self._get_company_domain_name()
         if not company_domain:
             return False
 
@@ -109,14 +109,14 @@ class ResCompany(models.Model):
                 extracted_data[m2o_field] = relation_data.get("id", False)
         return extracted_data
 
-    def _get_company_domain(self):
+    def _get_company_domain_name(self):
         """Extract the company domain to be used by IAP services.
 
         The domain is extracted from the website or the email information.
 
-        >>> company.email, company._get_company_domain()
+        >>> company.email, company._get_company_domain_name()
         ("info@proximus.be", "proximus.be")
-        >>> company.website, company._get_company_domain()
+        >>> company.website, company._get_company_domain_name()
         ("https://www.info.proximus.be", "proximus.be")
         """
         self.check_singleton()

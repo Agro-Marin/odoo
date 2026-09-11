@@ -244,11 +244,11 @@ class MixinSequence(models.AbstractModel):
     def _prepare_regex_non_capturing(self, regex):
         return re.sub(r"\?P<\w+>", "?:", regex)
 
-    def _get_last_sequence_domain(self, relaxed=False):
+    def _get_domain_last_sequence(self, relaxed=False):
         self.check_singleton()
         raise NotImplementedError(
             "Models inheriting 'mixin.sequence' must override "
-            "'_get_last_sequence_domain' and return a 'WHERE ...' clause."
+            "'_get_domain_last_sequence' and return a 'WHERE ...' clause."
         )
 
     def _get_starting_sequence(self):
@@ -262,7 +262,7 @@ class MixinSequence(models.AbstractModel):
             or not self._fields[self._sequence_field].store
         ):
             raise ValidationError(_("%s is not a stored field", self._sequence_field))
-        where_string, param = self._get_last_sequence_domain(relaxed)
+        where_string, param = self._get_domain_last_sequence(relaxed)
         if self._origin.id:
             where_string += " AND id != %(id)s "
             param["id"] = self._origin.id

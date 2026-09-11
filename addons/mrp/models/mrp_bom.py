@@ -616,7 +616,7 @@ class MrpBom(models.Model):
             )
 
     @api.model
-    def _get_kit_domain(self, company=None):
+    def _get_domain_kit(self, company=None):
         companies = company if company is not None else self.env.company
         return (
             Domain("type", "=", "phantom")

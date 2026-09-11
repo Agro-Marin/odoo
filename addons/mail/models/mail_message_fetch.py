@@ -73,9 +73,9 @@ class MailMessage(models.Model):
         is_notification = self._to_notification_filter(is_notification)
         res = {}
         domain = Domain(True if domain is None else domain)
-        domain &= self._get_scope_domain(thread=thread, is_notification=is_notification)
+        domain &= self._get_domain_scope(thread=thread, is_notification=is_notification)
         if search_term:
-            domain &= self._get_text_search_domain(
+            domain &= self._get_domain_text_search(
                 search_term, thread=thread, is_notification=is_notification
             )
         if search_term or is_notification is not None:
@@ -89,7 +89,7 @@ class MailMessage(models.Model):
         )
         return res
 
-    def _get_scope_domain(
+    def _get_domain_scope(
         self,
         *,
         thread: models.BaseModel | None = None,
@@ -108,7 +108,7 @@ class MailMessage(models.Model):
             domain &= Domain("message_type", "!=", "notification")
         return domain
 
-    def _get_text_search_domain(
+    def _get_domain_text_search(
         self,
         search_term: str,
         *,
@@ -152,7 +152,7 @@ class MailMessage(models.Model):
         tracking_value_domain = (
             Domain("mail_message_id.res_id", "=", thread.id)
             & Domain("mail_message_id.model", "=", thread._name)
-            & self._get_tracking_values_domain(search_term)
+            & self._get_domain_tracking_values(search_term)
         )
         tracking_values = (
             self.env["mail.tracking.value"].sudo().search(tracking_value_domain)
@@ -191,7 +191,7 @@ class MailMessage(models.Model):
         )
         return messages.sorted("id", reverse=True) if after else messages
 
-    def _get_tracking_values_domain(self, search_term: str) -> Domain:
+    def _get_domain_tracking_values(self, search_term: str) -> Domain:
         numeric_term = None
         with contextlib.suppress(ValueError, TypeError):
             numeric_term = float(search_term)

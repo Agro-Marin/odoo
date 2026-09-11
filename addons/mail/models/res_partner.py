@@ -354,7 +354,7 @@ class ResPartner(models.Model):
     @api.readonly
     @api.model
     def get_mention_suggestions(self, search: str, limit: int = 8) -> dict:
-        domain = self._get_mention_suggestions_domain(search)
+        domain = self._get_domain_mention_suggestions(search)
         partners = self._search_mention_suggestions(domain, limit)
         store = Store().add(partners, extra_fields=partners._get_fields_store_mention())
         try:
@@ -365,7 +365,7 @@ class ResPartner(models.Model):
         return store.get_result()
 
     @api.model
-    def _get_mention_suggestions_domain(self, search: str) -> Domain:
+    def _get_domain_mention_suggestions(self, search: str) -> Domain:
         return (
             Domain("name", "ilike", search) | Domain("email", "ilike", search)
         ) & Domain("active", "=", True)

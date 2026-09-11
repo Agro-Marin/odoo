@@ -15,7 +15,7 @@ class ProjectProject(models.Model):
     def _domain_sale_line_id(self):
         return Domain.AND(
             [
-                self.env["sale.order.line"]._get_lines_sellable_domain(),
+                self.env["sale.order.line"]._get_domain_lines_sellable(),
                 self.env["sale.order.line"]._domain_sale_line_service(),
                 [
                     ("partner_id", "=?", unquote("partner_id")),
@@ -268,7 +268,7 @@ class ProjectProject(models.Model):
             self._confirm_linked_sale_orders([sol_id])
         return project
 
-    def _get_sale_orders_domain(self, all_sale_orders):
+    def _get_domain_sale_orders(self, all_sale_orders):
         return [("id", "in", all_sale_orders.ids)]
 
     def _get_view_action(self):
@@ -339,7 +339,7 @@ class ProjectProject(models.Model):
             name=self.name,
             action_name=action_window.get("name"),
         )
-        action_window["domain"] = self._get_sale_orders_domain(all_sale_orders)
+        action_window["domain"] = self._get_domain_sale_orders(all_sale_orders)
         action_window["context"] = {
             **self.env["ir.actions.actions"]._eval_action_context(
                 action_window["context"]
@@ -687,7 +687,7 @@ class ProjectProject(models.Model):
             "displayLoadMore": display_load_more,
         }
 
-    def _get_sale_items_domain(self, additional_domain=None):
+    def _get_domain_sale_items(self, additional_domain=None):
         sale_items = self.sudo()._get_sale_order_items()
         domain = [
             ("order_id", "in", sale_items.sudo().order_id.ids),
@@ -703,7 +703,7 @@ class ProjectProject(models.Model):
         return domain
 
     def _get_domain_from_section_id(self, section_id):
-        return self._get_sale_items_domain(
+        return self._get_domain_sale_items(
             [("product_type", "!=" if section_id == "materials" else "=", "service")]
         )
 
@@ -741,7 +741,7 @@ class ProjectProject(models.Model):
             "delivered_manual": "service_revenues",
         }
 
-    def _get_profitability_sale_order_items_domain(self, domain=None):
+    def _get_domain_profitability_sale_order_items(self, domain=None):
         domain = Domain(domain or Domain.TRUE)
         return (
             Domain(
@@ -764,7 +764,7 @@ class ProjectProject(models.Model):
             self.env["sale.order.line"]
             .sudo()
             ._read_group(
-                self._get_profitability_sale_order_items_domain(domain),
+                self._get_domain_profitability_sale_order_items(domain),
                 ["currency_id", "product_id", "is_downpayment"],
                 [
                     "id:array_agg",
@@ -916,7 +916,7 @@ class ProjectProject(models.Model):
             "total": {"to_invoice": total_to_invoice, "invoiced": total_invoiced},
         }
 
-    def _get_items_from_invoices_domain(self, domain=None):
+    def _get_domain_items_from_invoices(self, domain=None):
         domain = Domain(domain or Domain.TRUE)
         included_invoice_line_ids = (
             self._get_already_included_profitability_invoice_line_ids()
@@ -949,7 +949,7 @@ class ProjectProject(models.Model):
             .search_fetch(
                 Domain.AND(
                     [
-                        self._get_items_from_invoices_domain(
+                        self._get_domain_items_from_invoices(
                             [("id", "not in", excluded_move_line_ids)]
                         ),
                         [("analytic_distribution", "in", self.account_id.ids)],
@@ -1043,7 +1043,7 @@ class ProjectProject(models.Model):
             self.env["sale.order.line"]
             .sudo()
             ._read_group(
-                self._get_profitability_sale_order_items_domain(domain),
+                self._get_domain_profitability_sale_order_items(domain),
                 [],
                 ["id:recordset"],
             )[0][0]

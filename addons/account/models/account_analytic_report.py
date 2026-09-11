@@ -262,7 +262,7 @@ class AccountReport(models.AbstractModel):
             expression = report_line.expression_ids.filtered(
                 lambda x: x.label == params["expression_label"]
             )
-            line_domain = self._get_audit_line_domain(
+            line_domain = self._get_domain_audit_line(
                 column_group_options, expression, params
             )
             # The line domain is made for move lines, so we need some postprocessing to have it work with analytic lines.
@@ -334,16 +334,16 @@ class AccountReport(models.AbstractModel):
             return action
 
     @api.model
-    def _get_options_journals_domain(self, options):
-        domain = super()._get_options_journals_domain(options)
+    def _get_domain_options_journals(self, options):
+        domain = super()._get_domain_options_journals(options)
         # Add False to the domain in order to select lines without journals for analytics columns.
         if options.get("include_analytic_without_aml"):
             domain |= Domain("journal_id", "=", False)
         return domain
 
-    def _get_options_domain(self, options, date_scope):
+    def _get_domain_options(self, options, date_scope):
         self.check_singleton()
-        domain = super()._get_options_domain(options, date_scope)
+        domain = super()._get_domain_options(options, date_scope)
 
         # Get the analytic accounts that we need to filter on from the options and add a domain for them.
         if "analytic_accounts_list" in options:

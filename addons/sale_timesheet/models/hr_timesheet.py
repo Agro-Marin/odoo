@@ -22,7 +22,7 @@ class AccountAnalyticLine(models.Model):
     def _domain_so_line(self):
         domain = Domain.AND(
             [
-                self.env["sale.order.line"]._get_lines_sellable_domain(),
+                self.env["sale.order.line"]._get_domain_lines_sellable(),
                 self.env["sale.order.line"]._domain_sale_line_service(),
                 [
                     (

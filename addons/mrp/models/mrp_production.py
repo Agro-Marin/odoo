@@ -4608,8 +4608,8 @@ class MrpProduction(models.Model):
     def _get_product_price_and_data(self, product):
         return {"price": product.standard_price}
 
-    def _get_product_catalog_domain(self):
-        return super()._get_product_catalog_domain() & Domain("type", "=", "consu")
+    def _get_domain_product_catalog(self):
+        return super()._get_domain_product_catalog() & Domain("type", "=", "consu")
 
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
         line.product_uom_qty = quantity

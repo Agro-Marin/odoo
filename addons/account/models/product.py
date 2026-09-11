@@ -384,7 +384,7 @@ class ProductProduct(models.Model):
             return default
         return threshold
 
-    def _get_name_recall_domain(self, name):
+    def _get_domain_name_recall(self, name):
         if not self.pool.has_trigram:
             return Domain("name", "ilike", name)
 
@@ -405,7 +405,7 @@ class ProductProduct(models.Model):
         threshold = self._get_product_name_similarity_threshold()
         shortest, longest = name_length_band(len(name), threshold)
         candidate_ids = self.search(
-            Domain.AND([self._get_name_recall_domain(name), domain])
+            Domain.AND([self._get_domain_name_recall(name), domain])
         ).ids
         lowered_name = name.lower()
         best_product = self.browse()
@@ -448,7 +448,7 @@ class ProductProduct(models.Model):
             [(spec["code_field"], "=", code)], limit=1
         )
 
-    def _get_import_product_classification_domain(self, product_values):
+    def _get_domain_import_product_classification(self, product_values):
         extra_domain = []
         order_fields = []
         for spec in self._get_import_product_classification_specs():
@@ -476,7 +476,7 @@ class ProductProduct(models.Model):
         if extra_domain:
             domain = Domain.AND([domain, extra_domain])
         classification_domain, order_fields = (
-            self._get_import_product_classification_domain(product_values)
+            self._get_domain_import_product_classification(product_values)
         )
         domain = Domain.AND([domain, classification_domain])
         order = ", ".join(["company_id", *order_fields, "id DESC"])

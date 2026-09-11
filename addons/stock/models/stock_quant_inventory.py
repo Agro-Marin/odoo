@@ -635,7 +635,7 @@ class StockQuantInventory(models.Model):
         quant = self.env["stock.quant"]
         if not self.env.context.get("import_file"):
             quant = self.search(
-                self._get_gather_domain(
+                self._get_domain_gather(
                     product,
                     location,
                     lot_id,

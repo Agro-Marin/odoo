@@ -141,7 +141,7 @@ class PaymentCommon(BaseCommon):
 
         company = company or cls.env.company
         update_values = update_values or {}
-        provider_domain = cls._get_provider_domain(code, **kwargs)
+        provider_domain = cls._get_domain_provider(code, **kwargs)
 
         provider = (
             cls.env["payment.provider"]
@@ -164,7 +164,7 @@ class PaymentCommon(BaseCommon):
         return provider
 
     @classmethod
-    def _get_provider_domain(cls, code, **kwargs):
+    def _get_domain_provider(cls, code, **kwargs):
         return [("code", "=", code)]
 
     @classmethod

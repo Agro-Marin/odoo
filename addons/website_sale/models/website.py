@@ -1202,7 +1202,7 @@ class Website(models.Model):
                 return "96px"
         return "64px"
 
-    def _get_basic_feed_product_domain(self):
+    def _get_domain_basic_feed_product(self):
         return Domain.AND(
             [
                 Domain("is_published", "=", True),
@@ -1214,7 +1214,7 @@ class Website(models.Model):
     def _default_feed_is_valid(self):
         self.check_singleton()
         product_count = self.env["product.product"].search_count(
-            self._get_basic_feed_product_domain(),
+            self._get_domain_basic_feed_product(),
             limit=const.PRODUCT_FEED_SOFT_LIMIT + 1,
         )
         return product_count <= const.PRODUCT_FEED_SOFT_LIMIT

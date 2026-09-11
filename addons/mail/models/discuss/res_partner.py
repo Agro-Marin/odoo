@@ -149,7 +149,7 @@ class ResPartner(models.Model):
             return []
         domain = Domain(
             [
-                self._get_mention_suggestions_domain(search),
+                self._get_domain_mention_suggestions(search),
                 ("channel_ids", "in", (channel.parent_channel_id | channel).ids),
             ]
         )

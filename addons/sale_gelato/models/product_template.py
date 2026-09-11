@@ -183,5 +183,5 @@ class ProductTemplate(models.Model):
     def _get_related_fields_variant_template(self):
         return super()._get_related_fields_variant_template() + ["gelato_product_uid"]
 
-    def _get_product_document_domain(self):
-        return super()._get_product_document_domain() & Domain("is_gelato", "=", False)
+    def _get_domain_product_document(self):
+        return super()._get_domain_product_document() & Domain("is_gelato", "=", False)

@@ -68,7 +68,7 @@ class LoyaltyReward(models.Model):
             )
         return read_records
 
-    def _get_fields_reward_product_domain(self, config):
+    def _get_domain_fields_reward_product(self, config):
         fields = set()
         search_domain = [("program_id", "in", config._get_program_ids().ids)]
         domains = self.search_read(

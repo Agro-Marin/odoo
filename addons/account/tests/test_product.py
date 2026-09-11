@@ -233,7 +233,7 @@ class TestProduct(AccountTestInvoicingCommon):
     def test_import_product_classification_domain_inert_without_codes(self):
         Product = self.env["product.product"]
         self.assertEqual(
-            Product._get_import_product_classification_domain({"name": "x"}),
+            Product._get_domain_import_product_classification({"name": "x"}),
             ([], []),
         )
 

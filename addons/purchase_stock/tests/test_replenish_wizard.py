@@ -521,7 +521,7 @@ class TestReplenishWizard(PurchaseTestCommon):
             }
         )
         self.assertTrue(
-            replenish_wizard._get_route_domain(self.product.product_tmpl_id)
+            replenish_wizard._get_domain_route(self.product.product_tmpl_id)
         )
 
     def test_inter_wh_replenish(self):

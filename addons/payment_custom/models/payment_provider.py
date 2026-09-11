@@ -84,8 +84,8 @@ class PaymentProvider(models.Model):
     # === SETUP METHODS === #
 
     @api.model
-    def _get_provider_domain(self, provider_code, *, custom_mode="", **kwargs):
-        res = super()._get_provider_domain(
+    def _get_domain_provider(self, provider_code, *, custom_mode="", **kwargs):
+        res = super()._get_domain_provider(
             provider_code, custom_mode=custom_mode, **kwargs
         )
         if provider_code == "custom" and custom_mode:

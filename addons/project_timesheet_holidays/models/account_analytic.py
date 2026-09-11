@@ -81,10 +81,10 @@ class AccountAnalyticLine(models.Model):
             )
         return super()._check_can_create()
 
-    def _get_favorite_project_id_domain(self, employee_id=False):
+    def _get_domain_favorite_project_id(self, employee_id=False):
         return Domain.AND(
             [
-                super()._get_favorite_project_id_domain(employee_id),
+                super()._get_domain_favorite_project_id(employee_id),
                 Domain("holiday_id", "=", False),
                 Domain("global_leave_id", "=", False),
             ]

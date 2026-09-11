@@ -13,7 +13,7 @@ class AccountJournal(models.Model):
     def _compute_show_refresh_out_einvoices_status_button(self):
         # EXTENDS 'account'
         super()._compute_show_refresh_out_einvoices_status_button()
-        sender_states = self.env["account_edi_proxy_client.user"]._get_can_send_domain()
+        sender_states = self.env["account_edi_proxy_client.user"]._get_domain_can_send()
 
         self.filtered(
             lambda j: (
@@ -51,7 +51,7 @@ class AccountJournal(models.Model):
     def button_refresh_out_einvoices_status(self):
         # EXTENDS 'account'
         super().button_refresh_out_einvoices_status()
-        can_send = self.env["account_edi_proxy_client.user"]._get_can_send_domain()
+        can_send = self.env["account_edi_proxy_client.user"]._get_domain_can_send()
         edi_users = self.env["account_edi_proxy_client.user"].search(
             [
                 ("company_id.account_peppol_proxy_state", "in", can_send),

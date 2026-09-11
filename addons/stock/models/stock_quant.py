@@ -487,16 +487,16 @@ class StockQuant(models.Model):
             StockQuant, self.with_context(inventory_mode=True)
         )._load_records_write(values)
 
-    def _get_stock_user_domain(self, domain):
+    def _get_domain_stock_user(self, domain):
         return domain if self.env.user.has_group("stock.group_stock_user") else "[]"
 
     def _domain_location_id(self):
-        return self._get_stock_user_domain(
+        return self._get_domain_stock_user(
             "[('usage', 'in', ['internal', 'transit'])] if context.get('inventory_mode') else []"
         )
 
     def _domain_lot_id(self):
-        return self._get_stock_user_domain(
+        return self._get_domain_stock_user(
             "[] if not context.get('inventory_mode') else"
             " [('product_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.product' else"
             " [('product_id.product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else"
@@ -504,7 +504,7 @@ class StockQuant(models.Model):
         )
 
     def _domain_product_id(self):
-        return self._get_stock_user_domain(
+        return self._get_domain_stock_user(
             "[] if not context.get('inventory_mode') else"
             " [('is_storable', '=', True), ('product_tmpl_id', 'in', context.get('product_tmpl_ids', []) + [context.get('product_tmpl_id', 0)])] if context.get('product_tmpl_ids') or context.get('product_tmpl_id') else"
             " [('is_storable', '=', True)]"
@@ -593,7 +593,7 @@ class StockQuant(models.Model):
         ):
             self.lot_id = False
         quants = self.search(
-            self._get_gather_domain(
+            self._get_domain_gather(
                 self.product_id,
                 self.location_id,
                 self.lot_id,

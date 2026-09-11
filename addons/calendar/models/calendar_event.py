@@ -1665,7 +1665,7 @@ class CalendarEvent(models.Model):
         if not (self.env.su or bypass_access):
             fnames = self._search_referenced_fnames(domain, order)
             if self._privacy_restricted_fnames(fnames):
-                domain = Domain.AND([domain, self._get_default_privacy_domain()])
+                domain = Domain.AND([domain, self._get_domain_default_privacy()])
         return super()._search(
             domain,
             offset=offset,
@@ -1717,7 +1717,7 @@ class CalendarEvent(models.Model):
             if fname:
                 fnames.add(fname)
         if not self.env.su and self._privacy_restricted_fnames(fnames):
-            domain = Domain.AND([domain, self._get_default_privacy_domain()])
+            domain = Domain.AND([domain, self._get_domain_default_privacy()])
         return super()._read_group(
             domain,
             groupby,
@@ -1744,7 +1744,7 @@ class CalendarEvent(models.Model):
             if fname:
                 fnames.add(fname)
         if not self.env.su and self._privacy_restricted_fnames(fnames):
-            domain = Domain.AND([domain, self._get_default_privacy_domain()])
+            domain = Domain.AND([domain, self._get_domain_default_privacy()])
         return super()._read_grouping_sets(
             domain, grouping_sets, aggregates, order=order
         )
@@ -1951,7 +1951,7 @@ class CalendarEvent(models.Model):
             recurrent_events_without_channel.videocall_channel_id = videocall_channel
         return videocall_channel
 
-    def _get_default_privacy_domain(self):
+    def _get_domain_default_privacy(self):
         """Search-domain complement of `_check_private_event_conditions`.
 
         Show an event unless it is private -- explicitly, or by its owner's

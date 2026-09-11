@@ -1014,7 +1014,7 @@ class ProductProduct(models.Model):
             for company_id, products in groupby(self, lambda p: p.company_id.id)
         ]
 
-    def _get_barcode_search_domain(self, barcodes_within_company, company_id):
+    def _get_domain_barcode_search(self, barcodes_within_company, company_id):
         domain = [("barcode", "in", barcodes_within_company)]
         if company_id:
             domain.append(("company_id", "in", (False, company_id)))
@@ -1598,7 +1598,7 @@ class ProductProduct(models.Model):
         return to_write
 
     def _check_duplicated_product_barcodes(self, barcodes_within_company, company_id):
-        domain = self._get_barcode_search_domain(barcodes_within_company, company_id)
+        domain = self._get_domain_barcode_search(barcodes_within_company, company_id)
         products_by_barcode = self.sudo()._read_group(
             domain,
             ["barcode"],
@@ -1625,7 +1625,7 @@ class ProductProduct(models.Model):
             )
 
     def _check_duplicated_packaging_barcodes(self, barcodes_within_company, company_id):
-        packaging_domain = self._get_barcode_search_domain(
+        packaging_domain = self._get_domain_barcode_search(
             barcodes_within_company,
             company_id,
         )

@@ -51,8 +51,8 @@ class ProductReplenish(models.TransientModel):
             )
         return fields.Datetime.add(date, days=delay)
 
-    def _get_route_domain(self, product_tmpl_id):
-        domain = super()._get_route_domain(product_tmpl_id)
+    def _get_domain_route(self, product_tmpl_id):
+        domain = super()._get_domain_route(product_tmpl_id)
         company = product_tmpl_id.company_id or self.env.company
         manufacture_route = (
             self.env["stock.rule"]

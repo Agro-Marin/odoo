@@ -101,7 +101,7 @@ class TestLoyaltyRewardDomain(TransactionCase):
         self.reward.discount_product_category_id = root
 
         matched = self.env["product.product"].search(
-            self.reward._get_discount_product_domain()
+            self.reward._get_domain_discount_product()
         )
 
         self.assertIn(deep_product, matched)

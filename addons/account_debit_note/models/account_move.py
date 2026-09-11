@@ -46,8 +46,8 @@ class AccountMove(models.Model):
         )._get_action_dict()
         return action
 
-    def _get_last_sequence_domain(self, relaxed=False):
-        where_string, param = super()._get_last_sequence_domain(relaxed)
+    def _get_domain_last_sequence(self, relaxed=False):
+        where_string, param = super()._get_domain_last_sequence(relaxed)
         if self.journal_id.debit_sequence:
             where_string += " AND debit_origin_id IS " + (
                 "NOT NULL" if self.debit_origin_id else "NULL"

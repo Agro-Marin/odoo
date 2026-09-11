@@ -13,7 +13,7 @@ class LoyaltyReward(models.Model):
     _rec_name = "description"
     _order = "required_points asc"
 
-    # Everything `_get_discount_product_domain` reads, and so every field that
+    # Everything `_get_domain_discount_product` reads, and so every field that
     # invalidates both representations of the discounted products.
     _DISCOUNT_PRODUCT_DEPENDS = (
         "discount_product_ids",
@@ -177,7 +177,7 @@ class LoyaltyReward(models.Model):
                 self._find_all_category_children(child_id, child_ids)
         return child_ids
 
-    def _get_discount_product_domain(self):
+    def _get_domain_discount_product(self):
         """Return the domain of the products this reward discounts.
 
         **This domain must stay evaluable by `@web/core/domain`.** It is serialised
@@ -247,7 +247,7 @@ class LoyaltyReward(models.Model):
     @api.depends(*_DISCOUNT_PRODUCT_DEPENDS)
     def _compute_reward_product_domain(self):
         # Same dependencies as `_compute_all_discount_product_ids`: both serialise
-        # `_get_discount_product_domain`, so both go stale on the same fields. This
+        # `_get_domain_discount_product`, so both go stale on the same fields. This
         # one used to depend on `discount_product_domain` alone, which left the PoS
         # evaluating a domain that ignored the reward's products, category and tag.
         expands = self._expands_discount_products()
@@ -255,7 +255,7 @@ class LoyaltyReward(models.Model):
             reward.reward_product_domain = (
                 "null"
                 if expands
-                else json.dumps(list(reward._get_discount_product_domain()))
+                else json.dumps(list(reward._get_domain_discount_product()))
             )
 
     def _get_discount_products(self):
@@ -276,7 +276,7 @@ class LoyaltyReward(models.Model):
         :return: the matching products per reward
         :rtype: dict[loyalty.reward, product.product]
         """
-        domains = {reward: reward._get_discount_product_domain() for reward in self}
+        domains = {reward: reward._get_domain_discount_product() for reward in self}
         if not domains:
             return {}
         candidates = self.env["product.product"].search(Domain.OR(domains.values()))

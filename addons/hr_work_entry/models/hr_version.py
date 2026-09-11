@@ -110,10 +110,10 @@ class HrVersion(models.Model):
                 )
         return self.env.ref("hr_work_entry.work_entry_type_leave")
 
-    def _get_sub_leave_domain(self):
+    def _get_domain_sub_leave(self):
         return Domain("calendar_id", "in", [False] + self.resource_calendar_id.ids)
 
-    def _get_leave_domain(self, start_dt, end_dt):
+    def _get_domain_leave(self, start_dt, end_dt):
         domain = Domain(
             [
                 ("resource_id", "in", [False] + self.employee_id.resource_id.ids),
@@ -122,11 +122,11 @@ class HrVersion(models.Model):
                 ("company_id", "in", [False] + self.company_id.ids),
             ]
         )
-        return domain & self._get_sub_leave_domain()
+        return domain & self._get_domain_sub_leave()
 
     def _get_resource_calendar_leaves(self, start_dt, end_dt):
         return self.env["resource.calendar.leaves"].search(
-            self._get_leave_domain(start_dt, end_dt)
+            self._get_domain_leave(start_dt, end_dt)
         )
 
     def _get_attendance_intervals(self, start_dt, end_dt):
@@ -451,7 +451,7 @@ class HrVersion(models.Model):
         )
         return version_start, version_stop
 
-    def _get_expired_work_entries_domain(self, tz, version_stop, date_stop):
+    def _get_domain_expired_work_entries(self, tz, version_stop, date_stop):
         self.check_singleton()
         if version_stop >= date_stop or (
             self.date_generated_from == self.date_generated_to
@@ -466,7 +466,7 @@ class HrVersion(models.Model):
             ]
         )
 
-    def _get_forced_work_entries_domain(self, tz, date_from, date_to):
+    def _get_domain_forced_work_entries(self, tz, date_from, date_to):
         self.check_singleton()
         return Domain(
             [
@@ -483,7 +483,7 @@ class HrVersion(models.Model):
         for version in self:
             tz = version._get_work_entry_tz()
             version_start, version_stop = version._get_version_utc_bounds(tz, date_stop)
-            domain_to_nullify |= version._get_expired_work_entries_domain(
+            domain_to_nullify |= version._get_domain_expired_work_entries(
                 tz, version_stop, date_stop
             )
             if date_start > version_stop or date_stop < version_start:
@@ -492,7 +492,7 @@ class HrVersion(models.Model):
             date_to = min(date_stop, version_stop)
 
             if force:
-                domain_to_nullify |= version._get_forced_work_entries_domain(
+                domain_to_nullify |= version._get_domain_forced_work_entries(
                     tz, date_from, date_to
                 )
                 intervals_to_generate[date_from, date_to] |= version

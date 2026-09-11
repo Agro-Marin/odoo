@@ -573,7 +573,7 @@ class AccountEcSalesReportHandler(models.AbstractModel):
         amls = self.env["account.move.line"].search(
             [
                 *aml_domains,
-                *self.env["account.report"]._get_options_date_domain(
+                *self.env["account.report"]._get_domain_options_date(
                     options, "strict_range"
                 ),
                 (tax_or_tag_field, "in", tuple(self._get_tag_ids_filtered(options))),

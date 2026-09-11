@@ -348,7 +348,7 @@ class AccountReportActions(models.Model):
             }
 
         action = clean_action(action_dict, env=self.env)
-        action["domain"] = self._get_audit_line_domain(
+        action["domain"] = self._get_domain_audit_line(
             column_group_options, expression, params
         )
         return action
@@ -589,7 +589,7 @@ class AccountReportActions(models.Model):
         }
 
         action = self.open_journal_items(options=options_for_audit, params=params)
-        action["domain"] += self._get_unallocated_earnings_lines_domain(
+        action["domain"] += self._get_domain_unallocated_earnings_lines(
             action["context"]["date_from"], record_id
         )
         action.get("context", {}).update({"search_default_date_between": 0})
@@ -1070,14 +1070,14 @@ class AccountReportActions(models.Model):
             target_column_group_options["date"]["date_to"],
         )
 
-    def _get_audit_line_domain(self, column_group_options, expression, params):
+    def _get_domain_audit_line(self, column_group_options, expression, params):
         groupby_domain = Domain(
-            self._get_audit_line_groupby_domain(params["calling_line_dict_id"])
+            self._get_domain_audit_line_groupby(params["calling_line_dict_id"])
         )
         # Aggregate all domains per date scope, then create the final domain.
         audit_or_domains_per_date_scope = defaultdict(list)
         for expression_to_audit in expression._expand_aggregations():
-            expression_domain = self._get_expression_audit_aml_domain(
+            expression_domain = self._get_domain_expression_audit_aml(
                 expression_to_audit, column_group_options
             )
 
@@ -1095,12 +1095,12 @@ class AccountReportActions(models.Model):
         if audit_or_domains_per_date_scope:
             domain = Domain.OR(
                 Domain.OR(audit_or_domains)
-                & self._get_options_domain(column_group_options, date_scope)
+                & self._get_domain_options(column_group_options, date_scope)
                 for date_scope, audit_or_domains in audit_or_domains_per_date_scope.items()
             )
         else:
             # Happens when no expression was provided (empty recordset), or if none of the expressions had a standard engine
-            domain = self._get_options_domain(column_group_options, "strict_range")
+            domain = self._get_domain_options(column_group_options, "strict_range")
         domain &= groupby_domain
 
         # Analytic Filter
@@ -1111,7 +1111,7 @@ class AccountReportActions(models.Model):
 
         return domain
 
-    def _get_audit_line_groupby_domain(self, calling_line_dict_id):
+    def _get_domain_audit_line_groupby(self, calling_line_dict_id):
         parsed_line_dict_id = self._parse_line_id(calling_line_dict_id)
         groupby_domain = []
         for markup, _model, grouping_key in parsed_line_dict_id:

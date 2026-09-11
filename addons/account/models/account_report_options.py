@@ -287,7 +287,7 @@ class AccountReportOptions(models.Model):
         return selected_journals
 
     @api.model
-    def _get_options_journals_domain(self, options):
+    def _get_domain_options_journals(self, options):
         # Make sure to return an empty array when nothing selected to handle archived journals.
         selected_journals = self._get_options_journals(options)
         return (
@@ -678,7 +678,7 @@ class AccountReportOptions(models.Model):
         ):
             options["column_percent_comparison"] = "budget"
 
-    def _get_options_date_domain(self, options, date_scope):
+    def _get_domain_options_date(self, options, date_scope):
         date_from, date_to = self._get_date_bounds_info(options, date_scope)
 
         scope_domain = Domain("date", "<=", date_to)
@@ -737,7 +737,7 @@ class AccountReportOptions(models.Model):
         )
 
     @api.model
-    def _get_options_partner_domain(self, options):
+    def _get_domain_options_partner(self, options):
         domains = []
         if options.get("partner_ids"):
             partner_ids = [int(partner) for partner in options["partner_ids"]]
@@ -766,7 +766,7 @@ class AccountReportOptions(models.Model):
             options["unreconciled"] = False
 
     @api.model
-    def _get_options_unreconciled_domain(self, options):
+    def _get_domain_options_unreconciled(self, options):
         if options.get("unreconciled"):
             return Domain("full_reconcile_id", "=", False) & Domain(
                 "balance", "!=", "0"
@@ -811,7 +811,7 @@ class AccountReportOptions(models.Model):
                 opt["selected"] = opt["id"] in previously_selected_ids
 
     @api.model
-    def _get_options_account_type_domain(self, options):
+    def _get_domain_options_account_type(self, options):
         all_domains = []
         selected_domains = []
         for opt in options.get("account_type") or []:
@@ -1684,7 +1684,7 @@ class AccountReportOptions(models.Model):
             self._init_options_filters: 1500,
         }
 
-    def _get_options_domain(self, options, date_scope) -> Domain:
+    def _get_domain_options(self, options, date_scope) -> Domain:
         self.check_singleton()
 
         available_scopes = dict(
@@ -1698,18 +1698,18 @@ class AccountReportOptions(models.Model):
         domains = [
             Domain("display_type", "not in", NON_ACCOUNTABLE_DISPLAY_TYPES),
             Domain("company_id", "in", self.get_report_company_ids(options)),
-            self._get_options_journals_domain(options)
+            self._get_domain_options_journals(options)
             if not options.get("compute_budget")
             else Domain.TRUE,
-            self._get_options_date_domain(options, date_scope)
+            self._get_domain_options_date(options, date_scope)
             if date_scope
             else Domain.TRUE,
-            self._get_options_partner_domain(options),
+            self._get_domain_options_partner(options),
             self._get_domain_options_all_entries(options),
-            self._get_options_unreconciled_domain(options),
-            self._get_options_account_type_domain(options),
+            self._get_domain_options_unreconciled(options),
+            self._get_domain_options_account_type(options),
             self._get_options_aml_ir_filters(options),
-            self.env["account.move.line"]._get_tax_exigible_domain()
+            self.env["account.move.line"]._get_domain_tax_exigible()
             if self.only_tax_exigible
             else Domain.TRUE,
             # That option key is set when splitting options between column groups

@@ -341,7 +341,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             ("product_id", "in", products.ids),
         ]
 
-    def _get_quant_domain(self, location_ids, products):
+    def _get_domain_quant(self, location_ids, products):
         return self._get_domain_base_quant(location_ids, products)
 
     def _get_out_reserved(self, out, linked_moves, used_reserved_moves, ctx):
@@ -520,7 +520,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 dest_ids_to_in_ids[dest].add(in_.id)
 
         qties = self.env["stock.quant"]._read_group(
-            self._get_quant_domain(
+            self._get_domain_quant(
                 wh_location_ids,
                 outs.product_id | report_products,
             ),

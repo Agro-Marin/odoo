@@ -294,7 +294,7 @@ class HrApplicant(models.Model):
                     self.env._("Talent must belong to at least one Talent Pool.")
                 )
 
-    def _get_duplicate_key_domain(self):
+    def _get_domain_duplicate_key(self):
         domains = []
         for fname in self._DUPLICATE_KEY_FIELDS:
             values = [value for value in self.mapped(fname) if value]
@@ -320,7 +320,7 @@ class HrApplicant(models.Model):
         if not indirect:
             return
 
-        key_domain = indirect._get_duplicate_key_domain()
+        key_domain = indirect._get_domain_duplicate_key()
         pool_ids_by_key = {}
         if not key_domain.is_false():
             in_pool = self.env["hr.applicant"].search(
@@ -394,7 +394,7 @@ class HrApplicant(models.Model):
 
     @api.depends("email_normalized", "phone_sanitized", "linkedin_profile")
     def _compute_application_count(self):
-        domain = self._get_similar_applicants_domain(ignore_talent=True)
+        domain = self._get_domain_similar_applicants(ignore_talent=True)
         matching_applicants = (
             self.env["hr.applicant"].with_context(active_test=False).search(domain)
         )
@@ -433,10 +433,10 @@ class HrApplicant(models.Model):
         for applicant in self:
             applicant.is_pool_applicant = applicant.talent_pool_ids
 
-    def _get_similar_applicants_domain(self, ignore_talent=False, only_talent=False):
+    def _get_domain_similar_applicants(self, ignore_talent=False, only_talent=False):
         domain = (
             Domain("id", "in", self.ids)
-            | self._get_duplicate_key_domain()
+            | self._get_domain_duplicate_key()
             | Domain("pool_applicant_id", "in", self.pool_applicant_id.ids)
         )
         if ignore_talent:
@@ -823,7 +823,7 @@ class HrApplicant(models.Model):
             self.env["hr.applicant"]
             .with_context(active_test=False)
             .search(
-                self._get_similar_applicants_domain(ignore_talent=True),
+                self._get_domain_similar_applicants(ignore_talent=True),
             )
         )
         return {
@@ -854,7 +854,7 @@ class HrApplicant(models.Model):
 
     def link_applicant_to_talent(self):
         talent = self.env["hr.applicant"].search(
-            domain=self._get_similar_applicants_domain(only_talent=True),
+            domain=self._get_domain_similar_applicants(only_talent=True),
             order="id",
             limit=1,
         )

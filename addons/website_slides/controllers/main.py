@@ -188,7 +188,7 @@ class WebsiteSlides(WebsiteProfile):
         )
 
     def _get_slide_detail(self, slide):
-        base_domain = self._get_channel_slides_base_domain(slide.channel_id)
+        base_domain = self._get_domain_channel_slides_base(slide.channel_id)
         category_data = slide.channel_id._get_categorized_slides(
             base_domain,
             order=request.env["slide.slide"]._order_by_strategy["sequence"],
@@ -333,7 +333,7 @@ class WebsiteSlides(WebsiteProfile):
     # CHANNEL UTILITIES
     # --------------------------------------------------
 
-    def _get_channel_slides_base_domain(self, channel):
+    def _get_domain_channel_slides_base(self, channel):
         """base domain when fetching slide list data related to a given channel
 
         * website related domain, and restricted to the channel and is not a
@@ -914,7 +914,7 @@ class WebsiteSlides(WebsiteProfile):
                 lambda category: category.id == category_id
             )
 
-        domain = self._get_channel_slides_base_domain(channel)
+        domain = self._get_domain_channel_slides_base(channel)
         pager_url = "/slides/%s" % (channel.id)
         pager_args = valid_invite_values.get("pager_args", {})
         slide_categories = dict(

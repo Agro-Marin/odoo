@@ -20,7 +20,7 @@ class AccountMoveLine(models.Model):
             )
             lines.analytic_distribution = project._get_analytic_distribution()
 
-    def _get_so_mapping_domain(self):
+    def _get_domain_so_mapping(self):
         return Domain.OR(
             Domain.AND(
                 Domain(
@@ -39,7 +39,7 @@ class AccountMoveLine(models.Model):
     def _get_so_mapping_from_project(self):
         mapping = {}
         projects = self.env["project.project"].search(
-            domain=self._get_so_mapping_domain()
+            domain=self._get_domain_so_mapping()
         )
         orders_per_project = dict(
             self.env["sale.order"]._read_group(

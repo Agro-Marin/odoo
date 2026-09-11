@@ -696,7 +696,7 @@ class EventEvent(models.Model):
         def sd(date):
             return fields.Datetime.to_string(date)
 
-        def get_month_filter_domain(filter_name, months_delta):
+        def get_domain_month_filter(filter_name, months_delta):
             localized_month_begin = localized_today_begin.replace(day=1)
             utc_months_delta_end = (
                 localized_month_begin + relativedelta(months=months_delta + 1)
@@ -729,7 +729,7 @@ class EventEvent(models.Model):
                 [("date_end", ">", sd(now)), ("date_begin", "<", sd(utc_today_end))],
                 0,
             ],
-            get_month_filter_domain("month", 0),
+            get_domain_month_filter("month", 0),
             ["old", _("Past Events"), [("date_end", "<", sd(now))], 0],
             ["all", _("All Events"), [], 0],
         ]

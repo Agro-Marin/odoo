@@ -43,13 +43,13 @@ class StockScheduler(models.AbstractModel):
     @api.model
     def _update_orderpoint_values(self, use_new_cursor=False, company_id=False):
         self.env["stock.warehouse.orderpoint"].search(
-            self._get_orderpoint_domain(company_id=company_id, only_automatic=False),
+            self._get_domain_orderpoint(company_id=company_id, only_automatic=False),
         ).sudo()._update_stored_values()
 
     @api.model
     def _replenish(self, use_new_cursor=False, company_id=False):
         orderpoints = self.env["stock.warehouse.orderpoint"].search(
-            self._get_orderpoint_domain(company_id=company_id),
+            self._get_domain_orderpoint(company_id=company_id),
         )
         orderpoints.sudo()._procure_orderpoint_confirm(
             use_new_cursor=use_new_cursor,
@@ -85,7 +85,7 @@ class StockScheduler(models.AbstractModel):
         self.env["stock.quant"]._run_maintenance_tasks()
 
     @api.model
-    def _get_orderpoint_domain(self, company_id=False, only_automatic=True):
+    def _get_domain_orderpoint(self, company_id=False, only_automatic=True):
         domain = Domain("product_id.active", "=", True)
         if only_automatic:
             domain &= Domain("trigger", "=", "auto")

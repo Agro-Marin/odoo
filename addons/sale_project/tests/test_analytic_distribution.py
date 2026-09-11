@@ -145,7 +145,7 @@ class TestAnalyticDistribution(HttpCase, TestSaleProjectCommon):
                 "account_id": account.id,
             }
         )
-        domain = line._get_so_mapping_domain()
+        domain = line._get_domain_so_mapping()
 
         self.assertEqual(
             domain,

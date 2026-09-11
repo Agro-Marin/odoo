@@ -33,11 +33,11 @@ class MixinMailThread(models.AbstractModel):
         help="Portal communication history for this record.",
     )
 
-    def _get_portal_message_fetch_domain(self, message_domain=None):
+    def _get_domain_portal_message_fetch(self, message_domain=None):
         MailMessage = self.env["mail.message"]
         field = self._fields["website_message_ids"]
         if message_domain is None:
-            message_domain = self._get_portal_message_non_empty_domain()
+            message_domain = self._get_domain_portal_message_non_empty()
         return (
             Domain(field.get_comodel_domain(self))
             & Domain("res_id", "in", self.ids)
@@ -45,7 +45,7 @@ class MixinMailThread(models.AbstractModel):
             & Domain(message_domain)
         )
 
-    def _get_portal_message_non_empty_domain(self):
+    def _get_domain_portal_message_non_empty(self):
         return Domain("body", "not in", [False, EMPTY_EDIT_MARKER]) | Domain(
             "attachment_ids", "!=", False
         )

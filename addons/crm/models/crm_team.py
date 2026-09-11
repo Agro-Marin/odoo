@@ -547,7 +547,7 @@ class CrmTeam(models.Model):
             "duplicates": leads_dup_ids,
         }
 
-    def _get_lead_to_assign_domain(self):
+    def _get_domain_lead_to_assign(self):
         return [
             ("user_id", "=", False),
             ("date_open", "=", False),
@@ -570,7 +570,7 @@ class CrmTeam(models.Model):
         counter = 0
         leads_per_team = dict(
             self.env["crm.lead"]._read_group(
-                teams_with_members._get_lead_to_assign_domain(),
+                teams_with_members._get_domain_lead_to_assign(),
                 ["team_id"],
                 ["id:array_agg"],
             )

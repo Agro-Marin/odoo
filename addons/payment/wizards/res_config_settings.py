@@ -28,7 +28,7 @@ class ResConfigSettings(models.TransientModel):
     @api.depends("company_id")
     def _compute_active_provider_id(self):
         for config in self:
-            active_providers_domain = config._get_active_providers_domain()
+            active_providers_domain = config._get_domain_active_providers()
             if active_providers := self.env["payment.provider"].search(
                 active_providers_domain, limit=1
             ):
@@ -39,14 +39,14 @@ class ResConfigSettings(models.TransientModel):
     @api.depends("company_id")
     def _compute_has_enabled_provider(self):
         for config in self:
-            enabled_providers_domain = config._get_active_providers_domain(
+            enabled_providers_domain = config._get_domain_active_providers(
                 enabled_only=True
             )
             config.has_enabled_provider = bool(
                 self.env["payment.provider"].search(enabled_providers_domain, limit=1)
             )
 
-    def _get_active_providers_domain(self, enabled_only=False):
+    def _get_domain_active_providers(self, enabled_only=False):
         """Return the domain to search for active providers.
 
         :param bool enabled_only: Whether only enabled providers should be considered active.

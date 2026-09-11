@@ -1856,7 +1856,7 @@ class AccountReportExpressionEval(models.Model):
             )
         return rslt
 
-    def _get_expression_audit_aml_domain(self, expression_to_audit, options):
+    def _get_domain_expression_audit_aml(self, expression_to_audit, options):
         """Returns the domain used to audit a single provided expression.
 
         'account_codes' engine's D and C formulas can't be handled by a domain: we make the choice to display
@@ -1990,7 +1990,7 @@ class AccountReportExpressionEval(models.Model):
 
     def _get_report_query(self, options, date_scope, domain=None) -> Query:
         """Get a Query object that references the records needed for this report."""
-        domain = self._get_options_domain(options, date_scope) & Domain(
+        domain = self._get_domain_options(options, date_scope) & Domain(
             domain or Domain.TRUE
         )
 

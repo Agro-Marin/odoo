@@ -465,7 +465,7 @@ class SlideSlide(models.Model):
             self.env["mail.message"]
             .sudo()
             ._read_group(
-                self._get_portal_message_fetch_domain(),
+                self._get_domain_portal_message_fetch(),
                 ["res_id"],
                 ["__count"],
             )

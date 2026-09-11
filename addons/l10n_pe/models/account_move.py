@@ -4,9 +4,9 @@ from odoo import api, models
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    def _get_l10n_latam_documents_domain(self):
+    def _get_domain_l10n_latam_documents(self):
         self.check_singleton()
-        result = super()._get_l10n_latam_documents_domain()
+        result = super()._get_domain_l10n_latam_documents()
         if (
             self.company_id.country_id.code != "PE"
             or not self.l10n_latam_use_documents

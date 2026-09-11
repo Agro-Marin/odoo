@@ -570,7 +570,7 @@ class TestStockQuantImprovements(TestStockCommon):
         self.env.invalidate_all()
 
         cls = type(self.Quant)
-        orig_search, orig_domain = cls.search, cls._get_least_packages_domain
+        orig_search, orig_domain = cls.search, cls._get_domain_least_packages
         state = {"building": False, "singles_searches": 0}
 
         def counting_search(records, *args, **kwargs):
@@ -586,12 +586,12 @@ class TestStockQuantImprovements(TestStockCommon):
                 state["building"] = False
 
         cls.search = counting_search
-        cls._get_least_packages_domain = counting_domain
+        cls._get_domain_least_packages = counting_domain
         try:
             res = self.Quant._gather(product, self.loc, qty=3)
         finally:
             cls.search = orig_search
-            cls._get_least_packages_domain = orig_domain
+            cls._get_domain_least_packages = orig_domain
 
         self.assertTrue(res, "gather must return the unpackaged quant")
         self.assertEqual(res.package_id.ids, [], "should pick the unpackaged quant")
@@ -1219,12 +1219,12 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(len(gather(product, self.loc, strict=True)), 2)
 
         registry_cls = type(self.Quant)
-        orig = registry_cls._get_gather_domain
+        orig = registry_cls._get_domain_gather
 
         def extended(records, *args, **kwargs):
             return orig(records, *args, **kwargs) & Domain("quantity", ">", 6.0)
 
-        with patch.object(registry_cls, "_get_gather_domain", extended):
+        with patch.object(registry_cls, "_get_domain_gather", extended):
             res = gather(product, self.loc, strict=True)
         self.assertEqual(
             res.mapped("quantity"),

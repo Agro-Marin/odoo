@@ -68,7 +68,7 @@ class ProductProduct(models.Model):
     @api.depends_context("company")
     def _compute_is_kit(self):
         Bom = self.env["mrp.bom"].sudo()
-        domain = Bom._get_kit_domain() & (
+        domain = Bom._get_domain_kit() & (
             Domain("product_id", "in", self.ids)
             | (
                 Domain("product_id", "=", False)
@@ -94,7 +94,7 @@ class ProductProduct(models.Model):
         if operator != "in" or set(value) != {True}:
             return NotImplemented
         Bom = self.env["mrp.bom"].sudo()
-        kit_domain = Bom._get_kit_domain()
+        kit_domain = Bom._get_domain_kit()
         bom_tmpl_query = Bom._search(kit_domain & Domain("product_id", "=", False))
         bom_product_query = Bom._search(kit_domain & Domain("product_id", "!=", False))
         return [

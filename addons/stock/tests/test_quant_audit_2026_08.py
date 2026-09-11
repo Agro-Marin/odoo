@@ -306,12 +306,12 @@ class TestQuantExpirationBoundary(TestStockCommon):
                 "removal_date",
                 inspect.getsource(module),
                 f"{module.__name__} must reach expiry through "
-                "_get_expiration_domain / _filtered_not_expired, not by name",
+                "_get_domain_expiration / _filtered_not_expired, not by name",
             )
 
     def test_the_base_hooks_are_neutral(self):
         quant = self.env["stock.quant"]
-        self.assertEqual(quant._get_expiration_domain(), Domain.TRUE)
+        self.assertEqual(quant._get_domain_expiration(), Domain.TRUE)
         product = self.env["product.product"].create(
             {"name": "qaud-expiry", "is_storable": True}
         )

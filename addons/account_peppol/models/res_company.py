@@ -368,7 +368,7 @@ class ResCompany(models.Model):
     def _compute_peppol_can_send(self):
         can_send_domain = self.env[
             "account_edi_proxy_client.user"
-        ]._get_can_send_domain()
+        ]._get_domain_can_send()
         for company in self:
             company.peppol_can_send = (
                 company.account_peppol_proxy_state in can_send_domain

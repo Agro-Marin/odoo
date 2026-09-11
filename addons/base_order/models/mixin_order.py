@@ -1257,8 +1257,8 @@ class MixinOrder(models.AbstractModel):
             "show_sections": bool(self.id),
         }
 
-    def _get_product_catalog_domain(self):
-        return super()._get_product_catalog_domain() & Domain(
+    def _get_domain_product_catalog(self):
+        return super()._get_domain_product_catalog() & Domain(
             self._get_catalog_product_ok_field(),
             "=",
             True,

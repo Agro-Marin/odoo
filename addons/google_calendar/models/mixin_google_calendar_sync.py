@@ -423,7 +423,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
         :param full_sync: If True, all events attended by the user are returned
         :return: events
         """
-        domain = self._get_sync_domain()
+        domain = self._get_domain_sync()
         if not full_sync:
             is_active_clause = (
                 Domain(self._active_name, "=", True)
@@ -444,7 +444,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
         is_active_clause = (
             Domain(self._active_name, "=", True) if self._active_name else Domain.TRUE
         )
-        domain = self._get_sync_domain()
+        domain = self._get_domain_sync()
         domain &= (Domain("google_id", "=", False) & is_active_clause) | Domain(
             "need_sync", "=", True
         )
@@ -484,7 +484,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
         """
         raise NotImplementedError
 
-    def _get_sync_domain(self):
+    def _get_domain_sync(self):
         """Return a domain used to search records to synchronize.
         e.g. return a domain to synchronize records owned by the current user.
         """

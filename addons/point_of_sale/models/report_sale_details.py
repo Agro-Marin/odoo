@@ -23,7 +23,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                 date_start, date_stop
             )
 
-        domain = self._get_domain(
+        domain = self._get_domain_orders(
             date_start, date_stop, config_ids, session_ids, **kwargs
         )
         orders = self.env["pos.order"].search(domain)
@@ -110,7 +110,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
     def _get_default_report_span(self):
         return timedelta(days=1, microseconds=-1)
 
-    def _get_domain(
+    def _get_domain_orders(
         self,
         date_start=False,
         date_stop=False,

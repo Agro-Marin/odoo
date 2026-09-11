@@ -144,9 +144,9 @@ class AccountMove(models.Model):
                 documents_allowed |= document_allowed
         return documents_allowed
 
-    def _get_l10n_latam_documents_domain(self):
+    def _get_domain_l10n_latam_documents(self):
         self.check_singleton()
-        domain = super()._get_l10n_latam_documents_domain()
+        domain = super()._get_domain_l10n_latam_documents()
         if self.country_code == "EC" and self.l10n_latam_use_documents:
             if self.debit_origin_id:  # show/hide the debit note document type
                 domain.extend([("internal_type", "=", "debit_note")])
@@ -176,8 +176,8 @@ class AccountMove(models.Model):
                 return self._get_ec_formatted_sequence()
         return super()._get_starting_sequence()
 
-    def _get_last_sequence_domain(self, relaxed=False):
-        where_string, param = super()._get_last_sequence_domain(relaxed)
+    def _get_domain_last_sequence(self, relaxed=False):
+        where_string, param = super()._get_domain_last_sequence(relaxed)
         if self.country_code == "EC" and self.l10n_latam_use_documents:
             internal_type = self.l10n_latam_document_type_id.internal_type
             document_types = self.env["l10n_latam.document.type"].search(

@@ -254,7 +254,7 @@ class AccountLock_Exception(models.Model):
                 record._invalidate_affected_user_lock_dates()
 
     @api.model
-    def _get_active_exceptions_domain(self, company, soft_lock_date_fields):
+    def _get_domain_active_exceptions(self, company, soft_lock_date_fields):
         return (
             Domain.OR(
                 Domain(field, "<", company[field])

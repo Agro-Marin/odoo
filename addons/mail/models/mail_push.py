@@ -39,14 +39,14 @@ class MailPush(models.Model):
     )
 
     @api.model
-    def _get_due_domain(self) -> Domain:
+    def _get_domain_due(self) -> Domain:
         return Domain("retry_after", "=", False) | Domain(
             "retry_after", "<=", fields.Datetime.now()
         )
 
     @api.model
     def _push_notification_to_endpoint(self, batch_size: int = 50) -> None:
-        due_domain = self._get_due_domain()
+        due_domain = self._get_domain_due()
         web_push_notifications_sudo = self.sudo().search_fetch(
             due_domain, ["mail_push_device_id", "payload"], limit=batch_size
         )
@@ -117,5 +117,5 @@ class MailPush(models.Model):
         if devices_to_unlink:
             self.env["mail.push.device"].sudo().browse(devices_to_unlink).unlink()
 
-        if self.sudo().search_count(self._get_due_domain(), limit=1) > 0:
+        if self.sudo().search_count(self._get_domain_due(), limit=1) > 0:
             self.env.ref("mail.ir_cron_web_push_notification")._trigger()

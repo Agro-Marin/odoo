@@ -554,8 +554,8 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                 ("account_id.reconcile", "=", True),
                 ("journal_id.type", "!=", journal_type_to_exclude.get(journal_type)),
                 *self._prepare_domain_from_period(options, params["expression_label"]),
-                *report._get_options_domain(options, "from_beginning"),
-                *report._get_audit_line_groupby_domain(params["calling_line_dict_id"]),
+                *report._get_domain_options(options, "from_beginning"),
+                *report._get_domain_audit_line_groupby(params["calling_line_dict_id"]),
             ]
             action["domain"] = domain
         return action

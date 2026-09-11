@@ -560,8 +560,8 @@ class TestExpiryForecastDomains(ExpiryAuditCommon):
         report = self.env["stock.forecasted_product_product"]
         locations = self.stock_location.ids
         base = report._get_domain_base_quant(locations, self.product)
-        fresh = report._get_quant_domain(locations, self.product)
-        expired = report._get_expired_quant_domain(locations, self.product)
+        fresh = report._get_domain_quant(locations, self.product)
+        expired = report._get_domain_expired_quant(locations, self.product)
         for leaf in base:
             self.assertIn(leaf, fresh)
             self.assertIn(
@@ -582,10 +582,10 @@ class TestExpiryForecastDomains(ExpiryAuditCommon):
         self.patch(type(report), "_get_domain_base_quant", narrowed)
         self.assertIn(
             marker,
-            report._get_expired_quant_domain(self.stock_location.ids, self.product),
+            report._get_domain_expired_quant(self.stock_location.ids, self.product),
         )
         self.assertIn(
-            marker, report._get_quant_domain(self.stock_location.ids, self.product)
+            marker, report._get_domain_quant(self.stock_location.ids, self.product)
         )
 
 

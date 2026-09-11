@@ -65,7 +65,7 @@ class LoyaltyRule(models.Model):
                 domain = Domain.AND(
                     [
                         [("available_in_pos", "=", True)],
-                        rules[:1]._get_valid_product_domain(),
+                        rules[:1]._get_domain_valid_product(),
                     ]
                 )
                 rules.valid_product_ids = self.env["product.product"].search(

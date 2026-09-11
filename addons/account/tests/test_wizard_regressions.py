@@ -68,7 +68,7 @@ class TestChangeLockDateWizardShape(TransactionCase):
             wizard = self.env["account.change.lock.date"].create(
                 {lock_date_field: "2019-06-30"}
             )
-            domain = wizard._get_draft_moves_in_locked_period_domain()
+            domain = wizard._get_domain_draft_moves_in_locked_period()
             self.assertIn(
                 "2019",
                 repr(domain),
@@ -141,7 +141,7 @@ class TestAutoReconcileWizardScope(TransactionCase):
         wizard = self.env["account.auto.reconcile.wizard"].create(
             {"to_date": "2019-12-31", "partner_ids": [(6, 0, partner.ids)]}
         )
-        domain = wizard._get_amls_domain()
+        domain = wizard._get_domain_amls()
         self.assertTrue(
             any(leaf[0] == "partner_id" for leaf in domain if isinstance(leaf, tuple)),
             "the wizard reconciles every partner when no account is chosen",

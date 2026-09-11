@@ -308,7 +308,7 @@ class IrModuleModule(models.Model):
         if not self.env.user.has_group("website.group_website_restricted_editor"):
             raise werkzeug.exceptions.Forbidden
 
-        themes = self.env["ir.module.module"].search(self.get_themes_domain())
+        themes = self.env["ir.module.module"].search(self.get_domain_themes())
         if self - themes:
             raise werkzeug.exceptions.Forbidden
 
@@ -402,7 +402,7 @@ class IrModuleModule(models.Model):
                     }
                 )
 
-    def get_themes_domain(self):
+    def get_domain_themes(self):
         def get_id(model_id):
             return self.env["ir.model.data"]._xmlid_to_res_id(model_id)
 

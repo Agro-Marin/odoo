@@ -48,7 +48,7 @@ class AccountTaxReportHandler(models.AbstractModel):
         if rows:
             warnings["account.tax_report_warning_inactive_tags"] = {}
 
-    def _get_amls_with_archived_tags_domain(self, options):
+    def _get_domain_amls_with_archived_tags(self, options):
         domain = [
             ("tax_tag_ids.active", "=", False),
             ("parent_state", "=", "posted"),
@@ -63,7 +63,7 @@ class AccountTaxReportHandler(models.AbstractModel):
             "name": _("Journal items with archived tax tags"),
             "type": "ir.actions.act_window",
             "res_model": "account.move.line",
-            "domain": self._get_amls_with_archived_tags_domain(options),
+            "domain": self._get_domain_amls_with_archived_tags(options),
             "context": {"active_test": False},
             "views": [(self.env.ref("account.view_archived_tag_move_tree").id, "list")],
         }
@@ -878,7 +878,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
             ]
 
         domain = Domain(
-            report._get_options_domain(options, "strict_range")
+            report._get_domain_options(options, "strict_range")
         ) & Domain.OR(
             (
                 # Base lines

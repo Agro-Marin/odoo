@@ -30,7 +30,7 @@ class DocumentsDocument(models.Model):
             and not self.env.su
         ):
             raise AccessError(_("You are not allowed to pin/unpin embedded Actions."))
-        embeddable_domain = self._get_embeddable_server_action_domain()
+        embeddable_domain = self._get_domain_embeddable_server_action()
         action = (
             self.env["ir.actions.server"]
             .sudo()
@@ -157,7 +157,7 @@ class DocumentsDocument(models.Model):
         ) | Domain("group_ids", "=", False)
 
     @api.model
-    def _get_base_server_actions_domain(self) -> Domain:
+    def _get_domain_base_server_actions(self) -> Domain:
         return Domain.AND(
             [
                 [("model_id", "=", self.env["ir.model"]._get_id("document.document"))],
@@ -192,7 +192,7 @@ class DocumentsDocument(models.Model):
         actions = (
             self.env["ir.actions.server"]
             .sudo()
-            .search(self._get_embeddable_server_action_domain())
+            .search(self._get_domain_embeddable_server_action())
         )
         return [
             {
@@ -204,10 +204,10 @@ class DocumentsDocument(models.Model):
         ]
 
     @api.model
-    def _get_embeddable_server_action_domain(
+    def _get_domain_embeddable_server_action(
         self, *, restrict_to_user_groups: bool = True
     ) -> Domain:
-        candidate_domain = self._get_base_server_actions_domain()
+        candidate_domain = self._get_domain_base_server_actions()
         if restrict_to_user_groups:
             candidate_domain &= self._server_action_group_domain()
         candidate_actions_sudo = (
@@ -264,7 +264,7 @@ class DocumentsDocument(models.Model):
                 Domain.AND(
                     [
                         [("id", "in", all_embedded_actions_sudo.action_id.ids)],
-                        self._get_embeddable_server_action_domain(),
+                        self._get_domain_embeddable_server_action(),
                     ]
                 )
             )

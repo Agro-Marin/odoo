@@ -94,7 +94,7 @@ class AccountMove(models.Model):
         invoice = render_context["record"]
         invoice_country = invoice.commercial_partner_id.country_code
         company_country = invoice.company_id.country_code
-        can_send = self.env["account_edi_proxy_client.user"]._get_can_send_domain()
+        can_send = self.env["account_edi_proxy_client.user"]._get_domain_can_send()
         company_on_peppol = invoice.company_id.account_peppol_proxy_state in can_send
         if (
             company_on_peppol

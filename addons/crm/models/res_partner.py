@@ -22,7 +22,7 @@ class ResPartner(models.Model):
             ["parent_id"],
         )
 
-    def _get_contact_opportunities_domain(self):
+    def _get_domain_contact_opportunities(self):
         return [("partner_id", "in", self._get_children_partners_for_hierarchy().ids)]
 
     def _compute_opportunity_count(self):
@@ -33,7 +33,7 @@ class ResPartner(models.Model):
             self.env["crm.lead"]
             .with_context(active_test=False)
             ._read_group(
-                domain=self._get_contact_opportunities_domain(),
+                domain=self._get_domain_contact_opportunities(),
                 groupby=["partner_id"],
                 aggregates=["__count"],
             )
@@ -71,5 +71,5 @@ class ResPartner(models.Model):
             "active_test": False,
         }
         action["views"] = sorted(action["views"], key=lambda view: view[1] != "list")
-        action["domain"] = self._get_contact_opportunities_domain()
+        action["domain"] = self._get_domain_contact_opportunities()
         return action

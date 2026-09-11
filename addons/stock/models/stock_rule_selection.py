@@ -40,9 +40,9 @@ class StockRuleSelection(models.Model):
 
     @api.model
     def _get_rule_candidates(self, values, locations, warehouse_ids, valid_route_ids):
-        domain = self._get_rule_location_domain(
+        domain = self._get_domain_rule_location(
             locations,
-        ) & self._get_rule_scope_domain(values)
+        ) & self._get_domain_rule_scope(values)
         if warehouse_ids:
             domain &= Domain("warehouse_id", "in", [False, *warehouse_ids.ids])
         if valid_route_ids:
@@ -110,7 +110,7 @@ class StockRuleSelection(models.Model):
                     return self._sorted_by_precedence(candidates, warehouse_id)[:1]
         return self.env["stock.rule"]
 
-    def _get_rule_by_domain(
+    def _get_domain_rule_by(
         self, route_ids, packaging_uom_id, product_id, warehouse_id, domain
     ):
         values = {"route_ids": route_ids, "packaging_uom_id": packaging_uom_id}
@@ -209,7 +209,7 @@ class StockRuleSelection(models.Model):
                 warehouse_ids,
             )
             key = (
-                str(self._get_rule_scope_domain(values)),
+                str(self._get_domain_rule_scope(values)),
                 locations[-1].id,
                 tuple(warehouse_ids.ids),
                 frozenset(valid_route_ids),
@@ -253,13 +253,13 @@ class StockRuleSelection(models.Model):
         return self._get_intercomp_transit_location().id in locations.ids
 
     @api.model
-    def _get_rule_domain(self, locations, values):
-        return self._get_rule_location_domain(
+    def _get_domain_rule(self, locations, values):
+        return self._get_domain_rule_location(
             locations,
-        ) & self._get_rule_scope_domain(values)
+        ) & self._get_domain_rule_scope(values)
 
     @api.model
-    def _get_rule_location_domain(self, locations):
+    def _get_domain_rule_location(self, locations):
         location_ids = locations.ids
         if self._has_intercomp_transit_location(locations):
             customers_location = self.env.ref(
@@ -272,7 +272,7 @@ class StockRuleSelection(models.Model):
         )
 
     @api.model
-    def _get_rule_scope_domain(self, values):
+    def _get_domain_rule_scope(self, values):
         domain = Domain.TRUE
         if self.env.su and values.get("company_id"):
             company_ids = set(values["company_id"].ids)
@@ -297,7 +297,7 @@ class StockRuleSelection(models.Model):
             )
             if dom := values.get("domain"):
                 domain &= Domain(dom)
-            found_rule = self._get_rule_by_domain(
+            found_rule = self._get_domain_rule_by(
                 values.get("route_ids"),
                 values.get("packaging_uom_id"),
                 product_id,

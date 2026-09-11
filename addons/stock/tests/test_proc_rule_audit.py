@@ -100,7 +100,7 @@ class TestRuleFormConsistency(ProcRuleAuditCommon):
 
     def test_the_operation_type_code_domain_composes_across_modules(self):
         rule = self.env["stock.rule"].search([("action", "=", "pull")], limit=1)
-        self.assertEqual(rule._get_picking_type_code_domain(), [])
+        self.assertEqual(rule._get_domain_picking_type_code(), [])
 
 
 class TestProcurementMoveValues(ProcRuleAuditCommon):
@@ -246,7 +246,7 @@ class TestRuleResolution(ProcRuleAuditCommon):
         push_choice = (
             self.env["stock.rule"]
             .sudo()
-            ._get_rule_by_domain(
+            ._get_domain_rule_by(
                 self.env["stock.route"],
                 False,
                 product,
@@ -317,7 +317,7 @@ class TestRuleResolution(ProcRuleAuditCommon):
 
         Rule = self.env["stock.rule"]
 
-        original_scope = type(Rule)._get_rule_scope_domain
+        original_scope = type(Rule)._get_domain_rule_scope
 
         def scoped_domain(rule_self, values):
             domain = original_scope(rule_self, values)
@@ -325,7 +325,7 @@ class TestRuleResolution(ProcRuleAuditCommon):
                 domain &= Domain("id", "!=", marker_rule.id)
             return domain
 
-        type(Rule)._get_rule_scope_domain = scoped_domain
+        type(Rule)._get_domain_rule_scope = scoped_domain
         try:
             alone = [
                 Rule.sudo()._get_rules_batch([plain])[0],
@@ -334,7 +334,7 @@ class TestRuleResolution(ProcRuleAuditCommon):
             forward = Rule.sudo()._get_rules_batch([plain, narrowed])
             backward = Rule.sudo()._get_rules_batch([narrowed, plain])
         finally:
-            type(Rule)._get_rule_scope_domain = original_scope
+            type(Rule)._get_domain_rule_scope = original_scope
 
         self.assertEqual(list(forward), alone, "batching must not change the answer")
         self.assertEqual(list(reversed(backward)), alone, "nor must batch order")

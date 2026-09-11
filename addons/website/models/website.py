@@ -24,7 +24,7 @@ from odoo.tools.translate import _
 
 from odoo.addons.portal.controllers.portal import pager
 from odoo.addons.website.models.ir_http import sitemap_qs2dom
-from odoo.addons.website.tools import get_base_domain
+from odoo.addons.website.tools import get_base_hostname
 
 logger = logging.getLogger(__name__)
 
@@ -546,7 +546,7 @@ class Website(models.Model):
         attachments_to_unlink.unlink()
 
     def _idna_url(self, url):
-        return get_base_domain(url.lower(), True).encode("idna").decode("ascii")
+        return get_base_hostname(url.lower(), True).encode("idna").decode("ascii")
 
     def _is_indexable_url(self, url):
         return self._idna_url(url) == self._idna_url(self.domain)
@@ -864,7 +864,7 @@ class Website(models.Model):
             return (domain_name or "").split(":")[0]
 
         def is_domain_matching(website, domain_name, ignore_port=False):
-            website_domain = get_base_domain(website.domain_punycode)
+            website_domain = get_base_hostname(website.domain_punycode)
             if ignore_port:
                 website_domain = remove_port(website_domain)
                 domain_name = remove_port(domain_name)

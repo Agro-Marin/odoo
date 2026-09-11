@@ -15,12 +15,12 @@ class ResConfigSettings(models.TransientModel):
     def _compute_has_enabled_provider(self):
         return super()._compute_has_enabled_provider()
 
-    def _get_active_providers_domain(self, *args, **kwargs):
+    def _get_domain_active_providers(self, *args, **kwargs):
         """Override of `payment` to only return providers compatible with the current website."""
         self.check_singleton()
         return Domain.AND(
             [
-                super()._get_active_providers_domain(*args, **kwargs),
+                super()._get_domain_active_providers(*args, **kwargs),
                 [
                     "|",
                     ("website_id", "=", False),

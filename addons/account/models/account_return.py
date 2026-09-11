@@ -1857,7 +1857,7 @@ class AccountReturn(models.Model):
                 domain=[
                     *self.env["account.tax"]._check_company_domain(self.company_ids),
                     ("country_id", "=", country.id),
-                    *self._get_amount_to_pay_additional_tax_domain(),
+                    *self._get_domain_amount_to_pay_additional_tax(),
                 ],
                 aggregates=["tax_group_id:recordset"],
             )[0][0]
@@ -1899,7 +1899,7 @@ class AccountReturn(models.Model):
             -recoverable_amount_to_pay + self.period_amount_to_pay
         )
 
-    def _get_amount_to_pay_additional_tax_domain(self):
+    def _get_domain_amount_to_pay_additional_tax(self):
         return []
 
     def _generate_locking_attachments(self, options):
@@ -2434,7 +2434,7 @@ class AccountReturn(models.Model):
         query = self.type_id.report_id._get_report_query(
             company_options,
             "strict_range",
-            domain=self._get_vat_closing_entry_additional_domain(),
+            domain=self._get_domain_vat_closing_entry_additional(),
         )
 
         # Check whether it is multilingual, in order to get the translation from the JSON value if present
@@ -2630,7 +2630,7 @@ class AccountReturn(models.Model):
         # Override this to, for example, apply a rounding to the lines of the closing entry
         return results
 
-    def _get_vat_closing_entry_additional_domain(self):
+    def _get_domain_vat_closing_entry_additional(self):
         return []
 
     def _add_tax_group_closing_items(self, tax_group_subtotal, company):
@@ -3375,7 +3375,7 @@ class AccountReturn(models.Model):
                 tax_criterium = ("tax_tag_ids", "in", tax_criterium_ids)
 
             ec_sales_aml_domain = [
-                *self.type_id.report_id._get_options_domain(options, "strict_range"),
+                *self.type_id.report_id._get_domain_options(options, "strict_range"),
                 tax_criterium,
             ]
 

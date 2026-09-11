@@ -1843,7 +1843,7 @@ class DocumentsDocument(models.Model):
         return removable_sudo.with_env(self.env)
 
     @api.model
-    def _get_gc_clear_bin_domain(self) -> list:
+    def _get_domain_gc_clear_bin(self) -> list:
         deletion_delay = self.get_deletion_delay()
         return [
             ("active", "=", False),
@@ -2150,7 +2150,7 @@ class DocumentsDocument(models.Model):
     @api.autovacuum
     def _gc_clear_bin(self) -> tuple:
         limit = 1000
-        expired = self.search(self._get_gc_clear_bin_domain(), limit=limit)
+        expired = self.search(self._get_domain_gc_clear_bin(), limit=limit)
         removed = len(expired)
         expired.unlink()
         return removed, removed == limit
@@ -2159,7 +2159,7 @@ class DocumentsDocument(models.Model):
         if folder_ids := self.filtered(lambda d: d.type == "folder").ids:
             company_used_folders_domain = self.env[
                 "res.company"
-            ]._get_used_folder_ids_domain(folder_ids)
+            ]._get_domain_used_folder_ids(folder_ids)
             if (
                 self.env["res.company"]
                 .sudo()

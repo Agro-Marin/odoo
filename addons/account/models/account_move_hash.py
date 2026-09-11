@@ -28,7 +28,7 @@ class AccountMove(models.Model):
         ]
 
     @api.model
-    def _get_move_hash_domain(self, common_domain=False, force_hash=False):
+    def _get_domain_move_hash(self, common_domain=False, force_hash=False):
         domain = Domain(common_domain or Domain.TRUE) & Domain("state", "=", "posted")
         if force_hash:
             return domain
@@ -36,7 +36,7 @@ class AccountMove(models.Model):
 
     @api.model
     def _is_move_restricted(self, move, force_hash=False):
-        return move.filtered_domain(self._get_move_hash_domain(force_hash=force_hash))
+        return move.filtered_domain(self._get_domain_move_hash(force_hash=force_hash))
 
     def _hash_moves(self, **kwargs):
         chains_to_hash = self._get_chains_to_hash(**kwargs)
@@ -56,10 +56,10 @@ class AccountMove(models.Model):
         if grant_secure_group_access:
             self.env["res.groups"]._activate_group_account_secured()
 
-    def _get_chain_hash_domain(
+    def _get_domain_chain_hash(
         self, last_move_in_chain, last_move_hashed, common_domain, include_pre_last_hash
     ):
-        domain = self.env["account.move"]._get_move_hash_domain(
+        domain = self.env["account.move"]._get_domain_move_hash(
             [
                 *common_domain,
                 ("sequence_number", "<=", last_move_in_chain.sequence_number),
@@ -144,7 +144,7 @@ class AccountMove(models.Model):
             )
         )
 
-        domain = self._get_chain_hash_domain(
+        domain = self._get_domain_chain_hash(
             last_move_in_chain,
             last_move_hashed,
             common_domain,

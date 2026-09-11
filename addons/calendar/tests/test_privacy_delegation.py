@@ -263,7 +263,7 @@ class TestPrivacyDomainFallback(CalendarPrivacyCommon, TransactionCase):
 
     def test_owner_without_settings_row_is_not_treated_as_private(self):
         # `_check_private_event_conditions` falls back to the config parameter
-        # for such an owner; `_get_default_privacy_domain` used not to, so the
+        # for such an owner; `_get_domain_default_privacy` used not to, so the
         # event was public to the predicate and invisible to every search.
         owner = new_test_user(self.env, "no_settings_owner", groups="base.group_user")
         owner.sudo().res_users_settings_id.unlink()

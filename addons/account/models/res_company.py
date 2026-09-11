@@ -997,7 +997,7 @@ class ResCompany(models.Model):
         if changed_soft_lock_fields:
             LockException = self.env["account.lock_exception"]
             domain = Domain.OR(
-                LockException._get_active_exceptions_domain(
+                LockException._get_domain_active_exceptions(
                     company, changed_soft_lock_fields
                 )
                 for company in self

@@ -130,7 +130,7 @@ class ProductProduct(models.Model):
         move_domain = Domain.AND(
             [
                 move_domain,
-                self._get_monthly_demand_moves_location_domain(),
+                self._get_domain_monthly_demand_moves_location(),
             ],
         )
         move_qty_by_products = self.env["stock.move"]._read_group(
@@ -173,7 +173,7 @@ class ProductProduct(models.Model):
         ]
         return [("id", "in", ids)]
 
-    def _get_lines_domain(self, location_ids=False, warehouse_ids=False):
+    def _get_domain_lines(self, location_ids=False, warehouse_ids=False):
         domains = []
         rfq_domain = Domain("state", "=", "draft") & Domain(
             "product_id",
@@ -221,7 +221,7 @@ class ProductProduct(models.Model):
         return rfq_domain & Domain.OR(domains or [Domain.TRUE])
 
     @api.model
-    def _get_monthly_demand_moves_location_domain(self):
+    def _get_domain_monthly_demand_moves_location(self):
         warehouse_id = self.env.context.get("warehouse_id")
         non_return_moves_domain = [
             "!",
@@ -297,7 +297,7 @@ class ProductProduct(models.Model):
             location_ids,
             warehouse_ids,
         )
-        domain = self._get_lines_domain(location_ids, warehouse_ids)
+        domain = self._get_domain_lines(location_ids, warehouse_ids)
         groups = (
             self.env["purchase.order.line"]
             .sudo()

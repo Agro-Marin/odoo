@@ -237,7 +237,7 @@ class StockPickingBatch(models.Model):
             batch.estimated_shipping_weight = estimated_shipping_weight
             batch.estimated_shipping_volume = estimated_shipping_volume
 
-    def _get_allowed_picking_domain(self):
+    def _get_domain_allowed_picking(self):
         self.check_singleton()
         states = ["waiting", "confirmed", "assigned"]
         if self.state == "draft":
@@ -260,7 +260,7 @@ class StockPickingBatch(models.Model):
         )
         for batches in grouped.values():
             batches.allowed_picking_ids = self.env["stock.picking"].search(
-                batches[:1]._get_allowed_picking_domain()
+                batches[:1]._get_domain_allowed_picking()
             )
 
     @api.depends(
@@ -602,7 +602,7 @@ class StockPickingBatch(models.Model):
     def _check_pickings_are_allowed(self):
         for batch in self:
             erroneous_pickings = batch.picking_ids - batch.picking_ids.filtered_domain(
-                batch._get_allowed_picking_domain()
+                batch._get_domain_allowed_picking()
             )
             if erroneous_pickings:
                 raise UserError(

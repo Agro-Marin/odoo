@@ -23,7 +23,7 @@ class PortalAccount(CustomerPortal):
         if "invoice_count" in counters:
             invoice_count = (
                 request.env["account.move"].search_count(
-                    self._get_invoices_domain("out"), limit=1
+                    self._get_domain_invoices("out"), limit=1
                 )
                 if request.env["account.move"].has_access("read")
                 else 0
@@ -32,7 +32,7 @@ class PortalAccount(CustomerPortal):
         if "bill_count" in counters:
             bill_count = (
                 request.env["account.move"].search_count(
-                    self._get_invoices_domain("in"), limit=1
+                    self._get_domain_invoices("in"), limit=1
                 )
                 if request.env["account.move"].has_access("read")
                 else 0
@@ -43,7 +43,7 @@ class PortalAccount(CustomerPortal):
     def _get_overdue_invoice_count(self):
         return (
             request.env["account.move"].search_count(
-                self._get_overdue_invoices_domain()
+                self._get_domain_overdue_invoices()
             )
             if request.env["account.move"].has_access("read")
             else 0
@@ -64,7 +64,7 @@ class PortalAccount(CustomerPortal):
             invoice, access_token, values, "my_invoices_history", False, **kwargs
         )
 
-    def _get_invoices_domain(self, m_type=None):
+    def _get_domain_invoices(self, m_type=None):
         if m_type in ["in", "out"]:
             move_type = [m_type + move for move in ("_invoice", "_refund", "_receipt")]
         else:
@@ -80,7 +80,7 @@ class PortalAccount(CustomerPortal):
             "move_type", "in", move_type
         )
 
-    def _get_overdue_invoices_domain(self, partner_id=None):
+    def _get_domain_overdue_invoices(self, partner_id=None):
         return [
             ("state", "not in", ("cancel", "draft")),
             ("move_type", "in", ("out_invoice", "out_receipt")),
@@ -106,7 +106,7 @@ class PortalAccount(CustomerPortal):
             "all": {"label": _("All"), "domain": []},
             "overdue_invoices": {
                 "label": _("Overdue invoices"),
-                "domain": self._get_overdue_invoices_domain(),
+                "domain": self._get_domain_overdue_invoices(),
             },
             "invoices": {
                 "label": _("Invoices"),
@@ -163,7 +163,7 @@ class PortalAccount(CustomerPortal):
         values = self._prepare_portal_layout_values()
         AccountInvoice = request.env["account.move"]
 
-        domain = Domain(domain or Domain.TRUE) & self._get_invoices_domain()
+        domain = Domain(domain or Domain.TRUE) & self._get_domain_invoices()
 
         searchbar_sortings = self._get_account_searchbar_sortings()
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "date")

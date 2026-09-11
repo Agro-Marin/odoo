@@ -164,7 +164,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
         self.unlink()
 
     @api.model
-    def _get_can_send_domain(self):
+    def _get_domain_can_send(self):
         return ("sender", "smp_registration", "receiver")
 
     # -------------------------------------------------------------------------
@@ -186,7 +186,7 @@ class Account_Edi_Proxy_ClientUser(models.Model):
                 (
                     "company_id.account_peppol_proxy_state",
                     "in",
-                    self._get_can_send_domain(),
+                    self._get_domain_can_send(),
                 ),
                 ("proxy_type", "=", "peppol"),
             ]

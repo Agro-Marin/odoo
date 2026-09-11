@@ -4,7 +4,7 @@ from odoo import models
 class PortalWizardUser(models.TransientModel):
     _inherit = "portal.wizard.user"
 
-    def _get_similar_users_domain(self, portal_users_with_email):
+    def _get_domain_similar_users(self, portal_users_with_email):
         """Widen the base "similar user" domain to also match on website_id.
 
         Collects every website_id relevant to this batch of invites (each
@@ -16,7 +16,7 @@ class PortalWizardUser(models.TransientModel):
         so "similar" must consider website_id or it would miss/misreport
         genuine duplicates across websites.
         """
-        similar_user_domain = super()._get_similar_users_domain(portal_users_with_email)
+        similar_user_domain = super()._get_domain_similar_users(portal_users_with_email)
         portal_user_website_ids = []
         for portal_user in portal_users_with_email:
             portal_user_website_id = portal_user.partner_id.website_id.id

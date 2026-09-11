@@ -678,7 +678,7 @@ class TestAuditTopologyFixes(TransactionCase):
                 "warehouse_id": self.warehouse.id,
             },
         )
-        allowed = self.env["stock.route"].search(wizard._get_allowed_route_domain())
+        allowed = self.env["stock.route"].search(wizard._get_domain_allowed_route())
         self.assertIn(clean_route, allowed)
         self.assertNotIn(
             intercomp_route,

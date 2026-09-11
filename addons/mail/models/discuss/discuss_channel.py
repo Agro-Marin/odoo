@@ -795,7 +795,7 @@ class DiscussChannel(models.Model):
         partner, guest = self.env["res.partner"]._get_current_persona()
         self._action_unfollow(partner=partner, guest=guest)
 
-    def _get_notification_member_domain(
+    def _get_domain_notification_member(
         self, pids: list[int], author_id: int | Literal[False]
     ) -> Domain:
         self.check_singleton()
@@ -856,7 +856,7 @@ class DiscussChannel(models.Model):
         recipients_data = self._get_mentioned_recipients_data(
             pids, author_id, email_from
         )
-        domain = self._get_notification_member_domain(pids, author_id)
+        domain = self._get_domain_notification_member(pids, author_id)
         members = self.env["discuss.channel.member"].sudo().search(domain)
         recipients_data.extend(
             prepare_recipient_data(

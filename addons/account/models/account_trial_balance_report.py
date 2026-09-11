@@ -784,7 +784,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             action["domain"] = list(
                 Domain(action["domain"])
                 & Domain(
-                    report._get_unallocated_earnings_lines_domain(
+                    report._get_domain_unallocated_earnings_lines(
                         column_group_forced_options[
                             "trial_balance_block_fiscalyear_start"
                         ],

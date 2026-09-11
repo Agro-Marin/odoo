@@ -38,12 +38,12 @@ class TestReplenishRouteDomain(TransactionCase):
 
     def test_drop_shipping_is_excluded(self):
         allowed = self.env["stock.route"].search(
-            self._wizard()._get_allowed_route_domain()
+            self._wizard()._get_domain_allowed_route()
         )
         self.assertNotIn(self.route, allowed)
 
     def test_excluded_exactly_once(self):
-        domain = repr(self._wizard()._get_allowed_route_domain())
+        domain = repr(self._wizard()._get_domain_allowed_route())
         self.assertEqual(domain.count(f"'id', '!=', {self.route.id}"), 1)
 
     def test_a_deleted_route_does_not_break_the_wizard(self):
@@ -52,6 +52,6 @@ class TestReplenishRouteDomain(TransactionCase):
         self.env.invalidate_all()
 
         allowed = self.env["stock.route"].search(
-            self._wizard()._get_allowed_route_domain()
+            self._wizard()._get_domain_allowed_route()
         )
         self.assertNotIn(self.route, allowed)

@@ -198,13 +198,13 @@ class AccountMove(models.Model):
             return "never"
         return super()._deduce_sequence_number_reset(name)
 
-    def _get_last_sequence_domain(self, relaxed=False):
+    def _get_domain_last_sequence(self, relaxed=False):
         no_anti_regex = False
         if self.l10n_latam_use_documents:
             no_anti_regex = True
         where_string, param = super(
             AccountMove, self.with_context(no_anti_regex=no_anti_regex)
-        )._get_last_sequence_domain(relaxed)
+        )._get_domain_last_sequence(relaxed)
         return where_string, param
 
     def _skip_format_document_number(self):
@@ -291,7 +291,7 @@ class AccountMove(models.Model):
                     )
                 )
 
-    def _get_l10n_latam_documents_domain(self):
+    def _get_domain_l10n_latam_documents(self):
         self.check_singleton()
         internal_types = []
         invoice_type = self.move_type
@@ -317,7 +317,7 @@ class AccountMove(models.Model):
         ):
             rec.l10n_latam_available_document_type_ids = self.env[
                 "l10n_latam.document.type"
-            ].search(rec._get_l10n_latam_documents_domain())
+            ].search(rec._get_domain_l10n_latam_documents())
 
     @api.depends("l10n_latam_available_document_type_ids")
     def _compute_l10n_latam_document_type_id(self):

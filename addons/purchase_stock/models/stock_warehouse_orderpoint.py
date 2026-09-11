@@ -208,7 +208,7 @@ class StockWarehouseOrderpoint(models.Model):
         self.check_singleton()
         order = (
             self.env["purchase.order.line"]
-            .search(self._get_replenishment_source_domain(), limit=1)
+            .search(self._get_domain_replenishment_source(), limit=1)
             .order_id
         )
         if order:

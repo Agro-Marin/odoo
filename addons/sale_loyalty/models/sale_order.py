@@ -406,7 +406,7 @@ class SaleOrder(models.Model):
         self.check_singleton()
         cheapest_line = False
         cheapest_line_price_unit = False
-        domain = reward._get_discount_product_domain()
+        domain = reward._get_domain_discount_product()
         for line in self.line_ids - self._get_no_effect_on_threshold_lines():
             line_price_unit = self._get_order_line_price(line, "price_unit")
             if (
@@ -447,7 +447,7 @@ class SaleOrder(models.Model):
 
         discountable_lines = self.env["sale.order.line"]
         for line in self.line_ids - self._get_no_effect_on_threshold_lines():
-            domain = reward._get_discount_product_domain()
+            domain = reward._get_domain_discount_product()
             if (
                 not line.reward_id
                 and not line.combo_item_id

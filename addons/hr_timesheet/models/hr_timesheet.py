@@ -12,7 +12,7 @@ from odoo.tools.translate import _
 class AccountAnalyticLine(models.Model):
     _inherit = "account.analytic.line"
 
-    def _get_favorite_project_id_domain(self, employee_id=False):
+    def _get_domain_favorite_project_id(self, employee_id=False):
         employee_id = employee_id or self.env.user.employee_id.id
         return [
             ("employee_id", "=", employee_id),
@@ -24,7 +24,7 @@ class AccountAnalyticLine(models.Model):
     @api.model
     def _get_favorite_project_id(self, employee_id=False):
         last_timesheets = self.search_fetch(
-            self._get_favorite_project_id_domain(employee_id), ["project_id"], limit=5
+            self._get_domain_favorite_project_id(employee_id), ["project_id"], limit=5
         )
         if not last_timesheets:
             internal_project = self.env.company.internal_project_id

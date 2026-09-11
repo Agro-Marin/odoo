@@ -48,10 +48,10 @@ class AccountDeferredReportHandler(models.AbstractModel):
             ("move_id.date", "<=", options["date"]["date_to"]),
         ]
 
-    def _get_domain(
+    def _get_domain_deferred_lines(
         self, report, options, filter_already_generated=False, filter_not_started=False
     ):
-        domain = report._get_options_domain(options, "from_beginning")
+        domain = report._get_domain_options(options, "from_beginning")
         account_types = (
             ("expense", "expense_depreciation", "expense_direct_cost")
             if self._get_deferred_report_type() == "expense"
@@ -157,7 +157,9 @@ class AccountDeferredReportHandler(models.AbstractModel):
 
     def _update_deferred_lines_cache(self, report, options, filter_already_generated):
         """Fetch the lines that need to be deferred from the DB and store them in the cache for later reuse"""
-        domain = self._get_domain(report, options, filter_already_generated)
+        domain = self._get_domain_deferred_lines(
+            report, options, filter_already_generated
+        )
         query = report._get_report_query(
             options, domain=domain, date_scope="from_beginning"
         )
@@ -403,7 +405,7 @@ class AccountDeferredReportHandler(models.AbstractModel):
         )
 
         # Find the original lines to be deferred in the report period
-        original_move_lines_domain = self._get_domain(
+        original_move_lines_domain = self._get_domain_deferred_lines(
             report,
             options,
             filter_not_started=column_values["expression_label"] == "not_started",
@@ -523,7 +525,7 @@ class AccountDeferredReportHandler(models.AbstractModel):
     def open_journal_items(self, options, params):
         report = self.env["account.report"].browse(options["report_id"])
         record_model, record_id = report._get_model_info_from_id(params.get("line_id"))
-        domain = self._get_domain(report, options)
+        domain = self._get_domain_deferred_lines(report, options)
         if record_model == "account.account" and record_id:
             domain &= Domain("account_id", "=", record_id)
         elif record_model == "product.product" and record_id:

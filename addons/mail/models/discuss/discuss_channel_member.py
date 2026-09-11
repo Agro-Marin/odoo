@@ -683,7 +683,7 @@ class DiscussChannelMember(models.Model):
             check_rtc_sessions - self.channel_id.rtc_session_ids,
         )
 
-    def _get_rtc_invite_members_domain(
+    def _get_domain_rtc_invite_members(
         self, member_ids: list[int] | None = None
     ) -> Domain:
         self.check_singleton()
@@ -709,7 +709,7 @@ class DiscussChannelMember(models.Model):
     def _rtc_invite_members(self, member_ids: list[int] | None = None) -> Self:
         self.check_singleton()
         members = self.env["discuss.channel.member"].search(
-            self._get_rtc_invite_members_domain(member_ids)
+            self._get_domain_rtc_invite_members(member_ids)
         )
         if members:
             members.rtc_inviting_session_id = self.rtc_session_ids.id

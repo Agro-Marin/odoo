@@ -198,7 +198,7 @@ class ProductPublicCategory(models.Model):
         :rtype: list[dict]
         """
         child_count_by_parent = self._read_group(
-            domain=self._get_available_category_domain(website_id),
+            domain=self._get_domain_available_category(website_id),
             aggregates=["id:count"],
             groupby=["parent_id"],
         )
@@ -212,7 +212,7 @@ class ProductPublicCategory(models.Model):
         ]
 
     @api.model
-    def _get_available_category_domain(self, website_id):
+    def _get_domain_available_category(self, website_id):
         """Build a search domain for product categories to be used in dynamic snippets.
 
         :param int website_id: ID of the current website

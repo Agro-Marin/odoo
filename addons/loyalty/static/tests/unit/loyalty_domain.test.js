@@ -26,7 +26,7 @@ test("the loyalty card search filters resolve a real date client-side", () => {
     expect(new Domain(inactive).toString()).toInclude(today);
 });
 
-// Guards `loyalty.reward._get_discount_product_domain`, whose result is serialised
+// Guards `loyalty.reward._get_domain_discount_product`, whose result is serialised
 // into `reward_product_domain` and re-evaluated here by the Point of Sale. A
 // hierarchical operator compiles to a predicate that is true for every record, so
 // stating the reward's product category with `child_of` -- the way `loyalty.rule`

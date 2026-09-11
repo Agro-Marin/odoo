@@ -1009,7 +1009,7 @@ class ProductTemplate(models.Model):
         self.check_singleton()
         return [self] + list(self.product_template_image_ids)
 
-    def _get_attribute_value_domain(self, attribute_value_dict):
+    def _get_domain_attribute_value(self, attribute_value_dict):
         return [
             [("attribute_line_ids.value_ids", "in", attribute_value_ids)]
             for attribute_value_ids in attribute_value_dict.values()
@@ -1056,7 +1056,7 @@ class ProductTemplate(models.Model):
         if max_price:
             domains.append([("list_price", "<=", max_price)])
         if attribute_value_dict:
-            domains.extend(self._get_attribute_value_domain(attribute_value_dict))
+            domains.extend(self._get_domain_attribute_value(attribute_value_dict))
         search_fields = ["name", "default_code", "variants_default_code"]
         fetch_fields = ["id", "name", "website_url"]
         mapping = {
