@@ -110,6 +110,10 @@ class CalendarAttendee(models.Model):
             # landed on the record.
         attendees = super().create(vals_list)
         attendees.event_id.check_access("write")
+        if not self.env.context.get(
+            "is_calendar_event_new"
+        ) and not self.env.context.get("skip_attendee_reservation_sync"):
+            attendees.event_id._active_for_sync()._sync_reservations()
         return attendees
 
     def write(self, vals):
@@ -120,6 +124,12 @@ class CalendarAttendee(models.Model):
         old_events = self.event_id
         res = super().write(vals)
         (old_events | self.event_id).check_access("write")
+        if {
+            "state",
+            "event_id",
+            "partner_id",
+        } & vals.keys() and not self.env.context.get("skip_attendee_reservation_sync"):
+            (old_events | self.event_id)._active_for_sync()._sync_reservations()
         return res
 
     def unlink(self):
@@ -127,9 +137,13 @@ class CalendarAttendee(models.Model):
         # `unlink()` had no equivalent, letting any internal user delete any
         # attendee off any event -- checked before deleting, since after
         # deletion the rows this check would query no longer exist.
-        self.event_id.check_access("write")
+        events = self.event_id
+        events.check_access("write")
         self._unsubscribe_partner()
-        return super().unlink()
+        result = super().unlink()
+        if not self.env.context.get("skip_attendee_reservation_sync"):
+            events.exists()._active_for_sync()._sync_reservations()
+        return result
 
     def copy(self, default=None):
         raise UserError(_("You cannot duplicate a calendar attendee."))

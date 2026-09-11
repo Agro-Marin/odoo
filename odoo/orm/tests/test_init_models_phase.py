@@ -13,7 +13,7 @@ class _FakeRegistry:
 
     init_phase: typing.Any = _R.init_phase
     post_init: typing.Any = _R.post_init
-    add_relation_reflection: typing.Any = _R.add_relation_reflection
+    register_relation_table: typing.Any = _R.register_relation_table
     init_models_window: typing.Any = _R.init_models_window
     drain_post_init: typing.Any = _R.drain_post_init
     del _R
@@ -35,9 +35,9 @@ class TestPhaseIsClosedByDefault:
         with pytest.raises(RuntimeError, match="only available while init_models"):
             _FakeRegistry().post_init(lambda: None)
 
-    def test_add_relation_reflection_outside_the_window_raises_it_too(self):
+    def test_register_relation_table_outside_the_window_raises_it_too(self):
         with pytest.raises(RuntimeError, match="only available while init_models"):
-            _FakeRegistry().add_relation_reflection("a.model", "a_rel", "base")
+            _FakeRegistry().register_relation_table("a.model", "a_rel", "base")
 
 
 class TestPhaseWhileOpen:
@@ -65,9 +65,9 @@ class TestPhaseWhileOpen:
 
     def test_relation_reflections_dedupe_and_keep_order(self):
         registry = _FakeRegistry(InitModelsPhase(install=True))
-        registry.add_relation_reflection("m.one", "rel_a", "base")
-        registry.add_relation_reflection("m.two", "rel_b", "base")
-        registry.add_relation_reflection("m.one", "rel_a", "base")
+        registry.register_relation_table("m.one", "rel_a", "base")
+        registry.register_relation_table("m.two", "rel_b", "base")
+        registry.register_relation_table("m.one", "rel_a", "base")
         assert list(registry.init_phase.relation_reflections) == [
             ("m.one", "rel_a", "base"),
             ("m.two", "rel_b", "base"),

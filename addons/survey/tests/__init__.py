@@ -33,3 +33,4 @@ from . import test_survey_access_surface
 from . import test_survey_hardening
 
 from . import test_detached_questions
+from . import test_embedded_phone

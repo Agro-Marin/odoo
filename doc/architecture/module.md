@@ -548,8 +548,15 @@ they were named:
 |---|---|
 | Was | `_post_init_queue`, `_foreign_keys`, `_relation_reflections`, `_is_install` created in `init_models`' `try:` and `del`-eted in its `finally:` — alive only for that call. Layer 1 (`fields/relational/many2many.py`) wrote to the third, which worked solely because `update_db` runs inside the window. |
 | Caught by | nothing. No declaration of the ordering; an `AttributeError` at module-install time was the only signal. |
-| Now | one `InitModelsPhase` (`orm/runtime/_init_phase.py`) behind `Registry.init_phase`, a property that raises a `RuntimeError` naming the window when closed. Layer 1 calls `pool.add_relation_reflection(...)`. |
+| Now | one `InitModelsPhase` (`orm/runtime/_init_phase.py`) behind `Registry.init_phase`, a property that raises a `RuntimeError` naming the window when closed. Layer 1 calls `pool.register_relation_table(...)`. |
 | Closed 2026-09-02 | `registration.py` read `Registry._init_modules` to ask whether an install is in flight — same shape, pinned in `pool_surface_check.py`. The set is the modules the loader has brought up, read by base, `web`, `website` and the service layer alike, so it is public now: `Registry.loaded_modules`, and the pin is gone. |
+
+The phase snapshots the tables owned by concrete models before their schema is
+initialized. `register_relation_table` admits only field-owned relation tables:
+a Many2many reading a payload model's table must neither create a composite-key
+replacement before that model initializes nor record it for relation-table
+uninstall. Manual fields follow the same admission rule without acquiring module
+reflection metadata. Ownership is recomputed for every initialization pass.
 
 [`risks.md`](risks.md) R1, the register's first closed entry.
 

@@ -15,7 +15,7 @@ AutoComplete.selectOption  odoo  :triage
 AutoComplete.setup  odoo  :keep
 AutoComplete.targetDropdown  odoo  :triage
 BadgeField.badgeClass  enterprise  :triage
-BadgeSelectionField.options  enterprise  :keep
+BadgeSelectionField.options  odoo  :keep
 BinaryField.onFileDownload  odoo  :triage
 BinaryField.setup  odoo enterprise  :keep
 BinaryField.update  enterprise  :triage
@@ -155,7 +155,7 @@ FormController.beforeLeave  enterprise  :triage
 FormController.beforeUnload  enterprise  :keep
 FormController.className  odoo  :keep
 FormController.cogMenuProps  odoo enterprise  :keep
-FormController.create  enterprise  :keep
+FormController.create  odoo enterprise  :keep
 FormController.deleteConfirmationDialogProps  odoo  :triage
 FormController.deleteRecord  odoo enterprise  :keep
 FormController.discard  enterprise  :triage
@@ -175,7 +175,7 @@ FormLabel.className  enterprise  :triage
 FormRenderer.setup  odoo enterprise  :keep
 FormRendererWithHtmlExpander._canExpandHTMLField  odoo  :promote
 FormRendererWithHtmlExpander.setup  odoo  :triage
-FormViewDialog.setup  odoo enterprise  :keep
+FormViewDialog.setup  odoo  :keep
 GaugeField.formattedValue  odoo  :triage
 GaugeField.renderChart  odoo  :triage
 GaugeField.setup  odoo  :triage
@@ -267,7 +267,7 @@ ListController.beforeUnload  enterprise  :triage
 ListController.className  odoo  :triage
 ListController.createRecord  odoo enterprise  :keep
 ListController.modelParams  odoo  :keep
-ListController.onClickCreate  odoo enterprise  :keep
+ListController.onClickCreate  odoo  :keep
 ListController.onRecordSaved  odoo  :triage
 ListController.openRecord  odoo enterprise  :keep
 ListRenderer.add  odoo  :keep

@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from functools import partial
 
@@ -28,13 +28,18 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
         return self._init_phase
 
     @contextmanager
-    def init_models_window(self, install: bool) -> Iterator[InitModelsPhase]:
+    def init_models_window(
+        self, install: bool, *, model_tables: Iterable[str] = ()
+    ) -> Iterator[InitModelsPhase]:
         if self._init_phase is not None:
             raise RuntimeError(
                 "Registry.init_models_window() cannot be nested: one "
                 "module-initialisation pass is already open"
             )
-        self._init_phase = InitModelsPhase(install=install)
+        self._init_phase = InitModelsPhase(
+            install=install,
+            model_tables=frozenset(model_tables),
+        )
         try:
             yield self._init_phase
             self.drain_post_init()
@@ -49,7 +54,23 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
     def post_init(self, func: Callable, *args, **kwargs) -> None:
         self.init_phase.post_init_queue.append(partial(func, *args, **kwargs))
 
-    def add_relation_reflection(
-        self, model_name: str, relation: str, module: str | None
-    ) -> None:
-        self.init_phase.relation_reflections.add((model_name, relation, module))
+    def register_relation_table(
+        self,
+        model_name: str,
+        relation: str,
+        module: str | None,
+        *,
+        reflect: bool = True,
+    ) -> bool:
+        """Admit field-owned tables; payload models retain their own schema lifecycle.
+
+        All models are assembled before this phase begins, even when their tables
+        have not been created yet. Manual relations need the same ownership check
+        but do not acquire module-uninstall metadata.
+        """
+        phase = self.init_phase
+        if relation in phase.model_tables:
+            return False
+        if reflect:
+            phase.relation_reflections.add((model_name, relation, module))
+        return True

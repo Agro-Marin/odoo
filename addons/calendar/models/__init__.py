@@ -15,3 +15,5 @@ from . import mail_activity_type
 from . import res_users
 from . import res_users_settings
 from . import utils
+
+from . import booking

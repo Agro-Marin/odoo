@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="appointment_answer_input_view_search" model="ir.ui.view">
+        <field name="name">survey.user_input.line.view.search</field>
+        <field name="model">survey.user_input.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="appointment_type_id" />
+                <field name="value_char_box" />
+                <field name="value_text_box" />
+                <field name="suggested_answer_id" />
+                <field name="question_id" />
+                <filter
+                    string="Text Questions"
+                    domain="[('question_id.question_type', 'in', ['char_box', 'text_box'])]"
+                    name="filter_question_type_text" />
+                <filter
+                    string="Selection Questions"
+                    domain="[('question_id.question_type', 'in', ['multiple_choice', 'dropdown', 'simple_choice'])]"
+                    name="filter_question_type_selection" />
+                <group>
+                    <filter
+                        string="Question"
+                        name="group_by_question"
+                        context="{'group_by': 'question_id'}" />
+                    <filter
+                        string="Customer"
+                        name="group_by_customer"
+                        context="{'group_by': 'partner_id'}" />
+                    <filter
+                        string="Appointment Type"
+                        name="group_by_appointment_type"
+                        context="{'group_by': 'appointment_type_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="appointment_answer_input_view_form" model="ir.ui.view">
+        <field name="name">survey.user_input.line.view.form</field>
+        <field name="model">survey.user_input.line</field>
+        <field name="arch" type="xml">
+            <form string="Answer Input" name="answer_input_form">
+                <field name="question_type" invisible="1" />
+                <sheet>
+                    <group>
+                        <group name="answer_input_form_left">
+                            <field name="question_id" readonly="1" />
+                            <field name="appointment_type_id" readonly="1" />
+                            <field name="partner_id" readonly="1" />
+                        </group>
+                        <group name="answer_input_form_right">
+                            <field
+                                name="suggested_answer_id"
+                                invisible="question_type in ['char_box', 'text_box']" />
+                            <field
+                                name="value_char_box"
+                                invisible="question_type != 'char_box'" />
+                            <field
+                                name="value_text_box"
+                                invisible="question_type != 'text_box'" />
+                            <field name="calendar_event_id" readonly="1" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="appointment_answer_input_view_tree" model="ir.ui.view">
+        <field name="name">survey.user_input.line.view.list</field>
+        <field name="model">survey.user_input.line</field>
+        <field name="arch" type="xml">
+            <list create="false" string="Answer Breakdown">
+                <field name="create_date" optional="hide" />
+                <field name="question_id" optional="show" />
+                <field name="value_char_box" />
+                <field name="value_text_box" />
+                <field name="suggested_answer_id" />
+                <field name="partner_id" optional="hide" />
+                <field name="appointment_type_id" optional="hide" />
+            </list>
+        </field>
+    </record>
+
+    <record id="appointment_answer_input_view_graph" model="ir.ui.view">
+        <field name="name">survey.user_input.line.view.graph</field>
+        <field name="model">survey.user_input.line</field>
+        <field name="arch" type="xml">
+            <graph string="Answer Breakdown" sample="1">
+                <field name="suggested_answer_id" />
+            </graph>
+        </field>
+    </record>
+
+    <record id="appointment_answer_input_view_pivot" model="ir.ui.view">
+        <field name="name">survey.user_input.line.view.pivot</field>
+        <field name="model">survey.user_input.line</field>
+        <field name="arch" type="xml">
+            <pivot string="Answer Breakdown" sample="1">
+                <field name="question_id" type="row" />
+                <field name="suggested_answer_id" type="col" />
+            </pivot>
+        </field>
+    </record>
+
+    <record id="appointment_answer_input_action" model="ir.actions.act_window">
+        <field name="name">Answer Breakdown</field>
+        <field name="res_model">survey.user_input.line</field>
+        <field name="view_mode">list,graph,pivot,form</field>
+        <field name="view_id" ref="appointment_answer_input_view_tree" />
+        <field name="search_view_id" ref="appointment_answer_input_view_search" />
+        <field name="domain">[("appointment_type_id", "!=", False)]</field>
+        <field
+            name="context">{'search_default_group_by_question': True, 'form_view_ref': 'calendar.appointment_answer_input_view_form'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No Answers yet!
+            </p>
+        </field>
+    </record>
+
+    <record
+        id="appointment_answer_input_action_list"
+        model="ir.actions.act_window.view">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="appointment_answer_input_view_tree" />
+        <field name="act_window_id" ref="appointment_answer_input_action" />
+    </record>
+
+    <record
+        id="appointment_answer_input_action_graph"
+        model="ir.actions.act_window.view">
+        <field name="sequence">2</field>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="appointment_answer_input_view_graph" />
+        <field name="act_window_id" ref="appointment_answer_input_action" />
+    </record>
+
+    <record
+        id="appointment_answer_input_action_pivot"
+        model="ir.actions.act_window.view">
+        <field name="sequence">3</field>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="appointment_answer_input_view_pivot" />
+        <field name="act_window_id" ref="appointment_answer_input_action" />
+    </record>
+
+    <record
+        id="appointment_answer_input_action_form"
+        model="ir.actions.act_window.view">
+        <field name="sequence">4</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="appointment_answer_input_view_form" />
+        <field name="act_window_id" ref="appointment_answer_input_action" />
+    </record>
+
+</odoo>

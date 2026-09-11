@@ -447,7 +447,12 @@ class Registry(
         env = Environment(cr, SUPERUSER_ID, context)
         models = [env[model_name] for model_name in model_names]
 
-        with self.init_models_window(install) as phase:
+        with self.init_models_window(
+            install,
+            model_tables=(
+                model._table for model in self.models.values() if not model._abstract
+            ),
+        ) as phase:
             for model in models:
                 model._auto_init()
                 model.init()
@@ -457,7 +462,9 @@ class Registry(
             env["ir.model.fields.selection"]._reflect_selections(model_names)
             env["ir.model.constraint"]._reflect_constraints(model_names)
             env["ir.model.inherit"]._reflect_inherits(model_names)
-            env["ir.model.relation"]._reflect_relations(phase.relation_reflections)
+            env["ir.model.relation"]._reflect_relations(
+                phase.relation_reflections, model_tables=phase.model_tables
+            )
 
             self._ordinary_tables = {}
 

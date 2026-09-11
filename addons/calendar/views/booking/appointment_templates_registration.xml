@@ -1,0 +1,127 @@
+<odoo>
+
+    <template id="appointment_form" name="Website Appointment: Your Data">
+        <t t-set="no_breadcrumbs" t-value="True" />
+        <t t-call="portal.portal_layout">
+            <div id="wrap" class="d-flex">
+                <t
+                    t-set="o_portal_fullwidth_alert"
+                    groups="calendar.group_appointment_manager">
+                    <t t-call="calendar.appointment_edit_in_backend" />
+                </t>
+                <div class="container-lg h-100">
+                    <div t-attf-class="row #{'mt-4' if website else ''}">
+                        <div
+                            t-attf-class="col-12 col-md-8 #{'p-4' if not website else ''}">
+                            <nav
+                                class="d-print-none d-flex justify-content-between mb-4">
+                                <t t-call="calendar.appointment_progress_bar">
+                                    <t t-set="step" t-value="30" />
+                                </t>
+                            </nav>
+                            <div class="oe_structure o_appointment">
+                                <h4 class="pb-3">
+                                    <span>Add more details about you</span>
+                                    <t t-if="request.env.user._is_public()">
+                                        <span class="mx-1">or</span>
+                                        <a class="text-primary text-decoration-none" role="button" t-att-href="login_with_redirect_url">Sign in</a>
+                                    </t>
+                                </h4>
+                                <div class="oe_structure" />
+                                <div class="oe_structure o_appointment_attendee_form">
+                                    <div class="d-flex row justify-content-between">
+                                        <form
+                                            class="appointment_submit_form"
+                                            t-attf-action="/appointment/#{appointment_type.id}/submit?#{keep_query('*')}"
+                                            method="POST">
+                                            <input
+                                                type="hidden"
+                                                name="csrf_token"
+                                                t-att-value="request.csrf_token()" />
+                                            <input
+                                                type="hidden"
+                                                name="datetime_str"
+                                                t-att-value="datetime_str" />
+                                            <input
+                                                type="hidden"
+                                                name="duration_str"
+                                                t-att-value="duration_str" />
+                                            <input
+                                                type="hidden"
+                                                name="available_resource_ids"
+                                                t-att-value="available_resource_ids" />
+                                            <input
+                                                type="hidden"
+                                                name="asked_capacity"
+                                                t-att-value="asked_capacity" />
+                                            <div class="row mb-4">
+                                                <label class="col-sm-3 col-form-label fw-normal" for="name">Full name*</label>
+                                                <div class="col-sm-9">
+                                                    <input
+                                                        type="char"
+                                                        class="form-control"
+                                                        name="name"
+                                                        required="1"
+                                                        t-att-value="'name' in partner_data and partner_data['name']"
+                                                        placeholder="e.g. John Smith" />
+                                                </div>
+                                            </div>
+                                            <div class="row mb-4">
+                                                <label class="col-sm-3 col-form-label fw-normal" for="email">Email*</label>
+                                                <div class="col-sm-9">
+                                                    <input
+                                                        type="email"
+                                                        class="form-control"
+                                                        name="email"
+                                                        required="1"
+                                                        t-att-value="'email' in partner_data and partner_data['email']"
+                                                        placeholder="e.g. john.smith@example.com" />
+                                                </div>
+                                            </div>
+                                            <t t-call="survey.question_form_fields">
+        <t t-set="questions" t-value="appointment_type.question_ids" />
+        <t t-set="phone_question" t-value="main_phone_question" />
+        <t t-set="phone_value" t-value="partner_data.get('phone', '')" />
+        </t><t t-if="appointment_type.allow_guests">
+            <div class="row mb-4 mt-1">
+                <label class="col-sm-3 col-form-label fw-normal">Guests</label>
+                <div class="o_appointment_add_guests col-sm-9">
+                    <button type="button" class="o_appointment_input_guest_add btn btn-link ps-0"><i class="oi oi-plus me-1" /> Add Guests</button>
+                    <textarea
+                        type="email"
+                        id="o_appointment_input_guest_emails"
+                        class="form-control s_website_form_input d-none"
+                        name="guest_emails_str"
+                        placeholder="e.g. john.doe@email.com &#13;&#10;e.g. jane.doe@example.com&#13;&#10;..."
+                        rows="5" />
+                    <button type="button" class="o_appointment_input_guest_cancel btn btn-link d-none ps-0">Cancel</button>
+                    <div
+                        class="o_appointment_validation_error alert alert-danger d-none mt-2">
+                        <i class="fa-solid fa-triangle-exclamation me-1" />
+                        <span class="o_appointment_error_text" />
+                    </div>
+                </div>
+            </div>
+            </t>
+            <div class="my-3 pt-3">
+                <div class="o_not_editable text-end">
+                    <button type="button" class="o_appointment_form_confirm_btn btn btn-primary ms-auto">Confirm Appointment</button>
+                </div>
+            </div>
+            </form>
+            </div>
+            </div>
+            <div class="oe_structure" />
+            </div>
+            </div>
+            <t t-call="calendar.appointment_details_column">
+                <!-- Used to check if we are on "Details" step -->
+                <t t-set="isDetails" t-value="True" />
+            </t>
+            </div>
+            </div>
+            </div>
+        </t>
+    </template>
+
+</odoo>

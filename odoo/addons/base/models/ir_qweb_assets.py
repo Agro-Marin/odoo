@@ -12,6 +12,7 @@ from rjsmin import jsmin as _rjsmin
 from odoo import SUPERUSER_ID, api, models, tools
 from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.documents import mimetype_for
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
 from odoo.tools.assets import esm_index
@@ -1543,19 +1544,20 @@ class IrQweb(models.AbstractModel):
         metafile: str | None,
         sourcemap: str | None,
     ) -> None:
+        mimetype = mimetype_for("json")
         if metafile:
             self._save_esm_sidecar(
                 bundle,
                 url.removesuffix(".esm.js") + ".meta.json",
                 metafile.encode("utf-8"),
-                mimetype="application/json",
+                mimetype=mimetype,
             )
         if sourcemap:
             self._save_esm_sidecar(
                 bundle,
                 url + ".map",
                 sourcemap.encode("utf-8"),
-                mimetype="application/json",
+                mimetype=mimetype,
             )
 
     def _save_esm_sidecar(

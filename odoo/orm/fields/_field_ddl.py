@@ -220,8 +220,13 @@ def update_db_foreign_key(
 def update_db_relation_table(field: Many2many, model: ModelLike) -> bool:
     cr = model.env.cr
     relation, column1, column2 = field._get_relation_triple()
-    if not field.manual:
-        model.pool.add_relation_reflection(model._name, relation, field._module)
+    # An explicit relation may be a model with its own payload and constraints.
+    # Its model owns table creation, foreign keys and uninstall reflection even
+    # when this referencing model happens to initialize first.
+    if not model.pool.register_relation_table(
+        model._name, relation, field._module, reflect=not field.manual
+    ):
+        return False
     comodel = model.env[field.comodel_name]
     if not sql.table_exists(cr, relation):
         cr.execute(

@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-06 19:29+0000\n"
-"PO-Revision-Date: 2026-09-06 19:29+0000\n"
+"POT-Creation-Date: 2026-09-11 18:40+0000\n"
+"PO-Revision-Date: 2026-09-11 18:40+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -22,6 +22,12 @@ msgstr ""
 
 #. module: resource
 #. odoo-python
+#: code:addons/resource/models/resource_assignment.py:0
+msgid "%(assignee)s, %(role)s of %(resource)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
 #: code:addons/resource/models/resource_calendar_attendance.py:0
 msgid ""
 "%(att)s is a break attendance, You should not have such record on duration "
@@ -30,8 +36,16 @@ msgstr ""
 
 #. module: resource
 #. odoo-python
+#: code:addons/resource/models/resource_assignment.py:0
+msgid "%(name)s is not a human resource and cannot hold an assignment."
+msgstr ""
+
+#. module: resource
+#. odoo-python
 #: code:addons/resource/models/resource_reservation.py:0
-msgid "%(name)s: %(resource)s is already reserved during this time."
+msgid ""
+"%(name)s: %(resource)s exceeds its configured booking ceiling during this "
+"time."
 msgstr ""
 
 #. module: resource
@@ -120,15 +134,24 @@ msgstr ""
 
 #. module: resource
 #. odoo-python
+#: code:addons/resource/models/resource_assignment.py:0
+msgid "A resource cannot be assigned to itself."
+msgstr ""
+
+#. module: resource
+#. odoo-python
 #: code:addons/resource/models/resource_resource.py:0
 msgid "A resource needs a timezone: %s has none."
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__active
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__active
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__active
 #: model:ir.model.fields,field_description:resource.field_resource_resource__active
 #: model:ir.model.fields,field_description:resource.field_resource_role__active
+#: model:ir.model.fields.selection,name:resource.selection__resource_assignment__state__active
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
 msgid "Active"
 msgstr ""
 
@@ -151,10 +174,17 @@ msgstr ""
 
 #. module: resource
 #: model:ir.model.constraint,message:resource.constraint_resource_reservation_check_allocated_percentage
-msgid "Allocation % must be between 0 and 100."
+msgid "Allocation % must be finite and nonnegative."
 msgstr ""
 
 #. module: resource
+#: model:ir.model.constraint,message:resource.constraint_resource_assignment_check_dates
+msgid "An assignment cannot end before it starts."
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_form
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
 #: model_terms:ir.ui.view,arch_db:resource.resource_calendar_form
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
 #: model_terms:ir.ui.view,arch_db:resource.resource_resource_form
@@ -177,6 +207,26 @@ msgstr ""
 msgid ""
 "Are you sure you want to switch to a 2-week calendar? All work entries will "
 "be lost."
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__assignee_id
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
+msgid "Assignee"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_form
+msgid "Assignment"
+msgstr ""
+
+#. module: resource
+#: model:ir.actions.act_window,name:resource.action_resource_assignment
+#: model:ir.model.fields,field_description:resource.field_resource_resource__assignment_ids
+#: model:ir.ui.menu,name:resource.menu_resource_assignment
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_list
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
+msgid "Assignments"
 msgstr ""
 
 #. module: resource
@@ -218,6 +268,21 @@ msgid "Block"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_resource__booking_limit_percentage
+msgid "Booking Ceiling %"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_reservation__booking_key
+msgid "Booking Key"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_reservation__booking_state
+msgid "Booking Status"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar_attendance__day_period__lunch
 msgid "Break"
 msgstr ""
@@ -226,6 +291,21 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__two_weeks_calendar
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__two_weeks_calendar
 msgid "Calendar in 2 weeks mode"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_resource__capacity
+msgid "Capacity"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.constraint,message:resource.constraint_resource_resource_check_capacity
+msgid "Capacity must be strictly positive"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_reservation__booking_state__exceeded
+msgid "Ceiling Exceeded"
 msgstr ""
 
 #. module: resource
@@ -254,6 +334,7 @@ msgstr ""
 
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_mixin_resource__company_id
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__company_id
@@ -269,11 +350,13 @@ msgid "Confirm"
 msgstr ""
 
 #. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_list
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_list
 msgid "Conflicts"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__create_uid
@@ -284,6 +367,7 @@ msgid "Created by"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__create_date
@@ -294,8 +378,28 @@ msgid "Created on"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_resource__holder_id
+msgid "Current Holder"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_assignment__role__custodian
+msgid "Custodian"
+msgstr ""
+
+#. module: resource
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
 msgid "Date"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__date_end
+msgid "Date End"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__date_start
+msgid "Date Start"
 msgstr ""
 
 #. module: resource
@@ -306,6 +410,11 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__dayofweek
 msgid "Day of Week"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_resource__default_role_id
+msgid "Default Role"
 msgstr ""
 
 #. module: resource
@@ -347,6 +456,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling_tools__display_name
 #: model:ir.model.fields,field_description:resource.field_res_company__display_name
 #: model:ir.model.fields,field_description:resource.field_res_users__display_name
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__display_name
@@ -359,6 +469,11 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__display_type
 msgid "Display Type"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_assignment__role__driver
+msgid "Driver"
 msgstr ""
 
 #. module: resource
@@ -389,6 +504,17 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__date_to
 msgid "End Date"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_assignment__state__ended
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
+msgid "Ended"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_resource__enforce_booking_limit
+msgid "Enforce Booking Ceiling"
 msgstr ""
 
 #. module: resource
@@ -469,6 +595,11 @@ msgid "Full Time Equivalent"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_reservation__booking_state__full
+msgid "Fully Booked"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields.selection,name:resource.selection__resource_calendar__schedule_type__fully_fixed
 msgid "Fully Fixed"
 msgstr ""
@@ -489,6 +620,11 @@ msgid "Global Time Off"
 msgstr ""
 
 #. module: resource
+#: model_terms:ir.actions.act_window,help:resource.action_resource_assignment
+msgid "Hand a resource to someone"
+msgstr ""
+
+#. module: resource
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
 msgid "Hard Enforcement"
 msgstr ""
@@ -504,6 +640,13 @@ msgid "Hours per Week"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,help:resource.field_resource_resource__capacity
+msgid ""
+"How many claims the resource can hold at once: seats at a table, concurrent "
+"users of a machine. A reservation's allocated percentage is a share of this."
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields.selection,name:resource.selection__resource_resource__resource_type__user
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_resource_search
 msgid "Human"
@@ -516,6 +659,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling_tools__id
 #: model:ir.model.fields,field_description:resource.field_res_company__id
 #: model:ir.model.fields,field_description:resource.field_res_users__id
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__id
@@ -583,6 +727,7 @@ msgid "Is Full Time"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__write_uid
@@ -593,6 +738,7 @@ msgid "Last Updated by"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__write_date
@@ -603,9 +749,22 @@ msgid "Last Updated on"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_assignment__role__manager
+msgid "Manager"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields.selection,name:resource.selection__resource_resource__resource_type__material
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_resource_search
 msgid "Material"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,help:resource.field_resource_resource__booking_limit_percentage
+msgid ""
+"Maximum simultaneous allocation for enforced bookings. 100% permits full "
+"booking; 120% permits 20% overbooking. Warning-only reservations can exceed "
+"this ceiling when resource enforcement is disabled."
 msgstr ""
 
 #. module: resource
@@ -644,6 +803,7 @@ msgid "My Schedule"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__name
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__name
@@ -668,10 +828,20 @@ msgid "No scheduled reservations for you"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__note
+msgid "Note"
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,help:resource.field_resource_calendar__full_time_required_hours
 msgid ""
 "Number of hours to work on the company schedule to be considered as "
 "fulltime."
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_assignment__role__operator
+msgid "Operator"
 msgstr ""
 
 #. module: resource
@@ -685,13 +855,24 @@ msgid "Other"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_reservation__booking_state__over
+msgid "Overbooked"
+msgstr ""
+
+#. module: resource
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_search
 msgid "Partial working schedules"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__assignee_partner_id
 #: model:ir.model.fields,field_description:resource.field_resource_resource__partner_id
 msgid "Party"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_reservation__peak_booking_percentage
+msgid "Peak Booking %"
 msgstr ""
 
 #. module: resource
@@ -710,8 +891,21 @@ msgid "Period"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,field_description:resource.field_resource_resource__phone
-msgid "Phone"
+#: model:ir.model.fields,field_description:resource.field_resource_resource__phone_ids
+msgid "Phone Numbers"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_assignment__state__planned
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
+msgid "Planned"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,help:resource.field_resource_resource__default_role_id
+msgid ""
+"Preferred role when assigning this resource. The default is always included "
+"in its roles."
 msgstr ""
 
 #. module: resource
@@ -725,6 +919,14 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:resource.resource_calendar_leave_form
 #: model_terms:ir.ui.view,arch_db:resource.resource_calendar_leave_tree
 msgid "Reason"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,help:resource.field_resource_resource__enforce_booking_limit
+msgid ""
+"Reject any reservation that exceeds this resource's booking ceiling, "
+"including manual meetings and shifts. Individual bookings may enforce the "
+"ceiling even when this option is disabled."
 msgstr ""
 
 #. module: resource
@@ -751,6 +953,7 @@ msgstr ""
 #: model:ir.actions.act_window,name:resource.action_resource_reservation
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__reservation_ids
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling__reservation_ids
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__reservation_ids
 #: model:ir.ui.menu,name:resource.menu_resource_reservation
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_calendar
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_list
@@ -767,9 +970,11 @@ msgstr ""
 
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_mixin_resource__resource_id
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__resource_id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__resource_id
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__resource_id
 #: model:ir.ui.menu,name:resource.menu_resource_config
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
 #: model_terms:ir.ui.view,arch_db:resource.resource_resource_form
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar
@@ -780,6 +985,11 @@ msgstr ""
 #. module: resource
 #: model:ir.model,name:resource.model_mixin_resource_allocation
 msgid "Resource Allocation Mixin"
+msgstr ""
+
+#. module: resource
+#: model:ir.model,name:resource.model_resource_assignment
+msgid "Resource Assignment"
 msgstr ""
 
 #. module: resource
@@ -834,6 +1044,7 @@ msgstr ""
 #: model:ir.actions.act_window,name:resource.resource_resource_action_from_calendar
 #: model:ir.model,name:resource.model_resource_resource
 #: model:ir.model.fields,field_description:resource.field_res_users__resource_ids
+#: model:ir.model.fields,field_description:resource.field_resource_role__resource_ids
 #: model:ir.ui.menu,name:resource.menu_resource_resource
 #: model_terms:ir.ui.view,arch_db:resource.resource_resource_tree
 msgid "Resources"
@@ -854,7 +1065,14 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__role
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_search
+msgid "Role"
+msgstr ""
+
+#. module: resource
 #: model:ir.actions.act_window,name:resource.resource_role_action
+#: model:ir.model.fields,field_description:resource.field_resource_resource__role_ids
 #: model:ir.ui.menu,name:resource.menu_resource_role
 msgid "Roles"
 msgstr ""
@@ -900,6 +1118,7 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__schedule_overlap_count
 #: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling__schedule_overlap_count
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__schedule_overlap_count
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__schedule_overlap_count
 msgid "Scheduling Conflicts"
 msgstr ""
@@ -951,12 +1170,6 @@ msgid "Soft Enforcement"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,help:resource.field_resource_reservation__enforcement_mode
-msgid ""
-"Soft: overlaps produce a warning. Hard: overlaps raise a validation error."
-msgstr ""
-
-#. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__origin_display
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_calendar
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_list
@@ -997,6 +1210,11 @@ msgstr ""
 #. module: resource
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
 msgid "Starting Date of Time Off"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_assignment__state
+msgid "State"
 msgstr ""
 
 #. module: resource
@@ -1045,6 +1263,16 @@ msgid "Technical name of the model that created this reservation."
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_assignment__role__technician
+msgid "Technician"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.constraint,message:resource.constraint_resource_resource_check_booking_limit
+msgid "The booking ceiling must be finite and nonnegative."
+msgstr ""
+
+#. module: resource
 #. odoo-python
 #: code:addons/resource/models/resource_calendar.py:0
 msgid ""
@@ -1059,6 +1287,7 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,help:resource.field_resource_assignment__assignee_partner_id
 #: model:ir.model.fields,help:resource.field_resource_resource__partner_id
 msgid "The person this resource is. A material resource has none."
 msgstr ""
@@ -1190,6 +1419,11 @@ msgid "Unassigned week"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields.selection,name:resource.selection__resource_reservation__booking_state__under
+msgid "Underbooked"
+msgstr ""
+
+#. module: resource
 #: model:ir.model,name:resource.model_res_users
 #: model:ir.model.fields,field_description:resource.field_resource_resource__user_id
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_resource_search
@@ -1205,6 +1439,14 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields.selection,name:resource.selection__resource_reservation__enforcement_mode__soft
 msgid "Warning"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,help:resource.field_resource_reservation__enforcement_mode
+msgid ""
+"Warning permits excess capacity unless the resource enforces its ceiling. "
+"Block prevents total simultaneous allocation from exceeding the resource "
+"ceiling."
 msgstr ""
 
 #. module: resource
@@ -1246,6 +1488,11 @@ msgid "Week Number"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,help:resource.field_resource_assignment__resource_id
+msgid "What is held: a vehicle, a machine, a room, a device."
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,help:resource.field_resource_calendar__flexible_hours
 msgid ""
 "When enabled, it will allow employees to work flexibly, without relying on "
@@ -1257,6 +1504,31 @@ msgstr ""
 msgid ""
 "Whether this should be computed as a time off or as work time (eg: "
 "formation)"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,help:resource.field_resource_reservation__booking_key
+msgid ""
+"Which path of the origin record booked this row, when a record books through"
+" more than one (a maintenance request blocking both a work centre and an "
+"asset). Each path releases only its own rows."
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.actions.act_window,help:resource.action_resource_assignment
+msgid ""
+"Who drives the truck, who operates the press, who answers for the laptop: "
+"one record per custody, with its period."
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,help:resource.field_resource_assignment__assignee_id
+msgid "Who holds it."
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_assignment_view_form
+msgid "Why, or under what terms"
 msgstr ""
 
 #. module: resource
@@ -1395,22 +1667,4 @@ msgstr ""
 #. odoo-python
 #: code:addons/resource/models/resource_calendar_attendance.py:0
 msgid "this week"
-msgstr ""
-
-#. module: resource
-#. odoo-python
-#: code:addons/resource/models/resource_assignment.py:0
-msgid "%(assignee)s, %(role)s of %(resource)s"
-msgstr ""
-
-#. module: resource
-#. odoo-python
-#: code:addons/resource/models/resource_assignment.py:0
-msgid "%(name)s is not a human resource and cannot hold an assignment."
-msgstr ""
-
-#. module: resource
-#. odoo-python
-#: code:addons/resource/models/resource_assignment.py:0
-msgid "A resource cannot be assigned to itself."
 msgstr ""

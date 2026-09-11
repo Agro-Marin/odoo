@@ -43,16 +43,17 @@ test("can listen on bus and display notifications in DOM and click OK", async ()
 });
 
 test("can listen on bus and display notifications in DOM and click Detail", async () => {
+    let started = false;
     mockService("action", {
         doAction(actionId) {
-            if (actionId === "menu") {
-                return;
+            if (started) {
+                asyncStep(actionId.type);
             }
-            asyncStep(actionId.type);
         },
     });
     const pyEnv = await startServer();
     await start();
+    started = true;
     sendAlarm(pyEnv);
     await contains(".o_notification", { text: "Meeting. Very old meeting message" });
     await click(".o_notification_buttons button", { text: "Details" });

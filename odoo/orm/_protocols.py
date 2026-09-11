@@ -180,7 +180,7 @@ class IrModelFieldsSelectionProtocol(RecordsetProtocol, Protocol):
 
 
 class IrModelRelationProtocol(RecordsetProtocol, Protocol):
-    def _reflect_relations(self, items: Any) -> None: ...
+    def _reflect_relations(self, items: Any, *, model_tables: Any = ()) -> None: ...
 
 
 class IrModelInheritProtocol(RecordsetProtocol, Protocol):

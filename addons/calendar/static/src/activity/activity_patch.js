@@ -27,7 +27,7 @@ patch(Activity.prototype, {
             this.props.activity.remove();
             this.props.onActivityChanged(thread);
         } else {
-            super.unlink();
+            return super.unlink();
         }
     },
 });

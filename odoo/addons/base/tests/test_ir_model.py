@@ -1641,6 +1641,25 @@ class TestIrModelReflectionIdempotence(TransactionCase):
 
 
 class TestIrModelRelationReflection(TransactionCase):
+    def test_model_table_reflection_is_removed_without_dropping_payload(self):
+        relations = self.env["ir.model.relation"]
+        partner = self.env["res.partner"].create({"name": "Preserved payload"})
+        table = partner._table
+        for items in ([], [("res.partner", table, "base")]):
+            with self.subTest(items=items):
+                legacy = relations.create(
+                    {
+                        "name": table,
+                        "model": self.env["ir.model"]._get_id("res.partner"),
+                        "module": self.env.ref("base.module_base").id,
+                    }
+                )
+                relations._reflect_relations(items, model_tables={table})
+                self.assertFalse(legacy.exists())
+                self.assertFalse(relations.search([("name", "=", table)]))
+                partner.invalidate_recordset(["name"])
+                self.assertEqual(partner.name, "Preserved payload")
+
     def test_reflect_relations_is_idempotent_and_batched(self):
         IrModelRelation = self.env["ir.model.relation"]
         model_name = "res.partner"

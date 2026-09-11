@@ -3,7 +3,7 @@ import logging
 import math
 import re
 from collections import Counter
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from itertools import repeat
 from typing import NamedTuple
 from urllib.parse import urlsplit, urlunsplit
@@ -31,7 +31,6 @@ from odoo.addons.calendar.models.calendar_recurrence import (
 )
 from odoo.addons.calendar.models.utils import (
     generate_calendar_token,
-    interval_from_events,
 )
 
 _logger = logging.getLogger(__name__)
@@ -770,38 +769,40 @@ class CalendarEvent(models.Model):
         for event in self:
             event.display_description = not is_html_empty(event.description)
 
-    @api.depends("partner_ids", "start", "stop")
+    @api.depends(
+        "partner_ids",
+        "start",
+        "stop",
+        "allday",
+        "start_date",
+        "stop_date",
+        "attendee_ids.state",
+    )
     def _compute_unavailable_partner_ids(self):
         self.unavailable_partner_ids = False
-        intervals = list(interval_from_events(self))
-        if not intervals:
+        windows = [
+            (start, stop, event, partner)
+            for event in self.filtered(lambda event: event.start and event.stop)
+            for partner in event.partner_ids
+            for start, stop in event._get_attendee_intervals(partner)
+        ]
+        if not windows:
             return
-        # One search over the span the whole recordset covers, sliced per
-        # interval in Python.  `interval_from_events` groups the events into
-        # contiguous clusters and this used to search once per cluster, so a
-        # calendar view of back-to-back meetings -- which is a cluster per
-        # meeting -- issued a query per event.  The slicing stays per interval:
-        # `_is_partner_unavailable` is a hook, and `appointment`'s override sums
-        # a capacity over everything it is handed rather than re-checking the
-        # overlap, so handing it a wider set would change its answer.
-        span_start = min(start for start, _stop, _events in intervals)
-        span_stop = max(stop for _start, stop, _events in intervals)
+        # Keep one candidate search for the batch; the hook must receive only
+        # events overlapping this attendee's actual window.
         busy_events = self.partner_ids._search_busy_calendar_events(
-            span_start, span_stop
+            min(start for start, _stop, _event, _partner in windows),
+            max(stop for _start, stop, _event, _partner in windows),
         )
-        for start, stop, events in intervals:
-            events_by_partner_id = events.partner_ids._group_busy_calendar_events(
+        for start, stop, event, partner in windows:
+            events_by_partner = partner._group_busy_calendar_events(
                 busy_events, start, stop
             )
-            for event in events:
-                for partner in event.partner_ids:
-                    if event._is_partner_unavailable(
-                        partner,
-                        events_by_partner_id.get(
-                            partner._origin.id, self.env["calendar.event"]
-                        ),
-                    ):
-                        event.unavailable_partner_ids |= partner
+            if event._is_partner_unavailable(
+                partner,
+                events_by_partner.get(partner._origin.id, self.env["calendar.event"]),
+            ):
+                event.unavailable_partner_ids |= partner
 
     # A deliberate cycle, measured rather than assumed: `videocall_location` is
     # stored and computed from `videocall_source`, which is computed from
@@ -828,11 +829,11 @@ class CalendarEvent(models.Model):
     def _is_partner_unavailable(self, partner, partner_events):
         self.check_singleton()
         return any(
-            intervals_overlap(
-                (self.start, self.stop), (partner_event.start, partner_event.stop)
-            )
+            intervals_overlap(own_interval, other_interval)
+            for own_interval in self._get_attendee_intervals(partner)
             for partner_event in partner_events
             if partner_event != self
+            for other_interval in partner_event._get_attendee_intervals(partner)
         )
 
     @api.model
@@ -1244,37 +1245,17 @@ class CalendarEvent(models.Model):
         return ("start", "stop")
 
     def _prepare_reservation_vals_list(self):
-        """Mirror the meeting into the shared ledger, one row per attendee.
-
-        Only attendees resolving to a ``resource.resource`` book anything: a
-        contact invited by e-mail alone holds no capacity in this database,
-        and a reservation without a resource takes no part in the sweep.
-
-        An event shown as *free* books nothing at all.  ``show_as`` is the
-        organiser's own statement that the time remains available -- it is
-        already what the rest of calendar reads to decide whether a slot
-        counts as busy -- so honouring it keeps the ledger agreeing with what
-        the calendar displays.  Declining an invitation is deliberately *not*
-        read here: RSVP lives on ``calendar.attendee`` and changes without the
-        event ever being written, so a sync keyed on it would go stale
-        immediately.  An unwanted meeting is removed, not merely declined.
-
-        All-day events need no special case: ``start``/``stop`` are Datetimes
-        and are populated for them like any other event.
-        """
+        """Project busy, non-declined attendance, once per physical resource."""
         self.check_singleton()
         if not self.start or not self.stop or self.show_as != "busy":
             return []
 
         vals_list = []
         booked = set()
-        for user in self.partner_ids.user_ids:
-            # Rebind to the user's own company before resolving: the mapping
-            # is company-scoped, and a reader working in another active
-            # company would otherwise resolve every attendee to False and the
-            # sync would wipe the meeting's existing reservations.
-            scoped = user.with_company(user.company_id) if user.company_id else user
-            resource = scoped._get_calendar_event_resource()
+        users = self._get_scheduled_partners().user_ids
+        user_resources = users._get_calendar_event_resources()
+        for user in users:
+            resource = user_resources[user]
             # One row per resource, not per user.  A partner may carry several
             # users, and two partners may share one, but a person attends a
             # meeting once; the ledger permits repeated resources (a task can
@@ -1283,11 +1264,12 @@ class CalendarEvent(models.Model):
             if not resource or resource.id in booked:
                 continue
             booked.add(resource.id)
+            start, stop = self._get_reservation_interval(user.tz or resource.tz)
             vals_list.append(
                 {
                     "name": self.display_name,
-                    "date_start": self.start,
-                    "date_end": self.stop,
+                    "date_start": start,
+                    "date_end": stop,
                     "resource_id": resource.id,
                     # A meeting takes the attendee whole; there is no notion of
                     # attending a fraction of one.
@@ -1296,6 +1278,48 @@ class CalendarEvent(models.Model):
                 }
             )
         return vals_list
+
+    def _get_scheduled_partners(self):
+        """Partners whose attendance occupies their personal schedule."""
+        self.check_singleton()
+        return self.partner_ids - self.attendee_ids.filtered(
+            lambda attendee: attendee.state == "declined"
+        ).partner_id
+
+    def _get_attendee_intervals(self, partner, *, resources=None):
+        """Return UTC occupancy for an attendee, excluding a declined invitation.
+
+        All-day meetings use the attendee's civil dates. Availability callers
+        can supply resources resolved for the entire batch.
+        """
+        self.check_singleton()
+        if partner not in self._get_scheduled_partners():
+            return []
+        if not self.allday:
+            return [self._get_reservation_interval("UTC")]
+        if resources is None:
+            user_resources = partner.user_ids._get_calendar_event_resources()
+            resources = self.env["resource.resource"].union(*user_resources.values())
+        timezones = {partner.tz or resource.tz or "UTC" for resource in resources}
+        return [
+            self._get_reservation_interval(timezone)
+            for timezone in sorted(timezones or {partner.tz or "UTC"})
+        ]
+
+    def _get_reservation_interval(self, tz):
+        """Translate all-day civil dates, never their 08:00-18:00 placeholders."""
+        self.check_singleton()
+        if not self.allday:
+            return self.start, self.stop
+        zone = timezone(tz or "UTC")
+        start = datetime.combine(self.start_date or self.start.date(), time.min, zone)
+        stop = datetime.combine(
+            (self.stop_date or self.stop.date()) + timedelta(days=1), time.min, zone
+        )
+        return (
+            start.astimezone(UTC).replace(tzinfo=None),
+            stop.astimezone(UTC).replace(tzinfo=None),
+        )
 
     def _get_fields_sync_trigger(self):
         """Attendees, title and the busy/free flag also move bookings.
@@ -1308,6 +1332,9 @@ class CalendarEvent(models.Model):
             "partner_ids",
             "name",
             "show_as",
+            "allday",
+            "start_date",
+            "stop_date",
         }
 
     def _write_recurrence_policy(self, values):
@@ -1399,6 +1426,7 @@ class CalendarEvent(models.Model):
         to_sync._sync_reservations()
 
     def write(self, values):
+        self = self.with_context(skip_attendee_reservation_sync=True)
         # Snapshot before the pops below: the recurrence branches consume the
         # very keys the sync and the notification decisions need, and
         # ``_rewrite_recurrence`` can archive ``self`` out from under them.
@@ -1900,27 +1928,22 @@ class CalendarEvent(models.Model):
         """
         attendee_commands = []
 
-        removed_partner_ids = []
-        added_partner_ids = []
-
-        # if commands are just integers, assume they are ids with the intent to `Command.set`
+        current = set(self.partner_ids.ids)
+        desired = set(current)
         if partner_commands and isinstance(partner_commands[0], int):
             partner_commands = [Command.set(partner_commands)]
-
         for command in partner_commands:
             op = command[0]
-            if op in (2, 3, Command.delete, Command.unlink):  # Remove partner
-                removed_partner_ids += [command[1]]
-            elif op in (6, Command.set):  # Replace all
-                removed_partner_ids += set(self.partner_ids.ids) - set(
-                    command[2]
-                )  # Don't recreate attendee if partner already attend the event
-                added_partner_ids += set(command[2]) - set(self.partner_ids.ids)
-            elif op in (4, Command.link):
-                added_partner_ids += (
-                    [command[1]] if command[1] not in self.partner_ids.ids else []
-                )
-            # commands 0 and 1 not supported
+            if op in (Command.DELETE, Command.UNLINK):
+                desired.discard(command[1])
+            elif op == Command.SET:
+                desired = set(command[2])
+            elif op == Command.LINK:
+                desired.add(command[1])
+            elif op == Command.CLEAR:
+                desired.clear()
+        removed_partner_ids = sorted(current - desired)
+        added_partner_ids = sorted(desired - current)
 
         if not self:
             attendees_to_unlink = self.env["calendar.attendee"]
@@ -3041,3 +3064,8 @@ class CalendarEvent(models.Model):
         """
         defaults = self.env["ir.default"].sudo()._get_model_defaults("calendar.event")
         return defaults.get("duration") or 1
+
+    def _update_access_token(self):
+        """Rotate the credential used only to join this event's conference."""
+        for event in self:
+            event.access_token = generate_calendar_token()

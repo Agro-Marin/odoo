@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Calendar's reporting menu-->
+    <menuitem
+        id="reporting_menu_calendar"
+        parent="calendar.mail_menu_calendar"
+        name="Reporting"
+        sequence="20"
+        action="calendar_event_action_report_all" />
+
+</odoo>

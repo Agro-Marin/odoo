@@ -342,7 +342,7 @@ class Many2one(_Relational):
             if ids0 is None and corecord.id:
                 continue
             ids1 = tuple(unique((ids0 or ()) + valid_records._ids))
-            if corecord.id and not _can_append_in_order(records, ids1):
+            if corecord.id and not _is_cache_order_stable(records, ids1):
                 invf._invalidate_cache(corecord.env, [corecord.id])
             else:
                 invf._update_cache(corecord, ids1)
@@ -483,7 +483,7 @@ class PrefetchMany2one(Reversible):
         )
 
 
-def _can_append_in_order(records: BaseModel, ids: tuple) -> bool:
+def _is_cache_order_stable(records: BaseModel, ids: tuple) -> bool:
     # A new record cannot be read back from the database, so its id stays in the cache.
     if not all(isinstance(id_, int) for id_ in ids):
         return True

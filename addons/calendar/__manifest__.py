@@ -1,25 +1,18 @@
 {
     "name": "Calendar",
-    "version": "1.1",
+    "version": "2.1",
     "category": "Productivity/Calendar",
     "sequence": 165,
-    "summary": "Schedule employees' meetings",
-    "description": """
-This is a full-featured calendar system.
-========================================
-
-It supports:
-------------
-    - Calendar of events
-    - Recurring events
-
-If you need to manage your meetings, you should install the CRM module.
-    """,
+    "summary": "Meetings, resource bookings and public appointment scheduling",
+    "description": "Manage meetings, recurring events, booking offers, public scheduling and resource allocations in one calendar.",
     "author": "Odoo S.A.",
-    "license": "LGPL-3",
+    "license": "OEEL-1",
     "depends": [
         "mail",
         "resource",
+        "phone_validation",
+        "portal",
+        "survey",
     ],
     "data": [
         "security/ir.model.access.csv",
@@ -38,13 +31,54 @@ If you need to manage your meetings, you should install the CRM module.
         "wizards/calendar_provider_config.xml",
         "wizards/calendar_popover_delete_wizard.xml",
         "wizards/mail_activity_schedule_views.xml",
+        "data/booking/appointment_question_data.xml",
+        "data/booking/calendar_data.xml",
+        "data/booking/mail_message_subtype_data.xml",
+        "data/booking/mail_template_data.xml",
+        "data/booking/resource_calendar_data.xml",
+        "security/booking/res_groups_data.xml",
+        "security/booking/ir_rule_data.xml",
+        "security/booking/ir.model.access.csv",
+        "views/booking/calendar_alarm_views.xml",
+        "views/booking/calendar_event_views.xml",
+        "views/booking/appointment_answer_input_views.xml",
+        "views/booking/appointment_answer_views.xml",
+        "views/booking/appointment_invite_views.xml",
+        "views/booking/appointment_question_views.xml",
+        "views/booking/appointment_resource_views.xml",
+        "views/booking/appointment_type_views.xml",
+        "views/booking/appointment_slot_views.xml",
+        "views/booking/resource_calendar_leaves_views.xml",
+        "views/booking/appointment_menus.xml",
+        "views/booking/calendar_menus.xml",
+        "views/booking/appointment_templates_appointments.xml",
+        "views/booking/appointment_templates_registration.xml",
+        "views/booking/appointment_templates_validation.xml",
+        "views/booking/portal_templates.xml",
+        "wizards/booking/appointment_manage_leaves.xml",
     ],
     "demo": [
         "demo/calendar_demo.xml",
+        "demo/booking/res_partner_demo.xml",
+        "demo/booking/appointment_type_demo.xml",
+        "demo/booking/appointment_resource_demo.xml",
     ],
     "assets": {
         "web.assets_backend": [
             "calendar/static/src/**/*",
+            (
+                "remove",
+                "calendar/static/src/booking/**/*",
+            ),
+            "calendar/static/src/booking/scss/appointment_type_views.scss",
+            "calendar/static/src/booking/scss/calendar_event_views.scss",
+            "calendar/static/src/booking/scss/web_calendar.scss",
+            "calendar/static/src/booking/views/**/*",
+            "calendar/static/src/booking/fields/**/*",
+            "calendar/static/src/booking/components/**/*",
+            "calendar/static/src/booking/js/appointment_insert_link_form_controller.js",
+            "calendar/static/src/booking/appointment_plugin.js",
+            "calendar/static/src/booking/xml/appointment_svg.xml",
         ],
         "web.assets_unit_tests": [
             "calendar/static/tests/**/*.js",
@@ -52,9 +86,19 @@ If you need to manage your meetings, you should install the CRM module.
                 "remove",
                 "calendar/static/tests/tours/**/*",
             ),
+            "calendar/static/tests/booking/*",
         ],
         "web.assets_tests": [
             "calendar/static/tests/tours/**/*",
+        ],
+        "web.assets_frontend": [
+            "calendar/static/src/booking/js/utils.js",
+            "calendar/static/src/booking/scss/appointment.scss",
+            "calendar/static/src/booking/interactions/appointment_select_appointment_type.js",
+            "calendar/static/src/booking/interactions/appointment_validation.js",
+            "calendar/static/src/booking/interactions/appointment_select_appointment_slot.js",
+            "calendar/static/src/booking/interactions/appointment_form.js",
+            "calendar/static/src/booking/xml/*.xml",
         ],
     },
     "installable": True,

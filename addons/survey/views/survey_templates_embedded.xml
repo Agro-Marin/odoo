@@ -18,7 +18,7 @@
                             type="tel"
                             class="form-control"
                             t-attf-name="question_#{question.id}"
-                            t-att-value="partner_data['char_box'] if isMainPhoneQuestion and 'char_box' in partner_data else ''"
+                            t-att-value="phone_value if isMainPhoneQuestion else ''"
                             t-att-required="question.constr_mandatory or None"
                             t-att-placeholder="question.question_placeholder"
                             t-att-data-is-main-phone-question="isMainPhoneQuestion" />

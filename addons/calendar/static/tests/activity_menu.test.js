@@ -13,31 +13,6 @@ import {
 defineCalendarModels();
 preloadFullCalendar();
 
-// Known: this test fails when it runs after `@calendar/activity` in the *same*
-// page load, and passes isolated -- which is how CI runs suites, so CI is green.
-// It is not a calendar bug, and the diagnosis is written down here so nobody
-// spends the afternoon re-deriving it.
-//
-// Instrumenting the mock's `_get_activity_groups` shows that in the failing
-// order it is called exactly twice during this test's `start()`, and both calls
-// see the *previous* test's server state: one `calendar.event` (activity.test's
-// "meeting1"), one `calendar.attendee` whose partner is activity.test's freshly
-// created partner rather than `serverState.partnerId`. This test's own two
-// events and its attendee -- which exist, `startServer()` having created them
-// before `start()` -- are never queried at all. The client store therefore ends
-// up with `activityGroups == []` and the systray has nothing to render.
-//
-// So the second test's boot fetch is served against the first test's server
-// state, and the second store's `systray_get_activities` fetch never reaches the
-// server. That is an isolation defect in the mail store / test harness, above
-// this module. Ruled out on the way: the calendar mock itself (called directly
-// at the end of the test, `_systray_get_calendar_event_domain()` matches both
-// events and `_get_activity_groups()` returns the group, in both orders), and
-// `registerArchs`, the single global `@calendar/activity` touches.
-//
-// Unrelated to the `FIXME` in the mock server's
-// `_systray_get_calendar_event_domain`, which is about its commented-out allday
-// clause and is easy to mistake for this.
 test("activity menu widget:today meetings", async () => {
     // `mockDate(date, tz)`, not `mockDate(y, m, d, h, m, s)`: the old signature
     // is silently accepted -- a non-string first argument has no `.year`, so
@@ -64,17 +39,16 @@ test("activity menu widget:today meetings", async () => {
             attendee_ids: [attendeeId],
         },
     ]);
+    let started = false;
     mockService("action", {
         doAction(action) {
-            if (action === "menu") {
-                return;
-            }
-            if (typeof action === "string") {
+            if (started && typeof action === "string") {
                 asyncStep(action);
             }
         },
     });
     await start();
+    started = true;
     await contains(".o_menu_systray i[aria-label='Activities']");
     await click(".o_menu_systray i[aria-label='Activities']");
     await contains(".o-mail-ActivityGroup div[name='activityTitle']", {

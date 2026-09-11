@@ -222,7 +222,15 @@ function syncCalendarWithParams(instance, params, component) {
         lastSources.length !== sources.length ||
         sources.some((source, i) => source !== lastSources[i]);
     instance.__lastEventSources = sources;
-    if (!viewOrDateChanged && !sourcesChanged) {
+    // Rendered events may include transient slots as well as stored meetings.
+    // Model notifications cover both, including edits that retain collection identity.
+    const model = component.props.model;
+    const eventsChanged =
+        instance.__lastUpdateEpoch !== model.updateEpoch ||
+        instance.__lastRecords !== model.records;
+    instance.__lastUpdateEpoch = model.updateEpoch;
+    instance.__lastRecords = model.records;
+    if (!viewOrDateChanged && !sourcesChanged && !eventsChanged) {
         return;
     }
     const isYear = component.props.model.scale === "year";

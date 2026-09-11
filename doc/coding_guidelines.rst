@@ -1313,7 +1313,7 @@ Section  Population                                                  Count
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            36
 §2.4.8   ``_check_*`` definitions                                    1,261
 §2.4.8   ``_validate_*`` definitions                                     0
-§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
+§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           1
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
 §2.4.10  ``_raise_*`` model methods                                     21
 §2.4.10  … raising unconditionally                                      12
@@ -1333,10 +1333,10 @@ Section  Population                                                  Count
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      363
 §2.4.13  Methods on plain classes in model files                       421
 §2.4.13  … such classes                                                169
-§2.4.13  Functions nested inside model methods                         658
+§2.4.13  Functions nested inside model methods                         659
 §2.4.14  Private method names reached from stored Python               118
-§2.4.14  … code blocks reaching them                                   127
-§2.4.14  … shipped data files holding those blocks                      75
+§2.4.14  … code blocks reaching them                                   128
+§2.4.14  … shipped data files holding those blocks                      76
 §2.4.14  Classes implementing ``_get_report_values``                    19
 §2.4.14  … ``get_values``                                               12
 §2.4.14  … ``set_values``                                               21
@@ -3425,7 +3425,7 @@ alone held six with no verb at all: ``fallback_loc``, ``next_move``,
   fix: nothing outside the method can collide with the name, so nothing pushes
   back on a private spelling. The freedom and the drift are one fact.
 * **The backlog inside it is drained, and that was always the point**
-  ``[gate doc_restated_counts]``: of them, **0** open with a verb the abolished
+  ``[gate doc_restated_counts]``: of them, **1** open with a verb the abolished
   table reports and **7** with a reserved one. It was 8 and 7 when this
   bullet was written, which is what made the population worth naming as a
   discipline rather than as debt -- and the gate that could see it did not exist
@@ -5509,8 +5509,8 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **101** times against ``_unique``'s
-**52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
+tail -- the tree spells that tail ``_uniq`` **102** times against ``_unique``'s
+**53**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**
 ``[review]``. ``_reflect_constraints`` registers each constraint as module data

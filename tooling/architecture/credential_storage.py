@@ -60,11 +60,14 @@ NOT_A_KEY = re.compile(
     re.IGNORECASE,
 )
 
-# `_key` names that ARE identifiers, decided per field because the name does not
+# Key/token names that ARE identifiers, decided per field because the name does not
 # say. Each is either the public half of a client-credentials pair, a document
 # number printed on the document, or an id the browser already has.
 IDENTIFIER_KEYS = frozenset(
     {
+        # Request identity used to deduplicate an already-authenticated booking.
+        # Possession does not authenticate the Google Reserve API caller.
+        "appointment_google_reserve.google_reserve_idempotency_token",
         # The operation/stage an approval covers, not an authentication secret.
         "approval.subject_key",
         # OAuth client ids. Their client_secret sibling is a secret and is on
@@ -109,9 +112,10 @@ SHARE = re.compile(
 # so it is recorded per field.
 SHARE_FIELDS = frozenset(
     {
-        "appointment.access_token",
         "base.access_token",
         "calendar.access_token",
+        # Minted locally for a customer's booking-management link.
+        "calendar.booking_access_token",
         "document.access_token",
         "frontdesk.access_token",
         "hr_contract_salary.access_token",

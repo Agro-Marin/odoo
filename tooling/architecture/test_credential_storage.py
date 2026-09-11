@@ -307,6 +307,23 @@ class TestTheFourAmbiguousNames:
         _write(tmp_path, monkeypatch, "access_token = fields.Char()", module="carrier")
         assert [f.key for f in gate.offenders()] == ["carrier.access_token"]
 
+    @pytest.mark.parametrize(
+        ("module", "name"),
+        [
+            ("calendar", "booking_access_token"),
+            ("appointment_google_reserve", "google_reserve_idempotency_token"),
+        ],
+    )
+    def test_booking_capability_and_request_identity_are_not_api_credentials(
+        self, tmp_path, monkeypatch, module, name
+    ):
+        _write(tmp_path, monkeypatch, f"{name} = fields.Char()", module=module)
+        assert gate.offenders() == []
+        _write(
+            tmp_path / "other", monkeypatch, f"{name} = fields.Char()", module="carrier"
+        )
+        assert [f.key for f in gate.offenders()] == [f"carrier.{name}"]
+
     def test_the_five_unambiguous_names_need_no_entry(self, tmp_path, monkeypatch):
         for name in (
             "share_token",

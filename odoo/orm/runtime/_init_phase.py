@@ -15,6 +15,7 @@ if typing.TYPE_CHECKING:
 @dataclass(slots=True)
 class InitModelsPhase:
     install: bool
+    model_tables: frozenset[str] = frozenset()
 
     post_init_queue: deque[Callable[[], None]] = field(default_factory=deque)
 

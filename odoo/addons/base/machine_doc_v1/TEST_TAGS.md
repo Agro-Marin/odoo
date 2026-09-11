@@ -145,7 +145,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_ir_logging.py` | `post_install`, `-at_install` | 3 | 7 | TransactionCase |
 | `test_ir_mail_server.py` | `mail_server` | 4 | 36 | TransactionCase, MockSmtplibCase |
 | `test_ir_mail_server_audit.py` | `post_install`, `-at_install` | 35 | 153 | TransactionCase |
-| `test_ir_model.py` | `-at_install`, `post_install`, `test_eval_context` | 14 | 128 | TransactionCase, HttpCase |
+| `test_ir_model.py` | `-at_install`, `post_install`, `test_eval_context` | 14 | 129 | TransactionCase, HttpCase |
 | `test_ir_model_data.py` | `post_install`, `-at_install` | 2 | 5 | TransactionCase |
 | `test_mixin_merge.py` | `post_install`, `-at_install` | 1 | 5 | TransactionCase |
 | `test_neutralize.py` | `post_install`, `-at_install`, `neutralize` | 2 | 2 | TransactionCase, BaseCase |

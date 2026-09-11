@@ -146,7 +146,7 @@
 @web/fields/relational/x2many  odoo enterprise
 @web/fields/relational/x2many_crud  odoo enterprise
 @web/fields/relational/x2many_dialog  odoo enterprise
-@web/fields/selection/badge_selection/badge_selection_field  odoo enterprise
+@web/fields/selection/badge_selection/badge_selection_field  odoo
 @web/fields/selection/priority/priority_field  odoo enterprise
 @web/fields/selection/radio/radio_field  odoo enterprise agromarin
 @web/fields/selection/selection/selection_field  odoo enterprise

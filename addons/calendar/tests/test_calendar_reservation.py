@@ -1,17 +1,12 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
+from odoo.exceptions import ValidationError
+from odoo.libs.datetime import timezone
 from odoo.tests import TransactionCase, new_test_user, tagged
 
 
 @tagged("post_install", "-at_install")
 class TestCalendarReservation(TransactionCase):
-    """`calendar.event` projects into the shared `resource.reservation` ledger.
-
-    Until this landed, a meeting booked nobody: the ledger's consumers were
-    `project.task`, `mrp.workorder` and `planning.slot`, so a meeting and a
-    shift on the same person at the same hour did not conflict.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -79,9 +74,105 @@ class TestCalendarReservation(TransactionCase):
             "a contact with no user holds no capacity in this database",
         )
 
+    def test_resource_ceiling_constrains_manual_meetings(self):
+        self.organizer_resource.write(
+            {"enforce_booking_limit": True, "booking_limit_percentage": 200}
+        )
+        first = self._make_event()
+        self._make_event()
+        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+            self._make_event()
+        first.show_as = "free"
+        self._make_event()
+
+    def test_busy_helpers_follow_all_day_resource_intervals(self):
+        partner = self.organizer.partner_id
+        for zone, day in (
+            ("UTC", "2030-01-07"),
+            ("Pacific/Kiritimati", "2030-01-07"),
+            ("America/New_York", "2030-03-10"),
+        ):
+            with self.subTest(zone=zone):
+                partner.tz = zone
+                event = self._make_event(allday=True, start_date=day, stop_date=day)
+                row = event.reservation_ids.filtered(
+                    lambda row: row.resource_id == self.organizer_resource
+                )
+                for start in (row.date_start, row.date_end - timedelta(minutes=30)):
+                    stop = start + timedelta(minutes=30)
+                    self.assertIn(
+                        event,
+                        partner._get_busy_calendar_events(start, stop).get(
+                            partner.id, self.env["calendar.event"]
+                        ),
+                    )
+                self.assertNotIn(
+                    event,
+                    partner._get_busy_calendar_events(
+                        row.date_end, row.date_end + timedelta(minutes=30)
+                    ).get(partner.id, self.env["calendar.event"]),
+                )
+                event.unlink()
+
+    def test_busy_helpers_ignore_declines_and_touching_intervals(self):
+        event = self._make_event()
+        partner = self.organizer.partner_id
+        self.assertFalse(
+            partner._get_busy_calendar_events(
+                event.stop, event.stop + timedelta(hours=1)
+            )
+        )
+        aware_start = event.start.replace(tzinfo=UTC).astimezone(timezone("Asia/Tokyo"))
+        self.assertIn(
+            event,
+            partner._get_busy_calendar_events(
+                aware_start, aware_start + timedelta(minutes=30)
+            )[partner.id],
+        )
+        event.attendee_ids.filtered(
+            lambda attendee: attendee.partner_id == partner
+        ).do_decline()
+        self.assertNotIn(
+            partner.id, partner._get_busy_calendar_events(event.start, event.stop)
+        )
+
+    def test_all_day_guest_without_resource_uses_civil_dates(self):
+        self.external.tz = "Pacific/Kiritimati"
+        event = self._make_event(
+            allday=True,
+            start_date="2030-01-07",
+            stop_date="2030-01-07",
+            partner_ids=[(6, 0, self.external.ids)],
+        )
+        start = datetime(2030, 1, 6, 10)
+        self.assertIn(
+            event,
+            self.external._get_busy_calendar_events(
+                start, start + timedelta(minutes=30)
+            )[self.external.id],
+        )
+
     def test_event_shown_as_free_books_nothing(self):
         event = self._make_event(show_as="free")
         self.assertFalse(self._reservations(event))
+
+    def test_all_day_conflict_indicator_uses_attendee_intervals(self):
+        self.organizer.tz = "UTC"
+        day = self._make_event(
+            allday=True, start_date="2030-01-07", stop_date="2030-01-07"
+        )
+        early = self._make_event(
+            start=datetime(2030, 1, 7, 7), stop=datetime(2030, 1, 7, 7, 30)
+        )
+        (day | early)._compute_unavailable_partner_ids()
+        self.assertIn(self.organizer.partner_id, day.unavailable_partner_ids)
+        self.assertIn(self.organizer.partner_id, early.unavailable_partner_ids)
+        day.attendee_ids.filtered(
+            lambda attendee: attendee.partner_id == self.organizer.partner_id
+        ).do_decline()
+        (day | early)._compute_unavailable_partner_ids()
+        self.assertNotIn(self.organizer.partner_id, day.unavailable_partner_ids)
+        self.assertNotIn(self.organizer.partner_id, early.unavailable_partner_ids)
 
     def test_flipping_show_as_releases_and_retakes_the_claims(self):
         event = self._make_event()
@@ -243,3 +334,45 @@ class TestCalendarReservation(TransactionCase):
             {14},
             "the rewritten times must reach the ledger",
         )
+
+    def test_declining_releases_and_accepting_rebooks(self):
+        event = self._make_event()
+        attendee = event.attendee_ids.filtered(
+            lambda a: a.partner_id == self.invitee.partner_id
+        )
+        attendee.write({"state": "declined"})
+        self.assertEqual(self._reservations(event).resource_id, self.organizer_resource)
+        attendee.write({"state": "accepted"})
+        self.assertEqual(self._reservations(event).resource_id, self.resources)
+
+    def test_all_day_uses_local_midnights_across_dst(self):
+        self.invitee.tz = "America/New_York"
+        event = self._make_event(
+            allday=True,
+            start_date="2030-03-10",
+            stop_date="2030-03-10",
+            partner_ids=[(6, 0, self.invitee.partner_id.ids)],
+        )
+        reservation = self._reservations(event)
+        self.assertEqual(reservation.date_start, datetime(2030, 3, 10, 5))
+        self.assertEqual(reservation.date_end, datetime(2030, 3, 11, 4))
+
+    def test_first_enforced_booking_recovers_existing_meeting_occupancy(self):
+        user = new_test_user(
+            self.env, "booking_without_resource", groups="base.group_user"
+        )
+        event = self._make_event(partner_ids=[(6, 0, user.partner_id.ids)])
+        self.assertFalse(self._reservations(event))
+        resource = user._ensure_calendar_event_resource()
+        self.assertEqual(self._reservations(event).resource_id, resource)
+        self.assertEqual(user._ensure_calendar_event_resource(), resource)
+
+    def test_clearing_then_restoring_attendees_has_no_duplicates(self):
+        event = self._make_event()
+        partners = event.partner_ids
+        event.partner_ids = False
+        self.assertFalse(event.attendee_ids)
+        self.assertFalse(self._reservations(event))
+        event.partner_ids = partners
+        self.assertEqual(len(event.attendee_ids), len(partners))
+        self.assertEqual(self._reservations(event).resource_id, self.resources)

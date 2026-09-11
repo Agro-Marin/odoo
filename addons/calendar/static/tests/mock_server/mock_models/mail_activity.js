@@ -1,20 +1,14 @@
-import { mailModels, openView } from "@mail/../tests/mail_test_helpers";
+import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { fields } from "@web/../tests/web_test_helpers";
 
 export class MailActivity extends mailModels.MailActivity {
     name = fields.Char();
+    calendar_event_id = fields.Many2one({ relation: "calendar.event" });
 
-    /** @param {number | number[]} idOrIds */
-    async action_create_calendar_event(idOrIds) {
-        // `this` is the model; the activities are the argument, as on every
-        // mock ORM method.
+    action_create_calendar_event(idOrIds) {
         const activities = this.browse(idOrIds);
         const [activity] = activities;
         const [user] = this.env["res.users"].browse(activity.user_id);
-        await openView({
-            res_model: "calendar.event",
-            views: [[false, "calendar"]],
-        });
         return {
             type: "ir.actions.act_window",
             name: "Meetings",

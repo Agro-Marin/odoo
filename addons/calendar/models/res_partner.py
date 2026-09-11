@@ -1,6 +1,8 @@
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 
 from odoo import _, api, fields, models
+from odoo.fields import Domain
 from odoo.tools import SQL
 
 
@@ -162,45 +164,137 @@ class ResPartner(models.Model):
         )
 
     def _search_busy_calendar_events(self, start_datetime, end_datetime):
-        """Events attended by `self`, shown as busy, intersecting the interval.
-
-        Split out of `_get_busy_calendar_events` so a caller holding several
-        intervals can pay for one search over their whole span and slice it per
-        interval with `_group_busy_calendar_events`, instead of one search per
-        interval (see `calendar.event._compute_unavailable_partner_ids`).
-
-        :rtype: <calendar.event>
-        """
-        return self.env["calendar.event"].search(
+        """Fetch candidate busy events once, including all-day civil-date ranges."""
+        start = self._calendar_utc(start_datetime)
+        stop = self._calendar_utc(end_datetime)
+        if start >= stop:
+            return self.env["calendar.event"]
+        timed = Domain.AND(
             [
-                ("stop", ">=", start_datetime.replace(tzinfo=None)),
-                ("start", "<=", end_datetime.replace(tzinfo=None)),
-                ("partner_ids", "in", self.ids),
-                ("show_as", "=", "busy"),
+                Domain("allday", "=", False),
+                Domain("start", "<", stop),
+                Domain("stop", ">", start),
             ]
         )
+        # Civil dates can be on either side of UTC for the attendee's timezone.
+        # Exact clipping happens after fetching, using the same normalization as
+        # reservation projection, rather than the stored 08:00-18:00 placeholders.
+        all_day = Domain.AND(
+            [
+                Domain("allday", "=", True),
+                Domain("start_date", "<=", stop.date() + timedelta(days=1)),
+                Domain("stop_date", ">=", start.date() - timedelta(days=1)),
+            ]
+        )
+        domain = Domain.AND(
+            [
+                Domain("partner_ids", "in", self.ids),
+                Domain("show_as", "=", "busy"),
+                timed | all_day,
+            ]
+        )
+        if ignored := self.env.context.get("ignore_event_ids"):
+            domain &= Domain("id", "not in", ignored)
+        return self.env["calendar.event"].search_fetch(
+            domain,
+            ["start", "stop", "allday", "start_date", "stop_date"],
+            order="start, id",
+        )
+
+    @staticmethod
+    def _calendar_utc(value):
+        """Normalize aware instants to stored UTC; naive inputs already mean UTC."""
+        return value.astimezone(UTC).replace(tzinfo=None) if value.tzinfo else value
 
     def _group_busy_calendar_events(self, events, start_datetime, end_datetime):
-        """Bucket the part of `events` intersecting the interval, by attendee.
+        intervals = self._group_busy_calendar_intervals(
+            events, start_datetime, end_datetime
+        )
+        return {
+            partner_id: self.env["calendar.event"].union(
+                *(event for _, _, event in values)
+            )
+            for partner_id, values in intervals.items()
+        }
 
-        Keyed by every partner attending a kept event, not only by the partners
-        of `self` -- which is what `_get_busy_calendar_events` has always
-        returned, and restricting it here would silently change that method for
-        its callers outside this module. Callers read the keys they asked about;
-        the extra ones are inert.
+    def _get_busy_calendar_intervals(
+        self, start_datetime, end_datetime, *, user_resources=None
+    ):
+        """Return attended busy intervals in UTC, keyed by requested partner id."""
+        return self._group_busy_calendar_intervals(
+            self._search_busy_calendar_events(start_datetime, end_datetime),
+            start_datetime,
+            end_datetime,
+            user_resources=user_resources,
+        )
 
-        The bounds are the closed ones `_search_busy_calendar_events` compares
-        against: an event that merely touches an edge counts as busy there, so
-        the search and the slice must not disagree about it.
-
-        :rtype: dict[int, <calendar.event>]
-        """
-        start = start_datetime.replace(tzinfo=None)
-        stop = end_datetime.replace(tzinfo=None)
-        event_by_partner_id = defaultdict(lambda: self.env["calendar.event"])
+    def _group_busy_calendar_intervals(
+        self, events, start_datetime, end_datetime, *, user_resources=None
+    ):
+        """Normalize civil days once for availability checks and presentation alike."""
+        start = self._calendar_utc(start_datetime)
+        stop = self._calendar_utc(end_datetime)
+        if start >= stop:
+            return {}
+        resources = user_resources
+        if resources is None:
+            users = (events.filtered("allday").partner_ids & self).user_ids
+            resources = users._get_calendar_event_resources() if users else {}
+        resources_by_partner = defaultdict(lambda: self.env["resource.resource"])
+        for user, resource in resources.items():
+            resources_by_partner[user.partner_id.id] |= resource
+        grouped = defaultdict(list)
         for event in events:
-            if not (event.stop >= start and event.start <= stop):
+            if not event.active or event.show_as != "busy":
                 continue
-            for partner in event.partner_ids:
-                event_by_partner_id[partner.id] |= event
-        return dict(event_by_partner_id)
+            for partner in event.partner_ids & self:
+                for event_start, event_stop in event._get_attendee_intervals(
+                    partner,
+                    resources=resources_by_partner[partner.id],
+                ):
+                    if event_start < stop and event_stop > start:
+                        grouped[partner.id].append((event_start, event_stop, event))
+        return dict(grouped)
+
+    def _is_calendar_available(self, date_start, date_end, appointment_type=None):
+        """Check attended meetings while preserving offer-specific sharing policy.
+
+        Equipment-booking customers may book multiple resources concurrently;
+        resource admission is checked separately. A same-offer staff booking is
+        subject to that offer's capacity calculation rather than an exclusive
+        meeting veto. Interval and RSVP semantics come solely from Calendar.
+        """
+        grouped = self._get_busy_calendar_events(date_start, date_end)
+        for partner in self:
+            for event in grouped.get(partner.id, self.env["calendar.event"]):
+                if (
+                    appointment_type
+                    and self <= appointment_type.staff_user_ids.partner_id
+                    and event.appointment_type_id == appointment_type
+                ):
+                    continue
+                return False
+        return True
+
+    upcoming_appointment_ids = fields.Many2many(
+        "calendar.event",
+        string="Upcoming Appointments",
+        compute="_compute_upcoming_appointment_ids",
+    )
+
+    def _compute_upcoming_appointment_ids(self):
+        partner_upcoming_appointments = dict(
+            self.env["calendar.event"]._read_group(
+                [
+                    ("appointment_booker_id", "in", self.ids),
+                    ("appointment_type_id", "!=", False),
+                    ("start", ">", datetime.now()),
+                ],
+                ["appointment_booker_id"],
+                ["id:recordset"],
+            )
+        )
+        for partner in self:
+            partner.upcoming_appointment_ids = partner_upcoming_appointments.get(
+                partner, False
+            )

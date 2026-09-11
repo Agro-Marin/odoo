@@ -49,7 +49,7 @@ calls from `addons/base`. All four are now fields of one `InitModelsPhase`
 (`orm/runtime/_init_phase.py`) held as a single nullable `Registry._init_phase`
 and read through the `init_phase` property, which raises a `RuntimeError` naming
 the window and its purpose when the phase is closed. Layer 1's one direct write
-became `pool.add_relation_reflection(...)`.
+became `pool.register_relation_table(...)`.
 
 The strongest evidence that this was a defect and not a style was the workaround
 already in the tree: `orm/runtime/_registry_stubs.py`, a class whose entire body

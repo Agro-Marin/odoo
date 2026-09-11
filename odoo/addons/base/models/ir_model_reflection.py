@@ -369,9 +369,21 @@ class IrModelRelation(models.Model):
             self.env.cr.execute(SQL("DROP TABLE %s CASCADE", SQL.identifier(table)))
             _logger.info("Dropped table %s", table)
 
-    def _reflect_relations(self, items: Collection[tuple[str, str, str]]) -> None:
+    def _reflect_relations(
+        self,
+        items: Collection[tuple[str, str, str]],
+        *,
+        model_tables: Collection[str] = (),
+    ) -> None:
+        # Older registries could reflect a payload model's table as a disposable
+        # Many2many relation. Remove that metadata without uninstalling its table,
+        # including on passes which have no new field-owned relations to reflect.
+        if model_tables:
+            self.search([("name", "in", model_tables)]).unlink()
         expected: dict[tuple[str, str], str] = {}
         for model_name, table, module in items:
+            if table in model_tables:
+                continue
             expected.setdefault((table, module), model_name)
         if not expected:
             return

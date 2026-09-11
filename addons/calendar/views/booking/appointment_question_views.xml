@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="appointment_question_view_search" model="ir.ui.view">
+        <field name="name">survey.question.view.search</field>
+        <field name="model">survey.question</field>
+        <field name="arch" type="xml">
+            <search string="Questions">
+                <field name="title" />
+                <field name="question_type" />
+                <field name="appointment_type_ids" />
+                <separator />
+                <filter
+                    name="filter_is_reusable"
+                    string="Reusable"
+                    domain="[('is_reusable', '=', True)]" />
+                <filter
+                    name="filter_is_not_reusable"
+                    string="Not Reusable"
+                    domain="[('is_reusable', '=', False)]" />
+                <separator />
+                <filter
+                    name="filter_is_default"
+                    string="Default Questions"
+                    domain="[('is_default', '=', True)]" />
+                <filter
+                    name="filter_archive"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
+                <group>
+                    <filter
+                        string="Appointment"
+                        name="group_by_appointment"
+                        context="{'group_by': 'appointment_type_ids'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="appointment_question_view_form" model="ir.ui.view">
+        <field name="name">survey.question.view.form</field>
+        <field name="model">survey.question</field>
+        <field name="arch" type="xml">
+            <form string="Question">
+                <sheet>
+                    <field name="active" invisible="1" />
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+                    <div
+                        class="alert alert-warning"
+                        role="alert"
+                        invisible="appointment_count == 0">
+                        This question is used by
+                        <button
+                            class="oe_link p-0 align-baseline"
+                            type="object"
+                            name="action_view_appointment_types">
+                            <field class="me-1" name="appointment_count" />appointments
+                        </button>.
+                    </div>
+                    <field
+                        name="question_type"
+                        widget="selection_badge_icon_mapping"
+                        required="1"
+                        nolabel="1"
+                        options="{'size': 'sm', 'allowed_values': ['char_box', 'text_box', 'dropdown', 'simple_choice', 'multiple_choice'], 'icon_mapping': {'char_box': 'fa-font', 'text_box': 'fa-align-left', 'dropdown': 'fa-caret-down', 'simple_choice': 'fa-circle-o', 'multiple_choice': 'fa-check-square'}}" />
+                    <div class="oe_title my-3">
+                        <label for="title" />
+                        <h1>
+                            <field
+                                name="title"
+                                placeholder="e.g. &quot;Anything else we should know?&quot;"
+                                widget="text"
+                                options="{'line_breaks': False}"
+                                default_focus="1" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field
+                                name="question_placeholder"
+                                placeholder="Displayed when the field is empty"
+                                invisible="question_type in ('dropdown', 'simple_choice', 'multiple_choice')" />
+                            <field
+                                name="char_box_type"
+                                invisible="question_type != 'char_box'" />
+                            <field name="constr_mandatory" />
+                        </group>
+                        <group>
+                            <field name="is_reusable" readonly="is_default" />
+                            <field name="is_default" />
+                        </group>
+                    </group>
+                    <field
+                        name="description"
+                        class="oe-bordered-editor mb-4"
+                        placeholder="Extra comments..."
+                        nolabel="1" />
+                    <notebook invisible="question_type in ('char_box', 'text_box')">
+                        <page string="Answers" name="answers">
+                            <field name="suggested_answer_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle" />
+                                    <field name="value" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="appointment_question_view_list" model="ir.ui.view">
+        <field name="name">survey.question.view.list</field>
+        <field name="model">survey.question</field>
+        <field name="arch" type="xml">
+            <list string="Questions">
+                <field name="sequence" widget="handle" />
+                <field name="title" />
+                <field name="question_type" />
+                <field name="suggested_answer_ids" widget="many2many_tags" />
+                <field name="constr_mandatory" />
+                <field name="is_default" />
+                <field name="is_reusable" optional="hide" />
+                <field name="question_placeholder" optional="hide" />
+                <button
+                    name="action_view_question_answer_inputs"
+                    type="object"
+                    class="fa-solid fa-chart-column p-0"
+                    title="Answer Breakdown" />
+            </list>
+        </field>
+    </record>
+
+    <record id="appointment_question_action" model="ir.actions.act_window">
+        <field name="name">Questions</field>
+        <field name="res_model">survey.question</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="appointment_question_view_list" />
+        <field name="search_view_id" ref="appointment_question_view_search" />
+        <field name="domain">[("survey_id", "=", False)]</field>
+        <field
+            name="context">{'form_view_ref': 'calendar.appointment_question_view_form', 'default_question_type': 'char_box'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Ask the right questions, get the right answers
+            </p>
+            <p>
+                Create questions your attendees can answer when booking their appointments.
+            </p>
+        </field>
+        <field name="type">ir.actions.act_window</field>
+    </record>
+
+</odoo>

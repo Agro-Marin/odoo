@@ -508,7 +508,7 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
             )
             .recurrence_id
         )
-        events = recurrence.calendar_event_ids
+        events = recurrence.calendar_event_ids.sorted("start_date")
         self.assertEqual(
             events[0].start_date,
             date(2019, 10, 22),

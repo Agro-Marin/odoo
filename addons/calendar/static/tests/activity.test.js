@@ -1,9 +1,9 @@
+import { CalendarEvent } from "./mock_server/mock_models/calendar_event.js";
 import { defineCalendarModels } from "@calendar/../tests/calendar_test_helpers";
 import {
     click,
     contains,
     openFormView,
-    registerArchs,
     start,
     startServer,
 } from "@mail/../tests/mail_test_helpers";
@@ -46,9 +46,7 @@ function createMeetingWithActivity(pyEnv, { partnerName } = {}) {
 }
 
 test("activity click on Reschedule", async () => {
-    registerArchs({
-        "calendar.event,false,calendar": `<calendar date_start="start"/>`,
-    });
+    CalendarEvent._views = { calendar: `<calendar date_start="start"/>` };
     const pyEnv = await startServer();
     const partnerId = createMeetingWithActivity(pyEnv);
     await start();

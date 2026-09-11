@@ -4,6 +4,7 @@ from datetime import UTC
 from odoo import _, api, fields, models, modules
 from odoo.exceptions import AccessError
 from odoo.libs.datetime import timezone
+from odoo.tools import SQL
 
 
 class ResUsers(models.Model):
@@ -20,29 +21,62 @@ class ResUsers(models.Model):
     )
 
     def _get_calendar_event_resource(self):
-        """Return the ``resource.resource`` whose capacity this user's meetings claim.
-
-        The override point for the user->resource mapping. Core resolves it
-        through ``resource.resource.user_id``, the only link available at this
-        layer; an installed module owning a richer mapping (e.g. the
-        employee's own resource) is free to replace this.
-
-        Scoped to the user's own company: a user may hold one resource per
-        company, and booking the wrong one would claim capacity on a calendar
-        nobody consults. A company-less resource is shared reference data and
-        always eligible -- ``resource.resource`` declines ``check_company`` for
-        that same reason. When both a company-matching and a company-less
-        resource survive that filter, the company-matching one is preferred.
-        """
         self.check_singleton()
-        resources = self.sudo().resource_ids.filtered(
-            lambda resource: (
-                not resource.company_id or resource.company_id == self.company_id
+        return self._get_calendar_event_resources()[self]
+
+    def _get_calendar_event_resources(self):
+        """Resolve people in one query, preferring their own company to shared resources."""
+        resources = (
+            self.env["resource.resource"]
+            .sudo()
+            .search_fetch(
+                [("user_id", "in", self.ids)],
+                order="id",
             )
         )
-        return resources.sorted(
-            key=lambda resource: resource.company_id != self.company_id
-        )[:1]
+        by_user = resources.grouped("user_id")
+        return {
+            user: by_user.get(user, resources.browse())
+            .filtered(
+                lambda resource, user=user: (
+                    not resource.company_id or resource.company_id == user.company_id
+                )
+            )
+            .sorted(
+                key=lambda resource, user=user: resource.company_id != user.company_id
+            )[:1]
+            for user in self
+        }
+
+    def _ensure_calendar_event_resource(self):
+        self.check_singleton()
+        self.env.cr.execute(
+            SQL(
+                "UPDATE res_users SET write_date = write_date WHERE id = %s",
+                self.id,
+            )
+        )
+        resource = self._get_calendar_event_resource()
+        if not resource:
+            resource = (
+                self.env["resource.resource"]
+                .sudo()
+                .create(
+                    {
+                        "name": self.name,
+                        "user_id": self.id,
+                        "company_id": self.company_id.id,
+                        "tz": self.tz or "UTC",
+                    }
+                )
+            )
+            self.env["calendar.event"].sudo().search(
+                [
+                    ("partner_ids", "in", self.partner_id.ids),
+                ]
+            )._sync_reservations()
+        resource._lock_for_scheduling()
+        return resource
 
     @property
     def SELF_READABLE_FIELDS(self):
@@ -53,14 +87,6 @@ class ResUsers(models.Model):
         return super().SELF_WRITEABLE_FIELDS + ["calendar_default_privacy"]
 
     def get_selected_calendars_partner_ids(self, include_user=True):
-        """
-        Retrieves the partner IDs of the attendees selected in the calendar view.
-
-        :param bool include_user: Determines whether to include the current user's partner ID in the results.
-        :return: A list of integer IDs representing the partners selected in the calendar view.
-                 If 'include_user' is True, the list will also include the current user's partner ID.
-        :rtype: list
-        """
         self.check_singleton()
         partner_ids = (
             self.env["calendar.filters"]
@@ -74,7 +100,6 @@ class ResUsers(models.Model):
 
     @api.model
     def _default_user_calendar_default_privacy(self):
-        """Get the calendar default privacy from the Default User Template, set public as default."""
         return (
             self.env["ir.config_parameter"]
             .sudo()
@@ -83,9 +108,7 @@ class ResUsers(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Set the calendar default privacy as the same as Default User Template when defined."""
         default_privacy = self._default_user_calendar_default_privacy()
-        # Update the dictionaries in vals_list with the calendar default privacy.
         for vals_dict in vals_list:
             if not vals_dict.get("calendar_default_privacy"):
                 vals_dict.update(calendar_default_privacy=default_privacy)
@@ -93,7 +116,6 @@ class ResUsers(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        """Forbid the calendar default privacy update from different users for keeping private events secured."""
         privacy_update = "calendar_default_privacy" in vals
         if privacy_update and self != self.env.user:
             raise AccessError(
@@ -101,16 +123,18 @@ class ResUsers(models.Model):
                     "You are not allowed to change the calendar default privacy of another user due to privacy constraints."
                 )
             )
-        return super().write(vals)
+        result = super().write(vals)
+        if "tz" in vals or "company_id" in vals:
+            self.env["calendar.event"].sudo().search(
+                [
+                    ("partner_ids", "in", self.partner_id.ids),
+                ]
+            )._sync_reservations()
+        return result
 
     @api.depends("res_users_settings_id.calendar_default_privacy")
     def _compute_calendar_default_privacy(self):
-        """
-        Compute the calendar default privacy of the users, pointing to its ResUsersSettings.
-        When any user doesn't have its setting from ResUsersSettings defined, fallback to Default User Template's.
-        """
         fallback_default_privacy = "public"
-        # sudo: any user has access to other users calendar_default_privacy setting
         if any(
             not user.sudo().res_users_settings_id.calendar_default_privacy
             for user in self
@@ -124,10 +148,6 @@ class ResUsers(models.Model):
             )
 
     def _inverse_calendar_default_privacy(self):
-        """
-        Updates the values of the calendar fields in 'res_users_settings_ids' to have the same values as their related
-        fields in 'res.users'. If there is no 'res.users.settings' record for the user, then the record is created.
-        """
         for user in self.filtered(lambda user: user._is_internal()):
             settings = (
                 self.env["res.users.settings"].sudo()._get_or_create_for_user(user)
@@ -140,36 +160,9 @@ class ResUsers(models.Model):
 
     @api.model
     def _get_fields_user_calendar_configuration(self) -> list[str]:
-        """Return the list of configurable fields for the user related to the res.users.settings table."""
         return ["calendar_default_privacy"]
 
     def _systray_get_calendar_event_domain(self):
-        # Determine the domain for which the users should be notified. This method sends notification to
-        # events occurring between now and the end of the day. "Now" needs to be computed in the
-        # user TZ and converted into UTC to compare with the records values and "the end of the day" needs
-        # also conversion. Otherwise TZ diverting a lot from UTC would send notification for events occurring
-        # tomorrow.
-        # The user is notified if the start is occurring between now and the end of the day
-        # if the event is not finished.
-        #   |           |
-        #   |===========|===> DAY A (`start_dt`): now in the user TZ
-        #   |           |
-        #   |           | <--- `start_dt_utc`: now is on the right if the user lives
-        #   |           |               in West Longitude (America for example)
-        #   |           |
-        #   |  -------  | <--- `start`: the start of the event (in UTC)
-        #   | | event | |
-        #   |  -------  | <--- `stop`: the stop of the event (in UTC)
-        #   |           |
-        #   |           |
-        #   |           | <--- `stop_dt_utc` = `stop_dt` if user lives in an area of East longitude (positive shift compared to UTC, Belgium for example)
-        #   |           |
-        #   |           |
-        #   |-----------| <--- `stop_dt` = end of the day for DAY A from user point of view (23:59 in this TZ)
-        #   |===========|===> DAY B
-        #   |           |
-        #   |           | <--- `stop_dt_utc` = `stop_dt` if user lives in an area of West longitude (positive shift compared to UTC, America for example)
-        #   |           |
         start_dt_utc = start_dt = datetime.datetime.now(UTC)
         stop_dt_utc = datetime.datetime.combine(
             start_dt_utc.date(), datetime.time.max
@@ -241,9 +234,4 @@ class ResUsers(models.Model):
         return {}
 
     def _has_any_active_synchronization(self):
-        """
-        Overridable method for checking if user has any synchronization active in inherited modules.
-
-        :return: boolean indicating if any synchronization is active.
-        """
         return False
